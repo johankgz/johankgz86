@@ -720,6 +720,22 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
   </div>
 
   <div class="block">
+    <h2>Amortissement sur 10 ans</h2>
+    <p class="legend">L'installation évite d'acheter l'électricité qu'elle produit et que le foyer consomme sur place. Le prix du kWh monte chaque année de l'inflation indiquée.</p>
+    <div class="grid2">
+      <label class="f"><span>Prix du kWh acheté (€)</span>
+        <input type="number" id="v_prixKwh" inputmode="decimal" min="0" step="0.001" placeholder="0,25"></label>
+      <label class="f"><span>Prix de l'installation (€ TTC)</span>
+        <input type="number" id="v_coutInstall" inputmode="numeric" min="0" step="100" placeholder="12000"></label>
+      <label class="f"><span>Rachat du surplus (€/kWh)</span>
+        <input type="number" id="v_rachat" inputmode="decimal" min="0" step="0.001" placeholder="0"></label>
+      <label class="f"><span>Inflation de l'électricité (% par an)</span>
+        <input type="number" id="v_inflation" inputmode="decimal" min="0" max="20" step="0.5" placeholder="2"></label>
+    </div>
+    <div id="amortiOut"></div>
+  </div>
+
+  <div class="block">
     <h2>Batterie</h2>
     <div class="grid2">
       <label class="f"><span>Nombre de batteries</span><input type="number" id="v_nbBat" inputmode="numeric" min="0" step="1"></label>
@@ -1067,6 +1083,7 @@ function blank(){
     activeRoom:null,
     logo:null,
     pv:{actif:"non",conso:"",foyer:"",chauffage:[],exposition:[],toitureType:"",inclinaison:"",surfToit:"",masques:"",kwc:"",wc:"",pertes:"",azimut:"0",pvgis:null,simuls:[],
+        prixKwh:"", coutInstall:"", rachat:"", inflation:"",
         aerienne:null, consoMois:["","","","","","","","","","","",""],
         irve:{actif:false,type:"",puissance:"",raccordement:"",delestage:"",badge:"",nbBadges:"",pied:"",longueur:"",note:"",photos:[]},
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
@@ -1147,6 +1164,7 @@ var FIELDS = [
   ["v_conso","pv.conso"],["v_foyer","pv.foyer"],["v_inclinaison2","pv.inclinaison"],["v_kwc","pv.kwc"],["v_wc","pv.wc"],["v_pertes","pv.pertes"],["v_azimut","pv.azimut"],["v_surfToit","pv.surfToit"],
   ["v_masques","pv.masques"],["v_coffret","pv.coffret"],["v_lgTgbt","pv.lgTgbt"],["v_nbBat","pv.nbBat"],
   ["v_lgBat","pv.lgBat"],["v_empBat","pv.empBat"],
+  ["v_prixKwh","pv.prixKwh"],["v_coutInstall","pv.coutInstall"],["v_rachat","pv.rachat"],["v_inflation","pv.inflation"],
   ["l_occup_note","logistique.occupNote"],["l_code","logistique.code"],["l_etage","logistique.etage"],
   ["l_toiture","logistique.toiture"],["l_contraintes","logistique.contraintes"],
   ["k_conclusion","conclusion.synthese"],["k_points","conclusion.points"]
@@ -1160,6 +1178,7 @@ function bindFields(){
     el.addEventListener("input", function(){
       setPath(f[1], el.value); save(); refreshHeader();
       if(f[0]==="v_conso"){ paintPvgis(); try{ paintCompa(); }catch(e){} }
+      if(f[0].indexOf("v_")===0){ try{ paintAmorti(); }catch(e){} }
     });
   });
   document.querySelectorAll("[data-single]").forEach(function(box){
@@ -1285,6 +1304,7 @@ function paintForm(){
   paintAir();
   paintMois();
   paintCompa();
+  paintAmorti();
   paintIrve();
   if(P) paintLogo();
   refreshHeader();
@@ -2255,7 +2275,7 @@ function paintMois(){
     inp.type="number"; inp.inputMode="numeric"; inp.min="0"; inp.placeholder="kWh";
     inp.value=S.pv.consoMois[i]||"";
     inp.addEventListener("input", function(){
-      S.pv.consoMois[i]=inp.value; save(); paintCompa();
+      S.pv.consoMois[i]=inp.value; save(); paintCompa(); try{ paintAmorti(); }catch(e){}
     });
     lab.appendChild(sp); lab.appendChild(inp);
     host.appendChild(lab);
@@ -2615,6 +2635,7 @@ function handlePvgis(d, a){
 function paintPvgis(){
   var g=S.pv.pvgis, out=$("pvgisOut");
   try{ paintCompa(); }catch(e){}
+  try{ paintAmorti(); }catch(e){}
   if(!g){ out.hidden=true; out.textContent=""; return; }
   var conso=parseFloat((S.pv.conso||"").toString().replace(",","."));
   var couv = (isFinite(conso)&&conso>0) ? Math.round(g.ey/conso*100) : null;
@@ -2967,6 +2988,121 @@ function conseilPv(){
   return {conso:conso, unitaire:Math.round(u), batterie:batterie,
           juste:pour(0.35), large:pour(0.60)};
 }
+/* ================= amortissement sur 10 ans ================= */
+var INFLATION_DEFAUT = 2;
+function nombrePv(v){
+  var n = parseFloat(String(v==null ? "" : v).replace(",", "."));
+  return isFinite(n) ? n : 0;
+}
+function euros(n){ return Math.round(n).toLocaleString("fr-FR") + " \u20AC"; }
+function baseProduction(){
+  /* ce que l'installation rapporte chaque année : l'électricité non achetée, et le surplus vendu */
+  var c=null;
+  try{ c = comparaison(); }catch(e){ c = null; }
+  if(c) return {auto:c.totalAuto, surplus:c.surplus, prod:c.totalProd,
+                source:"les douze mois relevés et la simulation PVGIS"};
+  var g = S.pv.pvgis, conso = nombrePv(S.pv.conso);
+  if(g && g.ey > 0 && conso > 0){
+    var batterie = (parseInt(S.pv.nbBat,10)||0) > 0;
+    var taux = tauxAutoconso(g.ey/conso, batterie);
+    var auto = g.ey*taux/100;
+    return {auto:auto, surplus:g.ey-auto, prod:g.ey, taux:Math.round(taux),
+            source:"la simulation PVGIS et la consommation annuelle"};
+  }
+  return null;
+}
+function amortissement(){
+  var prix = nombrePv(S.pv.prixKwh), cout = nombrePv(S.pv.coutInstall), rachat = nombrePv(S.pv.rachat);
+  var infl = String(S.pv.inflation == null ? "" : S.pv.inflation).trim() === ""
+    ? INFLATION_DEFAUT : nombrePv(S.pv.inflation);
+  var base = baseProduction();
+  if(!base || prix <= 0 || cout <= 0) return null;
+  var lignes=[], cumul=0, mois=null;
+  for(var n=1; n<=10; n++){
+    var p = prix*Math.pow(1+infl/100, n-1);
+    var eco = base.auto*p, revente = base.surplus*rachat, gain = eco+revente;
+    var avant = cumul;
+    cumul += gain;
+    if(mois === null && cumul >= cout && gain > 0){
+      mois = (n-1)*12 + Math.ceil((cout-avant)/gain*12);
+    }
+    lignes.push({an:n, prix:p, eco:eco, revente:revente, gain:gain,
+                 cumul:cumul, reste:Math.max(0, cout-cumul)});
+  }
+  return {lignes:lignes, cout:cout, prix:prix, infl:infl, rachat:rachat,
+          base:base, mois:mois, cumul:cumul};
+}
+function dureeEnClair(mois){
+  var a=Math.floor(mois/12), m=mois%12;
+  if(!a) return m + " mois";
+  return a + " an" + (a>1 ? "s" : "") + (m ? " et " + m + " mois" : "");
+}
+function paintAmorti(){
+  var host=$("amortiOut"); if(!host) return;
+  host.textContent="";
+  var A=amortissement();
+  if(!A){
+    var manque=[];
+    if(!baseProduction()) manque.push("la production : lancez la simulation PVGIS et renseignez la consommation annuelle");
+    if(nombrePv(S.pv.prixKwh) <= 0) manque.push("le prix du kWh acheté");
+    if(nombrePv(S.pv.coutInstall) <= 0) manque.push("le prix de l'installation");
+    var p=document.createElement("p"); p.className="hint"; p.style.margin="0";
+    p.textContent = "Il manque " + manque.join(", ") + ".";
+    host.appendChild(p);
+    return;
+  }
+
+  var carte=document.createElement("div"); carte.className="pvres";
+  var top=document.createElement("div"); top.className="top";
+  var solde=A.cumul-A.cout;
+  [[A.mois ? dureeEnClair(A.mois) : "plus de 10 ans", "pour rembourser l'installation"],
+   [euros(A.lignes[0].gain), "gagnés la première année"],
+   [euros(A.cumul), "gagnés en dix ans"],
+   [(solde >= 0 ? "+ " : "") + euros(solde), solde >= 0 ? "de mieux que l'installation" : "restant à amortir"]
+  ].forEach(function(x){
+    var cell=document.createElement("div"); cell.className="cell";
+    var b=document.createElement("b"); b.textContent=x[0];
+    var sp=document.createElement("span"); sp.textContent=x[1];
+    cell.appendChild(b); cell.appendChild(sp); top.appendChild(cell);
+  });
+  carte.appendChild(top);
+  host.appendChild(carte);
+
+  var tbl=document.createElement("div");
+  tbl.style.cssText="margin-top:12px";
+  function ligne(a, b, c, d, tete){
+    var r=document.createElement("div");
+    r.style.cssText="display:flex;gap:8px;padding:7px 2px;border-bottom:1px solid var(--rule);"
+      + "font-size:13.5px;font-variant-numeric:tabular-nums"
+      + (tete ? ";font-weight:700;color:var(--ink-2);font-size:12px;text-transform:uppercase;letter-spacing:.04em" : "");
+    [[a,"flex:0 0 58px"],[b,"flex:1;text-align:right"],[c,"flex:1;text-align:right"],[d,"flex:1;text-align:right"]]
+      .forEach(function(x){
+        var sp=document.createElement("span"); sp.style.cssText=x[1]; sp.textContent=x[0];
+        r.appendChild(sp);
+      });
+    return r;
+  }
+  tbl.appendChild(ligne("Année", "Prix kWh", "Gain", "Cumul", true));
+  A.lignes.forEach(function(l){
+    var r=ligne("An " + l.an, l.prix.toFixed(3).replace(".", ",") + " \u20AC",
+                euros(l.gain), euros(l.cumul));
+    if(A.mois && l.an === Math.ceil(A.mois/12)) r.style.background="var(--solar-soft)";
+    tbl.appendChild(r);
+  });
+  host.appendChild(tbl);
+
+  var note=document.createElement("p");
+  note.className="hint"; note.style.margin="10px 0 0";
+  note.textContent = "Calcul sur " + Math.round(A.base.auto).toLocaleString("fr-FR")
+    + " kWh autoconsommés par an, d'après " + A.base.source
+    + (A.rachat > 0 ? ", et " + Math.round(A.base.surplus).toLocaleString("fr-FR")
+        + " kWh de surplus vendus " + String(A.rachat).replace(".", ",") + " \u20AC le kWh" : "")
+    + ". Le prix d'achat monte de " + String(A.infl).replace(".", ",")
+    + " % par an" + (A.rachat > 0 ? ", le tarif de rachat reste celui du contrat" : "")
+    + ". Production et consommation sont supposées stables.";
+  host.appendChild(note);
+}
+
 function paintConseil(){
   var host=$("conseilPv"); if(!host) return;
   host.textContent="";
@@ -3710,6 +3846,67 @@ function buildPdf(){
       setText(INK); y+=22;
       kv("Consommation annuelle relevée", nb(CP.totalConso)+" kWh");
       kv("Production annuelle estimée", nb(V.pvgis.ey)+" kWh");
+    }
+
+    var AM = null;
+    try{ AM = amortissement(); }catch(e){ AM = null; }
+    if(AM){
+      if(y + 120 > PH-22) newPage();
+      y+=1.5; sousTitre("Amortissement de l'installation");
+      need(26);
+      setFill(SOL_BG); doc.roundedRect(M, y, CW, 20, 0.8, 0.8, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(19); setText(SOL);
+      doc.text(AM.mois ? dureeEnClair(AM.mois) : "plus de 10 ans", M+7, y+11);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
+      doc.text("pour rembourser l'installation", M+7, y+16);
+      doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
+      doc.text(nb(AM.cout)+" \u20AC", PW-M-7, y+9, {align:"right"});
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
+      doc.text("prix de l'installation", PW-M-7, y+15, {align:"right"});
+      setText(INK); y+=25;
+
+      bloc(null, [
+        ["Prix du kWh acheté", String(AM.prix).replace(".",",")+" \u20AC"],
+        ["Inflation retenue", String(AM.infl).replace(".",",")+" % par an"],
+        ["Électricité autoconsommée", nb(AM.base.auto)+" kWh par an"],
+        ["Rachat du surplus", AM.rachat>0
+          ? String(AM.rachat).replace(".",",")+" \u20AC le kWh  (" + nb(AM.base.surplus) + " kWh)" : ""],
+        ["Gain la première année", nb(AM.lignes[0].gain)+" \u20AC"],
+        ["Gain cumulé sur 10 ans", nb(AM.cumul)+" \u20AC"]
+      ]);
+
+      need(20);
+      setFill([244,241,234]); doc.roundedRect(M, y, CW, 8, 0.8, 0.8, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(GREY);
+      var colsAm=[["Année", M+4, "left"], ["Prix du kWh", M+CW*0.42, "right"],
+                  ["Gain de l'année", M+CW*0.66, "right"], ["Cumul", M+CW*0.86, "right"],
+                  ["Reste", PW-M-4, "right"]];
+      colsAm.forEach(function(c){ doc.text(c[0], c[1], y+5.4, {align:c[2]}); });
+      setText(INK); y+=11;
+      AM.lignes.forEach(function(l){
+        need(8);
+        var paye = AM.mois && l.an === Math.ceil(AM.mois/12);
+        if(paye){ setFill(SOL_BG); doc.rect(M, y-4.2, CW, 6.6, "F"); }
+        doc.setFont("helvetica", paye ? "bold" : "normal"); doc.setFontSize(9);
+        setText(paye ? SOL : INK);
+        doc.text("An "+l.an, M+4, y);
+        setText(INK); doc.setFont("helvetica","normal");
+        doc.text(l.prix.toFixed(3).replace(".",",")+" \u20AC", M+CW*0.42, y, {align:"right"});
+        doc.text(nb(l.gain)+" \u20AC", M+CW*0.66, y, {align:"right"});
+        doc.text(nb(l.cumul)+" \u20AC", M+CW*0.86, y, {align:"right"});
+        doc.text(l.reste>0 ? nb(l.reste)+" \u20AC" : "amorti", PW-M-4, y, {align:"right"});
+        setFill(LIGHT); doc.rect(M, y+2, CW, 0.25, "F");
+        y+=7;
+      });
+      y+=2;
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+      var noteAm = doc.splitTextToSize("Calcul d'ordre indicatif, sur " + nb(AM.base.auto)
+        + " kWh autoconsommés par an d'après " + AM.base.source
+        + ". Le prix d'achat de l'électricité progresse de " + String(AM.infl).replace(".",",")
+        + " % par an" + (AM.rachat>0 ? ", le tarif de rachat reste celui du contrat" : "")
+        + ". Production et consommation sont supposées stables, hors aides et entretien.", CW);
+      noteAm.forEach(function(t){ need(6); doc.text(t, M, y); y+=3.8; });
+      setText(INK); y+=4;
     }
 
     bloc("Branchement", [
