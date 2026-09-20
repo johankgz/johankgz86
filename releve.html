@@ -731,7 +731,10 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
         <input type="number" id="v_rachat" inputmode="decimal" min="0" step="0.001" placeholder="0"></label>
       <label class="f"><span>Inflation de l'électricité (% par an)</span>
         <input type="number" id="v_inflation" inputmode="decimal" min="0" max="20" step="0.5" placeholder="2"></label>
+      <label class="f"><span>Taux d'autoconsommation (%)</span>
+        <input type="number" id="v_tauxAuto" inputmode="numeric" min="1" max="100" step="1"></label>
     </div>
+    <p class="hint" style="margin:-4px 0 12px">Seule l'électricité produite et consommée sur place se soustrait de la facture. Le taux est estimé pour ce site ; forcez-le si vous connaissez les habitudes du foyer, une piscine, une voiture rechargée le jour.</p>
     <div id="amortiOut"></div>
   </div>
 
@@ -1083,7 +1086,7 @@ function blank(){
     activeRoom:null,
     logo:null,
     pv:{actif:"non",conso:"",foyer:"",chauffage:[],exposition:[],toitureType:"",inclinaison:"",surfToit:"",masques:"",kwc:"",wc:"",pertes:"",azimut:"0",pvgis:null,simuls:[],
-        prixKwh:"", coutInstall:"", rachat:"", inflation:"",
+        prixKwh:"", coutInstall:"", rachat:"", inflation:"", tauxAuto:"",
         aerienne:null, consoMois:["","","","","","","","","","","",""],
         irve:{actif:false,type:"",puissance:"",raccordement:"",delestage:"",badge:"",nbBadges:"",pied:"",longueur:"",note:"",photos:[]},
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
@@ -1164,7 +1167,8 @@ var FIELDS = [
   ["v_conso","pv.conso"],["v_foyer","pv.foyer"],["v_inclinaison2","pv.inclinaison"],["v_kwc","pv.kwc"],["v_wc","pv.wc"],["v_pertes","pv.pertes"],["v_azimut","pv.azimut"],["v_surfToit","pv.surfToit"],
   ["v_masques","pv.masques"],["v_coffret","pv.coffret"],["v_lgTgbt","pv.lgTgbt"],["v_nbBat","pv.nbBat"],
   ["v_lgBat","pv.lgBat"],["v_empBat","pv.empBat"],
-  ["v_prixKwh","pv.prixKwh"],["v_coutInstall","pv.coutInstall"],["v_rachat","pv.rachat"],["v_inflation","pv.inflation"],
+  ["v_prixKwh","pv.prixKwh"],["v_coutInstall","pv.coutInstall"],["v_rachat","pv.rachat"],
+  ["v_inflation","pv.inflation"],["v_tauxAuto","pv.tauxAuto"],
   ["l_occup_note","logistique.occupNote"],["l_code","logistique.code"],["l_etage","logistique.etage"],
   ["l_toiture","logistique.toiture"],["l_contraintes","logistique.contraintes"],
   ["k_conclusion","conclusion.synthese"],["k_points","conclusion.points"]
@@ -2995,21 +2999,31 @@ function nombrePv(v){
   return isFinite(n) ? n : 0;
 }
 function euros(n){ return Math.round(n).toLocaleString("fr-FR") + " \u20AC"; }
+function consoAnnuelle(){
+  var c = nombrePv(S.pv.conso);
+  if(c > 0) return c;
+  /* à défaut, le total des douze mois relevés */
+  var mois = (S.pv.consoMois||[]).filter(function(v){ return v!=="" && v!=null; });
+  if(mois.length !== 12) return 0;
+  return mois.reduce(function(t, v){ return t + Math.max(0, nombrePv(v)); }, 0);
+}
 function baseProduction(){
-  /* ce que l'installation rapporte chaque année : l'électricité non achetée, et le surplus vendu */
-  var c=null;
-  try{ c = comparaison(); }catch(e){ c = null; }
-  if(c) return {auto:c.totalAuto, surplus:c.surplus, prod:c.totalProd,
-                source:"les douze mois relevés et la simulation PVGIS"};
-  var g = S.pv.pvgis, conso = nombrePv(S.pv.conso);
-  if(g && g.ey > 0 && conso > 0){
-    var batterie = (parseInt(S.pv.nbBat,10)||0) > 0;
-    var taux = tauxAutoconso(g.ey/conso, batterie);
-    var auto = g.ey*taux/100;
-    return {auto:auto, surplus:g.ey-auto, prod:g.ey, taux:Math.round(taux),
-            source:"la simulation PVGIS et la consommation annuelle"};
-  }
-  return null;
+  /* ce que l'installation rapporte chaque année : l'électricité non achetée, et le surplus vendu.
+     Seule la part consommée sur place se soustrait de la facture. Elle s'estime avec le taux
+     d'autoconsommation du site : comparer les totaux mensuels ne dit rien de la concordance
+     heure par heure, le solaire produisant à midi et le foyer consommant surtout le soir. */
+  var g = S.pv.pvgis, conso = consoAnnuelle();
+  if(!g || !(g.ey > 0) || !(conso > 0)) return null;
+  var batterie = (parseInt(S.pv.nbBat,10)||0) > 0;
+  var estime = tauxAutoconso(g.ey/conso, batterie);
+  var saisi = nombrePv(S.pv.tauxAuto);
+  var force = String(S.pv.tauxAuto == null ? "" : S.pv.tauxAuto).trim() !== "" && saisi > 0;
+  var taux = Math.min(100, force ? saisi : estime);
+  var auto = Math.min(conso, g.ey*taux/100);
+  return {auto:auto, surplus:Math.max(0, g.ey-auto), prod:g.ey, conso:conso,
+          taux:Math.round(taux), estime:Math.round(estime), force:force,
+          source: force ? "le taux d'autoconsommation que vous avez fixé"
+                        : "le taux d'autoconsommation estimé pour ce site"};
 }
 function amortissement(){
   var prix = nombrePv(S.pv.prixKwh), cout = nombrePv(S.pv.coutInstall), rachat = nombrePv(S.pv.rachat);
@@ -3040,6 +3054,9 @@ function dureeEnClair(mois){
 function paintAmorti(){
   var host=$("amortiOut"); if(!host) return;
   host.textContent="";
+  /* le champ du taux propose l'estimation du site tant qu'on ne le force pas */
+  var champTaux=$("v_tauxAuto"), b0=baseProduction();
+  if(champTaux) champTaux.placeholder = b0 ? String(b0.estime) : "estimé";
   var A=amortissement();
   if(!A){
     var manque=[];
@@ -3094,7 +3111,8 @@ function paintAmorti(){
   var note=document.createElement("p");
   note.className="hint"; note.style.margin="10px 0 0";
   note.textContent = "Calcul sur " + Math.round(A.base.auto).toLocaleString("fr-FR")
-    + " kWh autoconsommés par an, d'après " + A.base.source
+    + " kWh consommés sur place par an, soit " + A.base.taux + " % des "
+    + Math.round(A.base.prod).toLocaleString("fr-FR") + " kWh produits, d'après " + A.base.source
     + (A.rachat > 0 ? ", et " + Math.round(A.base.surplus).toLocaleString("fr-FR")
         + " kWh de surplus vendus " + String(A.rachat).replace(".", ",") + " \u20AC le kWh" : "")
     + ". Le prix d'achat monte de " + String(A.infl).replace(".", ",")
@@ -3868,7 +3886,7 @@ function buildPdf(){
       bloc(null, [
         ["Prix du kWh acheté", String(AM.prix).replace(".",",")+" \u20AC"],
         ["Inflation retenue", String(AM.infl).replace(".",",")+" % par an"],
-        ["Électricité autoconsommée", nb(AM.base.auto)+" kWh par an"],
+        ["Électricité consommée sur place", nb(AM.base.auto)+" kWh par an  ("+AM.base.taux+" % du produit)"],
         ["Rachat du surplus", AM.rachat>0
           ? String(AM.rachat).replace(".",",")+" \u20AC le kWh  (" + nb(AM.base.surplus) + " kWh)" : ""],
         ["Gain la première année", nb(AM.lignes[0].gain)+" \u20AC"],
@@ -3900,8 +3918,9 @@ function buildPdf(){
       });
       y+=2;
       doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      var noteAm = doc.splitTextToSize("Calcul d'ordre indicatif, sur " + nb(AM.base.auto)
-        + " kWh autoconsommés par an d'après " + AM.base.source
+      var noteAm = doc.splitTextToSize("Calcul d'ordre indicatif. Seule l'électricité produite et "
+        + "consommée sur place se soustrait de la facture, soit " + nb(AM.base.auto) + " kWh par an, "
+        + AM.base.taux + " % des " + nb(AM.base.prod) + " kWh produits, d'après " + AM.base.source
         + ". Le prix d'achat de l'électricité progresse de " + String(AM.infl).replace(".",",")
         + " % par an" + (AM.rachat>0 ? ", le tarif de rachat reste celui du contrat" : "")
         + ". Production et consommation sont supposées stables, hors aides et entretien.", CW);
