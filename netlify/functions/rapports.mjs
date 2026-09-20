@@ -28,6 +28,8 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
     : entree.type === "suivi" ? "Suivi de chantier" + (entree.visite ? " — visite n° " + entree.visite : "")
     : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
+    : entree.type === "carnet" ? "Carnet d'échantillons"
+    : entree.type === "memoire" ? "Mémoire technique"
     : "Relevé technique";
   const titre = chantier.client || chantier.ref;
   const lien = origine + "/rapports.html";
@@ -161,10 +163,11 @@ function jetonAvecDate(code, id, mdp) {
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
    propriétaire gardent tout, quoi qu'on leur attribue. */
-const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos"];
+const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet"];
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
-  autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos"
+  autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
+  carnet: "carnet", memoire: "carnet"
 };
 function applisValides(liste) {
   if (!Array.isArray(liste)) return [];
@@ -278,6 +281,8 @@ function rang(f) {
   if (f.type === "photos") return 2000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "carnet") return 800 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "memoire") return 900 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reception") return 3000;
   if (f.type === "etiquettes") return 2500;
   if (f.type === "sav") return 1500 + Number(new Date(f.publie || 0)) / 1e10;
@@ -481,6 +486,8 @@ export default async (req) => {
     const sav = d.type === "sav";
     const reportage = d.type === "reportage";
     const autocontrole = d.type === "autocontrole";
+    const carnet = d.type === "carnet";
+    const memoire = d.type === "memoire";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
     const appliVisee = APPLI_DU_TYPE[d.type] || "";
@@ -491,7 +498,7 @@ export default async (req) => {
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -507,7 +514,10 @@ export default async (req) => {
     }
     /* un relevé technique remplace le précédent ; un suivi crée une version par visite */
     /* commande : une par jour et par personne ; suivi : une par visite ; relevé : une seule */
-    const nomFichier = autocontrole
+    const nomFichier = (carnet || memoire)
+      ? (carnet ? "carnet-echantillons-" : "memoire-technique-")
+        + slug(d.visite || d.date || new Date().toISOString().slice(0, 10)) + ".pdf"
+      : autocontrole
       ? "autocontrole-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : sav
       ? "sav-" + slug(d.date || new Date().toISOString().slice(0,10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
@@ -541,8 +551,8 @@ export default async (req) => {
     }
     const entree = {
       cle,
-      titre: d.titre || (autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (carnet ? "Carnet d'échantillons" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: carnet ? "carnet" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || new Date().toISOString().slice(0, 10),
