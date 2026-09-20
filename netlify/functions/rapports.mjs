@@ -1,4 +1,4 @@
-import { getStore } from "@netlify/blobs";
+import { getStore } from "./magasin.mjs";
 import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 
