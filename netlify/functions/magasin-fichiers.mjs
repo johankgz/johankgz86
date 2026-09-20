@@ -18,7 +18,8 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 
-const RACINE = process.env.DONNEES_DOSSIER || "./donnees";
+/* chemin absolu : le dossier de travail change d'un hébergeur à l'autre */
+const RACINE = path.resolve(process.env.DONNEES_DOSSIER || "./donnees");
 
 /* une clé ne sort jamais de son magasin */
 function chemin(magasin, cle) {
@@ -35,7 +36,8 @@ function cleDepuisChemin(magasin, fichier) {
 
 /* écriture en deux temps : un fichier à moitié écrit ne remplace jamais l'ancien */
 async function ecrire(fichier, contenu) {
-  await fs.mkdir(path.dirname(fichier), { recursive: true });
+  /* 700 : sur un hébergement partagé, les données ne regardent que nous */
+  await fs.mkdir(path.dirname(fichier), { recursive: true, mode: 0o700 });
   const provisoire = fichier + ".en-cours-" + process.pid + "-" + Date.now();
   await fs.writeFile(provisoire, contenu);
   await fs.rename(provisoire, fichier);

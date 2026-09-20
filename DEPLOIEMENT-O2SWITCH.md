@@ -1,0 +1,174 @@
+# Mettre le site sur o2switch
+
+o2switch est un hébergement mutualisé avec cPanel. Le site y tourne en
+entier — pages, API, base de données sur fichiers — à condition que
+votre offre propose **Node.js version 20 ou plus**.
+
+**À vérifier en premier.** Connectez-vous à cPanel et cherchez, dans la
+barre de recherche du tableau de bord, « Node ». Si **Setup Node.js
+App** apparaît, tout ce qui suit s'applique. Sinon, voyez le dernier
+chapitre.
+
+Comptez une demi-heure la première fois.
+
+---
+
+## 1. Poser le code sur le serveur
+
+Deux façons, au choix.
+
+### Par Git — recommandé, les mises à jour se font ensuite en deux clics
+
+1. cPanel → **Git™ Version Control** → **Create**.
+2. Cochez *Clone a Repository*.
+3. Clone URL : `https://github.com/johankgz/johankgz86.git`
+4. Repository Path : `outils` (le dossier sera `/home/VOTRECOMPTE/outils`).
+5. Branche : celle que vous voulez mettre en ligne.
+6. **Create**.
+
+Plus tard, pour publier une modification : la même page → **Manage** →
+**Update from Remote** → puis **Restart** dans Setup Node.js App.
+
+### Par fichier ZIP — si vous préférez ne pas toucher à Git
+
+1. cPanel → **Gestionnaire de fichiers** → allez dans `/home/VOTRECOMPTE`.
+2. **Téléverser** l'archive du site, puis clic droit → **Extraire**.
+3. Renommez le dossier obtenu en `outils`.
+
+---
+
+## 2. Créer l'application Node
+
+cPanel → **Setup Node.js App** → **Create Application**.
+
+| Champ | Valeur |
+|---|---|
+| Node.js version | la plus élevée proposée, **20 minimum** |
+| Application mode | `Production` |
+| Application root | `outils` |
+| Application URL | votre domaine ou un sous-domaine, par exemple `outils.tlenergies.com` |
+| Application startup file | `app.js` — si cPanel le refuse, mettez `app.cjs` |
+
+**Create**, puis restez sur la page.
+
+### Les variables d'environnement
+
+Sur la même page, section **Environment variables**, ajoutez :
+
+| Nom | Valeur |
+|---|---|
+| `DONNEES_DOSSIER` | `/home/VOTRECOMPTE/outils-donnees` |
+| `RESEND_API_KEY` | votre clé Resend, si vous voulez les e-mails de publication |
+| `EXPEDITEUR` | `Outils de travaux <contact@votredomaine.fr>` |
+
+`PORT` est fourni par l'hébergeur : ne le renseignez pas.
+
+Le dossier des données est **en dehors** du dossier du site, exprès :
+personne ne peut télécharger un PDF ou la liste des comptes en tapant
+son adresse. Si vous ne mettez pas la variable, le site le crée tout
+seul au même endroit.
+
+### Installer la dépendance
+
+Toujours sur la même page, bouton **Run NPM Install**. Une seule
+dépendance à installer, c'est l'affaire de quelques secondes.
+
+Puis **RESTART**.
+
+Ouvrez l'adresse de l'application : la page de connexion doit
+apparaître. Les comptes de départ sont ceux de
+`netlify/functions/equipe.mjs` — société `tle`, identifiant `johan`.
+
+### Par le Terminal, si vous préférez
+
+o2switch donne un terminal (cPanel → **Terminal**). Après avoir créé
+l'application, la page affiche une ligne « Enter to the virtual
+environment » : copiez-la, collez-la dans le terminal, puis :
+
+```bash
+cd ~/outils
+bash outils/installer-o2switch.sh
+```
+
+Le script installe, prépare le dossier des données et affiche les
+valeurs à recopier dans le formulaire.
+
+---
+
+## 3. HTTPS
+
+o2switch installe un certificat Let's Encrypt automatiquement (AutoSSL)
+sur les domaines et sous-domaines du compte. Vérifiez dans cPanel →
+**SSL/TLS Status** que votre adresse est bien couverte, et que
+`https://` fonctionne.
+
+Ce n'est pas un détail de confort : **sans HTTPS**, le téléphone refuse
+la géolocalisation (bouton Position du SAV et du relevé) et
+l'installation sur l'écran d'accueil.
+
+---
+
+## 4. Reprendre les données déjà sur Netlify
+
+À faire une fois, quand le site répond sur o2switch.
+
+1. Sur netlify.com, relevez le **Site ID** (`Site configuration` →
+   `General`) et créez un jeton (votre avatar → `User settings` →
+   `Applications` → `Personal access tokens`).
+2. Dans le Terminal cPanel, après être entré dans l'environnement
+   virtuel :
+
+```bash
+cd ~/outils
+NETLIFY_SITE_ID=xxx NETLIFY_AUTH_TOKEN=yyy DONNEES_DOSSIER=~/outils-donnees npm run export-netlify
+```
+
+3. **RESTART** dans Setup Node.js App.
+
+Tous les dossiers, documents, comptes et listes sont là. Rien n'est
+modifié chez Netlify : le script ne fait que lire, et vous pouvez
+laisser l'ancien site en service le temps de vérifier.
+
+Si le terminal n'est pas disponible, lancez la même commande depuis
+votre ordinateur (Node 20 requis), puis téléversez le dossier `donnees`
+obtenu dans `/home/VOTRECOMPTE/outils-donnees`.
+
+---
+
+## 5. Au quotidien
+
+**Publier une modification** : cPanel → Git Version Control → *Update
+from Remote*, puis *Restart*. Si le changement ne touche que des pages
+`.html`, le redémarrage n'est même pas nécessaire.
+
+**Sauvegarder** : tout tient dans `/home/VOTRECOMPTE/outils-donnees`.
+o2switch garde ses propres sauvegardes (JetBackup), mais une copie à
+vous ne coûte rien :
+
+```bash
+tar czf ~/sauvegarde-outils-$(date +%F).tar.gz -C ~/outils-donnees .
+```
+
+Téléchargez l'archive de temps en temps. Restaurer, c'est remettre le
+dossier en place et redémarrer.
+
+**Si le site ne répond plus** : Setup Node.js App → *Restart*. Le
+journal des erreurs est dans `~/outils/stderr.log` ou dans la section
+*Errors* de cPanel.
+
+---
+
+## 6. Si votre offre n'a pas Node.js
+
+Le site a besoin d'un serveur pour son API : les pages seules ne
+suffisent pas. Trois issues, de la plus simple à la plus lourde :
+
+1. **Demander à o2switch.** Le support répond vite et Node fait partie
+   de leur offre ; il s'agit souvent d'une case à activer.
+2. **Garder l'API ailleurs.** Les pages sur o2switch, l'API sur Netlify
+   ou un petit serveur. Il faut alors un renvoi `/api/*` vers l'autre
+   adresse — quelques lignes de `.htaccess` que je peux écrire.
+3. **Changer d'hébergeur pour cette application.** Voir `DEPLOIEMENT.md`
+   pour Render, Railway, Fly ou un VPS.
+
+Dites-moi ce que vous trouvez dans votre cPanel, et je fais le reste.
