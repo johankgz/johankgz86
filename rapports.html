@@ -1,0 +1,1220 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Mes rapports</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--field:#EFEBE1;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;
+ --rule:#E2DCCE;--accent:#B4621A;--accent-soft:#FBEDE0;--solar:#E8A33D;--solar-soft:#FBEDE0;
+ --shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:640px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:2px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+input{width:100%;min-height:48px;padding:12px 14px;font-size:16px;font-family:inherit;color:var(--ink);
+ background:var(--field);border:1px solid transparent;border-radius:2px}
+input:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 4px rgba(180,98,26,.16)}
+label span{display:block;font-size:13.5px;color:var(--ink-2);margin-bottom:6px}
+button{min-height:48px;padding:12px 18px;border:0;border-radius:2px;background:var(--accent);color:#fff;
+ font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+button:active{transform:scale(.975)}
+button.ghost{background:var(--accent-soft);color:var(--accent)}
+.hint{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+.err{font-size:14px;color:#A6291F;margin:10px 0 0}
+.travaux{background:var(--card);border-radius:2px;box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.travaux .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;cursor:pointer}
+.travaux .head b{flex:1;font-size:16px;letter-spacing:-.02em}
+.travaux .head .n{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.travaux .head .barre{display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:2px}
+.travaux .head .ref{font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:2px;padding:3px 8px}
+.fichiers{border-top:1px solid var(--rule);padding:6px 0}
+.f{display:flex;align-items:center;gap:12px;padding:12px 16px;text-decoration:none;color:inherit;border-bottom:1px solid var(--rule)}
+.f:last-child{border-bottom:0}
+.f .t{flex:1}
+.f .t b{display:block;font-size:15px;font-weight:600}
+.f .t span{display:block;font-size:12.5px;color:var(--ink-3)}
+.f .t span.lu{margin-top:3px;font-size:12px;font-weight:600;color:#0B7A45}
+.f .t span.lu.na{color:#8C8475;font-weight:500}
+.f .tag{font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:2px;background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.f .tag.suivi{background:var(--solar-soft);color:#7A5200}
+.f .tag.commande{background:#EDF0E4;color:#0B7A45}
+.f .tag.photos{background:#EDEAFB;color:#5B3FD6}
+.f .tag.reception{background:#EDF0E4;color:#0B7A45;font-weight:700}
+.f .tag.etiq{background:#F1F0EC;color:#6B6455}
+.f .tag.sav{background:#F8E4E0;color:#B3332C;font-weight:700}
+.vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:26px 10px}
+.hint{font-size:13px;color:var(--ink-3)}
+.actions{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--rule)}
+.actions button{min-height:40px;padding:9px 14px;border:0;border-radius:2px;font-size:13.5px;font-weight:600;
+ font-family:inherit;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
+.actions button.danger{background:#F8E4E0;color:#A6291F}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+.f .sup{flex:0 0 auto;width:32px;height:32px;min-height:32px;padding:0;margin-left:6px;border:0;
+ background:none;color:var(--ink-3);font-size:19px;line-height:1;cursor:pointer;border-radius:2px}
+.f .sup:hover,.f .sup:active{background:#F8E4E0;color:var(--danger)}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+.f .part{flex:0 0 auto;margin-left:6px;width:32px;height:32px;padding:0;border:0;background:none;
+ color:var(--ink-3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:2px}
+.f .part:active{background:var(--field);color:var(--accent)}
+
+.head .iti{margin-left:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--rule);
+ background:var(--card);color:var(--ink-2);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:2px}
+.head .iti:active{background:var(--field);color:var(--accent)}
+.head .adr{display:block;font-size:12px;color:var(--ink-3);margin-top:3px}
+
+.head .iti svg{color:var(--accent)}
+
+.restaurer{border:1px solid var(--rule);background:var(--card);padding:13px 15px;margin-bottom:16px}
+.restaurer .hint{margin:9px 0 0}
+</style>
+</head>
+<body>
+<header>
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px">
+    <div style="display:flex;align-items:center;gap:10px">
+      <a href="./index.html" style="display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:2px;background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none">Menu</a>
+      <h1>Mes rapports</h1>
+    </div>
+
+  </div>
+</header>
+<main>
+  <div class="restaurer">
+    <button class="act" id="btnRestaurer">Restaurer un dossier archivé</button>
+    <input type="file" id="fileArchive" accept=".zip,application/zip" hidden>
+    <p class="hint" id="restaurerEtat">Reprend le fichier ZIP produit par « Archiver » et remet le dossier complet sur le site.</p>
+  </div>
+  <p id="bonjour" style="margin:0 0 14px;color:var(--ink-2);font-size:14.5px"></p>
+  <input type="search" id="recherche" placeholder="Rechercher un dossier, un client…" autocapitalize="off"
+         style="margin-bottom:14px" hidden>
+  <div id="liste"></div>
+  <p class="hint" id="compteur" style="margin:14px 2px"></p>
+</main>
+<script>
+/* ---------- session expirée : retour à la connexion ---------- */
+(function(){
+  var brut = window.fetch;
+  window.fetch = function(){
+    return brut.apply(this, arguments).then(function(r){
+      if(r && r.status === 401){
+        try{
+          r.clone().json().then(function(d){
+            if(d && d.erreur && String(d.erreur).indexOf("Session") >= 0){
+              try{ localStorage.removeItem("outils:session"); }catch(e){}
+              location.replace("./index.html");
+            }
+          }).catch(function(){});
+        }catch(e){}
+      }
+      return r;
+    });
+  };
+})();
+
+var $=function(i){return document.getElementById(i);};
+var API="/api/rapports";
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+var S=session();
+if(!S || !S.jeton) location.replace("./index.html");
+
+function octets(n){ return n>1048576 ? (n/1048576).toFixed(1).replace(".",",")+" Mo" : Math.round(n/1024)+" Ko"; }
+function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+
+
+/* ---------- export des photos en ZIP (sans bibliothèque) ---------- */
+var CRC_TABLE = (function(){
+  var t=new Uint32Array(256);
+  for(var n=0;n<256;n++){
+    var c=n;
+    for(var k=0;k<8;k++) c = (c&1) ? (0xEDB88320 ^ (c>>>1)) : (c>>>1);
+    t[n]=c>>>0;
+  }
+  return t;
+})();
+function crc32(buf){
+  var c=0xFFFFFFFF;
+  for(var i=0;i<buf.length;i++) c = CRC_TABLE[(c ^ buf[i]) & 0xFF] ^ (c>>>8);
+  return (c ^ 0xFFFFFFFF)>>>0;
+}
+function b64ToBytes(b64){
+  var bin=atob(b64), out=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) out[i]=bin.charCodeAt(i);
+  return out;
+}
+function nomFichier(t){
+  return String(t||"photo").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^A-Za-z0-9 _-]+/g,"").trim().replace(/\s+/g,"-").slice(0,48) || "photo";
+}
+function creerZip(fichiers){          /* [{nom, octets}] -> Blob */
+  var enc=new TextEncoder(), morceaux=[], central=[], offset=0;
+  function u32(n){ return new Uint8Array([n&255,(n>>>8)&255,(n>>>16)&255,(n>>>24)&255]); }
+  function u16(n){ return new Uint8Array([n&255,(n>>>8)&255]); }
+  fichiers.forEach(function(f){
+    var nom=enc.encode(f.nom), data=f.octets, crc=crc32(data);
+    var entete=[
+      u32(0x04034b50), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+      u32(crc), u32(data.length), u32(data.length), u16(nom.length), u16(0), nom
+    ];
+    entete.forEach(function(p){ morceaux.push(p); });
+    morceaux.push(data);
+    central.push({nom:nom, crc:crc, taille:data.length, offset:offset});
+    offset += 30 + nom.length + data.length;
+  });
+  var debutCentral=offset, tailleCentral=0;
+  central.forEach(function(c){
+    var e=[
+      u32(0x02014b50), u16(20), u16(20), u16(0x0800), u16(0), u16(0), u16(0),
+      u32(c.crc), u32(c.taille), u32(c.taille), u16(c.nom.length),
+      u16(0), u16(0), u16(0), u16(0), u32(0), u32(c.offset), c.nom
+    ];
+    e.forEach(function(p){ morceaux.push(p); });
+    tailleCentral += 46 + c.nom.length;
+  });
+  [u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length),
+   u32(tailleCentral), u32(debutCentral), u16(0)].forEach(function(p){ morceaux.push(p); });
+  return new Blob(morceaux, {type:"application/zip"});
+}
+
+var CHANTIERS=[];
+function filtrer(){
+  var q=($("recherche").value||"").trim().toLowerCase();
+  if(!q) return CHANTIERS;
+  return CHANTIERS.filter(function(c){
+    if((c.client||"").toLowerCase().indexOf(q)>=0) return true;
+    if((c.ref||"").toLowerCase().indexOf(q)>=0) return true;
+    if((c.adresse||"").toLowerCase().indexOf(q)>=0) return true;
+    return c.fichiers.some(function(f){ return (f.titre||"").toLowerCase().indexOf(q)>=0; });
+  });
+}
+function majCompteur(n){
+  $("compteur").textContent = CHANTIERS.length
+    ? n + " dossier" + (n>1?"s":"") + " affiché" + (n>1?"s":"") + " sur " + CHANTIERS.length
+    : "";
+}
+function nomLisible(f){
+  var base=(f.titre||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^A-Za-z0-9 ]+/g,"").trim().replace(/\s+/g,"-").toLowerCase();
+  var ext = f.cle.slice(f.cle.lastIndexOf("."));
+  return (f.date||"").slice(0,10) + "-" + base + ext;
+}
+function archiver(c, bouton){
+  if(!window.confirm("Exporter tous les documents de " + (c.client||c.ref) + " ("
+    + c.fichiers.length + " document" + (c.fichiers.length>1?"s":"")
+    + "), puis le supprimer du site ?\n\nLe fichier ZIP sera téléchargé sur cet appareil. "
+    + "La suppression est définitive.")) return;
+  bouton.textContent="Export en cours…"; bouton.disabled=true;
+  var fichiers=[], manifeste=["Travaux : "+(c.client||"")+" ("+c.ref+")",
+    c.adresse||"", "Archivé le "+new Date().toLocaleString("fr-FR"), "", "Documents :"];
+  var suite=Promise.resolve();
+  c.fichiers.forEach(function(f){
+    suite=suite.then(function(){
+      return fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton))
+        .then(function(r){ if(!r.ok) throw new Error("fichier"); return r.arrayBuffer(); })
+        .then(function(buf){
+          fichiers.push({nom:c.ref+"/"+nomLisible(f), octets:new Uint8Array(buf)});
+          manifeste.push("  " + nomLisible(f) + "   " + (f.auteur||"") + "   " + octets(f.taille));
+        });
+    });
+    if(f.donnees){
+      suite=suite.then(function(){
+        return fetch(API+"?action=fiche&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton))
+          .then(function(r){ return r.ok ? r.text() : null; })
+          .then(function(txt){
+            if(!txt) return;
+            fichiers.push({nom:c.ref+"/fiches/"+nomLisible(f).replace(/\.pdf$/,".json"),
+                           octets:new TextEncoder().encode(txt)});
+          }).catch(function(){});
+      });
+    }
+  });
+  suite.then(function(){
+    fichiers.push({nom:c.ref+"/00-contenu.txt", octets:new TextEncoder().encode(manifeste.join("\n"))});
+    return fetch(API+"?action=messages&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if(d && d.messages && d.messages.length){
+          var lignes=["Discussion du chantier "+(c.client||c.ref)+" ("+c.ref+")",
+            d.messages.length+" message"+(d.messages.length>1?"s":""), ""];
+          d.messages.forEach(function(m){
+            lignes.push(m.auteur+"  "+String(m.quand).slice(0,10).split("-").reverse().join("/")
+              +" "+String(m.quand).slice(11,16));
+            if(m.texte) lignes.push("  "+m.texte.replace(/\n/g, "\n  "));
+            if(m.photo) lignes.push("  [photo jointe]");
+            lignes.push("");
+          });
+          fichiers.push({nom:c.ref+"/discussion.txt",
+            octets:new TextEncoder().encode(lignes.join("\n"))});
+        }
+        return null;
+      })
+      .catch(function(){ return null; });
+  }).then(function(){
+    var blob=creerZip(fichiers);
+    var nom="Travaux-"+c.ref+".zip";
+    var a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=nom; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+    bouton.textContent="Suppression…";
+    return new Promise(function(res){ setTimeout(res, 1200); });
+  }).then(function(){
+    if(!window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\n"
+      + "Supprimer maintenant ce dossier du site ?")){
+      bouton.textContent="Archiver"; bouton.disabled=false;
+      return null;
+    }
+    return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref),
+      {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
+        charger();
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden) charger();          /* accusés de lecture rafraîchis au retour */
+});
+window.addEventListener("focus", function(){ charger(); });
+      });
+  }).catch(function(){
+    window.alert("Export interrompu. Rien n'a été supprimé.");
+    bouton.textContent="Archiver"; bouton.disabled=false;
+  });
+}
+
+
+
+
+/* ---------- lecteur de PDF, chargé à la demande ---------- */
+var PDFJS_ETAT=null;
+function chargerPdfJs(cb){
+  if(window.pdfjsLib){ PDFJS_ETAT="ok"; cb(window.pdfjsLib); return; }
+  if(PDFJS_ETAT==="ok"){ cb(window.pdfjsLib); return; }
+  if(PDFJS_ETAT==="ko"){ cb(null); return; }
+  var sc=document.createElement("script");
+  sc.src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+  sc.onload=function(){
+    try{
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+      PDFJS_ETAT="ok"; cb(window.pdfjsLib);
+    }catch(e){ PDFJS_ETAT="ko"; cb(null); }
+  };
+  sc.onerror=function(){ PDFJS_ETAT="ko"; cb(null); };
+  document.head.appendChild(sc);
+}
+function replierIframe(corps, url, etat){
+  /* sans réseau pour le lecteur : on montre au moins le document */
+  if(etat) etat.remove();
+  corps.textContent="";
+  var cadre=document.createElement("iframe");
+  cadre.src=url;
+  cadre.style.cssText="width:100%;height:100%;border:0;background:#fff";
+  corps.appendChild(cadre);
+}
+
+
+/* ---------- restauration d'un dossier archivé ---------- */
+var TYPES_FICHIER = [
+  ["releve-technique", "releve", "Relevé technique"],
+  ["releve",           "releve", "Relevé technique"],
+  ["suivi-de-travaux", "suivi",  "Suivi de travaux"],
+  ["suivi",            "suivi",  "Suivi de travaux"],
+  ["commande",         "commande", "Commande et reste à faire"],
+  ["pv-reception",     "reception", "Procès-verbal de réception"],
+  ["reception",        "reception", "Procès-verbal de réception"],
+  ["etiquettes",       "etiquettes", "Étiquettes de tableau"],
+  ["sav",              "sav", "Intervention SAV"],
+  ["photos",           "photos", "Photos des travaux"]
+];
+function typeDeNom(nom){
+  var n=nom.toLowerCase();
+  for(var i=0;i<TYPES_FICHIER.length;i++){
+    if(n.indexOf(TYPES_FICHIER[i][0])>=0) return {type:TYPES_FICHIER[i][1], titre:TYPES_FICHIER[i][2]};
+  }
+  return {type:"releve", titre:"Document"};
+}
+function dateDeNom(nom){
+  var m=/(\d{4}-\d{2}-\d{2})/.exec(nom);
+  return m ? m[1] : new Date().toISOString().slice(0,10);
+}
+function octetsEnBase64(u8){
+  var morceau=0x8000, bouts=[];
+  for(var i=0;i<u8.length;i+=morceau){
+    bouts.push(String.fromCharCode.apply(null, u8.subarray(i, i+morceau)));
+  }
+  return btoa(bouts.join(""));
+}
+function restaurerArchive(fichier){
+  var etat=$("restaurerEtat");
+  etat.textContent="Lecture de l'archive…";
+  fichier.arrayBuffer()
+    .then(function(buf){
+      var entrees=lireArchive(new Uint8Array(buf));
+      if(!entrees.length) throw new Error("vide");
+
+      /* le nom du dossier donne la référence ; le premier fichier donne le client */
+      var ref="", client="", adresse="";
+      entrees.forEach(function(e){
+        var parts=e.nom.split("/");
+        if(parts.length>1 && !ref) ref=parts[0];
+      });
+      var contenu=entrees.filter(function(e){ return /00-contenu\.txt$/i.test(e.nom); })[0];
+      if(contenu){
+        var texte=new TextDecoder("utf-8").decode(contenu.octets);
+        var m=/Travaux\s*:\s*(.+?)\s*\(([^)]+)\)/.exec(texte);
+        if(m){ client=m[1].trim(); ref=m[2].trim() || ref; }
+        var lignes=texte.split("\n");
+        if(lignes.length>1 && lignes[1].trim() && lignes[1].indexOf("Archivé")<0) adresse=lignes[1].trim();
+      }
+      var docs=entrees.filter(function(e){ return /\.(pdf|zip)$/i.test(e.nom) && e.nom.indexOf("/fiches/")<0; });
+      var fiches={};
+      entrees.forEach(function(e){
+        if(e.nom.indexOf("/fiches/")<0 || !/\.json$/i.test(e.nom)) return;
+        fiches[e.nom.split("/fiches/")[1].replace(/\.json$/i, "")] = e.octets;
+      });
+      if(!docs.length) throw new Error("aucun document");
+      if(!client) client=ref;
+
+      if(!window.confirm("Restaurer « "+client+" » ("+ref+") ?\n\n"
+        +docs.length+" document"+(docs.length>1?"s":"")+" sera"+(docs.length>1?"ont":"")+" remis sur le site, "
+        +"attribué"+(docs.length>1?"s":"")+" à votre compte.")){ etat.textContent=""; return; }
+
+      var faits=0;
+      function suivant(i){
+        if(i>=docs.length){
+          etat.textContent = faits+" document"+(faits>1?"s":"")+" restauré"+(faits>1?"s":"")+" dans « "+client+" ».";
+          charger();
+          return;
+        }
+        var d=docs[i];
+        var base=d.nom.split("/").pop().replace(/\.(pdf|zip)$/i, "");
+        var t=typeDeNom(base);
+        etat.textContent="Restauration "+(i+1)+" sur "+docs.length+" : "+t.titre+"…";
+        fetch(API+"?action=publier", {method:"POST",
+          headers:{"Content-Type":"application/json","x-auth":S.jeton},
+          body:JSON.stringify({pdf:octetsEnBase64(d.octets), type:t.type, chantier:ref, client:client,
+            adresse:adresse, date:dateDeNom(base), destinataires:[S.nom], titre:t.titre})})
+          .then(function(r){ return r.json().then(function(x){ return {ok:r.ok, d:x}; }); })
+          .then(function(res){
+            if(!res.ok) throw new Error(res.d.erreur || "refus");
+            faits++;
+            var f=fiches[base];
+            if(!f) return null;
+            return fetch(API+"?action=deposer-fiche", {method:"POST",
+              headers:{"Content-Type":"application/json","x-auth":S.jeton},
+              body:JSON.stringify({cle:res.d.cle, donnees:new TextDecoder("utf-8").decode(f)})});
+          })
+          .then(function(){ suivant(i+1); })
+          .catch(function(e){
+            etat.textContent="Restauration interrompue : "+(e.message || "erreur")+". "
+              +faits+" document"+(faits>1?"s":"")+" repris.";
+            charger();
+          });
+      }
+      suivant(0);
+    })
+    .catch(function(e){
+      etat.textContent = e && e.message==="vide"
+        ? "Archive illisible : ce fichier n'est pas une archive de dossier."
+        : "Archive illisible ou incomplète.";
+    });
+}
+function lireArchive(octets){
+  /* nos archives sont écrites sans compression */
+  var v=new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+  var dec=new TextDecoder("utf-8");
+  var out=[], i=0;
+  while(i+30 <= octets.length){
+    if(v.getUint32(i, true) !== 0x04034b50) break;
+    var methode=v.getUint16(i+8, true);
+    var taille=v.getUint32(i+18, true);
+    var lgNom=v.getUint16(i+26, true);
+    var lgExtra=v.getUint16(i+28, true);
+    var nom=dec.decode(octets.subarray(i+30, i+30+lgNom));
+    var debut=i+30+lgNom+lgExtra;
+    if(methode===0 && taille>0) out.push({nom:nom, octets:octets.subarray(debut, debut+taille)});
+    i = debut + taille;
+  }
+  return out;
+}
+
+
+/* ---------- qui voit le dossier ---------- */
+function ouvrirAcces(c){
+  var ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
+    +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+  var feuille=document.createElement("div");
+  feuille.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
+    +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+  var h=document.createElement("h2");
+  h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px";
+  h.textContent="Qui voit ce dossier";
+  var sub=document.createElement("p"); sub.className="hint"; sub.style.margin="0 0 14px";
+  sub.textContent=(c.client||c.ref)+" — ces personnes voient tous les documents du dossier, passés et à venir.";
+  feuille.appendChild(h); feuille.appendChild(sub);
+  var hote=document.createElement("div");
+  feuille.appendChild(hote);
+  var fermer=document.createElement("button");
+  fermer.type="button"; fermer.className="act"; fermer.textContent="Fermer";
+  fermer.style.cssText="width:100%;margin-top:14px";
+  fermer.addEventListener("click", function(){ document.body.removeChild(ov); charger(); });
+  feuille.appendChild(fermer);
+  ov.appendChild(feuille);
+  ov.addEventListener("click", function(e){ if(e.target===ov){ document.body.removeChild(ov); charger(); } });
+  document.body.appendChild(ov);
+
+  hote.textContent="Chargement…";
+  fetch(API+"?action=equipe-dossier&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ hote.textContent=res.d.erreur||"Accès refusé."; return; }
+      var equipe=res.d.equipe.slice(), auteur=res.d.auteur;
+      function peindre(){
+        hote.textContent="";
+        var dedans=document.createElement("div");
+        dedans.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
+        equipe.forEach(function(nom){
+          var p=document.createElement("span");
+          p.style.cssText="display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);"
+            +"color:var(--accent);padding:7px 11px;font-size:14px;font-weight:600";
+          p.appendChild(document.createTextNode(nom));
+          if(res.d.peutModifier && nom!==auteur){
+            var x=document.createElement("button"); x.type="button"; x.textContent="×";
+            x.setAttribute("aria-label","Retirer "+nom);
+            x.style.cssText="width:22px;height:22px;min-height:22px;border:0;border-radius:50%;"
+              +"background:rgba(180,98,26,.16);color:var(--accent);font-size:15px;line-height:1;"
+              +"cursor:pointer;font-family:inherit";
+            x.addEventListener("click", function(){
+              equipe=equipe.filter(function(n){ return n!==nom; });
+              enregistrer();
+            });
+            p.appendChild(x);
+          } else if(nom===auteur){
+            var t=document.createElement("span");
+            t.style.cssText="font-size:11.5px;opacity:.6;font-weight:500";
+            t.textContent="auteur";
+            p.appendChild(t);
+          }
+          dedans.appendChild(p);
+        });
+        hote.appendChild(dedans);
+        if(!res.d.peutModifier){
+          var note=document.createElement("p"); note.className="hint"; note.style.margin="0";
+          note.textContent="Seul le bureau peut modifier les accès.";
+          hote.appendChild(note);
+          return;
+        }
+        var reste=res.d.personnes.filter(function(u){ return equipe.indexOf(u.nom)<0; });
+        if(!reste.length) return;
+        var l=document.createElement("p"); l.className="legend"; l.textContent="Ajouter";
+        hote.appendChild(l);
+        var libre=document.createElement("div");
+        libre.style.cssText="display:flex;flex-wrap:wrap;gap:7px";
+        reste.forEach(function(u){
+          var b=document.createElement("button"); b.type="button";
+          b.style.cssText="border:1px solid var(--rule);background:var(--card);padding:8px 12px;"
+            +"font-size:14px;font-family:inherit;color:var(--ink);cursor:pointer";
+          b.textContent="+ "+u.nom+(u.role==="technicien" ? "" : "  ·  bureau");
+          b.addEventListener("click", function(){ equipe.push(u.nom); enregistrer(); });
+          libre.appendChild(b);
+        });
+        hote.appendChild(libre);
+      }
+      function enregistrer(){
+        peindre();
+        fetch(API+"?action=equipe-dossier-enregistrer", {method:"POST",
+          headers:{"Content-Type":"application/json","x-auth":S.jeton},
+          body:JSON.stringify({ref:c.ref, equipe:equipe})})
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+          .then(function(res2){
+            if(!res2.ok){ alert(res2.d.erreur||"Modification refusée."); return; }
+            equipe=res2.d.equipe; peindre();
+          })
+          .catch(function(){ alert("Pas de réseau."); });
+      }
+      peindre();
+    })
+    .catch(function(){ hote.textContent="Pas de réseau."; });
+}
+
+/* ---------- discussion du dossier ---------- */
+function ouvrirDiscussion(c){
+  var vue=document.createElement("div");
+  vue.style.cssText="position:fixed;inset:0;z-index:75;background:#F7F3EA;display:flex;flex-direction:column;"
+    +"padding-top:env(safe-area-inset-top,0px)";
+  var barre=document.createElement("div");
+  barre.style.cssText="display:flex;align-items:center;gap:8px;padding:11px 13px;background:#22201C;flex:0 0 auto";
+  var t=document.createElement("span");
+  t.style.cssText="flex:1;color:#E8D9C4;font-size:13.5px;font-weight:600;overflow:hidden;"
+    +"white-space:nowrap;text-overflow:ellipsis";
+  t.textContent=(c.client||c.ref)+" · "+c.ref;
+  var bf=document.createElement("button"); bf.type="button"; bf.textContent="Fermer";
+  bf.style.cssText="padding:7px 12px;border:0;background:#B4621A;color:#fff;font-size:12.5px;"
+    +"font-weight:600;font-family:inherit;cursor:pointer";
+  bf.addEventListener("click", function(){ document.body.removeChild(vue); charger(); });
+  barre.appendChild(t); barre.appendChild(bf);
+
+  var fil=document.createElement("div");
+  fil.style.cssText="flex:1;overflow:auto;padding:13px;display:flex;flex-direction:column;gap:11px";
+  var attente=document.createElement("p");
+  attente.className="hint"; attente.style.textAlign="center";
+  attente.textContent="Chargement de la discussion…";
+  fil.appendChild(attente);
+
+  var pied=document.createElement("div");
+  pied.style.cssText="flex:0 0 auto;display:flex;gap:8px;align-items:center;padding:11px 13px;"
+    +"border-top:1px solid var(--rule);background:var(--card);"
+    +"padding-bottom:calc(11px + env(safe-area-inset-bottom,0px))";
+  var photoBtn=document.createElement("button"); photoBtn.type="button";
+  photoBtn.setAttribute("aria-label","Joindre une photo");
+  photoBtn.style.cssText="width:40px;height:40px;min-height:40px;border:1px solid var(--rule);"
+    +"background:var(--card);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center";
+  photoBtn.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" '
+    +'style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;'
+    +'stroke-linejoin:round"><path d="M3.5 8.5h3l1.6-2.4h7.8l1.6 2.4h3v10h-17z"/><circle cx="12" cy="13" r="3.4"/></svg>';
+  var champPhoto=document.createElement("input");
+  champPhoto.type="file"; champPhoto.accept="image/*"; champPhoto.hidden=true;
+  var champ=document.createElement("textarea");
+  champ.rows=1; champ.placeholder="Écrire un message…";
+  champ.style.cssText="flex:1;min-height:40px;max-height:110px;padding:10px 12px;border:0;border-radius:2px;"
+    +"background:var(--field);font-size:16px;font-family:inherit;resize:none";
+  var envoi=document.createElement("button"); envoi.type="button"; envoi.textContent="Envoyer";
+  envoi.style.cssText="padding:11px 14px;border:0;background:var(--accent);color:#fff;font-size:13.5px;"
+    +"font-weight:600;font-family:inherit;cursor:pointer";
+  pied.appendChild(photoBtn); pied.appendChild(champPhoto); pied.appendChild(champ); pied.appendChild(envoi);
+
+  vue.appendChild(barre); vue.appendChild(fil); vue.appendChild(pied);
+  document.body.appendChild(vue);
+
+  var enAttente=null;
+  photoBtn.addEventListener("click", function(){ champPhoto.click(); });
+  champPhoto.addEventListener("change", function(){
+    var f=this.files[0]; this.value="";
+    if(!f) return;
+    compresserPhoto(f, function(data){
+      if(!data){ alert("Photo illisible."); return; }
+      enAttente=data;
+      photoBtn.style.borderColor="var(--accent)";
+      champ.placeholder="Photo jointe — ajoutez un mot si besoin";
+    });
+  });
+
+  function peindre(messages, equipe, lectures){
+    fil.textContent="";
+    if(!messages.length){
+      var v=document.createElement("p"); v.className="hint"; v.style.textAlign="center";
+      v.textContent="Aucun message. Posez votre question, l'équipe du dossier la verra.";
+      fil.appendChild(v);
+      return;
+    }
+    var dernier=messages[messages.length-1];
+    messages.forEach(function(m){
+      var mien = m.auteur===S.nom;
+      var bloc=document.createElement("div");
+      bloc.style.cssText="max-width:82%;align-self:"+(mien?"flex-end":"flex-start");
+      var qui=document.createElement("p");
+      qui.style.cssText="margin:0 0 3px;font-size:11.5px;color:var(--ink-3);"+(mien?"text-align:right":"");
+      qui.textContent=(mien ? "Vous" : m.auteur)+" · "+quandLisible(m.quand);
+      var bulle=document.createElement("div");
+      bulle.style.cssText="border:1px solid "+(mien?"#F0DCC6":"var(--rule)")+";background:"
+        +(mien?"var(--accent-soft)":"var(--card)")+";padding:10px 12px;font-size:14.5px;"
+        +"color:var(--ink);line-height:1.5;white-space:pre-wrap;word-break:break-word";
+      if(m.texte) bulle.appendChild(document.createTextNode(m.texte));
+      if(m.photo){
+        var im=document.createElement("img");
+        im.src=m.photo; im.alt="Photo jointe"; im.loading="lazy";
+        im.style.cssText="display:block;width:100%;margin-top:"+(m.texte?"8px":"0")+";cursor:zoom-in";
+        im.addEventListener("click", function(){ agrandir(m.photo); });
+        bulle.appendChild(im);
+      }
+      bloc.appendChild(qui); bloc.appendChild(bulle);
+      fil.appendChild(bloc);
+    });
+    var vus=Object.keys(lectures||{}).filter(function(n){
+      return n!==S.nom && lectures[n]===dernier.id;
+    });
+    if(vus.length){
+      var l=document.createElement("p");
+      l.style.cssText="align-self:center;margin:2px 0 0;font-size:11px;color:var(--ink-3)";
+      l.textContent="Vu par "+vus.join(", ");
+      fil.appendChild(l);
+    }
+    fil.scrollTop=fil.scrollHeight;
+  }
+  function agrandir(src){
+    var g=document.createElement("div");
+    g.style.cssText="position:fixed;inset:0;z-index:95;background:#0F0E0C;display:flex;"
+      +"align-items:center;justify-content:center;padding:12px";
+    var im=document.createElement("img");
+    im.src=src; im.style.cssText="max-width:100%;max-height:88vh;object-fit:contain";
+    g.appendChild(im);
+    g.addEventListener("click", function(){ document.body.removeChild(g); });
+    document.body.appendChild(g);
+  }
+  function charge(){
+    fetch(API+"?action=messages&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ fil.textContent=""; var e=document.createElement("p");
+          e.className="hint"; e.textContent=res.d.erreur||"Discussion indisponible."; fil.appendChild(e); return; }
+        peindre(res.d.messages, res.d.equipe, res.d.lectures);
+      })
+      .catch(function(){ fil.textContent="Pas de réseau."; });
+  }
+  function envoyer(){
+    var texte=champ.value.trim();
+    if(!texte && !enAttente) return;
+    envoi.disabled=true; envoi.textContent="…";
+    fetch(API+"?action=message-envoyer", {method:"POST",
+      headers:{"Content-Type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify({ref:c.ref, texte:texte, photo:enAttente||""})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){
+        envoi.disabled=false; envoi.textContent="Envoyer";
+        if(!res.ok){ alert(res.d.erreur||"Envoi refusé."); return; }
+        champ.value=""; enAttente=null;
+        photoBtn.style.borderColor="var(--rule)";
+        champ.placeholder="Écrire un message…";
+        charge();
+      })
+      .catch(function(){
+        envoi.disabled=false; envoi.textContent="Envoyer";
+        alert("Pas de réseau. Le message n'est pas parti.");
+      });
+  }
+  envoi.addEventListener("click", envoyer);
+  champ.addEventListener("input", function(){
+    champ.style.height="auto";
+    champ.style.height=Math.min(110, champ.scrollHeight)+"px";
+  });
+  charge();
+}
+function quandLisible(iso){
+  var d=new Date(iso), maintenant=new Date();
+  var jour=d.toISOString().slice(0,10), auj=maintenant.toISOString().slice(0,10);
+  var heure=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  if(jour===auj) return heure;
+  var hier=new Date(maintenant.getTime()-86400000).toISOString().slice(0,10);
+  if(jour===hier) return "hier "+heure;
+  return frDate(jour)+" "+heure;
+}
+function compresserPhoto(file, cb){
+  var fr=new FileReader();
+  fr.onload=function(){
+    var img=new Image();
+    img.onload=function(){
+      var max=1100, w=img.width, h=img.height;
+      if(w>max||h>max){ var r=Math.min(max/w,max/h); w=Math.round(w*r); h=Math.round(h*r); }
+      var cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      cv.getContext("2d").drawImage(img,0,0,w,h);
+      cb(cv.toDataURL("image/jpeg",0.7));
+    };
+    img.onerror=function(){ cb(null); };
+    img.src=fr.result;
+  };
+  fr.onerror=function(){ cb(null); };
+  fr.readAsDataURL(file);
+}
+
+/* ---------- ouvrir ou partager un document ---------- */
+function telecharger(f){
+  return fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); });
+}
+function nomFichier(f){ return String(f.cle).split("/").pop(); }
+function partagerDocument(f, bouton){
+  var avant = bouton ? bouton.textContent : "";
+  if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
+  telecharger(f)
+    .then(function(blob){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      marquerLu(f);
+      var fichier;
+      try{ fichier=new File([blob], nomFichier(f), {type:blob.type||"application/pdf"}); }catch(e){ fichier=null; }
+      if(fichier && navigator.canShare && navigator.canShare({files:[fichier]})){
+        navigator.share({files:[fichier], title:f.titre||nomFichier(f)})
+          .catch(function(err){ if(!err || err.name!=="AbortError") enregistrer(blob, nomFichier(f)); });
+        return;
+      }
+      enregistrer(blob, nomFichier(f));
+    })
+    .catch(function(){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      alert("Document indisponible. Vérifiez la connexion.");
+    });
+}
+function enregistrer(blob, nom){
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement("a"); a.href=url; a.download=nom; a.click();
+  setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
+}
+function ouvrirDocument(f, bouton){
+  var avant = bouton ? bouton.textContent : "";
+  if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
+  telecharger(f)
+    .then(function(blob){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      marquerLu(f);
+      var url=URL.createObjectURL(blob);
+      var vue=document.createElement("div");
+      vue.style.cssText="position:fixed;inset:0;z-index:85;background:#1A1815;display:flex;flex-direction:column;"
+        +"padding-top:env(safe-area-inset-top,0px)";
+      var barre=document.createElement("div");
+      barre.style.cssText="display:flex;align-items:center;gap:8px;padding:10px 12px;background:#262320;flex:0 0 auto";
+      var t=document.createElement("span");
+      t.style.cssText="flex:1;color:#BDB5A6;font-size:13.5px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis";
+      t.textContent=f.titre||nomFichier(f);
+      var bp=document.createElement("button"); bp.type="button"; bp.textContent="Partager";
+      bp.style.cssText="padding:9px 13px;border:0;background:rgba(244,241,234,.12);color:#F4F1EA;"
+        +"font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+      bp.addEventListener("click", function(){ partagerDocument(f, bp); });
+      var bf=document.createElement("button"); bf.type="button"; bf.textContent="Fermer";
+      bf.style.cssText="padding:9px 13px;border:0;background:#B4621A;color:#fff;font-size:13.5px;"
+        +"font-weight:600;font-family:inherit;cursor:pointer";
+      bf.addEventListener("click", function(){ URL.revokeObjectURL(url); document.body.removeChild(vue); });
+      barre.appendChild(t); barre.appendChild(bp); barre.appendChild(bf);
+      var corps=document.createElement("div");
+      corps.style.cssText="flex:1;overflow:auto;background:#3B3833;padding:10px;-webkit-overflow-scrolling:touch";
+      var etat=document.createElement("p");
+      etat.style.cssText="color:#BDB5A6;font-size:14px;text-align:center;margin:20px 0";
+      etat.textContent="Ouverture du document…";
+      corps.appendChild(etat);
+      vue.appendChild(barre); vue.appendChild(corps);
+      document.body.appendChild(vue);
+
+      /* toutes les pages, dessinées les unes sous les autres */
+      chargerPdfJs(function(pdfjs){
+        if(!pdfjs){ replierIframe(corps, url, etat); return; }
+        blob.arrayBuffer().then(function(buf){
+          pdfjs.getDocument({data:buf}).promise.then(function(doc){
+            etat.remove();
+            var large=Math.min(corps.clientWidth||window.innerWidth, 1100) - 20;
+            for(var n=1;n<=doc.numPages;n++){
+              (function(num){
+                doc.getPage(num).then(function(page){
+                  var base=page.getViewport({scale:1});
+                  var echelle=Math.max(1, (large/base.width) * Math.min(2, window.devicePixelRatio||1));
+                  var vp=page.getViewport({scale:echelle});
+                  var cv=document.createElement("canvas");
+                  cv.width=vp.width; cv.height=vp.height;
+                  cv.style.cssText="display:block;width:100%;max-width:1100px;margin:0 auto 10px;background:#fff;"
+                    +"box-shadow:0 2px 10px rgba(0,0,0,.35)";
+                  cv.dataset.page=num;
+                  corps.appendChild(cv);
+                  page.render({canvasContext:cv.getContext("2d"), viewport:vp});
+                });
+              })(n);
+            }
+            var pied=document.createElement("p");
+            pied.style.cssText="color:#8C8475;font-size:12px;text-align:center;margin:6px 0 16px";
+            pied.textContent=doc.numPages+(doc.numPages>1?" pages":" page");
+            corps.appendChild(pied);
+          }).catch(function(){ replierIframe(corps, url, etat); });
+        }).catch(function(){ replierIframe(corps, url, etat); });
+      });
+    })
+    .catch(function(){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      alert("Document indisponible. Vérifiez la connexion.");
+    });
+}
+
+/* ---------- galerie des photos ---------- */
+function lireZip(octets){
+  /* nos archives sont écrites sans compression : on peut lire les fichiers tels quels */
+  var v=new DataView(octets.buffer, octets.byteOffset, octets.byteLength);
+  var dec=new TextDecoder("utf-8");
+  var out=[], i=0;
+  while(i+30 <= octets.length){
+    if(v.getUint32(i, true) !== 0x04034b50) break;
+    var methode=v.getUint16(i+8, true);
+    var taille=v.getUint32(i+18, true);
+    var lgNom=v.getUint16(i+26, true);
+    var lgExtra=v.getUint16(i+28, true);
+    var nom=dec.decode(octets.subarray(i+30, i+30+lgNom));
+    var debut=i+30+lgNom+lgExtra;
+    if(methode===0 && taille>0 && /\.(jpe?g|png)$/i.test(nom)){
+      out.push({nom:nom, octets:octets.subarray(debut, debut+taille)});
+    }
+    i = debut + taille;
+  }
+  return out;
+}
+function ouvrirGalerie(f){
+  var ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:80;background:#1A1815;display:flex;flex-direction:column;"
+    +"padding-top:env(safe-area-inset-top,0px)";
+  var barre=document.createElement("div");
+  barre.style.cssText="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#262320;flex:0 0 auto";
+  var titre=document.createElement("span");
+  titre.style.cssText="flex:1;color:#BDB5A6;font-size:13.5px;font-weight:600";
+  titre.textContent=f.titre || "Photos";
+  var telecharger=document.createElement("button");
+  telecharger.type="button"; telecharger.textContent="Partager";
+  telecharger.style.cssText="padding:9px 13px;border:0;background:rgba(244,241,234,.12);"
+    +"color:#F4F1EA;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+  telecharger.addEventListener("click", function(){ partagerDocument(f, telecharger); });
+  var fermer=document.createElement("button"); fermer.type="button"; fermer.textContent="Fermer";
+  fermer.style.cssText="padding:9px 13px;border:0;border-radius:2px;background:#B4621A;color:#fff;"
+    +"font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+  barre.appendChild(titre); barre.appendChild(telecharger); barre.appendChild(fermer);
+  var corps=document.createElement("div");
+  corps.style.cssText="flex:1;overflow:auto;padding:12px;display:grid;"
+    +"grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start";
+  var etat=document.createElement("p");
+  etat.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px;margin:6px 2px";
+  etat.textContent="Ouverture des photos…";
+  corps.appendChild(etat);
+  ov.appendChild(barre); ov.appendChild(corps);
+  document.body.appendChild(ov);
+
+  var urls=[];
+  function refermer(){
+    urls.forEach(function(u){ URL.revokeObjectURL(u); });
+    if(ov.parentNode) document.body.removeChild(ov);
+  }
+  fermer.addEventListener("click", refermer);
+
+  fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.arrayBuffer(); })
+    .then(function(buf){
+      var photos=lireZip(new Uint8Array(buf));
+      corps.textContent="";
+      if(!photos.length){
+        var v=document.createElement("p");
+        v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
+        v.textContent="Archive illisible dans le navigateur. Utilisez Télécharger.";
+        corps.appendChild(v); return;
+      }
+      marquerLu(f);
+      photos.forEach(function(p, i){
+        var blob=new Blob([p.octets], {type: /\.png$/i.test(p.nom) ? "image/png" : "image/jpeg"});
+        var url=URL.createObjectURL(blob); urls.push(url);
+        var fig=document.createElement("figure");
+        fig.style.cssText="margin:0;background:#262320;border:1px solid rgba(244,241,234,.10)";
+        var im=document.createElement("img");
+        im.src=url; im.alt=p.nom; im.loading="lazy";
+        im.style.cssText="display:block;width:100%;height:150px;object-fit:cover;cursor:zoom-in";
+        im.addEventListener("click", function(){ plein(i); });
+        var cap=document.createElement("figcaption");
+        cap.style.cssText="padding:7px 9px;color:#BDB5A6;font-size:11.5px;overflow:hidden;"
+          +"text-overflow:ellipsis;white-space:nowrap";
+        cap.textContent=p.nom.split("/").pop().replace(/\.(jpe?g|png)$/i,"").replace(/^\d+-?/,"").replace(/-/g," ");
+        fig.appendChild(im); fig.appendChild(cap);
+        corps.appendChild(fig);
+      });
+      function plein(depart){
+        var k=depart;
+        var vue=document.createElement("div");
+        vue.style.cssText="position:fixed;inset:0;z-index:90;background:#0F0E0C;display:flex;"
+          +"flex-direction:column;align-items:center;justify-content:center;padding:12px";
+        var grande=document.createElement("img");
+        grande.style.cssText="max-width:100%;max-height:78vh;object-fit:contain";
+        var nom=document.createElement("p");
+        nom.style.cssText="color:#BDB5A6;font-size:12.5px;margin:10px 0 0;text-align:center";
+        var nav=document.createElement("div");
+        nav.style.cssText="display:flex;gap:10px;margin-top:14px";
+        function bouton(texte, fn){
+          var b=document.createElement("button"); b.type="button"; b.textContent=texte;
+          b.style.cssText="min-height:44px;padding:0 18px;border:0;border-radius:2px;"
+            +"background:rgba(244,241,234,.12);color:#F4F1EA;font-size:14.5px;font-weight:600;"
+            +"font-family:inherit;cursor:pointer";
+          b.addEventListener("click", fn); return b;
+        }
+        function afficher(){
+          grande.src=urls[k];
+          nom.textContent=(k+1)+" sur "+urls.length+"  ·  "+photos[k].nom.split("/").pop();
+        }
+        nav.appendChild(bouton("Précédente", function(){ k=(k-1+urls.length)%urls.length; afficher(); }));
+        nav.appendChild(bouton("Suivante", function(){ k=(k+1)%urls.length; afficher(); }));
+        nav.appendChild(bouton("Fermer", function(){ document.body.removeChild(vue); }));
+        vue.appendChild(grande); vue.appendChild(nom); vue.appendChild(nav);
+        document.body.appendChild(vue);
+        afficher();
+      }
+    })
+    .catch(function(){
+      corps.textContent="";
+      var v=document.createElement("p");
+      v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
+      v.textContent="Photos indisponibles. Réessayez ou utilisez Télécharger.";
+      corps.appendChild(v);
+    });
+}
+function marquerLu(f){
+  fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ if(d && d.lectures){ f.lectures=d.lectures; setTimeout(charger, 900); } })
+    .catch(function(){});
+}
+
+$("btnRestaurer").addEventListener("click", function(){ $("fileArchive").click(); });
+$("fileArchive").addEventListener("change", function(){
+  var f=this.files[0]; this.value="";
+  if(f) restaurerArchive(f);
+});
+var NON_LUS={};
+function charger(){
+  fetch(API+"?action=messages-non-lus", {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      NON_LUS={};
+      (d.dossiers||[]).forEach(function(x){ NON_LUS[x.ref]=x.nb; });
+    })
+    .catch(function(){});
+  fetch(API+"?action=liste", {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){
+        if(res.d.erreur && res.d.erreur.indexOf("Session")>=0){ localStorage.removeItem("outils:session"); location.replace("./index.html"); return; }
+        $("bonjour").textContent = res.d.erreur || "Accès refusé.";
+        return;
+      }
+      var moi=res.d.moi||S;
+      $("bonjour").textContent = moi.nom+" — les rapports que vous avez publiés ou reçus.";
+      CHANTIERS = res.d.chantiers||[];
+      MOI = res.d.moi || S;
+      $("recherche").hidden = CHANTIERS.length < 4;
+      afficher(filtrer());
+    })
+    .catch(function(){ $("bonjour").textContent="Pas de réseau. Réessayez."; });
+}
+var MOI=null;
+var ORDRE={releve:1, suivi:2, commande:3, photos:4, etiquettes:5, reception:6, sav:7};
+function rangDoc(f){
+  var base=(ORDRE[f.type]||9)*1000;
+  if(f.type==="suivi"){
+    var n=parseInt(f.visite,10);
+    return base + (isNaN(n) ? 500 : n);
+  }
+  return base + (String(f.date||"").replace(/-/g,"").slice(-4)|0)/10000;
+}
+function trierDocs(c){
+  (c.fichiers||[]).sort(function(a,b){
+    var d=rangDoc(a)-rangDoc(b);
+    if(d) return d;
+    return String(a.publie||"").localeCompare(String(b.publie||""));
+  });
+  return c;
+}
+function afficher(chantiers){
+  chantiers.forEach(trierDocs);
+  majCompteur(chantiers.length);
+  var host=$("liste"); host.textContent="";
+  if(!chantiers.length){
+    var v=document.createElement("p"); v.className="vide";
+    v.textContent = ($("recherche").value||"").trim()
+      ? "Aucun dossier ne correspond à cette recherche."
+      : "Aucun rapport ne vous est attribué pour le moment.";
+    host.appendChild(v); return;
+  }
+  chantiers.forEach(function(c, i){
+    var box=document.createElement("div"); box.className="travaux";
+    var head=document.createElement("div"); head.className="head";
+    var ref=document.createElement("span"); ref.className="ref"; ref.textContent=c.ref;
+    var b=document.createElement("b"); b.textContent=c.client||c.ref;
+    var n=document.createElement("span"); n.className="n";
+    n.textContent=c.fichiers.length+" doc"+(c.fichiers.length>1?"s":"");
+    head.appendChild(ref); head.appendChild(b); head.appendChild(n);
+    var barreBoutons=document.createElement("div"); barreBoutons.className="barre";
+    if((c.adresse||"").trim()){
+      var iti=document.createElement("button");
+      iti.type="button"; iti.className="iti";
+      iti.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" '
+        +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;'
+        +'stroke-linecap:round;stroke-linejoin:round"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/>'
+        +'<path d="M21 3 10.6 13.4"/></svg>Itinéraire';
+      iti.title="Itinéraire vers les travaux";
+      iti.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        var q=String(c.adresse).replace(/\n/g, ", ");
+        window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
+      });
+      barreBoutons.appendChild(iti);
+    }
+    var acces=document.createElement("button");
+    acces.type="button"; acces.className="iti";
+    acces.title="Qui voit ce dossier";
+    acces.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
+      +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;'
+      +'stroke-linejoin:round"><circle cx="9" cy="8.4" r="3.3"/><path d="M3.4 19.2c.4-3 2.8-4.8 5.6-4.8s5.2 1.8 5.6 4.8"/>'
+      +'<path d="M16.2 6.2a3 3 0 0 1 0 5.9M17.4 14.6c2.1.4 3.4 2 3.6 4.6"/></svg>Accès'
+      + ((c.equipe||[]).length ? "  ·  "+(c.equipe||[]).length : "");
+    acces.addEventListener("click", function(e){
+      e.preventDefault(); e.stopPropagation(); ouvrirAcces(c);
+    });
+    barreBoutons.appendChild(acces);
+
+    var discu=document.createElement("button");
+    discu.type="button"; discu.className="iti";
+    discu.title="Discussion du dossier";
+    var nonLus=(NON_LUS[c.ref]||0);
+    discu.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
+      +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;'
+      +'stroke-linejoin:round"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4'
+      +'A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>Discussion';
+    if(nonLus){
+      var pastille=document.createElement("span");
+      pastille.style.cssText="background:var(--danger);color:#fff;font-size:10.5px;font-weight:700;"
+        +"padding:1px 6px;border-radius:9px;margin-left:5px";
+      pastille.textContent=String(nonLus);
+      discu.appendChild(pastille);
+    }
+    discu.addEventListener("click", function(e){
+      e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c);
+    });
+    barreBoutons.appendChild(discu);
+    head.appendChild(barreBoutons);
+    var fs=document.createElement("div"); fs.className="fichiers"; fs.hidden = false;
+    head.addEventListener("click", function(){ fs.hidden=!fs.hidden; });
+    c.fichiers.forEach(function(f){
+      var a=document.createElement("a"); a.className="f";
+      a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+      a.removeAttribute("target"); a.removeAttribute("href");
+      a.style.cursor="pointer";
+      if(f.type==="photos" || String(f.cle).slice(-4)===".zip"){
+        a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
+      } else {
+        a.addEventListener("click", function(e){ e.preventDefault(); ouvrirDocument(f); });
+      }
+      a.addEventListener("click", function(){
+        /* accusé de lecture immédiat, sans dépendre du chargement du PDF */
+        fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(d){ if(d && d.lectures){ f.lectures=d.lectures; setTimeout(charger, 1200); } })
+          .catch(function(){});
+      });
+      var t=document.createElement("div"); t.className="t";
+      var tb=document.createElement("b"); tb.textContent=f.titre;
+      var ts=document.createElement("span");
+      ts.textContent=[frDate(f.date), f.etape, f.auteur,
+        (f.versions>1 ? "mis à jour "+f.versions+" fois" : ""), octets(f.taille)].filter(Boolean).join("   ");
+      t.appendChild(tb); t.appendChild(ts);
+      var lus=Object.keys(f.lectures||{}).filter(function(n){ return n!==f.auteur; });
+      if(lus.length){
+        var lu=document.createElement("span");
+        lu.className="lu";
+        lu.textContent="Lu par "+lus.map(function(n){
+          var quand=f.lectures[n];
+          var avant = f.publie && String(quand) < String(f.publie);
+          return n+" le "+frDate(quand)+" à "+String(quand).slice(11,16)
+            + (avant ? " (avant la mise à jour)" : "");
+        }).join(", ");
+        t.appendChild(lu);
+      } else if(MOI && (MOI.role==="bureau"||MOI.role==="admin") && (f.destinataires||[]).length){
+        var na=document.createElement("span");
+        na.className="lu na";
+        na.textContent="Pas encore ouvert";
+        t.appendChild(na);
+      }
+      var bPartage=document.createElement("button");
+      bPartage.type="button"; bPartage.className="part";
+      bPartage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" '
+        +'style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;'
+        +'stroke-linecap:round;stroke-linejoin:round"><path d="M12 15V4"/><path d="M8 7.5 12 3.5l4 4"/>'
+        +'<path d="M5.5 12.5v6a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5v-6"/></svg>';
+      bPartage.setAttribute("aria-label","Partager "+(f.titre||"ce document"));
+      bPartage.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(f.type==="photos" || String(f.cle).slice(-4)===".zip") partagerDocument(f, bPartage);
+        else partagerDocument(f, bPartage);
+      });
+      var aSupprimer=null;
+      if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
+        var sup=document.createElement("button");
+        sup.type="button"; sup.className="sup";
+        sup.textContent="×";
+        sup.title="Supprimer ce document";
+        sup.setAttribute("aria-label","Supprimer "+(f.titre||"ce document"));
+        sup.addEventListener("click", function(e){
+          e.preventDefault(); e.stopPropagation();
+          if(!window.confirm("Supprimer définitivement « "+(f.titre||"ce document")+" » du dossier "
+            +(c.client||c.ref)+" ?\n\nLe document et sa fiche sont retirés du site. Les autres documents du dossier restent.")) return;
+          sup.disabled=true; sup.textContent="…";
+          fetch(API+"?action=supprimer&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+            .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+            .then(function(res){
+              if(!res.ok){ alert(res.d.erreur||"Suppression refusée."); sup.disabled=false; sup.textContent="×"; return; }
+              charger();
+            })
+            .catch(function(){ alert("Pas de réseau."); sup.disabled=false; sup.textContent="×"; });
+        });
+        aSupprimer = sup;
+      }
+      var tag=document.createElement("span");
+      tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":""))))));
+      tag.textContent = f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:""))
+                      : f.type==="commande" ? "Commande"
+                      : f.type==="photos" ? "Photos"
+                      : f.type==="reception" ? "Réception"
+                      : f.type==="etiquettes" ? "Étiquettes"
+                      : f.type==="sav" ? "SAV" : "Relevé";
+      a.appendChild(t); a.appendChild(tag); a.appendChild(bPartage);
+      if(aSupprimer) a.appendChild(aSupprimer);
+      fs.appendChild(a);
+    });
+    box.appendChild(head); box.appendChild(fs);
+    if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
+      var act=document.createElement("div"); act.className="actions";
+      act.hidden = fs.hidden;
+      var arc=document.createElement("button"); arc.type="button"; arc.className="danger";
+      arc.textContent="Archiver";
+      arc.addEventListener("click", function(){ archiver(c, arc); });
+      var note=document.createElement("span"); note.className="hint";
+      note.style.cssText="align-self:center";
+      note.textContent="Exporte en ZIP puis retire du site";
+      act.appendChild(arc); act.appendChild(note);
+      head.addEventListener("click", function(){ act.hidden=fs.hidden; });
+      box.appendChild(act);
+    }
+    host.appendChild(box);
+  });
+}
+$("recherche").addEventListener("input", function(){ afficher(filtrer()); });
+if(S && S.jeton) charger();
+</script>
+</body>
+</html>

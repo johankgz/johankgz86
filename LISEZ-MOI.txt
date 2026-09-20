@@ -1,0 +1,334 @@
+DURÉE DE SESSION
+   Une connexion vaut trois jours. Passé ce délai, le site demande de se
+   reconnecter — environ deux fois par semaine. Le retour à la page de
+   connexion est automatique depuis toutes les pages.
+   Supprimer un compte coupe l'accès à la requête suivante, sans attendre
+   la fin de session.
+
+ÉQUIPE DU DOSSIER, PUBLICATION ET DISCUSSION
+   Accès : dans Mes rapports, le bouton Accès de chaque dossier liste les
+   personnes qui le voient. Le bureau et les administrateurs ajoutent ou
+   retirent ; l'auteur reste toujours membre. Un technicien ajouté accède
+   à tout le dossier, y compris aux documents déjà publiés.
+
+   Publication : en fin de rapport, deux choix. « Dans le dossier » — le
+   rapport est visible par l'équipe, sans désigner personne. « Seulement à
+   une personne » — l'envoi ciblé d'avant, toujours disponible.
+
+   Discussion : le bouton Discussion ouvre le fil du chantier. Texte et
+   photo, visible par toute l'équipe, avec la mention de lecture. Une
+   pastille rouge signale les messages non lus, l'accueil aussi. Chaque
+   message envoie un e-mail aux membres qui ont une adresse renseignée.
+   La discussion part dans l'archive du dossier, en discussion.txt.
+
+   Commande : le reste à faire accepte un objet et une note, imprimés en
+   tête de la liste des tâches.
+
+RESTAURER UN DOSSIER ARCHIVÉ
+   Archiver un dossier produit un ZIP et le retire du site. Pour le
+   remettre en ligne, ouvrez Mes rapports et touchez « Restaurer un
+   dossier archivé », puis choisissez ce ZIP. Les PDF et les fiches de
+   travail reviennent, le dossier redevient reprenable dans les applis.
+   Le dossier restauré est attribué au compte qui fait la restauration.
+
+OUTILS DE CHANTIER
+
+CONNEXION
+   Le site s'ouvre sur une page de connexion : identifiant et mot de passe.
+   Selon le compte, le menu affiche :
+      bureau     -> Relevé technique, Suivi de chantier, Tous les rapports
+      technicien -> Faire un suivi de chantier, Mes rapports
+   La connexion est retenue sur l'appareil jusqu'à « Se déconnecter ».
+
+UTILISATEURS  —  fichier netlify/functions/equipe.mjs
+   Deux listes séparées, l'une pour les chargés d'affaires, l'autre pour les
+   techniciens. Une ligne par personne :
+      { identifiant: "brian", motdepasse: "Brian-6183", nom: "Brian" },
+   Pour ajouter quelqu'un : copiez une ligne dans la bonne liste et changez les
+   valeurs, sans oublier la virgule. Pour en retirer un : supprimez sa ligne.
+   Puis redéposez le dossier sur https://app.netlify.com/drop
+   Les mots de passe livrés sont provisoires : changez-les avant de diffuser
+   l'adresse du site.
+
+PAGES
+   /                 connexion puis menu
+   /releve.html      relevé technique, avant devis      (bureau)
+   /suivi.html       suivi de chantier, après devis     (bureau)
+   /commande.html    commande de matériel et reste à faire (tous)
+   /aide.html        fiche "Comment ça marche", à faire lire aux équipes
+   /etiquettes.html  étiquettes de tableau électrique       (tous)
+   /notes.html       listes personnelles (to-do)             (tous)
+   /equipe.html      comptes de la société et sociétés      (admin)
+   /sav.html         fiche d'intervention SAV               (tous)
+   /reception.html   procès-verbal de réception de travaux (tous)
+   /rapports.html    consultation des rapports          (tous)
+
+CATALOGUE DES ARTICLES  —  dans commande.html
+   En haut du fichier commande.html, la variable CATALOGUE liste les articles
+   par métier et par rubrique, sous la forme  ["Désignation", "unité"].
+   Ajoutez, renommez ou retirez ce que vous voulez, enregistrez, redéposez.
+   Les métiers livrés : Électricité (détaillée), Plomberie et Photovoltaïque
+   (propositions à adapter).
+
+DROITS DU TECHNICIEN
+   Il peut créer un suivi de travaux ou une commande, et les publier vers UN
+   chargé d'affaires
+   qu'il désigne. Le rapport arrive dans l'espace de ce dernier, et le technicien
+   le retrouve aussi dans "Mes rapports".
+   Il ne peut pas : faire de relevé technique, rouvrir ou modifier une fiche,
+   écraser une visite publiée par quelqu'un d'autre. Ces refus sont appliqués
+   par le serveur, pas seulement masqués à l'écran.
+
+PUBLIER
+   Relevé technique : onglet "Conclusion", bloc "Publication".
+   Suivi de travaux : onglet "Rapport", bloc "Publication".
+   Cochez les personnes concernées, touchez "Publier". Le rapport arrive
+   directement dans leur espace. Rien d'autre à renseigner : l'adresse du site
+   et votre identité viennent de votre session.
+
+VERSIONS
+   Relevé technique : une seule fiche par chantier, la publication remplace la
+   précédente. Le relevé suit l'affaire de la prise de contact au devis accepté.
+   Suivi de travaux : une fiche par visite. Republier la même visite corrige
+   cette visite, une nouvelle visite s'ajoute à l'historique.
+
+REPRENDRE UNE FICHE  (comptes bureau)
+   Suivi de chantier, onglet "Visite" : "Reprendre un relevé du site" liste les
+   relevés techniques publiés et reprend le client, l'adresse, le devis et les lots.
+   Onglet "Rapport" : "Ouvrir depuis le site" recharge une fiche complète.
+   Relevé technique, onglet "Conclusion" : "Ouvrir depuis le site", même principe.
+
+NOTIFICATIONS PAR E-MAIL
+   Quand un rapport est publié, chaque destinataire ayant une adresse dans
+   equipe.mjs reçoit un e-mail avec le chantier, la date et un lien direct.
+
+   Mise en service, une seule fois :
+   1. Créez un compte sur https://resend.com (gratuit jusqu'à 3 000 mails/mois)
+      et générez une clé API.
+   2. Dans Netlify : Site configuration > Environment variables > Add a variable
+         RESEND_API_KEY = la clé donnée par Resend
+         EXPEDITEUR     = Outils de travaux <contact@votredomaine.fr>
+      Tant que votre domaine n'est pas vérifié chez Resend, laissez EXPEDITEUR
+      vide : les mails partiront de onboarding@resend.dev, mais uniquement vers
+      l'adresse de votre compte Resend. Pour écrire à tout le monde, vérifiez
+      le domaine tlenergies.com chez Resend (une page à suivre, quelques lignes
+      DNS à ajouter chez votre hébergeur).
+   3. Deploys > Trigger deploy.
+
+   Sans RESEND_API_KEY, tout fonctionne comme avant, simplement sans e-mail.
+   Les adresses se règlent dans equipe.mjs, champ email. Une adresse vide
+   signifie : pas de notification pour cette personne.
+
+INSTALLER SUR LE TÉLÉPHONE
+   iPhone : ouvrir le site dans Safari, bouton Partager, "Sur l'écran d'accueil".
+   Android : ouvrir dans Chrome, menu, "Installer l'application".
+   Le site s'ouvre alors en plein écran, comme une application.
+
+VUE AÉRIENNE (relevé technique, onglet Photovoltaïque)
+   "Ouvrir la carte" affiche une vue satellite centrée sur l'adresse. On la
+   déplace au doigt, on zoome, on peut basculer entre l'orthophotographie IGN
+   et Esri si une zone n'est pas couverte, puis "Utiliser cette vue".
+   La vue sert ensuite à implanter les panneaux à l'échelle ou à annoter.
+
+POINTS DE CONTRÔLE DE RÉCEPTION  —  dans reception.html
+   En haut du fichier, la variable CONTROLES liste les points par métier et par
+   rubrique, sous la forme ["Libellé"] ou ["Libellé", "unité"] pour un point
+   avec une mesure à relever. Modifiez, ajoutez, retirez, puis redéposez.
+
+ACCUSÉ DE LECTURE
+   La première ouverture d'un document par chaque personne est enregistrée.
+   Sous le document, la page des rapports affiche "Lu par Kévin le 10/09 à 08:14".
+   Pour le bureau, un document attribué mais jamais ouvert affiche
+   "Pas encore ouvert". L'auteur n'est pas compté comme lecteur.
+
+RECHERCHE ET ARCHIVAGE  (page des rapports)
+   Un champ de recherche apparaît dès quatre travaux : il filtre sur le client,
+   le code chantier, l'adresse et le titre des documents.
+
+   Bouton "Archiver", réservé aux comptes bureau, sous chaque travaux déplié :
+   1. tous les documents des travaux sont téléchargés dans un ZIP, avec les
+      fiches réutilisables (.json) et un fichier 00-contenu.txt qui liste tout ;
+   2. une seconde confirmation est demandée ;
+   3. les travaux est alors supprimé du site, définitivement.
+   Rangez ces ZIP dans votre dossier d'affaires : c'est votre archive.
+   Si l'export échoue, rien n'est supprimé.
+
+ZOOM SUR LES IMAGES
+   Deux doigts pour agrandir et déplacer l'image, aussi bien dans l'implantation
+   des panneaux que sur la vue aérienne. Dans l'implantation, les boutons
+   Loupe + / Loupe − / Vue entière font la même chose. Le même zoom existe sur
+   l'annotation des photos : deux doigts agrandissent, un doigt dessine. Le zoom ne concerne que
+   l'affichage : le PDF et l'image enregistrée gardent la taille d'origine.
+
+TÂCHES DATÉES
+   Dans Commande, onglet Reste à faire : une tâche avec un prénom de l'équipe
+   ET une date devient un rappel. À la publication de la commande, elle part sur
+   le site. Le jour dit, à partir de 7 h, la personne la voit en notification
+   urgente sur son accueil, avec le chantier et le demandeur. Un appui sur
+   "Marquer réalisée" la clôt. Les tâches en retard restent affichées.
+   Le bureau voit toutes les tâches, chacun voit les siennes.
+
+MES LISTES (to-do)
+   /notes.html — listes indépendantes des chantiers, à la manière d'un bloc-notes.
+   Cases à cocher, photos, croquis, couleur, épinglage. Chaque liste peut porter
+   un dossier, une personne et une date. Une liste attribuée à quelqu'un apparaît
+   chez lui et les cases qu'il coche reviennent chez l'auteur.
+   La synchronisation est automatique : à chaque modification, au retour sur la
+   page et au retour du réseau. Hors connexion, tout reste sur le téléphone et
+   remonte à la reconnexion ; l'en-tête affiche l'état.
+
+PUISSANCE CONSEILLÉE (photovoltaïque)
+   Sous la consommation annuelle, l'appli propose deux dimensionnements :
+   - puissance juste : meilleur taux d'autoconsommation, installation mesurée ;
+   - puissance large : couvre davantage de besoins, plus de surplus injecté.
+   Chaque proposition indique la production annuelle, le taux d'autoconsommation,
+   la part des besoins couverts et le surplus. Un bouton reporte la valeur dans
+   le champ kWc de PVGIS. Base de calcul : 1150 kWh par kWc et par an pour la
+   Vendée, remplacée par le rendement réel dès qu'une simulation PVGIS existe.
+   La présence d'une batterie relève le taux d'autoconsommation.
+
+CONSOMMATION MENSUELLE SEULE
+   Les douze mois peuvent être saisis sans étude de production : le rapport
+   imprime alors la seule courbe de consommation, avec le total annuel, la
+   moyenne mensuelle, le mois le plus fort et le plus faible. Dès que le calcul
+   PVGIS est fait, la courbe de production vient se superposer et les chiffres
+   d'autoconsommation apparaissent.
+
+FICHIER DE TRAVAIL DU RELEVÉ
+   Dans le relevé, onglet Conclusion : "Enregistrer le relevé (fichier)" produit
+   un .json contenant tout le relevé, photos comprises. "Ouvrir un fichier" le
+   recharge plus tard. Pratique quand un autre corps d'état passe après vous :
+   vous gardez le relevé de côté, vous le rouvrez le jour de la visite plomberie
+   et vous ajoutez ses pièces sans repartir de zéro.
+   Le fichier n'est pas un rapport : pour transmettre le relevé à un collègue,
+   utilisez plutôt "Transmettre le relevé à poursuivre", qui passe par le site.
+
+ONGLET PLAN (suivi de travaux)
+   Importez le plan d'exécution, ou photographiez le plan papier. Touchez-le
+   pour l'annoter : une palette de 24 symboles électriques se pose au doigt
+   (prises 16 et 32 A, double prise, RJ45, TV, interrupteur, va-et-vient,
+   poussoir, variateur, point lumineux, applique, spot, éclairage extérieur,
+   détecteur, sortie de câble, boîte de dérivation, tableau, radiateur,
+   sèche-serviette, PAC, VMC, borne de recharge, volet, interphone).
+   Stylo, texte, gomme, zoom à deux doigts et déplacement des symboles sont
+   disponibles comme dans le croquis. Chaque plan annoté occupe une page
+   entière du rapport, après les visites.
+
+FIN DU RELEVÉ : TROIS BOUTONS
+   1. Enregistrer le relevé — il rejoint vos travaux en cours, sur votre compte.
+      Vous le rouvrez quand vous voulez avec "Reprendre un relevé", en haut du
+      premier onglet ou en bas de la conclusion. Personne n'est prévenu.
+   2. Publier — le relevé part dans l'espace des personnes choisies, avec son
+      PDF. Elles peuvent le lire et le rouvrir pour le poursuivre.
+   3. Rapport PDF — génère le document si vous en voulez une copie.
+   Le partage par la feuille du téléphone et la transmission séparée ont été
+   retirés : la publication couvre les deux besoins.
+
+ATTRIBUTION DU CHANTIER
+   Publier le relevé technique attribue tout le dossier aux personnes
+   choisies : elles verront ensuite les suivis, les commandes, la
+   réception, les étiquettes et le SAV du même chantier, sans qu'on ait
+   à les désigner à chaque fois. Les autres n'y ont pas accès.
+   Un dossier ouvert sans relevé reste cloisonné document par document.
+
+   Devis accepté : le numéro de chantier devient obligatoire avant de
+   publier, puisque c'est lui qui identifie le dossier de bout en bout.
+
+QUI VOIT QUOI
+   Un rapport n'apparaît que chez son auteur et chez les personnes à qui il a
+   été publié. Deux chargés d'affaires ne voient donc pas les dossiers l'un de
+   l'autre, et un technicien ne voit que ce qu'on lui a adressé.
+   La règle vaut pour tout le monde, administrateur compris.
+
+REPRISE D'UN DOSSIER
+   Le choix se fait par dossier, une ligne par chantier, jamais par fichier.
+   - Relevé technique : "Reprendre un relevé" ne propose que les dossiers qui
+     ont déjà un relevé, y compris ceux qu'on vous a transmis à poursuivre.
+   - Suivi de travaux : "Reprendre un relevé" pour démarrer le suivi depuis le
+     relevé technique ; "Reprendre une fiche" pour rouvrir un dossier existant.
+     Sans relevé publié, la liste est vide et le dit : le relevé vient d'abord.
+   - Commande, réception, étiquettes, SAV : la liste montre tous les dossiers et
+     reprend le client, la référence et l'adresse.
+
+PLUSIEURS SOCIÉTÉS
+   Le site n'est plus lié à une seule entreprise. On se connecte avec trois
+   informations : le code de la société, l'identifiant et le mot de passe.
+   Chaque société a ses propres dossiers, ses propres comptes et ses propres
+   listes ; rien n'est partagé entre elles.
+
+   Rôles : administrateur (gère les comptes de sa société), chargé d'affaires
+   (tout sauf la gestion des comptes), technicien.
+
+   Le propriétaire du site (compte défini dans equipe.mjs) entre dans toutes
+   les sociétés et crée les nouvelles depuis la page Comptes : nom, code de
+   connexion, puis l'identifiant et le mot de passe de leur administrateur.
+   La société démarre vide et son administrateur crée ensuite ses équipes.
+
+   equipe.mjs ne sert plus qu'au premier démarrage : il installe la société de
+   départ, la démonstration et le compte propriétaire. Ensuite tout se gère
+   depuis le site.
+
+DÉMONSTRATION
+   Le bouton "Essayer la démonstration" sur la page de connexion ouvre la
+   société demo (code demo, identifiant demo, mot de passe demo). Un bandeau
+   rappelle qu'il s'agit d'une démonstration. Les données y sont partagées.
+
+DEMANDES D'ACCÈS
+   La page de connexion propose "Demander un accès". La demande part par e-mail
+   à l'adresse indiquée dans SOCIETE.emailGestionnaire (equipe.mjs) et s'affiche
+   en notification urgente sur l'accueil du bureau. Touchez la notification pour
+   voir le nom, la fonction, l'e-mail, le téléphone et le message. Créez le
+   compte dans equipe.mjs, redéposez le site, puis "Marquer traitée".
+
+   Les adresses e-mail des utilisateurs sont volontairement vides : seule celle
+   de Johan est renseignée. Complétez-les au fur et à mesure pour que chacun
+   reçoive les notifications de publication.
+
+DESTINATAIRES DES PUBLICATIONS
+   Le destinataire se saisit au clavier plutôt que choisi dans une liste : on
+   tape les premières lettres du prénom, le téléphone propose la suite, et le
+   nom s'ajoute en pastille. Un prénom inconnu est refusé avec un message, et
+   si plusieurs correspondent l'appli les affiche. Un technicien ne peut viser
+   qu'un seul chargé d'affaires, le bureau autant de personnes qu'il veut.
+
+ENVOI PAR WHATSAPP
+   Chaque appli a un bouton WhatsApp à côté de l'envoi par e-mail. Il passe par
+   la feuille de partage du téléphone : le PDF est joint et vous choisissez la
+   conversation. Sur un ordinateur sans partage de fichier, le PDF est
+   enregistré et WhatsApp s'ouvre avec le message pré-rempli, sur le numéro du
+   client s'il est renseigné ; il ne reste qu'à joindre le fichier.
+
+INTERVENTION SAV
+   Fiche de dépannage : motif, constat, travaux réalisés, matériel posé, temps
+   sur place, photos, état à la sortie et signature du client.
+   Le bouton Position relève le GPS et remplit l'adresse toute seule. Si le
+   relevé tombe à côté, "Corriger sur la carte" ouvre la vue aérienne : on
+   déplace la carte au doigt pour amener le réticule sur le bon endroit, et
+   l'adresse est recalculée depuis ce point.
+   Si les travaux dépassent le dépannage, les boutons "Basculer en relevé
+   technique" et "Basculer en suivi de travaux" ouvrent l'outil concerné avec
+   le client, l'adresse et le constat déjà repris. La fiche SAV reste intacte.
+
+ÉTIQUETTES DE TABLEAU
+   Une rangée par barre : boutons 13, 18, 24 modules, ou champ libre jusqu'à 72, une étiquette par
+   protection, de 1 à 8 modules. La liste PRESETS en haut de etiquettes.html
+   contient les repères courants : modifiez-la à votre main. Les entrées suivies
+   de "true" se numérotent toutes seules : Prise 1, Prise 2, Éclairage 1…
+   Dans l'éditeur, la bande de la rangée reste affichée en haut pendant la
+   saisie, et on déplace une étiquette en la glissant directement sur la bande.
+   La planche s'imprime en A4 paysage, à l'échelle réelle : imprimez à 100 %,
+   SANS "ajuster à la page". Un trait de contrôle de 100 mm figure en haut de
+   la planche pour vérifier avant de découper. Les rangées trop larges pour la
+   page sont coupées en tronçons à mettre bout à bout.
+
+EXPORT DES PHOTOS
+   Bouton "Exporter les photos" dans le bloc Fichier des trois applis : toutes
+   les photos de la fiche dans un ZIP, nommées par pièce ou par sujet, dans un
+   dossier au nom du chantier. Sur téléphone, le partage iOS ou Android s'ouvre
+   pour envoyer le ZIP où vous voulez.
+   "Déposer les photos sur le site" range ce même ZIP dans les travaux : on le
+   télécharge ensuite depuis un ordinateur, dans la page des rapports, étiquette
+   violette "Photos". Même limite d'environ 5 Mo par dépôt.
+
+LIMITE
+   Environ 5 Mo par rapport, soit une quinzaine de photos.

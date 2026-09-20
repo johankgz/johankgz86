@@ -1,0 +1,314 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<title>Comptes — Suivi travaux 360</title>
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--field:#EFEBE1;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;
+ --rule:rgba(34,32,28,.08);--accent:#B4621A;--accent-soft:#FBEDE0;--ok:#5E6E42;--danger:#A6291F;
+ --shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;letter-spacing:-.01em;
+ touch-action:manipulation;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{position:sticky;top:0;z-index:20;background:rgba(241,243,247,.9);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);backdrop-filter:saturate(180%) blur(20px);
+ border-bottom:1px solid var(--rule);padding:calc(10px + env(safe-area-inset-top,0px)) 14px 10px}
+.h-row{display:flex;align-items:center;gap:10px;max-width:560px;margin:0 auto}
+h1{font-size:20px;font-weight:700;letter-spacing:-.03em;margin:0}
+.menu-link{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:2px;
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+main{max-width:560px;margin:0 auto;padding:16px 14px calc(30px + env(safe-area-inset-bottom,0px))}
+.block{background:var(--card);border-radius:2px;box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+h2{font-size:16px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+label.f{display:block;margin-bottom:12px}
+label.f span{display:block;font-size:13px;color:var(--ink-2);margin-bottom:6px}
+input,select{width:100%;min-height:46px;padding:11px 13px;font-size:16px;font-family:inherit;color:var(--ink);
+ background:var(--field);border:1px solid transparent;border-radius:2px}
+input:focus,select:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 4px rgba(180,98,26,.15)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+button.act{min-height:46px;padding:11px 16px;border:0;border-radius:2px;background:var(--field);
+ color:var(--ink);font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+button.act.blue{background:var(--accent);color:#fff}
+button.act.ghost{background:var(--accent-soft);color:var(--accent)}
+button.act.danger{background:#F8E4E0;color:var(--danger)}
+.hint{font-size:13px;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
+.err{font-size:13.5px;color:var(--danger);margin:8px 0 0;min-height:18px}
+.ligne{display:flex;align-items:center;gap:11px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.ligne:last-child{border-bottom:0}
+.ligne b{display:block;font-size:15px}
+.ligne span{display:block;font-size:12.5px;color:var(--ink-3)}
+.role{font-size:11px;font-weight:700;padding:3px 8px;border-radius:2px;background:var(--field);color:var(--ink-2)}
+.role.admin{background:var(--accent-soft);color:var(--accent)}
+.role.technicien{background:#EAF3DE;color:#3B6D11}
+.mdp{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ink-2)}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="h-row">
+    <a class="menu-link" href="./index.html">Menu</a>
+    <h1 id="titre">Comptes</h1>
+  </div>
+</header>
+
+<main>
+  <div class="block" id="blocSociete" hidden>
+    <h2>Société</h2>
+    <div id="infoSociete"></div>
+  </div>
+
+  <div class="block">
+    <h2 id="titreListe">Comptes de la société</h2>
+    <div id="liste"></div>
+    <p class="hint">Le mot de passe est visible pour que vous puissiez le transmettre. Changez-le à tout moment.</p>
+  </div>
+
+  <div class="block">
+    <h2 id="titreForm">Ajouter un compte</h2>
+    <div class="grid2">
+      <label class="f"><span>Prénom affiché</span><input type="text" id="f_nom" placeholder="Kévin"></label>
+      <label class="f"><span>Identifiant</span><input type="text" id="f_id" autocapitalize="none" spellcheck="false" placeholder="kevin"></label>
+      <label class="f"><span>Mot de passe</span><input type="text" id="f_mdp" autocapitalize="none" spellcheck="false"></label>
+      <label class="f"><span>Rôle</span>
+        <select id="f_role">
+          <option value="technicien">Technicien</option>
+          <option value="bureau">Chargé d'affaires</option>
+          <option value="admin">Administrateur</option>
+        </select>
+      </label>
+    </div>
+    <label class="f"><span>E-mail (pour les notifications)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
+    <div class="row">
+      <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
+      <button class="act" id="btnVider">Vider</button>
+    </div>
+    <p class="err" id="err"></p>
+  </div>
+
+  <div class="block" id="blocSocietes" hidden>
+    <h2>Sociétés du site</h2>
+    <div id="listeSocietes"></div>
+  </div>
+
+  <div class="block" id="blocNouvelle" hidden>
+    <h2>Créer une société</h2>
+    <div class="grid2">
+      <label class="f"><span>Nom</span><input type="text" id="s_nom" placeholder="Électricité Dupont"></label>
+      <label class="f"><span>Code de connexion</span><input type="text" id="s_code" autocapitalize="none" spellcheck="false" placeholder="dupont"></label>
+      <label class="f"><span>Métier</span><input type="text" id="s_metier" placeholder="Électricité"></label>
+      <label class="f"><span>Ville</span><input type="text" id="s_ville" placeholder="Nantes (44)"></label>
+      <label class="f"><span>Administrateur</span><input type="text" id="s_adminNom" placeholder="M. Dupont"></label>
+      <label class="f"><span>Son identifiant</span><input type="text" id="s_adminId" autocapitalize="none" spellcheck="false" placeholder="admin"></label>
+      <label class="f"><span>Son mot de passe</span><input type="text" id="s_adminMdp" autocapitalize="none" spellcheck="false"></label>
+      <label class="f"><span>Son e-mail</span><input type="email" id="s_adminMail" autocapitalize="none" spellcheck="false"></label>
+    </div>
+    <button class="act blue" id="btnSociete" style="width:100%">Créer la société</button>
+    <p class="err" id="errSoc"></p>
+    <p class="hint">La société démarre vide, avec son seul compte administrateur. C'est lui qui crée ensuite ses équipes.</p>
+  </div>
+</main>
+
+<script>
+/* ---------- session expirée : retour à la connexion ---------- */
+(function(){
+  var brut = window.fetch;
+  window.fetch = function(){
+    return brut.apply(this, arguments).then(function(r){
+      if(r && r.status === 401){
+        try{
+          r.clone().json().then(function(d){
+            if(d && d.erreur && String(d.erreur).indexOf("Session") >= 0){
+              try{ localStorage.removeItem("outils:session"); }catch(e){}
+              location.replace("./index.html");
+            }
+          }).catch(function(){});
+        }catch(e){}
+      }
+      return r;
+    });
+  };
+})();
+
+var $=function(i){ return document.getElementById(i); };
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+var S=session();
+if(!S || !S.jeton){ location.replace("./index.html"); }
+function api(a){ return "/api/rapports?action="+a; }
+function tetes(){ return {"Content-Type":"application/json","x-auth":S.jeton}; }
+var MOI={};
+
+function charger(){
+  fetch(api("moi-societe"), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      MOI=d;
+      if(!d.admin){ document.body.innerHTML='<main><div class="block"><h2>Accès réservé</h2>'
+        +'<p class="hint">Cette page est réservée à l\'administrateur de la société.</p>'
+        +'<p><a class="menu-link" href="./index.html">Retour au menu</a></p></div></main>'; return; }
+      $("blocSociete").hidden=false;
+      var i=$("infoSociete"); i.textContent="";
+      [["Nom", d.nom||d.societe],["Code de connexion", d.societe],["Métier", d.metier||"—"],["Ville", d.ville||"—"]]
+        .forEach(function(l){
+          var r=document.createElement("div"); r.className="ligne";
+          var t=document.createElement("div"); t.style.flex="1";
+          var b=document.createElement("b"); b.textContent=l[1];
+          var s2=document.createElement("span"); s2.textContent=l[0];
+          t.appendChild(b); t.appendChild(s2); r.appendChild(t); i.appendChild(r);
+        });
+      if(d.proprietaire){
+        $("titre").textContent="Comptes et sociétés";
+        $("blocSocietes").hidden=false;
+        $("blocNouvelle").hidden=false;
+        chargerSocietes();
+      }
+      chargerComptes();
+    })
+    .catch(function(){ $("err").textContent="Pas de réseau."; });
+}
+function chargerComptes(){
+  fetch(api("comptes"), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ peindre(d.comptes||[]); })
+    .catch(function(){ $("err").textContent="Comptes indisponibles."; });
+}
+function peindre(comptes){
+  var host=$("liste"); host.textContent="";
+  if(!comptes.length){
+    var v=document.createElement("p"); v.className="hint"; v.textContent="Aucun compte.";
+    host.appendChild(v); return;
+  }
+  var ordre={admin:0, bureau:1, technicien:2};
+  comptes.sort(function(a,b){ return (ordre[a.role]-ordre[b.role]) || a.nom.localeCompare(b.nom); });
+  comptes.forEach(function(c){
+    var r=document.createElement("div"); r.className="ligne";
+    var t=document.createElement("div"); t.style.cssText="flex:1;min-width:0";
+    var b=document.createElement("b"); b.textContent=c.nom;
+    var s2=document.createElement("span");
+    s2.innerHTML="";
+    s2.textContent=c.identifiant+"  ·  ";
+    var m=document.createElement("span"); m.className="mdp"; m.textContent=c.motdepasse;
+    s2.appendChild(m);
+    if(c.email){ var e=document.createElement("span"); e.textContent=c.email; t.appendChild(e); }
+    t.appendChild(b); t.appendChild(s2);
+    var rl=document.createElement("span"); rl.className="role "+c.role;
+    rl.textContent = c.role==="admin" ? "Admin" : (c.role==="bureau" ? "Bureau" : "Technicien");
+    var mod=document.createElement("button"); mod.className="act ghost"; mod.textContent="Modifier";
+    mod.addEventListener("click", function(){
+      $("f_nom").value=c.nom; $("f_id").value=c.identifiant; $("f_mdp").value=c.motdepasse;
+      $("f_role").value=c.role; $("f_mail").value=c.email||"";
+      $("titreForm").textContent="Modifier "+c.nom;
+      window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
+    });
+    var sup=document.createElement("button"); sup.className="act danger"; sup.textContent="×";
+    sup.setAttribute("aria-label","Supprimer "+c.nom);
+    sup.addEventListener("click", function(){
+      if(!window.confirm("Supprimer le compte de "+c.nom+" ?")) return;
+      fetch(api("compte-supprimer")+"&identifiant="+encodeURIComponent(c.identifiant), {headers:{"x-auth":S.jeton}})
+        .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+        .then(function(res){ if(!res.ok){ $("err").textContent=res.d.erreur||"Suppression refusée."; return; } chargerComptes(); })
+        .catch(function(){ $("err").textContent="Pas de réseau."; });
+    });
+    r.appendChild(t); r.appendChild(rl); r.appendChild(mod); r.appendChild(sup);
+    host.appendChild(r);
+  });
+}
+$("btnEnr").addEventListener("click", function(){
+  var corps={nom:$("f_nom").value.trim(), identifiant:$("f_id").value.trim().toLowerCase(),
+             motdepasse:$("f_mdp").value.trim(), role:$("f_role").value, email:$("f_mail").value.trim()};
+  if(!corps.nom || !corps.identifiant){ $("err").textContent="Prénom et identifiant sont nécessaires."; return; }
+  $("err").textContent="Enregistrement…";
+  fetch(api("compte-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ $("err").textContent=res.d.erreur||"Enregistrement refusé."; return; }
+      $("err").textContent=""; $("titreForm").textContent="Ajouter un compte";
+      ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+      chargerComptes();
+    })
+    .catch(function(){ $("err").textContent="Pas de réseau."; });
+});
+$("btnVider").addEventListener("click", function(){
+  ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+  $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";
+});
+
+function chargerSocietes(){
+  fetch(api("societes"), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var host=$("listeSocietes"); host.textContent="";
+      (d.societes||[]).forEach(function(x){
+        var r=document.createElement("div"); r.className="ligne";
+        var t=document.createElement("div"); t.style.cssText="flex:1;min-width:0";
+        var b=document.createElement("b"); b.textContent=x.nom+(x.demo?"  (démonstration)":"");
+        var s2=document.createElement("span");
+        s2.textContent="code "+x.code+(x.ville?"  ·  "+x.ville:"")+(x.actif===false?"  ·  suspendue":"");
+        t.appendChild(b); t.appendChild(s2);
+        var bt=document.createElement("button");
+        bt.className="act"+(x.actif===false?" ghost":" danger");
+        bt.textContent = x.actif===false ? "Réactiver" : "Suspendre";
+        bt.addEventListener("click", function(){
+          fetch(api("societe-etat")+"&code="+encodeURIComponent(x.code)+"&actif="+(x.actif===false?"oui":"non"),
+            {headers:{"x-auth":S.jeton}})
+            .then(function(){ chargerSocietes(); }).catch(function(){});
+        });
+        r.appendChild(t); r.appendChild(bt);
+        host.appendChild(r);
+      });
+    }).catch(function(){});
+}
+$("btnSociete").addEventListener("click", function(){
+  var corps={nom:$("s_nom").value.trim(), code:$("s_code").value.trim().toLowerCase(),
+             metier:$("s_metier").value.trim(), ville:$("s_ville").value.trim(),
+             adminNom:$("s_adminNom").value.trim(), adminIdentifiant:$("s_adminId").value.trim().toLowerCase(),
+             adminMotdepasse:$("s_adminMdp").value.trim(), adminEmail:$("s_adminMail").value.trim()};
+  if(!corps.nom || !corps.code || !corps.adminMotdepasse){
+    $("errSoc").textContent="Nom, code et mot de passe de l'administrateur sont nécessaires."; return;
+  }
+  $("errSoc").textContent="Création…";
+  fetch(api("societe-creer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ $("errSoc").textContent=res.d.erreur||"Création refusée."; return; }
+      $("errSoc").textContent="Société créée. Connexion : code "+res.d.code+", identifiant "+res.d.identifiant+".";
+      ["s_nom","s_code","s_metier","s_ville","s_adminNom","s_adminId","s_adminMdp","s_adminMail"]
+        .forEach(function(i){ $(i).value=""; });
+      chargerSocietes();
+    })
+    .catch(function(){ $("errSoc").textContent="Pas de réseau."; });
+});
+
+charger();
+</script>
+</body>
+</html>

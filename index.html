@@ -1,0 +1,1113 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Suivi travaux 360</title>
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--field:#EFEBE1;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;
+ --rule:rgba(34,32,28,.08);
+ --accent:#B4621A;--accent-soft:#FBEDE0;--violet:#7A6A93;--violet-soft:#EFEBF2;
+ --vert:#5E6E42;--vert-soft:#EDF0E4;--ambre:#B4621A;--ambre-soft:#FBEDE0;--rouge:#A6291F;--rouge-soft:#F8E4E0;
+ --shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding:calc(26px + env(safe-area-inset-top,0px)) 16px calc(36px + env(safe-area-inset-bottom,0px))}
+main{max-width:560px;margin:0 auto}
+h1{font-size:26px;font-weight:700;letter-spacing:-.03em;margin:0 0 6px}
+p.sub{color:var(--ink-2);margin:0 0 22px;font-size:15px}
+.block{background:var(--card);border-radius:2px;box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+label span{display:block;font-size:13.5px;color:var(--ink-2);margin-bottom:6px}
+label{display:block;margin-bottom:14px}
+input{width:100%;min-height:48px;padding:12px 14px;font-size:16px;font-family:inherit;color:var(--ink);
+ background:var(--field);border:1px solid transparent;border-radius:2px}
+input:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 4px rgba(180,98,26,.16)}
+textarea{width:100%;min-height:84px;padding:12px 14px;font-size:16px;font-family:inherit;color:var(--ink);
+ background:var(--field);border:1px solid transparent;border-radius:2px;resize:vertical}
+button.p{width:100%;min-height:48px;border:0;border-radius:2px;background:var(--accent);color:#fff;
+ font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+button.p:active{transform:scale(.98)}
+button.lien{background:none;border:0;color:var(--accent);font-size:14px;font-weight:600;font-family:inherit;
+ cursor:pointer;padding:10px 0;width:100%}
+.err{color:var(--rouge);font-size:14px;margin:10px 0 0;min-height:20px}
+.hint{font-size:13px;color:var(--ink-3);margin:14px 0 0;line-height:1.5}
+
+/* ---------- en-tête de session ---------- */
+.tete{margin:0 0 16px}
+.tete .salut{font-size:26px;font-weight:700;letter-spacing:-.03em;margin:0}
+.tete .salut em{font-style:normal;color:var(--accent)}
+.tete .meta{color:var(--ink-2);font-size:14.5px;margin:3px 0 0}
+.tete .ligne-haut{display:flex;align-items:flex-start;gap:12px}
+.tete .ligne-haut .salut{flex:1}
+.tete .out{background:rgba(140,132,117,.14);border:0;border-radius:2px;padding:7px 13px;
+ color:var(--ink-2);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;flex:0 0 auto;margin-top:6px}
+
+/* ---------- page de connexion ---------- */
+body.connexion{background:#22201C;color:#F4F1EA}
+body.connexion main{max-width:460px}
+.accueil-haut{padding:14px 4px 26px;color:#EAF0F8}
+.marque{margin:0 0 6px;font-size:12px;font-weight:700;letter-spacing:.16em;text-transform:uppercase;color:#E8A33D}
+.salut-clair{margin:0;font-size:30px;font-weight:700;letter-spacing:-.035em;color:#F4F1EA}
+.phrase{margin:8px 0 0;font-size:15px;line-height:1.5;color:rgba(244,241,234,.72);max-width:22em}
+.meteo-ligne{display:flex;align-items:center;gap:14px;margin-top:22px;
+ background:none;border-top:1px solid rgba(244,241,234,.18);border-bottom:1px solid rgba(244,241,234,.18);
+ padding:13px 2px}
+.ml-date{display:flex;flex-direction:column;flex:1;min-width:0}
+.ml-jour{font-size:13px;color:rgba(244,241,234,.68);text-transform:capitalize}
+.ml-heure{font-size:26px;font-weight:700;letter-spacing:-.035em;line-height:1.15;color:#fff}
+.ml-meteo[hidden]{display:none}
+.ml-meteo{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.ml-icone svg{width:30px;height:30px;stroke:#E8A33D;fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.ml-icone svg .plein{fill:rgba(255,255,255,.2);stroke:none}
+.ml-temp{font-size:22px;font-weight:700;letter-spacing:-.03em;color:#fff}
+.ml-ciel{font-size:12.5px;color:rgba(244,241,234,.68);max-width:7.5em;line-height:1.25}
+.ml-detail{margin:9px 4px 0;font-size:12.5px;color:rgba(244,241,234,.55)}
+body.connexion .block{background:#fff;border-radius:2px;box-shadow:0 24px 50px -28px rgba(0,0,0,.75);
+ padding:22px;color:var(--ink)}
+body.connexion input{background:#EFEBE1}
+body.connexion .hint{color:#7D8796}
+body.connexion .signature b,body.connexion .signature span{color:rgba(244,241,234,.5)}
+body.connexion button.lien{color:var(--accent)}
+
+/* ---------- bulletin ---------- */
+.bulletin{display:flex;align-items:center;gap:14px;border-radius:2px;padding:16px 18px;margin:0 0 16px;
+ background:var(--ink);color:#fff;
+ box-shadow:0 10px 30px -14px rgba(180,98,26,.75)}
+.bulletin.nuit{background:#1A1815}
+.bulletin.gris{background:#3B3833}
+.bulletin.pluie{background:#2B3A33}
+.bul-gauche{flex:1;min-width:0}
+.bul-gauche .jour{margin:0;font-size:15px;font-weight:600;text-transform:capitalize;letter-spacing:-.01em}
+.bul-gauche .heure{margin:2px 0 0;font-size:32px;font-weight:700;letter-spacing:-.04em;line-height:1}
+.bul-gauche .lieu{margin:6px 0 0;font-size:12.5px;opacity:.7}
+.bul-droite[hidden]{display:none}
+.bul-droite{display:flex;align-items:center;gap:10px;flex:0 0 auto}
+.bul-icone svg{width:42px;height:42px;stroke:var(--ambre);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.bul-icone svg .plein{fill:rgba(232,163,61,.25);stroke:none}
+.bul-temp{text-align:right;line-height:1.25}
+.bul-temp b{display:block;font-size:26px;font-weight:700;letter-spacing:-.03em}
+.bul-temp span{display:block;font-size:12px;opacity:.85}
+
+/* ---------- notifications ---------- */
+.notifs{background:var(--card);border-radius:2px;box-shadow:var(--shadow);overflow:hidden;margin-bottom:16px}
+.notif[hidden]{display:none}
+.notif{display:flex;align-items:center;gap:13px;padding:13px 2px;border-bottom:1px solid var(--rule);
+ text-decoration:none;color:inherit;background:none}
+.notif:last-child{border-bottom:0}
+.notif .pic{min-width:24px;display:flex;align-items:center;justify-content:flex-start;
+ font-size:19px;font-weight:700;flex:0 0 auto;background:none;color:var(--ink)}
+.notif b{font-size:15px;font-weight:700}
+.notif span{font-size:13.5px;color:var(--ink-3)}
+.notif.amb .pic{color:var(--ambre)}
+.notif.vrt .pic{color:var(--vert)}
+.notif.rge .pic{color:var(--rouge)}
+.notif.urgent .pic{color:var(--rouge)}
+.notif .urg{font-size:10px;font-weight:800;letter-spacing:.09em;text-transform:uppercase;
+ color:var(--rouge);background:none;padding:0 0 0 8px;vertical-align:1px}
+.demandes{border-top:1px solid var(--rule);background:#fff}
+.demandes .d{padding:13px 16px;border-bottom:1px solid var(--rule)}
+.demandes .d:last-child{border-bottom:0}
+.demandes .d b{font-size:14.5px}
+.demandes .d span{display:block;font-size:13px;color:var(--ink-2)}
+.demandes .d a{color:var(--accent);text-decoration:none}
+.demandes .d button{margin-top:8px;min-height:36px;padding:0 14px;border:0;border-radius:2px;
+ background:var(--field);color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer}
+
+.demo-ban{margin:0 0 14px;padding:11px 14px;border-radius:2px;background:#FBEDE0;color:#8A5A14;
+ font-size:13.5px;font-weight:600;line-height:1.4}
+.raccourci{display:flex;align-items:center;gap:13px;text-decoration:none;color:inherit;margin-bottom:18px;
+ background:var(--card);border-radius:2px;box-shadow:var(--shadow);padding:15px 16px;
+ border-left:4px solid var(--ambre)}
+.raccourci:active{transform:scale(.99)}
+.r-ic{width:38px;height:38px;background:none;color:var(--ambre);flex:0 0 auto;
+ display:flex;align-items:center;justify-content:center}
+.r-ic svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.r-txt{flex:1;min-width:0}
+.r-txt b{display:block;font-size:16.5px;font-weight:700;letter-spacing:-.02em}
+.r-txt span{display:block;font-size:13.5px;color:#E8D9C4;margin-top:3px;font-weight:500}
+.r-fleche svg{width:18px;height:18px;stroke:#E8A33D;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- parcours de l'affaire ---------- */
+.parcours{background:var(--card);border-radius:2px;box-shadow:var(--shadow);padding:16px}
+.jalons{display:none}
+.jalons i{flex:1;height:3px;border-radius:2px;display:block}
+.etapes{display:block}
+a.etape{position:relative;display:flex;align-items:center;gap:13px;text-decoration:none;color:inherit;
+ border:0;border-bottom:1px solid var(--rule);padding:13px 2px;background:none}
+a.etape:active{transform:scale(.985)}
+a.etape .num{position:static;font-size:11.5px;font-weight:700;color:var(--ink-3);letter-spacing:.04em;
+ min-width:22px;order:-1}
+a.etape .ic{width:30px;height:30px;display:flex;align-items:center;justify-content:center;background:none!important}
+a.etape .ic svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round}
+a.etape b{flex:1;font-size:15.5px;font-weight:700;letter-spacing:-.02em}
+a.etape span.q{font-size:12.5px;color:var(--ink-3);text-align:right}
+a.etape.bleu{border-color:rgba(180,98,26,.3)} a.etape.bleu .ic{background:var(--accent-soft);color:var(--accent)}
+a.etape.violet .ic{background:var(--violet-soft);color:var(--violet)}
+a.etape.vert .ic{background:var(--vert-soft);color:var(--vert)}
+a.etape.teal .ic{background:#E1F5EE;color:#0F6E56}
+.appoints{display:block}
+a.appoint{display:flex;align-items:center;gap:13px;text-decoration:none;color:inherit;
+ border:0;border-bottom:1px solid var(--rule);padding:13px 2px;background:none}
+a.appoint:active{transform:scale(.985)}
+a.appoint svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+a.appoint b{flex:1;font-size:15px;font-weight:600;letter-spacing:-.01em;padding-left:35px}
+a.appoint.rouge svg{color:var(--rouge)} a.appoint.ambre svg{color:var(--ambre)}
+
+/* ---------- grille de cartes ---------- */
+h2.sec{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
+ margin:26px 0 8px}
+.grille{display:block;border-top:1px solid var(--rule)}
+a.tuile{position:relative;display:flex;flex-direction:column;text-decoration:none;color:inherit;
+ background:var(--card);border-radius:2px;padding:16px 14px 14px;box-shadow:var(--shadow);overflow:hidden;min-height:148px}
+a.tuile::before{content:"";position:absolute;inset:0 0 auto 0;height:4px;background:var(--accent)}
+a.tuile:active{transform:scale(.985)}
+a.tuile .ic{width:44px;height:44px;border-radius:2px;display:flex;align-items:center;justify-content:center;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:12px}
+a.tuile .ic svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+a.tuile b{font-size:16.5px;font-weight:700;letter-spacing:-.02em;line-height:1.22}
+a.tuile span.d{font-size:13.5px;color:var(--ink-2);margin-top:5px;line-height:1.35}
+a.tuile span.t{margin-top:auto;padding-top:10px;font-size:12.5px;color:var(--ink-3);font-weight:600}
+a.tuile.plein{background:var(--accent);color:#fff}
+a.tuile.plein::before{background:rgba(255,255,255,.35)}
+a.tuile.plein .ic{background:rgba(255,255,255,.18);color:#fff}
+a.tuile.plein span.d,a.tuile.plein span.t{color:rgba(255,255,255,.85)}
+a.tuile.vio::before{background:var(--violet)} a.tuile.vio .ic{background:var(--violet-soft);color:var(--violet)}
+a.tuile.vrt::before{background:var(--vert)} a.tuile.vrt .ic{background:var(--vert-soft);color:var(--vert)}
+a.tuile.amb::before{background:var(--ambre)} a.tuile.amb .ic{background:var(--ambre-soft);color:var(--ambre)}
+a.tuile.rge::before{background:var(--rouge)} a.tuile.rge .ic{background:var(--rouge-soft);color:var(--rouge)}
+a.tuile.large{grid-column:1 / -1;min-height:0;flex-direction:row;align-items:center;gap:13px;padding:13px 2px;
+ border:0;border-bottom:1px solid var(--rule);background:none;box-shadow:none}
+a.tuile.large::before{display:none}
+a.tuile.large .ic{background:none!important;width:30px;height:30px}
+a.tuile.large .ic{margin-bottom:0}
+a.tuile.large .txt{flex:1}
+
+/* ---------- travaux en bref ---------- */
+.bref{background:var(--card);border-radius:2px;box-shadow:var(--shadow);overflow:hidden}
+.bref a{display:flex;align-items:center;gap:12px;padding:13px 2px;border-bottom:1px solid var(--rule);
+ text-decoration:none;color:inherit}
+.bref a:last-child{border-bottom:0}
+.bref .jeter{flex:0 0 auto;width:30px;height:30px;min-height:30px;padding:0;margin-left:6px;border:0;
+ background:none;color:var(--ink-3);font-size:18px;line-height:1;cursor:pointer}
+.bref .jeter:active{color:var(--danger)}
+.bref .ref{font-size:11.5px;font-weight:700;color:var(--accent);background:none;padding:0;flex:0 0 auto}
+.bref .nom{flex:1;min-width:0;font-size:15px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bref .info{font-size:12.5px;color:var(--ink-3);flex:0 0 auto}
+.bref .vide{padding:16px;color:var(--ink-3);font-size:14px}
+
+.signature{margin:26px 0 0;text-align:center;line-height:1.6}
+.signature b{display:block;font-size:13px;font-weight:600;color:var(--ink-3)}
+.signature span{display:block;font-size:13px;color:var(--ink-3)}
+.signature .version{font-size:11.5px;color:var(--ink-3);opacity:.7;margin-top:3px}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:none;appearance:none}
+.grid2>label{min-width:0}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+</style>
+</head>
+<body>
+<main>
+
+  <div id="vueConnexion" hidden>
+    <div class="accueil-haut">
+      <p class="marque">Suivi travaux 360</p>
+      <p class="salut-clair" id="salutPublic"></p>
+      <p class="phrase" id="phraseJour"></p>
+
+      <div class="meteo-ligne">
+        <div class="ml-date">
+          <span class="ml-jour" id="bulJourP"></span>
+          <span class="ml-heure" id="bulHeureP"></span>
+        </div>
+        <div class="ml-meteo" id="bulMeteoP" hidden>
+          <span class="ml-icone" id="bulIconeP"></span>
+          <span class="ml-temp" id="bulTempP"></span>
+          <span class="ml-ciel" id="bulCielP"></span>
+        </div>
+      </div>
+      <p class="ml-detail" id="bulMinMaxP"></p>
+    </div>
+    <div class="block">
+      <label><span>Société</span><input type="text" id="soc" list="dl_societes" autocapitalize="none" spellcheck="false" placeholder="code de votre société"></label>
+      <datalist id="dl_societes"></datalist>
+      <label><span>Identifiant</span><input type="text" id="u" autocapitalize="none" autocomplete="username" spellcheck="false"></label>
+      <label><span>Mot de passe</span><input type="password" id="p" autocomplete="current-password"></label>
+      <button class="p" id="go">Se connecter</button>
+      <p class="err" id="err"></p>
+      <button class="lien" id="btnDemo">Essayer la démonstration</button>
+      <button class="lien" id="btnDemande">Demander un accès</button>
+      <p class="hint">Les identifiants sont délivrés par Johan Klughertz.</p>
+    </div>
+
+    <div class="block" id="blocDemande" hidden>
+      <h1 style="font-size:19px;margin-bottom:12px">Demander un accès</h1>
+      <label><span>Nom et prénom</span><input type="text" id="d_nom"></label>
+      <label><span>Fonction</span><input type="text" id="d_fonction" placeholder="Chargé d'affaires, technicien…"></label>
+      <label><span>Adresse e-mail</span><input type="email" id="d_email" autocapitalize="none" spellcheck="false"></label>
+      <label><span>Téléphone</span><input type="tel" id="d_tel"></label>
+      <label><span>Message</span><textarea id="d_msg" placeholder="Société, besoin, outils concernés…"></textarea></label>
+      <button class="p" id="d_envoi">Envoyer la demande</button>
+      <p class="err" id="d_err"></p>
+    </div>
+    <p class="signature"><b>© 2026 Johan Klughertz. Tous droits réservés</b><span>Du relevé à la réception, un seul outil.</span><span class="version">Vers. 1.5</span></p>
+  </div>
+
+  <div id="vueMenu" hidden>
+    <div class="tete">
+      <div class="ligne-haut">
+        <p class="salut" id="salut"></p>
+        <button class="out" id="btnOut">Se déconnecter</button>
+      </div>
+      <p class="meta" id="meta"></p>
+    </div>
+
+    <div class="bulletin" id="bulletin">
+      <div class="bul-gauche">
+        <p class="jour" id="bulJour"></p>
+        <p class="heure" id="bulHeure"></p>
+        <p class="lieu" id="bulLieu"></p>
+      </div>
+      <div class="bul-droite" id="bulMeteo" hidden>
+        <div class="bul-icone" id="bulIcone"></div>
+        <div class="bul-temp">
+          <b id="bulTemp"></b>
+          <span id="bulCiel"></span>
+          <span id="bulMinMax"></span>
+        </div>
+      </div>
+    </div>
+
+    <p class="demo-ban" id="banniere" hidden></p>
+    <div class="notifs" id="notifs" hidden></div>
+
+    <a class="raccourci" href="./notes.html">
+      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
+      <span class="r-txt"><b>Mes listes</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
+      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <h2 class="sec">Le parcours d'une affaire</h2>
+    <div class="parcours">
+      <div class="jalons" id="jalons"></div>
+      <div class="etapes" id="etapes"></div>
+      <div class="appoints" id="appoints"></div>
+    </div>
+    <div class="grille" id="cartes" style="margin-top:14px"></div>
+
+    <h2 class="sec">Travaux en cours</h2>
+    <div class="bref" id="bref"><div class="vide">Chargement…</div></div>
+
+    <h2 class="sec">Aide</h2>
+    <div id="carteAide"></div>
+
+    <p class="signature"><b>© 2026 Johan Klughertz. Tous droits réservés</b><span>Du relevé à la réception, un seul outil.</span><span class="version">Vers. 1.5</span></p>
+  </div>
+
+</main>
+<script>
+var $=function(i){return document.getElementById(i);};
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+function poserSession(s){ localStorage.setItem("outils:session", JSON.stringify(s)); }
+function apiUrl(a){ return "/api/rapports?action="+a; }
+function enTetes(s){ return {"Content-Type":"application/json", "x-auth": s.jeton}; }
+
+/* ---------- météo ---------- */
+var METEO={0:"Soleil",1:"Éclaircies",2:"Éclaircies",3:"Couvert",45:"Brouillard",48:"Brouillard",
+51:"Bruine",53:"Bruine",55:"Bruine",56:"Bruine",57:"Bruine",61:"Pluie",63:"Pluie",65:"Pluie forte",
+66:"Pluie",67:"Pluie",71:"Neige",73:"Neige",75:"Neige",77:"Neige",80:"Averses",81:"Averses",
+82:"Fortes averses",85:"Averses de neige",86:"Averses de neige",95:"Orage",96:"Orage",99:"Orage"};
+function meteoDemain(cb){
+  var c=null;
+  try{ c=JSON.parse(localStorage.getItem("meteo:demain")||"null"); }catch(e){}
+  if(c && Date.now()-c.t < 3*3600*1000){ cb(c.v); return; }
+  function go(lat, lon){
+    fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon
+      +"&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=2&timezone=auto")
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(!d.daily || !d.daily.time || d.daily.time.length<2) return cb(null);
+        var v={code:d.daily.weather_code[1], max:Math.round(d.daily.temperature_2m_max[1]),
+               min:Math.round(d.daily.temperature_2m_min[1])};
+        try{ localStorage.setItem("meteo:demain", JSON.stringify({t:Date.now(), v:v})); }catch(e){}
+        cb(v);
+      }).catch(function(){ cb(null); });
+  }
+  /* aucune demande de position ici : la permission du navigateur est réservée
+     au bouton Position des applis. On se sert du dernier point relevé, sinon
+     des Achards. */
+  var pos=null;
+  try{ pos=JSON.parse(localStorage.getItem("meteo:pos")||"null"); }catch(e){}
+  if(pos) go(pos.lat, pos.lon); else go(46.648, -1.658);
+}
+function bonjourMot(){ var h=new Date().getHours(); return h<6?"Bonne nuit":(h<18?"Bonjour":"Bonsoir"); }
+function dateLongue(d){
+  var J=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
+  var M=["janvier","février","mars","avril","mai","juin","juillet","août","septembre","octobre","novembre","décembre"];
+  return J[d.getDay()]+" "+d.getDate()+" "+M[d.getMonth()];
+}
+function hhmm(d){ return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+function frCourt(iso){
+  if(!iso) return "";
+  var a=String(iso).slice(0,10).split("-");
+  return a[2]+"/"+a[1];
+}
+
+/* ---------- icônes météo ---------- */
+var ICONES_METEO={
+  soleil:'<circle class="plein" cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="5"/>'
+        +'<path d="M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/>',
+  lune:'<path class="plein" d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/>',
+  eclaircies:'<circle class="plein" cx="9" cy="9" r="3.6"/><circle cx="9" cy="9" r="3.6"/>'
+        +'<path d="M9 2.6v1.6M2.6 9h1.6M4.7 4.7l1.1 1.1M13.3 4.7l-1.1 1.1"/>'
+        +'<path class="plein" d="M8 19a3.6 3.6 0 0 1 .5-7.2 4.8 4.8 0 0 1 9 1.4A3.1 3.1 0 0 1 17 19z"/>'
+        +'<path d="M8 19a3.6 3.6 0 0 1 .5-7.2 4.8 4.8 0 0 1 9 1.4A3.1 3.1 0 0 1 17 19z"/>',
+  nuage:'<path class="plein" d="M7 19a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6A3.4 3.4 0 0 1 17 19z"/>'
+        +'<path d="M7 19a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6A3.4 3.4 0 0 1 17 19z"/>',
+  pluie:'<path class="plein" d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M9 18.5l-1 2.5M13 18.5l-1 2.5M17 18.5l-1 2.5"/>',
+  neige:'<path class="plein" d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M9 19.5h.01M12.5 21h.01M16 19.5h.01"/>',
+  orage:'<path class="plein" d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M7 15.5a4 4 0 0 1 .6-8 5.3 5.3 0 0 1 10 1.6 3.4 3.4 0 0 1-.6 6.4z"/>'
+        +'<path d="M13 17l-3 3.5h3l-1 3"/>',
+  brouillard:'<path d="M4 9h16M3 13h18M5 17h14M7 21h10"/>'
+};
+function meteoStyle(code, nuit){
+  if(code===0) return {icone: nuit?"lune":"soleil", classe: nuit?"nuit":"", ciel: nuit?"Ciel clair":"Grand soleil"};
+  if(code<=2) return {icone:"eclaircies", classe: nuit?"nuit":"", ciel:"Belles éclaircies"};
+  if(code===3) return {icone:"nuage", classe:"gris", ciel:"Ciel couvert"};
+  if(code<=48) return {icone:"brouillard", classe:"gris", ciel:"Brouillard"};
+  if(code<=57) return {icone:"pluie", classe:"pluie", ciel:"Bruine"};
+  if(code<=67) return {icone:"pluie", classe:"pluie", ciel: code>=65?"Pluie soutenue":"Pluie"};
+  if(code<=77) return {icone:"neige", classe:"gris", ciel:"Neige"};
+  if(code<=82) return {icone:"pluie", classe:"pluie", ciel: code===82?"Fortes averses":"Averses"};
+  if(code<=86) return {icone:"neige", classe:"gris", ciel:"Averses de neige"};
+  return {icone:"orage", classe:"pluie", ciel:"Orage"};
+}
+function bulletin(lieu){
+  var carte=$("bulletin");
+  function horloge(){
+    var d=new Date();
+    $("bulJour").textContent = dateLongue(d);
+    $("bulHeure").textContent = hhmm(d);
+  }
+  horloge(); setInterval(horloge, 20000);
+  $("bulLieu").textContent = lieu || "";
+  meteoDemain(function(m){
+    if(!m) return;
+    var h=new Date().getHours(), nuit = (h<7 || h>=21);
+    var st=meteoStyle(m.code, nuit);
+    carte.className = "bulletin" + (st.classe ? " "+st.classe : "");
+    $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
+    $("bulTemp").textContent = m.max + "°";
+    $("bulCiel").textContent = st.ciel;
+    $("bulMinMax").textContent = "demain  •  " + m.min + "° au plus bas";
+    $("bulMeteo").hidden = false;
+  });
+}
+
+/* ---------- icônes ---------- */
+var ICONES={
+  releve:'<path d="M9 3h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
+  suivi:'<path d="M4 19V5m0 14h16"/><path d="M8 15l3-4 3 3 4-6"/>',
+  commande:'<path d="M6 6h15l-1.5 9h-12z"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/><path d="M3 4h2l1 2"/>',
+  sav:'<path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L4 17v3h3l5.3-5.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2-2z"/>',
+  reception:'<path d="M20 6L9 17l-5-5"/>',
+  etiquettes:'<path d="M4 7h16v10H4z"/><path d="M8 7v10M12 7v10M16 7v10"/>',
+  rapports:'<path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v5h5M8 13h8M8 17h5"/>',
+  listes:'<path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/>',
+  aide:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.8.7-.8 1.3v.4"/><path d="M12 17h.01"/>'
+};
+function tuile(href, titre, desc, tag, icone, cls){
+  var a=document.createElement("a"); a.className="tuile"+(cls?" "+cls:""); a.href=href;
+  var ic=document.createElement("div"); ic.className="ic";
+  ic.innerHTML='<svg viewBox="0 0 24 24">'+(ICONES[icone]||"")+'</svg>';
+  var b=document.createElement("b"); b.textContent=titre;
+  var d=document.createElement("span"); d.className="d"; d.textContent=desc;
+  var t=document.createElement("span"); t.className="t"; t.textContent=tag;
+  a.appendChild(ic); a.appendChild(b); a.appendChild(d); a.appendChild(t);
+  return a;
+}
+function tuileLarge(href, titre, desc, icone, cls){
+  var a=document.createElement("a"); a.className="tuile large"+(cls?" "+cls:""); a.href=href;
+  var ic=document.createElement("div"); ic.className="ic";
+  ic.innerHTML='<svg viewBox="0 0 24 24">'+(ICONES[icone]||"")+'</svg>';
+  var txt=document.createElement("div"); txt.className="txt";
+  var b=document.createElement("b"); b.textContent=titre;
+  var d=document.createElement("span"); d.className="d"; d.style.display="block"; d.textContent=desc;
+  txt.appendChild(b); txt.appendChild(d);
+  a.appendChild(ic); a.appendChild(txt);
+  return a;
+}
+function notif(cls, pastille, titre, detail, href){
+  var a=document.createElement(href?"a":"div"); a.className="notif"+(cls?" "+cls:"");
+  if(href) a.href=href;
+  var p=document.createElement("div"); p.className="pic"; p.textContent=pastille;
+  var t=document.createElement("div"); t.style.flex="1";
+  var b=document.createElement("b"); b.textContent=titre;
+  var s=document.createElement("span"); s.style.display="block"; s.textContent=detail;
+  t.appendChild(b); t.appendChild(s);
+  a.appendChild(p); a.appendChild(t);
+  return a;
+}
+
+/* ---------- menu ---------- */
+function menu(s){
+  document.body.classList.remove("connexion");
+  $("vueConnexion").hidden=true; $("vueMenu").hidden=false;
+  var tech = s.role==="technicien";
+
+  $("salut").innerHTML = bonjourMot()+", <em></em>";
+  $("salut").querySelector("em").textContent = String(s.nom||"").trim().split(/\s+/)[0];
+  var fonction = s.role==="admin" ? "Administrateur" : (tech ? "Technicien" : "Chargé d'affaires");
+  $("meta").textContent = s.demo ? fonction
+    : [fonction, s.societeNom || ""].filter(Boolean).join("  •  ");
+  var ban=$("banniere");
+  if(ban){
+    ban.hidden = !s.demo;
+    if(s.demo) ban.textContent = "Mode démonstration — les données sont partagées et remises à zéro régulièrement.";
+  }
+  bulletin(s.demo ? "" : (s.ville || ""));
+
+  /* ---------- parcours de l'affaire ---------- */
+  var etapes = [];
+  if(!tech) etapes.push(["./releve.html","Relevé","avant devis","releve","bleu","#B4621A"]);
+  etapes.push(["./suivi.html","Suivi","pendant","suivi","violet","#7A6A93"]);
+  etapes.push(["./commande.html","Commande","chaque soir","commande","vert","#5E6E42"]);
+  etapes.push(["./reception.html","Réception","fin de travaux","reception","teal","#0F6E56"]);
+
+  var j=$("jalons"); j.textContent="";
+  etapes.forEach(function(e){
+    var t=document.createElement("i"); t.style.background=e[5]; j.appendChild(t);
+  });
+
+  var g=$("etapes"); g.textContent="";
+  etapes.forEach(function(e, k){
+    var a=document.createElement("a"); a.className="etape "+e[4]; a.href=e[0];
+    var n=document.createElement("span"); n.className="num";
+    n.textContent = (k+1<10 ? "0" : "") + (k+1);
+    var ic=document.createElement("div"); ic.className="ic";
+    ic.innerHTML='<svg viewBox="0 0 24 24">'+(ICONES[e[3]]||"")+'</svg>';
+    var b=document.createElement("b"); b.textContent=e[1];
+    var q=document.createElement("span"); q.className="q"; q.textContent=e[2];
+    a.appendChild(n); a.appendChild(ic); a.appendChild(b); a.appendChild(q);
+    g.appendChild(a);
+  });
+
+  var ap=$("appoints"); ap.textContent="";
+  [["./sav.html","SAV","sav","rouge"],["./etiquettes.html","Étiquettes","etiquettes","ambre"]]
+  .forEach(function(e){
+    var a=document.createElement("a"); a.className="appoint "+e[3]; a.href=e[0];
+    a.innerHTML='<svg viewBox="0 0 24 24">'+(ICONES[e[2]]||"")+'</svg>';
+    var b=document.createElement("b"); b.textContent=e[1];
+    a.appendChild(b);
+    ap.appendChild(a);
+  });
+
+  var h=$("cartes"); h.textContent="";
+  h.appendChild(tuileLarge("./rapports.html","Mes rapports",
+    "Tous les documents publiés, dossier par dossier.","rapports"));
+
+  if(s.role==="admin" || s.proprietaire){
+    h.appendChild(tuileLarge("./equipe.html", s.proprietaire ? "Comptes et sociétés" : "Comptes de la société",
+      s.proprietaire ? "Créer une société, son administrateur, gérer les accès."
+                     : "Ajouter, modifier ou retirer les comptes de vos équipes.","aide"));
+  }
+
+  var aide=$("carteAide"); aide.textContent="";
+  aide.appendChild(tuileLarge("./aide.html","Comment ça marche",
+    "La fiche à lire une fois, deux minutes.","aide"));
+
+  charger(s);
+  chargerDemandes(s);
+  chargerTaches(s);
+  chargerListes(s);
+}
+
+/* ---------- bandeau de la page de connexion ---------- */
+var PHRASES=[
+  "Une bonne journée commence par un bon relevé.",
+  "Ce qui est noté sur place ne se rediscute pas au bureau.",
+  "Le temps passé à mesurer n'est jamais perdu.",
+  "Un chantier bien préparé est déjà à moitié fait.",
+  "La précision d'aujourd'hui évite le rattrapage de demain.",
+  "Photographiez, mesurez, publiez : le reste suivra.",
+  "Le détail vu ce matin, c'est l'imprévu évité la semaine prochaine."
+];
+function phraseDuJour(){
+  var d=new Date();
+  var n=Math.floor((d - new Date(d.getFullYear(),0,0))/864e5);
+  return PHRASES[n % PHRASES.length];
+}
+function bandeauPublic(){
+  var e=$("salutPublic"); if(!e) return;
+  document.body.classList.add("connexion");
+  e.textContent = bonjourMot();
+  $("phraseJour").textContent = phraseDuJour();
+  function horloge(){
+    var d=new Date();
+    $("bulJourP").textContent = dateLongue(d);
+    $("bulHeureP").textContent = hhmm(d);
+  }
+  horloge(); setInterval(horloge, 20000);
+  meteoDemain(function(m){
+    if(!m) return;
+    var h=new Date().getHours(), nuit=(h<7 || h>=21);
+    var st=meteoStyle(m.code, nuit);
+    $("bulIconeP").innerHTML = '<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
+    $("bulTempP").textContent = m.max + "°";
+    $("bulCielP").textContent = st.ciel + " demain";
+    $("bulMinMaxP").textContent = "Minimum attendu " + m.min + "° la nuit prochaine.";
+    $("bulMeteoP").hidden = false;
+  });
+}
+
+/* ---------- tâches du jour ---------- */
+var TACHES=[];
+function chargerTaches(s){
+  fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ TACHES=d.taches||[]; peindreTaches(s); })
+    .catch(function(){});
+}
+function tacheDue(t){
+  /* due le jour dit à partir de 7 h, et tant qu'elle n'est pas faite */
+  var d=new Date(), auj=d.toISOString().slice(0,10);
+  if(!t.quand) return false;
+  if(t.quand < auj) return true;                 /* en retard */
+  if(t.quand === auj) return d.getHours() >= 7;
+  return false;
+}
+function peindreTaches(s){
+  var host=$("notifs");
+  var vieux=document.getElementById("notifTaches"); if(vieux) vieux.remove();
+  var vieuxP=document.getElementById("panneauTaches"); if(vieuxP) vieuxP.remove();
+  var dues=TACHES.filter(tacheDue);
+  if(!dues.length){ host.hidden = !host.children.length; return; }
+
+  var auj=new Date().toISOString().slice(0,10);
+  var retard=dues.filter(function(t){ return t.quand < auj; }).length;
+  var a=notif("rge urgent", String(dues.length),
+    dues.length>1 ? dues.length+" tâches à faire" : "Une tâche à faire",
+    retard ? (retard>1 ? retard+" en retard" : "Une en retard") : "Prévue pour aujourd'hui");
+  a.id="notifTaches"; a.style.cursor="pointer";
+  var u=document.createElement("span"); u.className="urg"; u.textContent="urgent";
+  a.querySelector("b").appendChild(u);
+
+  var liste=document.createElement("div");
+  liste.className="demandes"; liste.id="panneauTaches"; liste.hidden=false;
+  dues.forEach(function(t){
+    var d=document.createElement("div"); d.className="d";
+    var b=document.createElement("b"); b.textContent=t.texte; d.appendChild(b);
+    var info=document.createElement("span");
+    info.textContent=[t.qui, t.client||t.chantier, "pour le "+frCourt(t.quand),
+      t.quand<auj ? "en retard" : ""].filter(Boolean).join("  •  ");
+    d.appendChild(info);
+    if(t.auteur){ var au=document.createElement("span"); au.textContent="Demandée par "+t.auteur; d.appendChild(au); }
+    var btn=document.createElement("button"); btn.type="button"; btn.textContent="Marquer réalisée";
+    btn.addEventListener("click", function(){
+      btn.disabled=true; btn.textContent="…";
+      fetch(apiUrl("tache-faite")+"&cle="+encodeURIComponent(t.cle), {headers:{"x-auth":s.jeton}})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(){
+          TACHES=TACHES.filter(function(x){ return x.cle!==t.cle; });
+          peindreTaches(s);
+        })
+        .catch(function(){ btn.disabled=false; btn.textContent="Marquer réalisée"; });
+    });
+    d.appendChild(btn);
+    liste.appendChild(d);
+  });
+  a.addEventListener("click", function(){ liste.hidden=!liste.hidden; });
+  host.insertBefore(a, host.firstChild);
+  host.insertBefore(liste, a.nextSibling);
+  host.hidden=false;
+}
+
+/* ---------- listes à échéance ---------- */
+var LISTES=[];
+function chargerListes(s){
+  fetch(apiUrl("notes"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      LISTES=d.listes||[];
+      var reste=LISTES.reduce(function(a,l){ return a+(l.items||[]).filter(function(i){ return !i.fait; }).length; }, 0);
+      var r=$("rListes");
+      if(r) r.textContent = reste
+        ? reste+" tâche"+(reste>1?"s":"")+" en cours sur "+LISTES.length+" liste"+(LISTES.length>1?"s":"")
+        : "Tâches du jour, achats, rappels";
+      peindreListes(s);
+    })
+    .catch(function(){});
+}
+function listeDue(l){
+  if(!l.quand) return false;
+  var restantes=(l.items||[]).filter(function(i){ return !i.fait; }).length;
+  if(!restantes) return false;
+  var d=new Date(), auj=d.toISOString().slice(0,10);
+  if(l.quand < auj) return true;
+  if(l.quand === auj) return d.getHours() >= 7;
+  return false;
+}
+function peindreListes(s){
+  var host=$("notifs");
+  var v=document.getElementById("notifListes"); if(v) v.remove();
+  var vp=document.getElementById("panneauListes"); if(vp) vp.remove();
+  var dues=LISTES.filter(listeDue);
+  if(!dues.length){ host.hidden = !host.children.length; return; }
+
+  var auj=new Date().toISOString().slice(0,10);
+  var retard=dues.filter(function(l){ return l.quand < auj; }).length;
+  var total=dues.reduce(function(a,l){ return a+(l.items||[]).filter(function(i){ return !i.fait; }).length; }, 0);
+  var a=notif("rge urgent", String(dues.length),
+    dues.length>1 ? dues.length+" listes à traiter" : "Une liste à traiter",
+    total+" tâche"+(total>1?"s":"")+" restante"+(total>1?"s":"")
+      + (retard ? "  ·  "+retard+" en retard" : "  ·  pour aujourd'hui"));
+  a.id="notifListes"; a.style.cursor="pointer";
+  var u=document.createElement("span"); u.className="urg"; u.textContent="urgent";
+  a.querySelector("b").appendChild(u);
+
+  var panneau=document.createElement("div");
+  panneau.className="demandes"; panneau.id="panneauListes"; panneau.hidden=false;
+  dues.forEach(function(l){
+    var d=document.createElement("div"); d.className="d";
+    var b=document.createElement("b"); b.textContent=l.titre || "Liste sans titre"; d.appendChild(b);
+    var reste=(l.items||[]).filter(function(i){ return !i.fait; });
+    var ligne=document.createElement("span");
+    ligne.textContent = reste.slice(0,3).map(function(i){ return i.texte || "tâche"; }).join(" · ")
+      + (reste.length>3 ? " · +"+(reste.length-3) : "");
+    d.appendChild(ligne);
+    var info=document.createElement("span");
+    info.textContent=[l.chantier ? l.chantier+(l.client?" · "+l.client:"") : "", l.pour,
+      "pour le "+frCourt(l.quand), l.quand<auj ? "en retard" : ""].filter(Boolean).join("  ·  ");
+    d.appendChild(info);
+    var boutons=document.createElement("div");
+    boutons.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+    var ouvrir=document.createElement("a");
+    ouvrir.href="./notes.html"; ouvrir.textContent="Ouvrir la liste";
+    ouvrir.style.cssText="min-height:36px;padding:9px 14px;border-radius:2px;background:var(--accent);"
+      +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
+    var faite=document.createElement("button"); faite.type="button"; faite.textContent="Tout cocher";
+    faite.style.cssText="min-height:36px;padding:0 14px;border:0;border-radius:2px;background:var(--field);"
+      +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+    faite.addEventListener("click", function(){
+      faite.disabled=true; faite.textContent="…";
+      (l.items||[]).forEach(function(i){ i.fait=true; });
+      l.maj=new Date().toISOString();
+      fetch(apiUrl("notes-enregistrer"), {method:"POST",
+        headers:{"Content-Type":"application/json","x-auth":s.jeton},
+        body:JSON.stringify({listes:[l]})})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(){ LISTES=LISTES.filter(function(x){ return x.id!==l.id; }); peindreListes(s); })
+        .catch(function(){ faite.disabled=false; faite.textContent="Tout cocher"; });
+    });
+    boutons.appendChild(ouvrir); boutons.appendChild(faite);
+    d.appendChild(boutons);
+    panneau.appendChild(d);
+  });
+  a.addEventListener("click", function(){ panneau.hidden=!panneau.hidden; });
+  host.insertBefore(a, host.firstChild);
+  host.insertBefore(panneau, a.nextSibling);
+  host.hidden=false;
+}
+
+/* ---------- demandes d'accès en attente ---------- */
+var DEMANDES=[];
+function chargerDemandes(s){
+  if(s.role!=="bureau" && s.role!=="admin") return;
+  fetch(apiUrl("demandes"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ DEMANDES=d.demandes||[]; peindreDemandes(s); })
+    .catch(function(){});
+}
+function peindreDemandes(s){
+  var host=$("notifs");
+  var ancien=document.getElementById("notifDemandes");
+  if(ancien) ancien.remove();
+  var panneau=document.getElementById("panneauDemandes");
+  if(panneau) panneau.remove();
+  if(!DEMANDES.length){ host.hidden = !host.children.length; return; }
+
+  var n=DEMANDES.length;
+  var a=notif("rge urgent", String(n),
+    n>1 ? n+" demandes d'accès" : "Une demande d'accès",
+    "Créez le compte dans equipe.mjs, puis marquez la demande traitée");
+  a.id="notifDemandes";
+  var urg=document.createElement("span"); urg.className="urg"; urg.textContent="urgent";
+  a.querySelector("b").appendChild(urg);
+  a.style.cursor="pointer";
+
+  var liste=document.createElement("div");
+  liste.className="demandes"; liste.id="panneauDemandes"; liste.hidden=true;
+  DEMANDES.forEach(function(dm){
+    var d=document.createElement("div"); d.className="d";
+    var b=document.createElement("b");
+    b.textContent = dm.nom + (dm.fonction ? "  —  "+dm.fonction : "");
+    d.appendChild(b);
+    var mail=document.createElement("span");
+    var lien=document.createElement("a"); lien.href="mailto:"+dm.email; lien.textContent=dm.email;
+    mail.appendChild(lien); d.appendChild(mail);
+    if(dm.tel){
+      var t=document.createElement("span");
+      var lt=document.createElement("a"); lt.href="tel:"+dm.tel.replace(/\s/g,""); lt.textContent=dm.tel;
+      t.appendChild(lt); d.appendChild(t);
+    }
+    if(dm.message){ var m=document.createElement("span"); m.textContent=dm.message; d.appendChild(m); }
+    var q=document.createElement("span");
+    q.textContent = "Reçue le "+frCourt(dm.recue);
+    d.appendChild(q);
+    var btn=document.createElement("button"); btn.type="button"; btn.textContent="Marquer traitée";
+    btn.addEventListener("click", function(){
+      btn.disabled=true; btn.textContent="…";
+      fetch(apiUrl("demande-traitee")+"&cle="+encodeURIComponent(dm.cle), {headers:{"x-auth":s.jeton}})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(){
+          DEMANDES = DEMANDES.filter(function(x){ return x.cle!==dm.cle; });
+          peindreDemandes(s);
+        })
+        .catch(function(){ btn.disabled=false; btn.textContent="Marquer traitée"; });
+    });
+    d.appendChild(btn);
+    liste.appendChild(d);
+  });
+  a.addEventListener("click", function(){ liste.hidden=!liste.hidden; });
+
+  host.insertBefore(a, host.firstChild);
+  host.insertBefore(liste, a.nextSibling);
+  host.hidden=false;
+}
+
+/* ---------- identité : métier et ville, rafraîchis sans tout reconstruire ---------- */
+function majIdentite(s){
+  fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      s.nom=d.nom||s.nom; s.role=d.role||s.role;
+      s.metier=d.metier||""; s.ville=d.ville||"";
+      poserSession(s);
+      $("salut").querySelector("em").textContent = String(s.nom||"").trim().split(/\s+/)[0];
+      var f2 = s.role==="admin" ? "Administrateur" : (s.role==="technicien" ? "Technicien" : "Chargé d'affaires");
+      $("meta").textContent = s.demo ? f2 : [f2, s.societeNom||""].filter(Boolean).join("  •  ");
+      if(s.ville && !s.demo) $("bulLieu").textContent = s.ville;
+    })
+    .catch(function(){});
+}
+
+/* ---------- statistiques et travaux en bref ---------- */
+var SESSION_COURANTE=null;
+function rafraichir(){
+  if(SESSION_COURANTE && !document.hidden){
+    charger(SESSION_COURANTE);
+    chargerDemandes(SESSION_COURANTE);
+    chargerTaches(SESSION_COURANTE);
+    chargerListes(SESSION_COURANTE);
+  }
+}
+document.addEventListener("visibilitychange", rafraichir);
+window.addEventListener("focus", rafraichir);
+window.addEventListener("pageshow", rafraichir);
+
+function messagesNonLus(s){
+  fetch(apiUrl("messages-non-lus"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      if(!d.total) return;
+      var host=$("notifs");
+      if(!host || document.getElementById("notif-messages")) return;
+      var a=document.createElement("a");
+      a.id="notif-messages"; a.className="notif"; a.href="./rapports.html";
+      var ic=document.createElement("span"); ic.className="ic";
+      ic.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2'
+        +'a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>';
+      var txt=document.createElement("div"); txt.className="txt";
+      var b=document.createElement("b");
+      b.textContent=d.total+" message"+(d.total>1?"s":"")+" non lu"+(d.total>1?"s":"");
+      var sp=document.createElement("span");
+      sp.textContent=d.dossiers.map(function(x){ return x.client; }).join(", ");
+      txt.appendChild(b); txt.appendChild(sp);
+      a.appendChild(ic); a.appendChild(txt);
+      host.insertBefore(a, host.firstChild);
+      host.hidden=false;
+    })
+    .catch(function(){});
+}
+function relevesEnCours(s){
+  fetch(apiUrl("dossiers"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var brouillons=(d.dossiers||[]).filter(function(x){ return x.releve && x.releve.brouillon; });
+      if(!brouillons.length) return;
+      var host=$("bref");
+      var vide=host.querySelector ? null : null;
+      brouillons.forEach(function(x){
+        if(document.getElementById("brouillon-"+x.ref)) return;
+        var a=document.createElement("a");
+        a.id="brouillon-"+x.ref;
+        a.href="./releve.html";
+        var ref=document.createElement("span"); ref.className="ref"; ref.textContent=x.ref;
+        var nom=document.createElement("b"); nom.textContent=x.client || x.ref;
+        var info=document.createElement("span"); info.className="n";
+        info.textContent="relevé en cours";
+        var jeter=document.createElement("button");
+        jeter.type="button"; jeter.className="jeter"; jeter.textContent="×";
+        jeter.title="Retirer ce relevé en cours";
+        jeter.setAttribute("aria-label","Retirer le relevé en cours de "+(x.client||x.ref));
+        jeter.addEventListener("click", function(e){
+          e.preventDefault(); e.stopPropagation();
+          if(!window.confirm("Retirer « "+(x.client||x.ref)+" » des relevés en cours ?\n\n"
+            +"Le relevé enregistré sur le site est effacé. Les documents publiés du dossier restent.")) return;
+          jeter.disabled=true; jeter.textContent="…";
+          fetch(apiUrl("brouillon-supprimer")+"&ref="+encodeURIComponent(x.ref), {headers:{"x-auth":s.jeton}})
+            .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+            .then(function(res){
+              if(!res.ok){ alert(res.d.erreur||"Suppression refusée."); jeter.disabled=false; jeter.textContent="×"; return; }
+              a.remove();
+            })
+            .catch(function(){ alert("Pas de réseau."); jeter.disabled=false; jeter.textContent="×"; });
+        });
+        a.appendChild(ref); a.appendChild(nom); a.appendChild(info); a.appendChild(jeter);
+        host.insertBefore(a, host.firstChild);
+      });
+      var v=host.querySelector ? host.children[host.children.length-1] : null;
+      if(v && v.className==="vide") v.remove();
+    })
+    .catch(function(){});
+}
+function charger(s){
+  relevesEnCours(s);
+  messagesNonLus(s);
+  SESSION_COURANTE=s;
+  fetch(apiUrl("liste"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var ch=(d.chantiers)||[];
+      peindreNotifs(s, ch);
+      peindreBref(ch);
+    })
+    .catch(function(){
+      $("bref").innerHTML='<div class="vide">Liste indisponible hors connexion.</div>';
+    });
+}
+function peindreNotifs(s, ch){
+  var host=$("notifs"); host.textContent="";
+  var tech = s.role==="technicien";
+  var docs=0, nonLus=0, semaine=0, reserves=0, sav=0, aRelancer=[];
+  var commandes=0, commandeRecente=null, savListe=[];
+  var limite=new Date(Date.now()-7*864e5).toISOString();
+  ch.forEach(function(c){
+    (c.fichiers||[]).forEach(function(f){
+      docs++;
+      if(f.publie > limite) semaine++;
+      var autres = (f.destinataires||[]).filter(function(n){ return n!==f.auteur; });
+      var lu = f.lectures && Object.keys(f.lectures).some(function(n){ return n!==f.auteur; });
+      if(!lu && f.auteur===s.nom && autres.length) nonLus++;
+      if(f.type==="sav" && !f.suiteTraitee){ sav++; savListe.push({cle:f.cle, client:c.client||c.ref, date:f.date, etape:f.etape, auteur:f.auteur}); }
+      if(f.type==="commande"){
+        var vue = f.lectures && Object.keys(f.lectures).length > 0;
+        if(!vue){
+          commandes++;
+          if(!commandeRecente || f.publie > commandeRecente.publie){
+            commandeRecente = {publie:f.publie, auteur:f.auteur, client:c.client||c.ref};
+          }
+        }
+      }
+      var et=(f.etape||"").toLowerCase();
+      if(f.type==="reception" && et.indexOf("avec réserve")>=0 && et.indexOf("sans réserve")<0) reserves++;
+    });
+    var j=(Date.now()-Date.parse(c.maj||0))/864e5;
+    if(j>21) aRelancer.push(c);
+  });
+
+  if(commandes){
+    var det = commandeRecente
+      ? "Dernière : "+(commandeRecente.auteur||"un technicien")+" pour "+commandeRecente.client
+      : "Matériel à commander";
+    var nc = notif("rge urgent", String(commandes),
+      commandes>1 ? commandes+" commandes à traiter" : "Une commande à traiter",
+      det, "./rapports.html");
+    var u=document.createElement("span"); u.className="urg"; u.textContent="urgent";
+    nc.querySelector("b").appendChild(u);
+    host.appendChild(nc);
+  }
+  host.appendChild(notif("", String(ch.length), ch.length+(ch.length>1?" chantiers suivis":" chantier suivi"),
+    docs+(docs>1?" documents déposés":" document déposé"), "./rapports.html"));
+  if(semaine) host.appendChild(notif("vrt", String(semaine), semaine+(semaine>1?" documents cette semaine":" document cette semaine"),
+    "Publiés ces sept derniers jours", "./rapports.html"));
+  if(nonLus) host.appendChild(notif("amb", String(nonLus), nonLus+(nonLus>1?" documents pas encore ouverts":" document pas encore ouvert"),
+    "Vos envois que personne n'a consultés", "./rapports.html"));
+  if(reserves) host.appendChild(notif("rge", String(reserves), reserves+(reserves>1?" réceptions avec réserves":" réception avec réserves"),
+    "À lever avant clôture", "./rapports.html"));
+  if(sav){
+    var ns=notif("rge", String(sav), sav+(sav>1?" interventions SAV":" intervention SAV"),
+      "Suites à traiter");
+    ns.id="notifSav"; ns.style.cursor="pointer";
+    var pan=document.createElement("div"); pan.className="demandes"; pan.id="panneauSav"; pan.hidden=true;
+    savListe.forEach(function(it){
+      var d=document.createElement("div"); d.className="d";
+      var b=document.createElement("b"); b.textContent=it.client; d.appendChild(b);
+      var sp=document.createElement("span");
+      sp.textContent=[it.etape, it.auteur, it.date?"le "+frCourt(it.date):""].filter(Boolean).join("  ·  ");
+      d.appendChild(sp);
+      var row=document.createElement("div");
+      row.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+      var ouvrir=document.createElement("a"); ouvrir.href="./rapports.html"; ouvrir.textContent="Voir la fiche";
+      ouvrir.style.cssText="min-height:36px;padding:9px 14px;border-radius:2px;background:var(--accent);"
+        +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
+      var ok=document.createElement("button"); ok.type="button"; ok.textContent="Suite traitée";
+      ok.style.cssText="min-height:36px;padding:0 14px;border:0;border-radius:2px;background:var(--field);"
+        +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+      ok.addEventListener("click", function(){
+        ok.disabled=true; ok.textContent="…";
+        fetch(apiUrl("sav-traite")+"&cle="+encodeURIComponent(it.cle), {headers:{"x-auth":s.jeton}})
+          .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+          .then(function(){ charger(s); })
+          .catch(function(){ ok.disabled=false; ok.textContent="Suite traitée"; });
+      });
+      row.appendChild(ouvrir); row.appendChild(ok);
+      d.appendChild(row);
+      pan.appendChild(d);
+    });
+    ns.addEventListener("click", function(){ pan.hidden=!pan.hidden; });
+    host.appendChild(ns); host.appendChild(pan);
+  }
+  if(LISTES.length) setTimeout(function(){ peindreListes(s); }, 0);
+  if(TACHES.length) setTimeout(function(){ peindreTaches(s); }, 0);
+  if(DEMANDES.length) setTimeout(function(){ peindreDemandes(s); }, 0);
+  if(!tech && aRelancer.length) host.appendChild(notif("amb", String(aRelancer.length),
+    aRelancer.length+(aRelancer.length>1?" chantiers sans nouvelle":" chantier sans nouvelle"),
+    "Rien de déposé depuis trois semaines", "./rapports.html"));
+  host.hidden = !host.children.length;
+}
+function peindreBref(ch){
+  var host=$("bref"); host.textContent="";
+  if(!ch.length){
+    var v=document.createElement("div"); v.className="vide";
+    v.textContent="Aucun chantier pour l'instant. Il apparaîtra ici dès la première publication.";
+    host.appendChild(v); return;
+  }
+  ch.slice(0,6).forEach(function(c){
+    var a=document.createElement("a"); a.href="./rapports.html";
+    var r=document.createElement("span"); r.className="ref"; r.textContent=c.ref;
+    var n=document.createElement("span"); n.className="nom"; n.textContent=c.client||c.ref;
+    var i=document.createElement("span"); i.className="info";
+    i.textContent=(c.fichiers?c.fichiers.length:0)+" doc.  "+frCourt(c.maj);
+    a.appendChild(r); a.appendChild(n); a.appendChild(i);
+    host.appendChild(a);
+  });
+}
+
+/* ---------- connexion ---------- */
+function connecter(societe, identifiant, motdepasse){
+  var soc=(societe || $("soc").value || "").trim().toLowerCase();
+  var u=(identifiant!==undefined ? identifiant : ($("u").value||"")).trim().toLowerCase();
+  var p=(motdepasse!==undefined ? motdepasse : ($("p").value||""));
+  if(!soc){ $("err").textContent="Indiquez le code de votre société."; return; }
+  if(!u || !p){ $("err").textContent="Identifiant et mot de passe."; return; }
+  $("err").textContent="Connexion…";
+  fetch(apiUrl("connexion"), {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({societe:soc, identifiant:u, motdepasse:p})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok || !res.d.jeton){ $("err").textContent=res.d.erreur||"Identifiants refusés."; return; }
+      var s={jeton:res.d.jeton, nom:res.d.nom, role:res.d.role,
+             societe:res.d.societe||soc, societeNom:res.d.societeNom||"",
+             metier:res.d.metier||"", ville:res.d.ville||"",
+             proprietaire:!!res.d.proprietaire, demo:!!res.d.demo};
+      try{ localStorage.setItem("outils:societe", soc); }catch(e){}
+      poserSession(s); $("err").textContent="";
+      menu(s);
+      majIdentite(s);
+    })
+    .catch(function(){ $("err").textContent="Pas de réseau."; });
+}
+function envoyerDemande(){
+  var corps={nom:($("d_nom").value||"").trim(), fonction:($("d_fonction").value||"").trim(),
+             email:($("d_email").value||"").trim(), tel:($("d_tel").value||"").trim(),
+             message:($("d_msg").value||"").trim()};
+  if(!corps.nom || !corps.email){ $("d_err").textContent="Nom et adresse e-mail sont nécessaires."; return; }
+  $("d_err").textContent="Envoi…";
+  fetch(apiUrl("demande-acces"), {method:"POST", headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(corps)})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ $("d_err").textContent=res.d.erreur||"Demande refusée."; return; }
+      $("blocDemande").hidden=true;
+      $("err").textContent="Demande transmise à Johan Klughertz. Vous recevrez vos identifiants par e-mail.";
+    })
+    .catch(function(){ $("d_err").textContent="Pas de réseau."; });
+}
+
+$("go").addEventListener("click", function(){ connecter(); });
+$("p").addEventListener("keydown", function(e){ if(e.key==="Enter") connecter(); });
+$("btnDemo").addEventListener("click", function(){
+  $("err").textContent="Ouverture de la démonstration…";
+  connecter("demo","demo","demo");
+});
+$("btnDemande").addEventListener("click", function(){
+  var b=$("blocDemande"); b.hidden=!b.hidden;
+  if(!b.hidden) $("d_nom").focus();
+});
+$("d_envoi").addEventListener("click", envoyerDemande);
+$("btnOut").addEventListener("click", function(){
+  localStorage.removeItem("outils:session"); location.reload();
+});
+
+var s=session();
+if(s && s.jeton){
+  menu(s);
+  majIdentite(s);
+} else {
+  $("vueConnexion").hidden=false;
+  bandeauPublic();
+  try{ $("soc").value = localStorage.getItem("outils:societe") || ""; }catch(e){}
+  fetch(apiUrl("societes-publiques"))
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var dl=$("dl_societes"); dl.textContent="";
+      (d.societes||[]).forEach(function(x){
+        var o=document.createElement("option"); o.value=x.code; o.label=x.nom; dl.appendChild(o);
+      });
+    })
+    .catch(function(){});
+}
+</script>
+</body>
+</html>
