@@ -15,6 +15,13 @@ Une seule pièce fait la bascule : `netlify/functions/magasin.mjs`.
 
 Il faut [Node.js](https://nodejs.org) version 20 ou plus.
 
+Le plus court : **double-cliquez** `outils/essayer-en-local.sh` sur Mac
+ou Linux, `outils/essayer-en-local.cmd` sur Windows. Le script installe
+ce qu'il faut la première fois, démarre le site et l'ouvre dans le
+navigateur.
+
+À la main, cela revient à :
+
 ```bash
 npm install     # une seule fois
 npm start
