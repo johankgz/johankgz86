@@ -500,6 +500,17 @@ if(ENLIGNE && (!SESSION || !SESSION.jeton)){
 }
 function jetonSession(){ return SESSION && SESSION.jeton ? SESSION.jeton : ""; }
 
+/* ---------- accès à l'appli : attribué compte par compte ---------- */
+(function(){
+  var APPLI="commande";
+  var siennes = SESSION && SESSION.applis;
+  var tout = SESSION && (SESSION.role==="admin" || SESSION.proprietaire);
+  if(ENLIGNE && !tout && Array.isArray(siennes) && siennes.length && siennes.indexOf(APPLI)<0){
+    try{ sessionStorage.setItem("acces:refuse", APPLI); }catch(e){}
+    location.replace("./index.html");
+  }
+})();
+
 if(!window.storage){
   window.storage = {
     get:function(k){ try{ var v=localStorage.getItem(k); return Promise.resolve(v===null?null:{key:k,value:v}); }catch(e){ return Promise.resolve(null); } },

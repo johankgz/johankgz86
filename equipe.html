@@ -51,6 +51,12 @@ button.act.danger{background:#F8E4E0;color:var(--danger)}
 .role.admin{background:var(--accent-soft);color:var(--accent)}
 .role.technicien{background:#EAF3DE;color:#3B6D11}
 .mdp{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ink-2)}
+.legend{font-size:13px;color:var(--ink-2);margin:0 0 8px}
+.applis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px}
+.applis button{min-height:42px;padding:9px 14px;border:0;border-radius:2px;background:var(--field);
+ color:var(--ink);font-size:14.5px;font-weight:500;font-family:inherit;cursor:pointer}
+.applis button.on{background:var(--accent);color:#fff;font-weight:600}
+.acces{display:block;font-size:12.5px;color:var(--accent);margin-top:2px}
 
 /* ---------- écrans larges : ordinateur et tablette ---------- */
 @media (min-width:820px){
@@ -108,6 +114,9 @@ button.act.danger{background:#F8E4E0;color:var(--danger)}
       </label>
     </div>
     <label class="f"><span>E-mail (pour les notifications)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
+    <p class="legend">Applis accessibles</p>
+    <div class="applis" id="f_applis"></div>
+    <p class="hint" style="margin:0 0 14px">Rien de coché : toutes les applis. Sinon, le compte ne voit que celles qui sont cochées, et le site refuse les autres même en tapant l'adresse. L'administrateur garde tout, quoi qu'on coche. Mes rapports, Mes listes et l'aide restent ouverts à tout le monde.</p>
     <div class="row">
       <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
       <button class="act" id="btnVider">Vider</button>
@@ -167,6 +176,34 @@ function api(a){ return "/api/rapports?action="+a; }
 function tetes(){ return {"Content-Type":"application/json","x-auth":S.jeton}; }
 var MOI={};
 
+/* ---------- applis attribuables ---------- */
+var APPLIS=[["releve","Relevé"],["suivi","Suivi"],["commande","Commande"],
+  ["reception","Réception"],["autocontrole","Autocontrôle"],["sav","SAV"],
+  ["etiquettes","Étiquettes"],["photos","Reportage photo"]];
+var APPLIS_CHOISIES=[];
+function nomAppli(id){
+  for(var i=0;i<APPLIS.length;i++) if(APPLIS[i][0]===id) return APPLIS[i][1];
+  return id;
+}
+function listeApplis(ids){
+  var propres=(ids||[]).filter(function(a){ return nomAppli(a)!==a; });
+  return propres.length ? propres.map(nomAppli).join(", ") : "";
+}
+function peindreApplis(){
+  var host=$("f_applis"); host.textContent="";
+  APPLIS.forEach(function(a){
+    var b=document.createElement("button"); b.type="button";
+    b.textContent=a[1];
+    b.className = APPLIS_CHOISIES.indexOf(a[0])>=0 ? "on" : "";
+    b.addEventListener("click", function(){
+      var k=APPLIS_CHOISIES.indexOf(a[0]);
+      if(k>=0) APPLIS_CHOISIES.splice(k,1); else APPLIS_CHOISIES.push(a[0]);
+      peindreApplis();
+    });
+    host.appendChild(b);
+  });
+}
+
 function charger(){
   fetch(api("moi-societe"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -220,12 +257,17 @@ function peindre(comptes){
     s2.appendChild(m);
     if(c.email){ var e=document.createElement("span"); e.textContent=c.email; t.appendChild(e); }
     t.appendChild(b); t.appendChild(s2);
+    var acc=document.createElement("span"); acc.className="acces";
+    var quoi=listeApplis(c.applis);
+    acc.textContent = (c.role==="admin" || !quoi) ? "Toutes les applis" : quoi;
+    t.appendChild(acc);
     var rl=document.createElement("span"); rl.className="role "+c.role;
     rl.textContent = c.role==="admin" ? "Admin" : (c.role==="bureau" ? "Bureau" : "Technicien");
     var mod=document.createElement("button"); mod.className="act ghost"; mod.textContent="Modifier";
     mod.addEventListener("click", function(){
       $("f_nom").value=c.nom; $("f_id").value=c.identifiant; $("f_mdp").value=c.motdepasse;
       $("f_role").value=c.role; $("f_mail").value=c.email||"";
+      APPLIS_CHOISIES=(c.applis||[]).slice(); peindreApplis();
       $("titreForm").textContent="Modifier "+c.nom;
       window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
     });
@@ -244,7 +286,8 @@ function peindre(comptes){
 }
 $("btnEnr").addEventListener("click", function(){
   var corps={nom:$("f_nom").value.trim(), identifiant:$("f_id").value.trim().toLowerCase(),
-             motdepasse:$("f_mdp").value.trim(), role:$("f_role").value, email:$("f_mail").value.trim()};
+             motdepasse:$("f_mdp").value.trim(), role:$("f_role").value, email:$("f_mail").value.trim(),
+             applis:APPLIS_CHOISIES.slice()};
   if(!corps.nom || !corps.identifiant){ $("err").textContent="Prénom et identifiant sont nécessaires."; return; }
   $("err").textContent="Enregistrement…";
   fetch(api("compte-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
@@ -253,12 +296,14 @@ $("btnEnr").addEventListener("click", function(){
       if(!res.ok){ $("err").textContent=res.d.erreur||"Enregistrement refusé."; return; }
       $("err").textContent=""; $("titreForm").textContent="Ajouter un compte";
       ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+      APPLIS_CHOISIES=[]; peindreApplis();
       chargerComptes();
     })
     .catch(function(){ $("err").textContent="Pas de réseau."; });
 });
 $("btnVider").addEventListener("click", function(){
   ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+  APPLIS_CHOISIES=[]; peindreApplis();
   $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";
 });
 
@@ -308,6 +353,7 @@ $("btnSociete").addEventListener("click", function(){
     .catch(function(){ $("errSoc").textContent="Pas de réseau."; });
 });
 
+peindreApplis();
 charger();
 </script>
 </body>

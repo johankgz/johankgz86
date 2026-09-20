@@ -166,6 +166,10 @@ a.appoint svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:
 a.appoint b{flex:1;font-size:15px;font-weight:600;letter-spacing:-.01em;padding-left:35px}
 a.appoint.rouge svg{color:var(--rouge)} a.appoint.ambre svg{color:var(--ambre)}
 a.appoint.violet svg{color:var(--violet)}
+a.etape.ardoise .ic{background:#E7EDF3;color:#3F5E7A}
+.acces-ban{background:var(--rouge-soft);color:var(--rouge);font-size:13.5px;font-weight:600;
+ border-radius:2px;padding:11px 13px;margin:0 0 14px}
+.acces-ban[hidden]{display:none}
 
 /* ---------- grille de cartes ---------- */
 h2.sec{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
@@ -315,6 +319,7 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
     </div>
 
     <p class="demo-ban" id="banniere" hidden></p>
+    <p class="acces-ban" id="banniereAcces" hidden></p>
     <div class="notifs" id="notifs" hidden></div>
 
     <a class="raccourci" href="./notes.html">
@@ -454,6 +459,7 @@ var ICONES={
   reception:'<path d="M20 6L9 17l-5-5"/>',
   etiquettes:'<path d="M4 7h16v10H4z"/><path d="M8 7v10M12 7v10M16 7v10"/>',
   photos:'<path d="M3 8h3.5L8 5.5h8L17.5 8H21v11H3z"/><circle cx="12" cy="13" r="3.4"/>',
+  autocontrole:'<path d="M8 4.5h8v2H8z"/><path d="M16 5.5h2.5v15H5.5v-15H8"/><path d="M8 11l1.6 1.6L12.8 9"/><path d="M8 16.4l1.6 1.6 3.2-3.6"/><path d="M15 11h3M15 16.4h3"/>',
   rapports:'<path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v5h5M8 13h8M8 17h5"/>',
   listes:'<path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/>',
   aide:'<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.8.7-.8 1.3v.4"/><path d="M12 17h.01"/>'
@@ -492,6 +498,38 @@ function notif(cls, pastille, titre, detail, href){
 }
 
 /* ---------- menu ---------- */
+var NOMS_APPLIS={releve:"Relevé technique", suivi:"Suivi de chantier", commande:"Commande",
+  reception:"Réception", autocontrole:"Autocontrôle", sav:"SAV", etiquettes:"Étiquettes",
+  photos:"Reportage photo"};
+function accesAppli(s, id){
+  if(!s) return false;
+  if(s.role==="admin" || s.proprietaire) return true;
+  var a=s.applis;
+  if(!Array.isArray(a) || !a.length) return true;    /* rien d'attribué : tout est ouvert */
+  return a.indexOf(id)>=0;
+}
+function banniereAcces(){
+  var b=$("banniereAcces"); if(!b) return;
+  var refus=null;
+  try{ refus=sessionStorage.getItem("acces:refuse"); sessionStorage.removeItem("acces:refuse"); }catch(e){}
+  if(!refus){ b.hidden=true; return; }
+  b.hidden=false;
+  b.textContent = (NOMS_APPLIS[refus]||"Cette appli") + " ne vous est pas attribuée. Voyez avec votre administrateur.";
+}
+/* les droits peuvent changer pendant que la session dure : on les relit */
+function rafraichirDroits(s){
+  if(!s || !s.jeton) return;
+  fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !d.role) return;
+      var avant=JSON.stringify([s.applis||[], s.role, !!s.proprietaire]);
+      s.applis=Array.isArray(d.applis)?d.applis:[]; s.role=d.role; s.proprietaire=!!d.proprietaire;
+      if(JSON.stringify([s.applis, s.role, !!s.proprietaire])===avant) return;
+      poserSession(s); menu(s);
+    })
+    .catch(function(){});
+}
 function menu(s){
   document.body.classList.remove("connexion");
   $("vueConnexion").hidden=true; $("vueMenu").hidden=false;
@@ -514,7 +552,9 @@ function menu(s){
   if(!tech) etapes.push(["./releve.html","Relevé","avant devis","releve","bleu","#B4621A"]);
   etapes.push(["./suivi.html","Suivi","pendant","suivi","violet","#7A6A93"]);
   etapes.push(["./commande.html","Commande","chaque soir","commande","vert","#5E6E42"]);
+  etapes.push(["./autocontrole.html","Autocontrôle","mise en service","autocontrole","ardoise","#3F5E7A"]);
   etapes.push(["./reception.html","Réception","fin de travaux","reception","teal","#0F6E56"]);
+  etapes = etapes.filter(function(e){ return accesAppli(s, e[3]); });
 
   var j=$("jalons"); j.textContent="";
   etapes.forEach(function(e){
@@ -537,6 +577,7 @@ function menu(s){
   var ap=$("appoints"); ap.textContent="";
   [["./sav.html","SAV","sav","rouge"],["./etiquettes.html","Étiquettes","etiquettes","ambre"],
    ["./photos.html","Reportage photo","photos","violet"]]
+  .filter(function(e){ return accesAppli(s, e[2]); })
   .forEach(function(e){
     var a=document.createElement("a"); a.className="appoint "+e[3]; a.href=e[0];
     a.innerHTML='<svg viewBox="0 0 24 24">'+(ICONES[e[2]]||"")+'</svg>';
@@ -559,6 +600,8 @@ function menu(s){
   aide.appendChild(tuileLarge("./aide.html","Comment ça marche",
     "La fiche à lire une fois, deux minutes.","aide"));
 
+  banniereAcces();
+  rafraichirDroits(s);
   charger(s);
   chargerDemandes(s);
   chargerTaches(s);

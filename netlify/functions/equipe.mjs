@@ -18,7 +18,12 @@ export const PROPRIETAIRE = {
 };
 
 /* Société installée au premier démarrage, avec ses comptes.
-   Rôles possibles : "admin" (gère les comptes), "bureau", "technicien". */
+   Rôles possibles : "admin" (gère les comptes), "bureau", "technicien".
+   Un compte peut être limité à certaines applis en ajoutant par exemple
+   applis: ["reception", "suivi"] sur sa ligne. Sans ce champ, il les a
+   toutes. Applis connues : releve, suivi, commande, reception,
+   autocontrole, sav, etiquettes, photos. Cela se règle ensuite depuis la
+   page Comptes du site, sans toucher à ce fichier. */
 export const SOCIETE_DEPART = {
   code: "tle",
   nom: "TRICHET LOUÉ ÉNERGIES",

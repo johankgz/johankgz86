@@ -27,6 +27,7 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
     entree.type === "commande" ? "Commande et reste à faire"
     : entree.type === "suivi" ? "Suivi de chantier" + (entree.visite ? " — visite n° " + entree.visite : "")
     : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
+    : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
     : "Relevé technique";
   const titre = chantier.client || chantier.ref;
   const lien = origine + "/rapports.html";
@@ -157,6 +158,26 @@ const DUREE_SESSION = 3 * 24 * 60 * 60 * 1000;   /* trois jours : deux reconnexi
 function jetonAvecDate(code, id, mdp) {
   return Buffer.from(code + "|" + id + ":" + mdp + "|" + Date.now(), "utf8").toString("base64");
 }
+/* ---------- applis du site et droits d'accès ---------- */
+/* Une liste vide vaut « toutes les applis ». L'administrateur et le
+   propriétaire gardent tout, quoi qu'on leur attribue. */
+const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos"];
+const APPLI_DU_TYPE = {
+  releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
+  autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos"
+};
+function applisValides(liste) {
+  if (!Array.isArray(liste)) return [];
+  const propres = liste.map((a) => String(a).trim().toLowerCase()).filter((a) => APPLIS.indexOf(a) >= 0);
+  return Array.from(new Set(propres));
+}
+function aAcces(personne, appli) {
+  if (!personne) return false;
+  if (personne.role === "admin" || personne.proprietaire) return true;
+  const siennes = applisValides(personne.applis);
+  return !siennes.length || siennes.indexOf(appli) >= 0;
+}
+
 async function identifier(auth) {
   const a = (auth || "").trim();
   if (!a) return null;
@@ -186,11 +207,12 @@ async function identifier(auth) {
   if (u) {
     const proprio = id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse;
     return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
-      societe: code, proprietaire: proprio };
+      societe: code, proprietaire: proprio, applis: applisValides(u.applis) };
   }
   /* sinon, le propriétaire entre quand même, dans n'importe quelle société */
   if (id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse) {
-    return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code, email: PROPRIETAIRE.email };
+    return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code,
+      email: PROPRIETAIRE.email, applis: [] };
   }
   return null;
 }
@@ -255,6 +277,7 @@ function rang(f) {
   if (f.type === "commande") return 1000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "photos") return 2000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reception") return 3000;
   if (f.type === "etiquettes") return 2500;
   if (f.type === "sav") return 1500 + Number(new Date(f.publie || 0)) / 1e10;
@@ -317,7 +340,7 @@ export default async (req) => {
     if (!p) return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401);
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === code) || {};
-    return json({ jeton: jetonAvecDate(code, id, mdp), nom: p.nom, role: p.role,
+    return json({ jeton: jetonAvecDate(code, id, mdp), nom: p.nom, role: p.role, applis: p.applis || [],
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
       proprietaire: !!p.proprietaire, demo: !!soc.demo });
   }
@@ -343,7 +366,8 @@ export default async (req) => {
   }
 
   if (action === "moi") {
-    return json({ nom: personne.nom, role: personne.role,
+    return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
+      proprietaire: !!personne.proprietaire,
       metier: "", ville: "", societe: personne.societe });
   }
 
@@ -365,7 +389,8 @@ export default async (req) => {
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
     const comptes = await lireComptes(personne.societe);
     return json({ comptes: comptes.map((c) => ({ identifiant: c.identifiant, nom: c.nom,
-      role: c.role, email: c.email || "", motdepasse: c.motdepasse })) });
+      role: c.role, email: c.email || "", motdepasse: c.motdepasse,
+      applis: applisValides(c.applis) })) });
   }
 
   if (action === "compte-enregistrer") {
@@ -379,12 +404,14 @@ export default async (req) => {
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
     const mdp = String(d.motdepasse || "").trim();
+    const applis = applisValides(d.applis);
     if (i >= 0) {
       comptes[i] = { ...comptes[i], nom, role, email: String(d.email || "").trim(),
-        motdepasse: mdp || comptes[i].motdepasse };
+        motdepasse: mdp || comptes[i].motdepasse, applis };
     } else {
       if (!mdp) return json({ erreur: "Donnez un mot de passe." }, 400);
-      comptes.push({ identifiant: id, motdepasse: mdp, nom, role, email: String(d.email || "").trim() });
+      comptes.push({ identifiant: id, motdepasse: mdp, nom, role,
+        email: String(d.email || "").trim(), applis });
     }
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true, comptes: comptes.length });
@@ -453,11 +480,18 @@ export default async (req) => {
     const etiquettes = d.type === "etiquettes";
     const sav = d.type === "sav";
     const reportage = d.type === "reportage";
+    const autocontrole = d.type === "autocontrole";
+
+    /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
+    const appliVisee = APPLI_DU_TYPE[d.type] || "";
+    if (appliVisee && !aAcces(personne, appliVisee)) {
+      return json({ erreur: "Cette appli ne vous est pas attribuée. Voyez avec votre administrateur." }, 403);
+    }
 
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -473,7 +507,9 @@ export default async (req) => {
     }
     /* un relevé technique remplace le précédent ; un suivi crée une version par visite */
     /* commande : une par jour et par personne ; suivi : une par visite ; relevé : une seule */
-    const nomFichier = sav
+    const nomFichier = autocontrole
+      ? "autocontrole-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
+      : sav
       ? "sav-" + slug(d.date || new Date().toISOString().slice(0,10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : reportage
       ? "reportage-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
@@ -505,8 +541,8 @@ export default async (req) => {
     }
     const entree = {
       cle,
-      titre: d.titre || (reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || new Date().toISOString().slice(0, 10),

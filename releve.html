@@ -1024,6 +1024,17 @@ if(ENLIGNE && (!SESSION || !SESSION.jeton || (SESSION.role!=="bureau" && SESSION
 }
 function jetonSession(){ return SESSION && SESSION.jeton ? SESSION.jeton : ""; }
 
+/* ---------- accès à l'appli : attribué compte par compte ---------- */
+(function(){
+  var APPLI="releve";
+  var siennes = SESSION && SESSION.applis;
+  var tout = SESSION && (SESSION.role==="admin" || SESSION.proprietaire);
+  if(ENLIGNE && !tout && Array.isArray(siennes) && siennes.length && siennes.indexOf(APPLI)<0){
+    try{ sessionStorage.setItem("acces:refuse", APPLI); }catch(e){}
+    location.replace("./index.html");
+  }
+})();
+
 /* ---------- stockage : Claude ou navigateur ---------- */
 if(!window.storage){
   window.storage = {
