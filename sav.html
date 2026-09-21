@@ -1209,11 +1209,25 @@ function creerZip(fichiers){          /* [{nom, octets}] -> Blob */
    u32(tailleCentral), u32(debutCentral), u16(0)].forEach(function(p){ morceaux.push(p); });
   return new Blob(morceaux, {type:"application/zip"});
 }
+/* Le dossier de photos porte le nom du client, suivi de « photos » :
+   c'est ce qu'on cherche des mois plus tard dans ses téléchargements.
+   Sans client, on retombe sur la référence des travaux. */
+function nomDossierPhotos(){
+  var client = String(S.chantier.client || "").trim();
+  var base = client || refAffaire() || "Chantier";
+  return nomLisible(base) + " photos";
+}
+/* comme nomFichier, mais on garde les espaces : c'est plus lisible */
+function nomLisible(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^A-Za-z0-9 _-]+/g," ").replace(/\s+/g," ").trim().slice(0,60) || "Chantier";
+}
+
 function exporterPhotos(){
   var liste;
   try{ liste = toutesLesPhotos(); }catch(e){ liste = []; }
   if(!liste.length){ toast("Aucune photo dans cette fiche."); return; }
-  var dossier = nomFichier(refAffaire() || "chantier");
+  var dossier = nomDossierPhotos();
   var fichiers = liste.map(function(p, i){
     var b64 = String(p.data).split(",")[1];
     var num = String(i+1).padStart(2,"0");
@@ -1223,7 +1237,7 @@ function exporterPhotos(){
   });
   var blob;
   try{ blob = creerZip(fichiers); }catch(e){ toast("Export impossible."); return; }
-  var nomZip = "Photos-" + dossier + ".zip";
+  var nomZip = dossier + ".zip";
   var f = new File([blob], nomZip, {type:"application/zip"});
   if(navigator.canShare && navigator.canShare({files:[f]})){
     navigator.share({files:[f], title:nomZip})
@@ -1988,6 +2002,11 @@ function metresParPixel(lat, z){
   return 156543.03392 * Math.cos(lat*Math.PI/180) / Math.pow(2, z);
 }
 function urlsTuile(source, z, x, y){
+  if(source==="plan"){
+    /* le plan des rues : pour trouver une adresse depuis un ordinateur,
+       c'est plus sûr que la photo aérienne */
+    return "https://basemaps.cartocdn.com/rastertiles/voyager/"+z+"/"+x+"/"+y+".png";
+  }
   if(source==="ign"){
     return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
       +"&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
@@ -2007,8 +2026,8 @@ function chargerTuile(url){
 }
 /* ================= carte aérienne déplaçable ================= */
 var MAP = {lat:null, lon:null, zoom:19, source:"ign", cache:{}, echec:{}, pret:false};
-var MAP_MAX = {ign:21, esri:19};
-var MAP_NOM = {ign:"IGN, orthophotographie", esri:"Esri, Maxar"};
+var MAP_MAX = {plan:20, ign:21, esri:19};
+var MAP_NOM = {plan:"Plan des rues", ign:"IGN, orthophotographie", esri:"Esri, Maxar"};
 
 function mapTailleCanvas(){
   var c = Math.min(window.innerWidth - 24, window.innerHeight - 190, 560);
@@ -2230,7 +2249,8 @@ function mapChercher(){
   $("carte_plus").addEventListener("click", function(){ mapZoom(1); });
   $("carte_moins").addEventListener("click", function(){ mapZoom(-1); });
   $("carte_source").addEventListener("click", function(){
-    MAP.source = MAP.source === "ign" ? "esri" : "ign";
+    var suite = {ign:"esri", esri:"plan", plan:"ign"};
+    MAP.source = suite[MAP.source] || "ign";
     if(MAP.zoom > MAP_MAX[MAP.source]) MAP.zoom = MAP_MAX[MAP.source];
     mapDessiner();
     toast("Source : " + MAP_NOM[MAP.source]);

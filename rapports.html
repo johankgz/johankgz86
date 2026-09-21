@@ -201,7 +201,7 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   <div class="sk-bar">
     <button type="button" id="carte_moins">Reculer</button>
     <button type="button" id="carte_plus">Zoomer</button>
-    <button type="button" id="carte_source">Changer de fond</button>
+    <button type="button" id="carte_source" title="Changer de fond de carte">Plan</button>
     <span class="etat" id="carte_etat" style="margin-left:auto;margin-right:4px"></span>
   </div>
   <div class="sk-bar" id="carte_recherche">
@@ -1318,8 +1318,25 @@ function afficher(chantiers){
    une fois à partir de l'adresse, et le site la retient. */
 var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"plan", cache:{}, echec:{}, echecs:0,
              points:[], choisi:null, pose:"", rendu:0};
-var CARTE_MAX = {plan:19, ortho:21, esri:19};
-var CARTE_NOM = {plan:"IGN, plan", ortho:"IGN, vue aérienne", esri:"Esri, vue aérienne"};
+/* Les fonds de carte, dans l'ordre du bouton. Le plan est celui qui
+   ressemble le plus à Google Maps : routes colorées, fond clair, noms
+   de communes et de rues. Le satellite et le satellite avec les noms
+   par-dessus reprennent les deux autres vues de Google. L'aérien IGN
+   reste au bout pour la précision sur la France. */
+var FONDS = {
+  plan:      {nom:"Plan",               max:20, couches:["carto"]},
+  satellite: {nom:"Satellite",          max:19, couches:["esri"]},
+  hybride:   {nom:"Satellite et noms",  max:19, couches:["esri", "noms"]},
+  ign:       {nom:"IGN, vue aérienne",  max:21, couches:["ign"]}
+};
+var ORDRE_FONDS = ["plan", "satellite", "hybride", "ign"];
+var MENTIONS = {
+  carto: "\u00A9 OpenStreetMap, \u00A9 CARTO",
+  esri:  "\u00A9 Esri, Maxar",
+  noms:  "\u00A9 Esri",
+  ign:   "\u00A9 IGN"
+};
+function fond(){ return FONDS[CARTE.source] || FONDS.plan; }
 
 function toast(t){
   var e=$("toast"); if(!e) return;
@@ -1341,24 +1358,28 @@ function pxMonde(x, y, z){
   var lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t)));
   return [lat, lon];
 }
-function urlsTuile(source, z, x, y){
-  if(source === "plan"){
-    return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
-      +"&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png"
-      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
+function urlsTuile(couche, z, x, y){
+  if(couche === "carto"){
+    /* le plan clair, très proche de celui de Google Maps */
+    return "https://basemaps.cartocdn.com/rastertiles/voyager/"+z+"/"+x+"/"+y+".png";
   }
-  if(source === "ortho"){
+  if(couche === "noms"){
+    /* les noms de lieux et les limites, à poser sur le satellite */
+    return "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/"
+      +"World_Boundaries_and_Places/MapServer/tile/"+z+"/"+y+"/"+x;
+  }
+  if(couche === "ign"){
     return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
       +"&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
       +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
   }
   return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"+z+"/"+y+"/"+x;
 }
-function carteTuile(source, z, x, y){
-  var cle = source+"/"+z+"/"+x+"/"+y;
+function carteTuile(couche, z, x, y){
+  var cle = couche+"/"+z+"/"+x+"/"+y;
   if(CARTE.cache[cle]) return Promise.resolve(CARTE.cache[cle]);
   if(CARTE.echec[cle]) return Promise.reject(new Error("tuile"));
-  return fetch(urlsTuile(source, z, x, y), {mode:"cors"})
+  return fetch(urlsTuile(couche, z, x, y), {mode:"cors"})
     .then(function(r){
       if(!r.ok) throw new Error("tuile");
       if((r.headers.get("content-type")||"").indexOf("image") < 0) throw new Error("tuile");
@@ -1369,11 +1390,12 @@ function carteTuile(source, z, x, y){
     .catch(function(e){ CARTE.echec[cle]=true; throw e; });
 }
 function carteSecours(){
-  if(CARTE.source === "esri") return;
-  CARTE.source = "esri";
-  if(CARTE.zoom > CARTE_MAX.esri) CARTE.zoom = CARTE_MAX.esri;
+  if(CARTE.source === "satellite") return;
+  var avant=fond().nom;
+  CARTE.source = "satellite";
+  if(CARTE.zoom > fond().max) CARTE.zoom = fond().max;
   CARTE.echecs = 0;
-  toast("Fond IGN indisponible : passage sur la vue Esri.");
+  toast("Fond « " + avant + " » indisponible : passage sur le satellite.");
   carteDessiner();
 }
 function carteTaille(){
@@ -1384,11 +1406,18 @@ function carteTaille(){
     cv.style.width=L+"px"; cv.style.height=H+"px";
   }
 }
+function majBoutonFond(){
+  var b=$("carte_source");
+  if(b) b.textContent = fond().nom;
+}
 function carteEtat(){
   var e=$("carte_etat"); if(!e) return;
   var avec=CARTE.points.filter(function(p){ return p.lat!=null; }).length;
-  e.textContent = CARTE_NOM[CARTE.source] + "  ·  zoom " + CARTE.zoom
-    + "  ·  " + avec + " chantier" + (avec>1?"s":"") + " situé" + (avec>1?"s":"");
+  var credit = fond().couches.map(function(c){ return MENTIONS[c]; })
+    .filter(function(m, i, t){ return m && t.indexOf(m) === i; }).join(" ");
+  e.textContent = fond().nom + "  ·  zoom " + CARTE.zoom
+    + "  ·  " + avec + " chantier" + (avec>1?"s":"") + " situé" + (avec>1?"s":"")
+    + "  ·  " + credit;
 }
 function carteDessiner(){
   var cv=$("carte_canvas"); if(!cv || $("carte").hidden) return;
@@ -1400,20 +1429,25 @@ function carteDessiner(){
   var x0=Math.floor(gauche/256), y0=Math.floor(haut/256);
   var x1=Math.floor((gauche+L)/256), y1=Math.floor((haut+H)/256);
   var attendre=[];
-  for(var ty=y0; ty<=y1; ty++){
-    if(ty<0 || ty>=n) continue;
-    for(var tx=x0; tx<=x1; tx++){
-      var wx=((tx%n)+n)%n;
-      var cle=CARTE.source+"/"+CARTE.zoom+"/"+wx+"/"+ty;
-      var bmp=CARTE.cache[cle];
-      if(bmp){ ctx.drawImage(bmp, Math.round(tx*256-gauche), Math.round(ty*256-haut), 256, 256); }
-      else if(!CARTE.echec[cle]) attendre.push([wx, ty]);
+  /* les couches dans l'ordre : le satellite d'abord, les noms par-dessus */
+  fond().couches.forEach(function(couche){
+    for(var ty=y0; ty<=y1; ty++){
+      if(ty<0 || ty>=n) continue;
+      for(var tx=x0; tx<=x1; tx++){
+        var wx=((tx%n)+n)%n;
+        var cle=couche+"/"+CARTE.zoom+"/"+wx+"/"+ty;
+        var bmp=CARTE.cache[cle];
+        if(bmp){ ctx.drawImage(bmp, Math.round(tx*256-gauche), Math.round(ty*256-haut), 256, 256); }
+        else if(!CARTE.echec[cle]) attendre.push([couche, wx, ty]);
+      }
     }
-  }
+  });
   attendre.forEach(function(t){
-    carteTuile(CARTE.source, CARTE.zoom, t[0], t[1])
+    carteTuile(t[0], CARTE.zoom, t[1], t[2])
       .then(function(){ carteRedessiner(); })
       .catch(function(){
+        /* les noms qui manquent ne valent pas qu'on change de fond */
+        if(t[0] === "noms") return;
         CARTE.echecs++;
         if(CARTE.echecs >= 4) carteSecours();
       });
@@ -1487,9 +1521,9 @@ function carteEpingles(ctx, gauche, haut){
 function carteZoom(d, autour){
   var z=CARTE.zoom+d;
   if(z < 4) z = 4;
-  if(z > CARTE_MAX[CARTE.source]){
+  if(z > fond().max){
     toast("Zoom maximum atteint pour ce fond.");
-    z = CARTE_MAX[CARTE.source];
+    z = fond().max;
   }
   if(z === CARTE.zoom) return;
   if(autour){
@@ -1513,7 +1547,7 @@ function carteCadrer(){
     CARTE.lat=pts[0].lat; CARTE.lon=pts[0].lon; CARTE.zoom=15; carteDessiner(); return;
   }
   var cv=$("carte_canvas"), L=cv.width, H=cv.height;
-  var z=CARTE_MAX[CARTE.source];
+  var z=fond().max;
   for(; z>4; z--){
     var xs=[], ys=[];
     pts.forEach(function(p){ var w=mondePx(p.lat,p.lon,z); xs.push(w[0]); ys.push(w[1]); });
@@ -1595,7 +1629,7 @@ function cartePoseDebut(p){
   $("carte_recherche").hidden=false;
   $("carte_pose_titre").textContent="Centrez la carte sur « "+(p.client||p.ref)+" », puis posez le point";
   if(p.lat!=null){ CARTE.lat=p.lat; CARTE.lon=p.lon; }
-  if(CARTE.zoom < 16) CARTE.zoom=Math.min(17, CARTE_MAX[CARTE.source]);
+  if(CARTE.zoom < 16) CARTE.zoom=Math.min(17, fond().max);
   carteDessiner();
 }
 function cartePoseFin(){
@@ -1671,7 +1705,7 @@ function carteChercherAdresse(){
     .then(function(d){
       if(!d || !d.length){ toast("Adresse introuvable."); return; }
       CARTE.lat=parseFloat(d[0].lat); CARTE.lon=parseFloat(d[0].lon);
-      CARTE.zoom=Math.min(16, CARTE_MAX[CARTE.source]);
+      CARTE.zoom=Math.min(16, fond().max);
       carteDessiner();
       toast(String(d[0].display_name||"").split(",").slice(0,3).join(",").trim() || "Position trouvée.");
     })
@@ -1690,6 +1724,7 @@ function carteOuvrir(){
   $("carte_fiche").hidden=true;
   $("carte_pose").hidden=true;
   $("carte").hidden=false;
+  majBoutonFond();
   carteTaille();
   carteCadrer();
   carteChercherManquants();
@@ -1750,6 +1785,11 @@ function carteMajBouton(){
     e.preventDefault();
     carteZoom(e.deltaY < 0 ? 1 : -1, dansCanvas(e));
   }, {passive:false});
+  /* double-clic : on zoome sur l'endroit visé, comme sur Google Maps */
+  cv.addEventListener("dblclick", function(e){
+    e.preventDefault();
+    carteZoom(1, dansCanvas(e));
+  });
 
   function carteClic(xy){
     if(CARTE.pose) return;              /* en pose, le clic ne choisit rien */
@@ -1770,11 +1810,13 @@ function carteMajBouton(){
   $("carte_plus").addEventListener("click", function(){ carteZoom(1); });
   $("carte_moins").addEventListener("click", function(){ carteZoom(-1); });
   $("carte_source").addEventListener("click", function(){
-    CARTE.source = CARTE.source==="plan" ? "ortho" : CARTE.source==="ortho" ? "esri" : "plan";
-    if(CARTE.zoom > CARTE_MAX[CARTE.source]) CARTE.zoom=CARTE_MAX[CARTE.source];
+    var i=ORDRE_FONDS.indexOf(CARTE.source);
+    CARTE.source = ORDRE_FONDS[(i + 1) % ORDRE_FONDS.length];
+    if(CARTE.zoom > fond().max) CARTE.zoom=fond().max;
     CARTE.echecs=0;
     carteDessiner();
-    toast("Fond : "+CARTE_NOM[CARTE.source]);
+    majBoutonFond();
+    toast("Fond : " + fond().nom);
   });
   $("carte_chercher").addEventListener("click", carteChercherAdresse);
   $("carte_q").addEventListener("keydown", function(e){

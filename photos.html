@@ -1099,7 +1099,7 @@ function creerZip(fichiers){          /* [{nom, octets}] -> Blob */
   return new Blob(morceaux, {type:"application/zip"});
 }
 function fichiersPhotos(liste){
-  var dossier = nomFichier(refAffaire() || "chantier");
+  var dossier = nomDossierPhotos();
   return liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
     var etiquette = (p.legende||"").trim();
@@ -1107,12 +1107,26 @@ function fichiersPhotos(liste){
             octets: b64ToBytes(String(p.data).split(",")[1])};
   });
 }
+/* Le dossier de photos porte le nom du client, suivi de « photos » :
+   c'est ce qu'on cherche des mois plus tard dans ses téléchargements.
+   Sans client, on retombe sur la référence des travaux. */
+function nomDossierPhotos(){
+  var client = String(S.chantier.client || "").trim();
+  var base = client || refAffaire() || "Chantier";
+  return nomLisible(base) + " photos";
+}
+/* comme nomFichier, mais on garde les espaces : c'est plus lisible */
+function nomLisible(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[^A-Za-z0-9 _-]+/g," ").replace(/\s+/g," ").trim().slice(0,60) || "Chantier";
+}
+
 function exporterPhotos(){
   var liste=toutesLesPhotos();
   if(!liste.length){ toast("Aucune photo dans ce reportage."); return; }
   var blob;
   try{ blob = creerZip(fichiersPhotos(liste)); }catch(e){ toast("Export impossible."); return; }
-  var nomZip = "Photos-" + nomFichier(refAffaire() || "chantier") + ".zip";
+  var nomZip = nomDossierPhotos() + ".zip";
   var f = new File([blob], nomZip, {type:"application/zip"});
   if(navigator.canShare && navigator.canShare({files:[f]})){
     navigator.share({files:[f], title:nomZip})
