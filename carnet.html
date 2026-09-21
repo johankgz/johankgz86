@@ -329,13 +329,106 @@ function jetonSession(){ return SESSION && SESSION.jeton ? SESSION.jeton : ""; }
   }
 })();
 
+/* ---------- stockage : Claude, sinon le navigateur ----------
+   Une fiche porte ses photos : elle dépasse vite les cinq mégaoctets que
+   le navigateur accorde à localStorage. L'écriture échouait alors sans
+   rien dire, et les photos prises ensuite étaient perdues au rechargement
+   — ce qui arrivait surtout hors connexion, quand on photographie
+   longtemps avant de publier.
+   On écrit donc dans IndexedDB, qui accepte bien davantage. localStorage
+   ne sert plus que de secours, et ce qu'il contenait déjà est relu puis
+   repris. Un échec d'écriture n'est plus avalé : il remonte à l'appli,
+   qui le dit à l'écran. */
 if(!window.storage){
-  window.storage = {
-    get:function(k){ try{ var v=localStorage.getItem(k); return Promise.resolve(v===null?null:{key:k,value:v}); }catch(e){ return Promise.resolve(null); } },
-    set:function(k,v){ try{ localStorage.setItem(k,v); return Promise.resolve({key:k,value:v}); }catch(e){ return Promise.reject(e); } },
-    delete:function(k){ try{ localStorage.removeItem(k); }catch(e){} return Promise.resolve({key:k,deleted:true}); },
-    list:function(p){ var out=[]; try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(!p||k.indexOf(p)===0) out.push(k); } }catch(e){} return Promise.resolve({keys:out}); }
-  };
+  window.storage = (function(){
+    var BASE="outils-chantier", MAGASIN="cles", base=null;
+    function ouvrir(){
+      if(base) return Promise.resolve(base);
+      return new Promise(function(ok, non){
+        if(!window.indexedDB) return non(new Error("IndexedDB indisponible"));
+        var r;
+        try{ r=indexedDB.open(BASE, 1); }catch(e){ return non(e); }
+        r.onupgradeneeded=function(){
+          if(!r.result.objectStoreNames.contains(MAGASIN)) r.result.createObjectStore(MAGASIN);
+        };
+        r.onsuccess=function(){ base=r.result; ok(base); };
+        r.onerror=function(){ non(r.error || new Error("IndexedDB refusée")); };
+        r.onblocked=function(){ non(new Error("IndexedDB occupée")); };
+      });
+    }
+    function tx(mode, faire){
+      return ouvrir().then(function(d){
+        return new Promise(function(ok, non){
+          var t, m, req;
+          try{ t=d.transaction(MAGASIN, mode); m=t.objectStore(MAGASIN); req=faire(m); }
+          catch(e){ return non(e); }
+          t.oncomplete=function(){ ok(req ? req.result : null); };
+          t.onerror=function(){ non(t.error || new Error("écriture refusée")); };
+          t.onabort=function(){ non(t.error || new Error("écriture interrompue")); };
+        });
+      });
+    }
+    function local(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+    return {
+      get:function(k){
+        function secours(){ var v=local(k); return v==null ? null : {key:k, value:v}; }
+        return tx("readonly", function(m){ return m.get(k); })
+          .then(function(v){ return v==null ? secours() : {key:k, value:v}; })
+          .catch(secours);
+      },
+      set:function(k, v){
+        return tx("readwrite", function(m){ return m.put(v, k); })
+          .then(function(){
+            /* la copie d'avant ne sert plus, et elle occupe la place */
+            try{ if(localStorage.getItem(k) !== null) localStorage.removeItem(k); }catch(e){}
+            return {key:k, value:v};
+          })
+          .catch(function(){
+            localStorage.setItem(k, v);        /* si ça échoue aussi, l'appli le saura */
+            return {key:k, value:v};
+          });
+      },
+      delete:function(k){
+        try{ localStorage.removeItem(k); }catch(e){}
+        return tx("readwrite", function(m){ return m.delete(k); })
+          .catch(function(){})
+          .then(function(){ return {key:k, deleted:true}; });
+      },
+      list:function(p){
+        function locales(){
+          var out=[];
+          try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(!p||k.indexOf(p)===0) out.push(k); } }catch(e){}
+          return out;
+        }
+        return tx("readonly", function(m){ return m.getAllKeys(); })
+          .then(function(ks){
+            var out=locales();
+            (ks||[]).forEach(function(k){ k=String(k); if((!p||k.indexOf(p)===0) && out.indexOf(k)<0) out.push(k); });
+            return {keys:out};
+          })
+          .catch(function(){ return {keys:locales()}; });
+      }
+    };
+  })();
+}
+
+/* Quand plus rien ne peut être enregistré, on le dit — et on ne l'efface
+   qu'une fois l'enregistrement revenu. */
+function memoirePleine(plein, detail){
+  var el=document.getElementById("alerteMemoire");
+  if(!plein){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
+  if(!el){
+    el=document.createElement("div");
+    el.id="alerteMemoire";
+    el.setAttribute("role","alert");
+    el.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:95;background:#B3332C;color:#fff;"
+      +"padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));"
+      +"font-size:13.5px;line-height:1.45;font-family:inherit";
+    document.body.appendChild(el);
+  }
+  el.textContent="Mémoire de l'appareil pleine : les dernières saisies ne sont pas enregistrées. "
+    + "Publiez la fiche ou enregistrez le fichier de travail dès que possible, puis retirez des photos."
+    + (detail ? "  (" + detail + ")" : "");
 }
 
 var $ = function(id){ return document.getElementById(id); };
@@ -419,13 +512,27 @@ function blankPrefs(){
   return {societe:"TRICHET LOUÉ ÉNERGIES", socTel:"02 51 05 03 03", socWeb:"contact@tlenergies.com",
     socAdr:"15 rue Camamine, 85150 Les Achards", socLegal:"Génie électrique et climatique", logo:null};
 }
-var saveT;
+var saveT, saveEnCours=false, saveRedemande=false;
+/* Une écriture à la fois : la fiche entière repart à chaque fois, et sur
+   un téléphone chargé de photos cela prend le temps qu'il faut. Ce qui
+   arrive pendant est regroupé dans l'écriture suivante. */
+function enregistrer(){
+  if(saveEnCours){ saveRedemande=true; return; }
+  saveEnCours=true;
+  var charge;
+  try{ charge=JSON.stringify(S); }
+  catch(e){ saveEnCours=false; memoirePleine(true, "fiche trop lourde"); return; }
+  window.storage.set("carnet:courant", charge)
+    .then(function(){ memoirePleine(false); })
+    .catch(function(e){ memoirePleine(true, (e && (e.name || e.message)) || ""); })
+    .then(function(){
+      saveEnCours=false;
+      if(saveRedemande){ saveRedemande=false; enregistrer(); }
+    });
+}
 function save(){
   clearTimeout(saveT);
-  saveT=setTimeout(function(){
-    try{ window.storage.set("carnet:courant", JSON.stringify(S)); }
-    catch(e){ toast("Brouillon trop lourd pour être gardé sur cet appareil."); }
-  }, 400);
+  saveT=setTimeout(enregistrer, 400);
   refreshHeader();
 }
 function destinataires(){ if(!S.destinataires) S.destinataires=[]; return S.destinataires; }
@@ -439,8 +546,8 @@ function refAffaire(){
 }
 function adresseTravaux(){ return (S.garde.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.garde.date || aujourdhui(); }
-/* le sommaire tient vingt-cinq lignes par page (voir PAR_PAGE_SOMMAIRE) */
-function pagesSommaire(){ return Math.max(1, Math.ceil(S.pages.length/25)); }
+/* le sommaire garde l'aération de la trame : douze entrées par page (SOM.parPage) */
+function pagesSommaire(){ return Math.max(1, Math.ceil(S.pages.length/12)); }
 function premierePage(){ return 2 + pagesSommaire(); }
 
 /* ---------- les pages, à l'écran ---------- */
@@ -754,22 +861,49 @@ function renderResume(){
 
 /* =====================================================================
    LE DOCUMENT
-   La mise en page reprend la trame Word de la société, au millimètre :
-   en-tête à toutes les pages (bandeau de la société à gauche, contact à
-   droite), page de garde à deux traits, sommaire numéroté et souligné,
-   puis une page par pièce, son titre centré et souligné au-dessus.
-   Le numéro de page est posé en bas à droite dans un carré corné.
-   Les mesures viennent du document d'origine : marges 7,5 / 25 / 10 / 15,
-   bandeau 135 x 25 mm, contact 45 x 15 mm, traits de 175 mm.
+   Les mesures sont relevées sur la trame Word de la société, en suivant
+   la mise en page telle que Word la calcule : corps de page sous
+   l'en-tête, interligne 1,15 et 10 points après chaque paragraphe.
+   Toutes les valeurs ci-dessous sont en millimètres depuis le haut de la
+   feuille, et correspondent aux ancrages du document d'origine.
+
+   Page A4, marges 7,5 / 25 / 10 / 15. L'en-tête déborde la marge haute,
+   donc le corps commence à 16,95 mm.
    ===================================================================== */
 var PW=210, PH=297;                       /* A4, en millimètres */
 var MG={haut:7.5, bas:25, gauche:10, droite:15};
-var ENT={banniere:{x:10, y:2, l:135, h:25}, contact:{x:150.7, y:5.4, l:45, h:15}};
-var TRAIT={x:13, l:175};
-var CORPS=34;                             /* première ligne utile, sous l'en-tête */
+/* Le corps commence sous le papier à en-tête : le bandeau descend à
+   6,93 + 25 = 31,93 mm, et Word abaisse le texte d'autant. Toutes les
+   lignes de base ci-dessous en découlent, relevées sur les ancrages de
+   la trame (interligne 1,15 et 10 points après chaque paragraphe). */
+var CORPS=31.93;                          /* haut du corps, sous l'en-tête */
+
+/* en-tête : les deux images, à leur place dans la trame */
+var ENT={ banniere:{x:9.93,   y:6.93,  l:135, h:25},
+          contact: {x:151.07, y:10.32, l:45,  h:15} };
 var ENTETES={societe:"./entete-societe.png", contact:"./entete-contact.png"};
-/* le sommaire tient vingt-cinq lignes par page */
-var PAR_PAGE_SOMMAIRE=25;
+
+/* les deux traits de la page de garde : « Connecteur droit » de la trame */
+var TRAIT={x:13.07, l:175.0, e:0.265};
+
+/* page de garde : lignes de base, dans l'ordre où la trame les pose */
+var GARDE={
+  titre:[73.84, 90.43],    /* Arial 28 gras, centré, deux lignes */
+  trait1:101.71,
+  client:112.97, pas:8.66, /* Arial 11 gras, centré : nom, adresse, vide, objet */
+  trait2:166.48,
+  lot:[179.19, 187.85]     /* Arial 11 gras, centré, deux lignes */
+};
+
+/* sommaire : titre Arial 18 gras souligné, puis la liste numérotée
+   Arial 12 soulignée, une ligne vide entre chaque entrée */
+var SOM={titre:38.98, premier:74.54, pas:17.79, numero:16.35, texte:22.70, parPage:12};
+
+/* page d'une pièce : le titre Arial 18 souligné, la pièce dessous */
+var PIECE={titre:38.98, haut:43.86};
+
+/* le carré corné du pied de page */
+var PIED={x:195, y:273.75, l:10.24, h:7.62, coin:2.6};
 
 function nettoyer(t){
   /* Les polices PDF de base ne connaissent que le latin : un caractère
@@ -785,6 +919,17 @@ function nettoyer(t){
     .replace(/μ/g, "µ")
     .replace(/[^ -ÿŒœ]/g, "")
     .replace(/ {2,}/g, " ").trim();
+}
+
+/* le lot, sur deux lignes comme la trame : « LOT N° 5 » puis « ÉLECTRICITÉ ».
+   Si le lot ne se laisse pas couper ainsi, il tient sur la première ligne. */
+function lignesLot(){
+  var lot=nettoyer(S.garde.lot||"").toUpperCase();
+  if(!lot) return ["LOT"];
+  if(/^LOT\b/.test(lot)) lot = lot.replace(/^LOT\s*/, "");
+  var m = lot.match(/^((?:N\u00B0\s*)?[0-9A-Z]{1,4})[\s.\-]+(.+)$/);
+  if(m) return ["LOT " + m[1], m[2]];
+  return ["LOT " + lot];
 }
 
 /* le titre de couverture, tel qu'il est écrit sur la trame */
@@ -823,7 +968,7 @@ function construireDocument(){
     return l;
   }
   function trait(page, y){
-    page.drawRectangle({x:mm(TRAIT.x), y:mm(PH-y), width:mm(TRAIT.l), height:mm(0.35), color:NOIR});
+    page.drawRectangle({x:mm(TRAIT.x), y:mm(PH-y), width:mm(TRAIT.l), height:mm(TRAIT.e), color:NOIR});
   }
   /* couper un texte à la largeur utile, comme le ferait un traitement de texte */
   function couper(texte, largeurMm, taille, font){
@@ -856,7 +1001,7 @@ function construireDocument(){
   }
   function pied(page, numero){
     /* le carré corné de la trame : un cadre blanc, le coin replié, le numéro au centre */
-    var x=195, y=273.6, l=10.2, h=7.6, coin=2.6;
+    var x=PIED.x, y=PIED.y, l=PIED.l, h=PIED.h, coin=PIED.coin;
     function ligne(x1,y1,x2,y2){
       page.drawLine({start:{x:mm(x1), y:mm(PH-y1)}, end:{x:mm(x2), y:mm(PH-y2)},
                      thickness:0.5, color:GRIS});
@@ -882,58 +1027,48 @@ function construireDocument(){
   /* --- page de garde --- */
   function garde(){
     var page=nouvellePage();
-    var titre=titreCouverture();
-    var y=46;
-    trait(page, y);
-    y += 16;
-    titre.forEach(function(l){
-      ecrire(page, l, 0, y, 28, grasse, {centre:true});
-      y += 14;
-    });
-    y += 2;
-    trait(page, y);
 
-    /* le dossier : nom, adresse, puis ce que sont les travaux */
-    y += 18;
-    ecrire(page, (S.garde.nom||"").toUpperCase(), 0, y, 11, grasse, {centre:true});
-    y += 7;
-    String(S.garde.adresse||"").split(/\n+/).forEach(function(l){
-      if(!l.trim()) return;
-      ecrire(page, l.toUpperCase(), 0, y, 11, grasse, {centre:true});
-      y += 7;
+    /* le titre, deux lignes d'Arial 28 gras centrées */
+    titreCouverture().forEach(function(l, i){
+      if(i < GARDE.titre.length) ecrire(page, l, 0, GARDE.titre[i], 28, grasse, {centre:true});
     });
+    trait(page, GARDE.trait1);
+
+    /* le dossier : le nom, l'adresse ligne à ligne, une ligne vide, l'objet */
+    var y=GARDE.client;
+    function ligne(t){
+      if(t != null) ecrire(page, String(t).toUpperCase(), 0, y, 11, grasse, {centre:true});
+      y += GARDE.pas;
+    }
+    ligne(S.garde.nom||"");
+    String(S.garde.adresse||"").split(/\n+/).forEach(function(l){ if(l.trim()) ligne(l); });
     if((S.garde.description||"").trim()){
-      y += 7;
-      couper(String(S.garde.description).toUpperCase(), 170, 11, grasse).slice(0,4).forEach(function(l){
-        ecrire(page, l, 0, y, 11, grasse, {centre:true});
-        y += 7;
-      });
+      ligne(null);              /* la ligne vide de la trame */
+      couper(String(S.garde.description).toUpperCase(), 170, 11, grasse)
+        .slice(0, 3).forEach(ligne);
     }
 
-    /* le lot, sous le second trait */
-    y = Math.max(y + 12, 150);
-    trait(page, y);
-    y += 14;
-    var lot=nettoyer(S.garde.lot||"").toUpperCase();
-    /* « Lot 05 » ne devient pas « LOT LOT 05 » */
-    ecrire(page, !lot ? "LOT" : (/^LOT\b/.test(lot) ? lot : "LOT " + lot), 0, y, 11, grasse, {centre:true});
+    /* le lot, sous le second trait, sur deux lignes comme la trame */
+    trait(page, GARDE.trait2);
+    lignesLot().forEach(function(l, i){
+      if(i < GARDE.lot.length) ecrire(page, l, 0, GARDE.lot[i], 11, grasse, {centre:true});
+    });
     return page;
   }
 
-  /* --- sommaire : une liste numérotée, soulignée, comme la trame --- */
+  /* --- sommaire : le titre, puis la liste numérotée et soulignée --- */
   function sommaire(){
     for(var s=0; s<pagesSommaire(); s++){
       var page=nouvellePage();
-      ecrire(page, "SOMMAIRE", 0, CORPS+11, 18, grasse, {centre:true, souligne:true});
-      var y=CORPS+30;
-      S.pages.slice(s*PAR_PAGE_SOMMAIRE, (s+1)*PAR_PAGE_SOMMAIRE).forEach(function(p, k){
-        var rang=s*PAR_PAGE_SOMMAIRE + k + 1;
+      ecrire(page, "SOMMAIRE", 0, SOM.titre, 18, grasse, {centre:true, souligne:true});
+      var y=SOM.premier;
+      S.pages.slice(s*SOM.parPage, (s+1)*SOM.parPage).forEach(function(p, k){
+        var rang=s*SOM.parPage + k + 1;
         var titre=nettoyer((p.titre||"").trim() || ("Page " + rang)).toUpperCase();
-        var x=MG.gauche + 12.7;
-        ecrire(page, rang + ".", x - 6, y, 12, police);
-        var ligne=couper(titre, PW-MG.droite-x-4, 12, police)[0];
-        ecrire(page, ligne, x, y, 12, police, {souligne:true});
-        y += 8;
+        ecrire(page, rang + ".", SOM.numero, y, 12, police);
+        var ligne=couper(titre, PW-MG.droite-SOM.texte, 12, police)[0];
+        ecrire(page, ligne, SOM.texte, y, 12, police, {souligne:true});
+        y += SOM.pas;
       });
     }
   }
@@ -945,14 +1080,15 @@ function construireDocument(){
       var page=nouvellePage();
       var titre=nettoyer((p.titre||"").trim() || ("Page " + (i+1))).toUpperCase();
       var taille=18;
-      while(taille > 10 && grasse.widthOfTextAtSize(titre, taille) > mm(PW-MG.gauche-MG.droite)) taille -= 0.5;
-      ecrire(page, titre, 0, CORPS+8, taille, grasse, {centre:true, souligne:true});
+      while(taille > 10 && police.widthOfTextAtSize(titre, taille) > mm(PW-MG.gauche-MG.droite)) taille -= 0.5;
+      ecrire(page, titre, 0, PIECE.titre, taille, police, {centre:true, souligne:true});
 
-      var zone={x:MG.gauche, y:CORPS+16, l:PW-MG.gauche-MG.droite, h:PH-MG.bas-(CORPS+16)};
+      /* la pièce occupe la zone sous le titre, calée en haut comme dans la trame */
+      var zone={x:MG.gauche, y:PIECE.haut, l:PW-MG.gauche-MG.droite, h:PH-MG.bas-PIECE.haut};
       function poser(largeur, hauteur, dessiner){
         var k=Math.min(mm(zone.l)/largeur, mm(zone.h)/hauteur);
         dessiner(mm(zone.x)+(mm(zone.l)-largeur*k)/2,
-                 mm(PH-zone.y-zone.h)+(mm(zone.h)-hauteur*k)/2, k);
+                 mm(PH-zone.y)-hauteur*k, k);
       }
       if(p.source === "image"){
         return sortie.embedJpg(contenu).then(function(img){

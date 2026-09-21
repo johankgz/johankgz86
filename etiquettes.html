@@ -505,13 +505,106 @@ function jetonSession(){ return SESSION && SESSION.jeton ? SESSION.jeton : ""; }
   }
 })();
 
+/* ---------- stockage : Claude, sinon le navigateur ----------
+   Une fiche porte ses photos : elle dépasse vite les cinq mégaoctets que
+   le navigateur accorde à localStorage. L'écriture échouait alors sans
+   rien dire, et les photos prises ensuite étaient perdues au rechargement
+   — ce qui arrivait surtout hors connexion, quand on photographie
+   longtemps avant de publier.
+   On écrit donc dans IndexedDB, qui accepte bien davantage. localStorage
+   ne sert plus que de secours, et ce qu'il contenait déjà est relu puis
+   repris. Un échec d'écriture n'est plus avalé : il remonte à l'appli,
+   qui le dit à l'écran. */
 if(!window.storage){
-  window.storage = {
-    get:function(k){ try{ var v=localStorage.getItem(k); return Promise.resolve(v===null?null:{key:k,value:v}); }catch(e){ return Promise.resolve(null); } },
-    set:function(k,v){ try{ localStorage.setItem(k,v); return Promise.resolve({key:k,value:v}); }catch(e){ return Promise.reject(e); } },
-    delete:function(k){ try{ localStorage.removeItem(k); }catch(e){} return Promise.resolve({key:k,deleted:true}); },
-    list:function(p){ var out=[]; try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(!p||k.indexOf(p)===0) out.push(k); } }catch(e){} return Promise.resolve({keys:out}); }
-  };
+  window.storage = (function(){
+    var BASE="outils-chantier", MAGASIN="cles", base=null;
+    function ouvrir(){
+      if(base) return Promise.resolve(base);
+      return new Promise(function(ok, non){
+        if(!window.indexedDB) return non(new Error("IndexedDB indisponible"));
+        var r;
+        try{ r=indexedDB.open(BASE, 1); }catch(e){ return non(e); }
+        r.onupgradeneeded=function(){
+          if(!r.result.objectStoreNames.contains(MAGASIN)) r.result.createObjectStore(MAGASIN);
+        };
+        r.onsuccess=function(){ base=r.result; ok(base); };
+        r.onerror=function(){ non(r.error || new Error("IndexedDB refusée")); };
+        r.onblocked=function(){ non(new Error("IndexedDB occupée")); };
+      });
+    }
+    function tx(mode, faire){
+      return ouvrir().then(function(d){
+        return new Promise(function(ok, non){
+          var t, m, req;
+          try{ t=d.transaction(MAGASIN, mode); m=t.objectStore(MAGASIN); req=faire(m); }
+          catch(e){ return non(e); }
+          t.oncomplete=function(){ ok(req ? req.result : null); };
+          t.onerror=function(){ non(t.error || new Error("écriture refusée")); };
+          t.onabort=function(){ non(t.error || new Error("écriture interrompue")); };
+        });
+      });
+    }
+    function local(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+    return {
+      get:function(k){
+        function secours(){ var v=local(k); return v==null ? null : {key:k, value:v}; }
+        return tx("readonly", function(m){ return m.get(k); })
+          .then(function(v){ return v==null ? secours() : {key:k, value:v}; })
+          .catch(secours);
+      },
+      set:function(k, v){
+        return tx("readwrite", function(m){ return m.put(v, k); })
+          .then(function(){
+            /* la copie d'avant ne sert plus, et elle occupe la place */
+            try{ if(localStorage.getItem(k) !== null) localStorage.removeItem(k); }catch(e){}
+            return {key:k, value:v};
+          })
+          .catch(function(){
+            localStorage.setItem(k, v);        /* si ça échoue aussi, l'appli le saura */
+            return {key:k, value:v};
+          });
+      },
+      delete:function(k){
+        try{ localStorage.removeItem(k); }catch(e){}
+        return tx("readwrite", function(m){ return m.delete(k); })
+          .catch(function(){})
+          .then(function(){ return {key:k, deleted:true}; });
+      },
+      list:function(p){
+        function locales(){
+          var out=[];
+          try{ for(var i=0;i<localStorage.length;i++){ var k=localStorage.key(i); if(!p||k.indexOf(p)===0) out.push(k); } }catch(e){}
+          return out;
+        }
+        return tx("readonly", function(m){ return m.getAllKeys(); })
+          .then(function(ks){
+            var out=locales();
+            (ks||[]).forEach(function(k){ k=String(k); if((!p||k.indexOf(p)===0) && out.indexOf(k)<0) out.push(k); });
+            return {keys:out};
+          })
+          .catch(function(){ return {keys:locales()}; });
+      }
+    };
+  })();
+}
+
+/* Quand plus rien ne peut être enregistré, on le dit — et on ne l'efface
+   qu'une fois l'enregistrement revenu. */
+function memoirePleine(plein, detail){
+  var el=document.getElementById("alerteMemoire");
+  if(!plein){ if(el && el.parentNode) el.parentNode.removeChild(el); return; }
+  if(!el){
+    el=document.createElement("div");
+    el.id="alerteMemoire";
+    el.setAttribute("role","alert");
+    el.style.cssText="position:fixed;left:0;right:0;bottom:0;z-index:95;background:#B3332C;color:#fff;"
+      +"padding:12px 16px;padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));"
+      +"font-size:13.5px;line-height:1.45;font-family:inherit";
+    document.body.appendChild(el);
+  }
+  el.textContent="Mémoire de l'appareil pleine : les dernières saisies ne sont pas enregistrées. "
+    + "Publiez la fiche ou enregistrez le fichier de travail dès que possible, puis retirez des photos."
+    + (detail ? "  (" + detail + ")" : "");
 }
 
 /* =====================================================================
@@ -588,10 +681,27 @@ function blankPrefs(){
   return {societe:"TRICHET LOUÉ ÉNERGIES", socTel:"02 51 05 03 03", socWeb:"contact@tlenergies.com",
     socAdr:"15 rue Camamine, 85150 Les Achards", socLegal:"Génie électrique et climatique", logo:null};
 }
-var saveT;
+var saveT, saveEnCours=false, saveRedemande=false;
+/* Une écriture à la fois : la fiche entière repart à chaque fois, et sur
+   un téléphone chargé de photos cela prend le temps qu'il faut. Ce qui
+   arrive pendant est regroupé dans l'écriture suivante. */
+function enregistrer(){
+  if(saveEnCours){ saveRedemande=true; return; }
+  saveEnCours=true;
+  var charge;
+  try{ charge=JSON.stringify(S); }
+  catch(e){ saveEnCours=false; memoirePleine(true, "fiche trop lourde"); return; }
+  window.storage.set("etiquettes:courant", charge)
+    .then(function(){ memoirePleine(false); })
+    .catch(function(e){ memoirePleine(true, (e && (e.name || e.message)) || ""); })
+    .then(function(){
+      saveEnCours=false;
+      if(saveRedemande){ saveRedemande=false; enregistrer(); }
+    });
+}
 function save(){
   clearTimeout(saveT);
-  saveT=setTimeout(function(){ try{ window.storage.set("etiquettes:courant", JSON.stringify(S)); }catch(e){} }, 400);
+  saveT=setTimeout(enregistrer, 400);
   refreshHeader();
 }
 function savePrefs(){ try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} }
