@@ -289,6 +289,10 @@ canvas.sig{display:block;width:100%;height:150px;background:#fff;border-radius:2
  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:60px}
 #carte .sk-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;
  padding:8px;overflow:hidden}
+#carte_q{flex:1 1 auto;min-width:110px;min-height:38px;padding:8px 12px;border:0;border-radius:2px;
+ background:rgba(255,255,255,.12);color:#F4F1EA;font-family:inherit;font-size:15px}
+#carte_q::placeholder{color:#8C8475}
+#carte_q:focus{outline:none;background:rgba(255,255,255,.2)}
 #carte_canvas{background:#1A1815;border-radius:2px;max-width:100%;max-height:100%;touch-action:none;
  box-shadow:0 18px 50px -20px rgba(0,0,0,.8)}
 
@@ -408,7 +412,7 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
     <div class="row">
       <button class="act" id="btnGps"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6"/></svg>Position GPS</button>
       <button class="act ghost" id="btnMaps"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/><path d="M21 3 10.6 13.4"/></svg>Itinéraire dans Maps</button>
-      <button class="act ghost" id="btnCarte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/></svg>Corriger sur la carte</button>
+      <button class="act ghost" id="btnCarte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/></svg>Placer sur la carte</button>
     </div>
     <div class="row" style="margin-top:8px;flex-wrap:nowrap">
       <input type="text" id="c_coord" placeholder="Coller des coordonnées ou un lien Maps"
@@ -574,7 +578,7 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
 
 <div id="carte" hidden>
   <div class="sk-bar">
-    <span class="title">Placez le réticule sur le lieu exact — deux doigts pour zoomer</span>
+    <span class="title">Placez le réticule sur le lieu exact — molette ou deux doigts pour zoomer</span>
     <button type="button" id="carte_cancel">Fermer</button>
     <button type="button" class="go" id="carte_save">Utiliser cette position</button>
   </div>
@@ -583,6 +587,11 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
     <button type="button" id="carte_plus">Zoomer</button>
     <button type="button" id="carte_source">Changer de source</button>
     <span class="etat" id="carte_etat" style="margin-left:auto;margin-right:4px"></span>
+  </div>
+  <div class="sk-bar">
+    <input type="search" id="carte_q" placeholder="Chercher une adresse, une commune…"
+           autocapitalize="off" spellcheck="false">
+    <button type="button" id="carte_chercher">Chercher</button>
   </div>
   <div class="sk-wrap"><canvas id="carte_canvas"></canvas></div>
 </div>
@@ -1957,14 +1966,18 @@ function mapReticule(){
   ctx.moveTo(m, m - 14); ctx.lineTo(m, m - 4);
   ctx.moveTo(m, m + 4); ctx.lineTo(m, m + 14);
   ctx.stroke();
-  /* échelle */
+  /* échelle : une distance ronde qui tienne dans une soixantaine de pixels */
   var mpp = metresParPixel(MAP.lat, MAP.zoom);
-  var barre = Math.round(10 / mpp);
+  var choix = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000, 100000];
+  var metres = choix[choix.length - 1];
+  for(var i = 0; i < choix.length; i++){ if(choix[i] / mpp >= 55){ metres = choix[i]; break; } }
+  var barre = Math.round(metres / mpp);
+  var etiquette = metres >= 1000 ? (metres / 1000) + " km" : metres + " m";
   ctx.fillStyle = "rgba(14,18,24,.7)";
   ctx.fillRect(10, T - 26, barre + 54, 18);
   ctx.fillStyle = "#fff"; ctx.fillRect(16, T - 14, barre, 2);
   ctx.font = "11px -apple-system, sans-serif";
-  ctx.fillText("10 m", 22 + barre, T - 11);
+  ctx.fillText(etiquette, 22 + barre, T - 11);
   ctx.restore();
 }
 function mapSecours(){
@@ -1980,7 +1993,7 @@ function mapEtat(){
 }
 function mapZoom(d){
   var z = MAP.zoom + d;
-  if(z < 15) z = 15;
+  if(z < 6) z = 6;
   if(z > MAP_MAX[MAP.source]){
     if(MAP.source === "esri" && d > 0){ toast("Zoom maximum atteint pour cette source."); return; }
     z = MAP_MAX[MAP.source];
@@ -2011,12 +2024,57 @@ function mapOuvrir(){
     $("carte").hidden = false;
     et.textContent = "";
     mapDessiner();
-  }).catch(function(e){
-    et.textContent = (e && e.message === "adresse")
-      ? "Relevez d'abord la position, ou saisissez l'adresse."
-      : "Adresse introuvable : relevez la position, puis corrigez-la sur la carte.";
+  }).catch(function(){
+    /* ni position ni adresse : on ouvre quand même, la recherche fera le reste */
+    mapOuvrirSansPoint(et);
   });
 }
+
+/* ---------- chercher une adresse depuis la carte ---------- */
+function coordsSecours(){
+  /* à défaut de tout : le dernier point relevé sur cet appareil, sinon la Vendée */
+  var p=null;
+  try{ p=JSON.parse(localStorage.getItem("meteo:pos")||"null"); }catch(e){}
+  if(p && p.lat!=null) return [parseFloat(p.lat), parseFloat(p.lon)];
+  return [46.648, -1.658];
+}
+function mapOuvrirSansPoint(etat){
+  var c=coordsSecours();
+  MAP.lat=c[0]; MAP.lon=c[1];
+  MAP.source="ign"; MAP.zoom=15; MAP.cache={}; MAP.echec={};
+  var cv=$("carte_canvas"), T=mapTailleCanvas();
+  cv.width=T; cv.height=T; cv.style.width=T+"px"; cv.style.height=T+"px";
+  $("carte").hidden=false;
+  if(typeof mapTitre==="function") mapTitre();
+  mapDessiner();
+  if(etat) etat.textContent="";
+  toast("Cherchez l'adresse en haut de la carte, ou déplacez-la à la main.");
+  setTimeout(function(){ var q=$("carte_q"); if(q) q.focus(); }, 300);
+}
+function mapChercher(){
+  var champ=$("carte_q"); if(!champ) return;
+  var q=(champ.value||"").trim();
+  if(!q){ toast("Tapez une adresse ou une commune."); return; }
+  var et=$("carte_etat"), avant=et?et.textContent:"";
+  if(et) et.textContent="Recherche…";
+  fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="+encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || !d.length){ toast("Adresse introuvable."); if(et) et.textContent=avant; return; }
+      MAP.lat=parseFloat(d[0].lat); MAP.lon=parseFloat(d[0].lon);
+      MAP.zoom=Math.min(19, MAP_MAX[MAP.source]); MAP.cache={}; MAP.echec={};
+      mapDessiner();
+      var nom=String(d[0].display_name||"").split(",").slice(0,3).join(",").trim();
+      toast(nom || "Position trouvée. Placez le réticule au bon endroit.");
+    })
+    .catch(function(){ toast("Recherche indisponible : déplacez la carte à la main."); if(et) et.textContent=avant; });
+}
+(function chercheBind(){
+  var b=$("carte_chercher"), q=$("carte_q");
+  if(b) b.addEventListener("click", mapChercher);
+  if(q) q.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); mapChercher(); } });
+})();
+
 (function mapBind(){
   var cv = $("carte_canvas");
   var drag = false, last = null;
@@ -2250,6 +2308,7 @@ function bindAll(){
     if(!refAffaire()){ toast("Indiquez le client ou le référence travaux."); showTab("client"); return; }
     publierRapport({
       chantier: refAffaire(), client: S.chantier.client, adresse: adresseTravaux(),
+      lat: S.chantier.lat, lon: S.chantier.lon,
       type: "sav", date: S.inter.date, visite: S.inter.numero || "",
       etape: S.suite.etat || "",
       titre: "Intervention SAV" + (S.inter.numero ? " n° "+S.inter.numero : "")

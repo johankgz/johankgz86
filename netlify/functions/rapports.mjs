@@ -181,6 +181,15 @@ function aAcces(personne, appli) {
   return !siennes.length || siennes.indexOf(appli) >= 0;
 }
 
+/* une position de chantier : deux nombres plausibles, ou rien */
+function positionValide(lat, lon) {
+  const a = Number(lat), b = Number(lon);
+  if (!isFinite(a) || !isFinite(b)) return null;
+  if (a < -90 || a > 90 || b < -180 || b > 180) return null;
+  if (a === 0 && b === 0) return null;
+  return { lat: Math.round(a * 1e6) / 1e6, lon: Math.round(b * 1e6) / 1e6 };
+}
+
 async function identifier(auth) {
   const a = (auth || "").trim();
   if (!a) return null;
@@ -544,6 +553,8 @@ export default async (req) => {
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
     if (d.client) c.client = d.client;
     if (d.adresse) c.adresse = d.adresse;
+    const pos = positionValide(d.lat, d.lon);
+    if (pos) { c.lat = pos.lat; c.lon = pos.lon; }
 
     const ancien = c.fichiers.find((f) => f.cle === cle);
     if (ancien && !bureau && ancien.auteur !== personne.nom) {
@@ -676,6 +687,8 @@ export default async (req) => {
       };
       out.push({
         ref: c.ref, client: c.client, adresse: c.adresse || "", maj: c.maj,
+        lat: typeof c.lat === "number" ? c.lat : null,
+        lon: typeof c.lon === "number" ? c.lon : null,
         documents: visibles.length,
         types: Array.from(new Set(visibles.map((f) => f.type))),
         releve: fiche("releve"),
@@ -944,10 +957,39 @@ export default async (req) => {
     Object.values(idx.chantiers).forEach((c) => {
       const fichiers = c.fichiers.filter((f) => voit(personne, f, c));
       const visibles = fichiers.filter((f) => !f.brouillon);
-      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, fichiers: visibles });
+      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj,
+        lat: typeof c.lat === "number" ? c.lat : null,
+        lon: typeof c.lon === "number" ? c.lon : null,
+        fichiers: visibles });
     });
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
+  }
+
+  if (action === "position-enregistrer") {
+    /* la carte des chantiers retient ici le point trouvé pour un dossier,
+       qu'il vienne d'une recherche d'adresse ou d'un point posé à la main */
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    if (!ref) return json({ erreur: "Référence manquante." }, 400);
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Chantier introuvable." }, 404);
+    if (!(c.fichiers || []).some((f) => voit(personne, f, c))) {
+      return json({ erreur: "Ce chantier ne vous est pas attribué." }, 403);
+    }
+    if (d.lat === null && d.lon === null) {
+      delete c.lat; delete c.lon;
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, lat: null, lon: null });
+    }
+    const pos = positionValide(d.lat, d.lon);
+    if (!pos) return json({ erreur: "Position invalide." }, 400);
+    c.lat = pos.lat; c.lon = pos.lon;
+    if (d.adresse) c.adresse = String(d.adresse).slice(0, 300);
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, lat: c.lat, lon: c.lon, adresse: c.adresse || "" });
   }
 
   if (action === "sav-traite") {

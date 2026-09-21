@@ -113,6 +113,51 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
 
 .restaurer{border:1px solid var(--rule);background:var(--card);padding:13px 15px;margin-bottom:16px}
 .restaurer .hint{margin:9px 0 0}
+/* ---------- carte des chantiers, plein écran ---------- */
+#carte{position:fixed;inset:0;z-index:70;background:#1A1815;display:flex;flex-direction:column;
+ padding-top:env(safe-area-inset-top,0px)}
+#carte[hidden]{display:none}
+#carte .sk-bar{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto;
+ padding:8px 10px;background:#262320;flex:0 0 auto;scrollbar-width:none}
+#carte .sk-bar[hidden]{display:none}
+#carte .sk-bar::-webkit-scrollbar{display:none}
+#carte .sk-bar button{flex:0 0 auto;min-height:38px;padding:8px 12px;border-radius:2px;border:0;
+ background:rgba(255,255,255,.1);color:#F4F1EA;font-size:13px;font-family:inherit;font-weight:600;
+ cursor:pointer;white-space:nowrap}
+#carte .sk-bar button:active{transform:scale(.96)}
+#carte .sk-bar button.go{background:var(--accent);color:#fff}
+#carte .sk-bar .title{flex:1 1 auto;color:#8C8475;font-size:13px;font-weight:500;padding-left:2px;
+ overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:60px}
+#carte .sk-bar .etat{color:#8C8475;font-size:12px;white-space:nowrap}
+#carte .sk-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+#carte_q{flex:1 1 auto;min-width:110px;min-height:38px;padding:8px 12px;border:0;border-radius:2px;
+ background:rgba(255,255,255,.12);color:#F4F1EA;font-family:inherit;font-size:15px}
+#carte_q::placeholder{color:#8C8475}
+#carte_q:focus{outline:none;background:rgba(255,255,255,.2)}
+#carte_canvas{display:block;background:#1A1815;touch-action:none;cursor:grab}
+#carte_canvas:active{cursor:grabbing}
+#carte_fiche{position:absolute;left:10px;right:10px;bottom:10px;background:var(--card);
+ border:1px solid var(--rule);border-radius:2px;padding:12px 14px;
+ box-shadow:0 18px 50px -20px rgba(0,0,0,.8)}
+#carte_fiche[hidden]{display:none}
+#carte_fiche .ref{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+#carte_fiche b{display:block;font-size:15px;margin:2px 0 3px}
+#carte_fiche .adr{font-size:12.5px;color:var(--ink-3);margin:0 0 9px}
+#carte_fiche .btns{display:flex;gap:6px;flex-wrap:wrap}
+#carte_fiche .btns button{min-height:36px;padding:7px 11px;border:1px solid var(--rule);border-radius:2px;
+ background:var(--card);color:var(--ink-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+#carte_fiche .btns button.go{background:var(--accent);color:#fff;border-color:var(--accent)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+ z-index:90;background:#262320;color:#F4F1EA;padding:10px 16px;border-radius:2px;font-size:13.5px;
+ max-width:calc(100% - 32px);text-align:center;box-shadow:0 12px 30px -14px rgba(0,0,0,.7)}
+.toast[hidden]{display:none}
+.barre-carte{display:flex;gap:8px;align-items:center;margin:0 0 14px}
+.barre-carte button{min-height:38px;padding:9px 14px;border:1px solid var(--rule);border-radius:2px;
+ background:var(--card);color:var(--ink-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+ display:inline-flex;align-items:center;gap:7px}
+.barre-carte button:active{background:var(--field);color:var(--accent)}
+.barre-carte button svg{color:var(--accent)}
+.barre-carte[hidden]{display:none}
 </style>
 </head>
 <body>
@@ -132,11 +177,48 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
     <p class="hint" id="restaurerEtat">Reprend le fichier ZIP produit par « Archiver » et remet le dossier complet sur le site.</p>
   </div>
   <p id="bonjour" style="margin:0 0 14px;color:var(--ink-2);font-size:14.5px"></p>
+  <div class="barre-carte" id="barreCarte" hidden>
+    <button type="button" id="btnCarte">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"
+           style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;
+                  stroke-linecap:round;stroke-linejoin:round"><path d="M9 3 3 5.4v15.1L9 18l6 2.5 6-2.4V2.9L15 5.4z"/>
+      <path d="M9 3v15M15 5.4v15.1"/></svg>Carte des chantiers</button>
+    <span class="hint" id="carteHint" style="margin:0"></span>
+  </div>
   <input type="search" id="recherche" placeholder="Rechercher un dossier, un client…" autocapitalize="off"
          style="margin-bottom:14px" hidden>
   <div id="liste"></div>
   <p class="hint" id="compteur" style="margin:14px 2px"></p>
 </main>
+
+<div id="carte" hidden>
+  <div class="sk-bar">
+    <span class="title" id="carte_titre">Vos chantiers</span>
+    <button type="button" id="carte_tout">Tout voir</button>
+    <button type="button" id="carte_cancel">Fermer</button>
+  </div>
+  <div class="sk-bar">
+    <button type="button" id="carte_moins">Reculer</button>
+    <button type="button" id="carte_plus">Zoomer</button>
+    <button type="button" id="carte_source">Changer de fond</button>
+    <span class="etat" id="carte_etat" style="margin-left:auto;margin-right:4px"></span>
+  </div>
+  <div class="sk-bar" id="carte_recherche">
+    <input type="search" id="carte_q" placeholder="Chercher une adresse, une commune…"
+           autocapitalize="off" spellcheck="false">
+    <button type="button" id="carte_chercher">Chercher</button>
+  </div>
+  <div class="sk-bar" id="carte_pose" hidden>
+    <span class="title" id="carte_pose_titre">Placez le point au centre de la carte</span>
+    <button type="button" id="carte_pose_annuler">Annuler</button>
+    <button type="button" class="go" id="carte_pose_ok">Poser ici</button>
+  </div>
+  <div class="sk-wrap">
+    <canvas id="carte_canvas"></canvas>
+    <div id="carte_fiche" hidden></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
 <script>
 /* ---------- session expirée : retour à la connexion ---------- */
 (function(){
@@ -1026,6 +1108,7 @@ function charger(){
       CHANTIERS = res.d.chantiers||[];
       MOI = res.d.moi || S;
       $("recherche").hidden = CHANTIERS.length < 4;
+      carteMajBouton();
       afficher(filtrer());
     })
     .catch(function(){ $("bonjour").textContent="Pas de réseau. Réessayez."; });
@@ -1225,6 +1308,489 @@ function afficher(chantiers){
     host.appendChild(box);
   });
 }
+
+/* ================= carte des chantiers =================
+   Un fond de carte dessiné en tuiles, une épingle par dossier.
+   La position vient du relevé quand elle existe ; sinon on la cherche
+   une fois à partir de l'adresse, et le site la retient. */
+var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"plan", cache:{}, echec:{}, echecs:0,
+             points:[], choisi:null, pose:"", rendu:0};
+var CARTE_MAX = {plan:19, ortho:21, esri:19};
+var CARTE_NOM = {plan:"IGN, plan", ortho:"IGN, vue aérienne", esri:"Esri, vue aérienne"};
+
+function toast(t){
+  var e=$("toast"); if(!e) return;
+  e.textContent=t; e.hidden=false;
+  clearTimeout(toast.t);
+  toast.t=setTimeout(function(){ e.hidden=true; }, 3200);
+}
+function mondePx(lat, lon, z){
+  var n = 256 * Math.pow(2, z);
+  var x = (lon + 180) / 360 * n;
+  var lr = lat * Math.PI / 180;
+  var y = (1 - Math.log(Math.tan(lr) + 1 / Math.cos(lr)) / Math.PI) / 2 * n;
+  return [x, y];
+}
+function pxMonde(x, y, z){
+  var n = 256 * Math.pow(2, z);
+  var lon = x / n * 360 - 180;
+  var t = Math.PI - 2 * Math.PI * y / n;
+  var lat = 180 / Math.PI * Math.atan(0.5 * (Math.exp(t) - Math.exp(-t)));
+  return [lat, lon];
+}
+function urlsTuile(source, z, x, y){
+  if(source === "plan"){
+    return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
+      +"&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png"
+      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
+  }
+  if(source === "ortho"){
+    return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
+      +"&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
+      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
+  }
+  return "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/"+z+"/"+y+"/"+x;
+}
+function carteTuile(source, z, x, y){
+  var cle = source+"/"+z+"/"+x+"/"+y;
+  if(CARTE.cache[cle]) return Promise.resolve(CARTE.cache[cle]);
+  if(CARTE.echec[cle]) return Promise.reject(new Error("tuile"));
+  return fetch(urlsTuile(source, z, x, y), {mode:"cors"})
+    .then(function(r){
+      if(!r.ok) throw new Error("tuile");
+      if((r.headers.get("content-type")||"").indexOf("image") < 0) throw new Error("tuile");
+      return r.blob();
+    })
+    .then(function(b){ return createImageBitmap(b); })
+    .then(function(bmp){ CARTE.cache[cle]=bmp; return bmp; })
+    .catch(function(e){ CARTE.echec[cle]=true; throw e; });
+}
+function carteSecours(){
+  if(CARTE.source === "esri") return;
+  CARTE.source = "esri";
+  if(CARTE.zoom > CARTE_MAX.esri) CARTE.zoom = CARTE_MAX.esri;
+  CARTE.echecs = 0;
+  toast("Fond IGN indisponible : passage sur la vue Esri.");
+  carteDessiner();
+}
+function carteTaille(){
+  var cv=$("carte_canvas"), wrap=cv.parentNode;
+  var L=Math.max(240, wrap.clientWidth), H=Math.max(240, wrap.clientHeight);
+  if(cv.width!==L || cv.height!==H){
+    cv.width=L; cv.height=H;
+    cv.style.width=L+"px"; cv.style.height=H+"px";
+  }
+}
+function carteEtat(){
+  var e=$("carte_etat"); if(!e) return;
+  var avec=CARTE.points.filter(function(p){ return p.lat!=null; }).length;
+  e.textContent = CARTE_NOM[CARTE.source] + "  ·  zoom " + CARTE.zoom
+    + "  ·  " + avec + " chantier" + (avec>1?"s":"") + " situé" + (avec>1?"s":"");
+}
+function carteDessiner(){
+  var cv=$("carte_canvas"); if(!cv || $("carte").hidden) return;
+  var ctx=cv.getContext("2d"), L=cv.width, H=cv.height;
+  ctx.fillStyle="#1A1815"; ctx.fillRect(0,0,L,H);
+  var c=mondePx(CARTE.lat, CARTE.lon, CARTE.zoom);
+  var gauche=c[0]-L/2, haut=c[1]-H/2;
+  var n=Math.pow(2, CARTE.zoom);
+  var x0=Math.floor(gauche/256), y0=Math.floor(haut/256);
+  var x1=Math.floor((gauche+L)/256), y1=Math.floor((haut+H)/256);
+  var attendre=[];
+  for(var ty=y0; ty<=y1; ty++){
+    if(ty<0 || ty>=n) continue;
+    for(var tx=x0; tx<=x1; tx++){
+      var wx=((tx%n)+n)%n;
+      var cle=CARTE.source+"/"+CARTE.zoom+"/"+wx+"/"+ty;
+      var bmp=CARTE.cache[cle];
+      if(bmp){ ctx.drawImage(bmp, Math.round(tx*256-gauche), Math.round(ty*256-haut), 256, 256); }
+      else if(!CARTE.echec[cle]) attendre.push([wx, ty]);
+    }
+  }
+  attendre.forEach(function(t){
+    carteTuile(CARTE.source, CARTE.zoom, t[0], t[1])
+      .then(function(){ carteRedessiner(); })
+      .catch(function(){
+        CARTE.echecs++;
+        if(CARTE.echecs >= 4) carteSecours();
+      });
+  });
+  carteEpingles(ctx, gauche, haut);
+  if(CARTE.pose) carteReticule(ctx, L, H);
+  carteEtat();
+}
+function carteRedessiner(){
+  if(CARTE.rendu) return;
+  CARTE.rendu = requestAnimationFrame(function(){ CARTE.rendu=0; carteDessiner(); });
+}
+function carteReticule(ctx, L, H){
+  var mx=L/2, my=H/2;
+  ctx.save();
+  ctx.strokeStyle="rgba(255,255,255,.9)"; ctx.lineWidth=1.6;
+  ctx.beginPath();
+  ctx.moveTo(mx-16,my); ctx.lineTo(mx-5,my);
+  ctx.moveTo(mx+5,my); ctx.lineTo(mx+16,my);
+  ctx.moveTo(mx,my-16); ctx.lineTo(mx,my-5);
+  ctx.moveTo(mx,my+5); ctx.lineTo(mx,my+16);
+  ctx.stroke();
+  ctx.strokeStyle="rgba(0,0,0,.45)"; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.arc(mx,my,20,0,Math.PI*2); ctx.stroke();
+  ctx.restore();
+}
+function carteEcran(p, gauche, haut){
+  var w=mondePx(p.lat, p.lon, CARTE.zoom);
+  return [w[0]-gauche, w[1]-haut];
+}
+function carteEpingles(ctx, gauche, haut){
+  var cv=$("carte_canvas"), L=cv.width, H=cv.height;
+  var nomme = CARTE.zoom >= 10 || CARTE.points.length <= 12;
+  CARTE.points.forEach(function(p){
+    if(p.lat == null) return;
+    var e=carteEcran(p, gauche, haut);
+    p.ecran=e;
+    if(e[0] < -40 || e[0] > L+40 || e[1] < -50 || e[1] > H+40) return;
+    var choisi = CARTE.choisi === p.ref;
+    var r = choisi ? 11 : 8;
+    ctx.save();
+    /* la pointe */
+    ctx.beginPath();
+    ctx.moveTo(e[0], e[1]);
+    ctx.lineTo(e[0]-r*0.55, e[1]-r*1.25);
+    ctx.lineTo(e[0]+r*0.55, e[1]-r*1.25);
+    ctx.closePath();
+    ctx.fillStyle = choisi ? "#B4472E" : "#8C6A3F";
+    ctx.fill();
+    /* la tête */
+    ctx.beginPath();
+    ctx.arc(e[0], e[1]-r*1.6, r, 0, Math.PI*2);
+    ctx.fillStyle = choisi ? "#B4472E" : "#8C6A3F";
+    ctx.fill();
+    ctx.lineWidth=2; ctx.strokeStyle="rgba(255,255,255,.92)"; ctx.stroke();
+    if(nomme){
+      var nom=String(p.client || p.ref || "").slice(0, 22);
+      if(nom){
+        ctx.font="600 11px -apple-system, system-ui, sans-serif";
+        ctx.textAlign="center";
+        var l=ctx.measureText(nom).width;
+        ctx.fillStyle="rgba(26,24,21,.78)";
+        ctx.fillRect(e[0]-l/2-5, e[1]+4, l+10, 16);
+        ctx.fillStyle="#F4F1EA";
+        ctx.fillText(nom, e[0], e[1]+15.5);
+      }
+    }
+    ctx.restore();
+  });
+}
+function carteZoom(d, autour){
+  var z=CARTE.zoom+d;
+  if(z < 4) z = 4;
+  if(z > CARTE_MAX[CARTE.source]){
+    toast("Zoom maximum atteint pour ce fond.");
+    z = CARTE_MAX[CARTE.source];
+  }
+  if(z === CARTE.zoom) return;
+  if(autour){
+    /* garder sous le curseur le point que l'on vise */
+    var cv=$("carte_canvas");
+    var c=mondePx(CARTE.lat, CARTE.lon, CARTE.zoom);
+    var vise=pxMonde(c[0]-cv.width/2+autour[0], c[1]-cv.height/2+autour[1], CARTE.zoom);
+    CARTE.zoom=z;
+    var v=mondePx(vise[0], vise[1], z);
+    var centre=pxMonde(v[0]+cv.width/2-autour[0], v[1]+cv.height/2-autour[1], z);
+    CARTE.lat=centre[0]; CARTE.lon=centre[1];
+  } else {
+    CARTE.zoom=z;
+  }
+  carteDessiner();
+}
+function carteCadrer(){
+  var pts=CARTE.points.filter(function(p){ return p.lat!=null; });
+  if(!pts.length){ CARTE.lat=46.6; CARTE.lon=1.9; CARTE.zoom=6; carteDessiner(); return; }
+  if(pts.length === 1){
+    CARTE.lat=pts[0].lat; CARTE.lon=pts[0].lon; CARTE.zoom=15; carteDessiner(); return;
+  }
+  var cv=$("carte_canvas"), L=cv.width, H=cv.height;
+  var z=CARTE_MAX[CARTE.source];
+  for(; z>4; z--){
+    var xs=[], ys=[];
+    pts.forEach(function(p){ var w=mondePx(p.lat,p.lon,z); xs.push(w[0]); ys.push(w[1]); });
+    var lx=Math.max.apply(null,xs)-Math.min.apply(null,xs);
+    var ly=Math.max.apply(null,ys)-Math.min.apply(null,ys);
+    if(lx <= L-80 && ly <= H-100) break;
+  }
+  CARTE.zoom=z;
+  var mx=0, my=0;
+  pts.forEach(function(p){ var w=mondePx(p.lat,p.lon,z); mx+=w[0]; my+=w[1]; });
+  var mid=pxMonde(mx/pts.length, my/pts.length, z);
+  CARTE.lat=mid[0]; CARTE.lon=mid[1];
+  carteDessiner();
+}
+
+/* ---------- la fiche d'un chantier, en bas de la carte ---------- */
+function carteFermerFiche(){
+  CARTE.choisi=null;
+  $("carte_fiche").hidden=true;
+  carteRedessiner();
+}
+function carteFiche(p){
+  CARTE.choisi=p.ref;
+  var f=$("carte_fiche");
+  f.textContent="";
+  var r=document.createElement("span"); r.className="ref"; r.textContent=p.ref;
+  var b=document.createElement("b"); b.textContent=p.client || p.ref;
+  var a=document.createElement("p"); a.className="adr";
+  a.textContent=(p.adresse||"").replace(/\n/g, ", ")
+    + (p.lat!=null ? "   ·   "+p.lat.toFixed(5).replace(".",",")+", "+p.lon.toFixed(5).replace(".",",") : "");
+  var btns=document.createElement("div"); btns.className="btns";
+
+  var voir=document.createElement("button");
+  voir.type="button"; voir.className="go"; voir.textContent="Voir le dossier";
+  voir.addEventListener("click", function(){ carteAuDossier(p.ref); });
+  btns.appendChild(voir);
+
+  if(p.lat!=null || (p.adresse||"").trim()){
+    var iti=document.createElement("button");
+    iti.type="button"; iti.textContent="Itinéraire";
+    iti.addEventListener("click", function(){
+      var dest = p.lat!=null ? (p.lat+","+p.lon) : String(p.adresse).replace(/\n/g, ", ");
+      window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(dest), "_blank");
+    });
+    btns.appendChild(iti);
+  }
+
+  var corr=document.createElement("button");
+  corr.type="button"; corr.textContent = p.lat!=null ? "Corriger la position" : "Poser la position";
+  corr.addEventListener("click", function(){ cartePoseDebut(p); });
+  btns.appendChild(corr);
+
+  var fermer=document.createElement("button");
+  fermer.type="button"; fermer.textContent="Fermer";
+  fermer.addEventListener("click", carteFermerFiche);
+  btns.appendChild(fermer);
+
+  f.appendChild(r); f.appendChild(b); f.appendChild(a); f.appendChild(btns);
+  f.hidden=false;
+  carteRedessiner();
+}
+function carteAuDossier(ref){
+  $("carte").hidden=true;
+  $("recherche").value=ref;
+  afficher(filtrer());
+  var box=$("liste").querySelector(".travaux");
+  if(box){
+    box.scrollIntoView({behavior:"smooth", block:"start"});
+    var head=box.querySelector(".head");
+    if(head) head.click();
+  }
+}
+
+/* ---------- poser une position à la main ---------- */
+function cartePoseDebut(p){
+  CARTE.pose=p.ref;
+  $("carte_fiche").hidden=true;
+  $("carte_pose").hidden=false;
+  $("carte_recherche").hidden=false;
+  $("carte_pose_titre").textContent="Centrez la carte sur « "+(p.client||p.ref)+" », puis posez le point";
+  if(p.lat!=null){ CARTE.lat=p.lat; CARTE.lon=p.lon; }
+  if(CARTE.zoom < 16) CARTE.zoom=Math.min(17, CARTE_MAX[CARTE.source]);
+  carteDessiner();
+}
+function cartePoseFin(){
+  CARTE.pose="";
+  $("carte_pose").hidden=true;
+  carteRedessiner();
+}
+function cartePoser(){
+  var ref=CARTE.pose;
+  var p=CARTE.points.filter(function(x){ return x.ref===ref; })[0];
+  if(!p){ cartePoseFin(); return; }
+  var lat=CARTE.lat, lon=CARTE.lon;
+  p.lat=lat; p.lon=lon; p.situe="main";
+  cartePoseFin();
+  carteEnregistrerPosition(ref, lat, lon, function(ok, erreur){
+    toast(ok ? "Position enregistrée pour "+(p.client||ref)+"."
+             : (erreur || "Position gardée ici seulement : le site n'a pas répondu."));
+  });
+}
+function carteEnregistrerPosition(ref, lat, lon, fin){
+  fetch(API+"?action=position-enregistrer", {
+    method:"POST",
+    headers:{"content-type":"application/json", "x-auth":S.jeton},
+    body:JSON.stringify({ref:ref, lat:lat, lon:lon})
+  })
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      var c=CHANTIERS.filter(function(x){ return x.ref===ref; })[0];
+      if(res.ok && c){ c.lat=lat; c.lon=lon; }
+      if(fin) fin(res.ok, res.d && res.d.erreur);
+    })
+    .catch(function(){ if(fin) fin(false); });
+}
+
+/* ---------- chercher les chantiers sans position ---------- */
+function carteChercherManquants(){
+  function bilan(){
+    var sans=CARTE.points.filter(function(p){ return p.lat==null; }).length;
+    $("carte_titre").textContent = sans
+      ? sans+" dossier"+(sans>1?"s":"")+" sans adresse trouvée : posez le point à la main"
+      : "Vos chantiers";
+    carteEtat();
+  }
+  var reste=CARTE.points.filter(function(p){ return p.lat==null && (p.adresse||"").trim(); });
+  if(!reste.length){ bilan(); return; }
+  var i=0;
+  function suivant(){
+    if(i >= reste.length || $("carte").hidden){ bilan(); return; }
+    var p=reste[i++];
+    $("carte_titre").textContent="Recherche des adresses… "+i+"/"+reste.length;
+    fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="
+          +encodeURIComponent(String(p.adresse).replace(/\n/g, ", ")))
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        if(d && d.length){
+          p.lat=parseFloat(d[0].lat); p.lon=parseFloat(d[0].lon); p.situe="adresse";
+          carteRedessiner();
+          carteEnregistrerPosition(p.ref, p.lat, p.lon, null);
+        }
+      })
+      .catch(function(){})
+      /* une recherche à la fois, sans bousculer le service public */
+      .then(function(){ setTimeout(suivant, 1200); });
+  }
+  suivant();
+}
+function carteChercherAdresse(){
+  var champ=$("carte_q"); if(!champ) return;
+  var q=(champ.value||"").trim();
+  if(!q){ toast("Tapez une adresse ou une commune."); return; }
+  fetch("https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q="+encodeURIComponent(q))
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d || !d.length){ toast("Adresse introuvable."); return; }
+      CARTE.lat=parseFloat(d[0].lat); CARTE.lon=parseFloat(d[0].lon);
+      CARTE.zoom=Math.min(16, CARTE_MAX[CARTE.source]);
+      carteDessiner();
+      toast(String(d[0].display_name||"").split(",").slice(0,3).join(",").trim() || "Position trouvée.");
+    })
+    .catch(function(){ toast("Recherche indisponible : déplacez la carte à la main."); });
+}
+
+/* ---------- ouverture ---------- */
+function carteOuvrir(){
+  CARTE.points = CHANTIERS.map(function(c){
+    return {ref:c.ref, client:c.client||"", adresse:c.adresse||"", documents:(c.fichiers||[]).length,
+            lat: typeof c.lat==="number" ? c.lat : null,
+            lon: typeof c.lon==="number" ? c.lon : null,
+            situe: typeof c.lat==="number" ? "connue" : ""};
+  });
+  CARTE.choisi=null; CARTE.pose=""; CARTE.echecs=0;
+  $("carte_fiche").hidden=true;
+  $("carte_pose").hidden=true;
+  $("carte").hidden=false;
+  carteTaille();
+  carteCadrer();
+  carteChercherManquants();
+}
+function carteMajBouton(){
+  var n=CHANTIERS.length;
+  $("barreCarte").hidden = !n;
+  var situes=CHANTIERS.filter(function(c){ return typeof c.lat==="number"; }).length;
+  $("carteHint").textContent = n
+    ? (situes ? situes+" sur "+n+" déjà situé"+(situes>1?"s":"") : "les adresses seront cherchées à l'ouverture")
+    : "";
+}
+
+(function carteBind(){
+  var cv=$("carte_canvas");
+  var drag=false, bouge=false, last=null, depart=null;
+  var doigts=new Map(), ecartDepart=null;
+  function point(e){ return [e.clientX, e.clientY]; }
+  function dansCanvas(e){
+    var r=cv.getBoundingClientRect();
+    return [e.clientX-r.left, e.clientY-r.top];
+  }
+  function ecart(){
+    var t=Array.from(doigts.values());
+    return Math.hypot(t[0][0]-t[1][0], t[0][1]-t[1][1]) || 1;
+  }
+  cv.addEventListener("pointerdown", function(e){
+    doigts.set(e.pointerId, point(e));
+    if(doigts.size === 2){ drag=false; ecartDepart=ecart(); return; }
+    drag=true; bouge=false; last=point(e); depart=point(e);
+  });
+  cv.addEventListener("pointermove", function(e){
+    if(doigts.has(e.pointerId)) doigts.set(e.pointerId, point(e));
+    if(doigts.size >= 2 && ecartDepart){
+      var f=ecart()/ecartDepart;
+      if(f > 1.6){ ecartDepart=ecart(); carteZoom(1); }
+      else if(f < 0.62){ ecartDepart=ecart(); carteZoom(-1); }
+      return;
+    }
+    if(!drag) return;
+    var p=point(e), dx=p[0]-last[0], dy=p[1]-last[1];
+    if(Math.abs(p[0]-depart[0]) > 4 || Math.abs(p[1]-depart[1]) > 4) bouge=true;
+    last=p;
+    var c=mondePx(CARTE.lat, CARTE.lon, CARTE.zoom);
+    var ll=pxMonde(c[0]-dx, c[1]-dy, CARTE.zoom);
+    CARTE.lat=ll[0]; CARTE.lon=ll[1];
+    carteRedessiner();
+  });
+  ["pointerup","pointercancel","pointerleave"].forEach(function(ev){
+    cv.addEventListener(ev, function(e){
+      if(ev === "pointerup" && drag && !bouge) carteClic(dansCanvas(e));
+      doigts.delete(e.pointerId);
+      if(doigts.size < 2) ecartDepart=null;
+      drag=false;
+    });
+  });
+  cv.addEventListener("wheel", function(e){
+    e.preventDefault();
+    carteZoom(e.deltaY < 0 ? 1 : -1, dansCanvas(e));
+  }, {passive:false});
+
+  function carteClic(xy){
+    if(CARTE.pose) return;              /* en pose, le clic ne choisit rien */
+    var meilleur=null, d2=26*26;
+    CARTE.points.forEach(function(p){
+      if(p.lat == null || !p.ecran) return;
+      var dx=p.ecran[0]-xy[0], dy=(p.ecran[1]-13)-xy[1];
+      var d=dx*dx+dy*dy;
+      if(d < d2){ d2=d; meilleur=p; }
+    });
+    if(meilleur) carteFiche(meilleur);
+    else carteFermerFiche();
+  }
+
+  $("btnCarte").addEventListener("click", carteOuvrir);
+  $("carte_cancel").addEventListener("click", function(){ $("carte").hidden=true; });
+  $("carte_tout").addEventListener("click", function(){ carteFermerFiche(); carteCadrer(); });
+  $("carte_plus").addEventListener("click", function(){ carteZoom(1); });
+  $("carte_moins").addEventListener("click", function(){ carteZoom(-1); });
+  $("carte_source").addEventListener("click", function(){
+    CARTE.source = CARTE.source==="plan" ? "ortho" : CARTE.source==="ortho" ? "esri" : "plan";
+    if(CARTE.zoom > CARTE_MAX[CARTE.source]) CARTE.zoom=CARTE_MAX[CARTE.source];
+    CARTE.echecs=0;
+    carteDessiner();
+    toast("Fond : "+CARTE_NOM[CARTE.source]);
+  });
+  $("carte_chercher").addEventListener("click", carteChercherAdresse);
+  $("carte_q").addEventListener("keydown", function(e){
+    if(e.key === "Enter"){ e.preventDefault(); carteChercherAdresse(); }
+  });
+  $("carte_pose_ok").addEventListener("click", cartePoser);
+  $("carte_pose_annuler").addEventListener("click", cartePoseFin);
+  window.addEventListener("resize", function(){
+    if($("carte").hidden) return;
+    carteTaille(); carteRedessiner();
+  });
+  document.addEventListener("keydown", function(e){
+    if(e.key === "Escape" && !$("carte").hidden){
+      if(CARTE.pose) cartePoseFin();
+      else $("carte").hidden=true;
+    }
+  });
+})();
+
 $("recherche").addEventListener("input", function(){ afficher(filtrer()); });
 if(S && S.jeton) charger();
 </script>
