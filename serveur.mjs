@@ -46,7 +46,7 @@ const ROUTES = [
 ];
 
 /* jamais de fichier hors du site, ni le dossier des données, ni le dépôt */
-const INTERDITS = [".git", "node_modules", "donnees", "netlify", "serveur.mjs", "package-lock.json"];
+const INTERDITS = [".git", ".claude", "node_modules", "donnees", "netlify", "serveur.mjs", "package-lock.json"];
 
 function fichierDemande(chemin) {
   const propre = decodeURIComponent(chemin.split("?")[0]);
