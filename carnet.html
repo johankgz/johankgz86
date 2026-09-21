@@ -402,7 +402,8 @@ function viderFichiers(){
 /* ---------- état ---------- */
 var DOCUMENTS=[
   ["carnet","Carnet d'échantillons","Les échantillons et fiches produits retenus pour le chantier, une page par référence."],
-  ["memoire","Mémoire technique","La note qui accompagne l'offre : moyens, méthodes, références, fiches techniques."]
+  ["memoire","Mémoire technique","La note qui accompagne l'offre : moyens, méthodes, références, fiches techniques."],
+  ["doe","Dossier des ouvrages exécutés","Le DOE remis en fin de chantier : fiches, notices, plans et certificats de ce qui a été posé."]
 ];
 var S=null, P=null;
 
@@ -438,8 +439,8 @@ function refAffaire(){
 }
 function adresseTravaux(){ return (S.garde.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.garde.date || aujourdhui(); }
-/* le sommaire tient trente lignes par page */
-function pagesSommaire(){ return Math.max(1, Math.ceil(S.pages.length/30)); }
+/* le sommaire tient vingt-cinq lignes par page (voir PAR_PAGE_SOMMAIRE) */
+function pagesSommaire(){ return Math.max(1, Math.ceil(S.pages.length/25)); }
 function premierePage(){ return 2 + pagesSommaire(); }
 
 /* ---------- les pages, à l'écran ---------- */
@@ -753,132 +754,240 @@ function renderResume(){
 
 /* =====================================================================
    LE DOCUMENT
-   Page de garde et sommaire sont dessinés comme les autres rapports du
-   site ; les pages retenues sont ensuite reprises telles quelles dans
-   les PDF d'origine, sous un bandeau qui porte leur titre.
+   La mise en page reprend la trame Word de la société, au millimètre :
+   en-tête à toutes les pages (bandeau de la société à gauche, contact à
+   droite), page de garde à deux traits, sommaire numéroté et souligné,
+   puis une page par pièce, son titre centré et souligné au-dessus.
+   Le numéro de page est posé en bas à droite dans un carré corné.
+   Les mesures viennent du document d'origine : marges 7,5 / 25 / 10 / 15,
+   bandeau 135 x 25 mm, contact 45 x 15 mm, traits de 175 mm.
    ===================================================================== */
-var M=14, PW=210, PH=297, CW=PW-2*M;
+var PW=210, PH=297;                       /* A4, en millimètres */
+var MG={haut:7.5, bas:25, gauche:10, droite:15};
+var ENT={banniere:{x:10, y:2, l:135, h:25}, contact:{x:150.7, y:5.4, l:45, h:15}};
+var TRAIT={x:13, l:175};
+var CORPS=34;                             /* première ligne utile, sous l'en-tête */
+var ENTETES={societe:"./entete-societe.png", contact:"./entete-contact.png"};
+/* le sommaire tient vingt-cinq lignes par page */
+var PAR_PAGE_SOMMAIRE=25;
 
 function nettoyer(t){
   /* Les polices PDF de base ne connaissent que le latin : un caractère
      qu'elles ignorent ferait échouer tout le document. On traduit ce qui
      se traduit, on retire le reste. */
   return String(t==null ? "" : t)
-    .replace(/[\u2018\u2019\u02BC]/g, "'")
-    .replace(/[\u201C\u201D]/g, '"')
-    .replace(/[\u2013\u2014]/g, "-")
-    .replace(/\u2026/g, "...")
-    .replace(/\u2264/g, "<=").replace(/\u2265/g, ">=")
-    .replace(/[\u03A9\u2126]/g, "Ohm")
-    .replace(/\u03BC/g, "\u00B5")
-    .replace(/[^\u0020-\u00FF\u0152\u0153]/g, "")
+    .replace(/[‘’ʼ]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/[–—]/g, "-")
+    .replace(/…/g, "...")
+    .replace(/≤/g, "<=").replace(/≥/g, ">=")
+    .replace(/[ΩΩ]/g, "Ohm")
+    .replace(/μ/g, "µ")
+    .replace(/[^ -ÿŒœ]/g, "")
     .replace(/ {2,}/g, " ").trim();
 }
 
-function gardeEtSommaire(){
-  var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206], ACC=[180,98,26], ACC_BG=[251,237,224];
-  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
-  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-
-  /* ---------- page de garde ---------- */
-  setFill(INK); doc.rect(0, 0, PW, 4, "F");
-  var L=(P&&P.logo)||null, y=26;
-  if(L){
-    var lh=18, lw=lh*(L.w/L.h);
-    if(lw>42){ lw=42; lh=lw*(L.h/L.w); }
-    try{ doc.addImage(L.data, "JPEG", M, y-6, lw, lh); }catch(e){}
-    y += lh + 6;
-  }else{
-    doc.setFont("helvetica","bold"); doc.setFontSize(12); setText(INK);
-    doc.text(nettoyer((P&&P.societe)||""), M, y);
-    y += 10;
-  }
-
-  doc.setFont("helvetica","normal"); doc.setFontSize(11); setText(ACC);
-  doc.text(nettoyer(nomDoc()).toUpperCase(), M, y+16);
-  setFill(ACC); doc.rect(M, y+19, 26, 0.9, "F");
-
-  doc.setFont("helvetica","bold"); doc.setFontSize(26); setText(INK);
-  var nom=doc.splitTextToSize(nettoyer(S.garde.nom||"Dossier sans nom"), CW);
-  doc.text(nom.slice(0,3), M, y+32);
-  var apres = y + 32 + Math.min(3, nom.length)*10;
-
-  if((S.garde.lot||"").trim()){
-    doc.setFont("helvetica","bold"); doc.setFontSize(13); setText(ACC);
-    doc.text(nettoyer(S.garde.lot), M, apres+2);
-    apres += 10;
-  }
-
-  if((S.garde.description||"").trim()){
-    doc.setFont("helvetica","normal"); doc.setFontSize(11); setText(INK);
-    var des=doc.splitTextToSize(nettoyer(S.garde.description), CW);
-    doc.text(des.slice(0,12), M, apres+6);
-    apres += 6 + Math.min(12, des.length)*5.6;
-  }
-
-  /* le pied de la page de garde : adresse, référence, date, société */
-  var yb = PH - 62;
-  setFill(LIGHT); doc.rect(M, yb, CW, 0.4, "F");
-  yb += 9;
-  function ligneGarde(etiquette, valeur){
-    if(!String(valeur||"").trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-    doc.text(nettoyer(etiquette).toUpperCase(), M, yb);
-    doc.setFont("helvetica","bold"); doc.setFontSize(10.5); setText(INK);
-    var v=doc.splitTextToSize(nettoyer(valeur), CW-46);
-    doc.text(v.slice(0,2), M+46, yb);
-    yb += Math.max(7, Math.min(2, v.length)*5.4 + 2);
-  }
-  ligneGarde("Adresse", adresseTravaux());
-  ligneGarde("Référence", S.garde.ref);
-  ligneGarde("Date", frDate(dateFiche()));
-  ligneGarde("Établi par", (SESSION && SESSION.nom) || "");
-
-  doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-  doc.text(nettoyer([(P&&P.societe), (P&&P.socAdr), (P&&P.socTel)].filter(Boolean).join("   ")),
-    M, PH-12);
-  setText(INK);
-
-  /* ---------- sommaire ---------- */
-  var parPage=30, debut=premierePage();
-  for(var s=0; s<pagesSommaire(); s++){
-    doc.addPage();
-    setFill(INK); doc.rect(0, 0, PW, 2.6, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(15); setText(INK);
-    doc.text("Sommaire", M, 22);
-    if(pagesSommaire()>1){
-      doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-      doc.text((s+1) + " sur " + pagesSommaire(), PW-M, 22, {align:"right"});
-    }
-    setFill(LIGHT); doc.rect(M, 26, CW, 0.4, "F");
-    var yy=35;
-    S.pages.slice(s*parPage, (s+1)*parPage).forEach(function(p, k){
-      var rang = s*parPage + k;
-      doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-      var titre = nettoyer((p.titre||"").trim() || ("Page " + (rang+1)));
-      var t=doc.splitTextToSize(titre, CW-26)[0];
-      doc.text(t, M+1, yy);
-      doc.setFont("helvetica","bold"); setText(ACC);
-      doc.text(String(debut + rang), PW-M-1, yy, {align:"right"});
-      setFill(LIGHT); doc.rect(M, yy+1.8, CW, 0.2, "F");
-      setText(INK);
-      yy += 8.2;
-    });
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    doc.text(nettoyer(nomDoc() + "   " + (S.garde.nom||"")), M, PH-10);
-    doc.text(String(2+s), PW-M, PH-10, {align:"right"});
-    setText(INK);
-  }
-  return doc.output("arraybuffer");
+/* le titre de couverture, tel qu'il est écrit sur la trame */
+function titreCouverture(){
+  if(S.doc === "carnet") return ["CARNET D'\u00C9CHANTILLON", "ET NOTE TECHNIQUE"];
+  if(S.doc === "doe")    return ["DOSSIER DES OUVRAGES", "EX\u00C9CUT\u00C9S"];
+  return ["NOTE TECHNIQUE"];
 }
 
-/* assemble tout : garde, sommaire, puis les pages retenues */
+/* =====================================================================
+   Tout le document est dessiné avec pdf-lib : la garde, le sommaire et
+   chaque page reprise passent par les mêmes outils, donc par le même
+   en-tête et le même pied.
+   ===================================================================== */
 function construireDocument(){
   if(!window.PDFLib) return Promise.reject(new Error("Assembleur de PDF indisponible : vérifiez la connexion."));
   var PDFDocument=window.PDFLib.PDFDocument, StandardFonts=window.PDFLib.StandardFonts, rgb=window.PDFLib.rgb;
-  var A4=[595.28, 841.89];
-  var sortie, police, grasse;
+  var MM=72/25.4;
+  function mm(v){ return v*MM; }
+  var A4=[mm(PW), mm(PH)];
+  var NOIR=rgb(0,0,0), GRIS=rgb(0.5,0.5,0.5), BLANC=rgb(1,1,1);
+  var sortie, police, grasse, vignettes={societe:null, contact:null};
+
+  /* --- les outils de dessin, en millimètres depuis le haut de la page --- */
+  function ecrire(page, texte, x, y, taille, font, options){
+    var o=options||{};
+    var t=nettoyer(texte);
+    if(!t) return 0;
+    var l=font.widthOfTextAtSize(t, taille);
+    var gx = o.centre ? mm(PW)/2 - l/2 : mm(x);
+    page.drawText(t, {x:gx, y:mm(PH-y), size:taille, font:font, color:o.couleur||NOIR});
+    if(o.souligne){
+      page.drawRectangle({x:gx, y:mm(PH-y)-taille*0.13, width:l, height:Math.max(0.5, taille*0.05),
+                          color:o.couleur||NOIR});
+    }
+    return l;
+  }
+  function trait(page, y){
+    page.drawRectangle({x:mm(TRAIT.x), y:mm(PH-y), width:mm(TRAIT.l), height:mm(0.35), color:NOIR});
+  }
+  /* couper un texte à la largeur utile, comme le ferait un traitement de texte */
+  function couper(texte, largeurMm, taille, font){
+    var mots=nettoyer(texte).split(/\s+/), lignes=[], cur="";
+    var max=mm(largeurMm);
+    mots.forEach(function(m){
+      var essai = cur ? cur+" "+m : m;
+      if(font.widthOfTextAtSize(essai, taille) <= max || !cur) cur=essai;
+      else { lignes.push(cur); cur=m; }
+    });
+    if(cur) lignes.push(cur);
+    return lignes;
+  }
+
+  /* --- l'en-tête et le pied, à toutes les pages --- */
+  function entete(page){
+    if(vignettes.societe){
+      page.drawImage(vignettes.societe, {x:mm(ENT.banniere.x), y:mm(PH-ENT.banniere.y-ENT.banniere.h),
+        width:mm(ENT.banniere.l), height:mm(ENT.banniere.h)});
+    } else {
+      ecrire(page, (P&&P.societe)||"", ENT.banniere.x, ENT.banniere.y+14, 16, grasse);
+    }
+    if(vignettes.contact){
+      page.drawImage(vignettes.contact, {x:mm(ENT.contact.x), y:mm(PH-ENT.contact.y-ENT.contact.h),
+        width:mm(ENT.contact.l), height:mm(ENT.contact.h)});
+    } else {
+      ecrire(page, (P&&P.socTel)||"", ENT.contact.x, ENT.contact.y+6, 9, police);
+      ecrire(page, (P&&P.socWeb)||"", ENT.contact.x, ENT.contact.y+11, 9, police);
+    }
+  }
+  function pied(page, numero){
+    /* le carré corné de la trame : un cadre blanc, le coin replié, le numéro au centre */
+    var x=195, y=273.6, l=10.2, h=7.6, coin=2.6;
+    function ligne(x1,y1,x2,y2){
+      page.drawLine({start:{x:mm(x1), y:mm(PH-y1)}, end:{x:mm(x2), y:mm(PH-y2)},
+                     thickness:0.5, color:GRIS});
+    }
+    page.drawRectangle({x:mm(x), y:mm(PH-y-h), width:mm(l), height:mm(h), color:BLANC});
+    ligne(x, y, x+l-coin, y);                 /* haut, jusqu'au pli */
+    ligne(x+l-coin, y, x+l, y+coin);          /* le pli */
+    ligne(x+l, y+coin, x+l, y+h);             /* droite */
+    ligne(x+l, y+h, x, y+h);                  /* bas */
+    ligne(x, y+h, x, y);                      /* gauche */
+    ligne(x+l-coin, y, x+l-coin, y+coin);     /* le petit triangle du pli */
+    ligne(x+l-coin, y+coin, x+l, y+coin);
+    var t=nettoyer(String(numero)), taille=8;
+    var lg=police.widthOfTextAtSize(t, taille);
+    page.drawText(t, {x:mm(x+l/2)-lg/2, y:mm(PH-y-h/2)-taille*0.35, size:taille, font:police, color:NOIR});
+  }
+  function nouvellePage(){
+    var page=sortie.addPage(A4);
+    entete(page);
+    return page;
+  }
+
+  /* --- page de garde --- */
+  function garde(){
+    var page=nouvellePage();
+    var titre=titreCouverture();
+    var y=46;
+    trait(page, y);
+    y += 16;
+    titre.forEach(function(l){
+      ecrire(page, l, 0, y, 28, grasse, {centre:true});
+      y += 14;
+    });
+    y += 2;
+    trait(page, y);
+
+    /* le dossier : nom, adresse, puis ce que sont les travaux */
+    y += 18;
+    ecrire(page, (S.garde.nom||"").toUpperCase(), 0, y, 11, grasse, {centre:true});
+    y += 7;
+    String(S.garde.adresse||"").split(/\n+/).forEach(function(l){
+      if(!l.trim()) return;
+      ecrire(page, l.toUpperCase(), 0, y, 11, grasse, {centre:true});
+      y += 7;
+    });
+    if((S.garde.description||"").trim()){
+      y += 7;
+      couper(String(S.garde.description).toUpperCase(), 170, 11, grasse).slice(0,4).forEach(function(l){
+        ecrire(page, l, 0, y, 11, grasse, {centre:true});
+        y += 7;
+      });
+    }
+
+    /* le lot, sous le second trait */
+    y = Math.max(y + 12, 150);
+    trait(page, y);
+    y += 14;
+    var lot=nettoyer(S.garde.lot||"").toUpperCase();
+    /* « Lot 05 » ne devient pas « LOT LOT 05 » */
+    ecrire(page, !lot ? "LOT" : (/^LOT\b/.test(lot) ? lot : "LOT " + lot), 0, y, 11, grasse, {centre:true});
+    return page;
+  }
+
+  /* --- sommaire : une liste numérotée, soulignée, comme la trame --- */
+  function sommaire(){
+    for(var s=0; s<pagesSommaire(); s++){
+      var page=nouvellePage();
+      ecrire(page, "SOMMAIRE", 0, CORPS+11, 18, grasse, {centre:true, souligne:true});
+      var y=CORPS+30;
+      S.pages.slice(s*PAR_PAGE_SOMMAIRE, (s+1)*PAR_PAGE_SOMMAIRE).forEach(function(p, k){
+        var rang=s*PAR_PAGE_SOMMAIRE + k + 1;
+        var titre=nettoyer((p.titre||"").trim() || ("Page " + rang)).toUpperCase();
+        var x=MG.gauche + 12.7;
+        ecrire(page, rang + ".", x - 6, y, 12, police);
+        var ligne=couper(titre, PW-MG.droite-x-4, 12, police)[0];
+        ecrire(page, ligne, x, y, 12, police, {souligne:true});
+        y += 8;
+      });
+    }
+  }
+
+  /* --- une page par pièce : le titre centré et souligné, la pièce dessous --- */
+  function piece(p, i){
+    return lireFichier(p.fichier).then(function(contenu){
+      if(!contenu) throw new Error("Le fichier de la page " + (i+1) + " manque : réimportez-le.");
+      var page=nouvellePage();
+      var titre=nettoyer((p.titre||"").trim() || ("Page " + (i+1))).toUpperCase();
+      var taille=18;
+      while(taille > 10 && grasse.widthOfTextAtSize(titre, taille) > mm(PW-MG.gauche-MG.droite)) taille -= 0.5;
+      ecrire(page, titre, 0, CORPS+8, taille, grasse, {centre:true, souligne:true});
+
+      var zone={x:MG.gauche, y:CORPS+16, l:PW-MG.gauche-MG.droite, h:PH-MG.bas-(CORPS+16)};
+      function poser(largeur, hauteur, dessiner){
+        var k=Math.min(mm(zone.l)/largeur, mm(zone.h)/hauteur);
+        dessiner(mm(zone.x)+(mm(zone.l)-largeur*k)/2,
+                 mm(PH-zone.y-zone.h)+(mm(zone.h)-hauteur*k)/2, k);
+      }
+      if(p.source === "image"){
+        return sortie.embedJpg(contenu).then(function(img){
+          poser(img.width, img.height, function(x, y, k){
+            page.drawImage(img, {x:x, y:y, width:img.width*k, height:img.height*k});
+          });
+        });
+      }
+      return PDFDocument.load(contenu, {ignoreEncryption:true}).then(function(src){
+        var index=Math.min(Math.max(1, p.page), src.getPageCount()) - 1;
+        return sortie.embedPdf(src, [index]).then(function(reprises){
+          var e=reprises[0];
+          poser(e.width, e.height, function(x, y, k){
+            page.drawPage(e, {x:x, y:y, xScale:k, yScale:k});
+          });
+        });
+      });
+    });
+  }
+
+  /* --- les deux images de l'en-tête, prises une fois pour tout le document --- */
+  function chargerEntetes(){
+    function png(url){
+      return fetch(url)
+        .then(function(r){ if(!r.ok) throw new Error("entête"); return r.arrayBuffer(); })
+        .then(function(b){ return sortie.embedPng(b); })
+        .catch(function(){ return null; });
+    }
+    return png(ENTETES.societe)
+      .then(function(im){
+        vignettes.societe=im;
+        return png(ENTETES.contact);
+      })
+      .then(function(im){ vignettes.contact=im; });
+  }
 
   return PDFDocument.create().then(function(d){
     sortie=d;
@@ -887,56 +996,16 @@ function construireDocument(){
     police=f; return sortie.embedFont(StandardFonts.HelveticaBold);
   }).then(function(f){
     grasse=f;
-    return PDFDocument.load(gardeEtSommaire());
-  }).then(function(tete){
-    return sortie.copyPages(tete, tete.getPageIndices()).then(function(pages){
-      pages.forEach(function(p){ sortie.addPage(p); });
-    });
+    return chargerEntetes();
   }).then(function(){
-    /* chaque page retenue, dans l'ordre */
+    garde();
+    sommaire();
     var suite=Promise.resolve();
-    S.pages.forEach(function(p, i){
-      suite = suite.then(function(){
-        return lireFichier(p.fichier).then(function(contenu){
-          if(!contenu) throw new Error("Le fichier de la page " + (i+1) + " manque : réimportez-le.");
-          var page = sortie.addPage(A4);
-          var larg = page.getWidth(), haut = page.getHeight();
-          var bandeau = 42;
-
-          /* le bandeau du titre */
-          page.drawRectangle({x:0, y:haut-bandeau, width:larg, height:bandeau, color:rgb(0.133,0.125,0.11)});
-          var titre = nettoyer((p.titre||"").trim() || ("Page " + (i+1)));
-          var taille = 15;
-          while(taille > 8 && grasse.widthOfTextAtSize(titre, taille) > larg-140) taille -= 0.5;
-          page.drawText(titre, {x:36, y:haut-bandeau+16, size:taille, font:grasse, color:rgb(1,1,1)});
-          var rang = nettoyer(String(premierePage()+i));
-          page.drawText(rang, {x:larg-36-police.widthOfTextAtSize(rang, 11), y:haut-bandeau+16,
-                               size:11, font:police, color:rgb(0.85,0.8,0.72)});
-
-          /* la page d'origine, mise à l'échelle sous le bandeau */
-          var zone = {x:24, y:24, largeur:larg-48, hauteur:haut-bandeau-40};
-          if(p.source === "image"){
-            var octets = contenu;
-            return sortie.embedJpg(octets).then(function(img){
-              var k = Math.min(zone.largeur/img.width, zone.hauteur/img.height);
-              page.drawImage(img, {x:zone.x+(zone.largeur-img.width*k)/2,
-                y:zone.y+(zone.hauteur-img.height*k)/2, width:img.width*k, height:img.height*k});
-            });
-          }
-          return PDFDocument.load(contenu, {ignoreEncryption:true}).then(function(src){
-            var index = Math.min(Math.max(1, p.page), src.getPageCount()) - 1;
-            return sortie.embedPdf(src, [index]).then(function(reprises){
-              var e = reprises[0];
-              var k = Math.min(zone.largeur/e.width, zone.hauteur/e.height);
-              page.drawPage(e, {x:zone.x+(zone.largeur-e.width*k)/2,
-                y:zone.y+(zone.hauteur-e.height*k)/2, xScale:k, yScale:k});
-            });
-          });
-        });
-      });
-    });
+    S.pages.forEach(function(p, i){ suite=suite.then(function(){ return piece(p, i); }); });
     return suite;
   }).then(function(){
+    /* le numéro de page, une fois que le compte est arrêté */
+    sortie.getPages().forEach(function(page, i){ pied(page, i+1); });
     return sortie.save();
   });
 }
@@ -946,7 +1015,7 @@ function nomFichier(t){
     .replace(/[^A-Za-z0-9 _-]+/g,"").trim().replace(/\s+/g,"-").slice(0,48) || "document";
 }
 function pdfName(){
-  return (S.doc==="carnet" ? "Carnet-echantillons-" : "Memoire-technique-")
+  return (S.doc==="carnet" ? "Carnet-echantillons-" : S.doc==="doe" ? "DOE-" : "Memoire-technique-")
     + nomFichier(S.garde.ref || S.garde.nom || "dossier") + "-" + dateFiche() + ".pdf";
 }
 function dl(blob, name){
@@ -1138,7 +1207,7 @@ function publier(){
     el.textContent="Publication en cours…";
     var meta={
       pdf: octetsEnBase64(octets),
-      type: S.doc === "carnet" ? "carnet" : "memoire",
+      type: S.doc === "carnet" ? "carnet" : S.doc === "doe" ? "doe" : "memoire",
       chantier: refAffaire(), client: (S.garde.nom||"").trim(), adresse: adresseTravaux(),
       date: dateFiche(), visite: nomFichier(S.garde.lot || dateFiche()),
       etape: (S.garde.lot||"").trim() || (S.pages.length + " pages"),
