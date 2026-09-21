@@ -1624,20 +1624,23 @@ function afficher(chantiers){
    une fois à partir de l'adresse, et le site la retient. */
 var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"plan", cache:{}, echec:{}, echecs:0,
              points:[], choisi:null, pose:"", rendu:0};
-/* Les fonds de carte, dans l'ordre du bouton. Le plan est celui qui
-   ressemble le plus à Google Maps : routes colorées, fond clair, noms
-   de communes et de rues. Le satellite et le satellite avec les noms
-   par-dessus reprennent les deux autres vues de Google. L'aérien IGN
-   reste au bout pour la précision sur la France. */
+/* Les fonds de carte, dans l'ordre du bouton : le plan des rues, le
+   satellite, le satellite avec les noms par-dessus, et l'aérien IGN
+   pour la précision sur la France.
+
+   Tous sont libres d'accès, sans clé ni compte. C'est la condition :
+   un fournisseur qui réclame une clé sert des tuiles barrées d'un
+   filigrane « API KEY REQUIRED » — et comme il répond quand même, rien
+   ne permet de le détecter automatiquement. */
 var FONDS = {
-  plan:      {nom:"Plan",               max:20, couches:["carto"]},
+  plan:      {nom:"Plan",               max:19, couches:["plan"]},
   satellite: {nom:"Satellite",          max:19, couches:["esri"]},
   hybride:   {nom:"Satellite et noms",  max:19, couches:["esri", "noms"]},
   ign:       {nom:"IGN, vue aérienne",  max:21, couches:["ign"]}
 };
 var ORDRE_FONDS = ["plan", "satellite", "hybride", "ign"];
 var MENTIONS = {
-  carto: "\u00A9 OpenStreetMap, \u00A9 CARTO",
+  plan:  "\u00A9 IGN",
   esri:  "\u00A9 Esri, Maxar",
   noms:  "\u00A9 Esri",
   ign:   "\u00A9 IGN"
@@ -1665,9 +1668,12 @@ function pxMonde(x, y, z){
   return [lat, lon];
 }
 function urlsTuile(couche, z, x, y){
-  if(couche === "carto"){
-    /* le plan clair, très proche de celui de Google Maps */
-    return "https://basemaps.cartocdn.com/rastertiles/voyager/"+z+"/"+x+"/"+y+".png";
+  if(couche === "plan"){
+    /* le plan des rues de l'IGN : service public, libre d'accès,
+       couverture française au mètre près */
+    return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
+      +"&LAYER=GEOGRAPHICALGRIDSYSTEMS.PLANIGNV2&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/png"
+      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
   }
   if(couche === "noms"){
     /* les noms de lieux et les limites, à poser sur le satellite */
