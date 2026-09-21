@@ -75,9 +75,17 @@ dépendance à installer, c'est l'affaire de quelques secondes.
 
 Puis **RESTART**.
 
+Cette étape n'est pas facultative : sans elle le site ne démarre pas.
+Si vous l'oubliez, le journal le dit en toutes lettres et rappelle quoi
+faire — ce n'est pas une panne, juste une installation à finir.
+
 Ouvrez l'adresse de l'application : la page de connexion doit
 apparaître. Les comptes de départ sont ceux de
 `netlify/functions/equipe.mjs` — société `tle`, identifiant `johan`.
+
+**Changez les mots de passe dès la première connexion.** Ceux du fichier
+sont écrits en clair dans le dépôt : ils servent à ouvrir le site la
+première fois, pas à le garder. cPanel → l'appli → **Comptes**.
 
 ### Par le Terminal, si vous préférez
 
@@ -158,7 +166,29 @@ journal des erreurs est dans `~/outils/stderr.log` ou dans la section
 
 ---
 
-## 6. Si votre offre n'a pas Node.js
+## 6. Vérifier que tout y est
+
+Une fois le site en ligne, cinq minutes suffisent à s'en assurer :
+
+- [ ] La page de connexion s'ouvre en `https://`, cadenas fermé.
+- [ ] Vous vous connectez, le menu affiche vos applis.
+- [ ] `https://votre-adresse/netlify/functions/equipe.mjs` renvoie
+      **Interdit** — les sources restent hors de portée.
+- [ ] Un relevé se publie, et il apparaît dans **Mes rapports**.
+- [ ] **Carte des chantiers** ouvre la carte et pose une épingle.
+- [ ] Le **carnet d'échantillons** sort un PDF avec le papier à en-tête :
+      c'est le signe que `entete-societe.png` et `entete-contact.png`
+      sont bien servis.
+- [ ] Sur le téléphone, le bouton **Position** du relevé relève le GPS
+      (il faut HTTPS pour cela).
+- [ ] Le dossier `/home/VOTRECOMPTE/outils-donnees` se remplit, et
+      `/home/VOTRECOMPTE/outils/donnees` reste absent.
+
+Si l'un de ces points cloche, dites-moi lequel.
+
+---
+
+## 7. Si votre offre n'a pas Node.js
 
 Le site a besoin d'un serveur pour son API : les pages seules ne
 suffisent pas. Trois issues, de la plus simple à la plus lourde :

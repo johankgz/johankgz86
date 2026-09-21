@@ -25,4 +25,27 @@ if (!process.env.DONNEES_DOSSIER) {
   process.env.DONNEES_DOSSIER = path.join(ici, "..", "outils-donnees");
 }
 
-await import("./serveur.mjs");
+/* La dépendance @netlify/blobs n'est pas utilisée ici — les données sont
+   dans des fichiers — mais le code la charge au passage. Si elle manque,
+   Node s'arrête sur une trace illisible : on dit plutôt quoi faire. */
+try {
+  await import("./serveur.mjs");
+} catch (e) {
+  if (e && e.code === "ERR_MODULE_NOT_FOUND") {
+    console.error([
+      "",
+      "  Le site n'a pas pu démarrer : les dépendances ne sont pas installées.",
+      "",
+      "  Dans cPanel > Setup Node.js App : touchez « Run NPM Install »,",
+      "  puis « RESTART ».",
+      "",
+      "  Ou depuis le Terminal, après être entré dans l'environnement virtuel :",
+      "",
+      "      cd " + path.dirname(fileURLToPath(import.meta.url)),
+      "      npm install --omit=dev",
+      ""
+    ].join("\n"));
+    process.exit(1);
+  }
+  throw e;
+}
