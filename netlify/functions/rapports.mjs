@@ -1,6 +1,7 @@
 import { getStore } from "./magasin.mjs";
 import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
+import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 
 const INDEX = "_index";
 
@@ -163,12 +164,72 @@ async function lireComptes(code) {
 async function ecrireComptes(code, comptes) {
   await magasinAnnuaire().setJSON("comptes-" + code + ".json", comptes);
 }
-function jetonDe(code, identifiant, motdepasse) {
-  return Buffer.from(code + "|" + identifiant + ":" + motdepasse, "utf8").toString("base64");
-}
 const DUREE_SESSION = 3 * 24 * 60 * 60 * 1000;   /* trois jours : deux reconnexions par semaine */
-function jetonAvecDate(code, id, mdp) {
-  return Buffer.from(code + "|" + id + ":" + mdp + "|" + Date.now(), "utf8").toString("base64");
+
+/* =====================================================================
+   MOTS DE PASSE
+   ---------------------------------------------------------------------
+   Personne ne lit le mot de passe de personne, pas même l'administrateur
+   et pas même le propriétaire du site : la base ne garde qu'une
+   empreinte scrypt, dont on ne revient pas au mot de passe.
+   L'administrateur peut seulement remettre un compte à zéro, ce qui lui
+   donne un code provisoire à transmettre ; la personne choisit ensuite
+   le sien, et la date de ce choix reste affichée — une reprise en main
+   du compte ne peut donc pas passer inaperçue.
+   ===================================================================== */
+const SCRYPT = { N: 16384, r: 8, p: 1, octets: 32 };
+function empreinteDe(mdp, sel) {
+  const s = sel || randomBytes(16).toString("hex");
+  const h = scryptSync(String(mdp), s, SCRYPT.octets, { N: SCRYPT.N, r: SCRYPT.r, p: SCRYPT.p });
+  return ["scrypt", SCRYPT.N, SCRYPT.r, SCRYPT.p, s, h.toString("hex")].join("$");
+}
+function empreinteJuste(mdp, empreinte) {
+  const m = String(empreinte || "").split("$");
+  if (m.length !== 6 || m[0] !== "scrypt") return false;
+  let attendu;
+  try {
+    attendu = scryptSync(String(mdp), m[4], m[5].length / 2,
+      { N: Number(m[1]), r: Number(m[2]), p: Number(m[3]) });
+  } catch { return false; }
+  const donne = Buffer.from(m[5], "hex");
+  return attendu.length === donne.length && timingSafeEqual(attendu, donne);
+}
+/* un compte d'avant l'empreinte garde son mot de passe en clair : il
+   reste accepté une fois, le temps que la personne en choisisse un. */
+function motDePasseJuste(compte, mdp) {
+  if (!compte || !mdp) return false;
+  if (compte.empreinte) return empreinteJuste(mdp, compte.empreinte);
+  return typeof compte.motdepasse === "string" && compte.motdepasse.length > 0
+    && compte.motdepasse === String(mdp);
+}
+function sansMotDePasse(compte) {
+  return !compte || (!compte.empreinte && !compte.motdepasse);
+}
+/* un code provisoire lisible : deux syllabes et quatre chiffres */
+function codeProvisoire() {
+  const mots = ["Chantier", "Tableau", "Armoire", "Cable", "Disjoncteur", "Prise",
+    "Goulotte", "Borne", "Compteur", "Gaine", "Moteur", "Ventouse"];
+  const m = mots[randomBytes(1)[0] % mots.length];
+  return m + "-" + String(1000 + (randomBytes(2).readUInt16BE(0) % 9000));
+}
+
+/* ---------- jetons de session ----------
+   Le jeton ne transporte plus le mot de passe : il porte la société,
+   l'identifiant, l'heure d'ouverture et une signature. La signature est
+   calculée avec l'empreinte du compte comme clé, donc elle ne quitte
+   jamais le serveur — et changer de mot de passe ferme du même coup
+   toutes les sessions ouvertes ailleurs. */
+function clefDeSignature(compte) {
+  return compte.empreinte || ("clair:" + (compte.motdepasse || ""));
+}
+function signer(code, id, date, compte) {
+  return createHmac("sha256", clefDeSignature(compte))
+    .update(code + "|" + id + "|" + date).digest("hex").slice(0, 32);
+}
+function jetonPour(code, id, compte, date) {
+  const t = date || Date.now();
+  return Buffer.from(code + "|" + id + "|" + t + "|" + signer(code, id, t, compte), "utf8")
+    .toString("base64");
 }
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
@@ -201,53 +262,79 @@ function positionValide(lat, lon) {
   return { lat: Math.round(a * 1e6) / 1e6, lon: Math.round(b * 1e6) / 1e6 };
 }
 
+/* le compte propriétaire, tel qu'il est écrit dans le code, ne sert plus
+   qu'au tout premier accès ou au sauvetage : dès qu'un mot de passe est
+   posé sur son compte, c'est l'annuaire qui décide, et lui seul. */
+function personneDuCompte(code, u) {
+  const proprio = code === SOCIETE_DEPART.code
+    && String(u.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase();
+  /* Un compte encore sur un mot de passe en clair doit en choisir un :
+     ces mots de passe-là ont été distribués, écrits, recopiés. La
+     démonstration est publique, elle garde le sien. */
+  const aChanger = code === SOCIETE_DEMO.code
+    ? false
+    : (!!u.aChanger || (!u.empreinte && !!u.motdepasse));
+  return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
+    societe: code, proprietaire: proprio, applis: applisValides(u.applis),
+    identifiant: String(u.identifiant).trim().toLowerCase(),
+    aChanger };
+}
+function personneDuProprietaire(code) {
+  /* le secours entre avec le mot de passe écrit dans le code : la
+     première chose à faire est d'en poser un vrai. */
+  return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code,
+    email: PROPRIETAIRE.email, applis: [], identifiant: PROPRIETAIRE.identifiant,
+    aChanger: true };
+}
+/* le secours du propriétaire : ouvert tant que son compte n'existe pas,
+   ou existe sans aucun mot de passe. Un mot de passe posé le referme. */
+function secoursProprietaire(comptes, id, mdp) {
+  if (id !== PROPRIETAIRE.identifiant || mdp !== PROPRIETAIRE.motdepasse) return false;
+  const sien = comptes.find((c) =>
+    String(c.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase());
+  return !sien || sansMotDePasse(sien);
+}
+
+/* vérification d'un couple identifiant / mot de passe, à la connexion */
+async function verifier(code, id, mdp) {
+  await lireSocietes();
+  const comptes = await lireComptes(code);
+  const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
+  if (u && motDePasseJuste(u, mdp)) {
+    return { personne: personneDuCompte(code, u), compte: u };
+  }
+  if (secoursProprietaire(comptes, id, mdp)) {
+    return { personne: personneDuProprietaire(code), compte: { motdepasse: PROPRIETAIRE.motdepasse } };
+  }
+  return null;
+}
+
+/* reconnaissance d'un jeton déjà émis : aucune empreinte à recalculer,
+   une signature à comparer. */
 async function identifier(auth) {
   const a = (auth || "").trim();
   if (!a) return null;
   let clair = "";
   try { clair = Buffer.from(a, "base64").toString("utf8"); } catch { return null; }
-  /* la date d'ouverture est collée en fin de jeton */
-  let ouverte = 0;
-  const dernier = clair.lastIndexOf("|");
-  if (dernier > 0 && /^\d{10,}$/.test(clair.slice(dernier + 1))) {
-    ouverte = Number(clair.slice(dernier + 1));
-    clair = clair.slice(0, dernier);
-  }
+  const p = clair.split("|");
+  if (p.length !== 4) return null;
+  const code = p[0].trim().toLowerCase();
+  const id = p[1].trim().toLowerCase();
+  const ouverte = Number(p[2]);
+  const signature = p[3];
+  if (!/^\d{10,}$/.test(p[2])) return null;
   if (!ouverte || Date.now() - ouverte > DUREE_SESSION) return "perimee";
-  let code = SOCIETE_DEPART.code, reste = clair;
-  const b = clair.indexOf("|");
-  if (b > 0) { code = clair.slice(0, b).trim().toLowerCase(); reste = clair.slice(b + 1); }
-  const i = reste.indexOf(":");
-  if (i < 0) return null;
-  const id = reste.slice(0, i).trim().toLowerCase();
-  const mdp = reste.slice(i + 1);
 
   await lireSocietes();
   const comptes = await lireComptes(code);
-  const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id && c.motdepasse === mdp);
-
-  /* Le compte de l'annuaire passe en premier : on garde le nom que
-     l'équipe connaît. Être propriétaire tient à l'identifiant et à la
-     société d'origine, jamais au mot de passe : sinon le propriétaire
-     perdrait ses droits en changeant de mot de passe. */
-  if (u) {
-    const proprio = code === SOCIETE_DEPART.code
-      && String(u.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase();
-    return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
-      societe: code, proprietaire: proprio, applis: applisValides(u.applis) };
-  }
-  /* Secours : tant que le compte du propriétaire n'existe PAS dans
-     l'annuaire de cette société, le mot de passe d'origine le laisse
-     entrer — c'est ce qui permet de créer la première société et de se
-     rattraper si l'annuaire est perdu.
-     Dès que le compte existe, l'annuaire fait seul autorité. Sans cette
-     condition, le mot de passe écrit dans le code resterait valable pour
-     toujours, et le changer depuis la page Comptes ne servirait à rien. */
-  const proprioConnu = comptes.some((c) =>
-    String(c.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase());
-  if (!proprioConnu && id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse) {
-    return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code,
-      email: PROPRIETAIRE.email, applis: [] };
+  const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
+  if (u && signer(code, id, ouverte, u) === signature) return personneDuCompte(code, u);
+  /* le propriétaire de secours : son jeton est signé avec le mot de
+     passe du code, et seulement tant que ce secours reste ouvert. */
+  if (id === PROPRIETAIRE.identifiant.trim().toLowerCase()
+      && (!u || sansMotDePasse(u))
+      && signer(code, id, ouverte, { motdepasse: PROPRIETAIRE.motdepasse }) === signature) {
+    return personneDuProprietaire(code);
   }
   return null;
 }
@@ -293,9 +380,6 @@ async function garnirDemo(st) {
   } catch { /* les listes viendront plus tard */ }
 }
 
-function jeton(u) {
-  return Buffer.from(u.identifiant + ":" + u.motdepasse, "utf8").toString("base64");
-}
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
@@ -384,13 +468,14 @@ export default async (req) => {
     const code = String(d.societe || SOCIETE_DEPART.code).trim().toLowerCase();
     const id = String(d.identifiant || "").trim().toLowerCase();
     const mdp = String(d.motdepasse || "");
-    const p = await identifier(jetonAvecDate(code, id, mdp));
-    if (!p) return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401);
+    const v = await verifier(code, id, mdp);
+    if (!v) return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401);
+    const p = v.personne;
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === code) || {};
-    return json({ jeton: jetonAvecDate(code, id, mdp), nom: p.nom, role: p.role, applis: p.applis || [],
+    return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: p.applis || [],
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
-      proprietaire: !!p.proprietaire, demo: !!soc.demo });
+      proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger });
   }
 
   const personne = await identifier(req.headers.get("x-auth") || url.searchParams.get("auth"));
@@ -400,6 +485,38 @@ export default async (req) => {
   if (!personne) return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
   const bureau = personne.role === "bureau" || personne.role === "admin";
   const admin = personne.role === "admin" || personne.proprietaire;
+
+  /* ---------- chacun choisit son mot de passe ---------- */
+  if (action === "motdepasse-changer") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ancien = String(d.ancien || "");
+    const neuf = String(d.nouveau || "");
+    if (neuf.length < 8) return json({ erreur: "Huit caractères au minimum." }, 400);
+    if (neuf === ancien) return json({ erreur: "Le nouveau mot de passe doit changer de l'ancien." }, 400);
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((c) =>
+      String(c.identifiant).trim().toLowerCase() === personne.identifiant);
+    if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
+    const parSecours = sansMotDePasse(comptes[i])
+      && secoursProprietaire(comptes, personne.identifiant, ancien);
+    if (!motDePasseJuste(comptes[i], ancien) && !parSecours) {
+      return json({ erreur: "Mot de passe actuel incorrect." }, 403);
+    }
+    comptes[i] = { ...comptes[i], empreinte: empreinteDe(neuf),
+      aChanger: false, mdpMaj: new Date().toISOString() };
+    delete comptes[i].motdepasse;
+    await ecrireComptes(personne.societe, comptes);
+    /* le jeton est signé avec l'empreinte : il faut le refaire, et ceux
+       ouverts ailleurs cessent de valoir. */
+    return json({ ok: true, jeton: jetonPour(personne.societe, personne.identifiant, comptes[i]) });
+  }
+
+  /* Tant que le mot de passe est celui qu'on lui a donné, le compte ne
+     fait rien d'autre que d'en choisir un. */
+  if (personne.aChanger && action !== "moi") {
+    return json({ erreur: "Choisissez d'abord votre mot de passe.", aChanger: true }, 403);
+  }
   store = magasinSociete(personne.societe);
   if (personne.societe === "demo") { try { await garnirDemo(store); } catch { /* démo vide */ } }
 
@@ -415,7 +532,7 @@ export default async (req) => {
 
   if (action === "moi") {
     return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
-      proprietaire: !!personne.proprietaire,
+      proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,
       metier: "", ville: "", societe: personne.societe });
   }
 
@@ -436,8 +553,15 @@ export default async (req) => {
   if (action === "comptes") {
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
     const comptes = await lireComptes(personne.societe);
+    /* aucun mot de passe ne sort d'ici, seulement son état :
+       « personnel » quand la personne l'a choisi elle-même,
+       « provisoire » quand elle doit encore le faire,
+       « ancien » pour un compte d'avant les empreintes. */
     return json({ comptes: comptes.map((c) => ({ identifiant: c.identifiant, nom: c.nom,
-      role: c.role, email: c.email || "", motdepasse: c.motdepasse,
+      role: c.role, email: c.email || "",
+      etatMdp: c.empreinte ? (c.aChanger ? "provisoire" : "personnel")
+             : (c.motdepasse ? "ancien" : "aucun"),
+      mdpMaj: c.mdpMaj || "",
       applis: applisValides(c.applis) })) });
   }
 
@@ -451,18 +575,56 @@ export default async (req) => {
     const role = ["admin", "bureau", "technicien"].indexOf(d.role) >= 0 ? d.role : "technicien";
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
-    const mdp = String(d.motdepasse || "").trim();
     const applis = applisValides(d.applis);
+    /* Modifier un compte ne touche jamais à son mot de passe : pour le
+       reste à zéro, il y a « compte-reinitialiser », qui rend un code
+       provisoire sans jamais montrer l'ancien. */
     if (i >= 0) {
-      comptes[i] = { ...comptes[i], nom, role, email: String(d.email || "").trim(),
-        motdepasse: mdp || comptes[i].motdepasse, applis };
-    } else {
-      if (!mdp) return json({ erreur: "Donnez un mot de passe." }, 400);
-      comptes.push({ identifiant: id, motdepasse: mdp, nom, role,
-        email: String(d.email || "").trim(), applis });
+      comptes[i] = { ...comptes[i], nom, role, email: String(d.email || "").trim(), applis };
+      await ecrireComptes(personne.societe, comptes);
+      return json({ ok: true, comptes: comptes.length });
+    }
+    const code = codeProvisoire();
+    comptes.push({ identifiant: id, empreinte: empreinteDe(code), aChanger: true, nom, role,
+      email: String(d.email || "").trim(), applis });
+    await ecrireComptes(personne.societe, comptes);
+    /* le code provisoire n'est montré qu'ici, une fois */
+    return json({ ok: true, comptes: comptes.length, provisoire: code });
+  }
+
+  /* remettre un compte à zéro : un code provisoire à transmettre, et la
+     personne choisit son mot de passe à la connexion suivante. */
+  if (action === "compte-reinitialiser") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    const id = String(url.searchParams.get("identifiant") || "").trim().toLowerCase();
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
+    if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
+    const code = codeProvisoire();
+    comptes[i] = { ...comptes[i], empreinte: empreinteDe(code), aChanger: true, mdpMaj: "" };
+    delete comptes[i].motdepasse;
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, identifiant: id, nom: comptes[i].nom, provisoire: code });
+  }
+
+  /* toute l'équipe d'un coup : ce qu'il faut le jour où les mots de
+     passe d'origine ont traîné quelque part. Sauf celui qui le demande :
+     s'il fermait la page avant d'avoir noté son propre code, il resterait
+     dehors, et le secours du code est refermé depuis longtemps. Le sien,
+     il le change par « Mon mot de passe ». */
+  if (action === "comptes-reinitialiser") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    const comptes = await lireComptes(personne.societe);
+    const rendus = [];
+    for (let k = 0; k < comptes.length; k++) {
+      if (String(comptes[k].identifiant).trim().toLowerCase() === personne.identifiant) continue;
+      const code = codeProvisoire();
+      comptes[k] = { ...comptes[k], empreinte: empreinteDe(code), aChanger: true, mdpMaj: "" };
+      delete comptes[k].motdepasse;
+      rendus.push({ identifiant: comptes[k].identifiant, nom: comptes[k].nom, provisoire: code });
     }
     await ecrireComptes(personne.societe, comptes);
-    return json({ ok: true, comptes: comptes.length });
+    return json({ ok: true, comptes: rendus, saufMoi: personne.identifiant });
   }
 
   if (action === "compte-supprimer") {
@@ -496,11 +658,13 @@ export default async (req) => {
       ville: String(d.ville || ""), cree: new Date().toISOString(), actif: true, demo: false });
     await magasinAnnuaire().setJSON("societes.json", liste);
     const idAdmin = String(d.adminIdentifiant || "admin").trim().toLowerCase();
-    const mdpAdmin = String(d.adminMotdepasse || "").trim();
-    if (!mdpAdmin) return json({ erreur: "Donnez le mot de passe de l'administrateur." }, 400);
-    await ecrireComptes(code, [{ identifiant: idAdmin, motdepasse: mdpAdmin,
-      nom: String(d.adminNom || "Administrateur"), role: "admin", email: String(d.adminEmail || "") }]);
-    return json({ ok: true, code, identifiant: idAdmin });
+    const mdpAdmin = String(d.adminMotdepasse || "").trim() || codeProvisoire();
+    await ecrireComptes(code, [{ identifiant: idAdmin, empreinte: empreinteDe(mdpAdmin),
+      aChanger: true, nom: String(d.adminNom || "Administrateur"), role: "admin",
+      email: String(d.adminEmail || "") }]);
+    /* code provisoire : l'administrateur de la nouvelle société choisira
+       le sien en arrivant, et nous ne le connaîtrons pas. */
+    return json({ ok: true, code, identifiant: idAdmin, provisoire: mdpAdmin });
   }
 
   if (action === "societe-etat") {

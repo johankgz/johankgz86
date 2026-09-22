@@ -719,7 +719,7 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
       </div>
       <p class="ml-detail" id="bulMinMaxP"></p>
     </div>
-    <div class="block">
+    <div class="block" id="blocConnexion">
       <label><span>Société</span><input type="text" id="soc" list="dl_societes" autocapitalize="none" spellcheck="false" placeholder="code de votre société"></label>
       <datalist id="dl_societes"></datalist>
       <label><span>Identifiant</span><input type="text" id="u" autocapitalize="none" autocomplete="username" spellcheck="false"></label>
@@ -729,6 +729,17 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
       <button class="lien" id="btnDemo">Essayer la démonstration</button>
       <button class="lien" id="btnDemande">Demander un accès</button>
       <p class="hint">Les identifiants sont délivrés par Johan Klughertz.</p>
+    </div>
+
+    <div class="block" id="blocMdpNeuf" hidden>
+      <h1 style="font-size:19px;margin-bottom:6px">Choisissez votre mot de passe</h1>
+      <p class="hint" style="margin-bottom:14px">Le code qu'on vous a donné n'est que provisoire.
+        Celui que vous posez ici n'est connu de personne d'autre, pas même de l'administrateur.</p>
+      <label><span>Nouveau mot de passe</span><input type="password" id="m_neuf" autocomplete="new-password"></label>
+      <label><span>Répétez-le</span><input type="password" id="m_neuf2" autocomplete="new-password"></label>
+      <button class="p" id="m_valider">Enregistrer</button>
+      <p class="err" id="m_err"></p>
+      <p class="hint">Huit caractères au minimum.</p>
     </div>
 
     <div class="block" id="blocDemande" hidden>
@@ -749,6 +760,7 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
       <p class="marque-app">Suivi travaux&nbsp;360</p>
       <div class="ligne-haut">
         <p class="salut" id="salut"></p>
+        <button class="out" id="btnMdp">Mon mot de passe</button>
         <button class="out" id="btnOut">Se déconnecter</button>
       </div>
       <p class="meta" id="meta"></p>
@@ -803,6 +815,19 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
     <div class="bref" id="bref"><div class="vide">Chargement…</div></div>
 
     <h2 class="sec">Aide</h2>
+    <div class="block" id="blocMdp" hidden style="margin-top:14px">
+      <h2 style="font-size:17px;margin-bottom:6px">Mon mot de passe</h2>
+      <p class="hint" style="margin-bottom:14px">Personne ne le voit, pas même l'administrateur :
+        le site n'en garde qu'une empreinte. Si vous l'oubliez, on ne peut que
+        vous en redonner un provisoire.</p>
+      <label><span>Mot de passe actuel</span><input type="password" id="k_vieux" autocomplete="current-password"></label>
+      <label><span>Nouveau mot de passe</span><input type="password" id="k_neuf" autocomplete="new-password"></label>
+      <label><span>Répétez-le</span><input type="password" id="k_neuf2" autocomplete="new-password"></label>
+      <button class="p" id="k_valider">Enregistrer</button>
+      <p class="err" id="k_err"></p>
+      <p class="hint">Huit caractères au minimum. Les sessions ouvertes ailleurs se fermeront.</p>
+    </div>
+
     <div id="carteAide"></div>
 
     <p class="signature"><b>Suivi travaux 360</b><span>Du relevé à la réception, un seul outil.</span><span>© 2026 Johan Klughertz. Tous droits réservés</span><span class="version">Vers. 1.5</span></p>
@@ -1343,7 +1368,13 @@ function peindreDemandes(s){
 /* ---------- identité : métier et ville, rafraîchis sans tout reconstruire ---------- */
 function majIdentite(s){
   fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(r){
+      /* un jeton que le site ne reconnaît plus — mot de passe changé
+         ailleurs, compte remis à zéro : on revient à la connexion plutôt
+         que de laisser une page vide. */
+      if(r.status===401){ localStorage.removeItem("outils:session"); location.reload(); return Promise.reject(); }
+      return r.ok ? r.json() : Promise.reject();
+    })
     .then(function(d){
       s.nom=d.nom||s.nom; s.role=d.role||s.role;
       s.metier=d.metier||""; s.ville=d.ville||"";
@@ -1720,7 +1751,11 @@ function connecter(societe, identifiant, motdepasse){
              metier:res.d.metier||"", ville:res.d.ville||"",
              proprietaire:!!res.d.proprietaire, demo:!!res.d.demo};
       try{ localStorage.setItem("outils:societe", soc); }catch(e){}
-      poserSession(s); $("err").textContent="";
+      $("err").textContent="";
+      /* mot de passe provisoire : on n'entre pas encore. La session
+         attend dans un coin le temps qu'il en choisisse un. */
+      if(res.d.aChanger){ attendreMotDePasse(s, p); return; }
+      poserSession(s);
       menu(s);
       majIdentite(s);
     })
@@ -1742,6 +1777,68 @@ function envoyerDemande(){
     })
     .catch(function(){ $("d_err").textContent="Pas de réseau."; });
 }
+
+/* ---------- le premier mot de passe ----------
+   Le compte vient d'être ouvert, ou remis à zéro : le code reçu n'est
+   qu'un laissez-passer, la personne pose le sien avant d'entrer. */
+var ENATTENTE=null;
+function attendreMotDePasse(s, provisoire){
+  ENATTENTE={session:s, ancien:provisoire};
+  $("blocDemande").hidden=true;
+  $("blocConnexion").hidden=true;
+  $("blocMdpNeuf").hidden=false;
+  $("m_err").textContent="";
+  $("m_neuf").value=""; $("m_neuf2").value="";
+  $("m_neuf").focus();
+}
+function changerMotDePasse(jeton, ancien, neuf, neuf2, dire, fini){
+  if(neuf.length < 8){ dire("Huit caractères au minimum."); return; }
+  if(neuf !== neuf2){ dire("Les deux saisies ne sont pas identiques."); return; }
+  dire("Enregistrement…");
+  fetch(apiUrl("motdepasse-changer"), {method:"POST",
+    headers:{"Content-Type":"application/json", "x-auth":jeton},
+    body:JSON.stringify({ancien:ancien, nouveau:neuf})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok || !res.d.jeton){ dire(res.d.erreur||"Changement refusé."); return; }
+      fini(res.d.jeton);
+    })
+    .catch(function(){ dire("Pas de réseau."); });
+}
+$("m_valider").addEventListener("click", function(){
+  if(!ENATTENTE) return;
+  changerMotDePasse(ENATTENTE.session.jeton, ENATTENTE.ancien,
+    $("m_neuf").value, $("m_neuf2").value,
+    function(t){ $("m_err").textContent=t; },
+    function(jeton){
+      var s=ENATTENTE.session; s.jeton=jeton; ENATTENTE=null;
+      $("blocMdpNeuf").hidden=true;
+      poserSession(s); menu(s); majIdentite(s);
+    });
+});
+$("m_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("m_valider").click(); });
+
+/* ---------- le changer quand on veut ---------- */
+$("btnMdp").addEventListener("click", function(){
+  var b=$("blocMdp"); b.hidden=!b.hidden;
+  if(!b.hidden){
+    ["k_vieux","k_neuf","k_neuf2"].forEach(function(i){ $(i).value=""; });
+    $("k_err").textContent=""; $("k_vieux").focus();
+    b.scrollIntoView({behavior:"smooth", block:"center"});
+  }
+});
+$("k_valider").addEventListener("click", function(){
+  var s=session(); if(!s) return;
+  changerMotDePasse(s.jeton, $("k_vieux").value, $("k_neuf").value, $("k_neuf2").value,
+    function(t){ $("k_err").textContent=t; },
+    function(jeton){
+      s.jeton=jeton; poserSession(s);
+      $("k_err").textContent="Mot de passe enregistré.";
+      ["k_vieux","k_neuf","k_neuf2"].forEach(function(i){ $(i).value=""; });
+      setTimeout(function(){ $("blocMdp").hidden=true; $("k_err").textContent=""; }, 1800);
+    });
+});
+$("k_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("k_valider").click(); });
 
 $("go").addEventListener("click", function(){ connecter(); });
 $("p").addEventListener("keydown", function(e){ if(e.key==="Enter") connecter(); });

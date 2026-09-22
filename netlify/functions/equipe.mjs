@@ -9,16 +9,24 @@
    crée et modifie ses propres utilisateurs, sans toucher au code.
    ===================================================================== */
 
-/* Propriétaire du site : crée les sociétés et leur compte administrateur. */
+/* Propriétaire du site : crée les sociétés et leur compte administrateur.
+   Ce mot de passe n'est qu'un secours de premier démarrage : il cesse de
+   valoir dès qu'un mot de passe est posé sur le compte. Sur un serveur,
+   on le remplace en posant la variable d'environnement
+   MOTDEPASSE_PROPRIETAIRE. */
 export const PROPRIETAIRE = {
   identifiant: "johan",
-  motdepasse: "Johan-4712",
+  motdepasse: process.env.MOTDEPASSE_PROPRIETAIRE || "premier-acces",
   nom: "Johan Klughertz",
   email: "Jklughertz@tlenergies.com"
 };
 
 /* Société installée au premier démarrage, avec ses comptes.
    Rôles possibles : "admin" (gère les comptes), "bureau", "technicien".
+   Ces comptes arrivent SANS mot de passe : personne ne peut s'en servir
+   tant que l'administrateur n'a pas cliqué « Réinitialiser » sur la page
+   Comptes, ce qui lui donne un code provisoire à transmettre. La
+   personne choisit ensuite le sien, que personne d'autre ne connaît.
    Un compte peut être limité à certaines applis en ajoutant par exemple
    applis: ["reception", "suivi"] sur sa ligne. Sans ce champ, il les a
    toutes. Applis connues : releve, suivi, commande, reception,
@@ -30,20 +38,20 @@ export const SOCIETE_DEPART = {
   metier: "Génie électrique & climatique",
   ville: "Les Achards (85150)",
   utilisateurs: [
-    { identifiant: "johan",       motdepasse: "Johan-4712",     nom: "Johan",         role: "admin",      email: "Jklughertz@tlenergies.com" },
-    { identifiant: "rodolphe",    motdepasse: "Rodolphe-2856",  nom: "Rodolphe",      role: "bureau",     email: "" },
-    { identifiant: "mickael",     motdepasse: "Mickael-9134",   nom: "Mickaël",       role: "bureau",     email: "" },
-    { identifiant: "anthony",     motdepasse: "Anthony-5067",   nom: "Anthony",       role: "bureau",     email: "" },
-    { identifiant: "charline",    motdepasse: "Charline-7328",  nom: "Charline",      role: "bureau",     email: "" },
-    { identifiant: "camille",     motdepasse: "Camille-1495",   nom: "Camille",       role: "bureau",     email: "" },
-    { identifiant: "jeanfrancois",motdepasse: "JeanF-6210",     nom: "Jean-François", role: "bureau",     email: "" },
-    { identifiant: "rodrigue",    motdepasse: "Rodrigue-3874",  nom: "Rodrigue",      role: "bureau",     email: "" },
-    { identifiant: "christophe",  motdepasse: "Christophe-2941",nom: "Christophe",    role: "technicien", email: "" },
-    { identifiant: "brian",       motdepasse: "Brian-6183",     nom: "Brian",         role: "technicien", email: "" },
-    { identifiant: "mathieu",     motdepasse: "Mathieu-4520",   nom: "Mathieu",       role: "technicien", email: "" },
-    { identifiant: "alban",       motdepasse: "Alban-8317",     nom: "Alban",         role: "technicien", email: "" },
-    { identifiant: "adrien",      motdepasse: "Adrien-7052",    nom: "Adrien",        role: "technicien", email: "" },
-    { identifiant: "thomas",      motdepasse: "Thomas-3698",    nom: "Thomas",        role: "technicien", email: "" }
+    { identifiant: "johan",        motdepasse: "", nom: "Johan",          role: "admin",       email: "Jklughertz@tlenergies.com" },
+    { identifiant: "rodolphe",     motdepasse: "", nom: "Rodolphe",       role: "bureau",      email: "" },
+    { identifiant: "mickael",      motdepasse: "", nom: "Mickaël",        role: "bureau",      email: "" },
+    { identifiant: "anthony",      motdepasse: "", nom: "Anthony",        role: "bureau",      email: "" },
+    { identifiant: "charline",     motdepasse: "", nom: "Charline",       role: "bureau",      email: "" },
+    { identifiant: "camille",      motdepasse: "", nom: "Camille",        role: "bureau",      email: "" },
+    { identifiant: "jeanfrancois", motdepasse: "", nom: "Jean-François",  role: "bureau",      email: "" },
+    { identifiant: "rodrigue",     motdepasse: "", nom: "Rodrigue",       role: "bureau",      email: "" },
+    { identifiant: "christophe",   motdepasse: "", nom: "Christophe",     role: "technicien",  email: "" },
+    { identifiant: "brian",        motdepasse: "", nom: "Brian",          role: "technicien",  email: "" },
+    { identifiant: "mathieu",      motdepasse: "", nom: "Mathieu",        role: "technicien",  email: "" },
+    { identifiant: "alban",        motdepasse: "", nom: "Alban",          role: "technicien",  email: "" },
+    { identifiant: "adrien",       motdepasse: "", nom: "Adrien",         role: "technicien",  email: "" },
+    { identifiant: "thomas",       motdepasse: "", nom: "Thomas",         role: "technicien",  email: "" }
   ]
 };
 

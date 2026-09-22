@@ -342,28 +342,68 @@ LA VUE D'UN COMPTE  —  page Comptes
    La liste des comptes porte la même étiquette, pour qu'on voie d'un
    coup d'œil qui ouvre quoi.
 
+LES MOTS DE PASSE  —  chacun le sien, personne ne le lit
+   Le site ne garde aucun mot de passe. Il en garde une EMPREINTE scrypt,
+   avec un sel tiré au hasard pour chaque compte : un calcul qui ne se
+   remonte pas. Ni l'administrateur, ni le propriétaire, ni quelqu'un qui
+   ouvrirait la base ne peut lire le mot de passe de qui que ce soit.
+   C'est ce qui permet de dire à l'équipe, sans mentir, que personne ne
+   peut se connecter à leur compte.
+
+   Le parcours d'un compte :
+   1. L'administrateur ouvre le compte, ou clique « Réinitialiser ». Le
+      site lui rend un CODE PROVISOIRE, affiché une seule fois — il n'est
+      stocké nulle part, le site lui-même ne sait pas le relire.
+   2. Il transmet ce code à la personne, de vive voix ou par message.
+   3. À sa première connexion, la personne ne va nulle part : l'écran lui
+      demande de choisir son mot de passe. Tant qu'elle ne l'a pas fait,
+      le serveur refuse tout le reste (403) — le verrou est côté serveur,
+      pas seulement à l'écran.
+   4. Ce mot de passe-là n'est connu que d'elle.
+   Ensuite, « Mon mot de passe », en haut de l'accueil, permet d'en changer
+   quand on veut : ancien, nouveau, confirmation. Huit caractères au
+   minimum.
+
+   Ce que l'administrateur voit dans la liste des comptes : l'état, jamais
+   le secret. « mot de passe personnel, choisi le 22/09/2026 », « code
+   provisoire, à changer à la connexion », ou « sans mot de passe — à
+   réinitialiser ». La DATE compte : elle est la trace du choix de la
+   personne. Réinitialiser un compte efface cette date et coupe l'accès —
+   l'intéressé s'en aperçoit à la seconde suivante. Autrement dit,
+   l'administrateur peut reprendre la main sur un compte, mais jamais en
+   cachette.
+
+   Le jeton de session ne transporte plus le mot de passe. Il porte la
+   société, l'identifiant, l'heure et une signature calculée avec
+   l'empreinte comme clé — laquelle ne quitte jamais le serveur. Un
+   changement de mot de passe change l'empreinte, donc ferme d'un coup
+   toutes les sessions ouvertes ailleurs.
+
+   « Réinitialiser toute l'équipe », en haut de la page Comptes, donne un
+   code provisoire pour chaque compte d'un seul geste. C'est ce qu'il faut
+   faire le jour où des mots de passe ont traîné quelque part.
+
 LE COMPTE PROPRIÉTAIRE
-   Son identifiant et son mot de passe sont écrits dans
-   netlify/functions/equipe.mjs. Ce mot de passe ne sert QU'À SE
-   RATTRAPER : tant que le compte n'existe pas dans l'annuaire, il
-   ouvre la porte — c'est ce qui permet de créer la première société,
-   ou de rentrer si l'annuaire est perdu. Dès que le compte existe,
-   l'annuaire fait seul autorité, et c'est le mot de passe changé
-   depuis la page Comptes qui compte.
+   Son identifiant est écrit dans netlify/functions/equipe.mjs. Le mot de
+   passe qui l'accompagne ne sert QU'À SE RATTRAPER : il n'ouvre que tant
+   qu'aucun mot de passe n'est posé sur le compte — première installation,
+   ou annuaire perdu. Et même là, la première chose demandée est d'en
+   choisir un vrai. Dès qu'il est posé, le mot de passe du code ne vaut
+   plus rien : ce serait sinon une porte dérobée permanente dans un dépôt
+   public. Sur un serveur, on le remplace par la variable d'environnement
+   MOTDEPASSE_PROPRIETAIRE.
    Être propriétaire tient à l'identifiant et à la société d'origine,
    jamais au mot de passe : on ne perd pas ses droits en le changeant.
-   Changer son mot de passe rend caduc le jeton gardé par le
-   navigateur : il faut se reconnecter, sur chaque appareil.
 
 UTILISATEURS  —  fichier netlify/functions/equipe.mjs
-   Deux listes séparées, l'une pour les chargés d'affaires, l'autre pour les
-   techniciens. Une ligne par personne :
-      { identifiant: "brian", motdepasse: "Brian-6183", nom: "Brian" },
-   Pour ajouter quelqu'un : copiez une ligne dans la bonne liste et changez les
-   valeurs, sans oublier la virgule. Pour en retirer un : supprimez sa ligne.
-   Puis redéposez le dossier sur https://app.netlify.com/drop
-   Les mots de passe livrés sont provisoires : changez-les avant de diffuser
-   l'adresse du site.
+   Une ligne par personne, SANS mot de passe :
+      { identifiant: "brian", motdepasse: "", nom: "Brian", role: "technicien" },
+   Pour ajouter quelqu'un : copiez une ligne et changez les valeurs, sans
+   oublier la virgule. Pour en retirer un : supprimez sa ligne.
+   Ces comptes-là n'ouvrent rien tant que l'administrateur n'a pas cliqué
+   « Réinitialiser » : c'est voulu. Un mot de passe écrit dans un fichier
+   est un mot de passe public, puisque le dépôt l'est.
+   Au quotidien, on ne touche pas à ce fichier : la page Comptes fait tout.
 
 PAGES
    /                 connexion puis menu
@@ -779,7 +819,9 @@ PLUSIEURS SOCIÉTÉS
 
    Le propriétaire du site (compte défini dans equipe.mjs) entre dans toutes
    les sociétés et crée les nouvelles depuis la page Comptes : nom, code de
-   connexion, puis l'identifiant et le mot de passe de leur administrateur.
+   connexion, puis le nom et l'identifiant de leur administrateur. Aucun mot
+   de passe à inventer : le site rend un code provisoire, et l'administrateur
+   de la nouvelle société choisit le sien en arrivant.
    La société démarre vide et son administrateur crée ensuite ses équipes.
 
    equipe.mjs ne sert plus qu'au premier démarrage : il installe la société de

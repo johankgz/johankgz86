@@ -359,7 +359,14 @@ nav#nav button svg{stroke-width:1.9}
   <div class="block">
     <h2 id="titreListe">Comptes de la société</h2>
     <div id="liste"></div>
-    <p class="hint">Le mot de passe est visible pour que vous puissiez le transmettre. Changez-le à tout moment.</p>
+    <p class="hint">Vous ne voyez aucun mot de passe : le site n'en garde qu'une empreinte,
+      et personne ne peut remonter jusqu'au mot de passe lui-même. « Réinitialiser » donne un
+      code provisoire à transmettre ; la personne choisit ensuite le sien en se connectant.
+      La date affichée est celle de son choix — une remise à zéro se voit donc.</p>
+    <div class="row" style="margin-top:10px">
+      <button class="act ghost" id="btnResetTous">Réinitialiser toute l'équipe (sauf moi)</button>
+    </div>
+    <div id="provisoires"></div>
   </div>
 
   <div class="block">
@@ -367,8 +374,10 @@ nav#nav button svg{stroke-width:1.9}
     <div class="grid2">
       <label class="f"><span>Prénom affiché</span><input type="text" id="f_nom" placeholder="Kévin"></label>
       <label class="f"><span>Identifiant</span><input type="text" id="f_id" autocapitalize="none" spellcheck="false" placeholder="kevin"></label>
-      <label class="f"><span>Mot de passe</span><input type="text" id="f_mdp" autocapitalize="none" spellcheck="false"></label>
     </div>
+    <p class="hint" style="margin:-4px 0 14px">Pas de mot de passe à inventer : à la création,
+      le site rend un code provisoire, que vous transmettez. Modifier un compte ne touche jamais
+      à son mot de passe.</p>
     <label class="f"><span>E-mail (pour les notifications)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
 
     <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
@@ -411,7 +420,6 @@ nav#nav button svg{stroke-width:1.9}
       <label class="f"><span>Ville</span><input type="text" id="s_ville" placeholder="Nantes (44)"></label>
       <label class="f"><span>Administrateur</span><input type="text" id="s_adminNom" placeholder="M. Dupont"></label>
       <label class="f"><span>Son identifiant</span><input type="text" id="s_adminId" autocapitalize="none" spellcheck="false" placeholder="admin"></label>
-      <label class="f"><span>Son mot de passe</span><input type="text" id="s_adminMdp" autocapitalize="none" spellcheck="false"></label>
       <label class="f"><span>Son e-mail</span><input type="email" id="s_adminMail" autocapitalize="none" spellcheck="false"></label>
     </div>
     <button class="act blue" id="btnSociete" style="width:100%">Créer la société</button>
@@ -512,6 +520,58 @@ function chargerComptes(){
     .then(function(d){ peindre(d.comptes||[]); })
     .catch(function(){ $("err").textContent="Comptes indisponibles."; });
 }
+/* ce que l'administrateur a le droit de savoir : l'état, pas le secret */
+function etatMdp(c){
+  if(c.etatMdp === "personnel"){
+    return c.mdpMaj ? "mot de passe personnel, choisi le " + jourCourt(c.mdpMaj)
+                    : "mot de passe personnel";
+  }
+  if(c.etatMdp === "provisoire") return "code provisoire, à changer à la connexion";
+  if(c.etatMdp === "ancien")     return "ancien mot de passe, à changer à la connexion";
+  return "sans mot de passe — à réinitialiser";
+}
+function jourCourt(iso){
+  var d=new Date(iso);
+  if(isNaN(d)) return "";
+  return ("0"+d.getDate()).slice(-2)+"/"+("0"+(d.getMonth()+1)).slice(-2)+"/"+d.getFullYear();
+}
+/* les codes provisoires ne s'affichent qu'une fois : ils ne sont nulle
+   part ailleurs, et le site lui-même ne sait pas les relire. */
+function montrerProvisoires(liste){
+  var host=$("provisoires"); host.textContent="";
+  if(!liste || !liste.length) return;
+  var b=document.createElement("div"); b.className="block";
+  b.style.cssText="margin:14px 0 0;border:1px solid var(--accent)";
+  var h=document.createElement("p"); h.className="legend";
+  h.textContent="À transmettre maintenant — ces codes ne seront plus affichés.";
+  b.appendChild(h);
+  liste.forEach(function(x){
+    var l=document.createElement("p");
+    l.style.cssText="margin:4px 0;font-family:var(--mono,monospace)";
+    l.textContent=(x.nom||x.identifiant)+"  ·  "+x.provisoire;
+    b.appendChild(l);
+  });
+  var f=document.createElement("button"); f.className="act ghost"; f.textContent="J'ai transmis";
+  f.addEventListener("click", function(){ host.textContent=""; });
+  b.appendChild(f);
+  host.appendChild(b);
+  host.scrollIntoView({behavior:"smooth", block:"center"});
+}
+$("btnResetTous").addEventListener("click", function(){
+  if(!window.confirm("Réinitialiser le mot de passe de toute l'équipe ?\n\n"
+    +"Chacun recevra un code provisoire et devra en choisir un nouveau. "
+    +"Personne ne pourra se connecter tant que vous n'aurez pas transmis les codes.\n\n"
+    +"Votre propre compte n'est pas touché : changez le vôtre depuis l'accueil, "
+    +"« Mon mot de passe ».")) return;
+  fetch(api("comptes-reinitialiser"), {headers:{"x-auth":S.jeton}})
+    .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ $("err").textContent=res.d.erreur||"Remise à zéro refusée."; return; }
+      montrerProvisoires(res.d.comptes); chargerComptes();
+    })
+    .catch(function(){ $("err").textContent="Pas de réseau."; });
+});
+
 function peindre(comptes){
   var host=$("liste"); host.textContent="";
   if(!comptes.length){
@@ -527,7 +587,8 @@ function peindre(comptes){
     var s2=document.createElement("span");
     s2.innerHTML="";
     s2.textContent=c.identifiant+"  ·  ";
-    var m=document.createElement("span"); m.className="mdp"; m.textContent=c.motdepasse;
+    var m=document.createElement("span"); m.className="mdp";
+    m.textContent=etatMdp(c);
     s2.appendChild(m);
     if(c.email){ var e=document.createElement("span"); e.textContent=c.email; t.appendChild(e); }
     t.appendChild(b); t.appendChild(s2);
@@ -540,11 +601,23 @@ function peindre(comptes){
                    : (c.role==="bureau" ? "Vue bureau" : "Vue technicien");
     var mod=document.createElement("button"); mod.className="act ghost"; mod.textContent="Modifier";
     mod.addEventListener("click", function(){
-      $("f_nom").value=c.nom; $("f_id").value=c.identifiant; $("f_mdp").value=c.motdepasse;
+      $("f_nom").value=c.nom; $("f_id").value=c.identifiant;
       choisirVue(c.role); $("f_mail").value=c.email||"";
       APPLIS_CHOISIES=(c.applis||[]).slice(); peindreApplis();
       $("titreForm").textContent="Modifier "+c.nom;
       window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
+    });
+    var raz=document.createElement("button"); raz.className="act ghost"; raz.textContent="Réinitialiser";
+    raz.addEventListener("click", function(){
+      if(!window.confirm("Donner un code provisoire à "+c.nom+" ?\n\nSon mot de passe actuel cessera "
+        +"de fonctionner, et il en choisira un nouveau à sa prochaine connexion.")) return;
+      fetch(api("compte-reinitialiser")+"&identifiant="+encodeURIComponent(c.identifiant), {headers:{"x-auth":S.jeton}})
+        .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+        .then(function(res){
+          if(!res.ok){ $("err").textContent=res.d.erreur||"Remise à zéro refusée."; return; }
+          montrerProvisoires([res.d]); chargerComptes();
+        })
+        .catch(function(){ $("err").textContent="Pas de réseau."; });
     });
     var sup=document.createElement("button"); sup.className="act danger"; sup.textContent="×";
     sup.setAttribute("aria-label","Supprimer "+c.nom);
@@ -555,13 +628,13 @@ function peindre(comptes){
         .then(function(res){ if(!res.ok){ $("err").textContent=res.d.erreur||"Suppression refusée."; return; } chargerComptes(); })
         .catch(function(){ $("err").textContent="Pas de réseau."; });
     });
-    r.appendChild(t); r.appendChild(rl); r.appendChild(mod); r.appendChild(sup);
+    r.appendChild(t); r.appendChild(rl); r.appendChild(mod); r.appendChild(raz); r.appendChild(sup);
     host.appendChild(r);
   });
 }
 $("btnEnr").addEventListener("click", function(){
   var corps={nom:$("f_nom").value.trim(), identifiant:$("f_id").value.trim().toLowerCase(),
-             motdepasse:$("f_mdp").value.trim(), role:$("f_role").value, email:$("f_mail").value.trim(),
+             role:$("f_role").value, email:$("f_mail").value.trim(),
              applis:APPLIS_CHOISIES.slice()};
   if(!corps.nom || !corps.identifiant){ $("err").textContent="Prénom et identifiant sont nécessaires."; return; }
   $("err").textContent="Enregistrement…";
@@ -570,14 +643,15 @@ $("btnEnr").addEventListener("click", function(){
     .then(function(res){
       if(!res.ok){ $("err").textContent=res.d.erreur||"Enregistrement refusé."; return; }
       $("err").textContent=""; $("titreForm").textContent="Ajouter un compte";
-      ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+      if(res.d.provisoire) montrerProvisoires([{nom:corps.nom, provisoire:res.d.provisoire}]);
+      ["f_nom","f_id","f_mail"].forEach(function(i){ $(i).value=""; });
       APPLIS_CHOISIES=[]; peindreApplis();
       chargerComptes();
     })
     .catch(function(){ $("err").textContent="Pas de réseau."; });
 });
 $("btnVider").addEventListener("click", function(){
-  ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+  ["f_nom","f_id","f_mail"].forEach(function(i){ $(i).value=""; });
   choisirVue("technicien");
   APPLIS_CHOISIES=[]; peindreApplis();
   $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";
@@ -631,17 +705,18 @@ $("btnSociete").addEventListener("click", function(){
   var corps={nom:$("s_nom").value.trim(), code:$("s_code").value.trim().toLowerCase(),
              metier:$("s_metier").value.trim(), ville:$("s_ville").value.trim(),
              adminNom:$("s_adminNom").value.trim(), adminIdentifiant:$("s_adminId").value.trim().toLowerCase(),
-             adminMotdepasse:$("s_adminMdp").value.trim(), adminEmail:$("s_adminMail").value.trim()};
-  if(!corps.nom || !corps.code || !corps.adminMotdepasse){
-    $("errSoc").textContent="Nom, code et mot de passe de l'administrateur sont nécessaires."; return;
+             adminEmail:$("s_adminMail").value.trim()};
+  if(!corps.nom || !corps.code){
+    $("errSoc").textContent="Le nom et le code de la société sont nécessaires."; return;
   }
   $("errSoc").textContent="Création…";
   fetch(api("societe-creer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ $("errSoc").textContent=res.d.erreur||"Création refusée."; return; }
-      $("errSoc").textContent="Société créée. Connexion : code "+res.d.code+", identifiant "+res.d.identifiant+".";
-      ["s_nom","s_code","s_metier","s_ville","s_adminNom","s_adminId","s_adminMdp","s_adminMail"]
+      $("errSoc").textContent="Société créée. Connexion : code "+res.d.code+", identifiant "+res.d.identifiant
+        +", code provisoire "+res.d.provisoire+". Il en choisira un autre en arrivant.";
+      ["s_nom","s_code","s_metier","s_ville","s_adminNom","s_adminId","s_adminMail"]
         .forEach(function(i){ $(i).value=""; });
       chargerSocietes();
     })
