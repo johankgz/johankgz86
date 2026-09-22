@@ -851,8 +851,26 @@ function refAffaire(){
 }
 function adresseTravaux(){ return (S.garde.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.garde.date || aujourdhui(); }
-/* le sommaire garde l'aération de la trame : douze entrées par page (SOM.parPage) */
-function pagesSommaire(){ return Math.max(1, Math.ceil(S.pages.length/12)); }
+/* Le sommaire tient sur une page tant qu'il reste lisible. On resserre
+   d'abord l'interligne, puis on passe à deux colonnes ; une seconde page
+   n'arrive qu'au-delà de cinquante-six pièces. Les chiffres sont en
+   millimètres, comme toute la trame. */
+var SOM_UTILE=197.46;                 /* 297 - 25 de marge basse - 74,54 de première ligne */
+var SOM_TRAME=17.79;                  /* l'aération de la trame Word */
+var SOM_MIN_1=8.2, SOM_MIN_2=7.0;     /* en deçà, on ne lit plus */
+function planSommaire(n){
+  n = n || 0;
+  if(!n) return {pages:1, colonnes:1, pas:SOM_TRAME, taille:12, parPage:1};
+  var pas1 = SOM_UTILE / n;
+  if(pas1 >= SOM_MIN_1)
+    return {pages:1, colonnes:1, pas:Math.min(SOM_TRAME, pas1), taille:12, parPage:n};
+  var parCol = Math.ceil(n/2), pas2 = SOM_UTILE / parCol;
+  if(pas2 >= SOM_MIN_2)
+    return {pages:1, colonnes:2, pas:Math.min(SOM_TRAME, pas2), taille:10, parPage:n};
+  var parPage = Math.floor(SOM_UTILE/SOM_MIN_2) * 2;
+  return {pages:Math.ceil(n/parPage), colonnes:2, pas:SOM_MIN_2, taille:10, parPage:parPage};
+}
+function pagesSommaire(){ return planSommaire(S.pages.length).pages; }
 function premierePage(){ return 2 + pagesSommaire(); }
 
 /* ---------- les pages, à l'écran ---------- */
@@ -1256,6 +1274,8 @@ function construireDocument(){
   function mm(v){ return v*MM; }
   var A4=[mm(PW), mm(PH)];
   var NOIR=rgb(0,0,0), GRIS=rgb(0.5,0.5,0.5), BLANC=rgb(1,1,1);
+  /* l'orange des filets, relevé sur la trame Word : strokecolor #f68c36 */
+  var ORANGE=rgb(0xF6/255, 0x8C/255, 0x36/255);
   var sortie, police, grasse, vignettes={societe:null, contact:null};
 
   /* --- les outils de dessin, en millimètres depuis le haut de la page --- */
@@ -1273,7 +1293,7 @@ function construireDocument(){
     return l;
   }
   function trait(page, y){
-    page.drawRectangle({x:mm(TRAIT.x), y:mm(PH-y), width:mm(TRAIT.l), height:mm(TRAIT.e), color:NOIR});
+    page.drawRectangle({x:mm(TRAIT.x), y:mm(PH-y), width:mm(TRAIT.l), height:mm(TRAIT.e), color:ORANGE});
   }
   /* couper un texte à la largeur utile, comme le ferait un traitement de texte */
   function couper(texte, largeurMm, taille, font){
@@ -1304,12 +1324,15 @@ function construireDocument(){
       ecrire(page, (P&&P.socWeb)||"", ENT.contact.x, ENT.contact.y+11, 9, police);
     }
   }
-  function pied(page, numero){
-    /* le carré corné de la trame : un cadre blanc, le coin replié, le numéro au centre */
-    var x=PIED.x, y=PIED.y, l=PIED.l, h=PIED.h, coin=PIED.coin;
+  function pied(page, numero, total){
+    /* Le carré corné de la trame, repris en orange : le numéro en gras,
+       le total en petit derrière. Le bord droit reste où la trame le
+       pose ; c'est la gauche qui s'écarte pour laisser la place. */
+    var l=PIED.l+6.8, h=PIED.h, coin=PIED.coin;
+    var x=PIED.x+PIED.l-l, y=PIED.y;
     function ligne(x1,y1,x2,y2){
       page.drawLine({start:{x:mm(x1), y:mm(PH-y1)}, end:{x:mm(x2), y:mm(PH-y2)},
-                     thickness:0.5, color:GRIS});
+                     thickness:0.7, color:ORANGE});
     }
     page.drawRectangle({x:mm(x), y:mm(PH-y-h), width:mm(l), height:mm(h), color:BLANC});
     ligne(x, y, x+l-coin, y);                 /* haut, jusqu'au pli */
@@ -1319,9 +1342,14 @@ function construireDocument(){
     ligne(x, y+h, x, y);                      /* gauche */
     ligne(x+l-coin, y, x+l-coin, y+coin);     /* le petit triangle du pli */
     ligne(x+l-coin, y+coin, x+l, y+coin);
-    var t=nettoyer(String(numero)), taille=8;
-    var lg=police.widthOfTextAtSize(t, taille);
-    page.drawText(t, {x:mm(x+l/2)-lg/2, y:mm(PH-y-h/2)-taille*0.35, size:taille, font:police, color:NOIR});
+
+    var n=nettoyer(String(numero)), tn=10;
+    var s=total ? " / " + total : "", ts=7;
+    var ln=grasse.widthOfTextAtSize(n, tn);
+    var ls=s ? police.widthOfTextAtSize(s, ts) : 0;
+    var gx=mm(x+l/2)-(ln+ls)/2, gy=mm(PH-y-h/2)-tn*0.34;
+    page.drawText(n, {x:gx, y:gy, size:tn, font:grasse, color:ORANGE});
+    if(s) page.drawText(s, {x:gx+ln, y:gy+tn*0.08, size:ts, font:police, color:GRIS});
   }
   function nouvellePage(){
     var page=sortie.addPage(A4);
@@ -1361,19 +1389,29 @@ function construireDocument(){
     return page;
   }
 
-  /* --- sommaire : le titre, puis la liste numérotée et soulignée --- */
+  /* --- sommaire : le titre, puis la liste numérotée et soulignée.
+         Une colonne tant que ça tient, deux quand il y a du monde. --- */
   function sommaire(){
-    for(var s=0; s<pagesSommaire(); s++){
+    var plan=planSommaire(S.pages.length);
+    var largeurCol=(PW-MG.gauche-MG.droite)/2;
+    for(var s=0; s<plan.pages; s++){
       var page=nouvellePage();
       ecrire(page, "SOMMAIRE", 0, SOM.titre, 18, grasse, {centre:true, souligne:true});
-      var y=SOM.premier;
-      S.pages.slice(s*SOM.parPage, (s+1)*SOM.parPage).forEach(function(p, k){
-        var rang=s*SOM.parPage + k + 1;
+      var lot=S.pages.slice(s*plan.parPage, (s+1)*plan.parPage);
+      var parCol = plan.colonnes === 1 ? lot.length : Math.ceil(lot.length/2);
+      lot.forEach(function(p, k){
+        var col = plan.colonnes === 1 ? 0 : Math.floor(k/parCol);
+        var dx  = col * largeurCol;
+        var y   = SOM.premier + (k - col*parCol) * plan.pas;
+        var rang=s*plan.parPage + k + 1;
         var titre=nettoyer((p.titre||"").trim() || ("Page " + rang)).toUpperCase();
-        ecrire(page, rang + ".", SOM.numero, y, 12, police);
-        var ligne=couper(titre, PW-MG.droite-SOM.texte, 12, police)[0];
-        ecrire(page, ligne, SOM.texte, y, 12, police, {souligne:true});
-        y += SOM.pas;
+        ecrire(page, rang + ".", SOM.numero+dx, y, plan.taille, police);
+        /* en deux colonnes, la largeur utile s'arrête avant la gouttière */
+        var large = plan.colonnes === 1
+          ? PW-MG.droite-SOM.texte
+          : largeurCol - (SOM.texte-SOM.numero) - 4;
+        var ligne=couper(titre, large, plan.taille, police)[0];
+        ecrire(page, ligne, SOM.texte+dx, y, plan.taille, police, {souligne:true});
       });
     }
   }
@@ -1446,7 +1484,8 @@ function construireDocument(){
     return suite;
   }).then(function(){
     /* le numéro de page, une fois que le compte est arrêté */
-    sortie.getPages().forEach(function(page, i){ pied(page, i+1); });
+    var total=sortie.getPages().length;
+    sortie.getPages().forEach(function(page, i){ pied(page, i+1, total); });
     return sortie.save();
   });
 }
