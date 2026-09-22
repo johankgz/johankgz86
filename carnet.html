@@ -1255,9 +1255,11 @@ function lignesLot(){
   return ["LOT " + lot];
 }
 
-/* le titre de couverture, tel qu'il est écrit sur la trame */
+/* le titre de couverture. La trame Word porte « ET NOTE TECHNIQUE »
+   sous le titre du carnet : Johan ne le veut pas, le carnet d'échantillons
+   tient sur une seule ligne. */
 function titreCouverture(){
-  if(S.doc === "carnet") return ["CARNET D'\u00C9CHANTILLON", "ET NOTE TECHNIQUE"];
+  if(S.doc === "carnet") return ["CARNET D'\u00C9CHANTILLON"];
   if(S.doc === "doe")    return ["DOSSIER DES OUVRAGES", "EX\u00C9CUT\u00C9S"];
   return ["NOTE TECHNIQUE"];
 }
@@ -1361,9 +1363,15 @@ function construireDocument(){
   function garde(){
     var page=nouvellePage();
 
-    /* le titre, deux lignes d'Arial 28 gras centrées */
-    titreCouverture().forEach(function(l, i){
-      if(i < GARDE.titre.length) ecrire(page, l, 0, GARDE.titre[i], 28, grasse, {centre:true});
+    /* le titre, Arial 28 gras centré. Deux lignes sur la trame ; quand
+       il n'y en a qu'une, on la pose au milieu de la bande, sinon elle
+       flotte trop haut au-dessus du filet. */
+    var titre = titreCouverture();
+    var hauteurs = titre.length === 1
+      ? [(GARDE.titre[0] + GARDE.titre[1]) / 2]
+      : GARDE.titre;
+    titre.forEach(function(l, i){
+      if(i < hauteurs.length) ecrire(page, l, 0, hauteurs[i], 28, grasse, {centre:true});
     });
     trait(page, GARDE.trait1);
 
