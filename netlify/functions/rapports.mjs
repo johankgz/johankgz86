@@ -31,6 +31,7 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
     : entree.type === "carnet" ? "Carnet d'échantillons"
     : entree.type === "memoire" ? "Mémoire technique"
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
+    : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
     : "Relevé technique";
   const titre = chantier.client || chantier.ref;
   const lien = origine + "/rapports.html";
@@ -164,11 +165,11 @@ function jetonAvecDate(code, id, mdp) {
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
    propriétaire gardent tout, quoi qu'on leur attribue. */
-const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet"];
+const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet", "technique"];
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
   autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
-  carnet: "carnet", memoire: "carnet", doe: "carnet"
+  carnet: "carnet", memoire: "carnet", doe: "carnet", technique: "technique"
 };
 function applisValides(liste) {
   if (!Array.isArray(liste)) return [];
@@ -285,12 +286,21 @@ function voit(personne, fichier, chantier) {
 function chantierDe(idx, cle) {
   return idx.chantiers[String(cle).split("/")[0]] || null;
 }
+/* le type d'un document d'après son extension : un plan peut être une
+   image, un PDF reste un PDF, un lot de photos reste un ZIP. */
+const TYPES_FICHIER = { pdf: "application/pdf", zip: "application/zip", jpg: "image/jpeg",
+                        jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+function typeDuFichier(cle) {
+  const ext = String(cle).split(".").pop().toLowerCase();
+  return TYPES_FICHIER[ext] || "application/pdf";
+}
 function rang(f) {
   if (f.type === "releve") return -1;
   if (f.type === "commande") return 1000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "photos") return 2000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "technique") return 500 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "carnet") return 800 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "memoire") return 900 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "doe") return 3200 + Number(new Date(f.publie || 0)) / 1e10;
@@ -500,6 +510,7 @@ export default async (req) => {
     const carnet = d.type === "carnet";
     const memoire = d.type === "memoire";
     const doe = d.type === "doe";
+    const technique = d.type === "technique";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
     const appliVisee = APPLI_DU_TYPE[d.type] || "";
@@ -510,7 +521,7 @@ export default async (req) => {
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -526,7 +537,16 @@ export default async (req) => {
     }
     /* un relevé technique remplace le précédent ; un suivi crée une version par visite */
     /* commande : une par jour et par personne ; suivi : une par visite ; relevé : une seule */
-    const nomFichier = (carnet || memoire || doe)
+    /* un document technique n'est pas toujours un PDF : plan, photo, schéma.
+       On ne garde que les formats qu'un navigateur sait rouvrir. */
+    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp"];
+    const ext = technique && FORMATS_TECHNIQUE.indexOf(String(d.ext || "pdf").toLowerCase()) >= 0
+      ? String(d.ext).toLowerCase() : "pdf";
+    if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);
+
+    const nomFichier = technique
+      ? "technique-" + slug(d.titre) + "-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "." + ext
+      : (carnet || memoire || doe)
       ? (carnet ? "carnet-echantillons-" : doe ? "doe-" : "memoire-technique-")
         + slug(d.visite || d.date || new Date().toISOString().slice(0, 10)) + ".pdf"
       : autocontrole
@@ -550,7 +570,7 @@ export default async (req) => {
 
     const octets = Buffer.from(d.pdf, "base64");
     if (octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Rapport trop lourd pour la publication." }, 413);
-    await store.set(cle, octets, { metadata: { type: photos ? "application/zip" : "application/pdf" } });
+    await store.set(cle, octets, { metadata: { type: typeDuFichier(cle) } });
 
     const idx = await lireIndex();
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
@@ -565,8 +585,8 @@ export default async (req) => {
     }
     const entree = {
       cle,
-      titre: d.titre || (carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || new Date().toISOString().slice(0, 10),
@@ -1046,7 +1066,7 @@ export default async (req) => {
     const zip = cle.endsWith(".zip");
     return new Response(blob, {
       headers: {
-        "content-type": zip ? "application/zip" : "application/pdf",
+        "content-type": typeDuFichier(cle),
         "content-disposition": (zip ? "attachment" : "inline") + '; filename="' + cle.split("/").pop() + '"',
         "cache-control": "no-store"
       }
