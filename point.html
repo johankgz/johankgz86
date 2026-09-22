@@ -15,7 +15,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Travaux 360">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Commande de matériel</title>
+<title>Le point de chantier</title>
 <style>
 :root{
   --bg:#F4F1EA;
@@ -677,7 +677,7 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 </head>
 <body>
 <header>
-  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Commande de matériel</h1>
+  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Le point de chantier</h1>
     <div class="ref" id="hdrRef"></div>
   </div>
   <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
@@ -692,8 +692,8 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 <section id="tab-travaux">
   <div class="block" style="padding:14px 18px">
     <div class="row">
-      <button class="act danger" id="btnNew">Nouvelle commande</button>
-      <span class="hint" style="flex:1;margin:0">Repartir de zéro efface la fiche en cours sur cet appareil.</span>
+      <button class="act danger" id="btnNew">Nouveau point</button>
+      <span class="hint" style="flex:1;margin:0">Repartir de zéro efface le point en cours sur cet appareil.</span>
     </div>
   </div>
 
@@ -711,12 +711,6 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
   </div>
 
   <div class="block">
-    <h2>Métier</h2>
-    <p class="hint" style="margin:-8px 0 12px">Détermine les articles proposés dans la commande.</p>
-    <div class="chips" id="ch_metier"></div>
-  </div>
-
-  <div class="block">
     <h2>Destinataire</h2>
     <div class="choix-pub" id="choixPublication">
       <button type="button" class="opt on" data-pub="dossier">
@@ -726,23 +720,39 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
         <b>Seulement à une personne</b><span>vous choisissez qui</span>
       </button>
     </div>
-    <p class="legend" id="legendeDest" hidden id="pubTitre">Qui doit recevoir cette commande</p>
+    <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce point</p>
     <div class="chips" id="pubDest"></div>
   </div>
 </section>
 
-<section id="tab-commande" hidden>
-  <div class="block">
-    <label class="f" style="margin:0"><span>Rechercher un article</span><input type="text" id="recherche" placeholder="disjoncteur, ICTA, PER…" autocapitalize="off"></label>
+<section id="tab-todo" hidden>
+  <div class="note jaune">
+    <p class="n-titre">Où j'en suis <span>l'avancement du chantier</span></p>
+    <div class="chips" id="ch_etat"></div>
+    <textarea class="n-libre" id="r_note" rows="3" placeholder="Ce qui a avancé aujourd'hui, ce qui est posé, ce qui est en attente."></textarea>
+    <div class="row"><button class="act rec" data-dictee="r_note">Dicter</button></div>
   </div>
-  <div id="catalogue"></div>
-  <div class="block">
-    <h2>Article hors catalogue</h2>
-    <div class="grid2">
-      <label class="f"><span>Désignation</span><input type="text" id="d_nom"></label>
-      <label class="f"><span>Quantité</span><input type="number" id="d_qte" inputmode="numeric" placeholder="1"></label>
+
+  <div class="note bleu">
+    <p class="n-titre">Reste à faire <span id="resteCompte"></span></p>
+    <div class="n-items" id="listeTaches"></div>
+    <button type="button" class="n-plus" id="btnPlusTache"><b>+</b> Ajouter une tâche</button>
+    <p class="n-vide" id="resteAide">Touchez une tâche pour la corriger, la case pour la cocher, la cloche pour la confier à quelqu'un à une date.</p>
+  </div>
+
+  <div class="note vert">
+    <p class="n-titre">À prendre en compte <span>ce que le bureau doit savoir</span></p>
+    <textarea class="n-libre" id="notes" rows="3" placeholder="Accès, matériel manquant, client absent, reprise d'un autre corps d'état."></textarea>
+    <div class="row"><button class="act rec" data-dictee="notes">Dicter</button></div>
+  </div>
+
+  <div class="note gris">
+    <p class="n-titre">Photos <span>ce qui se montre mieux qu'il ne s'écrit</span></p>
+    <div class="row" style="margin-top:4px">
+      <button class="act blue" id="btnPhoto">Photo</button>
+      <input type="file" id="filePhoto" accept="image/*" multiple hidden>
     </div>
-    <div class="row"><button class="act ghost" id="btnDivers">Ajouter à la commande</button></div>
+    <div class="thumbs" id="photos"></div>
   </div>
 </section>
 
@@ -756,7 +766,7 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 
   <div class="block">
     <h2>Publication</h2>
-    <p class="hint" id="pubIntro" style="margin:-8px 0 14px">La commande part directement dans l'espace des personnes choisies dans l'onglet Travaux.</p>
+    <p class="hint" id="pubIntro" style="margin:-8px 0 14px">Le point part directement dans l'espace des personnes choisies dans l'onglet Travaux.</p>
     <button class="act blue" id="btnPublier" style="width:100%">Publier</button>
     <p class="hint" id="pubEtat"></p>
   </div>
@@ -767,6 +777,13 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
     <button class="act blue" id="btnPartage" style="width:100%">Partager le rapport</button>
   </div>
 
+  <div class="block">
+    <h2>Enregistrements</h2>
+    <div class="row">
+      <button class="act ghost" id="btnPhotosZip">Enregistrer les photos</button>
+      <button class="act ghost" id="btnPhotosSite">Enregistrer les photos sur le site</button>
+    </div>
+  </div>
 </section>
 
 <div class="stepnav" id="stepnav"></div>
@@ -919,122 +936,6 @@ function memoirePleine(plein, detail){
     + (detail ? "  (" + detail + ")" : "");
 }
 
-/* =====================================================================
-   CATALOGUE DES ARTICLES  —  à adapter librement
-   =====================================================================
-   Un métier = une entrée. Chaque métier contient des rubriques,
-   chaque rubrique une liste d'articles :
-
-       ["Désignation affichée", "unité"]
-
-   L'unité est libre : "u" (unité), "ml" (mètre linéaire), "m", "sac"…
-   Ajoutez, retirez, renommez : l'appli s'adapte toute seule.
-   Un article retiré du catalogue reste dans les commandes déjà envoyées.
-   ===================================================================== */
-var CATALOGUE = {
-  "Électricité": {
-    "Filerie": [
-      ["Câble R2V 3G1,5", "ml"], ["Câble R2V 3G2,5", "ml"], ["Câble R2V 5G2,5", "ml"],
-      ["Câble R2V 3G6", "ml"], ["Fil H07V-U 1,5", "ml"], ["Fil H07V-U 2,5", "ml"],
-      ["Fil de terre 6 mm2", "ml"], ["Gaine ICTA 20", "ml"], ["Gaine ICTA 25", "ml"],
-      ["Gaine ICTA 32", "ml"], ["Gaine TPC 63", "ml"], ["Fil de tirage", "u"],
-      ["Câble RJ45 cat 6", "ml"], ["Câble coaxial", "ml"]
-    ],
-    "Boîtes et supports": [
-      ["Boîte encastrement simple", "u"], ["Boîte encastrement double", "u"],
-      ["Boîte encastrement triple", "u"], ["Boîte encastrement quadruple", "u"],
-      ["Boîte placo", "u"], ["Boîte maçonnerie", "u"],
-      ["Boîte DCL plafond", "u"], ["Boîte de dérivation", "u"],
-      ["Support simple", "u"], ["Support double", "u"], ["Rail DIN", "u"],
-      ["GTL 13 modules", "u"], ["GTL 18 modules", "u"], ["Goulotte GTL", "ml"],
-      ["Coffret PLEXO", "u"], ["Boîte PLEXO étanche", "u"], ["Collier de fixation", "u"]
-    ],
-    "Appareillage": [
-      ["Interrupteur", "u"], ["Va-et-vient", "u"], ["Double va-et-vient", "u"],
-      ["Poussoir", "u"], ["Prise 2P+T", "u"], ["Prise double", "u"],
-      ["Prise RJ45", "u"], ["Prise TV", "u"], ["Variateur", "u"],
-      ["Interrupteur PLEXO étanche", "u"], ["Prise PLEXO étanche", "u"],
-      ["Plaque de finition simple", "u"],
-      ["Plaque double verticale", "u"], ["Plaque double horizontale", "u"],
-      ["Plaque triple verticale", "u"], ["Plaque triple horizontale", "u"],
-      ["Plaque quadruple verticale", "u"], ["Plaque quadruple horizontale", "u"],
-      ["Sortie de câble", "u"], ["Prise 32A plaque", "u"]
-    ],
-    "Tableau électrique": [
-      ["Coffret 1 rangée", "u"], ["Coffret 2 rangées", "u"], ["Coffret 3 rangées", "u"],
-      ["Coffret 4 rangées", "u"],
-      ["Disjoncteur 2A", "u"], ["Disjoncteur 10A", "u"], ["Disjoncteur 16A", "u"],
-      ["Disjoncteur 20A", "u"], ["Disjoncteur 32A", "u"],
-      ["Différentiel 30mA 40A type AC", "u"], ["Différentiel 30mA 40A type A", "u"],
-      ["Peigne d'alimentation", "u"], ["Bornier de terre", "u"], ["Parafoudre", "u"],
-      ["Contacteur jour/nuit", "u"], ["Télérupteur", "u"], ["Horloge programmable", "u"],
-      ["Étiquettes de repérage", "u"]
-    ],
-    "Finition": [
-      ["Spot encastré", "u"], ["Kit spot étanche", "u"], ["DCL", "u"], ["Douille DCL", "u"],
-      ["Réglette LED", "u"], ["Hublot extérieur", "u"], ["Applique", "u"],
-      ["Détecteur de mouvement", "u"], ["Transformateur LED", "u"], ["Cache-fils", "u"]
-    ]
-  },
-
-  "Plomberie": {
-    "Alimentation": [
-      ["PER 12", "ml"], ["PER 16", "ml"], ["PER 20", "ml"],
-      ["Multicouche 16", "ml"], ["Multicouche 20", "ml"], ["Multicouche 26", "ml"],
-      ["Cuivre 12", "ml"], ["Cuivre 14", "ml"], ["Cuivre 16", "ml"],
-      ["Gaine PER", "ml"], ["Raccord à sertir", "u"], ["Raccord à visser", "u"],
-      ["Vanne d'arrêt", "u"], ["Collier de fixation", "u"], ["Nourrice 4 départs", "u"]
-    ],
-    "Évacuation": [
-      ["PVC 32", "ml"], ["PVC 40", "ml"], ["PVC 50", "ml"], ["PVC 100", "ml"],
-      ["Coude 87°", "u"], ["Culotte", "u"], ["Manchon", "u"], ["Tampon de visite", "u"],
-      ["Colle PVC", "u"], ["Siphon", "u"], ["Ventilation primaire", "u"]
-    ],
-    "Sanitaire": [
-      ["WC suspendu", "u"], ["Bâti-support", "u"], ["Lavabo", "u"], ["Meuble vasque", "u"],
-      ["Receveur de douche", "u"], ["Paroi de douche", "u"], ["Baignoire", "u"],
-      ["Mitigeur lavabo", "u"], ["Mitigeur douche", "u"], ["Mitigeur évier", "u"],
-      ["Flexible", "u"], ["Bonde", "u"], ["Robinet machine à laver", "u"]
-    ],
-    "Chauffage et eau chaude": [
-      ["Chauffe-eau 200 L", "u"], ["Groupe de sécurité", "u"], ["Vase d'expansion", "u"],
-      ["Radiateur", "u"], ["Robinet thermostatique", "u"], ["Circulateur", "u"],
-      ["Réducteur de pression", "u"], ["Purgeur", "u"]
-    ],
-    "Consommables": [
-      ["Téflon", "u"], ["Filasse", "u"], ["Pâte à joint", "u"], ["Joints fibre", "u"],
-      ["Lame de scie", "u"], ["Mèche", "u"], ["Mousse expansive", "u"]
-    ]
-  },
-
-  "Photovoltaïque": {
-    "Modules et structure": [
-      ["Panneau 500 Wc", "u"], ["Rail de fixation", "ml"], ["Éclisse de rail", "u"],
-      ["Crochet tuile", "u"], ["Crochet ardoise", "u"], ["Vis autoperceuse bac acier", "u"],
-      ["Pince milieu", "u"], ["Pince fin de rang", "u"], ["Plot toiture plate", "u"],
-      ["Lest", "u"], ["Embout de rail", "u"]
-    ],
-    "Partie continue": [
-      ["Câble solaire 6 mm2", "ml"], ["Connecteur MC4", "u"], ["Coffret DC", "u"],
-      ["Fusible 15A", "u"], ["Parafoudre DC", "u"], ["Interrupteur-sectionneur DC", "u"],
-      ["Presse-étoupe", "u"]
-    ],
-    "Onduleur et partie alternative": [
-      ["Micro-onduleur", "u"], ["Onduleur hybride", "u"], ["Coffret AC", "u"],
-      ["Disjoncteur 20A", "u"], ["Parafoudre AC", "u"], ["Compteur d'énergie", "u"],
-      ["Passerelle de communication", "u"], ["Câble R2V 3G6", "ml"]
-    ],
-    "Batterie": [
-      ["Batterie", "u"], ["Câble de batterie", "ml"], ["Coffret backup", "u"],
-      ["Support mural", "u"], ["Sectionneur batterie", "u"]
-    ],
-    "Raccordement et sécurité": [
-      ["Gaine TPC 63", "ml"], ["Chemin de câble", "ml"], ["Étiquettes DC", "u"],
-      ["Étiquettes AC", "u"], ["Panneau de signalisation", "u"], ["Ligne de vie", "u"]
-    ]
-  }
-};
-
 var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 var currentRec=null, currentBtn=null;
 function setupDictation(btn){
@@ -1089,7 +990,7 @@ function uid(){ return "i"+Date.now().toString(36)+Math.random().toString(36).sl
 function aujourdhui(){ return new Date().toISOString().slice(0,10); }
 function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 
-var APP_TYPE="commande";
+var APP_TYPE="point";
 var S=null, P=null;
 function blank(){
   return {
@@ -1117,7 +1018,7 @@ function enregistrer(){
   var charge;
   try{ charge=JSON.stringify(S); }
   catch(e){ saveEnCours=false; memoirePleine(true, "fiche trop lourde"); return; }
-  window.storage.set("commande:courante", charge)
+  window.storage.set("point:courant", charge)
     .then(function(){ memoirePleine(false); })
     .catch(function(e){ memoirePleine(true, (e && (e.name || e.message)) || ""); })
     .then(function(){
@@ -1132,6 +1033,13 @@ function save(){
 }
 function savePrefs(){ try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} }
 function destinataires(){ if(!S.destinataires) S.destinataires=[]; return S.destinataires; }
+function etatCourt(){
+  var r=[];
+  if(S.etatChantier) r.push(S.etatChantier);
+  var n=tachesRestantes().filter(function(x){ return (x.texte||"").trim(); }).length;
+  if(n) r.push(n+" tâche"+(n>1?"s":"")+" à faire");
+  return r.join(" · ");
+}
 function refAffaire(){
   return (S.chantier.ref||"").trim()
     || (S.chantier.client||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8);
@@ -1141,96 +1049,136 @@ function refreshHeader(){
   if(refAffaire()) r.push(refAffaire());
   var n=S.lignes.reduce(function(a,l){ return a+(l.qte>0?1:0); },0);
   if(n) r.push(n+" article"+(n>1?"s":""));
+  var restantes=(S.taches||[]).filter(function(t){ return !t.fait; }).length;
+  if(restantes) r.push(restantes+" à faire");
   $("hdrRef").textContent=r.join("  ");
-}
-
-/* ---------- commande ---------- */
-function ligne(cat, nom, unite){
-  var l=S.lignes.filter(function(x){ return x.nom===nom && x.cat===cat; })[0];
-  if(!l){ l={cat:cat, nom:nom, unite:unite||"u", qte:0}; S.lignes.push(l); }
-  return l;
-}
-function qteDe(cat, nom){
-  var l=S.lignes.filter(function(x){ return x.nom===nom && x.cat===cat; })[0];
-  return l ? l.qte : 0;
-}
-function ajuster(cat, nom, unite, delta){
-  var l=ligne(cat, nom, unite);
-  l.qte = Math.max(0, (parseFloat(l.qte)||0) + delta);
-  save(); renderCatalogue(); renderResume();
-}
-function renderCatalogue(){
-  var host=$("catalogue"); host.textContent="";
-  var rub=CATALOGUE[S.metier]||{};
-  var filtre=($("recherche").value||"").trim().toLowerCase();
-  Object.keys(rub).forEach(function(cat){
-    var articles=rub[cat].filter(function(a){
-      return !filtre || a[0].toLowerCase().indexOf(filtre)>=0;
-    });
-    if(!articles.length) return;
-    var choisis=rub[cat].filter(function(a){ return qteDe(cat,a[0])>0; }).length;
-    var card=document.createElement("div");
-    card.className="room";
-    var ouvert = !!filtre || choisis>0;
-    card.dataset.open = ouvert ? "1" : "0";
-
-    var head=document.createElement("div"); head.className="head";
-    var n=document.createElement("span"); n.className="n"; n.textContent=String(choisis||"·");
-    var t=document.createElement("span"); t.className="t"; t.textContent=cat;
-    var meta=document.createElement("span"); meta.className="meta";
-    meta.textContent = choisis ? choisis+" article"+(choisis>1?"s":"") : "";
-    head.appendChild(n); head.appendChild(t); head.appendChild(meta);
-    head.addEventListener("click", function(){
-      card.dataset.open = card.dataset.open==="1" ? "0" : "1";
-    });
-    card.appendChild(head);
-
-    var body=document.createElement("div"); body.className="body";
-    articles.forEach(function(a){
-      var q=qteDe(cat, a[0]);
-      var row=document.createElement("div");
-      row.style.cssText="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--rule)";
-      var lab=document.createElement("div"); lab.style.cssText="flex:1;font-size:15px";
-      lab.textContent=a[0];
-      var u=document.createElement("span");
-      u.style.cssText="display:block;font-size:12px;color:var(--ink-3)";
-      u.textContent=a[1];
-      lab.appendChild(u);
-      var moins=stepper("−", function(){ ajuster(cat, a[0], a[1], -1); });
-      var val=document.createElement("input");
-      val.type="number"; val.inputMode="numeric"; val.value = q ? q : "";
-      val.placeholder="0";
-      val.style.cssText="width:64px;min-height:42px;text-align:center;font-size:16px;padding:8px 4px;"
-        +"border:0;border-radius:var(--r-field);background:"+(q?"var(--accent-soft)":"var(--field)")
-        +";color:"+(q?"var(--accent)":"var(--ink)")+";font-weight:"+(q?"700":"400");
-      val.addEventListener("input", function(){
-        ligne(cat, a[0], a[1]).qte = Math.max(0, parseFloat(val.value)||0);
-        save(); renderResume();
-      });
-      val.addEventListener("blur", renderCatalogue);
-      var plus=stepper("+", function(){ ajuster(cat, a[0], a[1], 1); });
-      row.appendChild(lab); row.appendChild(moins); row.appendChild(val); row.appendChild(plus);
-      body.appendChild(row);
-    });
-    card.appendChild(body);
-    host.appendChild(card);
-  });
-}
-function stepper(txt, fn){
-  var b=document.createElement("button");
-  b.type="button"; b.textContent=txt;
-  b.style.cssText="width:42px;height:42px;min-height:42px;border:0;border-radius:var(--r-field);background:var(--field);"
-    +"font-size:19px;font-weight:600;color:var(--ink);font-family:inherit;cursor:pointer;flex:0 0 auto";
-  b.addEventListener("click", fn);
-  return b;
 }
 
 /* ---------- reste à faire ---------- */
 function tachesRestantes(){
   return S.taches.filter(function(t){ return !t.fait; });
 }
+function renderTaches(){
+  var host=$("listeTaches"); host.textContent="";
+  var restantes=tachesRestantes().length;
+  var compte=$("resteCompte");
+  if(compte){
+    compte.textContent = S.taches.length
+      ? restantes + " sur " + S.taches.length + (restantes>1 ? " à faire" : " à faire")
+      : "rien pour l'instant";
+  }
+  var aide=$("resteAide"); if(aide) aide.hidden = !S.taches.length;
+
+  S.taches.forEach(function(t, i){
+    var ligne=document.createElement("div");
+    ligne.className="n-item" + (t.fait ? " fait" : "");
+
+    var casier=document.createElement("button");
+    casier.type="button"; casier.className="n-case"+(t.fait?" on":"");
+    casier.setAttribute("aria-pressed", t.fait ? "true" : "false");
+    casier.setAttribute("aria-label", (t.fait?"Décocher ":"Cocher ")+(t.texte||"la tâche"));
+    casier.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+    casier.addEventListener("click", function(){
+      t.fait=!t.fait; save(); renderTaches(); renderResume(); refreshHeader();
+    });
+
+    var texte=document.createElement("textarea");
+    texte.rows=1; texte.className="n-texte"; texte.value=t.texte||"";
+    texte.placeholder="Ce qu'il reste à faire";
+    function hauteurTexte(){
+      texte.style.height="auto";
+      texte.style.height=Math.max(28, texte.scrollHeight)+"px";
+    }
+    setTimeout(hauteurTexte, 0);
+    texte.addEventListener("input", function(){ t.texte=texte.value; hauteurTexte(); save(); });
+    texte.addEventListener("change", function(){ renderResume(); });
+    texte.addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault(); ajouterTache(i+1); }
+    });
+
+    var cloche=document.createElement("button");
+    cloche.type="button";
+    cloche.className="n-petit" + ((t.qui||t.quand||t.prio==="Urgent") ? " on" : "");
+    cloche.setAttribute("aria-label","Confier "+(t.texte||"la tâche")+" à quelqu'un");
+    cloche.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 1 0-12 0c0 5-2 6.5-2 6.5h16S18 14 18 9z"/><path d="M13.7 19.5a2 2 0 0 1-3.4 0"/></svg>';
+    cloche.addEventListener("click", function(){
+      t.ouvert = !t.ouvert; renderTaches();
+    });
+
+    var jeter=document.createElement("button");
+    jeter.type="button"; jeter.className="n-petit n-del"; jeter.textContent="×";
+    jeter.setAttribute("aria-label","Retirer "+(t.texte||"la tâche"));
+    jeter.addEventListener("click", function(){
+      S.taches.splice(i,1); save(); renderTaches(); renderResume(); refreshHeader();
+    });
+
+    ligne.appendChild(casier); ligne.appendChild(texte);
+    ligne.appendChild(cloche); ligne.appendChild(jeter);
+    host.appendChild(ligne);
+
+    if(t.ouvert){
+      var det=document.createElement("div"); det.className="n-detail";
+      var g=document.createElement("div"); g.className="grid2";
+      var lQui=document.createElement("label"); lQui.className="f";
+      var sQui=document.createElement("span"); sQui.textContent="Pour qui";
+      var qui=document.createElement("input");
+      qui.type="text"; qui.setAttribute("list","dl_equipe"); qui.value=t.qui||"";
+      qui.placeholder="Prénom de l'équipe";
+      qui.addEventListener("input", function(){ t.qui=qui.value.trim(); save(); });
+      lQui.appendChild(sQui); lQui.appendChild(qui);
+      var lQuand=document.createElement("label"); lQuand.className="f";
+      var sQuand=document.createElement("span"); sQuand.textContent="Pour le";
+      var quand=document.createElement("input");
+      quand.type="date"; quand.value=t.quand||"";
+      quand.addEventListener("input", function(){ t.quand=quand.value; save(); renderTaches(); });
+      lQuand.appendChild(sQuand); lQuand.appendChild(quand);
+      g.appendChild(lQui); g.appendChild(lQuand);
+      det.appendChild(g);
+      var urg=document.createElement("label");
+      urg.className="chip"+(t.prio==="Urgent"?" on":"");
+      urg.style.cssText="margin:0";
+      urg.textContent="Urgent";
+      urg.addEventListener("click", function(e){
+        e.preventDefault();
+        t.prio = (t.prio==="Urgent") ? "Normal" : "Urgent";
+        save(); renderTaches(); renderResume();
+      });
+      det.appendChild(urg);
+      var note=document.createElement("p");
+      note.className="n-vide"; note.style.margin="8px 0 0";
+      note.textContent = (t.qui && t.quand)
+        ? t.qui + " verra cette tâche sur son accueil le " + frDate(t.quand) + ", après publication."
+        : "Un prénom de l'équipe et une date transforment la tâche en rappel.";
+      det.appendChild(note);
+      host.appendChild(det);
+    }
+  });
+}
+function ajouterTache(position){
+  var t={texte:"", fait:false, prio:"Normal", quand:"", qui:""};
+  if(position==null || position>S.taches.length) S.taches.push(t);
+  else S.taches.splice(position, 0, t);
+  save(); renderTaches(); renderResume();
+  var champs=$("listeTaches").querySelectorAll(".n-texte");
+  var cible=champs[position==null ? champs.length-1 : Math.min(position, champs.length-1)];
+  if(cible) cible.focus();
+}
+function renderPhotos(){
+  var host=$("photos"); host.textContent="";
+  S.photos.forEach(function(ph, i){
+    var d=document.createElement("div"); d.className="thumb";
+    var im=document.createElement("img"); im.src=ph.data; im.alt="";
+    var lg=document.createElement("input"); lg.type="text"; lg.placeholder="Légende"; lg.value=ph.legende||"";
+    lg.addEventListener("input", function(){ ph.legende=lg.value; save(); });
+    var bd=document.createElement("button"); bd.className="del"; bd.type="button"; bd.textContent="×";
+    bd.addEventListener("click", function(){ S.photos.splice(i,1); save(); renderPhotos(); renderResume(); });
+    d.appendChild(im); d.appendChild(lg); d.appendChild(bd);
+    host.appendChild(d);
+  });
+}
+
 /* ---------- onglets ---------- */
-var TABS=[["travaux","Travaux"],["commande","Commande"],["envoi","Envoi"]];
+var TABS=[["travaux","Travaux"],["todo","Le point"],["envoi","Envoi"]];
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -1291,7 +1239,6 @@ function showTab(name){
   if(actif && actif.scrollIntoView && nav.scrollWidth > nav.clientWidth + 4){
     actif.scrollIntoView({inline:"center", block:"nearest", behavior:"smooth"});
   }
-  if(name==="commande") renderCatalogue();
   if(name==="envoi") renderResume();
 }
 function boutonHaut(sec){
@@ -1332,21 +1279,18 @@ function stepNav(name){
 }
 
 /* ---------- formulaire ---------- */
-var FIELDS=[
+var FIELDS=[["r_note","resteNote"],
   ["c_client","chantier.client"],["c_ref","chantier.ref"],["c_adresse","chantier.adresse"],
-  ["c_date","date"]];
+  ["c_date","date"],["notes","notes"],];
 function getPath(p){ var a=p.split("."); return a.length===1?S[a[0]]:S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[0]][a[1]]=v; }
 function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
-  chips("ch_metier", Object.keys(CATALOGUE),
-    function(o){ return S.metier===o; },
-    function(o){ S.metier=o; save(); renderCatalogue(); });
-  if(false) chips("ch_etat", ETATS_CHANTIER,
+  chips("ch_etat", ETATS_CHANTIER,
     function(o){ return S.etatChantier===o; },
     function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); renderResume(); refreshHeader(); });
-  renderCatalogue(); renderDest(); renderResume(); refreshHeader();
+  renderTaches(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
 }
 var ETATS_CHANTIER=["Pas commencé","En cours","Presque fini","Terminé","À l'arrêt"];
 function chips(host, opts, get, set){
@@ -1365,9 +1309,11 @@ function lignesUtiles(){ return S.lignes.filter(function(l){ return l.qte>0; });
 function renderResume(){
   var host=$("resume"); if(!host) return;
   host.textContent="";
+  var restantes=tachesRestantes().length;
   [["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
-   ["Métier", S.metier],
-   ["Articles commandés", String(lignesUtiles().length)],
+   ["Où j'en suis", S.etatChantier || ((S.resteNote||"").trim() ? "noté" : "à renseigner")],
+   ["Reste à faire", S.taches.length ? restantes + " sur " + S.taches.length : "rien"],
+   ["Photos", String(S.photos.length)],
    ["Destinataires", destinataires().join(", ")||"aucun"]].forEach(function(l){
     var d=document.createElement("div");
     d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
@@ -1920,7 +1866,7 @@ function buildPdf(){
       tx=M+lw+7;
     }
     setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Commande de matériel", tx, 19);
+    doc.text("Le point de chantier", tx, 19);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
     var sous="Travaux du "+frDate(S.date);
     if(refAffaire()) sous += "     "+refAffaire();
@@ -1949,7 +1895,7 @@ function buildPdf(){
     footer(); doc.addPage(); page++;
     setFill(INK); doc.rect(0,0,PW,2.2,"F");
     doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.chantier.client||"Commande"), M, 12);
+    doc.text((S.chantier.client||"Le point"), M, 12);
     doc.text(frDate(S.date), PW-M, 12, {align:"right"});
     setText(INK); y=20;
   }
@@ -1958,11 +1904,16 @@ function buildPdf(){
   bandeau();
 
   var lignes=lignesUtiles();
-  var bc = ACC;
+  var urgentes=S.taches.filter(function(t){ return !t.fait && t.prio==="Urgent"; }).length;
+  var bc = urgentes ? AMBER : ACC;
   setFill(bc); doc.roundedRect(M, y, CW, 11, 0.8, 0.8, "F");
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  doc.text(S.metier + "  -  " + lignes.length + " article" + (lignes.length>1?"s":"")
-    + " à commander", M+5, y+7.2);
+  doc.text("Le point de chantier" + (S.etatChantier ? "  -  " + S.etatChantier : ""), M+5, y+7.2);
+  var resteCount=tachesRestantes().filter(function(t){ return (t.texte||"").trim(); }).length;
+  if(resteCount){
+    doc.text(resteCount + " tâche" + (resteCount>1?"s":"")
+      + (urgentes? "  dont "+urgentes+" urgente"+(urgentes>1?"s":"") : ""), PW-M-5, y+7.2, {align:"right"});
+  }
   setText(INK); y+=16;
 
   h2("Travaux", 45);
@@ -1994,10 +1945,87 @@ function buildPdf(){
     });
   }
 
+  var etat=(S.etatChantier||"").trim(), avance=(S.resteNote||"").trim();
+  var objet=(S.resteObjet||"").trim();
+  if(etat || avance){
+    h2("Où j'en suis", 40);
+    if(etat){
+      need(14);
+      setFill(ACC); doc.roundedRect(M, y-4.6, 34, 7.4, 0.8, 0.8, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(255,255,255);
+      doc.text(etat, M+17, y+0.4, {align:"center"});
+      setText(INK); y+=8;
+    }
+    if(avance) para(avance);
+  }
+
+  var aFaire=S.taches.filter(function(t){ return (t.texte||"").trim(); });
+  if(aFaire.length){
+    var restantes=aFaire.filter(function(t){ return !t.fait; }).length;
+    h2((objet ? "Reste à faire — "+objet : "Reste à faire")
+      + "   (" + restantes + " sur " + aFaire.length + ")", 50);
+    aFaire.forEach(function(t){
+      need(14);
+      /* une case à cocher, comme sur l'écran */
+      doc.setDrawColor(120, 114, 104); doc.setLineWidth(0.4);
+      doc.rect(M+1, y-3.6, 4, 4);
+      if(t.fait){
+        doc.setLineWidth(0.7);
+        doc.line(M+1.8, y-1.7, M+2.7, y-0.6);
+        doc.line(M+2.7, y-0.6, M+4.4, y-3.1);
+        doc.setLineWidth(0.4);
+      }
+      doc.setFont("helvetica", t.fait ? "normal" : "bold"); doc.setFontSize(10);
+      setText(t.fait ? GREY : INK);
+      var l1=doc.splitTextToSize(t.texte.trim(), CW-40);
+      doc.text(l1[0], M+8, y);
+      if(!t.fait && t.prio==="Urgent"){
+        doc.setFontSize(8.5); setText(RED);
+        doc.text("URGENT", PW-M-2, y, {align:"right"});
+      }
+      setText(INK); y+=5;
+      for(var k=1;k<l1.length;k++){
+        need(6); doc.setFont("helvetica", t.fait ? "normal" : "bold");
+        setText(t.fait ? GREY : INK);
+        doc.text(l1[k], M+8, y); setText(INK); y+=5;
+      }
+      var meta=[t.fait ? "fait" : "", t.qui, t.quand?"pour le "+frDate(t.quand):""]
+        .filter(Boolean).join("     ");
+      if(meta){
+        doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
+        doc.text(meta, M+8, y); setText(INK); y+=5;
+      }
+      y+=2.5;
+    });
+  }
+
+  if((S.notes||"").trim()){
+    h2("À prendre en compte", 35);
+    encadre(S.notes);
+  }
+
+  if(S.photos.length){
+    h2("Photos", 80);
+    var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
+    S.photos.forEach(function(p){
+      var h=Math.min(70, cw*(p.h/p.w));
+      if(ci===0){ need(h+10); startY=y; rowH=0; }
+      var x=M+ci*(cw+6);
+      try{ doc.addImage(p.data,"JPEG", x, startY, cw, h); }catch(e){}
+      if(p.legende){
+        doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
+        doc.text(doc.splitTextToSize(p.legende, cw)[0], x, startY+h+3.8); setText(INK);
+      }
+      rowH=Math.max(rowH, h+(p.legende?5:0));
+      ci++; if(ci===2){ y=startY+rowH+6; ci=0; }
+    });
+    if(ci){ y=startY+rowH+6; }
+  }
+
   footer();
   return doc;
 }
-function pdfName(){ return "Commande-"+(refAffaire()||"chantier")+"-"+S.date+".pdf"; }
+function pdfName(){ return "Point-"+(refAffaire()||"chantier")+"-"+S.date+".pdf"; }
 function dl(blob, name){
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=name; a.click();
@@ -2022,15 +2050,15 @@ function ficheCharger(d, f){
 
 /* ---------- envoi e-mail ---------- */
 function mailSubject(){
-  return "Commande de matériel — "+(S.chantier.client||"chantier")
+  return "Le point de chantier — "+(S.chantier.client||"chantier")
     +(refAffaire()?" ("+refAffaire()+")":"")+" — "+frDate(S.date);
 }
 function mailBody(){
-  var L=["Bonjour,", "", "Commande de matériel et reste à faire pour les travaux "
+  var L=["Bonjour,", "", "Le point de chantier pour les travaux "
     +(S.chantier.client||"")+(refAffaire()?" ("+refAffaire()+")":"")+", relevé du "+frDate(S.date)+"."];
   var lignes=lignesUtiles();
   L.push("");
-  L.push(lignes.length+" article(s) à commander, "+tachesRestantes().length+" tâche(s) restante(s)."
+  L.push(tachesRestantes().length+" tâche(s) restante(s)."
     + (S.etatChantier ? " Chantier : "+S.etatChantier.toLowerCase()+"." : ""));
   if((S.notes||"").trim()){ L.push(""); L.push(S.notes.trim()); }
   L.push(""); L.push("Le détail est en pièce jointe.");
@@ -2040,7 +2068,7 @@ function mailBody(){
 }
 function messagePartage(){
   return ["Bonjour,", "",
-    "Commande de matériel du " + frDate(S.date)
+    "Le point de chantier du " + frDate(S.date)
       + (S.chantier.client ? " — " + S.chantier.client : "") + ".",
     "", (SESSION&&SESSION.nom)||"", (P&&P.societe)||""].join("\n");
 }
@@ -2078,16 +2106,18 @@ function bindAll(){
   document.querySelectorAll("[data-dictee]").forEach(function(b){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
   });
-  $("recherche").addEventListener("input", renderCatalogue);
+  $("btnPlusTache").addEventListener("click", function(){ ajouterTache(); });
 
-  $("btnDivers").addEventListener("click", function(){
-    var nom=($("d_nom").value||"").trim();
-    if(!nom){ toast("Indiquez la désignation."); return; }
-    var q=parseFloat($("d_qte").value)||1;
-    S.lignes.push({cat:"Divers", nom:nom, unite:"u", qte:q});
-    $("d_nom").value=""; $("d_qte").value="";
-    save(); renderCatalogue(); renderResume();
-    toast(nom+" ajouté.");
+  $("btnPhoto").addEventListener("click", function(){ $("filePhoto").click(); });
+  $("filePhoto").addEventListener("change", function(){
+    var files=this.files, n=files.length, done=0;
+    Array.prototype.forEach.call(files, function(f){
+      compress(f, function(ph){
+        if(ph) S.photos.push(ph);
+        if(++done===n){ save(); renderPhotos(); renderResume(); }
+      });
+    });
+    this.value="";
   });
 
   $("btnTravauxSite").addEventListener("click", function(){ ouvrirDepuisSite("dossier", "Dossiers du site"); });
@@ -2105,17 +2135,20 @@ function bindAll(){
   $("btnPublier").addEventListener("click", function(){
     if(!refAffaire()){ toast("Indiquez les travaux."); showTab("travaux"); return; }
     publierRapport({
+      taches: S.taches.filter(function(t){ return !t.fait && t.qui && t.quand && (t.texte||"").trim(); }),
       chantier: refAffaire(), client: S.chantier.client, adresse: S.chantier.adresse,
-      type: "commande", date: S.date, visite: "",
-      etape: S.metier,
-      titre: "Commande de matériel - "+S.metier
+      type: APP_TYPE, date: S.date, visite: "",
+      etape: etatCourt(),
+      titre: "Le point de chantier"
     });
   });
+  $("btnPhotosZip").addEventListener("click", exporterPhotos);
+  $("btnPhotosSite").addEventListener("click", deposerPhotos);
 
   $("btnNew").addEventListener("click", function(){
-    if(!window.confirm("Effacer cette commande et repartir de zéro ?")) return;
+    if(!window.confirm("Effacer ce point et repartir de zéro ?")) return;
     S=blank(); S.auteur=(SESSION&&SESSION.nom)||"";
-    save(); paintForm(); showTab("travaux"); toast("Nouvelle commande.");
+    save(); paintForm(); showTab("travaux"); toast("Nouveau point.");
   });
 }
 
@@ -2239,7 +2272,7 @@ function adapterRole(){
     /* le technicien choisit le dossier comme les autres : c'est la référence
        qui range le document, la saisir à la main éparpille le chantier */
     var i=$("pubIntro");
-    if(i) i.textContent="Votre commande part directement dans l'espace du chargé d'affaires choisi.";
+    if(i) i.textContent="Votre point part directement dans l'espace du chargé d'affaires choisi.";
     var t=$("pubTitre"); if(t) t.textContent="Chargé d'affaires destinataire";
   }
 }
@@ -2255,7 +2288,7 @@ function start(){
   }
   function fini(){ if(--pending===0) go(); }
   try{
-    window.storage.get("commande:courante").then(function(r){ if(r&&r.value){ try{ sBrut=JSON.parse(r.value); }catch(e){} } fini(); }).catch(fini);
+    window.storage.get("point:courant").then(function(r){ if(r&&r.value){ try{ sBrut=JSON.parse(r.value); }catch(e){} } fini(); }).catch(fini);
     window.storage.get("releve:prefs").then(function(r){ if(r&&r.value){ try{ pBrut=JSON.parse(r.value); }catch(e){} } fini(); }).catch(fini);
   }catch(e){ pending=0; go(); }
 }
@@ -2295,7 +2328,7 @@ var CH_BUREAU=[
   ["reception","Réception","./reception.html","reception"],
   ["technique","Documents techniques","./technique.html","technique"]
 ];
-var CH_APPLI = "commande";
+var CH_APPLI = "point";
 function chantierCourant(){
   try{ return JSON.parse(sessionStorage.getItem("chantier:courant")||"null"); }
   catch(e){ return null; }

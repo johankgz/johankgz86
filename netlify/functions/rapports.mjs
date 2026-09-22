@@ -31,6 +31,7 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
     : entree.type === "carnet" ? "Carnet d'échantillons"
     : entree.type === "memoire" ? "Mémoire technique"
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
+    : entree.type === "point" ? "Le point de chantier"
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
     : "Relevé technique";
   const titre = chantier.client || chantier.ref;
@@ -169,7 +170,8 @@ const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
   autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
-  carnet: "carnet", memoire: "carnet", doe: "carnet", technique: "technique"
+  carnet: "carnet", memoire: "carnet", doe: "carnet", technique: "technique",
+  point: "commande"
 };
 function applisValides(liste) {
   if (!Array.isArray(liste)) return [];
@@ -297,6 +299,7 @@ function typeDuFichier(cle) {
 function rang(f) {
   if (f.type === "releve") return -1;
   if (f.type === "commande") return 1000 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "point") return 1100 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "photos") return 2000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
@@ -511,6 +514,7 @@ export default async (req) => {
     const memoire = d.type === "memoire";
     const doe = d.type === "doe";
     const technique = d.type === "technique";
+    const point = d.type === "point";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
     const appliVisee = APPLI_DU_TYPE[d.type] || "";
@@ -521,7 +525,7 @@ export default async (req) => {
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -559,6 +563,8 @@ export default async (req) => {
       ? "etiquettes-" + slug(d.etape || "tableau") + ".pdf"
       : reception
       ? "reception-" + slug(d.date || new Date().toISOString().slice(0, 10)) + ".pdf"
+      : point
+      ? "point-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".pdf"
       : photos
       ? "photos-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".zip"
       : commande
@@ -585,8 +591,8 @@ export default async (req) => {
     }
     const entree = {
       cle,
-      titre: d.titre || (technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || new Date().toISOString().slice(0, 10),

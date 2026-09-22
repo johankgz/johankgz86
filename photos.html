@@ -517,6 +517,55 @@ nav#nav button svg{stroke-width:1.9}
   button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
   button:active,.act:active,button.p:active{transform:none}
 }
+
+/* ---------- les deux barres : le chantier en haut, les onglets en bas ----------
+   En haut, ce qui change de document sur le même chantier. En bas, sous
+   le pouce, ce qui change d'onglet dans le document en cours. */
+nav#navChantier{
+  display:flex;gap:1px;padding:4px 3px;margin:9px 0 0;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  background:var(--g-800);border:1px solid var(--trait-tech);border-radius:10px;
+}
+nav#navChantier[hidden]{display:none}
+nav#navChantier::-webkit-scrollbar{display:none}
+nav#navChantier a{
+  flex:1 1 0;min-width:54px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 2px 6px;border-radius:7px;text-decoration:none;
+  font-size:9px;font-weight:500;line-height:1.2;text-align:center;color:#8A97A6;
+}
+nav#navChantier a span{display:block;width:100%;hyphens:none;overflow-wrap:normal}
+nav#navChantier svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;
+ stroke-linecap:round;stroke-linejoin:round}
+nav#navChantier a[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);font-weight:600;
+  box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+.nav-wrap{position:relative}
+.nav-wrap::after{
+  content:"";position:absolute;top:1px;right:1px;bottom:1px;width:26px;
+  border-radius:0 9px 9px 0;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(17,24,33,0),var(--g-800));transition:opacity .2s ease;
+}
+.nav-wrap.deborde::after{opacity:1}
+
+/* la barre d'onglets descend sous le pouce */
+nav#nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  margin:0;border-radius:0;border:0;border-top:1px solid var(--trait-tech);
+  background:var(--g-900);
+  padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px));
+}
+nav#nav::before{
+  content:"";position:absolute;left:0;right:0;top:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+.toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+@media (min-width:760px){
+  nav#nav{padding-left:0;padding-right:0}
+  nav#nav button{max-width:150px}
+}
 </style>
 </head>
 <body>
@@ -524,7 +573,7 @@ nav#nav button svg{stroke-width:1.9}
   <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Reportage photo</h1>
     <div class="ref" id="hdrRef"></div>
   </div>
-  <nav id="nav"></nav>
+  <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
   <div class="avance">
     <div class="barre"><i id="avanceBarre" style="width:0"></i></div>
     <p class="etape"><b id="avanceTitre"></b><span id="avanceEtape"></span></p>
@@ -652,6 +701,7 @@ nav#nav button svg{stroke-width:1.9}
   </div>
 </div>
 
+<nav id="nav" aria-label="Les onglets de cette fiche"></nav>
 <div class="toast" id="toast" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -1719,6 +1769,8 @@ function reprendreDossier(d){
   S.chantier.ref = d.ref || S.chantier.ref;
   S.chantier.adresse = d.adresse || S.chantier.adresse;
   save(); paintForm(); equipeDuDossier(); showTab("dossier");
+  /* le dossier est connu : on publie dedans, pas à une personne */
+  try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
 }
 
@@ -2023,7 +2075,10 @@ function adapterRole(){
         return;
       }
     }
+    /* on retient le chantier : la barre du haut en vit */
+    try{ poserChantier(d); }catch(e){}
     try{ reprendreDossier(d); }catch(e){}
+    try{ peindreNavChantier(); }catch(e){}
     if(onglet){ try{ showTab(onglet); }catch(e){} }
     /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
     try{ history.replaceState(null, "", location.pathname); }catch(e){}
@@ -2076,6 +2131,115 @@ function start(){
   }catch(e){ pending=0; go(); }
 }
 start();
+
+
+/* ---------- la barre du chantier, en haut ----------
+   Quand on arrive depuis la page d'un chantier, on garde ce chantier
+   sous la main : une touche suffit pour passer d'un document à l'autre
+   sans repasser par la liste. */
+var CH_ICONES = {
+  suivi:'<path d="M4 18.5l5-5.5 3.5 3L20 7.5"/><path d="M15.5 7.5H20v4.5"/>',
+  commande:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>',
+  point:'<path d="M4 6.5h3M4 12h3M4 17.5h3"/><path d="M10.5 6.5h9.5M10.5 12h9.5M10.5 17.5h6"/>',
+  etiquettes:'<rect x="3.5" y="6.5" width="17" height="11" rx="1.4"/><path d="M8 6.5v11M12 6.5v11M16 6.5v11"/>',
+  photos:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>',
+  autocontrole:'<rect x="5" y="3.5" width="14" height="17" rx="1.6"/><path d="M8.5 9l1.6 1.6L14 6.8"/><path d="M8.5 15h7"/>',
+  reception:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 14.2l2 2 4-4.4"/>',
+  technique:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>',
+  chantier:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>'
+};
+var CH_TECH=[
+  ["commande","Commande","./commande.html","commande"],
+  ["point","Le point","./point.html","point"],
+  ["photos","Reportage photo","./photos.html","photos"],
+  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
+  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
+  ["technique","Documents techniques","./technique.html","technique"]
+];
+var CH_BUREAU=[
+  ["suivi","Suivi","./suivi.html","suivi"],
+  ["commande","Commande","./commande.html","commande"],
+  ["point","Le point","./point.html","point"],
+  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
+  ["photos","Photos","./photos.html","photos"],
+  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
+  ["reception","Réception","./reception.html","reception"],
+  ["technique","Documents techniques","./technique.html","technique"]
+];
+var CH_APPLI = "photos";
+function chantierCourant(){
+  try{ return JSON.parse(sessionStorage.getItem("chantier:courant")||"null"); }
+  catch(e){ return null; }
+}
+function poserChantier(d){
+  try{ sessionStorage.setItem("chantier:courant", JSON.stringify(d)); }catch(e){}
+}
+function chAAcces(id){
+  var siennes = (SESSION && SESSION.applis) || [];
+  if(!Array.isArray(siennes) || !siennes.length) return true;
+  if(SESSION.role === "admin" || SESSION.proprietaire) return true;
+  /* le point suit le droit de la commande : c'est le même métier */
+  return siennes.indexOf(id === "point" ? "commande" : id) >= 0;
+}
+function chLien(page){
+  var c=chantierCourant(); if(!c) return page;
+  var p=new URLSearchParams();
+  p.set("ref", c.ref);
+  if(c.client) p.set("client", c.client);
+  if(c.adresse) p.set("adresse", String(c.adresse).replace(/\n/g, ", "));
+  return page + "?" + p.toString();
+}
+function peindreNavChantier(){
+  var hote=document.getElementById("navChantier");
+  var wrap=document.getElementById("navChantierWrap");
+  if(!hote || !wrap) return;
+  var c=chantierCourant();
+  /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
+  var sienne=false;
+  try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
+  if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
+  wrap.hidden=false; hote.hidden=false;
+  hote.textContent="";
+
+  var retour=document.createElement("a");
+  retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
+  retour.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+CH_ICONES.chantier+'</svg>';
+  var rt=document.createElement("span"); rt.textContent="Le chantier";
+  retour.appendChild(rt);
+  hote.appendChild(retour);
+
+  var liste = (SESSION && SESSION.role === "technicien") ? CH_TECH : CH_BUREAU;
+  liste.forEach(function(a){
+    if(!chAAcces(a[3])) return;
+    var el=document.createElement("a");
+    var ici = a[0] === CH_APPLI;
+    el.href = ici ? "#" : chLien(a[2]);
+    if(ici) el.setAttribute("aria-current","true");
+    el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(CH_ICONES[a[0]]||"")+'</svg>';
+    var b=document.createElement("span"); b.textContent=a[1];
+    el.appendChild(b);
+    if(ici) el.addEventListener("click", function(e){ e.preventDefault(); });
+    hote.appendChild(el);
+  });
+  majDebordChantier();
+}
+function majDebordChantier(){
+  var n=document.getElementById("navChantier"), w=document.getElementById("navChantierWrap");
+  if(!n || !w) return;
+  w.classList.toggle("deborde", n.scrollWidth - n.clientWidth - n.scrollLeft > 4);
+}
+(function lierNavChantier(){
+  var n=document.getElementById("navChantier");
+  if(n) n.addEventListener("scroll", majDebordChantier);
+  window.addEventListener("resize", majDebordChantier);
+  var essais=0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S){ if(++essais > 120) return; setTimeout(attendre, 100); return; }
+    peindreNavChantier();
+    /* la fiche peut changer de chantier en cours de route */
+    setInterval(peindreNavChantier, 1500);
+  })();
+})();
 
 })();
 </script>
