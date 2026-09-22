@@ -1,0 +1,777 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Chantier</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--field:#EFEBE1;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;
+ --rule:#E2DCCE;--accent:#B4621A;--accent-soft:#FBEDE0;--solar:#E8A33D;--solar-soft:#FBEDE0;
+ --shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.45;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(28px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:640px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 12px}
+input{width:100%;min-height:48px;padding:12px 14px;font-size:16px;font-family:inherit;color:var(--ink);
+ background:var(--field);border:1px solid transparent;border-radius:var(--r-field)}
+input:focus{outline:none;background:#fff;border-color:var(--accent);box-shadow:0 0 0 4px rgba(180,98,26,.16)}
+label span{display:block;font-size:13.5px;color:var(--ink-2);margin-bottom:6px}
+button{min-height:48px;padding:12px 18px;border:0;border-radius:var(--r-field);background:var(--accent);color:#fff;
+ font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}
+button:active{transform:scale(.975)}
+button.ghost{background:var(--accent-soft);color:var(--accent)}
+.hint{font-size:13px;color:var(--ink-3);margin:10px 0 0}
+.err{font-size:14px;color:#A6291F;margin:10px 0 0}
+.travaux{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);margin-bottom:12px;overflow:hidden}
+.travaux .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 16px;cursor:pointer}
+.travaux .head b{flex:1;font-size:16px;letter-spacing:-.02em}
+.travaux .head .n{font-size:12.5px;color:var(--ink-3);white-space:nowrap}
+.travaux .head .barre{display:flex;gap:8px;flex-wrap:wrap;width:100%;margin-top:2px}
+.travaux .head .ref{font-size:12px;font-weight:700;color:#fff;background:var(--accent);border-radius:var(--r-field);padding:3px 8px}
+.fichiers{border-top:1px solid var(--rule);padding:6px 0}
+.f{display:flex;align-items:center;gap:12px;padding:12px 16px;text-decoration:none;color:inherit;border-bottom:1px solid var(--rule)}
+.f:last-child{border-bottom:0}
+.f .t{flex:1}
+.f .t b{display:block;font-size:15px;font-weight:600}
+.f .t span{display:block;font-size:12.5px;color:var(--ink-3)}
+.f .t span.lu{margin-top:3px;font-size:12px;font-weight:600;color:#0B7A45}
+.f .t span.lu.na{color:#8C8475;font-weight:500}
+.f .tag{font-size:11.5px;font-weight:700;padding:4px 9px;border-radius:var(--r-field);background:var(--accent-soft);color:var(--accent);white-space:nowrap}
+.f .tag.suivi{background:var(--solar-soft);color:#7A5200}
+.f .tag.commande{background:#EDF0E4;color:#0B7A45}
+.f .tag.photos{background:#EDEAFB;color:#5B3FD6}
+.f .tag.reportage{background:#EDEAFB;color:#4B36AE;font-weight:700}
+.f .tag.autoc{background:#E7EDF3;color:#2F4D68;font-weight:700}
+.f .tag.carnet{background:#F3ECE2;color:#7A4B12;font-weight:700}
+.f .tag.memoire{background:#EDEFEA;color:#4A5A34;font-weight:700}
+.f .tag.doe{background:#E6EFEC;color:#1F5C4A;font-weight:700}
+.f .tag.reception{background:#EDF0E4;color:#0B7A45;font-weight:700}
+.f .tag.etiq{background:#F1F0EC;color:#6B6455}
+.f .tag.sav{background:#F8E4E0;color:#B3332C;font-weight:700}
+.vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:26px 10px}
+.hint{font-size:13px;color:var(--ink-3)}
+.actions{display:flex;gap:8px;padding:10px 16px 14px;border-top:1px solid var(--rule)}
+.actions button{min-height:40px;padding:9px 14px;border:0;border-radius:var(--r-field);font-size:13.5px;font-weight:600;
+ font-family:inherit;cursor:pointer;background:var(--accent-soft);color:var(--accent)}
+.actions button.danger{background:#F8E4E0;color:#A6291F}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+.f .sup{flex:0 0 auto;width:32px;height:32px;min-height:32px;padding:0;margin-left:6px;border:0;
+ background:none;color:var(--ink-3);font-size:19px;line-height:1;cursor:pointer;border-radius:var(--r-field)}
+.f .sup:hover,.f .sup:active{background:#F8E4E0;color:var(--danger)}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+.f .part{flex:0 0 auto;margin-left:6px;width:32px;height:32px;padding:0;border:0;background:none;
+ color:var(--ink-3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:var(--r-field)}
+.f .part:active{background:var(--field);color:var(--accent)}
+
+.head .iti{margin-left:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--rule);
+ background:var(--card);color:var(--ink-2);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:var(--r-field)}
+.head .iti:active{background:var(--field);color:var(--accent)}
+.head .adr{display:block;font-size:12px;color:var(--ink-3);margin-top:3px}
+
+.head .iti svg{color:var(--accent)}
+
+.restaurer{border:1px solid var(--rule);background:var(--card);padding:13px 15px;margin-bottom:16px}
+.restaurer .hint{margin:9px 0 0}
+/* ---------- carte des chantiers, plein écran ---------- */
+#carte{position:fixed;inset:0;z-index:70;background:#1A1815;display:flex;flex-direction:column;
+ padding-top:env(safe-area-inset-top,0px)}
+#carte[hidden]{display:none}
+#carte .sk-bar{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto;
+ padding:8px 10px;background:#262320;flex:0 0 auto;scrollbar-width:none}
+#carte .sk-bar[hidden]{display:none}
+#carte .sk-bar::-webkit-scrollbar{display:none}
+#carte .sk-bar button{flex:0 0 auto;min-height:38px;padding:8px 12px;border-radius:var(--r-field);border:0;
+ background:rgba(255,255,255,.1);color:#F4F1EA;font-size:13px;font-family:inherit;font-weight:600;
+ cursor:pointer;white-space:nowrap}
+#carte .sk-bar button:active{transform:scale(.96)}
+#carte .sk-bar button.go{background:var(--accent);color:#fff}
+#carte .sk-bar .title{flex:1 1 auto;color:#8C8475;font-size:13px;font-weight:500;padding-left:2px;
+ overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:60px}
+#carte .sk-bar .etat{color:#8C8475;font-size:12px;white-space:nowrap}
+#carte .sk-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+#carte_q{flex:1 1 auto;min-width:110px;min-height:38px;padding:8px 12px;border:0;border-radius:var(--r-field);
+ background:rgba(255,255,255,.12);color:#F4F1EA;font-family:inherit;font-size:15px}
+#carte_q::placeholder{color:#8C8475}
+#carte_q:focus{outline:none;background:rgba(255,255,255,.2)}
+#carte_canvas{display:block;background:#1A1815;touch-action:none;cursor:grab}
+#carte_canvas:active{cursor:grabbing}
+#carte_fiche{position:absolute;left:10px;right:10px;bottom:10px;background:var(--card);
+ border:1px solid var(--rule);border-radius:var(--r-field);padding:12px 14px;
+ box-shadow:0 18px 50px -20px rgba(0,0,0,.8)}
+#carte_fiche[hidden]{display:none}
+#carte_fiche .ref{font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3)}
+#carte_fiche b{display:block;font-size:15px;margin:2px 0 3px}
+#carte_fiche .adr{font-size:12.5px;color:var(--ink-3);margin:0 0 9px}
+#carte_fiche .btns{display:flex;gap:6px;flex-wrap:wrap}
+#carte_fiche .btns button{min-height:36px;padding:7px 11px;border:1px solid var(--rule);border-radius:var(--r-field);
+ background:var(--card);color:var(--ink-2);font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+#carte_fiche .btns button.go{background:var(--accent);color:#fff;border-color:var(--accent)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+ z-index:90;background:#262320;color:#F4F1EA;padding:10px 16px;border-radius:var(--r-field);font-size:13.5px;
+ max-width:calc(100% - 32px);text-align:center;box-shadow:0 12px 30px -14px rgba(0,0,0,.7)}
+.toast[hidden]{display:none}
+.barre-carte{display:flex;gap:8px;align-items:center;margin:0 0 14px}
+.barre-carte button{min-height:38px;padding:9px 14px;border:1px solid var(--rule);border-radius:var(--r-field);
+ background:var(--card);color:var(--ink-2);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;
+ display:inline-flex;align-items:center;gap:7px}
+.barre-carte button:active{background:var(--field);color:var(--accent)}
+.barre-carte button svg{color:var(--accent)}
+.barre-carte[hidden]{display:none}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#F5F6F8;
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#7C8794;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* ---------- MES RAPPORTS : la liste des dossiers ----------
+   Chaque dossier est une fiche d'instrument : sa référence en chasse
+   fixe, ses documents en lignes serrées, ses étiquettes en capitales. */
+.barre-carte{margin:2px 0 16px}
+.barre-carte button{
+  background:var(--g-900);color:#E7ECF2;
+  border:1px solid var(--trait-tech);border-radius:var(--r-field);
+  font-size:13px;padding:11px 16px;box-shadow:var(--ombre-1);
+}
+.barre-carte button svg{color:var(--data-vif)}
+#bonjour{font-size:14.5px;color:var(--ink-2)}
+#recherche{margin-bottom:16px}
+.restaurer{margin:26px 0 0;padding:16px;background:none;
+  border:1px dashed var(--champ-bord);box-shadow:none;border-radius:var(--r-card)}
+.restaurer .act.ghost{width:auto}
+
+.travaux{overflow:hidden}
+.travaux .head{padding:15px 16px}
+.travaux .head b{font-size:15.5px;font-weight:600}
+.travaux .head .ref{
+  background:var(--g-900);color:var(--data-vif);
+  padding:4px 10px;font-size:11px;letter-spacing:.06em;border-radius:var(--r-field);
+}
+.travaux .head .n{font-size:12px;letter-spacing:.02em;color:var(--ink-3)}
+.head .iti{
+  border-radius:var(--r-field);border:1px solid var(--champ-bord);
+  background:#fff;box-shadow:var(--ombre-1);padding:8px 13px;
+}
+.f .t b{font-weight:600}
+.f .t span{font-size:11.5px;letter-spacing:0;color:var(--ink-3)}
+.f .t span.lu{color:var(--ok);font-family:var(--sans);font-size:12px}
+.f .t span.lu.na{color:var(--ink-3)}
+.f .part,.f .sup{border-radius:var(--r-field)}
+
+/* les étiquettes : la même famille, en sourdine */
+.f .tag{background:var(--accent-soft);color:var(--accent)}
+.f .tag.suivi{background:var(--ambre-soft);color:var(--ambre)}
+.f .tag.commande{background:var(--vert-soft);color:var(--vert)}
+.f .tag.photos,.f .tag.reportage{background:var(--violet-soft);color:var(--violet)}
+.f .tag.autoc{background:var(--data-soft);color:var(--data)}
+.f .tag.carnet{background:var(--ambre-soft);color:var(--ambre)}
+.f .tag.memoire{background:var(--vert-soft);color:var(--vert)}
+.f .tag.doe,.f .tag.reception{background:var(--ok-soft);color:var(--ok)}
+.f .tag.etiq{background:var(--field);color:var(--ink-2)}
+.f .tag.sav{background:var(--rouge-soft);color:var(--rouge)}
+.actions .danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18)}
+@media (hover:hover){
+  .barre-carte button:hover{background:var(--g-800);border-color:rgba(34,211,238,.4)}
+  .head .iti:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+}
+
+/* ---------- LA PAGE D'UN CHANTIER ----------
+   Ce que le technicien ouvre en arrivant sur place : ce qu'il peut
+   faire, puis ce qui a déjà été déposé. */
+.entete-chantier{padding:16px}
+.entete-chantier .ligne{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.entete-chantier .ref{
+  background:var(--g-900);color:var(--data-vif);
+  padding:4px 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+.entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
+.entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
+
+/* ---------- la barre d'actions ---------- */
+.actions-chantier{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}
+.actions-chantier a,.actions-chantier button{
+  position:relative;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
+  min-height:86px;padding:12px 8px;
+  border:1px solid var(--rule);border-radius:var(--r-card);
+  background:var(--card);box-shadow:var(--ombre-1);
+  color:var(--ink);text-decoration:none;
+  font-size:12.5px;font-weight:600;line-height:1.2;text-align:center;
+  font-family:inherit;cursor:pointer;
+  transition:box-shadow .18s ease,border-color .18s ease,transform .1s ease;
+}
+.actions-chantier a::before,.actions-chantier button::before{
+  content:"";position:absolute;top:6px;left:6px;width:8px;height:8px;
+  border-top:1px solid var(--data);border-left:1px solid var(--data);opacity:.35;
+}
+.actions-chantier svg{
+  width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;
+  stroke-linecap:round;stroke-linejoin:round;
+  box-sizing:content-box;padding:8px;border-radius:9px;
+  background:var(--accent-soft);color:var(--accent);
+}
+.actions-chantier .loc svg{background:var(--data-soft);color:var(--data)}
+.actions-chantier a:active,.actions-chantier button:active{transform:translateY(1px)}
+
+/* ---------- la localisation ---------- */
+#loc[hidden]{display:none}
+#loc{margin-top:14px}
+#loc .coord{font-size:12.5px;color:var(--ink-3);margin:2px 0 12px;font-variant-numeric:tabular-nums}
+#loc .btns{display:flex;gap:8px;flex-wrap:wrap}
+#loc .btns .act{flex:1 1 auto;min-width:140px}
+
+.vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:22px 10px}
+@media (hover:hover){
+  .actions-chantier a:hover,.actions-chantier button:hover{
+    box-shadow:var(--ombre-2);border-color:rgba(14,116,144,.35);transform:translateY(-1px);
+  }
+}
+@media (min-width:520px){
+  .actions-chantier{grid-template-columns:repeat(6,minmax(0,1fr))}
+}
+</style></head>
+<body>
+<header>
+  <div class="h-row" style="display:flex;align-items:center;gap:10px">
+    <a href="./index.html" class="menu-link">Menu</a>
+    <h1 id="titre">Chantier</h1>
+    <span id="hdrRef" style="margin-left:auto;font-size:12.5px"></span>
+  </div>
+</header>
+<main>
+  <div class="block entete-chantier">
+    <div class="ligne">
+      <span class="ref" id="c_ref">—</span>
+      <h2 id="c_client">Chargement…</h2>
+    </div>
+    <p class="adr" id="c_adresse"></p>
+
+    <nav class="actions-chantier" id="actions" aria-label="Ce qu'on peut faire sur ce chantier"></nav>
+  </div>
+
+  <div class="block" id="loc" hidden>
+    <h2>Localisation du chantier</h2>
+    <p class="adr" id="loc_adresse" style="margin:0 0 2px"></p>
+    <p class="coord" id="loc_coord"></p>
+    <div class="btns">
+      <button class="act blue" id="btnItineraire">Itinéraire</button>
+      <button class="act ghost" id="btnCarte">Voir sur la carte</button>
+    </div>
+    <p class="hint" id="loc_etat" style="margin-top:10px"></p>
+  </div>
+
+  <h2 class="sec" style="margin:24px 0 10px">Documents du dossier</h2>
+  <div class="travaux" id="docs"><p class="vide">Chargement…</p></div>
+  <p class="hint" id="compteur" style="margin:12px 2px"></p>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+(function(){
+"use strict";
+
+/* ---------- session expirée : retour à la connexion ---------- */
+(function(){
+  var brut = window.fetch;
+  window.fetch = function(){
+    return brut.apply(this, arguments).then(function(r){
+      if(r && r.status === 401){
+        try{
+          r.clone().json().then(function(d){
+            if(d && d.erreur && String(d.erreur).indexOf("Session") >= 0){
+              try{ localStorage.removeItem("outils:session"); }catch(e){}
+              location.replace("./index.html");
+            }
+          }).catch(function(){});
+        }catch(e){}
+      }
+      return r;
+    });
+  };
+})();
+
+var $=function(i){ return document.getElementById(i); };
+var API="/api/rapports";
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+var SESSION=session();
+if(!SESSION || !SESSION.jeton) location.replace("./index.html");
+
+var REF=(function(){
+  try{ return (new URLSearchParams(location.search).get("ref")||"").trim(); }catch(e){ return ""; }
+})();
+if(!REF) location.replace("./index.html");
+
+var CHANTIER=null;
+var toastT;
+function toast(t){
+  var e=$("toast"); if(!e) return;
+  e.textContent=t; e.hidden=false;
+  clearTimeout(toastT); toastT=setTimeout(function(){ e.hidden=true; }, 3000);
+}
+function octets(n){ return n>1048576 ? (n/1048576).toFixed(1).replace(".",",")+" Mo" : Math.round(n/1024)+" Ko"; }
+function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+
+/* ---------- ce qu'on peut faire ici ----------
+   Chaque entrée ouvre l'appli avec le dossier déjà repris : le
+   technicien n'a plus à retrouver le chantier dans une liste. */
+var ICONES={
+  commande:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>',
+  point:'<path d="M4 6.5h3M4 12h3M4 17.5h3"/><path d="M10.5 6.5h9.5M10.5 12h9.5M10.5 17.5h6"/>',
+  photos:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>',
+  etiquettes:'<rect x="3.5" y="6.5" width="17" height="11" rx="1.4"/><path d="M8 6.5v11M12 6.5v11M16 6.5v11"/>',
+  autocontrole:'<rect x="5" y="3.5" width="14" height="17" rx="1.6"/><path d="M8.5 9l1.6 1.6L14 6.8"/><path d="M8.5 15h7"/>',
+  localisation:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>'
+};
+var ACTIONS=[
+  ["commande",     "Commande",        "./commande.html",     "commande"],
+  ["point",        "Le point",        "./commande.html",     "todo"],
+  ["photos",       "Reportage photo", "./photos.html",       "photos"],
+  ["etiquettes",   "Étiquettes",      "./etiquettes.html",   "etiquettes"],
+  ["autocontrole", "Autocontrôle",    "./autocontrole.html", "controles"]
+];
+
+/* les applis attribuées au compte : on ne propose pas ce qui est fermé */
+function aAcces(appli){
+  var siennes = (SESSION && SESSION.applis) || [];
+  if(!Array.isArray(siennes) || !siennes.length) return true;   /* liste vide = tout */
+  if(SESSION.role === "admin" || SESSION.proprietaire) return true;
+  return siennes.indexOf(appli) >= 0;
+}
+var APPLI_DE={commande:"commande", point:"commande", photos:"photos",
+              etiquettes:"etiquettes", autocontrole:"autocontrole"};
+
+function lienAppli(page, onglet){
+  var p=new URLSearchParams();
+  p.set("ref", CHANTIER.ref);
+  if(CHANTIER.client) p.set("client", CHANTIER.client);
+  if(CHANTIER.adresse) p.set("adresse", String(CHANTIER.adresse).replace(/\n/g, ", "));
+  if(onglet) p.set("onglet", onglet);
+  return page + "?" + p.toString();
+}
+function peindreActions(){
+  var hote=$("actions"); hote.textContent="";
+  ACTIONS.forEach(function(a){
+    if(!aAcces(APPLI_DE[a[0]])) return;
+    var el=document.createElement("a");
+    el.href=lienAppli(a[2], a[3]);
+    el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES[a[0]]+'</svg>';
+    var b=document.createElement("span"); b.textContent=a[1];
+    el.appendChild(b);
+    hote.appendChild(el);
+  });
+  /* la localisation n'ouvre pas une appli : elle déplie un bloc ici */
+  var loc=document.createElement("button");
+  loc.type="button"; loc.className="loc";
+  loc.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES.localisation+'</svg>';
+  var t=document.createElement("span"); t.textContent="Localisation chantier";
+  loc.appendChild(t);
+  loc.addEventListener("click", function(){
+    var bloc=$("loc");
+    bloc.hidden = !bloc.hidden;
+    if(!bloc.hidden) bloc.scrollIntoView({behavior:"smooth", block:"nearest"});
+  });
+  hote.appendChild(loc);
+}
+
+/* ---------- la localisation ---------- */
+function destination(){
+  if(CHANTIER.lat != null && CHANTIER.lon != null) return CHANTIER.lat + "," + CHANTIER.lon;
+  var a=String(CHANTIER.adresse||"").replace(/\n/g, ", ").trim();
+  return a || "";
+}
+function peindreLoc(){
+  var a=String(CHANTIER.adresse||"").replace(/\n/g, ", ").trim();
+  $("loc_adresse").textContent = a || "Aucune adresse enregistrée pour ce chantier.";
+  $("loc_coord").textContent = (CHANTIER.lat != null && CHANTIER.lon != null)
+    ? CHANTIER.lat.toFixed(5).replace(".",",") + ", " + CHANTIER.lon.toFixed(5).replace(".",",")
+    : "";
+  var sansPoint = !destination();
+  $("btnItineraire").disabled = sansPoint;
+  $("loc_etat").textContent = sansPoint
+    ? "Ni adresse ni position : posez le point depuis la carte des chantiers."
+    : "";
+}
+$("btnItineraire").addEventListener("click", function(){
+  var d=destination();
+  if(!d){ toast("Ni adresse ni position pour ce chantier."); return; }
+  window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(d), "_blank");
+});
+$("btnCarte").addEventListener("click", function(){
+  try{ sessionStorage.setItem("carte:chantier", CHANTIER.ref); }catch(e){}
+  location.href="./rapports.html?carte=" + encodeURIComponent(CHANTIER.ref);
+});
+
+/* ---------- les documents du dossier ---------- */
+var ORDRE={releve:1, carnet:2, memoire:3, suivi:4, commande:5, photos:6, reportage:7,
+           etiquettes:8, autocontrole:9, reception:10, doe:11, sav:12};
+function rangDoc(f){
+  var base=(ORDRE[f.type]||9)*1000;
+  if(f.type==="suivi"){
+    var n=parseInt(f.visite,10);
+    return base + (isNaN(n) ? 500 : n);
+  }
+  return base + (String(f.date||"").replace(/-/g,"").slice(-4)|0)/10000;
+}
+var LIBELLE={suivi:"Visite", commande:"Commande", photos:"Photos", reportage:"Reportage",
+             autocontrole:"Autocontrôle", carnet:"Carnet", memoire:"Mémoire", doe:"DOE",
+             reception:"Réception", etiquettes:"Étiquettes", sav:"SAV"};
+var CLASSE={suivi:"suivi", commande:"commande", photos:"photos", reportage:"reportage",
+            autocontrole:"autoc", carnet:"carnet", memoire:"memoire", doe:"doe",
+            reception:"reception", etiquettes:"etiq", sav:"sav"};
+function peindreDocs(){
+  var hote=$("docs"); hote.textContent="";
+  var liste=(CHANTIER.fichiers||[]).slice().sort(function(a,b){
+    var d=rangDoc(a)-rangDoc(b);
+    return d ? d : String(a.publie||"").localeCompare(String(b.publie||""));
+  });
+  if(!liste.length){
+    var v=document.createElement("p"); v.className="vide";
+    v.textContent="Aucun document publié sur ce chantier pour le moment.";
+    hote.appendChild(v);
+    $("compteur").textContent="";
+    return;
+  }
+  var fs=document.createElement("div"); fs.className="fs";
+  liste.forEach(function(f){
+    var a=document.createElement("a"); a.className="f";
+    a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(SESSION.jeton);
+    a.target="_blank"; a.rel="noopener";
+    var t=document.createElement("div"); t.className="t";
+    var tb=document.createElement("b"); tb.textContent=f.titre||"Document";
+    var ts=document.createElement("span");
+    ts.textContent=[frDate(f.date), f.auteur, octets(f.taille)].filter(Boolean).join("   ");
+    t.appendChild(tb); t.appendChild(ts);
+    var tag=document.createElement("span");
+    tag.className="tag"+(CLASSE[f.type] ? " "+CLASSE[f.type] : "");
+    tag.textContent = f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:"")) : (LIBELLE[f.type]||"Relevé");
+    a.appendChild(t); a.appendChild(tag);
+    fs.appendChild(a);
+  });
+  hote.appendChild(fs);
+  $("compteur").textContent = liste.length + " document" + (liste.length>1?"s":"") + " sur ce chantier.";
+}
+
+/* ---------- chargement ---------- */
+function charger(){
+  fetch(API+"?action=liste", {headers:{"x-auth":SESSION.jeton}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){
+        $("c_client").textContent = res.d.erreur || "Accès refusé.";
+        $("docs").textContent="";
+        return;
+      }
+      var trouve=(res.d.chantiers||[]).filter(function(c){ return c.ref === REF; })[0];
+      if(!trouve){
+        $("c_client").textContent="Ce chantier ne vous est pas attribué.";
+        $("c_ref").textContent=REF;
+        $("docs").textContent="";
+        return;
+      }
+      CHANTIER=trouve;
+      document.title = (CHANTIER.client || CHANTIER.ref) + " — Chantier";
+      $("titre").textContent="Chantier";
+      $("hdrRef").textContent=CHANTIER.ref;
+      $("c_ref").textContent=CHANTIER.ref;
+      $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
+      $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
+      peindreActions(); peindreLoc(); peindreDocs();
+    })
+    .catch(function(){ $("c_client").textContent="Pas de réseau. Réessayez."; });
+}
+charger();
+})();
+</script>
+</body>
+</html>

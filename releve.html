@@ -5007,6 +5007,42 @@ function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
 
 
 /* ---------- retour aux rapports quand on vient de la liste ---------- */
+/* ---------- ouverture depuis la page d'un chantier ----------
+   chantier.html passe le dossier dans l'adresse : ?ref=…&client=…
+   &adresse=…&onglet=… On attend que la fiche soit chargée — le
+   stockage est asynchrone — puis on reprend le dossier. Si une fiche
+   est déjà en cours sur un AUTRE chantier, on demande avant de
+   l'écraser : le technicien a pu commencer quelque chose ailleurs. */
+(function dossierDepuisAdresse(){
+  var p;
+  try{ p = new URLSearchParams(location.search); }catch(e){ return; }
+  var ref = (p.get("ref")||"").trim();
+  if(!ref) return;
+  var d = {ref:ref, client:(p.get("client")||"").trim(), adresse:(p.get("adresse")||"").trim()};
+  var onglet = (p.get("onglet")||"").trim();
+  var essais = 0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S){
+      if(++essais > 120) return;            /* douze secondes, puis on renonce */
+      setTimeout(attendre, 100);
+      return;
+    }
+    var courante = "";
+    try{ courante = String(refAffaire()||"").trim(); }catch(e){}
+    if(courante && courante !== ref){
+      if(!window.confirm("Une fiche est en cours pour " + courante + ".\n\n"
+          + "L'ouvrir pour " + (d.client || ref) + " ? La fiche en cours sera remplacée.")){
+        try{ history.replaceState(null, "", location.pathname); }catch(e){}
+        return;
+      }
+    }
+    try{ reprendreDossier(d); }catch(e){}
+    if(onglet){ try{ showTab(onglet); }catch(e){} }
+    /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
+    try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  })();
+})();
+
 (function retourRapports(){
   try{
     var vient = document.referrer && document.referrer.indexOf("rapports.html")>=0;

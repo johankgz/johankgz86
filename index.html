@@ -500,6 +500,43 @@ nav#nav button svg{stroke-width:1.9}
   button:active,.act:active,button.p:active{transform:none}
 }
 
+/* ---------- MES CHANTIERS : la page du technicien ----------
+   Ce que le technicien ouvre en arrivant : ses dossiers, un par carte,
+   avec ce qu'il y a dedans. Une carte mène à la page du chantier, d'où
+   partent la commande, le point, les photos, les étiquettes et
+   l'autocontrôle. */
+.chantiers{display:grid;grid-template-columns:1fr;gap:10px}
+.chantiers[hidden]{display:none}
+.chantiers a{
+  position:relative;display:block;text-decoration:none;color:inherit;
+  border:1px solid var(--rule);border-radius:var(--r-card);
+  background:var(--card);box-shadow:var(--ombre-1);padding:14px 16px;
+  transition:box-shadow .18s ease,border-color .18s ease,transform .1s ease;
+}
+.chantiers a::before{
+  content:"";position:absolute;top:7px;left:7px;width:9px;height:9px;
+  border-top:1px solid var(--data);border-left:1px solid var(--data);opacity:.4;
+}
+.chantiers a:active{transform:translateY(1px)}
+.chantiers .haut{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chantiers .ref{
+  background:var(--g-900);color:var(--data-vif);
+  padding:3px 9px;font-size:11px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);flex:0 0 auto;
+}
+.chantiers .nom{flex:1;min-width:0;font-size:15.5px;font-weight:700;letter-spacing:-.02em}
+.chantiers .pastille{
+  flex:0 0 auto;background:var(--rouge);color:#fff;font-size:10.5px;font-weight:700;
+  padding:2px 8px;border-radius:var(--r-pill);
+}
+.chantiers .adr{margin:7px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.4}
+.chantiers .info{margin:6px 0 0;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+@media (hover:hover){
+  .chantiers a:hover{box-shadow:var(--ombre-2);border-color:rgba(14,116,144,.35);transform:translateY(-1px)}
+  .chantiers a:hover::before{opacity:.9}
+}
+@media (min-width:640px){ .chantiers{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
 /* ---------- ACCUEIL : le poste de commande ----------
    Un bandeau graphite en tête — heure, date, relevés du jour — puis les
    applis en tuiles avec leur équerre de repère. */
@@ -735,15 +772,24 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
       <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
     </a>
 
-    <h2 class="sec">Le parcours d'une affaire</h2>
-    <div class="parcours">
+    <a class="raccourci" id="racSuivi" href="./suivi.html" hidden>
+      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 18.5l5-5.5 3.5 3L20 7.5"/><path d="M15.5 7.5H20v4.5"/></svg></span>
+      <span class="r-txt"><b>Suivi de chantier</b><span>Le compte rendu d'une visite</span></span>
+      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+    </a>
+
+    <h2 class="sec" id="secChantiers" hidden>Mes chantiers</h2>
+    <div class="chantiers" id="mesChantiers" hidden></div>
+
+    <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
+    <div class="parcours" id="parcours">
       <div class="jalons" id="jalons"></div>
       <div class="etapes" id="etapes"></div>
       <div class="appoints" id="appoints"></div>
     </div>
     <div class="grille" id="cartes" style="margin-top:14px"></div>
 
-    <h2 class="sec">Travaux en cours</h2>
+    <h2 class="sec" id="secBref">Travaux en cours</h2>
     <div class="bref" id="bref"><div class="vide">Chargement…</div></div>
 
     <h2 class="sec">Aide</h2>
@@ -1305,6 +1351,12 @@ function messagesNonLus(s){
   fetch(apiUrl("messages-non-lus"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
+      /* la pastille des cartes de chantier vient d'ici */
+      NON_LUS_PAR_REF={};
+      (d.dossiers||[]).forEach(function(x){ NON_LUS_PAR_REF[x.ref]=x.nb; });
+      if(SESSION_COURANTE && SESSION_COURANTE.role==="technicien" && DERNIERS_CHANTIERS){
+        peindreMesChantiers(DERNIERS_CHANTIERS);
+      }
       if(!d.total) return;
       var host=$("notifs");
       if(!host || document.getElementById("notif-messages")) return;
@@ -1375,8 +1427,11 @@ function charger(s){
     .then(function(r){ return r.json(); })
     .then(function(d){
       var ch=(d.chantiers)||[];
+      DERNIERS_CHANTIERS=ch;
       peindreNotifs(s, ch);
       peindreBref(ch);
+      peindreMesChantiers(ch);
+      adapterAccueil(s);
     })
     .catch(function(){
       $("bref").innerHTML='<div class="vide">Liste indisponible hors connexion.</div>';
@@ -1472,6 +1527,62 @@ function peindreNotifs(s, ch){
     "Rien de déposé depuis trois semaines", "./rapports.html"));
   host.hidden = !host.children.length;
 }
+/* ---------- la liste des chantiers du technicien ---------- */
+var NON_LUS_PAR_REF={}, DERNIERS_CHANTIERS=null;
+function peindreMesChantiers(ch){
+  var host=$("mesChantiers"); if(!host) return;
+  host.textContent="";
+  if(!ch.length){
+    var v=document.createElement("div"); v.className="vide";
+    v.style.cssText="background:var(--card);border:1px solid var(--rule);"
+      +"border-radius:var(--r-card);padding:22px 16px";
+    v.textContent="Aucun chantier ne vous est attribué pour l'instant.";
+    host.appendChild(v);
+    return;
+  }
+  ch.forEach(function(c){
+    var a=document.createElement("a");
+    a.href="./chantier.html?ref="+encodeURIComponent(c.ref);
+    var haut=document.createElement("div"); haut.className="haut";
+    var r=document.createElement("span"); r.className="ref"; r.textContent=c.ref;
+    var n=document.createElement("span"); n.className="nom"; n.textContent=c.client||c.ref;
+    haut.appendChild(r); haut.appendChild(n);
+    var nb=NON_LUS_PAR_REF[c.ref]||0;
+    if(nb){
+      var p=document.createElement("span"); p.className="pastille";
+      p.textContent=nb+" nouveau"+(nb>1?"x":"");
+      haut.appendChild(p);
+    }
+    a.appendChild(haut);
+    var adr=String(c.adresse||"").replace(/\n/g, ", ").trim();
+    if(adr){
+      var ad=document.createElement("p"); ad.className="adr"; ad.textContent=adr;
+      a.appendChild(ad);
+    }
+    var i=document.createElement("p"); i.className="info";
+    var nd=(c.fichiers?c.fichiers.length:0);
+    i.textContent=nd+" document"+(nd>1?"s":"")+"   \u00B7   mis à jour "+frCourt(c.maj);
+    a.appendChild(i);
+    host.appendChild(a);
+  });
+}
+
+/* Deux accueils, selon le métier. Le technicien travaille chantier par
+   chantier : on lui montre ses dossiers, pas le parcours d'une affaire,
+   qui est le métier du chargé d'affaires. */
+function adapterAccueil(s){
+  var tech = s.role === "technicien";
+  ["racSuivi","secChantiers","mesChantiers"].forEach(function(id){
+    var el=$(id); if(el) el.hidden = !tech;
+  });
+  ["secParcours","parcours","secBref","bref"].forEach(function(id){
+    var el=$(id); if(el) el.hidden = tech;
+  });
+  /* le technicien garde l'accès à ses rapports : la tuile reste, sous
+     ses chantiers, plutôt que dans le parcours */
+  if(tech && !accesAppli(s, "suivi")){ var rs=$("racSuivi"); if(rs) rs.hidden=true; }
+}
+
 function peindreBref(ch){
   var host=$("bref"); host.textContent="";
   if(!ch.length){
