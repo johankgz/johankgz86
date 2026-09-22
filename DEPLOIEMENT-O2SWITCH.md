@@ -189,6 +189,49 @@ sur les domaines et sous-domaines du compte. Vérifiez dans cPanel →
 **SSL/TLS Status** que votre adresse est bien couverte, et que
 `https://` fonctionne.
 
+### Le piège : AutoSSL n'atteint pas sa propre vérification
+
+Une application Node est montée avec `PassengerBaseURI "/"` : **tout**
+ce qui arrive sur le domaine part vers Node, y compris le jeton que
+Let's Encrypt vient relire pour prouver que le domaine est à vous.
+
+Or ce jeton est déposé dans la racine du document — `public_html` — et
+notre serveur, lui, sert les fichiers depuis le dossier de l'application.
+Il ne le trouve pas, répond 404, et la validation échoue. À chaque
+passage, sans que rien ne l'explique : SSL/TLS Status affiche seulement
+un certificat auto-signé qui ne se remplace jamais.
+
+La parade tient en deux lignes — on rend ce seul dossier à Apache :
+
+```bash
+mkdir -p ~/public_html/.well-known/acme-challenge
+printf 'PassengerEnabled off\n' > ~/public_html/.well-known/.htaccess
+```
+
+Pour vérifier avant d'attendre une nuit :
+
+```bash
+echo bonjour > ~/public_html/.well-known/acme-challenge/test
+```
+
+puis ouvrir `http://VOTREDOMAINE/.well-known/acme-challenge/test` — si
+« bonjour » s'affiche, la validation réussira. Effacez ensuite le fichier
+d'essai, et **gardez le `.well-known/.htaccess`** : il sert aussi aux
+renouvellements, tous les trois mois.
+
+### Reconnaître un certificat auto-signé
+
+La date d'expiration. Un auto-signé — le bouchon que cPanel pose quand on
+ajoute un domaine — expire dans **un an**. Un vrai Let's Encrypt expire
+dans **trois mois**, et se renouvelle seul. Une date à un an, c'est donc
+qu'aucun certificat valable n'a encore été émis.
+
+Chez o2switch, la page SSL/TLS Status n'a **ni case à cocher ni bouton
+Run AutoSSL** : le lancement manuel est désactivé, AutoSSL passe de
+lui-même, en général chaque nuit. Une fois la parade ci-dessus en place,
+il n'y a donc qu'à attendre le prochain passage — ou demander au support
+de forcer l'émission.
+
 Ce n'est pas un détail de confort : **sans HTTPS**, le téléphone refuse
 la géolocalisation (bouton Position du SAV et du relevé) et
 l'installation sur l'écran d'accueil.
