@@ -92,6 +92,31 @@ Cette étape n'est pas facultative : sans elle le site ne démarre pas.
 Si vous l'oubliez, le journal le dit en toutes lettres et rappelle quoi
 faire — ce n'est pas une panne, juste une installation à finir.
 
+### Si cPanel dit « Unable to set environment variables in htaccess file »
+
+> Error: [Errno 2] No such file or directory:
+> '/home/VOTRECOMPTE/VOTREDOSSIER/.htaccess'
+
+cPanel écrit les directives de Passenger dans un `.htaccess` à la racine
+de l'application, et il s'attend à ce que le fichier existe : il le crée
+lui-même quand c'est lui qui crée le dossier. Un dossier venu de
+`git clone` n'en a pas.
+
+Sans ce fichier, Apache ne passe pas la main à Node : les pages
+s'affichent — Apache les sert directement — mais l'API ne répond plus,
+et le site dit « Pas de réseau » à la connexion.
+
+Dans le Terminal :
+
+```bash
+touch ~/VOTREDOSSIER/.htaccess
+```
+
+Puis *Save* dans Setup Node.js App — cPanel le remplit — puis *Restart*.
+
+Ce fichier appartient au serveur : il est dans .gitignore, un
+`git pull` n'y touche pas, et il ne doit jamais partir dans le dépôt.
+
 ### Si cPanel répond « 500 Internal Server Error » après l'installation
 
 Le message complet commence par *« The operation was performed »* : c'est
