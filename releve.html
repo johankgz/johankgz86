@@ -956,10 +956,12 @@ body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
 
   <div class="block">
     <h2>Implantation sur photo</h2>
-    <p class="legend">Photographiez le pan de toiture, calez les quatre coins, l'appli pose les panneaux à l'échelle (1,13 × 1,76 m). Image exportable pour le dossier de mairie.</p>
+    <p class="legend">Photographiez le pan de toiture, ou reprenez une photo de la galerie du téléphone, puis calez les quatre coins : l'appli pose les panneaux à l'échelle (1,13 × 1,76 m). Image exportable pour le dossier de mairie.</p>
     <div class="row">
       <button class="act solid" id="btnToitPhoto">Photo de toiture</button>
+      <button class="act ghost" id="btnToitGalerie">Depuis la galerie</button>
       <input type="file" id="toit_file" accept="image/*" capture="environment" hidden>
+      <input type="file" id="toit_galerie" accept="image/*" hidden>
     </div>
     <div id="simulList" style="margin-top:12px"></div>
   </div>
@@ -2354,15 +2356,22 @@ function toitDepuisPhoto(ph, vueDessus){
   img.src=ph.data;
 }
 
-$("btnToitPhoto").addEventListener("click", function(){ $("toit_file").click(); });
-$("toit_file").addEventListener("change", function(){
-  var f=$("toit_file").files[0]; $("toit_file").value="";
+/* deux champs pour la même chose : celui de l'appareil photo porte
+   capture="environment", qui ouvre l'objectif tout de suite et prive
+   donc le téléphone de sa pellicule. Le second, sans cet attribut,
+   laisse reprendre une photo déjà prise dans la galerie. */
+function toitDepuisChamp(champ){
+  var f=champ.files[0]; champ.value="";
   if(!f) return;
   compress(f, function(ph){
     if(!ph){ toast("Photo illisible."); return; }
     toitDepuisPhoto(ph, false);
   });
-});
+}
+$("btnToitPhoto").addEventListener("click", function(){ $("toit_file").click(); });
+$("btnToitGalerie").addEventListener("click", function(){ $("toit_galerie").click(); });
+$("toit_file").addEventListener("change", function(){ toitDepuisChamp(this); });
+$("toit_galerie").addEventListener("change", function(){ toitDepuisChamp(this); });
 
 /* ================= vue aérienne ================= */
 function tuileXY(lat, lon, z){
