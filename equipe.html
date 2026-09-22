@@ -50,6 +50,14 @@ button.act.danger{background:#F8E4E0;color:var(--danger)}
 .role{font-size:11px;font-weight:700;padding:3px 8px;border-radius:var(--r-field);background:var(--field);color:var(--ink-2)}
 .role.admin{background:var(--accent-soft);color:var(--accent)}
 .role.technicien{background:#EAF3DE;color:#3B6D11}
+/* ---------- le choix de la vue : on décrit ce qu'on verra ---------- */
+.choix-vue{display:flex;flex-direction:column;gap:8px;margin:0 0 16px}
+.choix-vue .opt{display:block;width:100%;text-align:left;padding:12px 14px;
+ border:1px solid var(--rule);background:var(--card);font-family:inherit;color:var(--ink);
+ cursor:pointer;border-radius:var(--r-field)}
+.choix-vue .opt.on{border:2px solid var(--ink);padding:11px 13px}
+.choix-vue .opt b{display:block;font-size:15px;font-weight:600}
+.choix-vue .opt span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px;line-height:1.45}
 .mdp{font-family:ui-monospace,Menlo,monospace;font-size:13px;color:var(--ink-2)}
 .legend{font-size:13px;color:var(--ink-2);margin:0 0 8px}
 .applis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px}
@@ -360,18 +368,28 @@ nav#nav button svg{stroke-width:1.9}
       <label class="f"><span>Prénom affiché</span><input type="text" id="f_nom" placeholder="Kévin"></label>
       <label class="f"><span>Identifiant</span><input type="text" id="f_id" autocapitalize="none" spellcheck="false" placeholder="kevin"></label>
       <label class="f"><span>Mot de passe</span><input type="text" id="f_mdp" autocapitalize="none" spellcheck="false"></label>
-      <label class="f"><span>Rôle</span>
-        <select id="f_role">
-          <option value="technicien">Technicien</option>
-          <option value="bureau">Chargé d'affaires</option>
-          <option value="admin">Administrateur</option>
-        </select>
-      </label>
     </div>
     <label class="f"><span>E-mail (pour les notifications)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
+
+    <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
+    <div class="choix-vue" id="choixVue">
+      <button type="button" class="opt on" data-role="technicien">
+        <b>Vue technicien</b>
+        <span>Ses chantiers en arrivant, et la page de chaque chantier. Pas de parcours d'affaire, pas de relevé technique. Il publie vers le bureau.</span>
+      </button>
+      <button type="button" class="opt" data-role="bureau">
+        <b>Vue bureau</b>
+        <span>Ouvrir une affaire, le parcours d'une affaire, tous les chantiers et leurs documents. Il reprend, corrige et archive.</span>
+      </button>
+      <button type="button" class="opt" data-role="admin">
+        <b>Vue bureau + comptes</b>
+        <span>La vue bureau, plus cette page : créer, modifier et retirer les comptes de la société.</span>
+      </button>
+    </div>
+    <input type="hidden" id="f_role" value="technicien">
     <p class="legend">Applis accessibles</p>
     <div class="applis" id="f_applis"></div>
-    <p class="hint" style="margin:0 0 14px">Rien de coché : toutes les applis. Sinon, le compte ne voit que celles qui sont cochées, et le site refuse les autres même en tapant l'adresse. L'administrateur garde tout, quoi qu'on coche. Tous mes chantiers, Mes listes et l'aide restent ouverts à tout le monde.</p>
+    <p class="hint" style="margin:0 0 14px">Rien de coché : toutes les applis. Sinon, le compte ne voit que celles qui sont cochées, et le site refuse les autres même en tapant l'adresse. L'administrateur garde tout, quoi qu'on coche. Tous mes chantiers, la to-do list et l'aide restent ouverts à tout le monde.</p>
     <div class="row">
       <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
       <button class="act" id="btnVider">Vider</button>
@@ -518,11 +536,12 @@ function peindre(comptes){
     acc.textContent = (c.role==="admin" || !quoi) ? "Toutes les applis" : quoi;
     t.appendChild(acc);
     var rl=document.createElement("span"); rl.className="role "+c.role;
-    rl.textContent = c.role==="admin" ? "Admin" : (c.role==="bureau" ? "Bureau" : "Technicien");
+    rl.textContent = c.role==="admin" ? "Vue bureau + comptes"
+                   : (c.role==="bureau" ? "Vue bureau" : "Vue technicien");
     var mod=document.createElement("button"); mod.className="act ghost"; mod.textContent="Modifier";
     mod.addEventListener("click", function(){
       $("f_nom").value=c.nom; $("f_id").value=c.identifiant; $("f_mdp").value=c.motdepasse;
-      $("f_role").value=c.role; $("f_mail").value=c.email||"";
+      choisirVue(c.role); $("f_mail").value=c.email||"";
       APPLIS_CHOISIES=(c.applis||[]).slice(); peindreApplis();
       $("titreForm").textContent="Modifier "+c.nom;
       window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
@@ -559,9 +578,29 @@ $("btnEnr").addEventListener("click", function(){
 });
 $("btnVider").addEventListener("click", function(){
   ["f_nom","f_id","f_mdp","f_mail"].forEach(function(i){ $(i).value=""; });
+  choisirVue("technicien");
   APPLIS_CHOISIES=[]; peindreApplis();
   $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";
 });
+
+/* ---------- la vue du compte ----------
+   Le rôle décide de ce que la personne voit en arrivant : on le dit avec
+   des mots plutôt qu'avec une liste déroulante. */
+function choisirVue(role){
+  var r = (role==="admin" || role==="bureau") ? role : "technicien";
+  $("f_role").value = r;
+  var host=$("choixVue"); if(!host) return;
+  Array.prototype.forEach.call(host.querySelectorAll(".opt"), function(b){
+    b.classList.toggle("on", b.getAttribute("data-role") === r);
+  });
+}
+(function lierVue(){
+  var host=$("choixVue"); if(!host) return;
+  Array.prototype.forEach.call(host.querySelectorAll(".opt"), function(b){
+    b.addEventListener("click", function(){ choisirVue(b.getAttribute("data-role")); });
+  });
+  choisirVue("technicien");
+})();
 
 function chargerSocietes(){
   fetch(api("societes"), {headers:{"x-auth":S.jeton}})

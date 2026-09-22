@@ -517,31 +517,31 @@ nav#navParcours a.plus{color:#6F7C8A}
 }
 
 /* ---------- ouvrir une affaire : les trois départs du bureau ---------- */
-.departs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;margin:0 0 22px}
-@media (min-width:520px){ .departs{grid-template-columns:repeat(4,minmax(0,1fr))} }
-.departs a{
-  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:8px;min-height:92px;padding:14px 8px;
-  border:1px solid var(--rule);border-radius:var(--r-card);
-  background:var(--card);box-shadow:var(--ombre-1);
-  color:var(--ink);text-decoration:none;
-  font-size:12.5px;font-weight:600;line-height:1.2;text-align:center;
-  transition:box-shadow .18s ease,border-color .18s ease,transform .1s ease;
+/* ---------- ouvrir une affaire : la même réglette que le parcours ---------- */
+nav#navDeparts{
+  display:flex;gap:1px;padding:5px 4px;margin:0 0 22px;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  background:var(--g-800);border:1px solid var(--trait-tech);border-radius:10px;
 }
-.departs a::before{
-  content:"";position:absolute;top:6px;left:6px;width:9px;height:9px;
-  border-top:1px solid var(--data);border-left:1px solid var(--data);opacity:.4;
+nav#navDeparts::-webkit-scrollbar{display:none}
+nav#navDeparts a{
+  position:relative;flex:0 0 92px;
+  display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:9px 3px 7px;border-radius:7px;text-decoration:none;
+  font-size:9.5px;font-weight:500;line-height:1.2;text-align:center;color:#9AA7B5;
+  transition:color .16s ease,background .16s ease;
 }
-.departs svg{
-  width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.85;
-  stroke-linecap:round;stroke-linejoin:round;
-  box-sizing:content-box;padding:9px;border-radius:10px;
-  background:var(--accent-soft);color:var(--accent);
+nav#navDeparts a span{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+nav#navDeparts svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;
+ stroke-linecap:round;stroke-linejoin:round;color:var(--accent-vif)}
+nav#navDeparts a .plus{
+  position:absolute;top:3px;right:6px;font-size:11px;font-weight:700;
+  color:var(--accent-vif);line-height:1;
 }
-.departs a:active{transform:translateY(1px)}
 @media (hover:hover){
-  .departs a:hover{box-shadow:var(--ombre-2);border-color:rgba(14,116,144,.35);transform:translateY(-1px)}
+  nav#navDeparts a:hover{color:#E7ECF2;background:rgba(255,255,255,.07)}
 }
+
 .chantiers{display:grid;grid-template-columns:1fr;gap:10px}
 .chantiers[hidden]{display:none}
 .chantiers a{
@@ -620,7 +620,7 @@ nav#navParcours a.plus{color:#6F7C8A}
 .notif{padding:14px 16px;border-bottom:1px solid var(--rule)}
 .notif:last-child{border-bottom:0}
 
-/* ---------- Mes listes ---------- */
+/* ---------- la to-do list ---------- */
 .raccourci{
   border:1px solid var(--rule);border-left:3px solid var(--accent);
   border-radius:var(--r-card);background:var(--card);box-shadow:var(--ombre-1);
@@ -759,13 +759,15 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
 
     <a class="raccourci" href="./notes.html">
       <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
-      <span class="r-txt"><b>Mes listes</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
+      <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
       <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
     </a>
 
 
     <h2 class="sec" id="secDeparts" hidden>Ouvrir une affaire</h2>
-    <div class="departs" id="departs" hidden></div>
+    <div class="nav-wrap" id="departsWrap" hidden>
+      <nav id="navDeparts" aria-label="Ce qui ouvre une affaire"></nav>
+    </div>
 
     <h2 class="sec" id="secChantiers" hidden>Mes chantiers</h2>
     <div class="chantiers" id="mesChantiers" hidden></div>
@@ -1608,23 +1610,36 @@ function peindreMesChantiers(ch){
 /* Deux accueils, selon le métier. Le technicien travaille chantier par
    chantier : on lui montre ses dossiers, pas le parcours d'une affaire,
    qui est le métier du chargé d'affaires. */
-/* Les trois départs du chargé d'affaires : ce qui ouvre une affaire
-   plutôt que ce qui la suit. Le technicien, lui, entre par ses chantiers. */
+/* Ce qui ouvre une affaire, en réglette comme le parcours : le
+   chargé d'affaires les a sous la main sans que la page s'allonge.
+   Le technicien, lui, entre par ses chantiers. */
 var DEPARTS=[
-  ["./releve.html",   "Nouveau relevé",           "releve",    "releve"],
-  ["./sav.html",      "Nouveau SAV",              "sav",       "sav"],
-  ["./carnet.html",   "Carnet, mémoire et DOE",   "carnet",    "carnet"],
-  ["./technique.html","Documents techniques",     "technique", "technique"]
+  ["./releve.html",   "Relevé",         "releve",    "releve"],
+  ["./sav.html",      "SAV",            "sav",       "sav"],
+  ["./carnet.html",   "Carnet et DOE",  "carnet",    "carnet"],
+  ["./technique.html","Documents",      "technique", "technique"]
 ];
 function peindreDeparts(s){
-  var host=$("departs"); if(!host) return;
+  var host=$("navDeparts"); if(!host) return 0;
   host.textContent="";
   DEPARTS.filter(function(d){ return accesAppli(s, d[3]); }).forEach(function(d){
     var a=document.createElement("a"); a.href=d[0];
-    a.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(ICONES[d[2]]||"")+'</svg>';
-    var b=document.createElement("b"); b.textContent=d[1];
+    a.title="Ouvrir " + (/^[AEIOU]/.test(d[1]) ? "un " : "un nouveau ") + d[1].toLowerCase();
+    var plus=document.createElement("span"); plus.className="plus"; plus.textContent="+";
+    a.appendChild(plus);
+    var ic=document.createElement("span");
+    ic.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(ICONES[d[2]]||"")+'</svg>';
+    a.appendChild(ic.firstChild);
+    var b=document.createElement("span"); b.textContent=d[1];
     a.appendChild(b); host.appendChild(a);
   });
+  (function debord(){
+    var w=$("departsWrap"); if(!w) return;
+    function maj(){ w.classList.toggle("deborde", host.scrollWidth - host.clientWidth - host.scrollLeft > 4); }
+    host.addEventListener("scroll", maj);
+    window.addEventListener("resize", maj);
+    setTimeout(maj, 0);
+  })();
   return host.children.length;
 }
 
@@ -1645,7 +1660,7 @@ function adapterAccueil(s){
   });
   /* et les trois départs avec lui : le technicien n'ouvre pas d'affaire */
   var n = tech ? 0 : peindreDeparts(s);
-  ["secDeparts","departs"].forEach(function(id){
+  ["secDeparts","departsWrap"].forEach(function(id){
     var el=$(id); if(el) el.hidden = !n;
   });
 }
