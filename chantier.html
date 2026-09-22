@@ -532,6 +532,29 @@ nav#nav a:active svg,nav#nav button:active svg{transform:scale(.92)}
 #loc .btns .act{flex:1 1 auto;min-width:140px}
 
 .vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:22px 10px}
+
+/* ---------- ce qui est neuf, ce qui est saisi ---------- */
+.f .cote{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.f .t{min-width:0}
+.f.riche{flex-wrap:wrap}
+.f.riche .t{flex:1 1 100%}
+.f.riche .cote{flex:1 1 100%;justify-content:flex-start;margin-top:9px}
+.f .neuf{
+  flex:0 0 auto;background:var(--accent);color:#fff;
+  font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;border-radius:var(--r-pill);
+}
+.f .saisie{
+  display:block;margin-top:4px;font-size:12px;font-weight:600;color:var(--ok);
+}
+.f .ok-saisie{
+  flex:0 0 auto;border:1px solid var(--rule);border-radius:var(--r-pill);
+  background:var(--card);color:var(--ink-2);
+  font-family:inherit;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;
+}
+.f .ok-saisie.on{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.f .ok-saisie[disabled]{opacity:.5}
+@media (hover:hover){ .f .ok-saisie:hover{border-color:#BFC7D1;background:#FAFBFC;color:var(--ink)} }
 </style></head>
 <body>
 <header>
@@ -755,6 +778,56 @@ var LIBELLE={suivi:"Visite", commande:"Commande", photos:"Photos", reportage:"Re
 var CLASSE={suivi:"suivi", commande:"commande", photos:"photos", reportage:"reportage",
             autocontrole:"autoc", carnet:"carnet", memoire:"memoire", doe:"doe",
             reception:"reception", etiquettes:"etiq", sav:"sav", technique:"technique"};
+function moi(){ return (SESSION && SESSION.nom) || ""; }
+function pasEncoreLu(f){
+  return f.auteur !== moi() && !((f.lectures||{})[moi()]);
+}
+/* Le bureau dit au technicien que la commande est passée. La marque
+   porte qui, quand, et un mot s'il y en a un. */
+function ligneSaisie(f){
+  var s=f.saisie;
+  if(!s) return null;
+  var p=document.createElement("span"); p.className="saisie";
+  p.textContent="Commande saisie par "+s.par+" le "+frDate(s.le)
+    + (s.note ? " — "+s.note : "");
+  return p;
+}
+function boutonSaisie(f){
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.proprietaire);
+  if(!bureau || f.type !== "commande") return null;
+  var b=document.createElement("button");
+  b.type="button"; b.className="ok-saisie"+(f.saisie ? " on" : "");
+  b.textContent = f.saisie ? "Saisie ✓" : "OK saisie";
+  b.title = f.saisie ? "Revenir en arrière : la commande n'est plus marquée saisie."
+                     : "Prévenir le technicien que la commande est passée.";
+  b.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    var corps={cle:f.cle};
+    if(f.saisie){
+      if(!window.confirm("Retirer la marque « saisie » de cette commande ?")) return;
+      corps.saisie=false;
+    } else {
+      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      if(note === null) return;                       /* annulé */
+      corps.note=note;
+    }
+    b.disabled=true;
+    fetch(API+"?action=commande-saisie", {method:"POST",
+      headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+      body:JSON.stringify(corps)})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        b.disabled=false;
+        if(!res.ok){ toast(res.d.erreur || "Impossible d'enregistrer."); return; }
+        f.saisie = res.d.saisie || null;
+        toast(f.saisie ? "Commande marquée saisie." : "Marque retirée.");
+        peindreDocs();
+      })
+      .catch(function(){ b.disabled=false; toast("Pas de réseau."); });
+  });
+  return b;
+}
+
 function peindreDocs(){
   var hote=$("docs"); hote.textContent="";
   var liste=(CHANTIER.fichiers||[]).slice().sort(function(a,b){
@@ -773,15 +846,38 @@ function peindreDocs(){
     var a=document.createElement("a"); a.className="f";
     a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(SESSION.jeton);
     a.target="_blank"; a.rel="noopener";
+    /* ouvrir un document vaut accusé de lecture : le serveur l'enregistre,
+       et on retire la marque « Nouveau » sans attendre le rechargement */
+    a.addEventListener("click", function(){
+      if(!pasEncoreLu(f)) return;
+      f.lectures = f.lectures || {};
+      f.lectures[moi()] = new Date().toISOString();
+      setTimeout(peindreDocs, 60);
+    });
     var t=document.createElement("div"); t.className="t";
     var tb=document.createElement("b"); tb.textContent=f.titre||"Document";
     var ts=document.createElement("span");
     ts.textContent=[frDate(f.date), f.auteur, octets(f.taille)].filter(Boolean).join("   ");
     t.appendChild(tb); t.appendChild(ts);
+    var s=ligneSaisie(f);
+    if(s) t.appendChild(s);
+
+    var cote=document.createElement("span"); cote.className="cote";
+    if(pasEncoreLu(f)){
+      var neuf=document.createElement("span"); neuf.className="neuf";
+      neuf.textContent="Nouveau";
+      cote.appendChild(neuf);
+    }
+    var bs=boutonSaisie(f);
+    if(bs) cote.appendChild(bs);
     var tag=document.createElement("span");
     tag.className="tag"+(CLASSE[f.type] ? " "+CLASSE[f.type] : "");
     tag.textContent = f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:"")) : (LIBELLE[f.type]||"Relevé");
-    a.appendChild(t); a.appendChild(tag);
+    cote.appendChild(tag);
+    /* une ligne chargée — neuf, saisie, étiquette — respire mieux sur deux
+       rangées que serrée contre un titre qui se casse en trois morceaux */
+    if(cote.children.length > 1) a.className += " riche";
+    a.appendChild(t); a.appendChild(cote);
     fs.appendChild(a);
   });
   hote.appendChild(fs);

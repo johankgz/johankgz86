@@ -460,6 +460,31 @@ nav#nav button svg{stroke-width:1.9}
 .f .tag.doe,.f .tag.reception{background:var(--ok-soft);color:var(--ok)}
 .f .tag.etiq{background:var(--field);color:var(--ink-2)}
 .f .tag.technique{background:var(--data-soft);color:var(--data)}
+
+/* ---------- ce qui est neuf, ce qui est saisi ---------- */
+.head .pastille-docs{
+  flex:0 0 auto;background:var(--accent);color:#fff;
+  min-width:20px;height:20px;padding:0 6px;border-radius:var(--r-pill);
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:11.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
+}
+.f .neuf{
+  flex:0 0 auto;background:var(--accent);color:#fff;
+  font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
+  padding:3px 8px;border-radius:var(--r-pill);
+}
+.f .saisie{display:block;margin-top:4px;font-size:12px;font-weight:600;color:var(--ok)}
+.f .t{min-width:0}
+.f.riche{flex-wrap:wrap}
+.f.riche .t{flex:1 1 100%;margin-bottom:9px}
+.f .ok-saisie{
+  flex:0 0 auto;border:1px solid var(--rule);border-radius:var(--r-pill);
+  background:var(--card);color:var(--ink-2);
+  font-family:inherit;font-size:11px;font-weight:600;padding:4px 10px;cursor:pointer;
+}
+.f .ok-saisie.on{background:var(--ok-soft);border-color:transparent;color:var(--ok)}
+.f .ok-saisie[disabled]{opacity:.5}
+@media (hover:hover){ .f .ok-saisie:hover{border-color:#BFC7D1;background:#FAFBFC;color:var(--ink)} }
 .f .tag.sav{background:var(--rouge-soft);color:var(--rouge)}
 .actions .danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18)}
 @media (hover:hover){
@@ -1423,6 +1448,57 @@ function charger(){
     .catch(function(){ $("bonjour").textContent="Pas de réseau. Réessayez."; });
 }
 var MOI=null;
+function pasEncoreLu(f){
+  var m = MOI && MOI.nom;
+  return !!m && f.auteur !== m && !((f.lectures||{})[m]);
+}
+function docsNonLus(c){
+  return (c.fichiers||[]).filter(pasEncoreLu).length;
+}
+/* Le bureau dit au technicien que la commande est passée chez le
+   fournisseur : qui, quand, et un mot s'il y en a un. */
+function ligneSaisie(f){
+  if(!f.saisie) return null;
+  var p=document.createElement("span"); p.className="saisie";
+  p.textContent="Commande saisie par "+f.saisie.par+" le "+frDate(f.saisie.le)
+    + (f.saisie.note ? " — "+f.saisie.note : "");
+  return p;
+}
+function boutonSaisie(f, repeindre){
+  if(!MOI || (MOI.role!=="bureau" && MOI.role!=="admin")) return null;
+  if(f.type !== "commande") return null;
+  var b=document.createElement("button");
+  b.type="button"; b.className="ok-saisie"+(f.saisie ? " on" : "");
+  b.textContent = f.saisie ? "Saisie \u2713" : "OK saisie";
+  b.title = f.saisie ? "Revenir en arrière : la commande n'est plus marquée saisie."
+                     : "Prévenir le technicien que la commande est passée.";
+  b.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    var corps={cle:f.cle};
+    if(f.saisie){
+      if(!window.confirm("Retirer la marque « saisie » de cette commande ?")) return;
+      corps.saisie=false;
+    } else {
+      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      if(note === null) return;
+      corps.note=note;
+    }
+    b.disabled=true;
+    fetch(API+"?action=commande-saisie", {method:"POST",
+      headers:{"content-type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify(corps)})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        b.disabled=false;
+        if(!res.ok){ alert(res.d.erreur || "Impossible d'enregistrer."); return; }
+        f.saisie = res.d.saisie || null;
+        repeindre();
+      })
+      .catch(function(){ b.disabled=false; alert("Pas de réseau."); });
+  });
+  return b;
+}
+
 var ORDRE={releve:1, technique:2, carnet:3, memoire:4, suivi:5, commande:6, photos:7, reportage:8, etiquettes:9, autocontrole:10, reception:11, doe:12, sav:13};
 function rangDoc(f){
   var base=(ORDRE[f.type]||9)*1000;
@@ -1459,6 +1535,14 @@ function afficher(chantiers){
     var n=document.createElement("span"); n.className="n";
     n.textContent=c.fichiers.length+" doc"+(c.fichiers.length>1?"s":"");
     head.appendChild(ref); head.appendChild(b); head.appendChild(n);
+    var nonLus=docsNonLus(c);
+    if(nonLus){
+      var pd=document.createElement("span"); pd.className="pastille-docs";
+      pd.textContent=String(nonLus);
+      pd.title=nonLus+" document"+(nonLus>1?"s":"")+" que vous n'avez pas encore ouvert"+(nonLus>1?"s":"");
+      pd.setAttribute("aria-label", pd.title);
+      head.appendChild(pd);
+    }
     var barreBoutons=document.createElement("div"); barreBoutons.className="barre";
     if((c.adresse||"").trim()){
       var iti=document.createElement("button");
@@ -1598,7 +1682,20 @@ function afficher(chantiers){
                       : f.type==="reception" ? "Réception"
                       : f.type==="etiquettes" ? "Étiquettes"
                       : f.type==="sav" ? "SAV" : "Relevé";
-      a.appendChild(t); a.appendChild(tag); a.appendChild(bPartage);
+      var mS=ligneSaisie(f);
+      if(mS) t.appendChild(mS);
+      a.appendChild(t);
+      var marques=0;
+      if(pasEncoreLu(f)){
+        var neuf=document.createElement("span"); neuf.className="neuf";
+        neuf.textContent="Nouveau";
+        a.appendChild(neuf); marques++;
+      }
+      var bS=boutonSaisie(f, charger);
+      if(bS){ a.appendChild(bS); marques++; }
+      /* une ligne chargée respire mieux sur deux rangées */
+      if(marques) a.className += " riche";
+      a.appendChild(tag); a.appendChild(bPartage);
       if(aSupprimer) a.appendChild(aSupprimer);
       fs.appendChild(a);
     });

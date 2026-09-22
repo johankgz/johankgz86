@@ -989,6 +989,27 @@ export default async (req) => {
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
   }
 
+  if (action === "commande-saisie") {
+    /* Le bureau dit au technicien que la commande est passée chez le
+       fournisseur. Une seule marque par commande, avec qui et quand,
+       et un mot facultatif : « livrée mardi », « le 32A manque ». */
+    if (!bureau) return json({ erreur: "Seul le bureau marque une commande saisie." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const cle = String(d.cle || "").trim();
+    const idx = await lireIndex();
+    const f = trouver(idx, cle);
+    if (!f) return json({ erreur: "Commande introuvable." }, 404);
+    if (f.type !== "commande") return json({ erreur: "Seule une commande se marque saisie." }, 400);
+    if (!voit(personne, f, chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+
+    if (d.saisie === false) delete f.saisie;
+    else f.saisie = { par: personne.nom, le: new Date().toISOString(),
+                      note: String(d.note || "").trim().slice(0, 200) };
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, saisie: f.saisie || null });
+  }
+
   if (action === "position-enregistrer") {
     /* la carte des chantiers retient ici le point trouvé pour un dossier,
        qu'il vienne d'une recherche d'adresse ou d'un point posé à la main */
