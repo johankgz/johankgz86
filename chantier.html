@@ -408,6 +408,7 @@ nav#nav button svg{stroke-width:1.9}
   .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
   .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
   .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav a:hover:not([aria-current="true"]),
   nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
 }
 @media (prefers-reduced-motion:reduce){
@@ -479,31 +480,39 @@ nav#nav button svg{stroke-width:1.9}
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
 
-/* ---------- la barre d'actions ---------- */
-.actions-chantier{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:14px 0 0}
-.actions-chantier a,.actions-chantier button{
-  position:relative;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;
-  min-height:86px;padding:12px 8px;
-  border:1px solid var(--rule);border-radius:var(--r-card);
-  background:var(--card);box-shadow:var(--ombre-1);
-  color:var(--ink);text-decoration:none;
-  font-size:12.5px;font-weight:600;line-height:1.2;text-align:center;
-  font-family:inherit;cursor:pointer;
-  transition:box-shadow .18s ease,border-color .18s ease,transform .1s ease;
+/* ---------- la barre d'onglets du chantier ----------
+   La même réglette que dans les applis : on passe d'un onglet à
+   l'autre sans quitter le chantier. */
+nav#nav{
+  display:flex;gap:1px;padding:4px 3px;margin:10px 0 0;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
 }
-.actions-chantier a::before,.actions-chantier button::before{
-  content:"";position:absolute;top:6px;left:6px;width:8px;height:8px;
-  border-top:1px solid var(--data);border-left:1px solid var(--data);opacity:.35;
+nav#nav::-webkit-scrollbar{display:none}
+nav#nav a,nav#nav button{
+  flex:1 1 0;min-width:0;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  background:none;border:0;padding:7px 2px 6px;border-radius:7px;
+  font-family:inherit;font-size:9px;font-weight:500;letter-spacing:-.01em;
+  line-height:1.2;text-align:center;text-decoration:none;
+  color:#8A97A6;cursor:pointer;
+  transition:color .16s ease,background .16s ease;
 }
-.actions-chantier svg{
-  width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;
-  stroke-linecap:round;stroke-linejoin:round;
-  box-sizing:content-box;padding:8px;border-radius:9px;
-  background:var(--accent-soft);color:var(--accent);
+nav#nav a span,nav#nav button span{display:block;width:100%;hyphens:none;overflow-wrap:normal}
+@media (min-width:520px){ nav#nav a,nav#nav button{font-size:10.5px;padding:7px 6px 6px} }
+nav#nav a svg,nav#nav button svg{
+  width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease;
 }
-.actions-chantier .loc svg{background:var(--data-soft);color:var(--data)}
-.actions-chantier a:active,.actions-chantier button:active{transform:translateY(1px)}
+nav#nav a[aria-current="true"],nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav a[aria-current="true"] svg,nav#nav button[aria-current="true"] svg{transform:translateY(-1px) scale(1.06)}
+nav#nav a:active svg,nav#nav button:active svg{transform:scale(.92)}
+@media (prefers-reduced-motion:reduce){ nav#nav a svg,nav#nav button svg{transition:none} }
 
 /* ---------- la localisation ---------- */
 #loc[hidden]{display:none}
@@ -513,14 +522,6 @@ nav#nav button svg{stroke-width:1.9}
 #loc .btns .act{flex:1 1 auto;min-width:140px}
 
 .vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:22px 10px}
-@media (hover:hover){
-  .actions-chantier a:hover,.actions-chantier button:hover{
-    box-shadow:var(--ombre-2);border-color:rgba(14,116,144,.35);transform:translateY(-1px);
-  }
-}
-@media (min-width:520px){
-  .actions-chantier{grid-template-columns:repeat(6,minmax(0,1fr))}
-}
 </style></head>
 <body>
 <header>
@@ -529,6 +530,7 @@ nav#nav button svg{stroke-width:1.9}
     <h1 id="titre">Chantier</h1>
     <span id="hdrRef" style="margin-left:auto;font-size:12.5px"></span>
   </div>
+  <nav id="nav" aria-label="Les onglets du chantier"></nav>
 </header>
 <main>
   <div class="block entete-chantier">
@@ -537,8 +539,6 @@ nav#nav button svg{stroke-width:1.9}
       <h2 id="c_client">Chargement…</h2>
     </div>
     <p class="adr" id="c_adresse"></p>
-
-    <nav class="actions-chantier" id="actions" aria-label="Ce qu'on peut faire sur ce chantier"></nav>
   </div>
 
   <div class="block" id="loc" hidden>
@@ -640,7 +640,7 @@ function lienAppli(page, onglet){
   return page + "?" + p.toString();
 }
 function peindreActions(){
-  var hote=$("actions"); hote.textContent="";
+  var hote=$("nav"); hote.textContent="";
   ACTIONS.forEach(function(a){
     if(!aAcces(APPLI_DE[a[0]])) return;
     var el=document.createElement("a");
@@ -650,16 +650,23 @@ function peindreActions(){
     el.appendChild(b);
     hote.appendChild(el);
   });
-  /* la localisation n'ouvre pas une appli : elle déplie un bloc ici */
+  /* la localisation n'ouvre pas une appli : elle déplie un bloc ici,
+     et l'onglet reste allumé tant que le bloc est ouvert */
   var loc=document.createElement("button");
-  loc.type="button"; loc.className="loc";
+  loc.type="button"; loc.className="loc"; loc.id="ongletLoc";
+  loc.setAttribute("aria-expanded","false");
   loc.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES.localisation+'</svg>';
   var t=document.createElement("span"); t.textContent="Localisation chantier";
   loc.appendChild(t);
   loc.addEventListener("click", function(){
     var bloc=$("loc");
     bloc.hidden = !bloc.hidden;
-    if(!bloc.hidden) bloc.scrollIntoView({behavior:"smooth", block:"nearest"});
+    loc.setAttribute("aria-expanded", bloc.hidden ? "false" : "true");
+    if(bloc.hidden) loc.removeAttribute("aria-current");
+    else{
+      loc.setAttribute("aria-current","true");
+      bloc.scrollIntoView({behavior:"smooth", block:"nearest"});
+    }
   });
   hote.appendChild(loc);
 }
