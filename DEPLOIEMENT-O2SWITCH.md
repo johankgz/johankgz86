@@ -22,9 +22,22 @@ Deux façons, au choix.
 1. cPanel → **Git™ Version Control** → **Create**.
 2. Cochez *Clone a Repository*.
 3. Clone URL : `https://github.com/johankgz/johankgz86.git`
-4. Repository Path : `outils` (le dossier sera `/home/VOTRECOMPTE/outils`).
-5. Branche : celle que vous voulez mettre en ligne.
+4. Repository Path : le nom du dossier, par exemple `suivitravaux360`
+   (il sera créé dans `/home/VOTRECOMPTE/`).
+5. Branche : `main`.
 6. **Create**.
+
+**Faites le clone AVANT de créer l'application Node.** Dans l'autre ordre,
+cPanel a déjà fabriqué le dossier avec un `app.js` d'exemple, et Git
+refuse d'écrire dedans :
+
+> You cannot use the "/home/VOTRECOMPTE/outils" directory because it
+> already contains files.
+
+Si ça vous arrive : clonez sous un autre nom. Le nom du dossier n'est
+codé nulle part — `app.js` et `app.cjs` calculent le dossier des
+données par rapport à eux-mêmes. Il suffit de reporter le même nom dans
+*Application root*.
 
 Plus tard, pour publier une modification : la même page → **Manage** →
 **Update from Remote** → puis **Restart** dans Setup Node.js App.
@@ -79,6 +92,20 @@ Cette étape n'est pas facultative : sans elle le site ne démarre pas.
 Si vous l'oubliez, le journal le dit en toutes lettres et rappelle quoi
 faire — ce n'est pas une panne, juste une installation à finir.
 
+### Si cPanel répond « 500 Internal Server Error » après l'installation
+
+Le message complet commence par *« The operation was performed »* : c'est
+donc l'installation qui a réussi, et le contrôle d'après qui a échoué.
+
+**Mettez `app.cjs` comme fichier de démarrage**, puis *Restart*. C'est la
+cause la plus fréquente : `app.js` est un module ES, et Passenger — le
+moteur qui lance l'application chez o2switch — le charge parfois à
+l'ancienne et s'arrête. `app.cjs` fait la même chose en JavaScript
+classique, il est là pour ça.
+
+Vérifiez aussi que *Application root* est bien le dossier cloné, et non
+un dossier resté vide d'une tentative précédente.
+
 Ouvrez l'adresse de l'application : la page de connexion doit
 apparaître. Les comptes de départ sont ceux de
 `netlify/functions/equipe.mjs` — société `tle`, identifiant `johan`.
@@ -86,6 +113,33 @@ apparaître. Les comptes de départ sont ceux de
 **Changez les mots de passe dès la première connexion.** Ceux du fichier
 sont écrits en clair dans le dépôt : ils servent à ouvrir le site la
 première fois, pas à le garder. cPanel → l'appli → **Comptes**.
+
+### Voir la vraie erreur, en une commande
+
+Un 500 ne dit rien. Pour lire l'erreur en clair : cPanel → **Terminal**.
+
+```bash
+ls ~/nodevenv/VOTREDOSSIER/
+```
+
+Le numéro affiché est la version de Node de l'application — il en faut
+**20 minimum**. S'il y en a plusieurs, c'est que la version a été changée
+en cours de route : prenez celle qui est sélectionnée dans *Setup Node.js
+App*, c'est la seule qui compte.
+
+```bash
+source ~/nodevenv/VOTREDOSSIER/24/bin/activate
+cd ~/VOTREDOSSIER
+node app.cjs
+```
+
+`node` n'existe que dans cet environnement : hors de lui, le terminal
+répond « commande introuvable », et c'est normal.
+
+Le site démarre alors devant vous et affiche ses quatre lignes — site,
+données, e-mails, Ctrl+C. **S'il démarre, le code va bien** : le problème
+est dans la configuration de l'application cPanel, pas dans le site.
+Sinon, l'erreur s'affiche en clair.
 
 ### Par le Terminal, si vous préférez
 
