@@ -219,14 +219,26 @@ async function identifier(auth) {
   const comptes = await lireComptes(code);
   const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id && c.motdepasse === mdp);
 
-  /* le compte de la société passe en premier : on garde le nom que l'équipe connaît */
+  /* Le compte de l'annuaire passe en premier : on garde le nom que
+     l'équipe connaît. Être propriétaire tient à l'identifiant et à la
+     société d'origine, jamais au mot de passe : sinon le propriétaire
+     perdrait ses droits en changeant de mot de passe. */
   if (u) {
-    const proprio = id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse;
+    const proprio = code === SOCIETE_DEPART.code
+      && String(u.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase();
     return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
       societe: code, proprietaire: proprio, applis: applisValides(u.applis) };
   }
-  /* sinon, le propriétaire entre quand même, dans n'importe quelle société */
-  if (id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse) {
+  /* Secours : tant que le compte du propriétaire n'existe PAS dans
+     l'annuaire de cette société, le mot de passe d'origine le laisse
+     entrer — c'est ce qui permet de créer la première société et de se
+     rattraper si l'annuaire est perdu.
+     Dès que le compte existe, l'annuaire fait seul autorité. Sans cette
+     condition, le mot de passe écrit dans le code resterait valable pour
+     toujours, et le changer depuis la page Comptes ne servirait à rien. */
+  const proprioConnu = comptes.some((c) =>
+    String(c.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase());
+  if (!proprioConnu && id === PROPRIETAIRE.identifiant && mdp === PROPRIETAIRE.motdepasse) {
     return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code,
       email: PROPRIETAIRE.email, applis: [] };
   }
