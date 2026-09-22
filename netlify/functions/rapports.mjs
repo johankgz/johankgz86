@@ -18,8 +18,15 @@ function frDate(d) {
 }
 async function prevenir(entree, chantier, auteur, origine, comptes) {
   if (!CLE_RESEND) return [];
+  /* Qui prévenir ? Les personnes désignées quand il y en a. Sinon —
+     publication « dans le dossier » — toute l'équipe du chantier, sauf
+     celui qui vient de publier : il sait déjà. */
+  const vises = entree.destinataires || [];
+  const noms = vises.length
+    ? vises
+    : ((chantier && chantier.equipe) || []).filter((n) => n && n !== auteur);
   const cibles = (comptes || []).filter(
-    (u) => (entree.destinataires || []).indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0
+    (u) => noms.indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0
   );
   if (!cibles.length) return [];
 
