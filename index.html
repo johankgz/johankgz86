@@ -498,19 +498,20 @@ nav#navParcours a{
   position:relative;flex:1 0 82px;
   display:flex;flex-direction:column;align-items:center;gap:4px;
   padding:9px 3px 7px;border-radius:7px;text-decoration:none;
-  font-size:9.5px;font-weight:500;line-height:1.2;text-align:center;color:#8A97A6;
+  font-size:9.5px;font-weight:500;line-height:1.2;text-align:center;color:#9AA7B5;
   transition:color .16s ease,background .16s ease;
 }
 nav#navParcours a span{display:block;width:100%;hyphens:none;overflow-wrap:normal;white-space:nowrap;
  overflow:hidden;text-overflow:ellipsis}
 nav#navParcours a .num{white-space:nowrap}
+/* même code couleur que l'ancienne barre « Ouvrir une affaire » :
+   les pictogrammes restent orange, seule couleur d'action du site. */
 nav#navParcours svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;
- stroke-linecap:round;stroke-linejoin:round}
+ stroke-linecap:round;stroke-linejoin:round;color:var(--accent-vif)}
 nav#navParcours a .num{
   position:absolute;top:3px;right:5px;font-size:8.5px;font-weight:700;
   color:var(--data-vif);opacity:.8;font-variant-numeric:tabular-nums;
 }
-nav#navParcours a.plus{color:#6F7C8A}
 .nav-wrap{position:relative}
 .nav-wrap::after{
   content:"";position:absolute;top:1px;right:1px;bottom:1px;width:26px;
@@ -520,32 +521,6 @@ nav#navParcours a.plus{color:#6F7C8A}
 .nav-wrap.deborde::after{opacity:1}
 @media (hover:hover){
   nav#navParcours a:hover{color:#E7ECF2;background:rgba(255,255,255,.07)}
-}
-
-/* ---------- ouvrir une affaire : les trois départs du bureau ---------- */
-/* ---------- ouvrir une affaire : la même réglette que le parcours ---------- */
-nav#navDeparts{
-  display:flex;gap:1px;padding:5px 4px;margin:0 0 22px;
-  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
-  background:var(--g-800);border:1px solid var(--trait-tech);border-radius:10px;
-}
-nav#navDeparts::-webkit-scrollbar{display:none}
-nav#navDeparts a{
-  position:relative;flex:1 0 92px;
-  display:flex;flex-direction:column;align-items:center;gap:4px;
-  padding:9px 3px 7px;border-radius:7px;text-decoration:none;
-  font-size:9.5px;font-weight:500;line-height:1.2;text-align:center;color:#9AA7B5;
-  transition:color .16s ease,background .16s ease;
-}
-nav#navDeparts a span{display:block;width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-nav#navDeparts svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.85;
- stroke-linecap:round;stroke-linejoin:round;color:var(--accent-vif)}
-nav#navDeparts a .plus{
-  position:absolute;top:3px;right:6px;font-size:11px;font-weight:700;
-  color:var(--accent-vif);line-height:1;
-}
-@media (hover:hover){
-  nav#navDeparts a:hover{color:#E7ECF2;background:rgba(255,255,255,.07)}
 }
 
 .chantiers{display:grid;grid-template-columns:1fr;gap:10px}
@@ -849,9 +824,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </a>
 
 
-    <h2 class="sec" id="secDeparts" hidden>Ouvrir une affaire</h2>
-    <div class="nav-wrap" id="departsWrap" hidden>
-      <nav id="navDeparts" aria-label="Ce qui ouvre une affaire"></nav>
+    <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
+    <div class="parcours" id="parcours">
+      <div class="nav-wrap" id="parcoursWrap">
+        <nav id="navParcours" aria-label="Les applis, dans l'ordre d'une affaire"></nav>
+      </div>
     </div>
 
     <h2 class="sec" id="secChantiers" hidden>Mes chantiers</h2>
@@ -859,13 +836,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
     <h2 class="sec" id="secAttente" hidden>En attente de réponse</h2>
     <div class="chantiers attente" id="enAttente" hidden></div>
-
-    <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
-    <div class="parcours" id="parcours">
-      <div class="nav-wrap" id="parcoursWrap">
-        <nav id="navParcours" aria-label="Les applis, dans l'ordre d'une affaire"></nav>
-      </div>
-    </div>
     <div class="grille" id="cartes" style="margin-top:14px"></div>
 
     <h2 class="sec" id="secBref">Travaux en cours</h2>
@@ -1844,40 +1814,10 @@ function rechargerChantiers(){
 
 /* Deux accueils, selon le métier. Le technicien travaille chantier par
    chantier : on lui montre ses dossiers, pas le parcours d'une affaire,
-   qui est le métier du chargé d'affaires. */
-/* Ce qui ouvre une affaire, en réglette comme le parcours : le
-   chargé d'affaires les a sous la main sans que la page s'allonge.
-   Le technicien, lui, entre par ses chantiers. */
-var DEPARTS=[
-  ["./releve.html",   "Relevé",         "releve",    "releve"],
-  ["./sav.html",      "SAV",            "sav",       "sav"],
-  ["./carnet.html",   "Carnet et DOE",  "carnet",    "carnet"],
-  ["./technique.html","Documents",      "technique", "technique"]
-];
-function peindreDeparts(s){
-  var host=$("navDeparts"); if(!host) return 0;
-  host.textContent="";
-  DEPARTS.filter(function(d){ return accesAppli(s, d[3]); }).forEach(function(d){
-    var a=document.createElement("a"); a.href=d[0];
-    a.title="Ouvrir " + (/^[AEIOU]/.test(d[1]) ? "un " : "un nouveau ") + d[1].toLowerCase();
-    var plus=document.createElement("span"); plus.className="plus"; plus.textContent="+";
-    a.appendChild(plus);
-    var ic=document.createElement("span");
-    ic.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(ICONES[d[2]]||"")+'</svg>';
-    a.appendChild(ic.firstChild);
-    var b=document.createElement("span"); b.textContent=d[1];
-    a.appendChild(b); host.appendChild(a);
-  });
-  (function debord(){
-    var w=$("departsWrap"); if(!w) return;
-    function maj(){ w.classList.toggle("deborde", host.scrollWidth - host.clientWidth - host.scrollLeft > 4); }
-    host.addEventListener("scroll", maj);
-    window.addEventListener("resize", maj);
-    setTimeout(maj, 0);
-  })();
-  return host.children.length;
-}
-
+   qui est le métier du chargé d'affaires.
+   « Ouvrir une affaire » a disparu : ses quatre entrées (Relevé, SAV,
+   Carnet et DOE, Documents) étaient déjà dans le parcours d'une affaire,
+   au même endroit, avec le même lien. Une seule réglette suffit. */
 function adapterAccueil(s, enAttente){
   var tech = s.role === "technicien";
   /* les chantiers sont désormais l'entrée de tout le monde */
@@ -1897,11 +1837,6 @@ function adapterAccueil(s, enAttente){
      en moins complet : la liste de chantiers le remplace pour tout le monde */
   ["secBref","bref"].forEach(function(id){
     var el=$(id); if(el) el.hidden = true;
-  });
-  /* et les trois départs avec lui : le technicien n'ouvre pas d'affaire */
-  var n = tech ? 0 : peindreDeparts(s);
-  ["secDeparts","departsWrap"].forEach(function(id){
-    var el=$(id); if(el) el.hidden = !n;
   });
 }
 
