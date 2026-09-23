@@ -272,14 +272,54 @@ function joursDepuis(iso) {
   if (!isFinite(t)) return 0;
   return Math.floor((Date.now() - t) / 86400000);
 }
+/* C'est le relevé technique qui dit où en est une affaire : son onglet
+   Conclusion porte « Devis accepté », « En attente de réponse » ou « En
+   attente de rendez-vous », et ce statut voyage avec le document. Un
+   chiffrage parti chez le client n'a donc pas à être rangé une seconde
+   fois à la main : le dossier suit son relevé. */
+function statutAttendu(etape) {
+  const t = String(etape || "").toLowerCase();
+  if (/accept/.test(t)) return "actif";
+  if (/en attente/.test(t)) return "attente";
+  return "";
+}
+function dernierReleve(c) {
+  let vu = null;
+  for (const f of (c && c.fichiers) || []) {
+    if (f.type !== "releve" || f.brouillon) continue;
+    const quand = f.publie || f.date || "";
+    if (!vu || String(quand) >= String(vu.publie || vu.date || "")) vu = f;
+  }
+  return vu;
+}
 function etatDossier(c) {
-  if (!c || c.etat !== "attente") return { etat: "actif" };
-  const depuis = c.attenteDepuis || c.maj || "";
+  if (!c) return { etat: "actif" };
+  let etat = c.etat === "attente" ? "attente" : (c.etat === "actif" ? "actif" : "");
+  let depuis = c.attenteDepuis || "";
+  let note = c.attenteNote || "";
+  let par = c.attentePar || "";
+  let auto = false;
+  /* rien de posé à la main : c'est le relevé qui décide */
+  if (!etat) {
+    const r = dernierReleve(c);
+    const dit = statutAttendu(r && r.etape);
+    if (dit === "attente") {
+      etat = "attente"; auto = true;
+      depuis = r.publie || r.date || c.maj || "";
+      note = String(r.etape || "");
+      par = r.auteur || "";
+    } else {
+      etat = "actif";
+    }
+  }
+  if (etat !== "attente") return { etat: "actif" };
+  depuis = depuis || c.maj || "";
   return {
     etat: "attente",
     attenteDepuis: depuis,
-    attenteNote: c.attenteNote || "",
-    attentePar: c.attentePar || "",
+    attenteNote: note,
+    attentePar: par,
+    attenteAuto: auto,
     joursAttente: joursDepuis(depuis),
     /* la relance repart de la dernière réponse, pas de la mise en attente :
        « toujours en attente » vaut un mois de tranquillité de plus. */
@@ -848,6 +888,15 @@ export default async (req) => {
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
 
+    /* Publier un relevé, c'est redire où en est l'affaire : le statut de
+       sa conclusion reprend la main sur une mise de côté faite à la main. */
+    if (entree.type === "releve" && statutAttendu(entree.etape)) {
+      delete c.etat; delete c.attenteDepuis; delete c.attenteNote;
+      delete c.attentePar; delete c.relanceLe;
+      idx.chantiers[ref] = c;
+      await store.setJSON(INDEX, idx);
+    }
+
     let prevenus = [];
     if (!photos) {
       try { prevenus = await prevenir(entree, c, entree.auteur, url.origin, await lireComptes(personne.societe)); } catch { prevenus = []; }
@@ -1320,7 +1369,11 @@ export default async (req) => {
       c.relanceLe = maintenant;
       if (typeof d.note === "string") c.attenteNote = d.note.trim().slice(0, 200);
     } else {
-      delete c.etat; delete c.attenteDepuis; delete c.attenteNote;
+      /* on écrit « actif » au lieu d'effacer : sans cela le dossier
+         retomberait aussitôt en attente, puisque le relevé, lui, dit
+         toujours que le devis attend une réponse. */
+      c.etat = "actif";
+      delete c.attenteDepuis; delete c.attenteNote;
       delete c.attentePar; delete c.relanceLe;
     }
     idx.chantiers[ref] = c;

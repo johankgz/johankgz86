@@ -1724,7 +1724,11 @@ function carteChantier(c){
   }
   if(c.etat === "attente" && c.attenteNote){
     var no=document.createElement("p"); no.className="note";
-    no.textContent="« "+c.attenteNote+" »";
+    /* venue du relevé, la note est un statut, pas une phrase : on la cite
+       comme telle plutôt qu'entre guillemets. */
+    no.textContent = c.attenteAuto
+      ? ("Relevé : "+c.attenteNote+(c.attentePar ? " — "+c.attentePar : ""))
+      : ("« "+c.attenteNote+" »");
     a.appendChild(no);
   }
   var i=document.createElement("p"); i.className="info";
@@ -1787,7 +1791,9 @@ function peindreAttente(ch){
        où le dossier resterait à traîner. */
     var box=document.createElement("div"); box.className="relance";
     var q=document.createElement("p");
-    q.textContent="Sans réponse depuis "+depuisCombien(c.joursAttente)
+    /* la question nomme le dossier : plusieurs peuvent attendre en même
+       temps, et on répond sans avoir à deviner lequel. */
+    q.textContent=(c.client||c.ref)+" — sans réponse depuis "+depuisCombien(c.joursAttente)
       +". Où en est ce dossier ?";
     box.appendChild(q);
     var ch3=document.createElement("div"); ch3.className="choix";
