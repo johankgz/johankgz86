@@ -1735,6 +1735,14 @@ function publierRapport(meta){
       el.textContent = msg + (ok
         ? "  ·  " + n + " photo" + (n>1?"s":"") + " déposée" + (n>1?"s":"") + "."
         : "  ·  Photos non déposées : " + erreur + " Utilisez « Déposer les photos sur le site » ci-dessous.");
+      /* tout est parti dans le dossier — le document, les photos — rien
+         à rattraper : on repart d'un reportage vide, avec une
+         confirmation qui le dit. Un échec du dépôt des photos garde le
+         formulaire, pour pouvoir les redéposer sans tout recommencer. */
+      if(versDossier && ok){
+        reinitialiserFormulaire("Reportage publié. Formulaire vidé pour un nouveau reportage.");
+        el.textContent += "  ·  Formulaire vidé pour un nouveau reportage.";
+      }
     });
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
@@ -2111,9 +2119,15 @@ function bindAll(){
   $("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(); });
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce reportage et repartir de zéro ?")) return;
-    S=blank();
-    save(); paintForm(); showTab("dossier"); toast("Nouveau reportage.");
+    reinitialiserFormulaire("Nouveau reportage.");
   });
+}
+/* remise à zéro : appelée par « Nouveau reportage », et automatiquement
+   après une publication dans le dossier (voir publierRapport). */
+function reinitialiserFormulaire(msg){
+  S=blank();
+  save(); paintForm(); showTab("dossier");
+  toast(msg);
 }
 function adapterRole(){
   if(destUnSeul()){

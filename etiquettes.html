@@ -1564,9 +1564,15 @@ function publierRapport(meta){
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
                              : "Visite remplacée par cette nouvelle version.")
       : "Rapport publié.";
-    el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + ".";
-    toast("Rapport publié.");
+    el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
+                                        : " Disponible pour " + meta.destinataires.join(", ") + ".");
     deposerFiche(res.d.cle, el);
+    if(versDossier){
+      reinitialiserFormulaire("Étiquettes publiées. Formulaire vidé pour un nouveau tableau.");
+      el.textContent += "  ·  Formulaire vidé pour un nouveau tableau.";
+    } else {
+      toast("Rapport publié.");
+    }
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -1934,8 +1940,15 @@ function bindAll(){
 
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce tableau et repartir de zéro ?")) return;
-    S=blank(); RANGEE=0; save(); paintForm(); showTab("tableau"); toast("Nouveau tableau.");
+    reinitialiserFormulaire("Nouveau tableau.");
   });
+}
+/* remise à zéro : appelée par « Nouveau tableau », et automatiquement
+   après une publication dans le dossier (voir publierRapport). */
+function reinitialiserFormulaire(msg){
+  S=blank(); RANGEE=0;
+  save(); paintForm(); showTab("tableau");
+  toast(msg);
 }
 function adapterRole(){
   if(SESSION && SESSION.role==="technicien"){

@@ -1748,6 +1748,11 @@ function publier(){
         el.textContent = (res.d.remplace ? "Document remplacé par cette nouvelle version." : "Document publié.")
           + (versDossier ? " Disponible pour l'équipe du dossier."
                          : " Disponible pour " + meta.destinataires.join(", ") + ".");
+        if(versDossier){
+          return reinitialiserFormulaire("Document publié. Formulaire vidé pour un nouveau dossier.").then(function(){
+            el.textContent += "  ·  Formulaire vidé pour un nouveau dossier.";
+          });
+        }
         toast("Document publié.");
       });
   }).catch(function(){
@@ -1886,10 +1891,17 @@ function bindAll(){
   });
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce dossier et les PDF importés sur cet appareil ?")) return;
-    viderFichiers().then(function(){
-      S=blank(); DERNIER=null;
-      save(); paintForm(); showTab("dossier"); toast("Nouveau dossier.");
-    });
+    reinitialiserFormulaire("Nouveau dossier.");
+  });
+}
+/* remise à zéro : appelée par « Nouveau dossier », et automatiquement
+   après une publication dans le dossier (voir publier()). Retourne une
+   promesse : vider les PDF importés (IndexedDB) prend un instant. */
+function reinitialiserFormulaire(msg){
+  return viderFichiers().then(function(){
+    S=blank(); DERNIER=null;
+    save(); paintForm(); showTab("dossier");
+    toast(msg);
   });
 }
 function adapterRole(){

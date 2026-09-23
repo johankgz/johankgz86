@@ -1664,10 +1664,16 @@ function publierRapport(meta){
                              : "Visite remplacée par cette nouvelle version.")
       : "Rapport publié.";
     var prevenus = res.d.prevenus || [];
-    el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + "."
+    el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
+                                        : " Disponible pour " + meta.destinataires.join(", ") + ".")
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
-    toast("Rapport publié.");
     deposerFiche(res.d.cle, el);
+    if(versDossier){
+      reinitialiserFormulaire("Point publié. Formulaire vidé pour un nouveau point.");
+      el.textContent += "  ·  Formulaire vidé pour un nouveau point.";
+    } else {
+      toast("Rapport publié.");
+    }
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -2184,9 +2190,15 @@ function bindAll(){
 
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce point et repartir de zéro ?")) return;
-    S=blank(); S.auteur=(SESSION&&SESSION.nom)||"";
-    save(); paintForm(); showTab("travaux"); toast("Nouveau point.");
+    reinitialiserFormulaire("Nouveau point.");
   });
+}
+/* remise à zéro : appelée par « Nouveau point », et automatiquement
+   après une publication dans le dossier (voir publierRapport). */
+function reinitialiserFormulaire(msg){
+  S=blank(); S.auteur=(SESSION&&SESSION.nom)||"";
+  save(); paintForm(); showTab("travaux");
+  toast(msg);
 }
 
 /* ---------- retour aux rapports quand on vient de la liste ---------- */

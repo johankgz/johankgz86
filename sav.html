@@ -1787,9 +1787,15 @@ function publierRapport(meta){
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
                              : "Visite remplacée par cette nouvelle version.")
       : "Rapport publié.";
-    el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + ".";
-    toast("Rapport publié.");
+    el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
+                                        : " Disponible pour " + meta.destinataires.join(", ") + ".");
     deposerFiche(res.d.cle, el);
+    if(versDossier){
+      reinitialiserFormulaire("Intervention publiée. Formulaire vidé pour une nouvelle intervention.");
+      el.textContent += "  ·  Formulaire vidé pour une nouvelle intervention.";
+    } else {
+      toast("Rapport publié.");
+    }
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -2796,12 +2802,18 @@ function bindAll(){
   $("btnPhotosSite").addEventListener("click", deposerPhotos);
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer cette intervention et repartir de zéro ?")) return;
-    S=blank(); S.sig.nomTech=(SESSION&&SESSION.nom)||"";
-    save(); paintForm(); showTab("client"); toast("Nouvelle intervention.");
+    reinitialiserFormulaire("Nouvelle intervention.");
   });
   window.addEventListener("resize", function(){
     if(!$("tab-suite").hidden){ initSignature("sig_client","client"); initSignature("sig_tech","tech"); }
   });
+}
+/* remise à zéro : appelée par « Nouvelle intervention », et automatiquement
+   après une publication dans le dossier (voir publierRapport). */
+function reinitialiserFormulaire(msg){
+  S=blank(); S.sig.nomTech=(SESSION&&SESSION.nom)||"";
+  save(); paintForm(); showTab("client");
+  toast(msg);
 }
 function adapterRole(){
   if(SESSION && SESSION.role==="technicien"){

@@ -1339,8 +1339,13 @@ function publierRapport(meta){
     el.textContent = (res.d.remplace ? "Fiche remplacée par cette nouvelle version." : "Fiche publiée.")
       + (versDossier ? " Disponible pour l'équipe du dossier."
                      : " Disponible pour " + meta.destinataires.join(", ") + ".");
-    toast("Fiche publiée.");
     deposerFiche(res.d.cle, el);
+    if(versDossier){
+      reinitialiserFormulaire("Fiche publiée. Formulaire vidé pour une nouvelle fiche.");
+      el.textContent += "  ·  Formulaire vidé pour une nouvelle fiche.";
+    } else {
+      toast("Fiche publiée.");
+    }
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -1776,9 +1781,15 @@ function bindAll(){
   $("btnPartage").addEventListener("click", partagerRapport);
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer cette fiche et repartir de zéro ?")) return;
-    S=blank();
-    save(); paintForm(); showTab("chantier"); toast("Nouvelle fiche.");
+    reinitialiserFormulaire("Nouvelle fiche.");
   });
+}
+/* remise à zéro : appelée par « Nouvelle fiche », et automatiquement
+   après une publication dans le dossier (voir publierRapport). */
+function reinitialiserFormulaire(msg){
+  S=blank();
+  save(); paintForm(); showTab("chantier");
+  toast(msg);
 }
 function adapterRole(){
   if(destUnSeul()){
