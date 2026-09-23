@@ -152,6 +152,19 @@ body.connexion button.lien{color:var(--accent)}
 /* ---------- grille de cartes ---------- */
 h2.sec{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);
  margin:26px 0 8px}
+/* les deux titres qui peuvent se replier : le texte garde la même
+   typo que les autres h2.sec, seule la mise en ligne change */
+h2.sec.repliable{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sec-repli{
+  flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;
+  border:0;border-radius:50%;background:none;color:inherit;cursor:pointer;padding:0;
+  transition:background .15s ease,transform .18s ease;
+}
+.sec-repli svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2.2;
+ stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+.sec-repli[aria-expanded="false"] svg{transform:rotate(-90deg)}
+@media (hover:hover){ .sec-repli:hover{background:rgba(255,255,255,.10)} }
+.chantiers.repli,.chantiers.attente.repli{display:none}
 .grille{display:block;border-top:1px solid var(--rule)}
 a.tuile{position:relative;display:flex;flex-direction:column;text-decoration:none;color:inherit;
  background:var(--card);border-radius:var(--r-field);padding:16px 14px 14px;box-shadow:var(--shadow);overflow:hidden;min-height:148px}
@@ -831,10 +844,22 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       </div>
     </div>
 
-    <h2 class="sec" id="secChantiers" hidden>Mes chantiers</h2>
+    <h2 class="sec repliable" id="secChantiers" hidden>
+      <span>Mes chantiers</span>
+      <button type="button" class="sec-repli" id="repliChantiers" aria-expanded="true" aria-controls="mesChantiers"
+        aria-label="Réduire ou déplier Mes chantiers">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </h2>
     <div class="chantiers" id="mesChantiers" hidden></div>
 
-    <h2 class="sec" id="secAttente" hidden>En attente de réponse</h2>
+    <h2 class="sec repliable" id="secAttente" hidden>
+      <span>En attente de réponse</span>
+      <button type="button" class="sec-repli" id="repliAttente" aria-expanded="true" aria-controls="enAttente"
+        aria-label="Réduire ou déplier En attente de réponse">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+      </button>
+    </h2>
     <div class="chantiers attente" id="enAttente" hidden></div>
     <div class="grille" id="cartes" style="margin-top:14px"></div>
 
@@ -1979,6 +2004,30 @@ $("d_envoi").addEventListener("click", envoyerDemande);
 $("btnOut").addEventListener("click", function(){
   localStorage.removeItem("outils:session"); location.reload();
 });
+
+/* ---------- replier « Mes chantiers » et « En attente de réponse » ----------
+   Une préférence par section, gardée d'une visite à l'autre : le contenu
+   reste replié tant qu'on ne rouvre pas la flèche, même après un
+   rechargement des chantiers. Le titre, lui, reste toujours visible. */
+function initRepli(idBouton, idContenu, cle){
+  var bouton=$(idBouton), contenu=$(idContenu);
+  if(!bouton || !contenu) return;
+  var CLE="accueil:repli:"+cle;
+  function appliquer(replie){
+    contenu.classList.toggle("repli", replie);
+    bouton.setAttribute("aria-expanded", replie ? "false" : "true");
+  }
+  var replie=false;
+  try{ replie = localStorage.getItem(CLE) === "1"; }catch(e){}
+  appliquer(replie);
+  bouton.addEventListener("click", function(){
+    replie=!replie;
+    appliquer(replie);
+    try{ localStorage.setItem(CLE, replie ? "1" : "0"); }catch(e){}
+  });
+}
+initRepli("repliChantiers", "mesChantiers", "mesChantiers");
+initRepli("repliAttente", "enAttente", "enAttente");
 
 var s=session();
 if(s && s.jeton){

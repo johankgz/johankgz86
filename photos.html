@@ -1954,26 +1954,33 @@ function buildPdf(){
   if(S.photos.length){
     h2("Photos", 80);
     var cw=(CW-6)/2;
+    /* Une seule paire par page : il reste largement la place de les
+       montrer grandes. 120 mm au lieu des 62 d'avant, en gardant les
+       proportions — une photo plus haute que large (portrait) se
+       rétrécit en largeur plutôt que de s'étirer, et se recentre dans
+       sa colonne. */
+    var MAXH=120;
     for(var i=0;i<S.photos.length;i+=2){
       var paire=[S.photos[i], S.photos[i+1]].filter(Boolean);
       var cellules=paire.map(function(p, k){
-        var hh=Math.min(62, cw*(p.h/p.w));
+        var ww=cw, hh=cw*(p.h/p.w);
+        if(hh>MAXH){ hh=MAXH; ww=MAXH*(p.w/p.h); }
         doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
         var lignes=(p.legende||"").trim() ? doc.splitTextToSize(p.legende.trim(), cw-1) : [];
         if(lignes.length>9) lignes=lignes.slice(0,9);
-        return {photo:p, num:i+k+1, h:hh, lignes:lignes, total:hh + 5 + lignes.length*4};
+        return {photo:p, num:i+k+1, w:ww, h:hh, ox:(cw-ww)/2, lignes:lignes, total:hh + 5 + lignes.length*4};
       });
       var hauteur=cellules.reduce(function(m,c){ return Math.max(m, c.total); }, 0);
       need(hauteur+8);
       var haut=y;
       cellules.forEach(function(c, k){
-        var x=M+k*(cw+6);
-        try{ doc.addImage(c.photo.data, "JPEG", x, haut, cw, c.h); }catch(e){}
+        var xCol=M+k*(cw+6);
+        try{ doc.addImage(c.photo.data, "JPEG", xCol+c.ox, haut, c.w, c.h); }catch(e){}
         doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(ACC);
-        doc.text("Photo "+c.num, x, haut+c.h+4);
+        doc.text("Photo "+c.num, xCol, haut+c.h+4);
         if(c.lignes.length){
           doc.setFont("helvetica","normal"); setText(GREY);
-          doc.text(c.lignes, x, haut+c.h+8);
+          doc.text(c.lignes, xCol, haut+c.h+8);
         }
         setText(INK);
       });
