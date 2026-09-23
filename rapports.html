@@ -469,6 +469,14 @@ nav#nav button svg{stroke-width:1.9}
   display:inline-flex;align-items:center;justify-content:center;
   font-size:11.5px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums;
 }
+/* dossier mis de côté : une étiquette sobre, qui vire au plein quand la
+   relance est due. */
+.head .etiq-attente{
+  flex:0 0 auto;background:rgba(180,83,9,.10);color:var(--accent);
+  font-size:10.5px;font-weight:700;letter-spacing:.02em;
+  padding:2px 9px;border-radius:var(--r-pill);white-space:nowrap;
+}
+.head .etiq-attente.du{background:var(--accent);color:#fff}
 .f .neuf{
   flex:0 0 auto;background:var(--accent);color:#fff;
   font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;
@@ -1518,6 +1526,15 @@ function trierDocs(c){
   });
   return c;
 }
+function depuisCombien(jours){
+  var j=Math.max(0, jours|0);
+  if(j < 1)  return "aujourd'hui";
+  if(j < 31) return j+" jour"+(j>1?"s":"");
+  var m=Math.round(j/30.4);
+  if(m < 12) return m+" mois";
+  var an=Math.floor(m/12);
+  return an+" an"+(an>1?"s":"")+(m%12 ? " et "+(m%12)+" mois" : "");
+}
 function afficher(chantiers){
   chantiers.forEach(trierDocs);
   majCompteur(chantiers.length);
@@ -1537,6 +1554,14 @@ function afficher(chantiers){
     var n=document.createElement("span"); n.className="n";
     n.textContent=c.fichiers.length+" doc"+(c.fichiers.length>1?"s":"");
     head.appendChild(ref); head.appendChild(b); head.appendChild(n);
+    if(c.etat === "attente"){
+      var att=document.createElement("span");
+      att.className="etiq-attente"+(c.relanceDue?" du":"");
+      att.textContent = c.relanceDue ? "À relancer" : "En attente";
+      att.title = "En attente de réponse depuis "+depuisCombien(c.joursAttente)
+        + (c.attenteNote ? "  ·  "+c.attenteNote : "");
+      head.appendChild(att);
+    }
     var nonLus=docsNonLus(c);
     if(nonLus){
       var pd=document.createElement("span"); pd.className="pastille-docs";
@@ -1706,13 +1731,39 @@ function afficher(chantiers){
     if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
       var act=document.createElement("div"); act.className="actions";
       act.hidden = fs.hidden;
+      /* mettre de côté un dossier qui n'est qu'au chiffrage : il quitte
+         « Mes chantiers » et le site reposera la question dans un mois. */
+      var att2=document.createElement("button"); att2.type="button";
+      att2.textContent = c.etat === "attente" ? "Reprendre le dossier" : "En attente de réponse";
+      att2.addEventListener("click", function(){
+        var vers = c.etat === "attente" ? "actif" : "attente";
+        var mot = "";
+        if(vers === "attente"){
+          mot = window.prompt("En attente de réponse — une note ?\n\n"
+            +"Le dossier quitte « Mes chantiers » et revient dans un mois "
+            +"avec la question de ce qu'il devient.", c.attenteNote || "");
+          if(mot === null) return;
+        }
+        att2.disabled=true; att2.textContent="…";
+        fetch(API+"?action=chantier-etat", {method:"POST",
+          headers:{"content-type":"application/json", "x-auth":S.jeton},
+          body:JSON.stringify({ref:c.ref, etat:vers, note:mot})})
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+          .then(function(res){
+            if(!res.ok){ window.alert(res.d.erreur||"Changement refusé."); att2.disabled=false; return; }
+            charger();
+          })
+          .catch(function(){ window.alert("Pas de réseau."); att2.disabled=false; });
+      });
       var arc=document.createElement("button"); arc.type="button"; arc.className="danger";
       arc.textContent="Archiver";
       arc.addEventListener("click", function(){ archiver(c, arc); });
       var note=document.createElement("span"); note.className="hint";
       note.style.cssText="align-self:center";
-      note.textContent="Exporte en ZIP puis retire du site";
-      act.appendChild(arc); act.appendChild(note);
+      note.textContent = c.etat === "attente"
+        ? "En attente depuis "+depuisCombien(c.joursAttente)+"   ·   « Archiver » exporte en ZIP puis retire du site"
+        : "Exporte en ZIP puis retire du site";
+      act.appendChild(att2); act.appendChild(arc); act.appendChild(note);
       head.addEventListener("click", function(){ act.hidden=fs.hidden; });
       box.appendChild(act);
     }

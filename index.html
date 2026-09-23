@@ -576,6 +576,30 @@ nav#navDeparts a .plus{
   display:inline-flex;align-items:center;justify-content:center;
   font-size:11.5px;line-height:1;font-variant-numeric:tabular-nums;
 }
+/* dossiers mis de côté : la même carte, en retrait, avec un filet
+   orange à gauche — ils attendent, ils ne dorment pas. */
+.chantiers.attente a{border-left:3px solid var(--accent);background:var(--card)}
+.chantiers.attente a::before{border-color:var(--accent)}
+.chantiers .depuis{
+  flex:0 0 auto;background:rgba(180,83,9,.10);color:var(--accent);
+  font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:var(--r-pill);
+  white-space:nowrap;
+}
+.chantiers .depuis.du{background:var(--accent);color:#fff}
+.chantiers .note{margin:7px 0 0;font-size:12.5px;color:var(--ink-2);font-style:italic}
+.relance{
+  margin:12px 0 0;padding:12px 13px;border:1px solid var(--accent);
+  border-radius:var(--r-field);background:rgba(180,83,9,.05);
+}
+.relance p{margin:0 0 10px;font-size:13px;line-height:1.45;color:var(--ink-1)}
+.relance .choix{display:flex;gap:8px;flex-wrap:wrap}
+.relance button{
+  border:1px solid var(--rule);background:var(--card);color:var(--ink-1);
+  font:inherit;font-size:12.5px;font-weight:650;padding:8px 12px;
+  border-radius:var(--r-field);cursor:pointer;
+}
+.relance button.oui{background:var(--accent);border-color:var(--accent);color:#fff}
+.relance button:disabled{opacity:.5;cursor:default}
 .chantiers .adr{margin:7px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.4}
 .chantiers .info{margin:6px 0 0;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 @media (hover:hover){
@@ -802,6 +826,9 @@ body.connexion .ml-icone svg{stroke:var(--data-vif)}
 
     <h2 class="sec" id="secChantiers" hidden>Mes chantiers</h2>
     <div class="chantiers" id="mesChantiers" hidden></div>
+
+    <h2 class="sec" id="secAttente" hidden>En attente de réponse</h2>
+    <div class="chantiers attente" id="enAttente" hidden></div>
 
     <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
     <div class="parcours" id="parcours">
@@ -1409,7 +1436,9 @@ function messagesNonLus(s){
       NON_LUS_PAR_REF={};
       (d.dossiers||[]).forEach(function(x){ NON_LUS_PAR_REF[x.ref]=x.nb; });
       if(DERNIERS_CHANTIERS){
-        peindreMesChantiers(DERNIERS_CHANTIERS);
+        /* on repasse par le partage : repeindre la liste entière ici
+           remettrait les dossiers mis de côté parmi les chantiers. */
+        repeindreChantiers(DERNIERS_CHANTIERS, s);
       }
       if(!d.total) return;
       var host=$("notifs");
@@ -1482,16 +1511,16 @@ function charger(s){
     .then(function(d){
       var ch=(d.chantiers)||[];
       DERNIERS_CHANTIERS=ch;
-      peindreNotifs(s, ch);
-      peindreBref(ch);
-      peindreMesChantiers(ch);
-      adapterAccueil(s);
+      SESSION_COURANTE=s;
+      var enCours=repeindreChantiers(ch, s);
+      peindreNotifs(s, enCours, ch.filter(function(c){ return c.etat === "attente" && c.relanceDue; }));
+      peindreBref(enCours);
     })
     .catch(function(){
       $("bref").innerHTML='<div class="vide">Liste indisponible hors connexion.</div>';
     });
 }
-function peindreNotifs(s, ch){
+function peindreNotifs(s, ch, relances){
   var host=$("notifs"); host.textContent="";
   var tech = s.role==="technicien";
   var docs=0, nonLus=0, semaine=0, reserves=0, sav=0, aRelancer=[];
@@ -1527,6 +1556,23 @@ function peindreNotifs(s, ch){
     if(j>21) aRelancer.push(c);
   });
 
+  /* la relance d'un dossier laissé de côté : elle passe devant, sinon
+     elle attend encore un mois. */
+  if(relances && relances.length && !tech){
+    var r0=relances[0];
+    var nr=notif("amb", String(relances.length),
+      relances.length>1 ? relances.length+" dossiers à relancer" : "Un dossier à relancer",
+      relances.length>1
+        ? "Sans réponse depuis plus d'un mois"
+        : ((r0.client||r0.ref)+" — sans réponse depuis "+depuisCombien(r0.joursAttente)),
+      "#secAttente");
+    nr.addEventListener("click", function(e){
+      e.preventDefault();
+      var el=$("secAttente");
+      if(el) el.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+    host.appendChild(nr);
+  }
   if(commandes){
     var det = commandeRecente
       ? "Dernière : "+(commandeRecente.auteur||"un technicien")+" pour "+commandeRecente.client
@@ -1608,6 +1654,77 @@ function docsNonLus(c){
     return f.auteur !== moi && !((f.lectures||{})[moi]);
   }).length;
 }
+/* la carte d'un dossier : le même objet des deux côtés, en travaux ou
+   mis de côté. Seul l'habillage change. */
+function carteChantier(c){
+  var a=document.createElement("a");
+  a.href="./chantier.html?ref="+encodeURIComponent(c.ref);
+  var haut=document.createElement("div"); haut.className="haut";
+  var r=document.createElement("span"); r.className="ref"; r.textContent=c.ref;
+  var n=document.createElement("span"); n.className="nom"; n.textContent=c.client||c.ref;
+  haut.appendChild(r); haut.appendChild(n);
+  if(c.etat === "attente"){
+    var dep=document.createElement("span");
+    dep.className="depuis"+(c.relanceDue?" du":"");
+    dep.textContent = c.relanceDue ? "à relancer" : ("en attente "+depuisCombien(c.joursAttente));
+    dep.title = "En attente de réponse depuis "+depuisCombien(c.joursAttente);
+    haut.appendChild(dep);
+  }
+  var nouveaux=docsNonLus(c);
+  if(nouveaux){
+    var pd=document.createElement("span"); pd.className="pastille docs";
+    pd.textContent=String(nouveaux);
+    pd.title = nouveaux+" document"+(nouveaux>1?"s":"")+" que vous n'avez pas encore ouvert"+(nouveaux>1?"s":"");
+    pd.setAttribute("aria-label", pd.title);
+    haut.appendChild(pd);
+  }
+  var nb=NON_LUS_PAR_REF[c.ref]||0;
+  if(nb){
+    var p=document.createElement("span"); p.className="pastille";
+    p.textContent=nb+" nouveau"+(nb>1?"x":"");
+    p.title = nb+" message"+(nb>1?"s":"")+" non lu"+(nb>1?"s":"")+" dans la discussion";
+    haut.appendChild(p);
+  }
+  a.appendChild(haut);
+  var adr=String(c.adresse||"").replace(/\n/g, ", ").trim();
+  if(adr){
+    var ad=document.createElement("p"); ad.className="adr"; ad.textContent=adr;
+    a.appendChild(ad);
+  }
+  if(c.etat === "attente" && c.attenteNote){
+    var no=document.createElement("p"); no.className="note";
+    no.textContent="« "+c.attenteNote+" »";
+    a.appendChild(no);
+  }
+  var i=document.createElement("p"); i.className="info";
+  var nd=(c.fichiers?c.fichiers.length:0);
+  i.textContent = c.etat === "attente"
+    ? (nd+" document"+(nd>1?"s":"")+"   \u00B7   de côté depuis "+depuisCombien(c.joursAttente))
+    : (nd+" document"+(nd>1?"s":"")+"   \u00B7   mis à jour "+frCourt(c.maj));
+  a.appendChild(i);
+  return a;
+}
+function depuisCombien(jours){
+  var j=Math.max(0, jours|0);
+  if(j < 1)  return "aujourd'hui";
+  if(j < 31) return j+" jour"+(j>1?"s":"");
+  var m=Math.round(j/30.4);
+  if(m < 12) return m+" mois";
+  var an=Math.floor(m/12);
+  return an+" an"+(an>1?"s":"")+(m%12 ? " et "+(m%12)+" mois" : "");
+}
+
+/* deux listes : ce sur quoi on travaille, et ce qui attend une réponse.
+   Un dossier mis de côté quitte « Mes chantiers ». Tout ce qui repeint
+   passe par ici, sinon l'un des deux repasse par-dessus l'autre. */
+function repeindreChantiers(ch, s){
+  var enCours=ch.filter(function(c){ return c.etat !== "attente"; });
+  var attente=ch.filter(function(c){ return c.etat === "attente"; });
+  peindreMesChantiers(enCours);
+  peindreAttente(attente);
+  adapterAccueil(s || SESSION_COURANTE || {}, attente.length);
+  return enCours;
+}
 function peindreMesChantiers(ch){
   var host=$("mesChantiers"); if(!host) return;
   host.textContent="";
@@ -1621,40 +1738,71 @@ function peindreMesChantiers(ch){
     host.appendChild(v);
     return;
   }
+  ch.forEach(function(c){ host.appendChild(carteChantier(c)); });
+}
+
+/* ---------- les dossiers mis de côté ----------
+   Un chiffrage parti chez le client, sans réponse. Au bout d'un mois, le
+   site repose la question plutôt que de laisser le dossier se perdre. */
+function peindreAttente(ch){
+  var host=$("enAttente"); if(!host) return;
+  host.textContent="";
+  var bureau = SESSION_COURANTE && (SESSION_COURANTE.role === "bureau" || SESSION_COURANTE.role === "admin");
   ch.forEach(function(c){
-    var a=document.createElement("a");
-    a.href="./chantier.html?ref="+encodeURIComponent(c.ref);
-    var haut=document.createElement("div"); haut.className="haut";
-    var r=document.createElement("span"); r.className="ref"; r.textContent=c.ref;
-    var n=document.createElement("span"); n.className="nom"; n.textContent=c.client||c.ref;
-    haut.appendChild(r); haut.appendChild(n);
-    var nouveaux=docsNonLus(c);
-    if(nouveaux){
-      var pd=document.createElement("span"); pd.className="pastille docs";
-      pd.textContent=String(nouveaux);
-      pd.title = nouveaux+" document"+(nouveaux>1?"s":"")+" que vous n'avez pas encore ouvert"+(nouveaux>1?"s":"");
-      pd.setAttribute("aria-label", pd.title);
-      haut.appendChild(pd);
+    var carte=carteChantier(c);
+    host.appendChild(carte);
+    if(!c.relanceDue || !bureau) return;
+    /* la relance : une question, trois réponses, pas de troisième colonne
+       où le dossier resterait à traîner. */
+    var box=document.createElement("div"); box.className="relance";
+    var q=document.createElement("p");
+    q.textContent="Sans réponse depuis "+depuisCombien(c.joursAttente)
+      +". Où en est ce dossier ?";
+    box.appendChild(q);
+    var ch3=document.createElement("div"); ch3.className="choix";
+    function bouton(texte, classe, quoi){
+      var b=document.createElement("button"); b.type="button";
+      if(classe) b.className=classe;
+      b.textContent=texte;
+      b.addEventListener("click", function(){
+        Array.prototype.forEach.call(ch3.children, function(x){ x.disabled=true; });
+        quoi(b);
+      });
+      ch3.appendChild(b);
+      return b;
     }
-    var nb=NON_LUS_PAR_REF[c.ref]||0;
-    if(nb){
-      var p=document.createElement("span"); p.className="pastille";
-      p.textContent=nb+" nouveau"+(nb>1?"x":"");
-      p.title = nb+" message"+(nb>1?"s":"")+" non lu"+(nb>1?"s":"")+" dans la discussion";
-      haut.appendChild(p);
-    }
-    a.appendChild(haut);
-    var adr=String(c.adresse||"").replace(/\n/g, ", ").trim();
-    if(adr){
-      var ad=document.createElement("p"); ad.className="adr"; ad.textContent=adr;
-      a.appendChild(ad);
-    }
-    var i=document.createElement("p"); i.className="info";
-    var nd=(c.fichiers?c.fichiers.length:0);
-    i.textContent=nd+" document"+(nd>1?"s":"")+"   \u00B7   mis à jour "+frCourt(c.maj);
-    a.appendChild(i);
-    host.appendChild(a);
+    bouton("Ça avance", "oui", function(b){
+      b.textContent="…";
+      etatDossier(c.ref, "actif", "", function(ok){
+        if(!ok){ b.textContent="Ça avance"; Array.prototype.forEach.call(ch3.children, function(x){ x.disabled=false; }); return; }
+        rechargerChantiers();
+      });
+    });
+    bouton("Toujours en attente", "", function(b){
+      b.textContent="…";
+      etatDossier(c.ref, "attente", c.attenteNote||"", function(ok){
+        if(!ok){ b.textContent="Toujours en attente"; Array.prototype.forEach.call(ch3.children, function(x){ x.disabled=false; }); return; }
+        rechargerChantiers();
+      });
+    });
+    bouton("Archiver ou supprimer", "", function(){
+      location.href="./rapports.html?ref="+encodeURIComponent(c.ref);
+    });
+    box.appendChild(ch3);
+    host.appendChild(box);
   });
+}
+function etatDossier(ref, etat, note, fini){
+  var s=session(); if(!s){ fini(false); return; }
+  fetch(apiUrl("chantier-etat"), {method:"POST",
+    headers:{"Content-Type":"application/json", "x-auth":s.jeton},
+    body:JSON.stringify({ref:ref, etat:etat, note:note})})
+    .then(function(r){ return r.ok; })
+    .then(fini)
+    .catch(function(){ fini(false); });
+}
+function rechargerChantiers(){
+  var s=session(); if(s) charger(s);
 }
 
 /* Deux accueils, selon le métier. Le technicien travaille chantier par
@@ -1693,11 +1841,16 @@ function peindreDeparts(s){
   return host.children.length;
 }
 
-function adapterAccueil(s){
+function adapterAccueil(s, enAttente){
   var tech = s.role === "technicien";
   /* les chantiers sont désormais l'entrée de tout le monde */
   ["secChantiers","mesChantiers"].forEach(function(id){
     var el=$(id); if(el) el.hidden = false;
+  });
+  /* « En attente » n'apparaît que s'il y a quelque chose dedans : une
+     section vide en permanence finit par ne plus rien vouloir dire. */
+  ["secAttente","enAttente"].forEach(function(id){
+    var el=$(id); if(el) el.hidden = !enAttente;
   });
   /* le parcours d'une affaire reste au bureau */
   ["secParcours","parcours"].forEach(function(id){

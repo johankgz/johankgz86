@@ -253,6 +253,40 @@ function aAcces(personne, appli) {
   return !siennes.length || siennes.indexOf(appli) >= 0;
 }
 
+/* =====================================================================
+   DOSSIERS EN ATTENTE DE RÉPONSE
+   ---------------------------------------------------------------------
+   Un chiffrage part chez le client, et puis plus rien. Le dossier n'est
+   pas mort, mais il n'est pas en travaux non plus : il encombre la liste
+   des chantiers et on finit par l'oublier. On le met de côté, et le site
+   se charge de le ressortir au bout d'un mois pour demander ce qu'il
+   devient.
+   Aucune tâche planifiée là-dedans : l'échéance se calcule à la lecture,
+   ce qui marche aussi bien sur o2switch que sur Netlify, et ne peut pas
+   se gripper en silence.
+   ===================================================================== */
+const RELANCE_JOURS = 30;
+function joursDepuis(iso) {
+  if (!iso) return 0;
+  const t = new Date(iso).getTime();
+  if (!isFinite(t)) return 0;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+function etatDossier(c) {
+  if (!c || c.etat !== "attente") return { etat: "actif" };
+  const depuis = c.attenteDepuis || c.maj || "";
+  return {
+    etat: "attente",
+    attenteDepuis: depuis,
+    attenteNote: c.attenteNote || "",
+    attentePar: c.attentePar || "",
+    joursAttente: joursDepuis(depuis),
+    /* la relance repart de la dernière réponse, pas de la mise en attente :
+       « toujours en attente » vaut un mois de tranquillité de plus. */
+    relanceDue: joursDepuis(c.relanceLe || depuis) >= RELANCE_JOURS
+  };
+}
+
 /* une position de chantier : deux nombres plausibles, ou rien */
 function positionValide(lat, lon) {
   const a = Number(lat), b = Number(lon);
@@ -1172,10 +1206,37 @@ export default async (req) => {
       if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj,
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
+        ...etatDossier(c),
         fichiers: visibles });
     });
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
+  }
+
+  /* ---------- mettre un dossier de côté, ou le reprendre ---------- */
+  if (action === "chantier-etat") {
+    if (!bureau) return json({ erreur: "Seul le bureau met un dossier en attente." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const maintenant = new Date().toISOString();
+    if (d.etat === "attente") {
+      /* remettre en attente un dossier déjà en attente, c'est répondre à
+         la relance : la date d'origine ne bouge pas, le compteur repart. */
+      if (c.etat !== "attente") { c.attenteDepuis = maintenant; c.attentePar = personne.nom; }
+      c.etat = "attente";
+      c.relanceLe = maintenant;
+      if (typeof d.note === "string") c.attenteNote = d.note.trim().slice(0, 200);
+    } else {
+      delete c.etat; delete c.attenteDepuis; delete c.attenteNote;
+      delete c.attentePar; delete c.relanceLe;
+    }
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, ref, ...etatDossier(c) });
   }
 
   if (action === "commande-saisie") {
