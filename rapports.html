@@ -615,6 +615,20 @@ p.vide{color:var(--sur-fond-2)}
 
 var $=function(i){return document.getElementById(i);};
 var API="/api/rapports";
+/* Installé en icône sur l'écran d'accueil (iPhone comme Android), le
+   site n'a plus l'onglet du navigateur : un lien target="_blank" n'ouvre
+   rien, faute de second onglet où l'ouvrir. On garde alors le document
+   dans la même fenêtre — ce n'est plus un onglet séparé, mais au moins
+   ça s'ouvre, et le geste « retour » (glisser depuis le bord) revient
+   à la liste, puisque c'est une vraie page, pas une fenêtre qui la
+   recouvre. Dans un navigateur ordinaire, rien ne change : l'onglet
+   s'ouvre comme d'habitude. */
+function appInstallee(){
+  try{
+    return !!window.navigator.standalone
+      || window.matchMedia("(display-mode: standalone)").matches;
+  }catch(e){ return false; }
+}
 function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
 var S=session();
 if(!S || !S.jeton) location.replace("./index.html");
@@ -1565,7 +1579,7 @@ function afficher(chantiers){
         a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
       } else {
         a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
-        a.target="_blank"; a.rel="noopener";
+        if(!appInstallee()){ a.target="_blank"; a.rel="noopener"; }
       }
       a.addEventListener("click", function(){
         /* accusé de lecture immédiat, sans dépendre du chargement du PDF */

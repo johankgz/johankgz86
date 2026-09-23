@@ -644,6 +644,15 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 var $=function(i){ return document.getElementById(i); };
 var API="/api/rapports";
+/* Installé en icône sur l'écran d'accueil, le site n'a plus l'onglet du
+   navigateur : un lien target="_blank" n'ouvre rien, faute de second
+   onglet où l'ouvrir. On garde alors le document dans la même fenêtre. */
+function appInstallee(){
+  try{
+    return !!window.navigator.standalone
+      || window.matchMedia("(display-mode: standalone)").matches;
+  }catch(e){ return false; }
+}
 function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
 var SESSION=session();
 if(!SESSION || !SESSION.jeton) location.replace("./index.html");
@@ -873,7 +882,7 @@ function peindreDocs(){
   liste.forEach(function(f){
     var a=document.createElement("a"); a.className="f";
     a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(SESSION.jeton);
-    a.target="_blank"; a.rel="noopener";
+    if(!appInstallee()){ a.target="_blank"; a.rel="noopener"; }
     /* ouvrir un document vaut accusé de lecture : le serveur l'enregistre,
        et on retire la marque « Nouveau » sans attendre le rechargement */
     a.addEventListener("click", function(){
