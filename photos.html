@@ -702,7 +702,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>Photos seules</h2>
-    <p class="hint" style="margin:-8px 0 14px">Les images d'origine, hors document : le nom de chaque fichier reprend sa note.</p>
+    <p class="hint" style="margin:-8px 0 14px">Les images d'origine, hors document : le nom de chaque fichier reprend sa note.
+      « Publier » les dépose déjà sur le site en même temps que le reportage ; les boutons ci-dessous servent à les
+      enregistrer sur l'appareil, ou à les redéposer à la main si le dépôt automatique a échoué.</p>
     <div class="row">
       <button class="act ghost" id="btnPhotosZip">Enregistrer les photos</button>
       <button class="act ghost" id="btnPhotosSite">Déposer les photos sur le site</button>
@@ -1479,20 +1481,39 @@ function exporterPhotos(){
   toast(liste.length+" photos exportées.");
 }
 
-/* ---------- dépôt des photos sur le site ---------- */
-function deposerPhotos(){
-  if(!apiPret()) return;
+/* ---------- dépôt des photos sur le site ----------
+   Publier envoie déjà ce dépôt tout seul, dans le même geste : voir
+   plus bas dans publierRapport(). Ce bouton reste pour le redéclencher
+   à la main — après une publication qui a échoué à joindre les
+   photos, ou pour renvoyer les photos seules sans republier le PDF. */
+function deposerPhotos(fini){
   var liste=toutesLesPhotos();
-  if(!liste.length){ toast("Aucune photo dans ce reportage."); return; }
-  if(!refAffaire()){ toast("Renseignez le client avant de déposer."); return; }
+  var el = fini ? null : $("pubEtat");
+  function terminer(ok, n, erreur){
+    if(fini){ fini(ok, n, erreur); return; }
+    if(el) el.textContent = ok
+      ? (n + " photo" + (n>1?"s":"") + " déposée" + (n>1?"s":"") + " sur le site.")
+      : (erreur || "Dépôt refusé.");
+    if(ok) toast("Photos déposées.");
+  }
+  if(!apiPret()){ terminer(false, 0, "Pas de réseau."); return; }
+  if(!liste.length){
+    if(!fini) toast("Aucune photo dans ce reportage.");
+    terminer(false, 0, "Aucune photo dans ce reportage.");
+    return;
+  }
+  if(!refAffaire()){
+    if(!fini) toast("Renseignez le client avant de déposer.");
+    terminer(false, 0, "Client manquant.");
+    return;
+  }
   var blob = creerZip(fichiersPhotos(liste));
-  var el = $("pubEtat");
   if(el) el.textContent = "Dépôt des photos…";
   var fr = new FileReader();
   fr.onload = function(){
     var b64 = String(fr.result).split(",")[1];
     if(b64.length*0.75 > 5.4*1024*1024){
-      if(el) el.textContent = "Lot de photos trop lourd."; return;
+      terminer(false, 0, "Lot de photos trop lourd."); return;
     }
     fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(),
       body:JSON.stringify({pdf:b64, type:"photos", chantier:refAffaire(), client:nomClient(),
@@ -1501,11 +1522,10 @@ function deposerPhotos(){
         titre:"Photos des travaux (" + liste.length + ")"})})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
       .then(function(res){
-        if(!res.ok){ if(el) el.textContent = res.d.erreur || "Dépôt refusé."; return; }
-        if(el) el.textContent = liste.length + " photos déposées sur le site.";
-        toast("Photos déposées.");
+        if(!res.ok){ terminer(false, 0, res.d.erreur || "Dépôt refusé."); return; }
+        terminer(true, liste.length);
       })
-      .catch(function(){ if(el) el.textContent="Pas de réseau."; });
+      .catch(function(){ terminer(false, 0, "Pas de réseau."); });
   };
   fr.readAsDataURL(blob);
 }
@@ -1701,11 +1721,21 @@ function publierRapport(meta){
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
     if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return; }
-    el.textContent = (res.d.remplace ? "Reportage remplacé par cette nouvelle version." : "Reportage publié.")
+    var msg = (res.d.remplace ? "Reportage remplacé par cette nouvelle version." : "Reportage publié.")
       + (versDossier ? " Disponible pour l'équipe du dossier."
                      : " Disponible pour " + meta.destinataires.join(", ") + ".");
+    el.textContent = msg;
     toast("Reportage publié.");
     deposerFiche(res.d.cle, el);
+    /* les photos d'origine partent avec, dans le même geste : pas besoin
+       d'aller cliquer un second bouton pour les retrouver ensuite dans
+       la galerie du dossier. */
+    el.textContent = msg + "  ·  Dépôt des photos…";
+    deposerPhotos(function(ok, n, erreur){
+      el.textContent = msg + (ok
+        ? "  ·  " + n + " photo" + (n>1?"s":"") + " déposée" + (n>1?"s":"") + "."
+        : "  ·  Photos non déposées : " + erreur + " Utilisez « Déposer les photos sur le site » ci-dessous.");
+    });
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -1948,6 +1978,10 @@ function buildPdf(){
         setText(INK);
       });
       y = haut + hauteur + 8;
+      /* deux photos au maximum par page, pour qu'on les voie bien : la
+         paire suivante commence toujours sur une page neuve, pas à la
+         suite sur la même page. */
+      if(i+2 < S.photos.length) newPage();
     }
   }
 
@@ -2067,7 +2101,7 @@ function bindAll(){
   });
   $("btnPartage").addEventListener("click", partagerRapport);
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
-  $("btnPhotosSite").addEventListener("click", deposerPhotos);
+  $("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(); });
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce reportage et repartir de zéro ?")) return;
     S=blank();
