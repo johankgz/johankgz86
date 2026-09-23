@@ -429,7 +429,7 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   --trait-tech:rgba(255,255,255,.10);
 
   /* surfaces de travail : claires, pour le plein soleil */
-  --bg:#E9ECF2;
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
   --card:#FFFFFF;
   --field:#EFF1F4;
   --champ-fond:#FFFFFF;
@@ -649,6 +649,38 @@ nav#nav button svg{stroke-width:1.9}
   button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
   button:active,.act:active,button.p:active{transform:none}
 }
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+#champRecherche > span{color:var(--sur-fond-2)}
+#vide{color:var(--sur-fond-2)}
+.stepnav .dots button{color:var(--sur-fond-2);border-color:var(--trait-fond)}
+.stepnav .dots button[aria-current="true"]{background:var(--sur-fond);color:var(--g-900)}
 </style>
 </head>
 <body>
@@ -818,6 +850,7 @@ function ilya(iso){
 }
 
 var N={listes:[], supprimees:[]}, FILTRE="toutes", EQUIPE=[], DOSSIERS=[], SYNC="local";
+var MOI=(SESSION && SESSION.nom) ? SESSION.nom : "";
 var COULEURS=[["jaune","#FDF3D3"],["vert","#E6F4E4"],["bleu","#E3EEFC"],
               ["rose","#FBE6E6"],["violet","#EFE8FB"],["gris","#EEF1F5"]];
 
@@ -908,7 +941,7 @@ function trier(){
 /* ---------- listes ---------- */
 function nouvelleListe(){
   var l={id:uid(), titre:"", items:[{id:uid(), texte:"", fait:false}],
-         epingle:false, couleur:"jaune", chantier:"", client:"", pour:"", quand:"",
+         epingle:false, couleur:"jaune", chantier:"", client:"", pour:"", partage:[], quand:"",
          photos:[], maj:maintenant(), local:true, ouvert:true};
   N.listes.unshift(l);
   save(); render();
@@ -916,6 +949,11 @@ function nouvelleListe(){
   if(champ){ champ.scrollIntoView({block:"center"}); champ.focus(); }
 }
 function touche(l){ l.maj=maintenant(); l.local=false; }
+/* Une liste partagée est modifiée à plusieurs. On date chaque case, pas
+   seulement la liste : le serveur peut alors fusionner case par case au
+   lieu de laisser le dernier qui enregistre effacer le travail de
+   l'autre. */
+function toucheItem(l, it){ it.maj=maintenant(); touche(l); }
 function restantes(l){ return (l.items||[]).filter(function(i){ return !i.fait; }).length; }
 function toutFait(l){ return (l.items||[]).length>0 && restantes(l)===0; }
 
@@ -923,11 +961,13 @@ function visibles(){
   var q=($("q") && $("q").value || "").trim().toLowerCase();
   return N.listes.filter(function(l){
     if(FILTRE==="epinglees" && !l.epingle) return false;
+    if(FILTRE==="partagees" && !partageDe(l).length && !(l.auteur && l.auteur !== MOI)) return false;
     if(FILTRE==="dossier" && !l.chantier) return false;
     if(FILTRE==="faites" && !toutFait(l)) return false;
     if(FILTRE!=="faites" && toutFait(l) && FILTRE==="toutes") { /* on garde, mais en bas */ }
     if(q){
-      var foin=[l.titre, l.chantier, l.client, l.pour].concat((l.items||[]).map(function(i){ return i.texte; }))
+      var foin=[l.titre, l.chantier, l.client, l.auteur].concat(partageDe(l))
+                 .concat((l.items||[]).map(function(i){ return i.texte; }))
         .join(" ").toLowerCase();
       if(foin.indexOf(q)<0) return false;
     }
@@ -998,7 +1038,14 @@ function carte(l){
   var tags=document.createElement("div"); tags.className="n-tags";
   tags.style.cssText="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;width:100%";
   if(l.chantier || l.client) tags.appendChild(tag((l.chantier||"")+(l.client?" · "+l.client:""), "acc"));
-  if(l.pour) tags.appendChild(tag(l.pour, "gris"));
+  var partagee=partageDe(l);
+  if(l.auteur && l.auteur !== MOI){
+    tags.appendChild(tag("de "+l.auteur, "gris"));
+  } else if(partagee.length){
+    tags.appendChild(tag(partagee.length>2
+      ? ("partagée · "+partagee.length+" personnes")
+      : ("partagée · "+partagee.join(", ")), "gris"));
+  }
   if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < new Date().toISOString().slice(0,10) ? "rouge" : "ambre"));
   if(tags.children.length) c.appendChild(tags);
 
@@ -1031,7 +1078,7 @@ function carte(l){
   var mot=document.createElement("span"); mot.textContent="Élément de liste";
   plus.appendChild(signe); plus.appendChild(mot);
   plus.addEventListener("click", function(){
-    l.items.push({id:uid(), texte:"", fait:false});
+    l.items.push({id:uid(), texte:"", fait:false, maj:maintenant()});
     touche(l); save(); render();
     var champs=document.querySelectorAll('[data-item="'+l.id+'"]');
     var dernier=champs[champs.length-1];
@@ -1074,7 +1121,7 @@ function carte(l){
   outils.appendChild(petit("reglages","Couleur et réglages", function(){
     l.palette = !l.palette; l.details=false; render();
   }));
-  outils.appendChild(petit("etiquette","Dossier, personne, date", function(){
+  outils.appendChild(petit("etiquette","Dossier, partage, date", function(){
     l.details = !l.details; l.palette=false; render();
     if(l.details) chargerListesDeroulantes();
   }));
@@ -1130,7 +1177,7 @@ function ligneItem(l, it, i){
       +'stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
     : '';
   case_.addEventListener("click", function(){
-    it.fait=!it.fait; it.faitLe = it.fait ? maintenant() : "";
+    it.fait=!it.fait; it.faitLe = it.fait ? maintenant() : ""; it.maj=maintenant();
     touche(l); save(); render();
   });
   var txt=document.createElement("input"); txt.type="text"; txt.value=it.texte;
@@ -1139,12 +1186,12 @@ function ligneItem(l, it, i){
     +"font-family:inherit;font-size:15px;padding:4px 0;min-height:0;border-radius:0;line-height:1.3;"
     +(it.fait ? "color:#8C8475;text-decoration:line-through;" : "color:#22201C;");
   txt.setAttribute("data-item", l.id);
-  txt.addEventListener("input", function(){ it.texte=txt.value; touche(l); save(false); });
+  txt.addEventListener("input", function(){ it.texte=txt.value; toucheItem(l, it); save(false); });
   txt.addEventListener("blur", function(){ save(); });
   txt.addEventListener("keydown", function(e){
     if(e.key==="Enter"){
       e.preventDefault();
-      l.items.splice(i+1, 0, {id:uid(), texte:"", fait:false});
+      l.items.splice(i+1, 0, {id:uid(), texte:"", fait:false, maj:maintenant()});
       touche(l); save(); render();
       var champs=document.querySelectorAll('[data-item="'+l.id+'"]');
       if(champs[i+1]) champs[i+1].focus();
@@ -1254,36 +1301,71 @@ function nomEquipe(saisie){
   if(debut.length===1) return debut[0];
   return null;
 }
-function saisieNom(titre, valeur, poser){
+/* ---------- partage d'une liste ----------
+   Une to-do list n'est pas toujours un chantier : un achat à faire, un
+   rendez-vous, une info d'agence. Le partage sert à ça — plusieurs
+   personnes sur la même liste, chacune coche de son côté. */
+function partageDe(l){
+  var noms=Array.isArray(l.partage) ? l.partage.slice() : [];
+  if(l.pour && noms.indexOf(l.pour)<0) noms.push(l.pour);
+  return noms;
+}
+function poserPartage(l, noms){
+  l.partage=noms.slice();
+  l.pour="";                       /* l'ancien champ unique est absorbé */
+  touche(l); save(); render();
+}
+function saisiePartage(l){
   var box=document.createElement("div");
   box.style.cssText="margin-bottom:12px;width:100%";
-  var lab=document.createElement("p"); lab.className="legend"; lab.textContent=titre;
+  var lab=document.createElement("p"); lab.className="legend";
+  lab.textContent="Partagée avec";
   box.appendChild(lab);
+  var noms=partageDe(l);
+  var mien = !l.auteur || l.auteur === MOI;
 
-  if(valeur){
-    var pil=document.createElement("span");
-    pil.style.cssText="display:inline-flex;align-items:center;gap:8px;padding:8px 10px 8px 13px;border-radius:var(--r-field);"
-      +"background:rgba(255,255,255,.85);color:var(--ink);font-size:14.5px;font-weight:600";
-    pil.appendChild(document.createTextNode(valeur));
-    var x=document.createElement("button"); x.type="button"; x.textContent="×";
-    x.setAttribute("aria-label","Retirer");
-    x.style.cssText="width:22px;height:22px;min-height:22px;padding:0;border:0;border-radius:50%;"
-      +"background:rgba(34,32,28,.10);color:var(--ink-2);font-size:15px;line-height:1;cursor:pointer";
-    x.addEventListener("click", function(){ poser(""); });
-    pil.appendChild(x);
-    box.appendChild(pil);
+  if(noms.length){
+    var pils=document.createElement("div");
+    pils.style.cssText="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px";
+    noms.forEach(function(nom){
+      var pil=document.createElement("span");
+      pil.style.cssText="display:inline-flex;align-items:center;gap:7px;padding:7px 9px 7px 12px;"
+        +"border-radius:var(--r-field);background:rgba(255,255,255,.85);color:var(--ink);"
+        +"font-size:14px;font-weight:600";
+      pil.appendChild(document.createTextNode(nom));
+      if(mien){
+        var x=document.createElement("button"); x.type="button"; x.textContent="×";
+        x.setAttribute("aria-label","Retirer "+nom);
+        x.style.cssText="width:21px;height:21px;min-height:21px;padding:0;border:0;border-radius:50%;"
+          +"background:rgba(34,32,28,.10);color:var(--ink-2);font-size:14px;line-height:1;cursor:pointer";
+        x.addEventListener("click", function(){
+          poserPartage(l, noms.filter(function(n){ return n!==nom; }));
+        });
+        pil.appendChild(x);
+      }
+      pils.appendChild(pil);
+    });
+    box.appendChild(pils);
+  }
+
+  if(!mien){
+    var note=document.createElement("p"); note.className="hint"; note.style.margin="0";
+    note.textContent="Liste de "+l.auteur+". Vous pouvez la remplir et la cocher ; "
+      +"le partage se règle chez son auteur.";
+    box.appendChild(note);
     return box;
   }
 
   var ligne=document.createElement("div");
   ligne.style.cssText="display:flex;gap:8px;width:100%";
   var saisie=document.createElement("input"); saisie.type="text";
-  saisie.placeholder="Nom de la personne"; saisie.autocapitalize="words";
+  saisie.placeholder="Nom d'un collègue"; saisie.autocapitalize="words";
+  saisie.setAttribute("list","dl_equipe");
   saisie.autocomplete="off"; saisie.spellcheck=false;
   saisie.style.cssText="flex:1;min-height:44px;padding:11px 14px;border:0;border-radius:var(--r-field);"
     +"background:rgba(255,255,255,.85);font-size:16px;font-family:inherit";
   var btn=document.createElement("button"); btn.type="button";
-  btn.textContent="Ajouter";
+  btn.textContent="Partager";
   btn.style.cssText="flex:0 0 auto;min-height:44px;padding:0 16px;border:0;border-radius:var(--r-field);"
     +"background:var(--accent);color:#fff;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer";
   function valider(){
@@ -1296,14 +1378,22 @@ function saisieNom(titre, valeur, poser){
                           : "Aucun utilisateur ne porte ce nom."));
       return;
     }
-    poser(nom);
+    if(nom === MOI){ toast("La liste est déjà la vôtre."); return; }
+    if(noms.indexOf(nom)>=0){ toast(nom+" y a déjà accès."); return; }
+    poserPartage(l, noms.concat([nom]));
+    toast("Partagée avec "+nom+".");
   }
   btn.addEventListener("click", valider);
   saisie.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); valider(); } });
   ligne.appendChild(saisie); ligne.appendChild(btn);
   box.appendChild(ligne);
+  var aide=document.createElement("p"); aide.className="hint"; aide.style.margin="8px 0 0";
+  aide.textContent="Chacun la voit dans sa To-do list et peut cocher. "
+    +"Deux personnes qui cochent en même temps ne s'effacent pas : chaque ligne garde sa dernière modification.";
+  box.appendChild(aide);
   return box;
 }
+
 function blocDetails(l){
   var d=document.createElement("div"); d.className="n-details";
   d.style.cssText="margin-top:10px;border-top:1px solid rgba(34,32,28,.08);padding-top:10px;width:100%";
@@ -1322,8 +1412,7 @@ function blocDetails(l){
       touche(l); save(); render();
     }));
 
-  d.appendChild(saisieNom("Pour qui", l.pour,
-    function(v){ l.pour=v; touche(l); save(); render(); }));
+  d.appendChild(saisiePartage(l));
   d.appendChild(champDate("À faire le", l.quand, function(v){ l.quand=v; touche(l); save(); render(); }));
   var p=document.createElement("p"); p.className="legend"; p.textContent="Couleur";
   d.appendChild(p);
@@ -1673,7 +1762,8 @@ function chargerListesDeroulantes(){
 }
 
 /* ---------- filtres ---------- */
-var FILTRES=[["toutes","Toutes"],["epinglees","Épinglées"],["dossier","Par dossier"],["faites","Faites"]];
+var FILTRES=[["toutes","Toutes"],["epinglees","Épinglées"],["partagees","Partagées"],
+             ["dossier","Par dossier"],["faites","Faites"]];
 function renderFiltres(){
   var box=$("filtres"); box.textContent="";
   FILTRES.forEach(function(f){

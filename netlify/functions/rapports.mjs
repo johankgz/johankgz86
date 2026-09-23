@@ -969,19 +969,63 @@ export default async (req) => {
     return new Response(d, { headers: { "content-type": "application/json; charset=utf-8", "cache-control": "no-store" } });
   }
 
-  /* ---------- listes personnelles ---------- */
+  /* =====================================================================
+     TO DO LIST : la mienne, et celles qu'on partage
+     ---------------------------------------------------------------------
+     Une liste appartient à celui qui l'a faite et vit dans son fichier.
+     « partage » porte les noms de ceux qui la voient et l'écrivent avec
+     lui : c'est ce qui permet de se passer des choses hors chantier —
+     un achat à faire, un rendez-vous, une info d'agence.
+     Le champ « pour », plus ancien, reste compris : il vaut un partage
+     avec une seule personne.
+     ===================================================================== */
+  function partageDe(n) {
+    const noms = Array.isArray(n.partage) ? n.partage : [];
+    return n.pour && noms.indexOf(n.pour) < 0 ? noms.concat([n.pour]) : noms;
+  }
+  function laVoit(n, nom) { return partageDe(n).indexOf(nom) >= 0; }
+
+  /* Deux personnes peuvent cocher en même temps. On fusionne case par
+     case, sur la date de chaque case, plutôt que de laisser le dernier
+     qui enregistre écraser la liste entière. */
+  function fusionnerListe(stockee, venue, gardePartage) {
+    const par = new Map();
+    (stockee.items || []).forEach((i) => par.set(i.id, i));
+    const vues = new Set();
+    (venue.items || []).forEach((i) => {
+      vues.add(i.id);
+      const a = par.get(i.id);
+      if (!a || String(i.maj || "") >= String(a.maj || "")) par.set(i.id, i);
+    });
+    /* une case absente de l'envoi a été supprimée là-bas — sauf si elle
+       est plus récente que l'envoi, donc ajoutée ici entre-temps */
+    for (const [id, i] of Array.from(par)) {
+      if (!vues.has(id) && String(i.maj || "") <= String(venue.maj || "")) par.delete(id);
+    }
+    const ordonnees = (venue.items || []).map((i) => par.get(i.id)).filter(Boolean);
+    for (const [id, i] of par) if (!vues.has(id)) ordonnees.push(i);
+    /* le reste de la liste — titre, couleur, partage — suit la version
+       la plus récente, mais le partage reste la main de l'auteur */
+    const recente = String(venue.maj || "") >= String(stockee.maj || "") ? venue : stockee;
+    const fond = { ...recente, auteur: stockee.auteur, items: ordonnees };
+    /* le partage est la main de l'auteur : lui seul le change */
+    return gardePartage
+      ? { ...fond, partage: stockee.partage, pour: stockee.pour }
+      : fond;
+  }
+
   if (action === "notes") {
     const cle = "notes/" + slug(personne.nom) + ".json";
     let mien = [];
     try { mien = (await store.get(cle, { type: "json" })) || []; } catch { mien = []; }
-    /* on ajoute les listes que d'autres m'ont attribuées */
+    /* on ajoute les listes que d'autres partagent avec moi */
     const out = mien.slice();
     try {
       const res = await store.list({ prefix: "notes/" });
       for (const b of (res.blobs || [])) {
         if (b.key === cle) continue;
         const l = (await store.get(b.key, { type: "json" })) || [];
-        l.forEach((n) => { if (n.pour && n.pour === personne.nom) out.push(n); });
+        l.forEach((n) => { if (laVoit(n, personne.nom)) out.push(n); });
       }
     } catch { /* rien d'autre */ }
     return json({ listes: out });
@@ -992,21 +1036,48 @@ export default async (req) => {
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     if (!Array.isArray(d.listes)) return json({ erreur: "Listes attendues." }, 400);
     const cle = "notes/" + slug(personne.nom) + ".json";
-    /* on ne garde que les listes dont je suis l'auteur ou qui n'en ont pas */
+    /* Une liste reçue ne devient pas la mienne : si son identifiant vit
+       déjà chez quelqu'un d'autre, elle reste à lui, quoi qu'on m'envoie.
+       Sans cela, il suffirait de renvoyer une liste partagée à son nom
+       pour s'en emparer et en exclure les autres. */
+    const ailleurs = new Set();
+    try {
+      const res = await store.list({ prefix: "notes/" });
+      for (const b of (res.blobs || [])) {
+        if (b.key === cle) continue;
+        const l = (await store.get(b.key, { type: "json" })) || [];
+        l.forEach((n) => ailleurs.add(n.id));
+      }
+    } catch { /* rien d'autre */ }
+    /* on ne garde que les listes dont je suis l'auteur ou qui n'en ont pas.
+       Une liste partagée se fusionne case par case même chez son auteur :
+       un enregistrement parti d'un écran un peu vieux effacerait sinon
+       ce qu'un collègue vient d'ajouter. */
+    const deja = new Map();
+    try { ((await store.get(cle, { type: "json" })) || []).forEach((n) => deja.set(n.id, n)); }
+    catch { /* rien encore */ }
     const miennes = d.listes
       .filter((n) => !n.auteur || n.auteur === personne.nom)
-      .map((n) => ({ ...n, auteur: personne.nom }))
+      .filter((n) => !ailleurs.has(n.id))
+      .map((n) => {
+        const vieille = deja.get(n.id);
+        const base = vieille && partageDe(vieille).length ? fusionnerListe(vieille, n, false) : n;
+        return { ...base, auteur: personne.nom };
+      })
       .slice(0, 300);
     await store.setJSON(cle, miennes);
 
-    /* les cases cochées sur une liste reçue remontent chez son auteur */
+    /* ce qu'on écrit sur une liste partagée remonte chez son auteur —
+       et seulement si on fait bien partie du partage. */
     const recues = d.listes.filter((n) => n.auteur && n.auteur !== personne.nom);
     for (const n of recues) {
       const autre = "notes/" + slug(n.auteur) + ".json";
       try {
         const l = (await store.get(autre, { type: "json" })) || [];
         const i = l.findIndex((x) => x.id === n.id);
-        if (i >= 0 && (n.maj || "") > (l[i].maj || "")) { l[i] = n; await store.setJSON(autre, l); }
+        if (i < 0 || !laVoit(l[i], personne.nom)) continue;
+        l[i] = fusionnerListe(l[i], n, true);
+        await store.setJSON(autre, l);
       } catch { /* l'auteur n'a rien encore */ }
     }
     return json({ ok: true, enregistrees: miennes.length });
@@ -1017,8 +1088,26 @@ export default async (req) => {
     const cle = "notes/" + slug(personne.nom) + ".json";
     try {
       const l = (await store.get(cle, { type: "json" })) || [];
-      await store.setJSON(cle, l.filter((n) => n.id !== id));
+      const avant = l.length;
+      const reste = l.filter((n) => n.id !== id);
+      if (reste.length !== avant) { await store.setJSON(cle, reste); return json({ ok: true }); }
     } catch { /* rien à retirer */ }
+    /* la liste n'est pas la mienne : je me retire du partage, je ne la
+       supprime pas chez son auteur. */
+    try {
+      const res = await store.list({ prefix: "notes/" });
+      for (const b of (res.blobs || [])) {
+        if (b.key === cle) continue;
+        const l = (await store.get(b.key, { type: "json" })) || [];
+        const i = l.findIndex((n) => n.id === id && laVoit(n, personne.nom));
+        if (i < 0) continue;
+        l[i] = { ...l[i],
+          partage: partageDe(l[i]).filter((x) => x !== personne.nom),
+          pour: l[i].pour === personne.nom ? "" : l[i].pour };
+        await store.setJSON(b.key, l);
+        return json({ ok: true, retire: true });
+      }
+    } catch { /* rien à faire */ }
     return json({ ok: true });
   }
 
