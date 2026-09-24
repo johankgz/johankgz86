@@ -927,11 +927,33 @@ export default async (req) => {
   if (action === "deposer-fiche") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
-    if (!d.cle || !d.donnees) return json({ erreur: "Fiche incomplète." }, 400);
+    if (!d.cle || (!d.donnees && typeof d.morceau !== "string")) return json({ erreur: "Fiche incomplète." }, 400);
     const idx = await lireIndex();
     const f = trouver(idx, d.cle);
     if (!bureau && (!f || f.auteur !== personne.nom)) return json({ erreur: "Modification interdite." }, 403);
-    await store.set(d.cle.replace(/\.pdf$/, ".json"), d.donnees, { metadata: { type: "application/json" } });
+    const cleFiche = d.cle.replace(/\.pdf$/, ".json");
+    let donnees = d.donnees;
+    /* un relevé chargé de photos dépasse ce qu'une seule requête peut
+       porter : il arrive en morceaux, dans l'ordre, et on le reconstitue
+       à l'arrivée du dernier */
+    if (typeof d.morceau === "string") {
+      const n = parseInt(d.n, 10), total = parseInt(d.total, 10);
+      if (!(total > 0 && total <= 60 && n >= 0 && n < total)) return json({ erreur: "Morceau invalide." }, 400);
+      await store.set(cleFiche + ".morceau-" + n, d.morceau, { metadata: { type: "text/plain" } });
+      if (n < total - 1) return json({ ok: true, recu: n });
+      const morceaux = [];
+      for (let k = 0; k < total; k++) {
+        const m = await store.get(cleFiche + ".morceau-" + k, { type: "text" });
+        if (m == null) return json({ erreur: "Fiche incomplète : un morceau manque." }, 400);
+        morceaux.push(m);
+      }
+      donnees = morceaux.join("");
+      for (let k = 0; k < total; k++) {
+        try { await store.delete(cleFiche + ".morceau-" + k); } catch { /* déjà parti */ }
+      }
+      try { JSON.parse(donnees); } catch { return json({ erreur: "Fiche illisible une fois reconstituée." }, 400); }
+    }
+    await store.set(cleFiche, donnees, { metadata: { type: "application/json" } });
     if (f) { f.donnees = true; await store.setJSON(INDEX, idx); }
     return json({ ok: true });
   }

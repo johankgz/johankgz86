@@ -4916,7 +4916,8 @@ function publierRapport(meta){
                              : "Visite remplacée par cette nouvelle version.")
       : "Rapport publié.";
     var prevenus = res.d.prevenus || [];
-    el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + "."
+    el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
+                                        : " Disponible pour " + meta.destinataires.join(", ") + ".")
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
     toast("Rapport publié.");
     /* une fois le relevé publié, sa référence est fixée : modifier
@@ -4933,15 +4934,28 @@ function publierRapport(meta){
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
+/* Un relevé avec beaucoup de photos dépasse ce qu'une requête peut
+   porter : on l'envoie en morceaux, l'un après l'autre, et le serveur
+   le reconstitue. Sans ça, il ne pourrait plus être rouvert pour être
+   corrigé depuis la page du chantier. */
+var MORCEAU_FICHE = 3*1024*1024;
 function deposerFiche(cle, el){
   var donnees;
   try{ donnees=JSON.stringify(S); }catch(e){ return; }
-  if(donnees.length > 5.2*1024*1024){
-    el.textContent += " Fiche trop lourde pour être rouverte depuis le site.";
-    return;
+  function rate(){
+    if(el) el.textContent += " La fiche n'a pas pu être déposée en entier : republiez pour pouvoir la rouvrir depuis le site.";
   }
-  fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:cle, donnees:donnees})})
-    .catch(function(){});
+  function envoyer(corps){
+    return fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+      .then(function(r){ if(!r.ok) throw new Error("refus"); });
+  }
+  if(donnees.length <= MORCEAU_FICHE){ envoyer({cle:cle, donnees:donnees}).catch(rate); return; }
+  var total=Math.ceil(donnees.length/MORCEAU_FICHE), n=0;
+  (function suivant(){
+    envoyer({cle:cle, n:n, total:total, morceau:donnees.slice(n*MORCEAU_FICHE, (n+1)*MORCEAU_FICHE)})
+      .then(function(){ n++; if(n<total) suivant(); })
+      .catch(rate);
+  })();
 }
 
 /* ---------- ouvrir une fiche depuis le site ---------- */
