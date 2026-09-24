@@ -4580,7 +4580,13 @@ function ready(){
 var APP_TYPE="releve";
 function destinataires(){ if(!S.meta.destinataires) S.meta.destinataires=[]; return S.meta.destinataires; }
 function ficheCharger(d, f){
-  if(d.client && d.pieces){ S=d; paintForm(); save(); showTab("client"); toast("Relevé ouvert."); }
+  if(d.client && d.pieces){
+    S=d; paintForm(); save(); showTab("client");
+    /* la fiche rouverte a déjà son dossier : on republie dedans, pas
+       à une personne — comme le fait « Reprendre un dossier ». */
+    try{ equipeDuDossier(); basculePub("dossier"); }catch(e){}
+    toast("Relevé ouvert.");
+  }
   else toast("Cette fiche n'est pas un relevé technique.");
 }
 function toutesLesPhotos(){
@@ -5129,6 +5135,11 @@ function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
   if(!ref) return;
   var d = {ref:ref, client:(p.get("client")||"").trim(), adresse:(p.get("adresse")||"").trim()};
   var onglet = (p.get("onglet")||"").trim();
+  /* la page du chantier sait si un relevé existe déjà pour lui, et
+     passe sa clé : on le rouvre tel quel pour le corriger, plutôt que
+     d'amorcer un relevé vide qui écraserait le vrai contenu à la
+     prochaine publication. */
+  var releveCle = (p.get("releveCle")||"").trim();
   var essais = 0;
   (function attendre(){
     if(typeof S === "undefined" || !S){
@@ -5147,7 +5158,8 @@ function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
     }
     /* on retient le chantier : la barre du haut en vit */
     try{ poserChantier(d); }catch(e){}
-    try{ reprendreDossier(d); }catch(e){}
+    if(releveCle){ try{ recupererFiche({cle:releveCle, ref:d.ref, client:d.client, type:"releve"}); }catch(e){} }
+    else{ try{ reprendreDossier(d); }catch(e){} }
     try{ peindreNavChantier(); }catch(e){}
     if(onglet){ try{ showTab(onglet); }catch(e){} }
     /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */

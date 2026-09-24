@@ -774,12 +774,24 @@ function lienAppli(page, onglet){
   if(onglet) p.set("onglet", onglet);
   return page + "?" + p.toString();
 }
+/* Un relevé technique déjà publié sur ce chantier ? Autant le rouvrir
+   tel quel pour le corriger, plutôt que d'en amorcer un nouveau, vide
+   — qui écraserait le vrai contenu à la prochaine publication. */
+function ficheReleveExistante(){
+  return (CHANTIER && CHANTIER.fichiers || []).filter(function(f){ return f.type==="releve"; })[0] || null;
+}
+function lienReleve(onglet){
+  var href=lienAppli("./releve.html", onglet);
+  var existant=ficheReleveExistante();
+  if(existant) href += "&releveCle=" + encodeURIComponent(existant.cle);
+  return href;
+}
 function peindreActions(){
   var hote=$("nav"); hote.textContent="";
   actions().forEach(function(a){
     if(!aAcces(APPLI_DE[a[0]])) return;
     var el=document.createElement("a");
-    el.href=lienAppli(a[2], a[3]);
+    el.href = a[0]==="releve" ? lienReleve(a[3]) : lienAppli(a[2], a[3]);
     el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES[a[0]]+'</svg>';
     var b=document.createElement("span"); b.textContent=a[1];
     el.appendChild(b);
