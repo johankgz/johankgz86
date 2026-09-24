@@ -3132,8 +3132,8 @@ function pvgisParams(){
     loss: parseFloat(S.pv.pertes||"14") || 14
   };
 }
-function pvgisUrl(a){
-  return "https://re.jrc.ec.europa.eu/api/v5_2/PVcalc?lat="+a.lat+"&lon="+a.lon
+function pvgisUrl(a, version){
+  return "https://re.jrc.ec.europa.eu/api/"+(version||"v5_3")+"/PVcalc?lat="+a.lat+"&lon="+a.lon
     +"&peakpower="+a.kwc+"&loss="+a.loss+"&angle="+a.angle+"&aspect="+a.aspect
     +"&pvtechchoice=crystSi&mountingplace=building&outputformat=json";
 }
@@ -3148,26 +3148,48 @@ $("btnPvgis").addEventListener("click", function(){
   if(a.lat==null){ $("pvgisState").textContent="Position manquante : relevez-la dans l'onglet Client, au GPS ou en collant les coordonnées de Google Maps."; showTab("client"); return; }
   if(!isFinite(a.kwc) || a.kwc<=0){ $("pvgisState").textContent="Indiquez la puissance crête en kWc."; return; }
   $("pvgisState").textContent="Interrogation de PVGIS…";
-  var direct = pvgisUrl(a);
+  var direct = pvgisUrl(a, "v5_3");
+  /* d'abord le relais du site (il essaie lui-même les versions de PVGIS),
+     puis PVGIS en direct, puis deux relais publics en dernier recours */
   var routes = [
     "/.netlify/functions/pvgis?"+direct.split("?")[1],
     direct,
+    pvgisUrl(a, "v5_2"),
     "https://api.allorigins.win/raw?url="+encodeURIComponent(direct),
     "https://corsproxy.io/?url="+encodeURIComponent(direct)
   ];
+  var raisons=[];
   (function tryRoute(i){
     if(i>=routes.length){
-      $("pvgisState").textContent="PVGIS injoignable depuis ce navigateur. Utilisez « Ouvrir PVGIS » et saisissez le résultat à la main.";
+      $("pvgisState").textContent="PVGIS injoignable ("+raisons.join(" ; ")+"). Utilisez « Ouvrir PVGIS » et saisissez le résultat à la main.";
       return;
     }
     if(i>0) $("pvgisState").textContent="Nouvelle tentative ("+(i+1)+"/"+routes.length+")…";
-    fetch(routes[i]).then(function(r){
-      if(!r.ok) throw new Error("HTTP "+r.status);
-      return r.json();
+    var ctrl = window.AbortController ? new AbortController() : null;
+    var minuteur = setTimeout(function(){ if(ctrl) ctrl.abort(); }, 30000);
+    fetch(routes[i], ctrl ? {signal:ctrl.signal} : undefined).then(function(r){
+      return r.text().then(function(t){
+        var d=null; try{ d=JSON.parse(t); }catch(e){}
+        /* PVGIS refuse les paramètres : on le dit, avec sa raison */
+        if(r.status===400 && d && d.message){ var err=new Error(d.message); err.parametre=true; throw err; }
+        if(!r.ok) throw new Error("HTTP "+r.status);
+        return d;
+      });
     }).then(function(d){
+      clearTimeout(minuteur);
       if(!d || !d.outputs) throw new Error("réponse inattendue");
       handlePvgis(d, a);
-    }).catch(function(){ tryRoute(i+1); });
+    }).catch(function(e){
+      clearTimeout(minuteur);
+      if(e && e.parametre){
+        var raison=String(e.message||"").trim();
+        $("pvgisState").textContent="PVGIS refuse le calcul : "+raison+(/[.!?]$/.test(raison) ? " " : ". ")
+          +"Vérifiez la position, l'inclinaison et l'orientation.";
+        return;
+      }
+      raisons.push(i===0 ? "relais du site : "+((e && e.message) || "erreur") : ((e && e.name==="AbortError") ? "délai" : ((e && e.message) || "erreur")));
+      tryRoute(i+1);
+    });
   })(0);
 });
 function handlePvgis(d, a){

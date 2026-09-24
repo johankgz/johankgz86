@@ -959,11 +959,19 @@ function calculerConv(){
   if(grandU==="A"){
     var cal=CALIBRES.filter(function(v){ return v>=I-1e-9; })[0];
     c.hidden=!cal;
-    if(cal) c.textContent="Calibre normalisé immédiatement supérieur : "+cal+" A — à vérifier avec la section du câble et le mode de pose.";
+    /* les disjoncteurs n'existent qu'en calibres standard : on prend le
+       premier qui couvre le courant calculé */
+    if(cal) c.textContent="Disjoncteur : "+cal+" A minimum — c'est le premier calibre du commerce au-dessus de "
+      +fr(I,1)+" A. Le câble doit ensuite supporter ces "+cal+" A : sa section dépend de la longueur et de la pose (onglet Câble).";
   } else c.hidden=true;
   var vc=$("convVersCable");
+  var calibre = (grandU==="A") ? CALIBRES.filter(function(v){ return v>=I-1e-9; })[0] : null;
   vc.hidden = !(isFinite(I) && I>0);
-  if(!vc.hidden){ vc.textContent="Section de câble pour "+fr(I,1)+" A  →"; vc.setAttribute("data-i", String(Math.round(I*10)/10)); }
+  if(!vc.hidden){
+    var pour = calibre || Math.round(I*10)/10;
+    vc.textContent = calibre ? "Section de câble pour un disjoncteur de "+calibre+" A  →" : "Section de câble pour "+fr(I,1)+" A  →";
+    vc.setAttribute("data-i", String(pour));
+  }
 }
 document.querySelectorAll("#convUnite button").forEach(function(b){
   b.addEventListener("click", function(){ CONV.u=b.getAttribute("data-u"); garderConv(); peindreConv(); $("convValeur").focus(); });
