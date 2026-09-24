@@ -1714,6 +1714,7 @@ function publierRapport(meta){
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
     if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return; }
+    effacerMarques();
     var msg = res.d.remplace
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
                              : "Visite remplacée par cette nouvelle version.")
@@ -2183,6 +2184,190 @@ function reinitialiserFormulaire(msg){
    Changer de chantier ne doit ni emporter les données de l'ancien, ni
    les perdre : la fiche d'un autre chantier est mise de côté, sous son
    nom, et revient quand on y retourne. */
+/* ---------- les cases modifiées, surlignées jusqu'à la publication ----------
+   Toute case remplie ou changée depuis la dernière publication reste
+   surlignée en orange, et l'onglet qui la contient porte un point : on
+   voit d'un coup d'œil ce qui a bougé avant de publier, sans tout
+   relire. Revenir à la valeur d'avant retire le surlignage ; une
+   publication réussie les efface tous. La liste voyage avec la fiche
+   (S._modifs), donc elle suit aussi les fiches mises de côté. */
+var MARQUES_EXCLUES = ["recherche", "d_nom", "d_qte"];
+var MARQUES_AVANT = {};
+function marquesDeFiche(){
+  if(!S) return null;
+  if(!S._modifs || typeof S._modifs !== "object") S._modifs = {};
+  return S._modifs;
+}
+function marqueControle(el){
+  if(!el || !el.tagName) return null;
+  var t = el.tagName;
+  if(t !== "INPUT" && t !== "SELECT" && t !== "TEXTAREA" && el.closest){
+    var lab = el.closest("label"); if(!lab) return null; el = lab; t = "LABEL";
+  }
+  if(t === "LABEL"){ el = el.querySelector("input,select,textarea"); if(!el) return null; t = el.tagName; }
+  if(t !== "INPUT" && t !== "SELECT" && t !== "TEXTAREA") return null;
+  var ty = (el.type || "").toLowerCase();
+  if(/^(file|hidden|password|search|button|submit|reset|image)$/.test(ty)) return null;
+  if(el.readOnly || el.disabled) return null;
+  if(el.id && MARQUES_EXCLUES.indexOf(el.id) >= 0) return null;
+  if(el.getAttribute("list") === "dl_equipe" || el.hasAttribute("data-sans-marque")) return null;
+  var main = document.querySelector("main");
+  if(!main || !main.contains(el)) return null;
+  var pub = document.getElementById("btnPublier");
+  var blocPub = pub && pub.closest(".block");
+  if(blocPub && blocPub.contains(el)) return null;
+  return el;
+}
+function marqueCle(el){
+  var ty = (el.type || "").toLowerCase();
+  if(ty === "radio" && el.name) return "r:" + el.name;
+  if(ty === "checkbox" && el.name) return "c:" + el.name + "=" + el.value;
+  if(el.id) return "#" + el.id;
+  var chemin = [], n = el;
+  while(n && n.parentElement && !n.id){
+    chemin.unshift(Array.prototype.indexOf.call(n.parentElement.children, n));
+    n = n.parentElement;
+  }
+  return "~" + (n && n.id ? n.id : "") + "/" + chemin.join(".");
+}
+function marqueValeur(el){
+  var ty = (el.type || "").toLowerCase();
+  if(ty === "checkbox") return el.checked ? "1" : "";
+  if(ty === "radio"){
+    var zone = el.closest("section") || document;
+    var coche = null;
+    zone.querySelectorAll('input[type="radio"]').forEach(function(x){ if(x.name === el.name && x.checked) coche = x; });
+    return coche ? coche.value : "";
+  }
+  return String(el.value == null ? "" : el.value);
+}
+function marqueRetenir(ev){
+  var el = marqueControle(ev.target);
+  if(!el) return;
+  var m = marquesDeFiche(); if(!m) return;
+  var cle = marqueCle(el);
+  if(!(cle in m) && !(cle in MARQUES_AVANT)) MARQUES_AVANT[cle] = marqueValeur(el);
+}
+function marqueNoter(ev){
+  var el = marqueControle(ev.target);
+  if(!el) return;
+  var m = marquesDeFiche(); if(!m) return;
+  var cle = marqueCle(el), v = marqueValeur(el);
+  if(cle in m){
+    if(m[cle] !== null && m[cle] === v) delete m[cle];
+  } else {
+    var avant = (cle in MARQUES_AVANT) ? MARQUES_AVANT[cle] : null;
+    if(avant === null || avant !== v) m[cle] = avant;
+  }
+  delete MARQUES_AVANT[cle];
+  try{ save(); }catch(e){}
+  appliquerMarques();
+}
+function marqueCible(el){
+  var ty = (el.type || "").toLowerCase();
+  if(ty === "radio") return el.closest(".chips,[data-single],.choix,.opts") || el.closest("label") || el;
+  if(ty === "checkbox") return el.closest("label") || el;
+  return el;
+}
+var MARQUES_S = null;
+function appliquerMarques(){
+  var main = document.querySelector("main");
+  if(!main) return;
+  MARQUES_S = S;
+  var m = (S && S._modifs) || {};
+  var cibles = [], onglets = {};
+  main.querySelectorAll("input,select,textarea").forEach(function(el){
+    if(!marqueControle(el)) return;
+    if(!(marqueCle(el) in m)) return;
+    var c = marqueCible(el);
+    if(cibles.indexOf(c) < 0) cibles.push(c);
+    var sec = el.closest('section[id^="tab-"]');
+    if(sec) onglets[sec.id.slice(4)] = true;
+  });
+  main.querySelectorAll(".modifie").forEach(function(x){ if(cibles.indexOf(x) < 0) x.classList.remove("modifie"); });
+  cibles.forEach(function(x){ if(!x.classList.contains("modifie")) x.classList.add("modifie"); });
+  var nav = document.getElementById("nav");
+  if(nav) nav.querySelectorAll("[data-tab]").forEach(function(b){
+    var oui = !!onglets[b.getAttribute("data-tab")];
+    if(b.classList.contains("a-modifs") !== oui) b.classList.toggle("a-modifs", oui);
+  });
+  var pub = document.getElementById("btnPublier");
+  if(pub){
+    var r = document.getElementById("marquesResume");
+    if(!r){
+      r = document.createElement("div"); r.id = "marquesResume"; r.className = "marques-resume";
+      pub.parentNode.insertBefore(r, pub);
+    }
+    var n = cibles.length;
+    if(!n){ r.hidden = true; return; }
+    r.hidden = false;
+    var noms = [];
+    if(nav) nav.querySelectorAll("[data-tab]").forEach(function(b){
+      if(onglets[b.getAttribute("data-tab")]) noms.push((b.textContent || "").trim());
+    });
+    var texte = n + (n > 1 ? " cases modifiées" : " case modifiée") + " depuis la dernière publication"
+      + (noms.length ? " — " + noms.join(", ") : "") + ".";
+    if(r.getAttribute("data-texte") !== texte){
+      r.setAttribute("data-texte", texte);
+      r.textContent = "";
+      var s = document.createElement("span"); s.textContent = texte; r.appendChild(s);
+      var b = document.createElement("button"); b.type = "button"; b.className = "marques-effacer";
+      b.textContent = "Retirer le surlignage";
+      b.addEventListener("click", function(){ effacerMarques(); });
+      r.appendChild(b);
+    }
+  }
+}
+function effacerMarques(){
+  if(S){ S._modifs = {}; try{ save(); }catch(e){} }
+  MARQUES_AVANT = {};
+  appliquerMarques();
+}
+(function installerMarques(){
+  var st = document.createElement("style");
+  st.textContent =
+    "main input.modifie,main select.modifie,main textarea.modifie{background:#FFF3DF !important;"
+    + "border-color:#F08A24 !important;box-shadow:0 0 0 3px rgba(240,138,36,.22) !important}"
+    + "main label.modifie,main .chips.modifie,main [data-single].modifie{background:#FFF3DF;"
+    + "box-shadow:0 0 0 2px rgba(240,138,36,.55);border-radius:10px}"
+    + "main .chips.modifie,main [data-single].modifie{padding:6px}"
+    + "#nav [data-tab]{position:relative}"
+    + "#nav [data-tab].a-modifs::after{content:'';position:absolute;top:4px;right:6px;width:8px;height:8px;"
+    + "border-radius:50%;background:#F08A24;box-shadow:0 0 0 2px rgba(255,255,255,.9)}"
+    + ".marques-resume{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 12px;padding:10px 12px;"
+    + "border-radius:8px;background:#FFF3DF;border:1px solid rgba(240,138,36,.45);color:#7A3E06;font-size:13.5px;line-height:1.4}"
+    + ".marques-resume[hidden]{display:none}"
+    + ".marques-resume span{flex:1 1 200px}"
+    + ".marques-effacer{background:none;border:0;padding:0;color:#B45309;font-weight:600;font-size:13px;"
+    + "text-decoration:underline;cursor:pointer;font-family:inherit}";
+  document.head.appendChild(st);
+  document.addEventListener("focusin", marqueRetenir, true);
+  document.addEventListener("pointerdown", marqueRetenir, true);
+  document.addEventListener("keydown", marqueRetenir, true);
+  document.addEventListener("input", marqueNoter, true);
+  document.addEventListener("change", marqueNoter, true);
+  try{
+    var _peindre = paintForm;
+    paintForm = function(){ var r = _peindre.apply(this, arguments); MARQUES_AVANT = {}; appliquerMarques(); return r; };
+  }catch(e){}
+  var attente = null;
+  function plusTard(){ if(attente) return; attente = setTimeout(function(){ attente = null; appliquerMarques(); }, 60); }
+  function observer(){
+    var main = document.querySelector("main");
+    if(!main || !window.MutationObserver) return;
+    new MutationObserver(function(liste){
+      for(var i = 0; i < liste.length; i++){
+        var t = liste[i].target;
+        if(t && t.id === "marquesResume") continue;
+        if(t && t.closest && t.closest("#marquesResume")) continue;
+        if(liste[i].type === "childList"){ plusTard(); return; }
+      }
+    }).observe(main, {childList: true, subtree: true});
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", observer); else observer();
+  setInterval(function(){ if(typeof S !== "undefined" && S !== MARQUES_S) appliquerMarques(); }, 700);
+})();
+
 var CLE_FICHE = "commande:courante";
 function ficheVierge(){ var s=blank(); s.auteur=(SESSION&&SESSION.nom)||""; return s; }
 function ficheRemplie(s){ if(!s) return false; return !!((s.lignes||[]).length || (s.taches||[]).length || (s.photos||[]).length || String(s.notes||"").trim()); }
