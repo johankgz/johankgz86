@@ -678,6 +678,41 @@ nav#navParcours a .num{
 .bul-temp b{font-family:var(--mono);font-weight:600;color:#F2F5F9}
 .bul-temp span{font-size:11px;letter-spacing:.05em;color:#8A97A6}
 
+/* ---------- l'heure à la seconde, la météo sur trois jours ---------- */
+.bulletin{flex-direction:column;align-items:stretch;gap:0}
+.bul-haut{position:relative;z-index:1;display:flex;align-items:center;gap:14px}
+.heure .hm,.heure .sec,.ml-heure .hm,.ml-heure .sec{font-variant-numeric:tabular-nums}
+.bul-gauche .heure{white-space:nowrap}
+.bul-gauche .heure .sec{font-size:.5em;font-weight:500;letter-spacing:0;color:#8A97A6;margin-left:1px;
+  vertical-align:.62em}
+.ml-heure{white-space:nowrap}
+.ml-heure .sec{font-size:.55em;font-weight:500;letter-spacing:0;color:rgba(244,241,234,.6);margin-left:1px;
+  vertical-align:.5em}
+.bul-jours{position:relative;z-index:1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;
+  margin-top:16px;padding-top:14px;border-top:1px solid var(--trait-tech)}
+.bul-jours[hidden]{display:none}
+.bul-j{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 6px 9px;border-radius:10px;
+  background:rgba(255,255,255,.035);border:1px solid rgba(255,255,255,.07);text-align:center;min-width:0;
+  transition:background .2s ease}
+.bul-j:first-child{background:rgba(34,211,238,.07);border-color:rgba(34,211,238,.22)}
+.bul-j.entre{animation:bjEntre .45s cubic-bezier(.2,.7,.2,1) both}
+@keyframes bjEntre{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.bj-nom{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:#AEB7BF;
+  font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bj-icone svg{width:30px;height:30px;stroke:var(--data-vif);fill:none;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;display:block}
+.bj-icone svg .plein{fill:rgba(34,211,238,.18);stroke:none}
+.bj-temps{display:flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums}
+.bj-temps b{font-size:17px;font-weight:600;color:#F2F5F9;letter-spacing:-.02em}
+.bj-temps i{font-style:normal;font-size:13px;color:#7A8796}
+.bj-barre{position:relative;display:block;width:78%;height:4px;border-radius:4px;background:rgba(255,255,255,.08)}
+.bj-barre span{position:absolute;top:0;bottom:0;border-radius:4px;
+  background:linear-gradient(90deg,var(--data-vif),var(--accent-vif))}
+.bj-pluie{display:inline-flex;align-items:center;gap:3px;font-size:11px;color:#8A97A6;font-variant-numeric:tabular-nums}
+.bj-pluie svg{width:11px;height:11px;fill:rgba(96,165,250,.35);stroke:#60A5FA;stroke-width:1.8}
+.bj-pluie.fort{color:#93C5FD;font-weight:600}
+@media (prefers-reduced-motion:reduce){ .bul-j.entre{animation:none} }
+@media (max-width:360px){ .bj-temps b{font-size:15px} .bj-icone svg{width:26px;height:26px} }
+
 /* ---------- les relevés du jour ---------- */
 .notifs{overflow:hidden}
 /* seul le compteur passe en chasse fixe, pas le titre */
@@ -691,6 +726,18 @@ nav#navParcours a .num{
   border-radius:var(--r-card);background:var(--card);box-shadow:var(--ombre-1);
   padding:15px 16px;
 }
+
+/* ---------- les petits outils, sous la to-do list ---------- */
+.petits-outils{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:-8px 0 18px}
+.petits-outils a{display:flex;align-items:center;justify-content:center;gap:8px;min-height:48px;padding:8px 6px;
+  border:1px solid var(--rule);border-radius:var(--r-card);background:var(--card);box-shadow:var(--ombre-1);
+  color:var(--ink);text-decoration:none;font-size:13.5px;font-weight:600;letter-spacing:-.01em;
+  transition:box-shadow .18s ease,transform .1s ease}
+.petits-outils a:active{transform:translateY(1px)}
+.petits-outils svg{flex:0 0 auto;width:20px;height:20px;stroke:var(--accent);fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.petits-outils span{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+@media (max-width:480px){ .petits-outils a{flex-direction:column;gap:4px;min-height:58px;font-size:12.5px} }
+@media (hover:hover){ .petits-outils a:hover{box-shadow:var(--ombre-2)} }
 
 /* ---------- les applis en tuiles ---------- */
 .parcours{background:none;box-shadow:none;padding:0;border:0}
@@ -843,21 +890,23 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
 
     <div class="bulletin" id="bulletin">
-      <img class="bul-logo" src="./icone-192.png" width="46" height="46"
-           alt="Travaux 360" decoding="async">
-      <div class="bul-gauche">
-        <p class="jour" id="bulJour"></p>
-        <p class="heure" id="bulHeure"></p>
-        <p class="lieu" id="bulLieu"></p>
-      </div>
-      <div class="bul-droite" id="bulMeteo" hidden>
-        <div class="bul-icone" id="bulIcone"></div>
-        <div class="bul-temp">
-          <b id="bulTemp"></b>
-          <span id="bulCiel"></span>
-          <span id="bulMinMax"></span>
+      <div class="bul-haut">
+        <img class="bul-logo" src="./icone-192.png" width="46" height="46"
+             alt="Travaux 360" decoding="async">
+        <div class="bul-gauche">
+          <p class="jour" id="bulJour"></p>
+          <p class="heure" id="bulHeure"></p>
+          <p class="lieu" id="bulLieu"></p>
+        </div>
+        <div class="bul-droite" id="bulMeteo" hidden>
+          <div class="bul-icone" id="bulIcone"></div>
+          <div class="bul-temp">
+            <b id="bulTemp"></b>
+            <span id="bulCiel"></span>
+          </div>
         </div>
       </div>
+      <div class="bul-jours" id="bulJours" hidden></div>
     </div>
 
     <p class="demo-ban" id="banniere" hidden></p>
@@ -869,6 +918,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
       <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
     </a>
+    <nav class="petits-outils" aria-label="Petits outils">
+      <a href="./utilitaires.html#boussole"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg><span>Boussole</span></a>
+      <a href="./utilitaires.html#niveau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M8.5 8v8M15.5 8v8"/></svg><span>Niveau</span></a>
+      <a href="./utilitaires.html#calcul"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg><span>Calculatrice</span></a>
+    </nav>
 
 
     <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
@@ -919,21 +973,36 @@ var METEO={0:"Soleil",1:"Éclaircies",2:"Éclaircies",3:"Couvert",45:"Brouillard
 51:"Bruine",53:"Bruine",55:"Bruine",56:"Bruine",57:"Bruine",61:"Pluie",63:"Pluie",65:"Pluie forte",
 66:"Pluie",67:"Pluie",71:"Neige",73:"Neige",75:"Neige",77:"Neige",80:"Averses",81:"Averses",
 82:"Fortes averses",85:"Averses de neige",86:"Averses de neige",95:"Orage",96:"Orage",99:"Orage"};
-function meteoDemain(cb){
+/* La météo : maintenant, puis aujourd'hui, demain et après-demain. Ce
+   qu'on a déjà s'affiche tout de suite ; on ne redemande qu'au bout
+   d'une demi-heure, en fond. */
+function meteo3j(cb){
   var c=null;
-  try{ c=JSON.parse(localStorage.getItem("meteo:demain")||"null"); }catch(e){}
-  if(c && Date.now()-c.t < 3*3600*1000){ cb(c.v); return; }
+  try{ c=JSON.parse(localStorage.getItem("meteo:3j")||"null"); }catch(e){}
+  var auj=new Date().toISOString().slice(0,10);
+  var utilisable = c && c.v && c.v.jours && c.v.jours.length && c.v.jours[c.v.jours.length-1].date >= auj;
+  if(utilisable) cb(c.v);
+  if(utilisable && Date.now()-c.t < 30*60*1000) return;
   function go(lat, lon){
     fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon
-      +"&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=2&timezone=auto")
+      +"&current=temperature_2m,weather_code,is_day"
+      +"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+      +"&forecast_days=3&timezone=auto")
       .then(function(r){ return r.json(); })
       .then(function(d){
-        if(!d.daily || !d.daily.time || d.daily.time.length<2) return cb(null);
-        var v={code:d.daily.weather_code[1], max:Math.round(d.daily.temperature_2m_max[1]),
-               min:Math.round(d.daily.temperature_2m_min[1])};
-        try{ localStorage.setItem("meteo:demain", JSON.stringify({t:Date.now(), v:v})); }catch(e){}
+        if(!d.daily || !d.daily.time || !d.daily.time.length){ if(!utilisable) cb(null); return; }
+        var dj=d.daily, jours=[];
+        for(var i=0;i<dj.time.length && i<3;i++){
+          jours.push({date:dj.time[i], code:dj.weather_code[i],
+            max:Math.round(dj.temperature_2m_max[i]), min:Math.round(dj.temperature_2m_min[i]),
+            pluie:(dj.precipitation_probability_max||[])[i]});
+        }
+        var cur=d.current||{};
+        var v={jours:jours,
+          maintenant: (cur.temperature_2m!=null) ? {temp:Math.round(cur.temperature_2m), code:cur.weather_code, jour:cur.is_day!==0} : null};
+        try{ localStorage.setItem("meteo:3j", JSON.stringify({t:Date.now(), v:v})); }catch(e){}
         cb(v);
-      }).catch(function(){ cb(null); });
+      }).catch(function(){ if(!utilisable) cb(null); });
   }
   /* aucune demande de position ici : la permission du navigateur est réservée
      au bouton Position des applis. On se sert du dernier point relevé, sinon
@@ -941,6 +1010,29 @@ function meteoDemain(cb){
   var pos=null;
   try{ pos=JSON.parse(localStorage.getItem("meteo:pos")||"null"); }catch(e){}
   if(pos) go(pos.lat, pos.lon); else go(46.648, -1.658);
+}
+function nomJour(iso, i){
+  if(i===0) return "Aujourd'hui";
+  if(i===1) return "Demain";
+  var J=["Dimanche","Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi"];
+  var a=String(iso).split("-");
+  return J[new Date(+a[0], +a[1]-1, +a[2]).getDay()];
+}
+var ICONE_GOUTTE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5c3 4 5.5 7 5.5 10a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-10z"/></svg>';
+/* l'horloge : heures et minutes, les secondes en plus petit, à la seconde près */
+function horlogeSecondes(elHeure, elJour){
+  elHeure.textContent="";
+  var hm=document.createElement("span"); hm.className="hm";
+  var sec=document.createElement("span"); sec.className="sec";
+  elHeure.appendChild(hm); elHeure.appendChild(sec);
+  function tic(){
+    var d=new Date();
+    hm.textContent=hhmm(d);
+    sec.textContent=":"+String(d.getSeconds()).padStart(2,"0");
+    if(elJour) elJour.textContent=dateLongue(d);
+    setTimeout(tic, 1000 - d.getMilliseconds() + 5);
+  }
+  tic();
 }
 function bonjourMot(){ var h=new Date().getHours(); return h<6?"Bonne nuit":(h<18?"Bonjour":"Bonsoir"); }
 function dateLongue(d){
@@ -989,26 +1081,58 @@ function meteoStyle(code, nuit){
   if(code<=86) return {icone:"neige", classe:"gris", ciel:"Averses de neige"};
   return {icone:"orage", classe:"pluie", ciel:"Orage"};
 }
+var BULLETIN_HORLOGE=false;
 function bulletin(lieu){
   var carte=$("bulletin");
-  function horloge(){
-    var d=new Date();
-    $("bulJour").textContent = dateLongue(d);
-    $("bulHeure").textContent = hhmm(d);
-  }
-  horloge(); setInterval(horloge, 20000);
+  if(!BULLETIN_HORLOGE){ BULLETIN_HORLOGE=true; horlogeSecondes($("bulHeure"), $("bulJour")); }
   $("bulLieu").textContent = lieu || "";
-  meteoDemain(function(m){
+  meteo3j(function(m){
     if(!m) return;
-    var h=new Date().getHours(), nuit = (h<7 || h>=21);
-    var st=meteoStyle(m.code, nuit);
+    var h=new Date().getHours();
+    var now=m.maintenant || {temp:m.jours[0].max, code:m.jours[0].code, jour:true};
+    var nuit = now.jour===false || h<7 || h>=21;
+    var st=meteoStyle(now.code, nuit);
     carte.className = "bulletin" + (st.classe ? " "+st.classe : "");
     $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
-    $("bulTemp").textContent = m.max + "°";
+    $("bulTemp").textContent = now.temp + "°";
     $("bulCiel").textContent = st.ciel;
-    $("bulMinMax").textContent = "demain  •  " + m.min + "° au plus bas";
     $("bulMeteo").hidden = false;
+    peindreJours(m.jours);
   });
+}
+function peindreJours(jours){
+  var hote=$("bulJours"); if(!hote) return;
+  var premier = hote.hidden;
+  hote.textContent="";
+  /* l'échelle commune des trois jours : la barre de chacun se place dessus */
+  var bas=Math.min.apply(null, jours.map(function(j){ return j.min; }));
+  var haut=Math.max.apply(null, jours.map(function(j){ return j.max; }));
+  var etendue=Math.max(1, haut-bas);
+  jours.forEach(function(j, i){
+    var st=meteoStyle(j.code, false);
+    var c=document.createElement("div"); c.className="bul-j"+(premier ? " entre" : "");
+    c.style.animationDelay=(i*70)+"ms";
+    var n=document.createElement("span"); n.className="bj-nom"; n.textContent=nomJour(j.date, i);
+    var ic=document.createElement("span"); ic.className="bj-icone";
+    ic.innerHTML='<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
+    ic.title=st.ciel;
+    var t=document.createElement("span"); t.className="bj-temps";
+    t.innerHTML='<b></b><i></i>';
+    t.querySelector("b").textContent=j.max+"°"; t.querySelector("i").textContent=j.min+"°";
+    var barre=document.createElement("span"); barre.className="bj-barre";
+    var r=document.createElement("span");
+    r.style.left=((j.min-bas)/etendue*100)+"%";
+    r.style.right=((haut-j.max)/etendue*100)+"%";
+    barre.appendChild(r);
+    var p=document.createElement("span"); p.className="bj-pluie"+((j.pluie||0)>=50 ? " fort" : "");
+    p.innerHTML=ICONE_GOUTTE;
+    p.appendChild(document.createTextNode((j.pluie!=null ? j.pluie : "–")+" %"));
+    c.appendChild(n); c.appendChild(ic); c.appendChild(t); c.appendChild(barre); c.appendChild(p);
+    c.setAttribute("aria-label", nomJour(j.date, i)+" : "+st.ciel+", "+j.max+"° au plus haut, "+j.min+"° au plus bas"
+      +(j.pluie!=null ? ", "+j.pluie+" % de risque de pluie" : ""));
+    hote.appendChild(c);
+  });
+  hote.hidden=false;
 }
 
 /* ---------- icônes ---------- */
@@ -1205,20 +1329,18 @@ function bandeauPublic(){
   document.body.classList.add("connexion");
   e.textContent = bonjourMot();
   $("phraseJour").textContent = phraseDuJour();
-  function horloge(){
-    var d=new Date();
-    $("bulJourP").textContent = dateLongue(d);
-    $("bulHeureP").textContent = hhmm(d);
-  }
-  horloge(); setInterval(horloge, 20000);
-  meteoDemain(function(m){
+  horlogeSecondes($("bulHeureP"), $("bulJourP"));
+  meteo3j(function(m){
     if(!m) return;
-    var h=new Date().getHours(), nuit=(h<7 || h>=21);
-    var st=meteoStyle(m.code, nuit);
+    var h=new Date().getHours();
+    var now=m.maintenant || {temp:m.jours[0].max, code:m.jours[0].code, jour:true};
+    var st=meteoStyle(now.code, now.jour===false || h<7 || h>=21);
     $("bulIconeP").innerHTML = '<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
-    $("bulTempP").textContent = m.max + "°";
-    $("bulCielP").textContent = st.ciel + " demain";
-    $("bulMinMaxP").textContent = "Minimum attendu " + m.min + "° la nuit prochaine.";
+    $("bulTempP").textContent = now.temp + "°";
+    $("bulCielP").textContent = st.ciel;
+    $("bulMinMaxP").textContent = m.jours.map(function(j, i){
+      return nomJour(j.date, i)+" "+j.max+"° / "+j.min+"°";
+    }).join("   ·   ");
     $("bulMeteoP").hidden = false;
   });
 }

@@ -1,0 +1,756 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Outils — Suivi travaux 360</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:620px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.block p{margin:0 0 10px;font-size:15px}
+.block p:last-child{margin-bottom:0}
+ol,ul{margin:0;padding-left:20px;font-size:15px}
+li{margin-bottom:9px}
+li:last-child{margin-bottom:0}
+b.step{color:var(--accent)}
+.tag{display:inline-block;padding:4px 11px;border-radius:var(--r-field);font-size:12.5px;font-weight:600;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:10px}
+.tag.v{background:#EDF0E4;color:#0B7A45}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+/* ---------- les petits outils ---------- */
+main{max-width:520px}
+.onglets{display:flex;gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
+.onglets button{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 4px 7px;border:0;
+  border-radius:9px;background:none;color:#8A97A6;font-family:inherit;font-size:11.5px;font-weight:600;cursor:pointer}
+.onglets button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.onglets button[aria-selected="true"]{background:var(--accent-vif);color:#0A0E14}
+.vue[hidden]{display:none}
+.carte-outil{background:var(--g-900);border:1px solid var(--trait-tech);border-radius:16px;padding:20px 16px;
+  color:#E7ECF2;text-align:center;box-shadow:var(--ombre-2)}
+.carte-outil .aide{font-size:13px;color:#8A97A6;margin:12px 0 0;line-height:1.5}
+.bouton-capteur{margin-top:14px;min-height:46px;padding:0 20px;border:0;border-radius:10px;background:var(--accent);
+  color:#fff;font-family:inherit;font-size:15px;font-weight:600;cursor:pointer}
+.bouton-capteur[hidden]{display:none}
+.bouton-clair{margin-top:12px;min-height:40px;padding:0 16px;border:1px solid rgba(255,255,255,.18);border-radius:10px;
+  background:rgba(255,255,255,.06);color:#E7ECF2;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer}
+
+/* boussole */
+.cadran-boite{position:relative;width:min(78vw,300px);aspect-ratio:1;margin:6px auto 0}
+.cadran{position:absolute;inset:0;will-change:transform}
+.cadran svg{width:100%;height:100%;display:block}
+.repere{position:absolute;left:50%;top:-6px;transform:translateX(-50%);width:0;height:0;
+  border-left:9px solid transparent;border-right:9px solid transparent;border-top:16px solid var(--accent-vif);z-index:2;
+  filter:drop-shadow(0 2px 4px rgba(0,0,0,.5))}
+.cap{margin:16px 0 0;font-variant-numeric:tabular-nums;line-height:1}
+.cap b{font-size:46px;font-weight:600;letter-spacing:-.03em;color:#F2F5F9}
+.cap span{display:block;margin-top:6px;font-size:15px;font-weight:600;letter-spacing:.08em;color:var(--data-vif)}
+
+/* niveau */
+.niveau{position:relative;width:min(78vw,280px);aspect-ratio:1;margin:6px auto 0;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,rgba(34,211,238,.10),rgba(34,211,238,.02) 70%);
+  border:2px solid rgba(255,255,255,.14);overflow:hidden}
+.niveau::before,.niveau::after{content:"";position:absolute;background:rgba(255,255,255,.14)}
+.niveau::before{left:50%;top:8%;bottom:8%;width:1px}
+.niveau::after{top:50%;left:8%;right:8%;height:1px}
+.niveau .cible{position:absolute;left:50%;top:50%;width:26%;aspect-ratio:1;transform:translate(-50%,-50%);
+  border-radius:50%;border:2px solid rgba(255,255,255,.35)}
+.bulle{position:absolute;left:50%;top:50%;width:22%;aspect-ratio:1;margin:-11% 0 0 -11%;border-radius:50%;
+  background:radial-gradient(circle at 35% 30%,#fff,#FDBA74 35%,#EA7A1E 80%);
+  box-shadow:0 4px 14px rgba(0,0,0,.45);will-change:transform}
+.niveau.droit{border-color:#4ADE80}
+.niveau.droit .bulle{background:radial-gradient(circle at 35% 30%,#fff,#86EFAC 35%,#16A34A 80%)}
+.angles{display:flex;justify-content:center;gap:26px;margin-top:16px;font-variant-numeric:tabular-nums}
+.angles div{display:flex;flex-direction:column;gap:3px}
+.angles b{font-size:28px;font-weight:600;color:#F2F5F9}
+.angles span{font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:#8A97A6}
+
+/* calculatrice */
+.ecran{background:#05080C;border:1px solid var(--trait-tech);border-radius:12px;padding:12px 14px;text-align:right;
+  min-height:92px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
+.ecran .expr{font-size:15px;color:#8A97A6;min-height:20px;word-break:break-all;font-variant-numeric:tabular-nums}
+.ecran .res{font-size:40px;font-weight:600;color:#F2F5F9;letter-spacing:-.02em;line-height:1.15;
+  word-break:break-all;font-variant-numeric:tabular-nums}
+.ecran .res.petit{font-size:28px}
+.touches{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px}
+.touches button{min-height:58px;border:0;border-radius:12px;font-family:inherit;font-size:22px;font-weight:500;cursor:pointer;
+  background:#1A2230;color:#E7ECF2;transition:background .12s ease,transform .06s ease}
+.touches button:active{transform:scale(.96)}
+.touches button.op{background:#27313F;color:var(--data-vif);font-size:24px}
+.touches button.fn{background:#2B3440;color:#C7D0DA;font-size:18px}
+.touches button.egal{background:var(--accent);color:#fff;font-size:26px}
+.touches button.zero{grid-column:span 2}
+@media (hover:hover){
+  .touches button:hover{filter:brightness(1.15)}
+}
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Outils</h1>
+</header>
+<main>
+  <div class="onglets" role="tablist">
+    <button type="button" role="tab" data-vue="boussole" aria-selected="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>Boussole</button>
+    <button type="button" role="tab" data-vue="niveau" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M8.5 8v8M15.5 8v8"/></svg>Niveau</button>
+    <button type="button" role="tab" data-vue="calcul" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg>Calculatrice</button>
+  </div>
+
+  <section class="vue" id="vue-boussole">
+    <div class="carte-outil">
+      <div class="cadran-boite">
+        <div class="repere" aria-hidden="true"></div>
+        <div class="cadran" id="cadran"></div>
+      </div>
+      <p class="cap"><b id="capDeg">—</b><span id="capDir">&nbsp;</span></p>
+      <button type="button" class="bouton-capteur" id="actBoussole">Activer la boussole</button>
+      <p class="aide" id="aideBoussole">Tenez le téléphone à plat, le haut vers la direction à mesurer. Éloignez-le des masses métalliques et des tableaux électriques : ils faussent la mesure.</p>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-niveau" hidden>
+    <div class="carte-outil">
+      <div class="niveau" id="niveau"><div class="cible"></div><div class="bulle" id="bulle"></div></div>
+      <div class="angles">
+        <div><b id="angX">—</b><span>Gauche · droite</span></div>
+        <div><b id="angY">—</b><span>Avant · arrière</span></div>
+      </div>
+      <button type="button" class="bouton-capteur" id="actNiveau">Activer le niveau</button>
+      <button type="button" class="bouton-clair" id="zeroNiveau" hidden>Régler le zéro ici</button>
+      <p class="aide" id="aideNiveau">Posez le téléphone sur la surface. La bulle passe au vert quand c'est de niveau, à moins d'un demi-degré.</p>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-calcul" hidden>
+    <div class="carte-outil" style="text-align:left">
+      <div class="ecran"><div class="expr" id="calcExpr"></div><div class="res" id="calcRes">0</div></div>
+      <div class="touches" id="touches">
+        <button type="button" class="fn" data-k="C">C</button>
+        <button type="button" class="fn" data-k="⌫" aria-label="Effacer le dernier chiffre">⌫</button>
+        <button type="button" class="fn" data-k="%">%</button>
+        <button type="button" class="op" data-k="/" aria-label="Diviser">÷</button>
+        <button type="button" data-k="7">7</button><button type="button" data-k="8">8</button><button type="button" data-k="9">9</button>
+        <button type="button" class="op" data-k="*" aria-label="Multiplier">×</button>
+        <button type="button" data-k="4">4</button><button type="button" data-k="5">5</button><button type="button" data-k="6">6</button>
+        <button type="button" class="op" data-k="-" aria-label="Moins">−</button>
+        <button type="button" data-k="1">1</button><button type="button" data-k="2">2</button><button type="button" data-k="3">3</button>
+        <button type="button" class="op" data-k="+" aria-label="Plus">+</button>
+        <button type="button" class="zero" data-k="0">0</button>
+        <button type="button" data-k="," aria-label="Virgule">,</button>
+        <button type="button" class="egal" data-k="=" aria-label="Égal">=</button>
+      </div>
+    </div>
+  </section>
+</main>
+<script>
+(function(){
+function $(i){ return document.getElementById(i); }
+
+/* ---------- onglets ---------- */
+var VUES=["boussole","niveau","calcul"];
+function montrer(v){
+  if(VUES.indexOf(v)<0) v="boussole";
+  VUES.forEach(function(x){ $("vue-"+x).hidden = x!==v; });
+  document.querySelectorAll(".onglets button").forEach(function(b){
+    b.setAttribute("aria-selected", b.getAttribute("data-vue")===v ? "true" : "false");
+  });
+  try{ history.replaceState(null, "", "#"+v); }catch(e){}
+  try{ localStorage.setItem("outils:vue", v); }catch(e){}
+}
+document.querySelectorAll(".onglets button").forEach(function(b){
+  b.addEventListener("click", function(){ montrer(b.getAttribute("data-vue")); });
+});
+var depart=(location.hash||"").slice(1);
+if(!depart){ try{ depart=localStorage.getItem("outils:vue")||""; }catch(e){} }
+montrer(depart);
+
+/* ---------- capteurs d'orientation ----------
+   iPhone : il faut la permission, donnée sur un appui. Android : la
+   boussole passe par l'orientation « absolue ». Un ordinateur n'a
+   aucun capteur : on le dit plutôt que d'afficher un cadran figé. */
+var ECOUTE=false, ABSOLUE=false, DERNIER=0;
+var ECOUTEURS=[];
+function surOrientation(fn){ ECOUTEURS.push(fn); }
+function diffuser(e, absolue){
+  DERNIER=Date.now();
+  ECOUTEURS.forEach(function(fn){ fn(e, absolue); });
+}
+function brancher(){
+  if(ECOUTE) return;
+  ECOUTE=true;
+  window.addEventListener("deviceorientationabsolute", function(e){ ABSOLUE=true; diffuser(e, true); }, true);
+  window.addEventListener("deviceorientation", function(e){ diffuser(e, false); }, true);
+  setTimeout(function(){ if(!DERNIER) sansCapteur(); }, 2500);
+}
+function demander(){
+  var D=window.DeviceOrientationEvent;
+  if(D && typeof D.requestPermission === "function"){
+    return D.requestPermission().then(function(r){
+      if(r!=="granted") throw new Error("refus");
+      brancher();
+    });
+  }
+  brancher();
+  return Promise.resolve();
+}
+function sansCapteur(){
+  $("aideBoussole").textContent="Cet appareil ne donne pas son orientation : la boussole et le niveau ne marchent que sur un téléphone ou une tablette.";
+  $("aideNiveau").textContent=$("aideBoussole").textContent;
+}
+var AUTO = !(window.DeviceOrientationEvent && typeof window.DeviceOrientationEvent.requestPermission === "function");
+if(!window.DeviceOrientationEvent){ sansCapteur(); $("actBoussole").hidden=true; $("actNiveau").hidden=true; }
+else if(AUTO){ $("actBoussole").hidden=true; $("actNiveau").hidden=true; brancher(); }
+function activer(){
+  demander().then(function(){ $("actBoussole").hidden=true; $("actNiveau").hidden=true; })
+    .catch(function(){
+      $("aideBoussole").textContent="Accès aux capteurs refusé. Autorisez « Mouvement et orientation » dans les réglages de Safari, puis rouvrez la page.";
+      $("aideNiveau").textContent=$("aideBoussole").textContent;
+    });
+}
+$("actBoussole").addEventListener("click", activer);
+$("actNiveau").addEventListener("click", activer);
+
+function angleEcran(){
+  var o = (screen.orientation && typeof screen.orientation.angle === "number") ? screen.orientation.angle
+        : (typeof window.orientation === "number" ? window.orientation : 0);
+  return o || 0;
+}
+
+/* ---------- boussole ---------- */
+(function cadran(){
+  var s='<svg viewBox="0 0 200 200" aria-hidden="true">'
+    +'<circle cx="100" cy="100" r="96" fill="#10161F" stroke="rgba(255,255,255,.16)" stroke-width="1.5"/>'
+    +'<circle cx="100" cy="100" r="70" fill="none" stroke="rgba(255,255,255,.06)"/>';
+  for(var d=0; d<360; d+=5){
+    var long = d%30===0, r1 = long ? 80 : 86, a=(d-90)*Math.PI/180;
+    s+='<line x1="'+(100+r1*Math.cos(a)).toFixed(2)+'" y1="'+(100+r1*Math.sin(a)).toFixed(2)
+      +'" x2="'+(100+92*Math.cos(a)).toFixed(2)+'" y2="'+(100+92*Math.sin(a)).toFixed(2)
+      +'" stroke="'+(long?"rgba(255,255,255,.7)":"rgba(255,255,255,.28)")+'" stroke-width="'+(long?1.6:1)+'"/>';
+    if(long && d%90!==0){
+      var rt=66, at=(d-90)*Math.PI/180;
+      s+='<text x="'+(100+rt*Math.cos(at)).toFixed(2)+'" y="'+(100+rt*Math.sin(at)+3).toFixed(2)
+        +'" text-anchor="middle" font-size="9" fill="#8A97A6" font-family="inherit" transform="rotate('+d+' '+(100+rt*Math.cos(at)).toFixed(2)+' '+(100+rt*Math.sin(at)).toFixed(2)+')">'+d+'</text>';
+    }
+  }
+  [["N",0,"#FB923C"],["E",90,"#E7ECF2"],["S",180,"#E7ECF2"],["O",270,"#E7ECF2"]].forEach(function(c){
+    var a=(c[1]-90)*Math.PI/180, r=66;
+    var x=(100+r*Math.cos(a)).toFixed(2), y=(100+r*Math.sin(a)+6).toFixed(2);
+    s+='<text x="'+x+'" y="'+y+'" text-anchor="middle" font-size="18" font-weight="700" fill="'+c[2]+'" font-family="inherit"'
+      +' transform="rotate('+c[1]+' '+x+' '+(100+r*Math.sin(a)).toFixed(2)+')">'+c[0]+'</text>';
+  });
+  s+='<path d="M100 44 L108 100 L100 96 L92 100 Z" fill="#FB923C"/>'
+    +'<path d="M100 156 L108 100 L100 104 L92 100 Z" fill="#8A97A6"/>'
+    +'<circle cx="100" cy="100" r="5" fill="#E7ECF2"/></svg>';
+  $("cadran").innerHTML=s;
+})();
+var POINTS=["N","NNE","NE","ENE","E","ESE","SE","SSE","S","SSO","SO","OSO","O","ONO","NO","NNO"];
+var NOMS={N:"Nord",E:"Est",S:"Sud",O:"Ouest",NE:"Nord-est",SE:"Sud-est",SO:"Sud-ouest",NO:"Nord-ouest"};
+var CAP=null, AFFICHE=null, ROT=0;
+surOrientation(function(e, absolue){
+  /* sur Android, l'orientation « absolue » fait foi pour le nord ; l'autre
+     ne sert qu'au niveau */
+  if(!absolue && ABSOLUE && typeof e.webkitCompassHeading !== "number") return;
+  var cap=null;
+  if(typeof e.webkitCompassHeading === "number" && !isNaN(e.webkitCompassHeading)) cap=e.webkitCompassHeading;
+  else if(absolue && typeof e.alpha === "number") cap=360-e.alpha;
+  else if(e.absolute && typeof e.alpha === "number") cap=360-e.alpha;
+  if(cap===null) return;
+  if(typeof e.webkitCompassHeading !== "number") cap+=angleEcran();
+  CAP=((cap%360)+360)%360;
+});
+/* le cadran suit en douceur : on prend le plus court chemin, sans le
+   saut de 359° à 0° */
+(function anime(){
+  if(CAP!==null){
+    if(AFFICHE===null) AFFICHE=CAP;
+    var d=((CAP-AFFICHE+540)%360)-180;
+    AFFICHE=(AFFICHE+d*0.18+360)%360;
+    var cible=-AFFICHE, delta=((cible-ROT)%360+540)%360-180;
+    ROT+=delta;
+    $("cadran").style.transform="rotate("+ROT.toFixed(2)+"deg)";
+    var deg=Math.round(AFFICHE)%360;
+    $("capDeg").textContent=deg+"°";
+    var p=POINTS[Math.round(deg/22.5)%16];
+    $("capDir").textContent=(NOMS[p]||p).toUpperCase();
+  }
+  requestAnimationFrame(anime);
+})();
+
+/* ---------- niveau à bulle ---------- */
+var ZERO={x:0,y:0};
+try{ var z=JSON.parse(localStorage.getItem("outils:niveau0")||"null"); if(z) ZERO=z; }catch(e){}
+var INCL={x:0,y:0}, INCL_AFF=null;
+surOrientation(function(e){
+  if(typeof e.beta !== "number" || typeof e.gamma !== "number") return;
+  var x=e.gamma, y=e.beta;
+  var o=angleEcran();
+  if(o===90){ var t=x; x=y; y=-t; } else if(o===-90 || o===270){ var t2=x; x=-y; y=t2; }
+  INCL={x:x, y:y};
+  $("zeroNiveau").hidden=false;
+});
+(function anime2(){
+  if(!$("vue-niveau").hidden && DERNIER){
+    if(!INCL_AFF) INCL_AFF={x:INCL.x, y:INCL.y};
+    INCL_AFF.x+=(INCL.x-INCL_AFF.x)*0.25; INCL_AFF.y+=(INCL.y-INCL_AFF.y)*0.25;
+    var x=INCL_AFF.x-ZERO.x, y=INCL_AFF.y-ZERO.y;
+    var max=20, r=Math.sqrt(x*x+y*y), k=r>max ? max/r : 1;
+    var boite=$("niveau").clientWidth, course=boite*0.39;
+    $("bulle").style.transform="translate("+(-x*k/max*course).toFixed(1)+"px,"+(-y*k/max*course).toFixed(1)+"px)";
+    $("angX").textContent=Math.abs(x).toFixed(1).replace(".",",")+"°";
+    $("angY").textContent=Math.abs(y).toFixed(1).replace(".",",")+"°";
+    $("niveau").classList.toggle("droit", Math.abs(x)<0.5 && Math.abs(y)<0.5);
+  }
+  requestAnimationFrame(anime2);
+})();
+$("zeroNiveau").addEventListener("click", function(){
+  if(ZERO.x || ZERO.y){ ZERO={x:0,y:0}; this.textContent="Régler le zéro ici"; }
+  else { ZERO={x:INCL.x, y:INCL.y}; this.textContent="Revenir au zéro d'origine"; }
+  try{ localStorage.setItem("outils:niveau0", JSON.stringify(ZERO)); }catch(e){}
+});
+if(ZERO.x || ZERO.y) $("zeroNiveau").textContent="Revenir au zéro d'origine";
+
+/* ---------- calculatrice ----------
+   On garde l'expression telle qu'on la tape et on la calcule nous-mêmes,
+   priorités comprises (× et ÷ avant + et −), sans jamais l'évaluer comme
+   du code. */
+var EXPR="", FINI=false;
+function estOp(c){ return "+-*/".indexOf(c)>=0; }
+function jetons(e){
+  var t=[], n="";
+  for(var i=0;i<e.length;i++){
+    var c=e[i];
+    if(estOp(c) && !(c==="-" && (i===0 || estOp(e[i-1])) && n==="")){
+      if(n!==""){ t.push(n); n=""; }
+      t.push(c);
+    } else n+=c;
+  }
+  if(n!=="") t.push(n);
+  return t;
+}
+function nombre(x){
+  if(x.slice(-1)==="%") return parseFloat(x.slice(0,-1))/100;
+  return parseFloat(x);
+}
+function calculer(e){
+  var t=jetons(e);
+  while(t.length && estOp(t[t.length-1])) t.pop();
+  if(!t.length) return 0;
+  /* le pourcentage après + ou − se prend sur ce qui précède : 200 + 10 % = 220 */
+  var pile=[nombre(t[0])], ops=[];
+  for(var i=1;i<t.length;i+=2){
+    var op=t[i], brut=t[i+1]; if(brut===undefined) break;
+    var v=nombre(brut);
+    if(brut.slice(-1)==="%" && (op==="+" || op==="-")){
+      var base=pile.reduce(function(a, x, k){ return k===0 ? x : (ops[k-1]==="+" ? a+x : a-x); }, 0);
+      v=base*v;
+    }
+    if(op==="*") pile[pile.length-1]*=v;
+    else if(op==="/") pile[pile.length-1]/=v;
+    else { ops.push(op); pile.push(v); }
+  }
+  var r=pile[0];
+  for(var k=1;k<pile.length;k++) r = ops[k-1]==="+" ? r+pile[k] : r-pile[k];
+  return r;
+}
+function joli(n){
+  if(!isFinite(n)) return "Erreur";
+  var r=Math.round(n*1e10)/1e10;
+  var s=String(r);
+  if(/e/.test(s)) return s.replace(".",",");
+  var p=s.split("."), ent=p[0], neg=ent[0]==="-";
+  if(neg) ent=ent.slice(1);
+  ent=ent.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+  return (neg?"−":"")+ent+(p[1] ? ","+p[1] : "");
+}
+function afficheExpr(e){
+  return e.replace(/\*/g," × ").replace(/\//g," ÷ ").replace(/\+/g," + ")
+    .replace(/(\d|%)-/g,"$1 − ").replace(/\./g,",");
+}
+function peindreCalc(){
+  var res=$("calcRes");
+  if(FINI){ $("calcExpr").textContent=afficheExpr(EXPR)+" ="; }
+  else{
+    $("calcExpr").textContent=EXPR ? afficheExpr(EXPR) : "";
+  }
+  var v = EXPR ? calculer(EXPR) : 0;
+  var texte = FINI || !EXPR ? joli(v) : (jetons(EXPR).length>1 ? joli(v) : afficheExpr(EXPR));
+  res.textContent = texte;
+  res.classList.toggle("petit", texte.length>11);
+}
+function dernierNombre(){ var t=jetons(EXPR); var d=t[t.length-1]||""; return estOp(d) ? "" : d; }
+function touche(k){
+  if(k==="C"){ EXPR=""; FINI=false; }
+  else if(k==="⌫"){ if(FINI){ FINI=false; } else EXPR=EXPR.slice(0,-1); }
+  else if(k==="="){ if(EXPR){ FINI=true; } }
+  else if(estOp(k)){
+    if(FINI){ var r=calculer(EXPR); EXPR=isFinite(r) ? String(Math.round(r*1e10)/1e10) : ""; FINI=false; }
+    if(!EXPR){ if(k==="-") EXPR="-"; }
+    else if(estOp(EXPR.slice(-1))){ if(k==="-" && EXPR.slice(-1)!=="-") EXPR+=k; else EXPR=EXPR.replace(/[+\-*/]+$/,"")+k; }
+    else EXPR+=k;
+  }
+  else if(k==="%"){ var d=dernierNombre(); if(d && d.slice(-1)!=="%") EXPR+="%"; }
+  else if(k===","){
+    if(FINI){ EXPR=""; FINI=false; }
+    var n=dernierNombre();
+    if(n.indexOf(".")<0 && n.slice(-1)!=="%") EXPR+= n ? "." : "0.";
+  }
+  else if(/^\d$/.test(k)){
+    if(FINI){ EXPR=""; FINI=false; }
+    if(dernierNombre().slice(-1)==="%") return;
+    if(dernierNombre()==="0") EXPR=EXPR.slice(0,-1);
+    if(dernierNombre().replace(/[-.]/g,"").length>=15) return;
+    EXPR+=k;
+  }
+  peindreCalc();
+}
+$("touches").addEventListener("click", function(e){
+  var b=e.target.closest("button[data-k]"); if(b) touche(b.getAttribute("data-k"));
+});
+document.addEventListener("keydown", function(e){
+  if($("vue-calcul").hidden || e.metaKey || e.ctrlKey || e.altKey) return;
+  var k=e.key;
+  var t={"Enter":"=","=":"=","Backspace":"⌫","Escape":"C","Delete":"C",".":",",",":",","x":"*","X":"*"}[k] || k;
+  if(/^[\d+\-*/%=,⌫C]$/.test(t)){ e.preventDefault(); touche(t); }
+});
+peindreCalc();
+
+/* pour les essais */
+window.__calcul = calculer;
+})();
+</script>
+</body>
+</html>
