@@ -4913,6 +4913,16 @@ function publierRapport(meta){
     el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + "."
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
     toast("Rapport publié.");
+    /* une fois le relevé publié, sa référence est fixée : modifier
+       ensuite le nom ou le code du client ne doit plus le faire glisser
+       vers un autre chantier — seul un relevé neuf, sans référence,
+       peut encore en créer un. */
+    if(res.d.ref && !(S.affaire.chantier||"").trim()){
+      S.affaire.chantier = res.d.ref;
+      var champRef=$("a_chantier"); if(champRef) champRef.value = S.affaire.chantier;
+      refreshHeader();
+      save();
+    }
     deposerFiche(res.d.cle, el);
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
