@@ -101,8 +101,8 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   button.p:hover,button.act:hover{filter:brightness(.97)}
 }
 
-.f .part{flex:0 0 auto;margin-left:6px;width:32px;height:32px;padding:0;border:0;background:none;
- color:var(--ink-3);cursor:pointer;display:flex;align-items:center;justify-content:center;border-radius:var(--r-field)}
+.f .part{flex:0 0 auto;margin-left:6px;padding:7px 12px;border:1px solid var(--rule);background:var(--card);
+ color:var(--ink-2);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;border-radius:var(--r-field);white-space:nowrap}
 .f .part:active{background:var(--field);color:var(--accent)}
 
 .head .iti{margin-left:8px;display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border:1px solid var(--rule);
@@ -1237,6 +1237,26 @@ function enregistrer(blob, nom){
   var a=document.createElement("a"); a.href=url; a.download=nom; a.click();
   setTimeout(function(){ URL.revokeObjectURL(url); }, 4000);
 }
+/* Le lien de la ligne ouvre le document dans la page — mais sur un
+   site installé en icône, sans onglet à ouvrir à côté, ça affiche le
+   PDF brut, sans les boutons de l'appareil (partager, imprimer…).
+   En passant par le même téléchargement que « Partager », le
+   téléphone montre sa propre visionneuse, avec tous ses boutons —
+   dont celui pour partager, si besoin. */
+function ouvrirDocument(f, bouton){
+  var avant = bouton ? bouton.textContent : "";
+  if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
+  telecharger(f)
+    .then(function(blob){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      marquerLu(f);
+      enregistrer(blob, nomFichier(f));
+    })
+    .catch(function(){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      alert("Document indisponible. Vérifiez la connexion.");
+    });
+}
 /* ---------- galerie des photos ---------- */
 function lireZip(octets){
   /* nos archives sont écrites sans compression : on peut lire les fichiers tels quels */
@@ -1613,15 +1633,11 @@ function afficher(chantiers){
       }
       var bPartage=document.createElement("button");
       bPartage.type="button"; bPartage.className="part";
-      bPartage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16" '
-        +'style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;'
-        +'stroke-linecap:round;stroke-linejoin:round"><path d="M12 15V4"/><path d="M8 7.5 12 3.5l4 4"/>'
-        +'<path d="M5.5 12.5v6a1.5 1.5 0 0 0 1.5 1.5h10a1.5 1.5 0 0 0 1.5-1.5v-6"/></svg>';
-      bPartage.setAttribute("aria-label","Partager "+(f.titre||"ce document"));
+      bPartage.textContent="Ouvrir";
+      bPartage.setAttribute("aria-label","Ouvrir "+(f.titre||"ce document"));
       bPartage.addEventListener("click", function(e){
         e.preventDefault(); e.stopPropagation();
-        if(f.type==="photos" || String(f.cle).slice(-4)===".zip") partagerDocument(f, bPartage);
-        else partagerDocument(f, bPartage);
+        ouvrirDocument(f, bPartage);
       });
       var aSupprimer=null;
       if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
