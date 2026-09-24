@@ -2143,6 +2143,98 @@ function adapterRole(){
    stockage est asynchrone — puis on reprend le dossier. Si une fiche
    est déjà en cours sur un AUTRE chantier, on demande avant de
    l'écraser : le technicien a pu commencer quelque chose ailleurs. */
+
+/* ---------- une fiche par chantier ----------
+   Changer de chantier ne doit ni emporter les données de l'ancien, ni
+   les perdre : la fiche d'un autre chantier est mise de côté, sous son
+   nom, et revient quand on y retourne. */
+var CLE_FICHE = "photos:courant";
+function ficheVierge(){ return blank(); }
+function ficheRemplie(s){ if(!s) return false; return !!((s.photos||[]).length || String(s.note||"").trim()); }
+function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
+function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
+function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }
+function cleBrouillon(ref){ return CLE_FICHE+"@"+refNette(ref); }
+function lireIndexBrouillons(){
+  return window.storage.get(CLE_FICHE+"#brouillons")
+    .then(function(r){ try{ return (r && r.value) ? JSON.parse(r.value) : {}; }catch(e){ return {}; } })
+    .catch(function(){ return {}; });
+}
+function ecrireIndexBrouillons(ix){
+  return window.storage.set(CLE_FICHE+"#brouillons", JSON.stringify(ix)).catch(function(){});
+}
+/* "ok" : mise de côté ; "rien" : rien à garder ; "echec" : pas pu l'écrire */
+function mettreDeCote(){
+  var ref=refFiche();
+  if(!S || !ficheRemplie(S)) return Promise.resolve("rien");
+  if(!ref) return Promise.resolve("echec");
+  var charge; try{ charge=JSON.stringify(S); }catch(e){ return Promise.resolve("echec"); }
+  var client=(S.chantier && S.chantier.client) || (S.client && S.client.nom) || "";
+  return window.storage.set(cleBrouillon(ref), charge).then(function(){
+    return lireIndexBrouillons().then(function(ix){
+      ix[refNette(ref)]={ref:ref, client:client, quand:new Date().toISOString()};
+      return ecrireIndexBrouillons(ix);
+    }).then(function(){ return "ok"; });
+  }, function(){ return "echec"; });
+}
+function reprendreBrouillon(ref){
+  var cle=cleBrouillon(ref);
+  return window.storage.get(cle).then(function(r){
+    var s=null; try{ s=(r && r.value) ? JSON.parse(r.value) : null; }catch(e){}
+    if(!s) return null;
+    return window.storage.delete(cle).catch(function(){})
+      .then(function(){ return lireIndexBrouillons(); })
+      .then(function(ix){ delete ix[refNette(ref)]; return ecrireIndexBrouillons(ix); })
+      .then(function(){ return s; });
+  }).catch(function(){ return null; });
+}
+/* ouverte sans chantier, l'appli propose de reprendre les fiches mises de côté */
+function proposerBrouillons(){
+  lireIndexBrouillons().then(function(ix){
+    var vieux=document.getElementById("brouillonsEnCours"); if(vieux) vieux.remove();
+    var refs=Object.keys(ix).sort(function(a,b){ return String(ix[b].quand).localeCompare(String(ix[a].quand)); });
+    if(!refs.length) return;
+    var main=document.querySelector("main"); if(!main) return;
+    var box=document.createElement("div"); box.id="brouillonsEnCours";
+    box.style.cssText="background:var(--card,#fff);border:1px solid var(--rule,#ddd);border-left:3px solid var(--accent,#B4621A);"
+      +"border-radius:var(--r-field,8px);padding:12px 14px;margin:0 0 14px";
+    var t=document.createElement("p");
+    t.style.cssText="margin:0 0 8px;font-size:13px;color:var(--ink-3,#777)";
+    t.textContent="Fiches en cours sur d'autres chantiers — touchez pour reprendre :";
+    box.appendChild(t);
+    refs.forEach(function(k){
+      var it=ix[k];
+      var b=document.createElement("button"); b.type="button";
+      b.style.cssText="display:inline-block;margin:0 8px 8px 0;padding:8px 12px;border:1px solid var(--rule,#ddd);"
+        +"border-radius:var(--r-field,8px);background:var(--field,#f4f4f4);color:inherit;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer";
+      b.textContent=(it.client ? it.client+"  ·  " : "")+it.ref;
+      b.addEventListener("click", function(){
+        b.disabled=true;
+        mettreDeCote().then(function(etat){
+          if(etat==="echec"){ b.disabled=false; toast("La fiche ouverte n'a pas pu être mise de côté."); return; }
+          return reprendreBrouillon(it.ref).then(function(s){
+            if(!s){ proposerBrouillons(); return; }
+            S=s; save(); paintForm();
+            try{ showTab(TABS[0][0]); }catch(e){}
+            try{ peindreNavChantier(); }catch(e){}
+            toast("Fiche reprise : "+(it.client || it.ref)+".");
+            proposerBrouillons();
+          });
+        });
+      });
+      box.appendChild(b);
+    });
+    main.insertBefore(box, main.firstChild);
+  });
+}
+
+/* écrit la fiche tout de suite, sans attendre la temporisation de save() */
+function ecrireFiche(){
+  try{ clearTimeout(saveT); }catch(e){}
+  var charge; try{ charge=JSON.stringify(S); }catch(e){ return Promise.resolve(); }
+  return window.storage.set(CLE_FICHE, charge).catch(function(){});
+}
+
 (function dossierDepuisAdresse(){
   var p;
   try{ p = new URLSearchParams(location.search); }catch(e){ return; }
@@ -2157,22 +2249,66 @@ function adapterRole(){
       setTimeout(attendre, 100);
       return;
     }
-    var courante = "";
-    try{ courante = String(refAffaire()||"").trim(); }catch(e){}
-    if(courante && courante !== ref){
-      if(!window.confirm("Une fiche est en cours pour " + courante + ".\n\n"
-          + "L'ouvrir pour " + (d.client || ref) + " ? La fiche en cours sera remplacée.")){
+    /* la fiche d'un autre chantier est mise de côté, et on reprend celle
+       de ce chantier s'il y en a une — jamais les données de l'autre */
+    var meme = memeRef(refFiche(), ref);
+    var suite = meme ? Promise.resolve({etat:"rien", garde:null})
+      : mettreDeCote().then(function(etat){
+          if(etat === "echec") return {etat:etat, garde:null};
+          return reprendreBrouillon(ref).then(function(g){ return {etat:etat, garde:g}; });
+        });
+    suite.then(function(r){
+      if(r.etat === "echec"){
+        toast("La fiche ouverte n'a pas pu être mise de côté : publiez-la ou videz-la avant de changer de chantier.");
         try{ history.replaceState(null, "", location.pathname); }catch(e){}
+        window.__dossierRepris = true;
         return;
       }
+      if(!meme){ S = r.garde || ficheVierge(); save(); }
+      /* on retient le chantier : la barre du haut en vit */
+      try{ poserChantier(d); }catch(e){}
+      try{ reprendreDossier(d); }catch(e){}
+      try{ peindreNavChantier(); }catch(e){}
+      if(onglet){ try{ showTab(onglet); }catch(e){} }
+      /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
+      try{ history.replaceState(null, "", location.pathname); }catch(e){}
+      window.__dossierRepris = true;
+    });
+  })();
+})();
+
+/* Revenu du menu principal, on repart d'une fiche vierge : celle qui
+   était ouverte est mise de côté sous son chantier (rien n'est perdu,
+   elle revient en rouvrant ce chantier). Un rechargement de la page,
+   ou un retour arrière, garde la fiche telle quelle. */
+(function ficheDepuisMenu(){
+  var p;
+  try{ p = new URLSearchParams(location.search); }catch(e){ return; }
+  if((p.get("ref")||"").trim()) return;
+  var type = "";
+  try{ type = performance.getEntriesByType("navigation")[0].type; }catch(e){}
+  if(type && type !== "navigate") return;
+  var depuisMenu = false;
+  try{
+    var r = new URL(document.referrer);
+    depuisMenu = r.origin === location.origin && /\/(index\.html)?$/.test(r.pathname);
+  }catch(e){}
+  if(!depuisMenu) return;
+  var essais = 0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S){
+      if(++essais > 120) return;
+      setTimeout(attendre, 100);
+      return;
     }
-    /* on retient le chantier : la barre du haut en vit */
-    try{ poserChantier(d); }catch(e){}
-    try{ reprendreDossier(d); }catch(e){}
-    try{ peindreNavChantier(); }catch(e){}
-    if(onglet){ try{ showTab(onglet); }catch(e){} }
-    /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
-    try{ history.replaceState(null, "", location.pathname); }catch(e){}
+    mettreDeCote().then(function(etat){
+      if(etat === "ok"){
+        S = ficheVierge(); save(); paintForm();
+        try{ showTab(TABS[0][0]); }catch(e){}
+        try{ peindreNavChantier(); }catch(e){}
+      }
+      proposerBrouillons();
+    });
   })();
 })();
 
@@ -2190,7 +2326,7 @@ function adapterRole(){
   }
   var essais=0;
   (function attendre(){
-    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier")){
+    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier") || !window.__dossierRepris){
       if(++essais > 150){ dire(false, "Chargement trop long."); return; }
       setTimeout(attendre, 100);
       return;
@@ -2364,6 +2500,19 @@ function peindreNavChantier(){
     if(ici) el.addEventListener("click", function(e){ e.preventDefault(); });
     hote.appendChild(el);
   });
+  /* tout publier : la page du chantier ouvre la liste de ce qui attend,
+     y compris cette fiche — écrite d'abord, pour ne rien laisser en route */
+  var tout=document.createElement("a");
+  tout.href="./chantier.html?ref="+encodeURIComponent(c.ref)+"&toutPublier=1";
+  tout.className="tout-publier";
+  tout.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12 20.5 4 13 20.5l-2.7-6.8L3.5 12z"/><path d="M10.3 13.7 20.5 4"/></svg>';
+  var tp=document.createElement("span"); tp.textContent="Tout publier";
+  tout.appendChild(tp);
+  tout.addEventListener("click", function(e){
+    e.preventDefault();
+    ecrireFiche().then(function(){ location.href=tout.href; });
+  });
+  hote.appendChild(tout);
   majDebordChantier();
 }
 function majDebordChantier(){

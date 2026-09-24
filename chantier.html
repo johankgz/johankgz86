@@ -727,6 +727,9 @@ var REF=(function(){
 if(!REF) location.replace("./index.html");
 
 var CHANTIER=null;
+var TOUT_PUBLIER_DEMANDE=(function(){
+  try{ return new URLSearchParams(location.search).get("toutPublier")==="1"; }catch(e){ return false; }
+})();
 var toastT;
 function toast(t){
   var e=$("toast"); if(!e) return;
@@ -1085,7 +1088,7 @@ function chercherEnAttente(){
   var net=String((CHANTIER&&CHANTIER.ref)||"").trim().toUpperCase();
   return Promise.all(APPS_PUBLIABLES.map(function(a){
     if(!aAcces(APPLI_DE[a[0]] || a[0])) return null;
-    return window.storage.get(a[3]).then(function(r){
+    function examiner(r){
       if(!r || !r.value) return null;
       var S;
       try{ S=JSON.parse(r.value); }catch(e){ return null; }
@@ -1094,6 +1097,11 @@ function chercherEnAttente(){
       var resume=contenuDe(a[0], S);
       if(!resume) return null;
       return {id:a[0], label:a[1], page:a[2], resume:resume};
+    }
+    /* la fiche ouverte dans l'appli, ou celle mise de côté pour ce chantier */
+    return window.storage.get(a[3]).then(examiner).then(function(trouve){
+      if(trouve) return trouve;
+      return window.storage.get(a[3]+"@"+net.replace(/\s+/g,"")).then(examiner);
     }).catch(function(){ return null; });
   })).then(function(liste){ return liste.filter(Boolean); });
 }
@@ -1300,6 +1308,12 @@ function charger(){
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
       peindreActions(); peindreLoc(); peindreAvancement(); peindreDocs();
+      /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
+      if(TOUT_PUBLIER_DEMANDE){
+        TOUT_PUBLIER_DEMANDE=false;
+        try{ history.replaceState(null, "", location.pathname+"?ref="+encodeURIComponent(REF)); }catch(e){}
+        ouvrirToutPublier();
+      }
     })
     .catch(function(){ $("c_client").textContent="Pas de réseau. Réessayez."; });
 }
