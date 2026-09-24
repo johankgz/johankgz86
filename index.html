@@ -123,6 +123,27 @@ body.connexion button.lien{color:var(--accent)}
 .demandes{border-top:1px solid var(--rule);background:#fff}
 .demandes .d{padding:13px 16px;border-bottom:1px solid var(--rule)}
 .demandes .d:last-child{border-bottom:0}
+/* la cloche des chantiers, en haut à droite de « chantiers suivis » */
+.notif .cloche{
+  position:relative;flex:0 0 auto;align-self:flex-start;width:42px;height:42px;margin:-4px 0 -4px auto;
+  display:inline-flex;align-items:center;justify-content:center;
+  border:1px solid var(--rule);border-radius:var(--r-field);background:var(--card);
+  color:var(--ink-3);cursor:pointer;font:inherit;
+}
+.notif .cloche svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.notif .cloche.vive{color:var(--ink)}
+.notif .cloche[aria-expanded="true"]{background:var(--field)}
+.notif .cloche .nb{
+  position:absolute;top:-7px;right:-7px;min-width:19px;height:19px;padding:0 5px;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:10px;
+  background:var(--rouge);color:#fff;font-size:11px;font-weight:700;line-height:1;
+  font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--card);
+}
+.notif .cloche .nb[hidden]{display:none}
+.cloche-liste .d{display:block;text-decoration:none;color:inherit}
+.cloche-liste a.d:active{background:var(--field)}
+.cloche-liste .d span{margin-top:3px}
+.cloche-liste .vide-cloche{color:var(--ink-3);font-size:13.5px}
 .demandes .d b{font-size:14.5px}
 .demandes .d span{display:block;font-size:13px;color:var(--ink-2)}
 .demandes .d a{color:var(--accent);text-decoration:none}
@@ -1475,23 +1496,8 @@ function messagesNonLus(s){
            remettrait les dossiers mis de côté parmi les chantiers. */
         repeindreChantiers(DERNIERS_CHANTIERS, s);
       }
-      if(!d.total) return;
-      var host=$("notifs");
-      if(!host || document.getElementById("notif-messages")) return;
-      var a=document.createElement("a");
-      a.id="notif-messages"; a.className="notif"; a.href="./rapports.html";
-      var ic=document.createElement("span"); ic.className="ic";
-      ic.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2'
-        +'a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>';
-      var txt=document.createElement("div"); txt.className="txt";
-      var b=document.createElement("b");
-      b.textContent=d.total+" message"+(d.total>1?"s":"")+" non lu"+(d.total>1?"s":"");
-      var sp=document.createElement("span");
-      sp.textContent=d.dossiers.map(function(x){ return x.client; }).join(", ");
-      txt.appendChild(b); txt.appendChild(sp);
-      a.appendChild(ic); a.appendChild(txt);
-      host.insertBefore(a, host.firstChild);
-      host.hidden=false;
+      /* les messages non lus sont dans la cloche des chantiers */
+      peindreCloche();
     })
     .catch(function(){});
 }
@@ -1558,13 +1564,12 @@ function charger(s){
 function peindreNotifs(s, ch, relances){
   var host=$("notifs"); host.textContent="";
   var tech = s.role==="technicien";
-  var docs=0, nonLus=0, semaine=0, reserves=0, sav=0, aRelancer=[];
+  var docs=0, nonLus=0, reserves=0, sav=0, aRelancer=[];
   var commandes=0, commandeRecente=null, savListe=[], saisies=[];
   var limite=new Date(Date.now()-7*864e5).toISOString();
   ch.forEach(function(c){
     (c.fichiers||[]).forEach(function(f){
       docs++;
-      if(f.publie > limite) semaine++;
       var autres = (f.destinataires||[]).filter(function(n){ return n!==f.auteur; });
       var lu = f.lectures && Object.keys(f.lectures).some(function(n){ return n!==f.auteur; });
       if(!lu && f.auteur===s.nom && autres.length) nonLus++;
@@ -1629,10 +1634,27 @@ function peindreNotifs(s, ch, relances){
     host.appendChild(notif("vrt", String(saisies.length), quoi, dit,
       "./chantier.html?ref="+encodeURIComponent(d0.ref)));
   }
-  host.appendChild(notif("", String(ch.length), ch.length+(ch.length>1?" chantiers suivis":" chantier suivi"),
-    docs+(docs>1?" documents déposés":" document déposé"), "./rapports.html"));
-  if(semaine) host.appendChild(notif("vrt", String(semaine), semaine+(semaine>1?" documents cette semaine":" document cette semaine"),
-    "Publiés ces sept derniers jours", "./rapports.html"));
+  var suivis=notif("", String(ch.length), ch.length+(ch.length>1?" chantiers suivis":" chantier suivi"),
+    docs+(docs>1?" documents déposés":" document déposé"), "./rapports.html");
+  suivis.id="notifChantiers";
+  /* la cloche : toutes les nouveautés des chantiers au même endroit */
+  var cloche=document.createElement("button");
+  cloche.type="button"; cloche.className="cloche"; cloche.id="cloche";
+  cloche.setAttribute("aria-expanded","false"); cloche.setAttribute("aria-controls","panneauCloche");
+  cloche.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/>'
+    +'<path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span class="nb" hidden></span>';
+  var panneau=document.createElement("div"); panneau.className="demandes cloche-liste";
+  panneau.id="panneauCloche"; panneau.hidden=!CLOCHE_OUVERTE;
+  cloche.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    CLOCHE_OUVERTE=panneau.hidden;
+    panneau.hidden=!CLOCHE_OUVERTE;
+    cloche.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
+  });
+  cloche.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
+  suivis.appendChild(cloche);
+  host.appendChild(suivis); host.appendChild(panneau);
+  peindreCloche();
   if(nonLus) host.appendChild(notif("amb", String(nonLus), nonLus+(nonLus>1?" documents pas encore ouverts":" document pas encore ouvert"),
     "Vos envois que personne n'a consultés", "./rapports.html"));
   if(reserves) host.appendChild(notif("rge", String(reserves), reserves+(reserves>1?" réceptions avec réserves":" réception avec réserves"),
@@ -1678,6 +1700,65 @@ function peindreNotifs(s, ch, relances){
     "Rien de déposé depuis trois semaines", "./rapports.html"));
   host.hidden = !host.children.length;
 }
+/* ---------- la cloche des chantiers ----------
+   Toutes les nouveautés, chantier par chantier : les documents que je
+   n'ai pas encore ouverts, les messages de discussion non lus. Une
+   ligne par chantier, qui mène à sa page. */
+var CLOCHE_OUVERTE=false;
+function peindreCloche(){
+  var cloche=$("cloche"), pan=$("panneauCloche");
+  if(!cloche || !pan) return;
+  var moi=(SESSION_COURANTE && SESSION_COURANTE.nom) || "";
+  var lignes=[], total=0;
+  (DERNIERS_CHANTIERS||[]).forEach(function(c){
+    var nouveaux=(c.fichiers||[]).filter(function(f){
+      return f.auteur !== moi && !((f.lectures||{})[moi]);
+    }).sort(function(a,b){ return String(b.publie||"").localeCompare(String(a.publie||"")); });
+    var msgs=NON_LUS_PAR_REF[c.ref]||0;
+    if(!nouveaux.length && !msgs) return;
+    total += nouveaux.length + msgs;
+    lignes.push({c:c, nouveaux:nouveaux, msgs:msgs,
+      quand:String((nouveaux[0]||{}).publie || c.maj || "")});
+  });
+  lignes.sort(function(a,b){ return b.quand.localeCompare(a.quand); });
+
+  var nb=cloche.querySelector(".nb");
+  nb.hidden=!total;
+  nb.textContent=total>99 ? "99+" : String(total);
+  cloche.classList.toggle("vive", total>0);
+  cloche.title = total
+    ? total+" notification"+(total>1?"s":"")+" sur vos chantiers"
+    : "Aucune nouvelle notification sur vos chantiers";
+  cloche.setAttribute("aria-label", cloche.title);
+
+  pan.textContent="";
+  if(!lignes.length){
+    var v=document.createElement("div"); v.className="d vide-cloche";
+    v.textContent="Rien de nouveau sur vos chantiers.";
+    pan.appendChild(v);
+    return;
+  }
+  lignes.forEach(function(l){
+    var a=document.createElement("a"); a.className="d";
+    a.href="./chantier.html?ref="+encodeURIComponent(l.c.ref);
+    var b=document.createElement("b"); b.textContent=(l.c.client||l.c.ref)+"  ·  "+l.c.ref;
+    a.appendChild(b);
+    if(l.nouveaux.length){
+      var sp=document.createElement("span");
+      var noms=l.nouveaux.slice(0,3).map(function(f){ return f.titre; }).join(", ")
+        + (l.nouveaux.length>3 ? "…" : "");
+      sp.textContent=l.nouveaux.length+(l.nouveaux.length>1?" nouveaux documents : ":" nouveau document : ")+noms;
+      a.appendChild(sp);
+    }
+    if(l.msgs){
+      var sm=document.createElement("span");
+      sm.textContent=l.msgs+(l.msgs>1?" messages non lus":" message non lu")+" dans la discussion";
+      a.appendChild(sm);
+    }
+    pan.appendChild(a);
+  });
+}
+
 /* ---------- la liste des chantiers du technicien ---------- */
 var NON_LUS_PAR_REF={}, DERNIERS_CHANTIERS=null;
 /* Un document « nouveau » est un document que je n'ai pas ouvert et que
