@@ -55,6 +55,11 @@ button.lien{background:none;border:0;color:var(--accent);font-size:14px;font-wei
 .tete .meta{color:var(--ink-2);font-size:14.5px;margin:3px 0 0}
 .tete .ligne-haut{display:flex;align-items:flex-start;gap:12px}
 .tete .ligne-haut .salut{flex:1}
+.tete .avatar{flex:0 0 auto;width:42px;height:42px;border-radius:50%;background:#EA7A1E;color:#fff;
+ display:inline-flex;align-items:center;justify-content:center;text-decoration:none;
+ font-size:19px;font-weight:700;letter-spacing:0;box-shadow:0 2px 8px -2px rgba(0,0,0,.45);
+ border:2px solid rgba(255,255,255,.85);margin-top:2px}
+.tete .avatar:active{transform:scale(.95)}
 .tete .out{background:rgba(140,132,117,.14);border:0;border-radius:var(--r-field);padding:7px 13px;
  color:var(--ink-2);font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;flex:0 0 auto;margin-top:6px}
 
@@ -832,8 +837,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <p class="marque-app">Suivi travaux&nbsp;360</p>
       <div class="ligne-haut">
         <p class="salut" id="salut"></p>
-        <button class="out" id="btnMdp">Mon mot de passe</button>
-        <button class="out" id="btnOut">Se déconnecter</button>
+        <a class="avatar" id="btnCompte" href="./compte.html" aria-label="Mon compte"><span id="initiale"></span></a>
       </div>
       <p class="meta" id="meta"></p>
     </div>
@@ -896,21 +900,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <h2 class="sec" id="secBref">Travaux en cours</h2>
     <div class="bref" id="bref"><div class="vide">Chargement…</div></div>
 
-    <h2 class="sec">Aide</h2>
-    <div class="block" id="blocMdp" hidden style="margin-top:14px">
-      <h2 style="font-size:17px;margin-bottom:6px">Mon mot de passe</h2>
-      <p class="hint" style="margin-bottom:14px">Personne ne le voit, pas même l'administrateur :
-        le site n'en garde qu'une empreinte. Si vous l'oubliez, on ne peut que
-        vous en redonner un provisoire.</p>
-      <label><span>Mot de passe actuel</span><input type="password" id="k_vieux" autocomplete="current-password"></label>
-      <label><span>Nouveau mot de passe</span><input type="password" id="k_neuf" autocomplete="new-password"></label>
-      <label><span>Répétez-le</span><input type="password" id="k_neuf2" autocomplete="new-password"></label>
-      <button class="p" id="k_valider">Enregistrer</button>
-      <p class="err" id="k_err"></p>
-      <p class="hint">Huit caractères au minimum. Les sessions ouvertes ailleurs se fermeront.</p>
-    </div>
-
-    <div id="carteAide"></div>
 
     <p class="signature"><b>Suivi travaux 360</b><span>Du relevé à la réception, un seul outil.</span><span>© 2026 Johan Klughertz. Tous droits réservés</span><span class="version">Vers. 1.5</span></p>
   </div>
@@ -921,6 +910,8 @@ var $=function(i){return document.getElementById(i);};
 function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
 function poserSession(s){ localStorage.setItem("outils:session", JSON.stringify(s)); }
 function apiUrl(a){ return "/api/rapports?action="+a; }
+/* la pastille du compte : la première lettre du prénom */
+function initialeDe(nom){ var n=String(nom||"").trim(); return n ? n.charAt(0).toLocaleUpperCase("fr") : "?"; }
 function enTetes(s){ return {"Content-Type":"application/json", "x-auth": s.jeton}; }
 
 /* ---------- météo ---------- */
@@ -1183,9 +1174,8 @@ function menu(s){
                      : "Ajouter, modifier ou retirer les comptes de vos équipes.","equipe"));
   }
 
-  var aide=$("carteAide"); aide.textContent="";
-  aide.appendChild(tuileLarge("./aide.html","Comment ça marche",
-    "La fiche à lire une fois, deux minutes.","aide"));
+  $("initiale").textContent = initialeDe(s.nom);
+  $("btnCompte").setAttribute("aria-label", "Mon compte — "+(s.nom||""));
 
   banniereAcces();
   rafraichirDroits(s);
@@ -1463,6 +1453,7 @@ function majIdentite(s){
       s.metier=d.metier||""; s.ville=d.ville||"";
       poserSession(s);
       $("salut").querySelector("em").textContent = String(s.nom||"").trim().split(/\s+/)[0];
+      $("initiale").textContent = initialeDe(s.nom);
       var f2 = s.role==="admin" ? "Administrateur" : (s.role==="technicien" ? "Technicien" : "Chargé d'affaires");
       $("meta").textContent = s.demo ? f2 : [f2, s.societeNom||""].filter(Boolean).join("  •  ");
       if(s.ville && !s.demo) $("bulLieu").textContent = s.ville;
@@ -2068,28 +2059,6 @@ $("m_valider").addEventListener("click", function(){
 });
 $("m_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("m_valider").click(); });
 
-/* ---------- le changer quand on veut ---------- */
-$("btnMdp").addEventListener("click", function(){
-  var b=$("blocMdp"); b.hidden=!b.hidden;
-  if(!b.hidden){
-    ["k_vieux","k_neuf","k_neuf2"].forEach(function(i){ $(i).value=""; });
-    $("k_err").textContent=""; $("k_vieux").focus();
-    b.scrollIntoView({behavior:"smooth", block:"center"});
-  }
-});
-$("k_valider").addEventListener("click", function(){
-  var s=session(); if(!s) return;
-  changerMotDePasse(s.jeton, $("k_vieux").value, $("k_neuf").value, $("k_neuf2").value,
-    function(t){ $("k_err").textContent=t; },
-    function(jeton){
-      s.jeton=jeton; poserSession(s);
-      $("k_err").textContent="Mot de passe enregistré.";
-      ["k_vieux","k_neuf","k_neuf2"].forEach(function(i){ $(i).value=""; });
-      setTimeout(function(){ $("blocMdp").hidden=true; $("k_err").textContent=""; }, 1800);
-    });
-});
-$("k_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("k_valider").click(); });
-
 $("go").addEventListener("click", function(){ connecter(); });
 $("p").addEventListener("keydown", function(e){ if(e.key==="Enter") connecter(); });
 $("btnDemo").addEventListener("click", function(){
@@ -2101,9 +2070,6 @@ $("btnDemande").addEventListener("click", function(){
   if(!b.hidden) $("d_nom").focus();
 });
 $("d_envoi").addEventListener("click", envoyerDemande);
-$("btnOut").addEventListener("click", function(){
-  localStorage.removeItem("outils:session"); location.reload();
-});
 
 /* ---------- replier « Mes chantiers » et « En attente de réponse » ----------
    Une préférence par section, gardée d'une visite à l'autre : le contenu

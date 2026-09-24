@@ -1,0 +1,523 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Mon compte — Suivi travaux 360</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:620px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.block p{margin:0 0 10px;font-size:15px}
+.block p:last-child{margin-bottom:0}
+ol,ul{margin:0;padding-left:20px;font-size:15px}
+li{margin-bottom:9px}
+li:last-child{margin-bottom:0}
+b.step{color:var(--accent)}
+.tag{display:inline-block;padding:4px 11px;border-radius:var(--r-field);font-size:12.5px;font-weight:600;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:10px}
+.tag.v{background:#EDF0E4;color:#0B7A45}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+/* ---------- mon compte ---------- */
+label{display:block;margin-bottom:14px}
+label span{display:block;font-size:13.5px;margin-bottom:6px}
+input{width:100%;min-height:48px;padding:12px 14px;font-size:16px;font-family:inherit;color:var(--ink)}
+input:disabled{background:var(--field);color:var(--ink-3)}
+button.p{width:100%;min-height:48px;font-size:15px;cursor:pointer}
+button.p:disabled{opacity:.6;cursor:default}
+.err{color:var(--rouge);font-size:14px;margin:10px 0 0;min-height:20px}
+.err.ok{color:var(--vert)}
+.hint{font-size:13px;margin:10px 0 0}
+.block .legend{margin:-4px 0 14px;font-size:13.5px;color:var(--ink-3);text-transform:none;letter-spacing:0;font-weight:400;line-height:1.5}
+
+.identite{display:flex;align-items:center;gap:16px}
+.pastille{flex:0 0 auto;width:64px;height:64px;border-radius:50%;background:#EA7A1E;color:#fff;
+ display:flex;align-items:center;justify-content:center;font-size:30px;font-weight:700;
+ box-shadow:0 4px 14px -4px rgba(234,122,30,.7)}
+.identite b{display:block;font-size:20px;font-weight:600;letter-spacing:-.02em}
+.identite span{display:block;font-size:14px;color:var(--ink-2)}
+.identite .id{font-family:var(--mono);font-size:12.5px;color:var(--ink-3);margin-top:2px}
+
+a.aide{display:flex;align-items:center;gap:12px;text-decoration:none;color:var(--ink)}
+a.aide .ic{width:38px;height:38px;border-radius:9px;flex:0 0 auto;background:var(--accent-soft);color:var(--accent);
+ display:flex;align-items:center;justify-content:center}
+a.aide .ic svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+a.aide b{display:block;font-size:15.5px;font-weight:600}
+a.aide span.d{display:block;font-size:13px;color:var(--ink-3)}
+a.aide .fl{margin-left:auto;color:var(--ink-3)}
+a.aide .fl svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2}
+
+button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-top:4px;
+ background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18)}
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Mon compte</h1>
+</header>
+<main>
+
+  <div class="block">
+    <div class="identite">
+      <div class="pastille" id="pastille" aria-hidden="true"></div>
+      <div>
+        <b id="nom"></b>
+        <span id="fonction"></span>
+        <span class="id" id="identifiant"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="block" id="blocCoord">
+    <h2>Mes coordonnées</h2>
+    <p class="legend">Elles remplissent le bloc « Chargé d'affaires » de vos relevés techniques, et vos collègues les retrouvent quand ils vous choisissent.</p>
+    <label><span>Adresse e-mail</span><input type="email" id="email" autocapitalize="none" autocomplete="email" spellcheck="false" inputmode="email"></label>
+    <label><span>Téléphone</span><input type="tel" id="tel" autocomplete="tel" inputmode="tel"></label>
+    <button class="p" id="enrCoord">Enregistrer</button>
+    <p class="err" id="errCoord"></p>
+  </div>
+
+  <div class="block">
+    <h2>Mon mot de passe</h2>
+    <p class="legend">Personne ne le voit, pas même l'administrateur : le site n'en garde qu'une
+      empreinte. Si vous l'oubliez, on ne peut que vous en redonner un provisoire.</p>
+    <label><span>Mot de passe actuel</span><input type="password" id="k_vieux" autocomplete="current-password"></label>
+    <label><span>Nouveau mot de passe</span><input type="password" id="k_neuf" autocomplete="new-password"></label>
+    <label><span>Répétez-le</span><input type="password" id="k_neuf2" autocomplete="new-password"></label>
+    <button class="p" id="k_valider">Changer le mot de passe</button>
+    <p class="err" id="k_err"></p>
+    <p class="hint">Huit caractères au minimum. Les sessions ouvertes ailleurs se fermeront.</p>
+  </div>
+
+  <div class="block">
+    <h2>Aide</h2>
+    <a class="aide" href="./aide.html">
+      <span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.3 2.4c-.6.2-.8.7-.8 1.3v.4"/><path d="M12 17h.01"/></svg></span>
+      <span><b>Comment ça marche</b><span class="d">La fiche à lire une fois, deux minutes.</span></span>
+      <span class="fl"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+    </a>
+  </div>
+
+  <button class="sortie" id="btnOut">Se déconnecter</button>
+
+</main>
+<script>
+(function(){
+function $(i){ return document.getElementById(i); }
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+function poserSession(s){ try{ localStorage.setItem("outils:session", JSON.stringify(s)); }catch(e){} }
+function apiUrl(a){ return "/api/rapports?action="+a; }
+function initialeDe(nom){ var n=String(nom||"").trim(); return n ? n.charAt(0).toLocaleUpperCase("fr") : "?"; }
+function fonctionDe(r){ return r==="admin" ? "Administrateur" : (r==="technicien" ? "Technicien" : "Chargé d'affaires"); }
+
+var S=session();
+if(!S || !S.jeton){ location.replace("./index.html"); return; }
+
+function peindre(){
+  $("pastille").textContent=initialeDe(S.nom);
+  $("nom").textContent=S.nom||"";
+  $("fonction").textContent=[fonctionDe(S.role), S.demo ? "Démonstration" : (S.societeNom||"")].filter(Boolean).join("  •  ");
+  $("identifiant").textContent=S.identifiant ? "Identifiant : "+S.identifiant : "";
+}
+peindre();
+/* ce qu'on sait déjà, même hors réseau */
+$("email").value=S.email||""; $("tel").value=S.tel||"";
+
+function sortir(){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace("./index.html"); }
+
+fetch(apiUrl("mon-compte"), {headers:{"x-auth":S.jeton}})
+  .then(function(r){
+    if(r.status===401){ sortir(); return Promise.reject(); }
+    return r.json().then(function(d){ return {ok:r.ok, d:d}; });
+  })
+  .then(function(res){
+    if(!res.ok){ $("errCoord").textContent=res.d.erreur||"Compte illisible."; return; }
+    var d=res.d;
+    S.nom=d.nom||S.nom; S.role=d.role||S.role; S.identifiant=d.identifiant||S.identifiant;
+    if(d.societeNom) S.societeNom=d.societeNom;
+    S.email=d.email||""; S.tel=d.tel||"";
+    poserSession(S); peindre();
+    if(document.activeElement!==$("email")) $("email").value=S.email;
+    if(document.activeElement!==$("tel")) $("tel").value=S.tel;
+    if(d.demo){
+      $("email").disabled=true; $("tel").disabled=true; $("enrCoord").disabled=true;
+      $("errCoord").className="err"; $("errCoord").textContent="Démonstration : les coordonnées ne s'enregistrent pas.";
+    }
+  })
+  .catch(function(){});
+
+$("enrCoord").addEventListener("click", function(){
+  var corps={email:$("email").value.trim(), tel:$("tel").value.trim()};
+  var e=$("errCoord"); e.className="err";
+  if(corps.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(corps.email)){ e.textContent="Cette adresse e-mail n'a pas l'air complète."; return; }
+  e.textContent="Enregistrement…";
+  fetch(apiUrl("mon-compte-enregistrer"), {method:"POST",
+    headers:{"Content-Type":"application/json", "x-auth":S.jeton}, body:JSON.stringify(corps)})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ e.textContent=res.d.erreur||"Enregistrement refusé."; return; }
+      S.email=res.d.email||""; S.tel=res.d.tel||""; poserSession(S);
+      e.className="err ok"; e.textContent="Coordonnées enregistrées.";
+    })
+    .catch(function(){ e.textContent="Pas de réseau : réessayez une fois connecté."; });
+});
+["email","tel"].forEach(function(i){
+  $(i).addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("enrCoord").click(); });
+});
+
+$("k_valider").addEventListener("click", function(){
+  var ancien=$("k_vieux").value, neuf=$("k_neuf").value, neuf2=$("k_neuf2").value, e=$("k_err");
+  e.className="err";
+  if(neuf.length < 8){ e.textContent="Huit caractères au minimum."; return; }
+  if(neuf !== neuf2){ e.textContent="Les deux saisies ne sont pas identiques."; return; }
+  e.textContent="Enregistrement…";
+  fetch(apiUrl("motdepasse-changer"), {method:"POST",
+    headers:{"Content-Type":"application/json", "x-auth":S.jeton},
+    body:JSON.stringify({ancien:ancien, nouveau:neuf})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok || !res.d.jeton){ e.textContent=res.d.erreur||"Changement refusé."; return; }
+      S.jeton=res.d.jeton; poserSession(S);
+      ["k_vieux","k_neuf","k_neuf2"].forEach(function(i){ $(i).value=""; });
+      e.className="err ok"; e.textContent="Mot de passe enregistré.";
+    })
+    .catch(function(){ e.textContent="Pas de réseau."; });
+});
+$("k_neuf2").addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("k_valider").click(); });
+
+$("btnOut").addEventListener("click", sortir);
+})();
+</script>
+</body>
+</html>

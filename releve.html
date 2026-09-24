@@ -1795,6 +1795,41 @@ function applyCA(nom){
   $("m_caTel").value = S.meta.caTel;
   $("m_caMail").value = S.meta.caMail;
 }
+/* Les coordonnées saisies dans « Mon compte » remplissent le bloc
+   Chargé d'affaires : l'annuaire de la société a le dernier mot sur le
+   carnet local, et une fiche dont le téléphone ou l'e-mail est vide les
+   reçoit. Ce qu'on tape à la main sur une fiche reste à elle. */
+function coordonneesDesComptes(personnes){
+  if(!P) return;
+  P.annuaire = P.annuaire || {};
+  var change=false;
+  (personnes||[]).forEach(function(p){
+    if(!p || !p.nom || (!p.tel && !p.email)) return;
+    var e = P.annuaire[p.nom] || (P.annuaire[p.nom]={tel:"",mail:""});
+    if(p.tel && e.tel!==p.tel){ e.tel=p.tel; change=true; }
+    if(p.email && e.mail!==p.email){ e.mail=p.email; change=true; }
+  });
+  if(change) savePrefs();
+  if(S && S.meta && S.meta.ca){
+    var e2=P.annuaire[S.meta.ca];
+    if(e2 && ((!S.meta.caTel && e2.tel) || (!S.meta.caMail && e2.mail))){
+      if(!S.meta.caTel) S.meta.caTel=e2.tel||"";
+      if(!S.meta.caMail) S.meta.caMail=e2.mail||"";
+      $("m_caTel").value=S.meta.caTel; $("m_caMail").value=S.meta.caMail;
+      save();
+    }
+  }
+}
+/* Un relevé neuf, ouvert par un chargé d'affaires : c'est lui qui suit
+   l'affaire, avec ses coordonnées. Le technicien, lui, choisit. */
+function caParDefaut(s){
+  if(!s || !s.meta || s.meta.ca) return;
+  if(!SESSION || !SESSION.nom || (SESSION.role!=="bureau" && SESSION.role!=="admin")) return;
+  var e = (P && P.annuaire && P.annuaire[SESSION.nom]) || {};
+  s.meta.ca = SESSION.nom;
+  s.meta.caTel = e.tel || SESSION.tel || "";
+  s.meta.caMail = e.mail || SESSION.email || "";
+}
 function bureauNoms(){
   if(EQUIPE_CACHE && EQUIPE_CACHE.length){
     var n=EQUIPE_CACHE.filter(function(p){ return (p.role==="bureau"||p.role==="admin"); }).map(function(p){ return p.nom; });
@@ -4779,6 +4814,7 @@ function chargerEquipe(){
     .then(function(res){
       if(!res.ok){ if(res.d.erreur) $("pubEtat").textContent=res.d.erreur; return; }
       EQUIPE_CACHE = res.d.personnes || [];
+      coordonneesDesComptes(EQUIPE_CACHE);
       renderDest();
       try{ renderCA(); }catch(e){}
     })
@@ -5158,7 +5194,7 @@ function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
    les perdre : la fiche d'un autre chantier est mise de côté, sous son
    nom, et revient quand on y retourne. */
 var CLE_FICHE = "releve:courant";
-function ficheVierge(){ var s=blank(); s.meta.societe=(P&&P.societe)||""; s.logo=(P&&P.logo)||null; return s; }
+function ficheVierge(){ var s=blank(); s.meta.societe=(P&&P.societe)||""; s.logo=(P&&P.logo)||null; caParDefaut(s); return s; }
 function ficheRemplie(s){ if(!s) return false; return !!(String((s.client||{}).nom||"").trim() || (s.pieces||[]).length || String((s.rdv||{}).objet||"").trim()); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
@@ -5518,7 +5554,11 @@ loadPrefs(function(){
     if(!S) S=blank();
     if(!S.meta.societe) S.meta.societe = P.societe || "";
     if(!S.logo) S.logo = P.logo || null;
+    if(SESSION && SESSION.nom && (SESSION.tel || SESSION.email)){
+      coordonneesDesComptes([{nom:SESSION.nom, tel:SESSION.tel||"", email:SESSION.email||""}]);
+    }
     if(S.meta.ca && !S.meta.caTel){ var e=P.annuaire[S.meta.ca]; if(e){ S.meta.caTel=e.tel||""; S.meta.caMail=e.mail||""; } }
+    caParDefaut(S);
     habillerBarres();
   bindChoixPublication();
   bindFields();

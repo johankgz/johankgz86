@@ -406,6 +406,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       le site rend un code provisoire, que vous transmettez. Modifier un compte ne touche jamais
       à son mot de passe.</p>
     <label class="f"><span>E-mail (pour les notifications)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
+    <label class="f"><span>Téléphone</span><input type="tel" id="f_tel" autocomplete="off"></label>
 
     <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
     <div class="choix-vue" id="choixVue">
@@ -629,7 +630,7 @@ function peindre(comptes){
     var mod=document.createElement("button"); mod.className="act ghost"; mod.textContent="Modifier";
     mod.addEventListener("click", function(){
       $("f_nom").value=c.nom; $("f_id").value=c.identifiant;
-      choisirVue(c.role); $("f_mail").value=c.email||"";
+      choisirVue(c.role); $("f_mail").value=c.email||""; $("f_tel").value=c.tel||"";
       APPLIS_CHOISIES=(c.applis||[]).slice(); peindreApplis();
       $("titreForm").textContent="Modifier "+c.nom;
       window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
@@ -661,7 +662,7 @@ function peindre(comptes){
 }
 $("btnEnr").addEventListener("click", function(){
   var corps={nom:$("f_nom").value.trim(), identifiant:$("f_id").value.trim().toLowerCase(),
-             role:$("f_role").value, email:$("f_mail").value.trim(),
+             role:$("f_role").value, email:$("f_mail").value.trim(), tel:$("f_tel").value.trim(),
              applis:APPLIS_CHOISIES.slice()};
   if(!corps.nom || !corps.identifiant){ $("err").textContent="Prénom et identifiant sont nécessaires."; return; }
   $("err").textContent="Enregistrement…";
@@ -671,14 +672,14 @@ $("btnEnr").addEventListener("click", function(){
       if(!res.ok){ $("err").textContent=res.d.erreur||"Enregistrement refusé."; return; }
       $("err").textContent=""; $("titreForm").textContent="Ajouter un compte";
       if(res.d.provisoire) montrerProvisoires([{nom:corps.nom, provisoire:res.d.provisoire}]);
-      ["f_nom","f_id","f_mail"].forEach(function(i){ $(i).value=""; });
+      ["f_nom","f_id","f_mail","f_tel"].forEach(function(i){ $(i).value=""; });
       APPLIS_CHOISIES=[]; peindreApplis();
       chargerComptes();
     })
     .catch(function(){ $("err").textContent="Pas de réseau."; });
 });
 $("btnVider").addEventListener("click", function(){
-  ["f_nom","f_id","f_mail"].forEach(function(i){ $(i).value=""; });
+  ["f_nom","f_id","f_mail","f_tel"].forEach(function(i){ $(i).value=""; });
   choisirVue("technicien");
   APPLIS_CHOISIES=[]; peindreApplis();
   $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";

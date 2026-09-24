@@ -619,7 +619,43 @@ export default async (req) => {
 
   if (action === "equipe") {
     const comptes = await lireComptes(personne.societe);
-    return json({ personnes: comptes.map((p) => ({ nom: p.nom, role: p.role })) });
+    /* e-mail et téléphone : l'annuaire de la société, pour remplir les
+       coordonnées du chargé d'affaires sur le relevé */
+    return json({ personnes: comptes.map((p) => ({ nom: p.nom, role: p.role,
+      email: p.email || "", tel: p.tel || "" })) });
+  }
+
+  /* ---------- mon compte : chacun ses coordonnées ---------- */
+  if (action === "mon-compte") {
+    const comptes = await lireComptes(personne.societe);
+    const c = comptes.find((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant) || {};
+    const liste = await lireSocietes();
+    const soc = liste.find((x) => x.code === personne.societe) || {};
+    return json({ nom: personne.nom, identifiant: personne.identifiant, role: personne.role,
+      email: c.email || personne.email || "", tel: c.tel || "",
+      societe: personne.societe, societeNom: soc.nom || "", demo: !!soc.demo,
+      mdpMaj: c.mdpMaj || "" });
+  }
+
+  if (action === "mon-compte-enregistrer") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const email = String(d.email || "").trim().slice(0, 120);
+    const tel = String(d.tel || "").trim().slice(0, 40);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return json({ erreur: "Cette adresse e-mail n'a pas l'air complète." }, 400);
+    }
+    const liste = await lireSocietes();
+    const soc = liste.find((x) => x.code === personne.societe) || {};
+    if (soc.demo || personne.societe === SOCIETE_DEMO.code) {
+      return json({ erreur: "Démonstration : les coordonnées ne sont pas enregistrées." }, 403);
+    }
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant);
+    if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
+    comptes[i] = { ...comptes[i], email, tel };
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, email, tel });
   }
 
   if (action === "moi-societe") {
@@ -639,7 +675,7 @@ export default async (req) => {
        « provisoire » quand elle doit encore le faire,
        « ancien » pour un compte d'avant les empreintes. */
     return json({ comptes: comptes.map((c) => ({ identifiant: c.identifiant, nom: c.nom,
-      role: c.role, email: c.email || "",
+      role: c.role, email: c.email || "", tel: c.tel || "",
       etatMdp: c.empreinte ? (c.aChanger ? "provisoire" : "personnel")
              : (c.motdepasse ? "ancien" : "aucun"),
       mdpMaj: c.mdpMaj || "",
@@ -662,12 +698,13 @@ export default async (req) => {
        provisoire sans jamais montrer l'ancien. */
     if (i >= 0) {
       comptes[i] = { ...comptes[i], nom, role, email: String(d.email || "").trim(), applis };
+      if (d.tel !== undefined) comptes[i].tel = String(d.tel || "").trim().slice(0, 40);
       await ecrireComptes(personne.societe, comptes);
       return json({ ok: true, comptes: comptes.length });
     }
     const code = codeProvisoire();
     comptes.push({ identifiant: id, empreinte: empreinteDe(code), aChanger: true, nom, role,
-      email: String(d.email || "").trim(), applis });
+      email: String(d.email || "").trim(), tel: String(d.tel || "").trim().slice(0, 40), applis });
     await ecrireComptes(personne.societe, comptes);
     /* le code provisoire n'est montré qu'ici, une fois */
     return json({ ok: true, comptes: comptes.length, provisoire: code });
