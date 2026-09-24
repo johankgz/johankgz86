@@ -531,6 +531,13 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 #bonjour{color:var(--sur-fond-2)}
 p.vide{color:var(--sur-fond-2)}
 #restaurerEtat{color:var(--sur-fond-2)}
+button.discu{position:relative}
+button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--danger)!important;font-weight:700}
+.pastille-discu{display:inline-flex;align-items:center;justify-content:center;min-width:19px;height:19px;padding:0 6px;
+  margin-left:6px;border-radius:10px;background:var(--danger);color:#fff;font-size:11px;font-weight:700;line-height:1;
+  box-shadow:0 0 0 2px #fff;animation:pastilleBat 1.6s ease-out 2}
+@keyframes pastilleBat{0%{transform:scale(1)}30%{transform:scale(1.25)}60%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){ .pastille-discu{animation:none} }
 </style>
 </head>
 <body>
@@ -1027,6 +1034,19 @@ function ouvrirAcces(c){
 }
 
 /* ---------- discussion du dossier ---------- */
+/* ?discussion=REF : la page d'un chantier ouvre directement sa discussion,
+   et « Fermer » y ramène */
+var DISCU_RETOUR=null, DISCU_DEMANDEE=null;
+try{ DISCU_DEMANDEE=new URLSearchParams(location.search).get("discussion"); }catch(e){}
+function ouvrirDiscussionDemandee(){
+  if(!DISCU_DEMANDEE) return;
+  var ref=DISCU_DEMANDEE; DISCU_DEMANDEE=null;
+  var c=(CHANTIERS||[]).filter(function(x){ return x.ref===ref; })[0];
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
+  if(!c) return;
+  DISCU_RETOUR="./chantier.html?ref="+encodeURIComponent(ref);
+  ouvrirDiscussion(c);
+}
 function ouvrirDiscussion(c){
   var vue=document.createElement("div");
   vue.style.cssText="position:fixed;inset:0;z-index:75;background:#F7F3EA;display:flex;flex-direction:column;"
@@ -1040,7 +1060,10 @@ function ouvrirDiscussion(c){
   var bf=document.createElement("button"); bf.type="button"; bf.textContent="Fermer";
   bf.style.cssText="padding:7px 12px;border:0;background:#B4621A;color:#fff;font-size:12.5px;"
     +"font-weight:600;font-family:inherit;cursor:pointer";
-  bf.addEventListener("click", function(){ document.body.removeChild(vue); charger(); });
+  bf.addEventListener("click", function(){
+    if(DISCU_RETOUR){ location.href=DISCU_RETOUR; return; }
+    document.body.removeChild(vue); charger();
+  });
   barre.appendChild(t); barre.appendChild(bf);
 
   var fil=document.createElement("div");
@@ -1392,8 +1415,11 @@ $("fileArchive").addEventListener("change", function(){
   if(f) restaurerArchive(f);
 });
 var NON_LUS={};
-function charger(){
-  fetch(API+"?action=messages-non-lus", {headers:{"x-auth":S.jeton}})
+/* Les messages non lus arrivent à part : la liste attend leur compte
+   avant de se peindre, sinon la pastille de la discussion manquait
+   quand la liste répondait la première. */
+function chargerNonLus(){
+  return fetch(API+"?action=messages-non-lus", {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : null; })
     .then(function(d){
       if(!d) return;
@@ -1401,6 +1427,25 @@ function charger(){
       (d.dossiers||[]).forEach(function(x){ NON_LUS[x.ref]=x.nb; });
     })
     .catch(function(){});
+}
+/* sans tout repeindre : seulement les pastilles des boutons Discussion */
+function majPastillesDiscussion(){
+  document.querySelectorAll("button.discu[data-ref]").forEach(function(b){
+    var n=NON_LUS[b.getAttribute("data-ref")]||0;
+    var p=b.querySelector(".pastille-discu");
+    if(!n){ if(p) p.remove(); b.classList.remove("a-lire"); return; }
+    if(!p){ p=document.createElement("span"); p.className="pastille-discu"; b.appendChild(p); }
+    p.textContent=String(n);
+    b.classList.add("a-lire");
+    b.title=n+" message"+(n>1?"s":"")+" non lu"+(n>1?"s":"")+" dans la discussion";
+  });
+}
+setInterval(function(){ if(!document.hidden && S && S.jeton) chargerNonLus().then(majPastillesDiscussion); }, 45000);
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && S && S.jeton) chargerNonLus().then(majPastillesDiscussion);
+});
+function charger(){
+  var nonLus=chargerNonLus();
   fetch(API+"?action=liste", {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
@@ -1415,7 +1460,10 @@ function charger(){
       MOI = res.d.moi || S;
       $("recherche").hidden = CHANTIERS.length < 4;
       carteMajBouton();
-      afficher(filtrer());
+      return nonLus.then(function(){
+        afficher(filtrer());
+        ouvrirDiscussionDemandee();
+      });
     })
     .catch(function(){ $("bonjour").textContent="Pas de réseau. Réessayez."; });
 }
@@ -1562,7 +1610,8 @@ function afficher(chantiers){
     barreBoutons.appendChild(acces);
 
     var discu=document.createElement("button");
-    discu.type="button"; discu.className="iti";
+    discu.type="button"; discu.className="iti discu";
+    discu.setAttribute("data-ref", c.ref);
     discu.title="Discussion du dossier";
     var nonLus=(NON_LUS[c.ref]||0);
     discu.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
@@ -1570,11 +1619,11 @@ function afficher(chantiers){
       +'stroke-linejoin:round"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4'
       +'A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>Discussion';
     if(nonLus){
-      var pastille=document.createElement("span");
-      pastille.style.cssText="background:var(--danger);color:#fff;font-size:10.5px;font-weight:700;"
-        +"padding:1px 6px;border-radius:9px;margin-left:5px";
+      var pastille=document.createElement("span"); pastille.className="pastille-discu";
       pastille.textContent=String(nonLus);
       discu.appendChild(pastille);
+      discu.classList.add("a-lire");
+      discu.title=nonLus+" message"+(nonLus>1?"s":"")+" non lu"+(nonLus>1?"s":"")+" dans la discussion";
     }
     discu.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c);

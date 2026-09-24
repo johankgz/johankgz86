@@ -430,6 +430,21 @@ main{max-width:520px}
 .conv-calibre{margin:10px 0 0;padding-top:10px;border-top:1px solid rgba(255,255,255,.08);font-size:12.5px;color:#FDBA74;line-height:1.45}
 .conv-calibre[hidden]{display:none}
 
+.conv-params.deux input{font-size:22px;font-weight:600;min-height:54px}
+.conv-aide{margin:8px 0 14px;font-size:12px;color:#8A97A6;line-height:1.45}
+.cab-lignes{display:flex;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
+.cab-ligne{display:grid;grid-template-columns:70px 1fr 58px 18px;align-items:center;gap:8px;font-size:13px;
+  color:#AEB7BF;font-variant-numeric:tabular-nums;padding:5px 8px;border-radius:8px}
+.cab-ligne.choisie{background:rgba(255,255,255,.06);color:#F2F5F9;font-weight:600}
+.cab-barre{height:6px;border-radius:6px;background:rgba(255,255,255,.08);overflow:hidden}
+.cab-barre i{display:block;height:100%;border-radius:6px;background:#4ADE80}
+.cab-ligne.ko .cab-barre i{background:#F87171}
+.cab-du{text-align:right}
+.cab-etat{text-align:center;font-weight:700}
+.cab-ligne.ok .cab-etat{color:#4ADE80}
+.cab-ligne.ko .cab-etat{color:#F87171}
+#convVersCable{margin-top:12px}
+
 /* calculatrice */
 .ecran{background:#05080C;border:1px solid var(--trait-tech);border-radius:12px;padding:12px 14px;text-align:right;
   min-height:92px;display:flex;flex-direction:column;justify-content:flex-end;overflow:hidden}
@@ -465,6 +480,8 @@ main{max-width:520px}
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg>Calculatrice</button>
     <button type="button" role="tab" data-vue="conversion" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg>Conversion</button>
+    <button type="button" role="tab" data-vue="cable" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg>Câble</button>
   </div>
 
   <section class="vue" id="vue-boussole">
@@ -525,7 +542,54 @@ main{max-width:520px}
         <div class="conv-autres" id="convAutres"></div>
         <p class="conv-formule" id="convFormule"></p>
         <p class="conv-calibre" id="convCalibre" hidden></p>
+        <button type="button" class="bouton-clair" id="convVersCable" hidden></button>
       </div>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-cable" hidden>
+    <div class="carte-outil conv">
+      <div class="conv-params deux">
+        <label><span>Courant</span><input type="text" id="cabI" inputmode="decimal" autocomplete="off" placeholder="0"><i>A</i></label>
+        <label><span>Longueur</span><input type="text" id="cabL" inputmode="decimal" autocomplete="off" placeholder="0"><i>m</i></label>
+      </div>
+      <div class="puces" id="cabCalibres" aria-label="Calibres courants">
+        <button type="button" data-i="10">10 A</button><button type="button" data-i="16">16 A</button>
+        <button type="button" data-i="20">20 A</button><button type="button" data-i="25">25 A</button>
+        <button type="button" data-i="32">32 A</button><button type="button" data-i="40">40 A</button>
+        <button type="button" data-i="63">63 A</button>
+      </div>
+      <p class="conv-aide">Le courant : le calibre de la protection, ou le courant d'emploi. La longueur : le câble, aller simple.</p>
+
+      <p class="conv-legende">Réseau</p>
+      <div class="seg" id="cabReseau" role="radiogroup" aria-label="Réseau">
+        <button type="button" data-r="mono" role="radio">Mono 230 V</button>
+        <button type="button" data-r="tri" role="radio">Tri 400 V</button>
+      </div>
+      <p class="conv-legende">Conducteur</p>
+      <div class="seg" id="cabMetal" role="radiogroup" aria-label="Conducteur">
+        <button type="button" data-m="cu" role="radio">Cuivre</button>
+        <button type="button" data-m="al" role="radio">Aluminium</button>
+      </div>
+      <p class="conv-legende">Chute de tension admise</p>
+      <div class="seg" id="cabChute" role="radiogroup" aria-label="Chute de tension admise">
+        <button type="button" data-c="3" role="radio">3 % · éclairage</button>
+        <button type="button" data-c="5" role="radio">5 % · autres</button>
+      </div>
+      <p class="conv-legende">cos φ</p>
+      <div class="puces" id="cabCos" style="margin:0 0 4px">
+        <button type="button" data-cos="1">1 · chauffage</button>
+        <button type="button" data-cos="0.9">0,9 · courant</button>
+        <button type="button" data-cos="0.8">0,8 · moteurs</button>
+      </div>
+
+      <div class="conv-res" aria-live="polite">
+        <div class="conv-principal"><b id="cabS">—</b><span id="cabSU">mm²</span></div>
+        <div class="conv-autres" id="cabRef"></div>
+        <div class="cab-lignes" id="cabLignes"></div>
+        <p class="conv-formule" id="cabExpl"></p>
+      </div>
+      <p class="conv-aide" style="margin-top:12px">Estimation selon la NF C 15-100, simplifiée : câble sous conduit, 30 °C, sans correction de groupement. La chute se compte depuis l'origine de l'installation : retirez celle de l'amont. Pour une liaison importante, faites une note de calcul.</p>
     </div>
   </section>
 
@@ -555,7 +619,7 @@ main{max-width:520px}
 function $(i){ return document.getElementById(i); }
 
 /* ---------- onglets ---------- */
-var VUES=["boussole","niveau","calcul","conversion"];
+var VUES=["boussole","niveau","calcul","conversion","cable"];
 function montrer(v){
   if(VUES.indexOf(v)<0) v="boussole";
   VUES.forEach(function(x){ $("vue-"+x).hidden = x!==v; });
@@ -875,6 +939,7 @@ function calculerConv(){
       : "I = S ÷ ("+sK+"U) = "+fr(S,0)+" VA ÷ ("+(tri?"1,732 × ":"")+sU+")";
   }
   if(!valide || !isFinite(grand)){
+    $("convVersCable").hidden=true;
     $("convGrand").textContent="—"; $("convGrandU").textContent=grandU||"";
     $("convAutres").textContent=""; $("convFormule").textContent= valide ? "Indiquez un cos φ entre 0 et 1." : "Saisissez une valeur.";
     $("convCalibre").hidden=true; return;
@@ -896,6 +961,9 @@ function calculerConv(){
     c.hidden=!cal;
     if(cal) c.textContent="Calibre normalisé immédiatement supérieur : "+cal+" A — à vérifier avec la section du câble et le mode de pose.";
   } else c.hidden=true;
+  var vc=$("convVersCable");
+  vc.hidden = !(isFinite(I) && I>0);
+  if(!vc.hidden){ vc.textContent="Section de câble pour "+fr(I,1)+" A  →"; vc.setAttribute("data-i", String(Math.round(I*10)/10)); }
 }
 document.querySelectorAll("#convUnite button").forEach(function(b){
   b.addEventListener("click", function(){ CONV.u=b.getAttribute("data-u"); garderConv(); peindreConv(); $("convValeur").focus(); });
@@ -914,6 +982,109 @@ $("convCos").addEventListener("input", function(){
   document.querySelectorAll("#convCosPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-cos"))===cos); });
 });
 peindreConv();
+
+/* ---------- section de câble ----------
+   Deux conditions, on retient la plus exigeante :
+   - le courant admissible : section minimale pour le courant, câble sous
+     conduit à 30 °C (valeurs prudentes de la NF C 15-100) ;
+   - la chute de tension : ΔU = b (ρ L/S cos φ + λ L sin φ) I, avec b = 2
+     en monophasé et 1 en triphasé, ρ = 0,0225 Ω·mm²/m (cuivre) ou 0,036
+     (aluminium), λ = 0,08 mΩ/m ; rapportée à la tension simple. */
+var SECTIONS=[1.5,2.5,4,6,10,16,25,35,50,70,95,120,150,185,240];
+var ADMIS={
+  cu:{1.5:16,2.5:20,4:25,6:32,10:40,16:63,25:80,35:100,50:125,70:160,95:200,120:225,150:250,185:280,240:315},
+  al:{16:50,25:63,35:80,50:100,70:125,95:160,120:180,150:200,185:225,240:250}
+};
+var RHO={cu:0.0225, al:0.036};
+var CAB={i:"", l:"", r:"mono", m:"cu", c:"3", cos:"1"};
+try{ var cb=JSON.parse(localStorage.getItem("outils:cable")||"null"); if(cb) for(var k2 in cb) CAB[k2]=cb[k2]; }catch(e){}
+function garderCab(){ try{ localStorage.setItem("outils:cable", JSON.stringify(CAB)); }catch(e){} }
+function chute(S, I, L){
+  var cos=lireNombre(CAB.cos); if(!(cos>0 && cos<=1)) cos=1;
+  var sin=Math.sqrt(Math.max(0, 1-cos*cos));
+  var b = CAB.r==="tri" ? 1 : 2;
+  var du = b*(RHO[CAB.m]*L/S*cos + 0.00008*L*sin)*I;
+  return 100*du/230;
+}
+function nomSection(S){ return String(S).replace(".",","); }
+function peindreCab(){
+  [["cabReseau","r"],["cabMetal","m"],["cabChute","c"]].forEach(function(g){
+    document.querySelectorAll("#"+g[0]+" button").forEach(function(b){
+      b.setAttribute("aria-checked", b.getAttribute("data-"+g[1])===CAB[g[1]] ? "true" : "false"); });
+  });
+  var cos=lireNombre(CAB.cos);
+  document.querySelectorAll("#cabCos button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-cos"))===cos); });
+  var I=lireNombre(CAB.i);
+  document.querySelectorAll("#cabCalibres button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-i"))===I); });
+  if(document.activeElement!==$("cabI")) $("cabI").value=String(CAB.i||"").replace(".",",");
+  if(document.activeElement!==$("cabL")) $("cabL").value=String(CAB.l||"").replace(".",",");
+  calculerCab();
+}
+function calculerCab(){
+  var I=lireNombre(CAB.i), L=lireNombre(CAB.l), lim=parseFloat(CAB.c);
+  var lignes=$("cabLignes"); lignes.textContent="";
+  $("cabRef").textContent="";
+  if(!(I>0) || !(L>0)){
+    $("cabS").textContent="—"; $("cabExpl").textContent="Indiquez le courant et la longueur."; return;
+  }
+  var table=ADMIS[CAB.m];
+  var possibles=SECTIONS.filter(function(S){ return table[S]; });
+  var sI=possibles.filter(function(S){ return table[S]>=I; })[0];
+  if(!sI){
+    $("cabS").textContent="—";
+    $("cabExpl").textContent="Au-delà de "+table[possibles[possibles.length-1]]+" A : plusieurs câbles en parallèle ou note de calcul.";
+    return;
+  }
+  var sU=null;
+  for(var k=0;k<possibles.length;k++){
+    if(possibles[k]>=sI && chute(possibles[k], I, L)<=lim){ sU=possibles[k]; break; }
+  }
+  if(!sU){
+    $("cabS").textContent="—";
+    $("cabExpl").textContent="Même en 240 mm², la chute dépasse "+lim+" % sur "+fr(L,0)+" m : raccourcissez la liaison, passez en triphasé ou mettez des câbles en parallèle.";
+    return;
+  }
+  $("cabS").textContent=nomSection(sU);
+  var brins = CAB.r==="tri" ? "5G" : "3G";
+  $("cabRef").textContent=(CAB.m==="al" ? "Aluminium" : "Cuivre")+"  ·  "+brins+nomSection(sU)+" mm²";
+  /* les sections autour : de celle qu'impose le courant jusqu'à une au-delà du choix */
+  var debut=possibles.indexOf(sI), fin=Math.min(possibles.length-1, possibles.indexOf(sU)+1);
+  for(var j=debut;j<=fin;j++){
+    var S=possibles[j], d=chute(S, I, L), ok=d<=lim;
+    var row=document.createElement("div"); row.className="cab-ligne"+(ok?" ok":" ko")+(S===sU?" choisie":"");
+    var a=document.createElement("span"); a.className="cab-sec"; a.textContent=nomSection(S)+" mm²";
+    var barre=document.createElement("span"); barre.className="cab-barre";
+    var r=document.createElement("i"); r.style.width=Math.min(100, d/lim*100)+"%"; barre.appendChild(r);
+    var b=document.createElement("span"); b.className="cab-du"; b.textContent=fr(d,2)+" %";
+    var c=document.createElement("span"); c.className="cab-etat"; c.textContent= ok ? "✓" : "✗";
+    row.appendChild(a); row.appendChild(barre); row.appendChild(b); row.appendChild(c);
+    lignes.appendChild(row);
+  }
+  var raison = sU>sI
+    ? "Le courant demande "+nomSection(sI)+" mm² ; la chute de tension sur "+fr(L,0)+" m impose "+nomSection(sU)+" mm² ("+fr(chute(sU,I,L),2)+" % pour "+lim+" % admis)."
+    : "Le courant ("+fr(I,1)+" A) impose "+nomSection(sU)+" mm² ; la chute de tension reste à "+fr(chute(sU,I,L),2)+" % pour "+lim+" % admis.";
+  $("cabExpl").textContent=raison;
+}
+[["cabReseau","r"],["cabMetal","m"],["cabChute","c"]].forEach(function(g){
+  document.querySelectorAll("#"+g[0]+" button").forEach(function(b){
+    b.addEventListener("click", function(){ CAB[g[1]]=b.getAttribute("data-"+g[1]); garderCab(); peindreCab(); });
+  });
+});
+document.querySelectorAll("#cabCos button").forEach(function(b){
+  b.addEventListener("click", function(){ CAB.cos=b.getAttribute("data-cos"); garderCab(); peindreCab(); });
+});
+document.querySelectorAll("#cabCalibres button").forEach(function(b){
+  b.addEventListener("click", function(){ CAB.i=b.getAttribute("data-i"); garderCab(); peindreCab(); });
+});
+$("cabI").addEventListener("input", function(){ CAB.i=this.value.replace(",","."); garderCab(); peindreCab(); });
+$("cabL").addEventListener("input", function(){ CAB.l=this.value.replace(",","."); garderCab(); calculerCab(); });
+$("convVersCable").addEventListener("click", function(){
+  CAB.i=this.getAttribute("data-i"); CAB.r=CONV.r;
+  if(isFinite(lireNombre(CONV.cos))) CAB.cos=CONV.cos;
+  garderCab(); peindreCab(); montrer("cable");
+  if(!(lireNombre(CAB.l)>0)) $("cabL").focus();
+});
+peindreCab();
 
 /* pour les essais */
 window.__calcul = calculer;
