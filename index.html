@@ -820,6 +820,113 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .grille{border-top-color:var(--trait-fond)}
 
 #bref a,.bref a{border-bottom-color:var(--trait-fond)}
+
+/* =====================================================================
+   MOUVEMENT
+   ---------------------------------------------------------------------
+   Des durées communes : 120 ms pour un appui, 200 ms pour un changement
+   d'état, 320 à 450 ms pour une entrée, 900 ms pour une jauge. On ne
+   bouge que la position et l'opacité ; un ou deux mouvements par écran ;
+   « Réduire les animations » du téléphone coupe tout.
+   ===================================================================== */
+:root{--sortie:cubic-bezier(.2,.8,.2,1)}
+@keyframes monteDoux{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
+@keyframes rempliX{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes tourneLent{to{transform:rotate(360deg)}}
+@keyframes balaiX{from{transform:translateX(-120%)}to{transform:translateX(320%)}}
+@keyframes sonne{0%,100%{transform:rotate(0)}15%{transform:rotate(14deg)}30%{transform:rotate(-12deg)}45%{transform:rotate(8deg)}60%{transform:rotate(-5deg)}75%{transform:rotate(2deg)}}
+@keyframes pouls{0%{box-shadow:0 0 0 0 rgba(251,146,60,.55)}70%{box-shadow:0 0 0 10px rgba(251,146,60,0)}100%{box-shadow:0 0 0 0 rgba(251,146,60,0)}}
+@keyframes trace{from{stroke-dashoffset:120}to{stroke-dashoffset:0}}
+@keyframes tourneVite{to{transform:rotate(360deg)}}
+@keyframes grilleLueur{from{transform:translateY(-140px)}to{transform:translateY(110vh)}}
+
+/* le bulletin : un filet de lumière, le soleil qui tourne, les barres qui se remplissent */
+.bul-balai{position:absolute;left:0;top:0;height:1px;width:40%;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,transparent,var(--accent-vif),var(--data-vif),transparent);
+  animation:balaiX 3.4s linear infinite}
+.bul-icone svg.tourne{animation:tourneLent 22s linear infinite;transform-origin:50% 50%}
+.bul-j.entre .bj-barre span{transform-origin:left;animation:rempliX .7s var(--sortie) both}
+
+/* la pastille du compte salue une fois */
+.tete .avatar{animation:pouls 2.4s ease-out 1s 2}
+
+/* les cartes de chantier arrivent en cascade, leur jauge se remplit */
+.chantiers a.entre{animation:monteDoux .42s var(--sortie) both}
+.chantiers a.entre .avance .jauge i{transform-origin:left;animation:rempliX .8s var(--sortie) .35s both}
+.chantiers a{transition:transform .12s ease-out,box-shadow .2s ease-out}
+.chantiers a:active{transform:scale(.985)}
+
+/* la cloche sonne quand il arrive du nouveau */
+.notif .cloche.sonne svg{transform-origin:50% 12%;animation:sonne 1.1s ease-in-out 2}
+
+/* ---------- le tableau de bord ---------- */
+.tableau{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 14px}
+.tableau[hidden]{display:none}
+.tuile-t{display:flex;flex-direction:column;gap:2px;min-height:104px;padding:13px 14px;border-radius:14px;text-decoration:none;
+  font-family:inherit;text-align:left;cursor:pointer;animation:monteDoux .42s var(--sortie) both;
+  transition:transform .12s ease-out,box-shadow .2s ease-out}
+.tuile-t:nth-child(2){animation-delay:50ms}.tuile-t:nth-child(3){animation-delay:100ms}.tuile-t:nth-child(4){animation-delay:150ms}
+.tuile-t:active{transform:scale(.97)}
+.tuile-t.clair{background:var(--card);color:var(--ink);border:1px solid var(--rule);box-shadow:var(--ombre-1)}
+.tuile-t.sombre{background:var(--g-800);color:#F2F5F9;border:1px solid var(--trait-tech)}
+.tuile-t.sombre.attend{border-color:rgba(251,146,60,.5)}
+.t-lab{display:flex;align-items:center;gap:7px;font-size:10.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3)}
+.t-lab.orange{color:#FDBA74}.t-lab.cyan{color:var(--data-vif)}
+.t-nb{font-size:30px;font-weight:700;letter-spacing:-.04em;line-height:1.15;font-variant-numeric:tabular-nums}
+.t-nb.petit{font-size:23px}
+.t-sous{font-size:12px;color:var(--ink-3);line-height:1.35;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.tuile-t.sombre .t-sous{color:#AEB7BF}
+.t-point{width:9px;height:9px;border-radius:50%;background:#5B6573;flex:0 0 auto}
+.tuile-t.attend .t-point{background:var(--accent-vif);animation:pouls 1.8s ease-out infinite}
+.t-cloche{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.t-cloche.sonne{transform-origin:50% 12%;animation:sonne 1.1s ease-in-out .6s 2}
+.tuile-t.anneau-t{flex-direction:row;align-items:center;gap:10px}
+.tuile-t.anneau-t svg{width:58px;height:58px;flex:0 0 auto;transform:rotate(-90deg)}
+.tuile-t.anneau-t circle{fill:none;stroke-width:7}
+.tuile-t.anneau-t .fond{stroke:#EFF1F4}
+.tuile-t.anneau-t .plein{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .9s var(--sortie),stroke .3s}
+.tuile-t.anneau-t.fini .plein{stroke:var(--ok)}
+.tuile-t.anneau-t > span{display:flex;flex-direction:column;min-width:0}
+.tuile-t:focus-visible{outline:2px solid var(--data-vif);outline-offset:2px}
+@media (hover:hover){ .tuile-t:hover{box-shadow:var(--ombre-2)} }
+.a-publier{margin:-4px 0 14px;background:var(--card);border:1px solid var(--rule);border-radius:14px;overflow:hidden;
+  box-shadow:var(--ombre-1);animation:monteDoux .3s var(--sortie) both}
+.a-publier[hidden]{display:none}
+.a-publier a.d{display:flex;align-items:center;gap:10px;min-height:52px;padding:10px 14px;text-decoration:none;color:var(--ink);
+  border-bottom:1px solid var(--rule)}
+.a-publier a.d:last-child{border-bottom:0}
+.a-publier a.d::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent-vif);flex:0 0 auto}
+.a-publier a.d::after{content:"Tout publier ›";margin-left:auto;font-size:12.5px;font-weight:700;color:var(--accent);white-space:nowrap}
+.a-publier a.d b{font-size:14.5px;font-weight:700}
+.a-publier a.d span{font-size:12.5px;color:var(--ink-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ---------- la connexion : le logo se dessine, tout monte en cascade ---------- */
+.logo-trace{display:block;margin:0 0 12px}
+.logo-trace path{stroke-dasharray:120;animation:trace 1.2s cubic-bezier(.4,0,.2,1) both}
+.logo-trace .maison{stroke:var(--data-vif);stroke-width:3}
+.logo-trace .eclair{stroke:var(--accent-vif);stroke-width:3;animation-delay:.45s}
+body.connexion{position:relative}
+body.connexion::before{content:"";position:fixed;left:0;right:0;top:0;height:140px;pointer-events:none;z-index:0;
+  background:linear-gradient(180deg,transparent,rgba(34,211,238,.07),transparent);animation:grilleLueur 6s linear infinite}
+body.connexion main{position:relative;z-index:1}
+body.connexion .accueil-haut > *{animation:monteDoux .5s var(--sortie) both}
+body.connexion .accueil-haut > .marque{animation-delay:.25s}
+body.connexion .accueil-haut > .salut-clair{animation-delay:.33s}
+body.connexion .accueil-haut > .phrase{animation-delay:.41s}
+body.connexion .accueil-haut > .meteo-ligne{animation-delay:.49s}
+body.connexion .accueil-haut > .logo-trace{animation:none}
+body.connexion #blocConnexion{animation:monteDoux .5s var(--sortie) .55s both}
+#go{position:relative;display:flex;align-items:center;justify-content:center;gap:10px;transition:background .25s ease-out,transform .12s ease-out}
+#go:active{transform:scale(.98)}
+#go.charge::before{content:"";width:18px;height:18px;border-radius:50%;border:2.5px solid rgba(255,255,255,.35);
+  border-top-color:#fff;animation:tourneVite .8s linear infinite}
+#go.ok{background:var(--ok)!important}
+#go.ok::before{content:"";width:14px;height:8px;border-left:2.6px solid #fff;border-bottom:2.6px solid #fff;
+  transform:rotate(-45deg) translate(1px,-2px)}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
 </style>
 </head>
 <body>
@@ -827,6 +934,10 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div id="vueConnexion" hidden>
     <div class="accueil-haut">
+      <svg class="logo-trace" width="58" height="58" viewBox="0 0 64 64" aria-hidden="true" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path class="maison" d="M10 30 32 12l22 18v22H10z"/>
+        <path class="eclair" d="M35 24 26 38h9l-3 12 11-16h-9l3-10"/>
+      </svg>
       <p class="marque">Suivi travaux 360</p>
       <p class="salut-clair" id="salutPublic"></p>
       <p class="phrase" id="phraseJour"></p>
@@ -891,6 +1002,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
 
     <div class="bulletin" id="bulletin">
+      <span class="bul-balai" aria-hidden="true"></span>
       <div class="bul-haut">
         <img class="bul-logo" src="./icone-192.png" width="46" height="46"
              alt="Travaux 360" decoding="async">
@@ -909,6 +1021,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       </div>
       <div class="bul-jours" id="bulJours" hidden></div>
     </div>
+
+    <div class="tableau" id="tableau" hidden></div>
+    <div class="demandes a-publier" id="listeAPublier" hidden></div>
 
     <p class="demo-ban" id="banniere" hidden></p>
     <p class="acces-ban" id="banniereAcces" hidden></p>
@@ -1097,7 +1212,7 @@ function bulletin(lieu){
     var nuit = now.jour===false || h<7 || h>=21;
     var st=meteoStyle(now.code, nuit);
     carte.className = "bulletin" + (st.classe ? " "+st.classe : "");
-    $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24">'+ICONES_METEO[st.icone]+'</svg>';
+    $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24"'+(st.icone==="soleil" ? ' class="tourne"' : '')+'>'+ICONES_METEO[st.icone]+'</svg>';
     $("bulTemp").textContent = now.temp + "°";
     $("bulCiel").textContent = st.ciel;
     $("bulMeteo").hidden = false;
@@ -1126,6 +1241,7 @@ function peindreJours(jours){
     var barre=document.createElement("span"); barre.className="bj-barre";
     var r=document.createElement("span");
     r.style.left=((j.min-bas)/etendue*100)+"%";
+    if(premier) r.style.animationDelay=(250+i*70)+"ms";
     r.style.right=((haut-j.max)/etendue*100)+"%";
     barre.appendChild(r);
     var p=document.createElement("span"); p.className="bj-pluie"+((j.pluie||0)>=50 ? " fort" : "");
@@ -1588,7 +1704,7 @@ function majIdentite(s){
 }
 
 /* ---------- statistiques et travaux en bref ---------- */
-var SESSION_COURANTE=null;
+var SESSION_COURANTE=null, DERNIERS_CHANTIERS_VUS=false;
 function rafraichir(){
   if(SESSION_COURANTE && !document.hidden){
     charger(SESSION_COURANTE);
@@ -1615,6 +1731,7 @@ function messagesNonLus(s){
       }
       /* les messages non lus sont dans la cloche des chantiers */
       peindreCloche();
+      peindreTableau();
     })
     .catch(function(){});
 }
@@ -1670,7 +1787,10 @@ function charger(s){
       var ch=(d.chantiers)||[];
       DERNIERS_CHANTIERS=ch;
       SESSION_COURANTE=s;
+      var premiereFois = DERNIERS_CHANTIERS_VUS !== true;
+      DERNIERS_CHANTIERS_VUS = true;
       var enCours=repeindreChantiers(ch, s);
+      if(premiereFois) chercherAPublier();
       peindreNotifs(s, enCours, ch.filter(function(c){ return c.etat === "attente" && c.relanceDue; }));
       peindreBref(enCours);
     })
@@ -1822,6 +1942,7 @@ function peindreNotifs(s, ch, relances){
    n'ai pas encore ouverts, les messages de discussion non lus. Une
    ligne par chantier, qui mène à sa page. */
 var CLOCHE_OUVERTE=false;
+var CLOCHE_AVANT=0;
 function peindreCloche(){
   var cloche=$("cloche"), pan=$("panneauCloche");
   if(!cloche || !pan) return;
@@ -1843,6 +1964,10 @@ function peindreCloche(){
   nb.hidden=!total;
   nb.textContent=total>99 ? "99+" : String(total);
   cloche.classList.toggle("vive", total>0);
+  if(total > CLOCHE_AVANT){
+    cloche.classList.remove("sonne"); void cloche.offsetWidth; cloche.classList.add("sonne");
+  }
+  CLOCHE_AVANT = total;
   cloche.title = total
     ? total+" notification"+(total>1?"s":"")+" sur vos chantiers"
     : "Aucune nouvelle notification sur vos chantiers";
@@ -1878,6 +2003,171 @@ function peindreCloche(){
 
 /* ---------- la liste des chantiers du technicien ---------- */
 var NON_LUS_PAR_REF={}, DERNIERS_CHANTIERS=null;
+
+/* ---------- le tableau de bord : quatre tuiles sous le bulletin ----------
+   Chantiers actifs, avancement moyen, fiches modifiées pas encore
+   publiées (lues dans la mémoire du téléphone, comme la pastille orange
+   des applis) et messages non lus. Les chiffres montent depuis zéro à la
+   première apparition, puis changent sans bruit. */
+var TABLEAU_VU=false, A_PUBLIER=[];
+var FICHES_APPLIS=[
+  ["releve","Relevé","./releve.html","releve:courant"],
+  ["suivi","Suivi","./suivi.html","suivi:courant"],
+  ["commande","Commande","./commande.html","commande:courante"],
+  ["point","Le point","./point.html","point:courant"],
+  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes:courant"],
+  ["photos","Photos","./photos.html","photos:courant"],
+  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole:courant"],
+  ["reception","Réception","./reception.html","reception:courante"],
+  ["sav","SAV","./sav.html","sav:courant"]
+];
+/* le magasin des applis (IndexedDB), en lecture seule ici */
+function lireMagasin(cle){
+  return new Promise(function(ok){
+    if(!window.indexedDB){ ok(null); return; }
+    var r;
+    try{ r=indexedDB.open("outils-chantier", 1); }catch(e){ ok(null); return; }
+    r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains("cles")) r.result.createObjectStore("cles"); };
+    r.onerror=function(){ ok(null); };
+    r.onblocked=function(){ ok(null); };
+    r.onsuccess=function(){
+      var d=r.result, q;
+      try{ q=d.transaction("cles","readonly").objectStore("cles").get(cle); }catch(e){ d.close(); ok(null); return; }
+      q.onsuccess=function(){
+        var v=q.result; d.close();
+        if(v==null){ try{ v=localStorage.getItem(cle); }catch(e){ v=null; } }
+        ok(v==null ? null : (typeof v==="string" ? v : (v.value!=null ? v.value : v)));
+      };
+      q.onerror=function(){ d.close(); ok(null); };
+    };
+  });
+}
+function netRef(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g,""); }
+function refDeFiche(id, f){
+  function code(t){ return String(t||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8); }
+  if(id==="suivi"){ var af=f.affaire||{}, cl=f.client||{}; return netRef(af.chantier)||netRef(af.devis)||code(cl.nom); }
+  if(id==="releve") return netRef((f.affaire||{}).chantier);
+  var c=f.chantier||{};
+  return netRef(c.ref) || (id==="reception" ? netRef(c.devis) : "") || code(c.client);
+}
+function clientDeFiche(id, f){
+  if(id==="suivi" || id==="releve") return ((f.client||{}).nom||"").trim();
+  return ((f.chantier||{}).client||"").trim();
+}
+function modifiee(f){ return !!(f && f._modifs && typeof f._modifs==="object" && Object.keys(f._modifs).length); }
+function chercherAPublier(){
+  var trouves=[];
+  function lire(brut){ if(!brut || String(brut).indexOf('"_modifs":{"')<0) return null; try{ return JSON.parse(brut); }catch(e){ return null; } }
+  return Promise.all(FICHES_APPLIS.map(function(a){
+    return lireMagasin(a[3]).then(function(brut){
+      var f=lire(brut);
+      if(modifiee(f)) trouves.push({id:a[0], nom:a[1], page:a[2], ref:refDeFiche(a[0], f), client:clientDeFiche(a[0], f)});
+      return lireMagasin(a[3]+"#brouillons");
+    }).then(function(ix){
+      var refs={}; try{ refs=ix ? JSON.parse(ix) : {}; }catch(e){ refs={}; }
+      return Promise.all(Object.keys(refs).map(function(r){
+        return lireMagasin(a[3]+"@"+r).then(function(brut){
+          var f=lire(brut);
+          if(modifiee(f)) trouves.push({id:a[0], nom:a[1], page:a[2], ref:refDeFiche(a[0], f) || r, client:clientDeFiche(a[0], f) || (refs[r]||{}).client || ""});
+        });
+      }));
+    }).catch(function(){});
+  })).then(function(){
+    A_PUBLIER=trouves;
+    peindreTableau();
+  });
+}
+function compterJusqua(el, vers, suffixe, anime){
+  suffixe=suffixe||"";
+  /* un nouveau chiffre annule le comptage en cours : sinon celui-ci,
+     en finissant, réécrirait l'ancien par-dessus */
+  var jeton = (el.__compte = (el.__compte||0) + 1);
+  var calme = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(!anime || calme || !window.requestAnimationFrame){ el.textContent=vers+suffixe; return; }
+  var debut=null;
+  function pas(t){
+    if(el.__compte !== jeton) return;
+    if(debut===null) debut=t;
+    var x=Math.min(1, (t-debut)/850);
+    el.textContent=Math.round(vers*(1-Math.pow(1-x,3)))+suffixe;
+    if(x<1) requestAnimationFrame(pas);
+  }
+  el.textContent="0"+suffixe;
+  requestAnimationFrame(pas);
+}
+function peindreTableau(){
+  var host=$("tableau"); if(!host || !SESSION_COURANTE || !DERNIERS_CHANTIERS) return;
+  var anime=!TABLEAU_VU;
+  if(!host.firstChild){
+    host.innerHTML=
+      '<a class="tuile-t clair" id="tActifs" href="./rapports.html"><span class="t-lab">Chantiers actifs</span><b class="t-nb" id="tActifsNb">0</b><span class="t-sous" id="tActifsSous"></span></a>'
+     +'<a class="tuile-t clair anneau-t" id="tMoy" href="#mesChantiers"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" class="fond"/><circle cx="32" cy="32" r="27" class="plein" id="tMoyAnneau"/></svg><span><b class="t-nb petit" id="tMoyNb">0 %</b><span class="t-sous">avancement moyen</span></span></a>'
+     +'<button type="button" class="tuile-t sombre" id="tPub" aria-expanded="false" aria-controls="listeAPublier"><span class="t-lab orange"><i class="t-point" id="tPubPoint"></i>À publier</span><b class="t-nb" id="tPubNb">0</b><span class="t-sous" id="tPubSous"></span></button>'
+     +'<button type="button" class="tuile-t sombre" id="tMsg"><span class="t-lab cyan"><svg class="t-cloche" id="tCloche" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>Messages</span><b class="t-nb" id="tMsgNb">0</b><span class="t-sous" id="tMsgSous"></span></button>';
+    $("tMoy").addEventListener("click", function(e){
+      var m=$("mesChantiers"); if(!m) return;
+      e.preventDefault(); m.scrollIntoView({behavior:"smooth", block:"start"});
+    });
+    $("tPub").addEventListener("click", function(){
+      var l=$("listeAPublier");
+      if(!A_PUBLIER.length){ l.hidden=true; return; }
+      l.hidden=!l.hidden;
+      this.setAttribute("aria-expanded", l.hidden ? "false" : "true");
+    });
+    $("tMsg").addEventListener("click", function(){
+      var c=$("cloche");
+      if(c && c.offsetParent){
+        var p=$("panneauCloche");
+        if(p && p.hidden) c.click();
+        c.scrollIntoView({behavior:"smooth", block:"center"});
+      } else location.href="./rapports.html";
+    });
+  }
+  var ch=DERNIERS_CHANTIERS||[];
+  var actifs=ch.filter(function(c){ return c.etat!=="attente"; });
+  var attente=ch.length-actifs.length;
+  compterJusqua($("tActifsNb"), actifs.length, "", anime);
+  $("tActifsSous").textContent = attente ? "+ "+attente+" en attente de réponse" : (actifs.length ? "sur vos dossiers" : "aucun pour l'instant");
+  var moy = actifs.length ? Math.round(actifs.reduce(function(a,c){ return a+Math.max(0, Math.min(100, parseInt(c.avancement,10)||0)); }, 0)/actifs.length) : 0;
+  compterJusqua($("tMoyNb"), moy, "\u00A0%", anime);
+  var anneau=$("tMoyAnneau"), tour=2*Math.PI*27;
+  anneau.style.strokeDasharray=tour;
+  if(anime){ anneau.style.strokeDashoffset=tour; void anneau.getBoundingClientRect(); }
+  anneau.style.strokeDashoffset=tour*(1-moy/100);
+  $("tMoy").classList.toggle("fini", moy>=100);
+  var n=A_PUBLIER.length;
+  compterJusqua($("tPubNb"), n, n>1 ? " fiches" : (n ? " fiche" : ""), anime);
+  var noms=[]; A_PUBLIER.forEach(function(x){ if(noms.indexOf(x.nom)<0) noms.push(x.nom); });
+  $("tPubSous").textContent = n ? noms.join(", ") : "tout est publié";
+  $("tPub").classList.toggle("attend", n>0);
+  var total=0, premier=null;
+  Object.keys(NON_LUS_PAR_REF).forEach(function(r){
+    total+=NON_LUS_PAR_REF[r]||0;
+    if(!premier && NON_LUS_PAR_REF[r]) premier=r;
+  });
+  compterJusqua($("tMsgNb"), total, "", anime);
+  var chP=premier ? ch.filter(function(c){ return c.ref===premier; })[0] : null;
+  $("tMsgSous").textContent = total ? ((chP && (chP.client||chP.ref)) || "dans la discussion")+(Object.keys(NON_LUS_PAR_REF).filter(function(r){ return NON_LUS_PAR_REF[r]; }).length>1 ? " et d'autres" : "") : "rien de nouveau";
+  var cl=$("tCloche");
+  $("tMsg").classList.toggle("attend", total>0);
+  if(total>0 && (anime || total>(peindreTableau.msgAvant||0))){ cl.classList.remove("sonne"); void cl.getBoundingClientRect(); cl.classList.add("sonne"); }
+  peindreTableau.msgAvant=total;
+  /* la liste des fiches à publier, sous les tuiles */
+  var l=$("listeAPublier"); l.textContent="";
+  A_PUBLIER.forEach(function(x){
+    var a=document.createElement("a"); a.className="d";
+    a.href = x.ref ? "./chantier.html?ref="+encodeURIComponent(x.ref)+"&toutPublier=1" : x.page;
+    var b=document.createElement("b"); b.textContent=x.nom; a.appendChild(b);
+    var sp=document.createElement("span"); sp.textContent=(x.client || x.ref || "Fiche en cours")+(x.ref ? "  ·  "+x.ref : "");
+    a.appendChild(sp);
+    l.appendChild(a);
+  });
+  if(!n){ l.hidden=true; $("tPub").setAttribute("aria-expanded","false"); }
+  host.hidden=false;
+  TABLEAU_VU=true;
+}
+document.addEventListener("visibilitychange", function(){ if(!document.hidden && SESSION_COURANTE) chercherAPublier(); });
+window.addEventListener("pageshow", function(e){ if(e.persisted && SESSION_COURANTE) chercherAPublier(); });
 /* Un document « nouveau » est un document que je n'ai pas ouvert et que
    je n'ai pas écrit moi-même : c'est ce qui m'attend sur ce chantier. */
 function docsNonLus(c){
@@ -1985,8 +2275,24 @@ function peindreMesChantiers(ch){
     host.appendChild(v);
     return;
   }
-  ch.forEach(function(c){ host.appendChild(carteChantier(c)); });
+  /* la cascade joue à la première apparition. La liste est souvent
+     repeinte juste après (les messages arrivent) : dans la seconde qui
+     suit, les cartes reprennent l'animation là où elle en était, par un
+     retard négatif, au lieu de repartir de zéro ou de s'interrompre. */
+  var maintenant=Date.now();
+  if(!CARTES_DEPUIS) CARTES_DEPUIS=maintenant;
+  var ecoule=maintenant-CARTES_DEPUIS;
+  ch.forEach(function(c, i){
+    var carte=carteChantier(c);
+    if(ecoule < 1300){
+      carte.classList.add("entre");
+      carte.style.animationDelay=(Math.min(i, 8)*40 - ecoule)+"ms";
+    }
+    host.appendChild(carte);
+  });
+  peindreTableau();
 }
+var CARTES_DEPUIS=0;
 
 /* ---------- les dossiers mis de côté ----------
    Un chiffrage parti chez le client, sans réponse. Au bout d'un mois, le
@@ -2107,12 +2413,16 @@ function connecter(societe, identifiant, motdepasse){
   var p=(motdepasse!==undefined ? motdepasse : ($("p").value||""));
   if(!soc){ $("err").textContent="Indiquez le code de votre société."; return; }
   if(!u || !p){ $("err").textContent="Identifiant et mot de passe."; return; }
-  $("err").textContent="Connexion…";
+  $("err").textContent="";
+  var go=$("go");
+  go.classList.remove("ok"); go.classList.add("charge"); go.disabled=true;
+  go.setAttribute("aria-busy","true");
+  function relacher(){ go.classList.remove("charge","ok"); go.disabled=false; go.removeAttribute("aria-busy"); go.textContent="Se connecter"; }
   fetch(apiUrl("connexion"), {method:"POST", headers:{"Content-Type":"application/json"},
     body:JSON.stringify({societe:soc, identifiant:u, motdepasse:p})})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
     .then(function(res){
-      if(!res.ok || !res.d.jeton){ $("err").textContent=res.d.erreur||"Identifiants refusés."; return; }
+      if(!res.ok || !res.d.jeton){ relacher(); $("err").textContent=res.d.erreur||"Identifiants refusés."; return; }
       var s={jeton:res.d.jeton, nom:res.d.nom, role:res.d.role,
              societe:res.d.societe||soc, societeNom:res.d.societeNom||"",
              metier:res.d.metier||"", ville:res.d.ville||"",
@@ -2121,12 +2431,14 @@ function connecter(societe, identifiant, motdepasse){
       $("err").textContent="";
       /* mot de passe provisoire : on n'entre pas encore. La session
          attend dans un coin le temps qu'il en choisisse un. */
-      if(res.d.aChanger){ attendreMotDePasse(s, p); return; }
+      if(res.d.aChanger){ relacher(); attendreMotDePasse(s, p); return; }
       poserSession(s);
-      menu(s);
-      majIdentite(s);
+      /* la coche, le temps d'un battement, puis l'accueil */
+      go.classList.remove("charge"); go.classList.add("ok"); go.textContent="Bienvenue";
+      var calme = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      setTimeout(function(){ relacher(); menu(s); majIdentite(s); }, calme ? 0 : 450);
     })
-    .catch(function(){ $("err").textContent="Pas de réseau."; });
+    .catch(function(){ relacher(); $("err").textContent="Pas de réseau."; });
 }
 function envoyerDemande(){
   var corps={nom:($("d_nom").value||"").trim(), fonction:($("d_fonction").value||"").trim(),

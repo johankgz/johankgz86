@@ -2155,6 +2155,76 @@ function effacerMarques(){
   setInterval(function(){ if(typeof S !== "undefined" && S !== MARQUES_S) appliquerMarques(); }, 700);
 })();
 
+/* ---------- le mouvement dans l'appli ----------
+   L'onglet qui s'ouvre glisse depuis le côté où l'on va (vers la droite
+   en avançant, vers la gauche en revenant), et une petite bulle
+   « Enregistré » confirme, après une saisie, que la fiche est bien
+   gardée sur le téléphone. « Réduire les animations » coupe le
+   glissement ; la bulle reste, sans mouvement. */
+var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
+(function mouvementAppli(){
+  var st=document.createElement("style");
+  st.textContent=
+    "@keyframes ongletAvance{from{opacity:0;transform:translateX(18px)}to{opacity:1;transform:none}}"
+    +"@keyframes ongletRecule{from{opacity:0;transform:translateX(-18px)}to{opacity:1;transform:none}}"
+    +"main section.entre-av{animation:ongletAvance .3s cubic-bezier(.2,.8,.2,1) both}"
+    +"main section.entre-ar{animation:ongletRecule .3s cubic-bezier(.2,.8,.2,1) both}"
+    +"@keyframes bulleEnr{0%{opacity:0;transform:translate(-50%,8px)}12%{opacity:1;transform:translate(-50%,0)}80%{opacity:1;transform:translate(-50%,0)}100%{opacity:0;transform:translate(-50%,4px)}}"
+    +"#bulleEnregistre{position:fixed;left:50%;bottom:calc(150px + env(safe-area-inset-bottom,0px));z-index:65;display:flex;align-items:center;gap:7px;"
+    +"padding:8px 14px;border-radius:999px;background:#0A0E14;color:#E7ECF2;font-size:13px;font-weight:600;font-family:inherit;"
+    +"box-shadow:0 8px 24px -10px rgba(0,0,0,.6);pointer-events:none;opacity:0;transform:translate(-50%,0)}"
+    +"#bulleEnregistre.vue{animation:bulleEnr 1.6s ease both}"
+    +"#bulleEnregistre svg{width:15px;height:15px;fill:none;stroke:#4ADE80;stroke-width:2.8;stroke-linecap:round;stroke-linejoin:round}"
+    +"@media (prefers-reduced-motion:reduce){main section.entre-av,main section.entre-ar{animation:none}"
+    +"#bulleEnregistre.vue{animation:none;opacity:1}}";
+  document.head.appendChild(st);
+
+  function sections(){ return Array.prototype.slice.call(document.querySelectorAll('main section[id^="tab-"]')); }
+  function installer(){
+    var main=document.querySelector("main");
+    if(!main || !window.MutationObserver) return;
+    var ordre=sections().map(function(x){ return x.id; });
+    var visible=sections().filter(function(x){ return !x.hidden; })[0] || null;
+    new MutationObserver(function(){
+      var v=sections().filter(function(x){ return !x.hidden; })[0] || null;
+      if(!v || v===visible) return;
+      var sens = (visible && ordre.indexOf(v.id) < ordre.indexOf(visible.id)) ? "entre-ar" : "entre-av";
+      visible=v;
+      v.classList.remove("entre-av","entre-ar"); void v.offsetWidth; v.classList.add(sens);
+    }).observe(main, {attributes:true, subtree:true, attributeFilter:["hidden"]});
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", installer); else installer();
+
+  function saisie(ev){
+    var t=ev.target;
+    if(!t || !t.closest || !t.closest("main")) return;
+    if(!/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName) || /^(file|search|button|submit)$/i.test(t.type||"")) return;
+    DERNIERE_SAISIE=Date.now();
+  }
+  document.addEventListener("input", saisie, true);
+  document.addEventListener("change", saisie, true);
+  /* l'enregistrement de chaque appli finit par memoirePleine(false) quand
+     tout est bien écrit : c'est là qu'on montre la bulle */
+  try{
+    var _memoire = memoirePleine;
+    memoirePleine = function(plein){
+      var r=_memoire.apply(this, arguments);
+      var t=Date.now();
+      if(plein===false && t-DERNIERE_SAISIE < 3000 && t-DERNIERE_BULLE > 2500){
+        DERNIERE_BULLE=t;
+        var b=document.getElementById("bulleEnregistre");
+        if(!b){
+          b=document.createElement("div"); b.id="bulleEnregistre"; b.setAttribute("role","status");
+          b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg><span>Enregistré</span>';
+          document.body.appendChild(b);
+        }
+        b.classList.remove("vue"); void b.offsetWidth; b.classList.add("vue");
+      }
+      return r;
+    };
+  }catch(e){}
+})();
+
 var CLE_FICHE = "etiquettes:courant";
 function ficheVierge(){ RANGEE=0; return blank(); }
 function ficheRemplie(s){ if(!s) return false; return (s.rangees||[]).some(function(r){ return (r.cases||[]).length; }); }
