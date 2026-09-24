@@ -350,7 +350,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 /* ---------- les petits outils ---------- */
 main{max-width:520px}
-.onglets{display:flex;gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
+.onglets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
+@media (min-width:560px){ .onglets{grid-template-columns:repeat(6,minmax(0,1fr))} }
 .onglets button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 7px;border:0;
   border-radius:9px;background:none;color:#8A97A6;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer}
 .onglets button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -408,7 +409,7 @@ main{max-width:520px}
 .conv-saisie input{flex:1;min-width:0;border:0!important;background:none!important;box-shadow:none!important;color:#F2F5F9;
   font-size:34px;font-weight:600;padding:8px 0;min-height:0;font-variant-numeric:tabular-nums;outline:none}
 .conv-saisie span{font-size:18px;font-weight:600;color:var(--data-vif)}
-.conv-params{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.conv-params{display:grid;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
 .conv-params label{position:relative;display:block;margin:0}
 .conv-params span{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8A97A6;margin-bottom:6px}
 .conv-params input{width:100%;min-height:46px;padding:10px 32px 10px 12px;font-size:17px;border-radius:10px;
@@ -444,6 +445,23 @@ main{max-width:520px}
 .cab-ligne.ok .cab-etat{color:#4ADE80}
 .cab-ligne.ko .cab-etat{color:#F87171}
 #convVersCable{margin-top:12px}
+
+.outil-titre{margin:0 0 14px;font-size:16px;font-weight:600;color:#F2F5F9;letter-spacing:-.01em}
+.conv-params.trois{grid-template-columns:repeat(3,minmax(0,1fr))}
+.conv-params.trois input{padding-right:34px}
+.surf-zone{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:4px 8px;align-items:end;margin-bottom:10px;
+  position:relative;padding-right:30px}
+.surf-zone label{position:relative;display:block}
+.surf-zone label span{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8A97A6;margin-bottom:6px}
+.surf-zone input{width:100%;min-height:48px;padding:10px 28px 10px 12px;font-size:19px;font-weight:600;border-radius:10px;
+  background:#05080C!important;border:1px solid var(--trait-tech)!important;color:#F2F5F9;font-variant-numeric:tabular-nums}
+.surf-zone input:focus{border-color:var(--accent-vif)!important;box-shadow:none!important}
+.surf-zone i{position:absolute;right:11px;bottom:14px;font-style:normal;color:#8A97A6;font-size:14px}
+.surf-fois{color:#8A97A6;font-size:18px;padding-bottom:12px}
+.surf-m2{grid-column:1 / -1;font-size:12.5px;color:var(--data-vif);font-variant-numeric:tabular-nums;min-height:0}
+.surf-m2:empty{display:none}
+.surf-retirer{position:absolute;right:0;top:26px;width:26px;height:26px;border:0;border-radius:50%;
+  background:rgba(255,255,255,.08);color:#AEB7BF;font-size:16px;line-height:1;cursor:pointer}
 
 /* calculatrice */
 .ecran{background:#05080C;border:1px solid var(--trait-tech);border-radius:12px;padding:12px 14px;text-align:right;
@@ -482,6 +500,8 @@ main{max-width:520px}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg>Conversion</button>
     <button type="button" role="tab" data-vue="cable" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg>Câble</button>
+    <button type="button" role="tab" data-vue="surface" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/><path d="M3.5 3v1.5M20.5 3v1.5M3.5 3.8h17" opacity=".6"/></svg>Surface</button>
   </div>
 
   <section class="vue" id="vue-boussole">
@@ -544,6 +564,76 @@ main{max-width:520px}
         <p class="conv-calibre" id="convCalibre" hidden></p>
         <button type="button" class="bouton-clair" id="convVersCable" hidden></button>
       </div>
+    </div>
+
+    <div class="carte-outil conv" id="blocPv" style="margin-top:14px">
+      <h2 class="outil-titre">Panneaux photovoltaïques</h2>
+      <div class="conv-params deux">
+        <label><span>Panneaux</span><input type="text" id="pvN" inputmode="numeric" autocomplete="off" placeholder="0"></label>
+        <label><span>Puissance unitaire</span><input type="text" id="pvWc" inputmode="decimal" autocomplete="off" placeholder="0"><i>Wc</i></label>
+      </div>
+      <div class="puces" id="pvWcPuces" aria-label="Puissances courantes">
+        <button type="button" data-wc="375">375 Wc</button><button type="button" data-wc="400">400 Wc</button>
+        <button type="button" data-wc="425">425 Wc</button><button type="button" data-wc="450">450 Wc</button>
+        <button type="button" data-wc="500">500 Wc</button>
+      </div>
+      <p class="conv-legende" style="margin-top:14px">Raccordement</p>
+      <div class="seg" id="pvReseau" role="radiogroup" aria-label="Raccordement">
+        <button type="button" data-r="mono" role="radio">Mono 230 V</button>
+        <button type="button" data-r="tri" role="radio">Tri 400 V</button>
+      </div>
+      <p class="conv-legende">Rapport DC/AC</p>
+      <div class="seg" id="pvRatio" role="radiogroup" aria-label="Rapport entre puissance crête et onduleur">
+        <button type="button" data-ratio="1" role="radio">1,0</button>
+        <button type="button" data-ratio="1.1" role="radio">1,1</button>
+        <button type="button" data-ratio="1.2" role="radio">1,2</button>
+      </div>
+      <p class="conv-aide" style="margin-top:-6px">Puissance crête ÷ puissance de l'onduleur. 1,0 : onduleur de la même puissance que les panneaux.</p>
+      <div class="conv-res" aria-live="polite">
+        <div class="conv-principal"><b id="pvKwc">—</b><span>kWc</span></div>
+        <div class="conv-autres" id="pvAutres"></div>
+        <p class="conv-formule" id="pvExpl"></p>
+        <p class="conv-calibre" id="pvAlerte" hidden></p>
+        <button type="button" class="bouton-clair" id="pvVersCable" hidden></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-surface" hidden>
+    <div class="carte-outil conv">
+      <p class="conv-legende">Surfaces</p>
+      <div id="surfZones"></div>
+      <button type="button" class="bouton-clair" id="surfAjout" style="margin-top:4px">+ Ajouter une surface</button>
+      <p class="conv-aide">Largeur × hauteur de chaque zone, en mètres : un pan de toiture, un mur, une ombrière… Les zones s'additionnent.</p>
+
+      <p class="conv-legende">Part à couvrir</p>
+      <div class="conv-params deux">
+        <label><span>Pourcentage</span><input type="text" id="surfPct" inputmode="decimal" autocomplete="off" placeholder="100"><i>%</i></label>
+        <div></div>
+      </div>
+      <div class="puces" id="surfPctPuces">
+        <button type="button" data-p="100">100 %</button><button type="button" data-p="50">50 %</button>
+        <button type="button" data-p="40">40 %</button><button type="button" data-p="30">30 %</button>
+      </div>
+
+      <div class="conv-res" aria-live="polite">
+        <div class="conv-principal"><b id="surfCouv">—</b><span>m²</span></div>
+        <div class="conv-autres" id="surfTotal"></div>
+      </div>
+
+      <p class="conv-legende" style="margin-top:16px">Panneaux sur cette surface</p>
+      <div class="conv-params trois">
+        <label><span>Longueur</span><input type="text" id="surfPL" inputmode="decimal" autocomplete="off"><i>m</i></label>
+        <label><span>Largeur</span><input type="text" id="surfPl" inputmode="decimal" autocomplete="off"><i>m</i></label>
+        <label><span>Puissance</span><input type="text" id="surfPWc" inputmode="decimal" autocomplete="off"><i>Wc</i></label>
+      </div>
+      <div class="conv-res" aria-live="polite" style="margin-top:12px">
+        <div class="conv-principal"><b id="surfNb">—</b><span>panneaux</span></div>
+        <div class="conv-autres" id="surfKwc"></div>
+        <p class="conv-formule" id="surfExpl"></p>
+        <button type="button" class="bouton-clair" id="surfVersPv" hidden></button>
+      </div>
+      <p class="conv-aide" style="margin-top:12px">Estimation par la surface seule : les bords à laisser libres, les fenêtres de toit, les cheminées et le sens de pose peuvent en retirer quelques-uns.</p>
     </div>
   </section>
 
@@ -619,7 +709,7 @@ main{max-width:520px}
 function $(i){ return document.getElementById(i); }
 
 /* ---------- onglets ---------- */
-var VUES=["boussole","niveau","calcul","conversion","cable"];
+var VUES=["boussole","niveau","calcul","conversion","cable","surface"];
 function montrer(v){
   if(VUES.indexOf(v)<0) v="boussole";
   VUES.forEach(function(x){ $("vue-"+x).hidden = x!==v; });
@@ -896,7 +986,9 @@ var CALIBRES=[2,6,10,16,20,25,32,40,50,63,80,100,125,160,200,250];
 function lireNombre(t){ var x=parseFloat(String(t||"").replace(/\s/g,"").replace(",",".")); return isFinite(x) ? x : NaN; }
 function fr(n, dec){
   if(!isFinite(n)) return "—";
-  var s=n.toFixed(dec);
+  /* arrondi au plus proche, 8,075 → 8,08 (toFixed seul donnerait 8,07) */
+  var f=Math.pow(10,dec);
+  var s=(Math.round(n*f + (n>=0 ? 1e-7 : -1e-7))/f).toFixed(dec);
   if(dec>0) s=s.replace(/0+$/,"").replace(/\.$/,"");
   var p=s.split("."), ent=p[0].replace(/\B(?=(\d{3})+(?!\d))/g, "\u202f");
   return ent+(p[1] ? ","+p[1] : "");
@@ -1093,6 +1185,160 @@ $("convVersCable").addEventListener("click", function(){
   if(!(lireNombre(CAB.l)>0)) $("cabL").focus();
 });
 peindreCab();
+
+/* ---------- photovoltaïque : panneaux → kWc, kVA, courant ---------- */
+var PV={n:"", wc:"425", r:"mono", ratio:"1"};
+try{ var pv0=JSON.parse(localStorage.getItem("outils:pv")||"null"); if(pv0) for(var k3 in pv0) PV[k3]=pv0[k3]; }catch(e){}
+function garderPv(){ try{ localStorage.setItem("outils:pv", JSON.stringify(PV)); }catch(e){} }
+function peindrePv(){
+  [["pvReseau","r"],["pvRatio","ratio"]].forEach(function(g){
+    document.querySelectorAll("#"+g[0]+" button").forEach(function(b){
+      b.setAttribute("aria-checked", b.getAttribute("data-"+g[1])===PV[g[1]] ? "true" : "false"); });
+  });
+  var wc=lireNombre(PV.wc);
+  document.querySelectorAll("#pvWcPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-wc"))===wc); });
+  if(document.activeElement!==$("pvN")) $("pvN").value=PV.n||"";
+  if(document.activeElement!==$("pvWc")) $("pvWc").value=String(PV.wc||"").replace(".",",");
+  calculerPv();
+}
+function calculerPv(){
+  var n=lireNombre(PV.n), wc=lireNombre(PV.wc), k=parseFloat(PV.ratio)||1;
+  var tri=PV.r==="tri";
+  var vc=$("pvVersCable"), al=$("pvAlerte");
+  if(!(n>0) || !(wc>0)){
+    $("pvKwc").textContent="—"; $("pvAutres").textContent=""; al.hidden=true; vc.hidden=true;
+    $("pvExpl").textContent="Indiquez le nombre de panneaux et leur puissance.";
+    return;
+  }
+  var kwc=n*wc/1000, kva=kwc/k;
+  var I = kva*1000/(tri ? Math.sqrt(3)*400 : 230);
+  $("pvKwc").textContent=fr(kwc,2);
+  var h=$("pvAutres"); h.textContent="";
+  [[kva,"kVA onduleur",2],[I,tri?"A par phase":"A",1]].forEach(function(a){
+    var d=document.createElement("span"); d.innerHTML="<b></b> ";
+    d.querySelector("b").textContent=fr(a[0],a[2]);
+    d.appendChild(document.createTextNode(a[1])); h.appendChild(d);
+  });
+  $("pvExpl").textContent=fr(n,0)+" × "+fr(wc,0)+" Wc = "+fr(kwc,2)+" kWc"
+    +(k!==1 ? " ; ÷ "+fr(k,1)+" = "+fr(kva,2)+" kVA" : "")
+    +" ; I = "+fr(kva*1000,0)+" VA ÷ "+(tri ? "(1,732 × 400 V)" : "230 V")+" = "+fr(I,1)+" A";
+  al.hidden = tri || kva <= 6;
+  if(!al.hidden) al.textContent="Au-delà de 6 kVA, Enedis demande un raccordement en triphasé.";
+  var cal=CALIBRES.filter(function(v){ return v>=I-1e-9; })[0];
+  vc.hidden=false;
+  vc.textContent = cal ? "Section de câble pour un disjoncteur de "+cal+" A  →" : "Section de câble pour "+fr(I,1)+" A  →";
+  vc.setAttribute("data-i", String(cal || Math.round(I*10)/10));
+}
+[["pvReseau","r"],["pvRatio","ratio"]].forEach(function(g){
+  document.querySelectorAll("#"+g[0]+" button").forEach(function(b){
+    b.addEventListener("click", function(){ PV[g[1]]=b.getAttribute("data-"+g[1]); garderPv(); peindrePv(); });
+  });
+});
+document.querySelectorAll("#pvWcPuces button").forEach(function(b){
+  b.addEventListener("click", function(){ PV.wc=b.getAttribute("data-wc"); garderPv(); peindrePv(); });
+});
+$("pvN").addEventListener("input", function(){ PV.n=this.value.replace(",","."); garderPv(); calculerPv(); });
+$("pvWc").addEventListener("input", function(){
+  PV.wc=this.value.replace(",","."); garderPv(); calculerPv();
+  var wc=lireNombre(PV.wc);
+  document.querySelectorAll("#pvWcPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-wc"))===wc); });
+});
+$("pvVersCable").addEventListener("click", function(){
+  CAB.i=this.getAttribute("data-i"); CAB.r=PV.r; CAB.cos="1";
+  garderCab(); peindreCab(); montrer("cable"); window.scrollTo(0,0);
+  if(!(lireNombre(CAB.l)>0)) $("cabL").focus();
+});
+peindrePv();
+
+/* ---------- surfaces ---------- */
+var SURF={zones:[{l:"",h:""}], pct:"100", pl:"1.72", pw:"1.13", wc:"425"};
+try{ var sf=JSON.parse(localStorage.getItem("outils:surface")||"null"); if(sf) for(var k4 in sf) SURF[k4]=sf[k4]; }catch(e){}
+if(!Array.isArray(SURF.zones) || !SURF.zones.length) SURF.zones=[{l:"",h:""}];
+function garderSurf(){ try{ localStorage.setItem("outils:surface", JSON.stringify(SURF)); }catch(e){} }
+function peindreZones(){
+  var hote=$("surfZones"); hote.textContent="";
+  SURF.zones.forEach(function(z, i){
+    var row=document.createElement("div"); row.className="surf-zone";
+    function champ(cle, nom){
+      var lab=document.createElement("label");
+      var sp=document.createElement("span"); sp.textContent=nom;
+      var inp=document.createElement("input"); inp.type="text"; inp.inputMode="decimal"; inp.autocomplete="off";
+      inp.placeholder="0"; inp.value=String(z[cle]||"").replace(".",",");
+      inp.setAttribute("data-zone", i); inp.setAttribute("data-cle", cle);
+      inp.setAttribute("aria-label", nom+" de la surface "+(i+1));
+      inp.addEventListener("input", function(){ z[cle]=inp.value.replace(",","."); garderSurf(); calculerSurf(); });
+      var u=document.createElement("i"); u.textContent="m";
+      lab.appendChild(sp); lab.appendChild(inp); lab.appendChild(u);
+      return lab;
+    }
+    var fois=document.createElement("b"); fois.className="surf-fois"; fois.textContent="×";
+    var res=document.createElement("span"); res.className="surf-m2"; res.setAttribute("data-m2", i);
+    row.appendChild(champ("l","Largeur")); row.appendChild(fois); row.appendChild(champ("h","Hauteur"));
+    row.appendChild(res);
+    if(SURF.zones.length>1){
+      var x=document.createElement("button"); x.type="button"; x.className="surf-retirer"; x.textContent="×";
+      x.setAttribute("aria-label","Retirer la surface "+(i+1));
+      x.addEventListener("click", function(){ SURF.zones.splice(i,1); garderSurf(); peindreZones(); });
+      row.appendChild(x);
+    }
+    hote.appendChild(row);
+  });
+  calculerSurf();
+}
+function peindreSurf(){
+  if(document.activeElement!==$("surfPct")) $("surfPct").value=String(SURF.pct||"").replace(".",",");
+  if(document.activeElement!==$("surfPL")) $("surfPL").value=String(SURF.pl||"").replace(".",",");
+  if(document.activeElement!==$("surfPl")) $("surfPl").value=String(SURF.pw||"").replace(".",",");
+  if(document.activeElement!==$("surfPWc")) $("surfPWc").value=String(SURF.wc||"").replace(".",",");
+  peindreZones();
+}
+function calculerSurf(){
+  var total=0;
+  SURF.zones.forEach(function(z, i){
+    var a=lireNombre(z.l)*lireNombre(z.h);
+    var cel=document.querySelector('[data-m2="'+i+'"]');
+    if(isFinite(a) && a>0){ total+=a; if(cel) cel.textContent="= "+fr(a,2)+" m²"; }
+    else if(cel) cel.textContent="";
+  });
+  var pct=lireNombre(SURF.pct); if(!isFinite(pct)) pct=100;
+  document.querySelectorAll("#surfPctPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-p"))===pct); });
+  var bon = total>0 && pct>0 && pct<=100;
+  var couv = bon ? total*pct/100 : NaN;
+  $("surfCouv").textContent = bon ? fr(couv,2) : "—";
+  $("surfTotal").textContent = total>0
+    ? (pct>0 && pct<=100 ? fr(pct,1)+" % de "+fr(total,2)+" m² au total" : "Un pourcentage entre 0 et 100.")
+    : "Indiquez au moins une largeur et une hauteur.";
+  var L=lireNombre(SURF.pl), l=lireNombre(SURF.pw), wc=lireNombre(SURF.wc);
+  var vp=$("surfVersPv");
+  if(!bon || !(L>0) || !(l>0)){
+    $("surfNb").textContent="—"; $("surfKwc").textContent=""; $("surfExpl").textContent=""; vp.hidden=true; return;
+  }
+  var unit=L*l, nb=Math.floor(couv/unit + 1e-9);
+  $("surfNb").textContent=fr(nb,0);
+  $("surfKwc").textContent = wc>0 ? fr(nb*wc/1000,2)+" kWc" : "";
+  $("surfExpl").textContent=fr(couv,2)+" m² ÷ "+fr(unit,2)+" m² par panneau ("+fr(L,2)+" × "+fr(l,2)+" m) = "+fr(couv/unit,1);
+  vp.hidden = !(nb>0);
+  if(nb>0) vp.textContent="Reporter "+nb+" panneau"+(nb>1?"x":"")+" dans la conversion  →";
+}
+$("surfAjout").addEventListener("click", function(){
+  SURF.zones.push({l:"",h:""}); garderSurf(); peindreZones();
+  var ch=document.querySelector('[data-zone="'+(SURF.zones.length-1)+'"][data-cle="l"]'); if(ch) ch.focus();
+});
+document.querySelectorAll("#surfPctPuces button").forEach(function(b){
+  b.addEventListener("click", function(){ SURF.pct=b.getAttribute("data-p"); garderSurf(); peindreSurf(); });
+});
+[["surfPct","pct"],["surfPL","pl"],["surfPl","pw"],["surfPWc","wc"]].forEach(function(c){
+  $(c[0]).addEventListener("input", function(){ SURF[c[1]]=this.value.replace(",","."); garderSurf(); calculerSurf(); });
+});
+$("surfVersPv").addEventListener("click", function(){
+  var L=lireNombre(SURF.pl), l=lireNombre(SURF.pw);
+  var total=0; SURF.zones.forEach(function(z){ var a=lireNombre(z.l)*lireNombre(z.h); if(a>0) total+=a; });
+  PV.n=String(Math.floor(total*lireNombre(SURF.pct)/100/(L*l) + 1e-9));
+  if(lireNombre(SURF.wc)>0) PV.wc=String(SURF.wc);
+  garderPv(); peindrePv(); montrer("conversion");
+  var b=$("blocPv"); if(b && b.scrollIntoView) b.scrollIntoView({block:"start"});
+});
+peindreSurf();
 
 /* pour les essais */
 window.__calcul = calculer;
