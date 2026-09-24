@@ -2241,6 +2241,56 @@ function reinitialiserFormulaire(msg){
   })();
 })();
 
+(function publierToutDepuisChantier(){
+  /* déclenché depuis « Tout publier », sur la page du chantier : ce
+     document a déjà été repris via l'adresse (ci-dessus), il ne reste
+     qu'à cliquer Publier à sa place, dans cet onglet invisible, puis
+     à prévenir la fenêtre qui l'a ouvert du résultat. */
+  var p;
+  try{ p = new URLSearchParams(location.search); }catch(e){ return; }
+  if(p.get("autoPublier") !== "1") return;
+  if(!window.parent || window.parent === window) return;
+  function dire(ok, message){
+    try{ window.parent.postMessage({source:"publier-tout", ok:ok, message:message||""}, "*"); }catch(e){}
+  }
+  var essais=0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier")){
+      if(++essais > 150){ dire(false, "Chargement trop long."); return; }
+      setTimeout(attendre, 100);
+      return;
+    }
+    /* on laisse le temps à la reprise du dossier de finir de peupler
+       le formulaire avant de publier à sa place */
+    setTimeout(function(){
+      var el=document.getElementById("pubEtat");
+      var avant = el ? el.textContent : "";
+      document.getElementById("btnPublier").click();
+      var t=0;
+      var minuteur=setInterval(function(){
+        t += 250;
+        var maintenant = el ? el.textContent : "";
+        var toastEl = document.getElementById("toast");
+        var toastTxt = toastEl ? toastEl.textContent : "";
+        if(maintenant && maintenant !== avant && !/publication en cours/i.test(maintenant)){
+          clearInterval(minuteur);
+          dire(/publié|mis à jour|remplacé/i.test(maintenant), maintenant);
+          return;
+        }
+        if(toastTxt && /indiquez|renseignez|ajoutez|prenez|choisissez/i.test(toastTxt)){
+          clearInterval(minuteur);
+          dire(false, toastTxt);
+          return;
+        }
+        if(t > 20000){
+          clearInterval(minuteur);
+          dire(false, "Délai dépassé.");
+        }
+      }, 250);
+    }, 700);
+  })();
+})();
+
 (function retourRapports(){
   try{
     var vient = document.referrer && document.referrer.indexOf("rapports.html")>=0;

@@ -644,6 +644,49 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 var $=function(i){ return document.getElementById(i); };
 var API="/api/rapports";
+/* Le même magasin IndexedDB que les autres applis (une seule base par
+   site, partagée) : « Tout publier » y relit leurs brouillons en
+   cours, pour ce chantier, sans passer par le serveur. */
+if(!window.storage){
+  window.storage = (function(){
+    var BASE="outils-chantier", MAGASIN="cles", base=null;
+    function ouvrir(){
+      if(base) return Promise.resolve(base);
+      return new Promise(function(ok, non){
+        if(!window.indexedDB) return non(new Error("IndexedDB indisponible"));
+        var r;
+        try{ r=indexedDB.open(BASE, 1); }catch(e){ return non(e); }
+        r.onupgradeneeded=function(){
+          if(!r.result.objectStoreNames.contains(MAGASIN)) r.result.createObjectStore(MAGASIN);
+        };
+        r.onsuccess=function(){ base=r.result; ok(base); };
+        r.onerror=function(){ non(r.error || new Error("IndexedDB refusée")); };
+        r.onblocked=function(){ non(new Error("IndexedDB occupée")); };
+      });
+    }
+    function tx(mode, faire){
+      return ouvrir().then(function(d){
+        return new Promise(function(ok, non){
+          var t, m, req;
+          try{ t=d.transaction(MAGASIN, mode); m=t.objectStore(MAGASIN); req=faire(m); }
+          catch(e){ return non(e); }
+          t.oncomplete=function(){ ok(req ? req.result : null); };
+          t.onerror=function(){ non(t.error || new Error("écriture refusée")); };
+          t.onabort=function(){ non(t.error || new Error("écriture interrompue")); };
+        });
+      });
+    }
+    function local(k){ try{ return localStorage.getItem(k); }catch(e){ return null; } }
+    return {
+      get:function(k){
+        function secours(){ var v=local(k); return v==null ? null : {key:k, value:v}; }
+        return tx("readonly", function(m){ return m.get(k); })
+          .then(function(v){ return v==null ? secours() : {key:k, value:v}; })
+          .catch(secours);
+      }
+    };
+  })();
+}
 /* Installé en icône sur l'écran d'accueil, le site n'a plus l'onglet du
    navigateur : un lien target="_blank" n'ouvre rien, faute de second
    onglet où l'ouvrir. On garde alors le document dans la même fenêtre. */
@@ -685,7 +728,8 @@ var ICONES={
   suivi:'<path d="M4 18.5l5-5.5 3.5 3L20 7.5"/><path d="M15.5 7.5H20v4.5"/>',
   reception:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 14.2l2 2 4-4.4"/>',
   technique:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>',
-  localisation:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>'
+  localisation:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>',
+  publierTout:'<path d="M3.5 12 20.5 4 13 20.5l-2.7-6.8L3.5 12z"/><path d="M10.3 13.7 20.5 4"/>'
 };
 /* [clé, libellé, page, onglet d'arrivée] */
 var ACTIONS_TECH=[
@@ -760,6 +804,13 @@ function peindreActions(){
     }
   });
   hote.appendChild(loc);
+  var pub=document.createElement("button");
+  pub.type="button"; pub.className="pub-tout"; pub.id="ongletPublierTout";
+  pub.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES.publierTout+'</svg>';
+  var pt=document.createElement("span"); pt.textContent="Tout publier";
+  pub.appendChild(pt);
+  pub.addEventListener("click", ouvrirToutPublier);
+  hote.appendChild(pub);
   majDebord();
 }
 /* le fondu de droite ne s'allume que s'il reste des onglets à voir */
@@ -921,6 +972,212 @@ function peindreDocs(){
   });
   hote.appendChild(fs);
   $("compteur").textContent = liste.length + " document" + (liste.length>1?"s":"") + " sur ce chantier.";
+}
+
+/* ---------- tout publier en même temps ----------
+   Suivi, reportage photo, le point... plutôt que d'ouvrir chaque
+   appli pour cliquer Publier, on regarde ce qui traîne encore en
+   brouillon localement pour CE chantier dans les huit applis qui
+   publient au dossier, et on les envoie d'un coup — chacune depuis
+   sa propre page, ouverte dans un onglet invisible, pour réutiliser
+   telle quelle sa façon de fabriquer et d'envoyer son document. */
+var APPS_PUBLIABLES=[
+  ["suivi",        "Suivi",           "./suivi.html",        "suivi:courant"],
+  ["commande",     "Commande",        "./commande.html",     "commande:courante"],
+  ["point",        "Le point",        "./point.html",        "point:courant"],
+  ["etiquettes",   "Étiquettes",      "./etiquettes.html",   "etiquettes:courant"],
+  ["photos",       "Reportage photo", "./photos.html",       "photos:courant"],
+  ["autocontrole", "Autocontrôle",    "./autocontrole.html", "autocontrole:courant"],
+  ["reception",    "Réception",       "./reception.html",    "reception:courante"],
+  ["sav",          "SAV",             "./sav.html",          "sav:courant"]
+];
+function refAffaireDe(id, S){
+  function code(t){ return String(t||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8); }
+  function net(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g,""); }
+  if(id==="suivi"){
+    var af=S.affaire||{}, cl=S.client||{};
+    return net(af.chantier) || net(af.devis) || code(cl.nom);
+  }
+  var c=S.chantier||{};
+  var ref=net(c.ref);
+  if(ref) return ref;
+  if(id==="reception"){
+    var devis=net(c.devis);
+    if(devis) return devis;
+  }
+  return code(c.client);
+}
+function contenuDe(id, S){
+  switch(id){
+    case "suivi":
+      var v=S.visite||{}, nb=(S.visites||[]).length;
+      var vif=!!((v.objet||"").trim() || (v.compte||"").trim() || (v.avancement||"").trim());
+      if(!(S.client && S.client.nom && S.client.nom.trim()) || !(vif || nb)) return null;
+      return v.objet || (nb ? nb+" visite"+(nb>1?"s":"")+" en cours" : "Compte-rendu de visite");
+    case "commande":
+      var n=(S.lignes||[]).length;
+      return n ? n+" article"+(n>1?"s":"") : null;
+    case "point":
+      var t=(S.taches||[]).filter(function(x){ return !x.fait; }).length;
+      return t ? t+" tâche"+(t>1?"s":"")+" en attente" : null;
+    case "etiquettes":
+      var nc=(S.rangees||[]).reduce(function(a,r){ return a+((r.cases||[]).length); }, 0);
+      return nc ? nc+" étiquette"+(nc>1?"s":"") : null;
+    case "photos":
+      var np=(S.photos||[]).length;
+      return np ? np+" photo"+(np>1?"s":"") : null;
+    case "autocontrole":
+      var rep=S.reponses||{}, nr=Object.keys(rep).filter(function(k){ return rep[k]; }).length;
+      return nr ? nr+" vérification"+(nr>1?"s":"")+" renseignée"+(nr>1?"s":"") : null;
+    case "reception":
+      var np2=Object.keys(S.points||{}).length, nres=(S.reserves||[]).length;
+      if(!np2 && !nres) return null;
+      return [np2 ? np2+" point"+(np2>1?"s":"") : "", nres ? nres+" réserve"+(nres>1?"s":"") : ""]
+        .filter(Boolean).join(", ");
+    case "sav":
+      var it=S.inter||{};
+      var texte=(it.motif||"").trim() || (it.constat||"").trim() || (it.travaux||"").trim();
+      var nm=(S.materiel||[]).length;
+      if(!texte && !nm) return null;
+      return texte ? "Intervention notée" : (nm+" pièce"+(nm>1?"s":""));
+  }
+  return null;
+}
+function chercherEnAttente(){
+  var net=String((CHANTIER&&CHANTIER.ref)||"").trim().toUpperCase();
+  return Promise.all(APPS_PUBLIABLES.map(function(a){
+    if(!aAcces(APPLI_DE[a[0]] || a[0])) return null;
+    return window.storage.get(a[3]).then(function(r){
+      if(!r || !r.value) return null;
+      var S;
+      try{ S=JSON.parse(r.value); }catch(e){ return null; }
+      if(!S) return null;
+      if(refAffaireDe(a[0], S) !== net) return null;
+      var resume=contenuDe(a[0], S);
+      if(!resume) return null;
+      return {id:a[0], label:a[1], page:a[2], resume:resume};
+    }).catch(function(){ return null; });
+  })).then(function(liste){ return liste.filter(Boolean); });
+}
+function ouvrirToutPublier(){
+  toast("Recherche des documents en attente…");
+  chercherEnAttente().then(function(liste){
+    if(!liste.length){ toast("Rien à publier sur ce chantier pour l'instant."); return; }
+    afficherFeuilleToutPublier(liste);
+  });
+}
+function afficherFeuilleToutPublier(liste){
+  var ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:75;background:rgba(26,24,21,.55);"
+    +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+  var sheet=document.createElement("div");
+  sheet.style.cssText="background:var(--bg);width:100%;max-height:86vh;overflow:auto;"
+    +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+  var h=document.createElement("h2");
+  h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px";
+  h.textContent="Tout publier";
+  var sub=document.createElement("p"); sub.className="hint"; sub.style.margin="0 0 14px";
+  sub.textContent=liste.length+" document"+(liste.length>1?"s":"")
+    +" en attente sur ce chantier, prêt"+(liste.length>1?"s":"")+" à partir dans le dossier.";
+  sheet.appendChild(h); sheet.appendChild(sub);
+
+  var hote=document.createElement("div");
+  var lignes=[];
+  liste.forEach(function(doc){
+    var row=document.createElement("label");
+    row.style.cssText="display:flex;align-items:flex-start;gap:10px;background:var(--card);"
+      +"border:1px solid var(--rule);border-radius:var(--r-field);padding:12px 14px;margin-bottom:9px;cursor:pointer";
+    var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=true;
+    cb.style.cssText="margin-top:3px;width:18px;height:18px;flex:0 0 auto";
+    var txt=document.createElement("span"); txt.style.flex="1";
+    var t=document.createElement("b"); t.style.cssText="display:block;font-size:15px"; t.textContent=doc.label;
+    var s=document.createElement("span");
+    s.style.cssText="display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px";
+    s.textContent=doc.resume;
+    var etat=document.createElement("span");
+    etat.style.cssText="display:block;font-size:12.5px;margin-top:4px;font-weight:600";
+    txt.appendChild(t); txt.appendChild(s); txt.appendChild(etat);
+    row.appendChild(cb); row.appendChild(txt);
+    hote.appendChild(row);
+    lignes.push({doc:doc, case_:cb, etat:etat, ligne:row});
+  });
+  sheet.appendChild(hote);
+
+  var btns=document.createElement("div");
+  btns.style.cssText="display:flex;gap:10px;margin-top:6px";
+  var annuler=document.createElement("button"); annuler.type="button"; annuler.className="act ghost";
+  annuler.style.flex="1"; annuler.textContent="Annuler";
+  annuler.addEventListener("click", function(){ if(ov.parentNode) document.body.removeChild(ov); });
+  var valider=document.createElement("button"); valider.type="button"; valider.className="act blue";
+  valider.style.flex="2";
+  function majBouton(){
+    var n=lignes.filter(function(l){ return l.case_.checked; }).length;
+    valider.textContent = n ? "Publier "+n+" document"+(n>1?"s":"") : "Rien à publier";
+    valider.disabled = !n;
+  }
+  lignes.forEach(function(l){ l.case_.addEventListener("change", majBouton); });
+  majBouton();
+  valider.addEventListener("click", function(){
+    var choisis=lignes.filter(function(l){ return l.case_.checked; });
+    choisis.forEach(function(l){ l.case_.disabled=true; l.ligne.style.opacity=".72"; });
+    annuler.textContent="Fermer";
+    valider.disabled=true; valider.textContent="Publication en cours…";
+    lancerPublicationsEnSerie(choisis, function(){
+      valider.textContent="Terminé";
+      charger();
+    });
+  });
+  btns.appendChild(annuler); btns.appendChild(valider);
+  sheet.appendChild(btns);
+
+  ov.appendChild(sheet);
+  ov.addEventListener("click", function(e){ if(e.target===ov && ov.parentNode) document.body.removeChild(ov); });
+  document.body.appendChild(ov);
+}
+function lancerPublicationsEnSerie(lignes, fini){
+  var i=0;
+  function suivant(){
+    if(i>=lignes.length){ fini(); return; }
+    var l=lignes[i];
+    l.etat.textContent="Envoi en cours…";
+    l.etat.style.color="var(--ink-3)";
+    publierUnDocument(l.doc).then(function(res){
+      l.etat.textContent = res.ok ? "Publié." : ("Échec : "+res.message);
+      l.etat.style.color = res.ok ? "var(--ok)" : "var(--rouge)";
+    }).catch(function(){
+      l.etat.textContent="Échec.";
+      l.etat.style.color="var(--rouge)";
+    }).then(function(){
+      i++; suivant();
+    });
+  }
+  suivant();
+}
+function publierUnDocument(doc){
+  return new Promise(function(resoudre){
+    var iframe=document.createElement("iframe");
+    iframe.style.cssText="position:fixed;left:-9999px;top:-9999px;width:420px;height:900px;border:0";
+    var fini=false;
+    var minuteur=setTimeout(function(){
+      if(fini) return; fini=true;
+      nettoyer();
+      resoudre({ok:false, message:"Délai dépassé."});
+    }, 25000);
+    function surMessage(e){
+      if(!e.data || e.data.source!=="publier-tout") return;
+      if(fini) return; fini=true;
+      clearTimeout(minuteur);
+      nettoyer();
+      resoudre({ok:!!e.data.ok, message:String(e.data.message||"")});
+    }
+    function nettoyer(){
+      window.removeEventListener("message", surMessage);
+      if(iframe.parentNode) iframe.parentNode.removeChild(iframe);
+    }
+    window.addEventListener("message", surMessage);
+    iframe.src=lienAppli(doc.page, "")+"&autoPublier=1";
+    document.body.appendChild(iframe);
+  });
 }
 
 /* ---------- chargement ---------- */
