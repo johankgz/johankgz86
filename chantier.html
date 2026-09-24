@@ -593,6 +593,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
 .haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
 .grille{border-top-color:var(--trait-fond)}
+nav#nav a{position:relative}
+nav#nav a.a-modifs::after{content:"";position:absolute;top:2px;left:calc(50% + 5px);width:12px;height:12px;
+  border-radius:50%;background:#FB923C;box-shadow:0 0 0 2px #10161F}
 </style></head>
 <body>
 <header>
@@ -820,6 +823,7 @@ function peindreActions(){
   actions().forEach(function(a){
     if(!aAcces(APPLI_DE[a[0]])) return;
     var el=document.createElement("a");
+    el.setAttribute("data-appli", a[0]);
     el.href = a[0]==="releve" ? lienReleve(a[3]) : lienAppli(a[2], a[3]);
     el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES[a[0]]+'</svg>';
     var b=document.createElement("span"); b.textContent=a[1];
@@ -853,7 +857,34 @@ function peindreActions(){
   pub.addEventListener("click", ouvrirToutPublier);
   hote.appendChild(pub);
   majDebord();
+  peindreModifsActions();
 }
+/* ---------- la pastille des documents modifiés ----------
+   Un point orange sur chaque appli dont la fiche de ce chantier a des
+   cases modifiées pas encore publiées. */
+function peindreModifsActions(){
+  var net=String((CHANTIER&&CHANTIER.ref)||"").trim().toUpperCase().replace(/\s+/g,"");
+  if(!net || !window.storage || !window.storage.get) return;
+  var cles=APPS_PUBLIABLES.map(function(a){ return [a[0], a[3]]; }).concat([["releve","releve:courant"]]);
+  cles.forEach(function(k){
+    function examiner(r){
+      if(!r || !r.value || r.value.indexOf('"_modifs":{"')<0) return false;
+      var s; try{ s=JSON.parse(r.value); }catch(e){ return false; }
+      return !!s && refAffaireDe(k[0], s)===net && !!s._modifs && Object.keys(s._modifs).length>0;
+    }
+    window.storage.get(k[1]).then(examiner).then(function(oui){
+      return oui || window.storage.get(k[1]+"@"+net).then(examiner);
+    }).then(function(oui){
+      var el=document.querySelector('#nav a[data-appli="'+k[0]+'"]');
+      if(!el) return;
+      el.classList.toggle("a-modifs", !!oui);
+      if(oui) el.title=(el.textContent||"").trim()+" : modifications pas encore publiées";
+      else el.removeAttribute("title");
+    }).catch(function(){});
+  });
+}
+document.addEventListener("visibilitychange", function(){ if(!document.hidden && typeof CHANTIER!=="undefined" && CHANTIER) peindreModifsActions(); });
+window.addEventListener("pageshow", function(e){ if(e.persisted && typeof CHANTIER!=="undefined" && CHANTIER) peindreModifsActions(); });
 /* le fondu de droite ne s'allume que s'il reste des onglets à voir */
 function majDebord(){
   var n=$("nav"), w=$("navWrap");
@@ -1039,6 +1070,7 @@ function refAffaireDe(id, S){
     var af=S.affaire||{}, cl=S.client||{};
     return net(af.chantier) || net(af.devis) || code(cl.nom);
   }
+  if(id==="releve") return net((S.affaire||{}).chantier);
   var c=S.chantier||{};
   var ref=net(c.ref);
   if(ref) return ref;

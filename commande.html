@@ -2287,10 +2287,14 @@ function appliquerMarques(){
   main.querySelectorAll(".modifie").forEach(function(x){ if(cibles.indexOf(x) < 0) x.classList.remove("modifie"); });
   cibles.forEach(function(x){ if(!x.classList.contains("modifie")) x.classList.add("modifie"); });
   var nav = document.getElementById("nav");
-  if(nav) nav.querySelectorAll("[data-tab]").forEach(function(b){
-    var oui = !!onglets[b.getAttribute("data-tab")];
-    if(b.classList.contains("a-modifs") !== oui) b.classList.toggle("a-modifs", oui);
-  });
+  var ici = document.querySelector('#navChantier a[aria-current="true"]');
+  if(ici){
+    var oui = Object.keys(m).length > 0;
+    if(ici.classList.contains("a-modifs") !== oui){
+      ici.classList.toggle("a-modifs", oui);
+      ici.title = oui ? "Modifications pas encore publiées" : "";
+    }
+  }
   var pub = document.getElementById("btnPublier");
   if(pub){
     var r = document.getElementById("marquesResume");
@@ -2331,9 +2335,6 @@ function effacerMarques(){
     + "main label.modifie,main .chips.modifie,main [data-single].modifie{background:#FFF3DF;"
     + "box-shadow:0 0 0 2px rgba(240,138,36,.55);border-radius:10px}"
     + "main .chips.modifie,main [data-single].modifie{padding:6px}"
-    + "#nav [data-tab]{position:relative}"
-    + "#nav [data-tab].a-modifs::after{content:'';position:absolute;top:4px;right:6px;width:8px;height:8px;"
-    + "border-radius:50%;background:#F08A24;box-shadow:0 0 0 2px rgba(255,255,255,.9)}"
     + ".marques-resume{display:flex;flex-wrap:wrap;align-items:center;gap:6px 12px;margin:0 0 12px;padding:10px 12px;"
     + "border-radius:8px;background:#FFF3DF;border:1px solid rgba(240,138,36,.45);color:#7A3E06;font-size:13.5px;line-height:1.4}"
     + ".marques-resume[hidden]{display:none}"
@@ -2743,6 +2744,58 @@ function chLien(page){
   if(c.adresse) p.set("adresse", String(c.adresse).replace(/\n/g, ", "));
   return page + "?" + p.toString();
 }
+/* ---------- la pastille des documents modifiés ----------
+   Dans la barre du chantier, en haut : un point orange sur chaque appli
+   dont la fiche de CE chantier a des cases modifiées pas encore
+   publiées. On voit d'un coup d'œil où il reste à publier. */
+var CH_CLES={releve:"releve:courant",suivi:"suivi:courant",commande:"commande:courante",point:"point:courant",
+  etiquettes:"etiquettes:courant",photos:"photos:courant",autocontrole:"autocontrole:courant",
+  reception:"reception:courante",sav:"sav:courant"};
+var CH_MODIFS={}, CH_MODIFS_REF=null;
+function chNet(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g,""); }
+function chRefDe(id, s){
+  function code(t){ return String(t||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8); }
+  if(id==="suivi"){ var af=s.affaire||{}, cl=s.client||{}; return chNet(af.chantier)||chNet(af.devis)||code(cl.nom); }
+  if(id==="releve") return chNet((s.affaire||{}).chantier);
+  var c=s.chantier||{};
+  return chNet(c.ref) || (id==="reception" ? chNet(c.devis) : "") || code(c.client);
+}
+function chAModifs(s){ return !!(s && s._modifs && typeof s._modifs==="object" && Object.keys(s._modifs).length); }
+function chChercherModifs(ref){
+  var net=chNet(ref);
+  CH_MODIFS_REF=net;
+  if(!window.storage || !window.storage.get) return;
+  Object.keys(CH_CLES).forEach(function(id){
+    if(id===CH_APPLI) return;
+    function examiner(r){
+      if(!r || !r.value || r.value.indexOf('"_modifs":{"')<0) return false;
+      var s; try{ s=JSON.parse(r.value); }catch(e){ return false; }
+      return !!s && chRefDe(id, s)===net && chAModifs(s);
+    }
+    window.storage.get(CH_CLES[id]).then(examiner).then(function(oui){
+      return oui || window.storage.get(CH_CLES[id]+"@"+net).then(examiner);
+    }).then(function(oui){
+      if(CH_MODIFS_REF!==net) return;
+      if(!!CH_MODIFS[id]!==!!oui){ CH_MODIFS[id]=!!oui; peindreNavChantier(); }
+    }).catch(function(){});
+  });
+}
+function chModifsPour(id){
+  if(id===CH_APPLI) return typeof S!=="undefined" && chAModifs(S);
+  return !!CH_MODIFS[id];
+}
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF);
+});
+window.addEventListener("pageshow", function(e){ if(e.persisted && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF); });
+(function(){
+  var st=document.createElement("style");
+  st.textContent="nav#navChantier a{position:relative}"
+    +"nav#navChantier a.a-modifs::after{content:'';position:absolute;top:2px;left:calc(50% + 5px);width:12px;height:12px;"
+    +"border-radius:50%;background:#FB923C;box-shadow:0 0 0 2px #10161F}"
+    +"nav#navChantier a[aria-current=\"true\"].a-modifs::after{background:#fff;box-shadow:0 0 0 2px #C2410C}";
+  document.head.appendChild(st);
+})();
 function peindreNavChantier(){
   var hote=document.getElementById("navChantier");
   var wrap=document.getElementById("navChantierWrap");
@@ -2753,6 +2806,7 @@ function peindreNavChantier(){
   try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
   if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
   wrap.hidden=false; hote.hidden=false;
+  if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
   hote.textContent="";
 
   var retour=document.createElement("a");
@@ -2769,6 +2823,7 @@ function peindreNavChantier(){
     var ici = a[0] === CH_APPLI;
     el.href = ici ? "#" : chLien(a[2]);
     if(ici) el.setAttribute("aria-current","true");
+    if(chModifsPour(a[0])){ el.classList.add("a-modifs"); el.title=a[1]+" : modifications pas encore publiées"; }
     el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(CH_ICONES[a[0]]||"")+'</svg>';
     var b=document.createElement("span"); b.textContent=a[1];
     el.appendChild(b);
