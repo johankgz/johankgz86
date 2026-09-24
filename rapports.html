@@ -2202,9 +2202,20 @@ function carteMajBouton(){
       drag=false;
     });
   });
+  /* un cran de molette = un niveau entier de zoom (la carte double ou
+     divise par deux) : trop brusque d'un coup. On compte les crans
+     plutôt que la valeur brute de deltaY (qui varie trop d'un
+     navigateur à l'autre), et il en faut deux dans le même sens avant
+     de vraiment zoomer. */
+  var carteRoue={n:0, sens:0};
   cv.addEventListener("wheel", function(e){
     e.preventDefault();
-    carteZoom(e.deltaY < 0 ? 1 : -1, dansCanvas(e));
+    var sens = e.deltaY < 0 ? 1 : -1;
+    if(sens !== carteRoue.sens){ carteRoue.n=0; carteRoue.sens=sens; }
+    carteRoue.n++;
+    if(carteRoue.n < 2) return;
+    carteRoue.n=0;
+    carteZoom(sens, dansCanvas(e));
   }, {passive:false});
   /* double-clic : on zoome sur l'endroit visé, comme sur Google Maps */
   cv.addEventListener("dblclick", function(e){
