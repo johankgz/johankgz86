@@ -577,6 +577,15 @@ nav#navParcours a .num{
   white-space:nowrap;
 }
 .chantiers .depuis.du{background:var(--accent);color:#fff}
+/* l'avancement, en haut à droite : une jauge courte et son chiffre */
+.chantiers .avance{
+  flex:0 0 auto;margin-left:auto;display:inline-flex;align-items:center;gap:7px;
+  font-size:12px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums;
+}
+.chantiers .avance .jauge{width:48px;height:6px;border-radius:3px;background:var(--rule);overflow:hidden}
+.chantiers .avance .jauge i{display:block;height:100%;border-radius:3px;background:var(--data)}
+.chantiers .avance.fini{color:var(--ok)}
+.chantiers .avance.fini .jauge i{background:var(--ok)}
 .chantiers .note{margin:7px 0 0;font-size:12.5px;color:var(--ink-2);font-style:italic}
 .relance{
   margin:12px 0 0;padding:12px 13px;border:1px solid var(--accent);
@@ -1711,6 +1720,16 @@ function carteChantier(c){
     p.title = nb+" message"+(nb>1?"s":"")+" non lu"+(nb>1?"s":"")+" dans la discussion";
     haut.appendChild(p);
   }
+  var pct=Math.max(0, Math.min(100, parseInt(c.avancement, 10) || 0));
+  var av=document.createElement("span"); av.className="avance"+(pct>=100?" fini":"");
+  av.title="Avancement du chantier : "+pct+"\u00A0%";
+  av.setAttribute("aria-label", av.title);
+  var jg=document.createElement("span"); jg.className="jauge";
+  var rempli=document.createElement("i"); rempli.style.width=pct+"%";
+  jg.appendChild(rempli);
+  var chiffre=document.createElement("span"); chiffre.textContent=pct+"\u00A0%";
+  av.appendChild(jg); av.appendChild(chiffre);
+  haut.appendChild(av);
   a.appendChild(haut);
   var adr=String(c.adresse||"").replace(/\n/g, ", ").trim();
   if(adr){

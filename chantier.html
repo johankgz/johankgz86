@@ -481,6 +481,16 @@ nav#nav button svg{stroke-width:1.9}
 }
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
+.avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
+.avancement h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.avancement .valeur{font-size:22px;font-weight:750;letter-spacing:-.02em;color:var(--data);font-variant-numeric:tabular-nums}
+.avancement.fini .valeur{color:var(--ok)}
+.avancement .jauge{height:10px;border-radius:5px;background:var(--rule);overflow:hidden;margin:10px 0 4px}
+.avancement .jauge i{display:block;height:100%;border-radius:5px;background:var(--data);transition:width .2s ease}
+.avancement.fini .jauge i{background:var(--ok)}
+.avancement input[type=range]{display:block;width:100%;height:32px;margin:6px 0 0;accent-color:var(--data);cursor:pointer}
+.avancement [hidden]{display:none}
+.avancement .hint{margin:4px 0 0}
 
 /* ---------- la barre d'onglets du chantier ----------
    La même réglette que dans les applis : on passe d'un onglet à
@@ -600,6 +610,17 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <h2 id="c_client">Chargement…</h2>
     </div>
     <p class="adr" id="c_adresse"></p>
+  </div>
+
+  <div class="block avancement" id="avancement" hidden>
+    <div class="tete">
+      <h2>Avancement du chantier</h2>
+      <span class="valeur" id="av_valeur">0 %</span>
+    </div>
+    <div class="jauge" id="av_jauge"><i id="av_rempli"></i></div>
+    <input type="range" id="av_curseur" min="0" max="100" step="5" value="0" hidden
+      aria-label="Avancement du chantier, en pourcentage">
+    <p class="hint" id="av_note"></p>
   </div>
 
   <div class="block" id="loc" hidden>
@@ -1197,6 +1218,63 @@ function publierUnDocument(doc){
   });
 }
 
+/* ---------- l'avancement du chantier ----------
+   Tout le monde le voit ; seul un chargé d'affaires de l'équipe du
+   dossier le règle, ici, au curseur. Enregistré quand on relâche. */
+function chargeDuDossier(){
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  return !!bureau && (CHANTIER.equipe||[]).indexOf(SESSION.nom) >= 0;
+}
+function afficherAvancement(pct){
+  $("av_valeur").textContent = pct+"\u00A0%";
+  $("av_rempli").style.width = pct+"%";
+  $("avancement").classList.toggle("fini", pct>=100);
+}
+function peindreAvancement(){
+  var pct=Math.max(0, Math.min(100, parseInt(CHANTIER.avancement, 10) || 0));
+  var moi=chargeDuDossier();
+  $("avancement").hidden=false;
+  afficherAvancement(pct);
+  var curseur=$("av_curseur");
+  curseur.hidden=!moi;
+  $("av_jauge").hidden=moi;
+  curseur.value=pct;
+  var qui = CHANTIER.avancementPar
+    ? "Mis à jour par "+CHANTIER.avancementPar+(CHANTIER.avancementLe ? " le "+frDate(CHANTIER.avancementLe) : "")+"."
+    : "";
+  $("av_note").textContent = moi
+    ? "Faites glisser pour mettre à jour : c'est enregistré dès que vous relâchez. "+qui
+    : (qui || "Réglé par le chargé d'affaires du dossier.");
+}
+$("av_curseur").addEventListener("input", function(){ afficherAvancement(parseInt(this.value, 10) || 0); });
+$("av_curseur").addEventListener("change", function(){
+  var curseur=this, avant=parseInt(CHANTIER.avancement, 10) || 0;
+  var pct=parseInt(curseur.value, 10) || 0;
+  curseur.disabled=true;
+  fetch(API+"?action=avancement", {method:"POST",
+    headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, valeur:pct})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      curseur.disabled=false;
+      if(!res.ok){
+        toast(res.d.erreur || "Avancement non enregistré.");
+        curseur.value=avant; afficherAvancement(avant);
+        return;
+      }
+      CHANTIER.avancement=res.d.avancement;
+      CHANTIER.avancementPar=SESSION.nom;
+      CHANTIER.avancementLe=new Date().toISOString();
+      peindreAvancement();
+      toast("Avancement enregistré : "+res.d.avancement+"\u00A0%.");
+    })
+    .catch(function(){
+      curseur.disabled=false;
+      curseur.value=avant; afficherAvancement(avant);
+      toast("Pas de réseau : avancement non enregistré.");
+    });
+});
+
 /* ---------- chargement ---------- */
 function charger(){
   fetch(API+"?action=liste", {headers:{"x-auth":SESSION.jeton}})
@@ -1221,7 +1299,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreDocs();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreDocs();
     })
     .catch(function(){ $("c_client").textContent="Pas de réseau. Réessayez."; });
 }

@@ -292,6 +292,13 @@ function dernierReleve(c) {
   }
   return vu;
 }
+/* l'avancement d'un chantier, en pourcentage, posé à la main par son
+   chargé d'affaires */
+function avancementDe(c) {
+  const n = parseInt(c && c.avancement, 10);
+  return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
+}
+
 function etatDossier(c) {
   if (!c) return { etat: "actif" };
   let etat = c.etat === "attente" ? "attente" : (c.etat === "actif" ? "actif" : "");
@@ -1367,10 +1374,38 @@ export default async (req) => {
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
         ...etatDossier(c),
+        avancement: avancementDe(c),
+        avancementPar: c.avancementPar || "",
+        avancementLe: c.avancementLe || "",
+        equipe: c.equipe || [],
         fichiers: visibles });
     });
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
+  }
+
+  /* ---------- l'avancement du chantier ----------
+     Seul un chargé d'affaires de l'équipe du dossier le règle : c'est lui
+     qui suit l'affaire, pas le technicien ni un collègue d'un autre
+     dossier. */
+  if (action === "avancement") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!bureau || (c.equipe || []).indexOf(personne.nom) < 0) {
+      return json({ erreur: "Seul le chargé d'affaires du dossier règle l'avancement." }, 403);
+    }
+    const n = Math.round(Number(d.valeur));
+    if (!isFinite(n) || n < 0 || n > 100) return json({ erreur: "Avancement entre 0 et 100 %." }, 400);
+    c.avancement = n;
+    c.avancementPar = personne.nom;
+    c.avancementLe = new Date().toISOString();
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, ref, avancement: n });
   }
 
   /* ---------- mettre un dossier de côté, ou le reprendre ---------- */
