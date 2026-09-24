@@ -778,7 +778,12 @@ function lienAppli(page, onglet){
    tel quel pour le corriger, plutôt que d'en amorcer un nouveau, vide
    — qui écraserait le vrai contenu à la prochaine publication. */
 function ficheReleveExistante(){
-  return (CHANTIER && CHANTIER.fichiers || []).filter(function(f){ return f.type==="releve"; })[0] || null;
+  /* .donnees dit si le contenu de la fiche a bien été déposé sur le
+     site (un relevé trop lourd, ou publié avant que ça n'existe, ne
+     l'a pas) : sans lui, le serveur n'a rien à rouvrir — mieux vaut
+     alors repartir sur la reprise habituelle (client/référence) que
+     sur un lien qui échouerait silencieusement. */
+  return (CHANTIER && CHANTIER.fichiers || []).filter(function(f){ return f.type==="releve" && f.donnees; })[0] || null;
 }
 function lienReleve(onglet){
   var href=lienAppli("./releve.html", onglet);
