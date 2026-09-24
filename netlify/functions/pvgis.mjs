@@ -1,6 +1,7 @@
 // Proxy PVGIS — évite le blocage CORS du navigateur.
-// Netlify Functions v2 : appelé sur /.netlify/functions/pvgis?lat=...&lon=...
-// (et /api/pvgis sur le serveur Node).
+// Appelé sur /api/pvgis?lat=...&lon=... — comme /api/rapports. Pas
+// d'adresse en /.netlify/… : chez o2switch, Apache refuse (403) tout
+// chemin qui commence par un point, avant même d'atteindre le serveur Node.
 //
 // PVGIS change de version de temps en temps (5.2, puis 5.3…) et retire les
 // anciennes : on essaie la plus récente d'abord, puis l'adresse sans
@@ -82,3 +83,5 @@ export default async (req) => {
   }
   return reponse({ error: "PVGIS injoignable depuis le serveur.", essais }, 502, false);
 };
+
+export const config = { path: "/api/pvgis" };

@@ -3149,14 +3149,14 @@ $("btnPvgis").addEventListener("click", function(){
   if(!isFinite(a.kwc) || a.kwc<=0){ $("pvgisState").textContent="Indiquez la puissance crête en kWc."; return; }
   $("pvgisState").textContent="Interrogation de PVGIS…";
   var direct = pvgisUrl(a, "v5_3");
-  /* d'abord le relais du site (il essaie lui-même les versions de PVGIS),
-     puis PVGIS en direct, puis deux relais publics en dernier recours */
+  /* d'abord le relais du site, sur /api/pvgis comme le reste du site (il
+     essaie lui-même les versions de PVGIS) ; puis PVGIS en direct et un
+     relais public, en dernier recours. Jamais /.netlify/… : o2switch
+     refuse les chemins qui commencent par un point. */
   var routes = [
-    "/.netlify/functions/pvgis?"+direct.split("?")[1],
+    "/api/pvgis?"+direct.split("?")[1],
     direct,
-    pvgisUrl(a, "v5_2"),
-    "https://api.allorigins.win/raw?url="+encodeURIComponent(direct),
-    "https://corsproxy.io/?url="+encodeURIComponent(direct)
+    "https://api.allorigins.win/raw?url="+encodeURIComponent(direct)
   ];
   var raisons=[];
   (function tryRoute(i){
@@ -3172,7 +3172,7 @@ $("btnPvgis").addEventListener("click", function(){
         var d=null; try{ d=JSON.parse(t); }catch(e){}
         /* PVGIS refuse les paramètres : on le dit, avec sa raison */
         if(r.status===400 && d && d.message){ var err=new Error(d.message); err.parametre=true; throw err; }
-        if(!r.ok) throw new Error("HTTP "+r.status);
+        if(!r.ok) throw new Error("HTTP "+r.status+(d && d.essais && d.essais.length ? " (le serveur a reçu : "+d.essais[0]+")" : ""));
         return d;
       });
     }).then(function(d){
@@ -3187,7 +3187,9 @@ $("btnPvgis").addEventListener("click", function(){
           +"Vérifiez la position, l'inclinaison et l'orientation.";
         return;
       }
-      raisons.push(i===0 ? "relais du site : "+((e && e.message) || "erreur") : ((e && e.name==="AbortError") ? "délai" : ((e && e.message) || "erreur")));
+      var quoi = (e && e.name==="AbortError") ? "délai dépassé"
+        : (/load failed|failed to fetch|networkerror/i.test((e && e.message) || "") ? "bloqué par le navigateur" : ((e && e.message) || "erreur"));
+      raisons.push((i===0 ? "relais du site" : (i===1 ? "PVGIS en direct" : "relais public"))+" : "+quoi);
       tryRoute(i+1);
     });
   })(0);
