@@ -927,9 +927,50 @@ body.connexion #blocConnexion{animation:monteDoux .5s var(--sortie) .55s both}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* =====================================================================
+   LE CIEL DU MOMENT — fond de l'accueil
+   Il suit l'heure (aube, jour, soir, nuit) et la météo (nuages, pluie,
+   neige, étoiles). Placé sous tout le contenu ; les cartes restent
+   opaques, le texte garde son contraste. Immobile si le téléphone
+   demande de réduire les animations.
+   ===================================================================== */
+@keyframes cielHalo{0%,100%{transform:scale(1);opacity:.55}50%{transform:scale(1.12);opacity:.8}}
+@keyframes cielScintille{0%,100%{opacity:.2}50%{opacity:1}}
+@keyframes cielNuage{from{transform:translateX(-300px)}to{transform:translateX(110vw)}}
+@keyframes cielPluie{from{transform:translateY(-120px)}to{transform:translateY(110vh)}}
+.ciel{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden;background:var(--bg)}
+.ciel[hidden]{display:none}
+body.connexion .ciel{display:none}
+.ciel.aube{background:linear-gradient(180deg,#2E2A3F 0%,#553837 55%,#6A4432 100%)}
+.ciel.jour{background:linear-gradient(180deg,#24425A 0%,#33505F 45%,#383E42 100%)}
+.ciel.soir{background:linear-gradient(180deg,#1E2338 0%,#452B43 55%,#653626 100%)}
+.ciel.nuit{background:linear-gradient(180deg,#05070C 0%,#0A0E14 55%,#1A2230 100%)}
+.ciel.pluie.aube,.ciel.pluie.jour,.ciel.pluie.soir{background:linear-gradient(180deg,#232B33 0%,#2F3A42 60%,#383E42 100%)}
+.ciel-halo{position:absolute;width:280px;height:280px;right:-80px;top:-70px;border-radius:50%;filter:blur(36px);
+  will-change:transform;animation:cielHalo 9s ease-in-out infinite;background:rgba(253,224,71,.3)}
+.ciel.aube .ciel-halo{background:rgba(253,186,116,.5)}
+.ciel.soir .ciel-halo{background:rgba(251,146,60,.45)}
+.ciel.nuit .ciel-halo{background:rgba(186,230,253,.16)}
+.ciel.pluie .ciel-halo,.ciel.nuageux .ciel-halo{background:rgba(148,163,184,.18)}
+.ciel-etoiles span{position:absolute;width:2px;height:2px;border-radius:50%;background:#fff;animation:cielScintille 3s ease-in-out infinite}
+.ciel:not(.nuit) .ciel-etoiles,.ciel.nuageux .ciel-etoiles{display:none}
+.ciel-nuages span{position:absolute;left:0;height:60px;border-radius:60px;background:rgba(255,255,255,.1);filter:blur(18px);
+  will-change:transform;animation:cielNuage linear infinite}
+.ciel:not(.nuageux) .ciel-nuages{display:none}
+.ciel.nuit .ciel-nuages span{background:rgba(255,255,255,.05)}
+.ciel-pluie span{position:absolute;top:0;width:1.5px;height:26px;border-radius:2px;
+  background:linear-gradient(180deg,transparent,rgba(186,230,253,.55));will-change:transform;animation:cielPluie linear infinite}
+.ciel.neige .ciel-pluie span{width:4px;height:4px;border-radius:50%;background:rgba(255,255,255,.7)}
+.ciel:not(.pluie):not(.neige) .ciel-pluie{display:none}
+@media (prefers-reduced-motion:reduce){
+  .ciel *{animation:none!important}
+  .ciel-pluie{display:none}
+}
 </style>
 </head>
 <body>
+<div class="ciel" id="ciel" aria-hidden="true" hidden><div class="ciel-halo"></div></div>
 <main>
 
   <div id="vueConnexion" hidden>
@@ -1105,7 +1146,7 @@ function meteo3j(cb){
   function go(lat, lon){
     fetch("https://api.open-meteo.com/v1/forecast?latitude="+lat+"&longitude="+lon
       +"&current=temperature_2m,weather_code,is_day"
-      +"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"
+      +"&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunrise,sunset"
       +"&forecast_days=3&timezone=auto")
       .then(function(r){ return r.json(); })
       .then(function(d){
@@ -1114,7 +1155,8 @@ function meteo3j(cb){
         for(var i=0;i<dj.time.length && i<3;i++){
           jours.push({date:dj.time[i], code:dj.weather_code[i],
             max:Math.round(dj.temperature_2m_max[i]), min:Math.round(dj.temperature_2m_min[i]),
-            pluie:(dj.precipitation_probability_max||[])[i]});
+            pluie:(dj.precipitation_probability_max||[])[i],
+            lever:(dj.sunrise||[])[i]||"", coucher:(dj.sunset||[])[i]||""});
         }
         var cur=d.current||{};
         var v={jours:jours,
@@ -1200,6 +1242,64 @@ function meteoStyle(code, nuit){
   if(code<=86) return {icone:"neige", classe:"gris", ciel:"Averses de neige"};
   return {icone:"orage", classe:"pluie", ciel:"Orage"};
 }
+/* ---------- le ciel du moment, en fond de l'accueil ----------
+   Aube, jour, soir ou nuit selon l'heure du lever et du coucher du soleil
+   du jour ; nuages, pluie ou étoiles selon la météo du moment. Le fond
+   dit quelque chose : c'est la seule raison de le faire bouger. */
+var CIEL_METEO=null;
+function heureDe(iso){
+  if(!iso) return null;
+  var m=/T(\d\d):(\d\d)/.exec(String(iso));
+  return m ? (+m[1]) + (+m[2])/60 : null;
+}
+function momentDuJour(h, lever, coucher){
+  var l = lever!=null ? lever : 7.4, c = coucher!=null ? coucher : 19.9;
+  if(h >= l-0.75 && h < l+1) return "aube";
+  if(h >= l+1 && h < c-1) return "jour";
+  if(h >= c-1 && h < c+0.75) return "soir";
+  return "nuit";
+}
+function peindreCiel(){
+  var el=$("ciel"); if(!el) return;
+  var d=new Date(), h=d.getHours()+d.getMinutes()/60;
+  var j0 = CIEL_METEO && CIEL_METEO.jours && CIEL_METEO.jours[0];
+  var moment=momentDuJour(h, j0 ? heureDe(j0.lever) : null, j0 ? heureDe(j0.coucher) : null);
+  var code = CIEL_METEO && CIEL_METEO.maintenant ? CIEL_METEO.maintenant.code : null;
+  var pluie = code!=null && ((code>=51 && code<=67) || (code>=80 && code<=82) || code>=95);
+  var neige = code!=null && ((code>=71 && code<=77) || code===85 || code===86);
+  var nuages = code!=null && (code===2 || code===3 || (code>=45 && code<=48) || pluie || neige);
+  var classe="ciel "+moment+(pluie?" pluie":"")+(neige?" neige":"")+(nuages?" nuageux":"");
+  if(el.className!==classe) el.className=classe;
+  el.setAttribute("data-moment", moment);
+  /* les étoiles, les nuages et la pluie ne sont créés qu'au besoin */
+  function couche(id, n, fabrique){
+    var c=el.querySelector("."+id);
+    if(c) return;
+    c=document.createElement("div"); c.className=id;
+    for(var i=0;i<n;i++) c.appendChild(fabrique(i));
+    el.appendChild(c);
+  }
+  if(moment==="nuit" && !nuages) couche("ciel-etoiles", 36, function(i){
+    var e=document.createElement("span");
+    e.style.left=((i*97)%100)+"%"; e.style.top=((i*53)%62)+"%"; e.style.animationDelay=((i*37)%30)/10+"s";
+    return e;
+  });
+  if(nuages) couche("ciel-nuages", 2, function(i){
+    var n=document.createElement("span");
+    n.style.top=(i ? 38 : 11)+"%"; n.style.width=(i ? 260 : 200)+"px";
+    n.style.animationDuration=(i ? 52 : 38)+"s"; n.style.animationDelay=(i ? -20 : 0)+"s";
+    return n;
+  });
+  if(pluie || neige) couche("ciel-pluie", 40, function(i){
+    var g=document.createElement("span");
+    g.style.left=((i*61)%100)+"%";
+    g.style.animationDuration=((neige ? 3.2 : 0.7) + ((i*13)%6)/10)+"s";
+    g.style.animationDelay=(-((i*17)%20)/10)+"s";
+    return g;
+  });
+}
+setInterval(function(){ if(!document.hidden) peindreCiel(); }, 5*60*1000);
+
 var BULLETIN_HORLOGE=false;
 function bulletin(lieu){
   var carte=$("bulletin");
@@ -1207,6 +1307,7 @@ function bulletin(lieu){
   $("bulLieu").textContent = lieu || "";
   meteo3j(function(m){
     if(!m) return;
+    CIEL_METEO=m; peindreCiel();
     var h=new Date().getHours();
     var now=m.maintenant || {temp:m.jours[0].max, code:m.jours[0].code, jour:true};
     var nuit = now.jour===false || h<7 || h>=21;
@@ -1342,6 +1443,7 @@ function rafraichirDroits(s){
 }
 function menu(s){
   document.body.classList.remove("connexion");
+  $("ciel").hidden=false; peindreCiel();
   $("vueConnexion").hidden=true; $("vueMenu").hidden=false;
   var tech = s.role==="technicien";
 

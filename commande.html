@@ -2439,6 +2439,36 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
   }catch(e){}
 })();
 
+/* ---------- le fond : un plan technique, discret ----------
+   Une grille de plan qui glisse très lentement et un faisceau cyan qui
+   balaie l'écran toutes les douze secondes, sous tout le contenu. Assez
+   léger pour ne jamais gêner la saisie ; immobile si le téléphone
+   demande de réduire les animations. */
+(function fondPlanAppli(){
+  if(document.getElementById("fondPlan")) return;
+  var st=document.createElement("style");
+  st.textContent=
+    "@keyframes planGlisse{to{transform:translate(110px,110px)}}"
+    +"@keyframes planBalaye{0%{transform:translateY(-100px);opacity:0}8%{opacity:1}60%{opacity:1}70%{transform:translateY(110vh);opacity:0}100%{transform:translateY(110vh);opacity:0}}"
+    +"#fondPlan{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}"
+    +"#fondPlan .plan-grille{position:absolute;left:-110px;top:-110px;right:-110px;bottom:-110px;will-change:transform;"
+    +"background-image:linear-gradient(rgba(34,211,238,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.07) 1px,transparent 1px),"
+    +"linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);"
+    +"background-size:110px 110px,110px 110px,22px 22px,22px 22px;animation:planGlisse 60s linear infinite}"
+    +"#fondPlan .plan-faisceau{position:absolute;left:0;right:0;top:0;height:80px;will-change:transform;"
+    +"background:linear-gradient(180deg,transparent,rgba(34,211,238,.05) 70%,rgba(34,211,238,.2) 98%,transparent);"
+    +"animation:planBalaye 12s cubic-bezier(.4,0,.2,1) infinite}"
+    +"@media (prefers-reduced-motion:reduce){#fondPlan .plan-grille{animation:none}#fondPlan .plan-faisceau{display:none}}";
+  document.head.appendChild(st);
+  function poser(){
+    if(document.getElementById("fondPlan") || !document.body) return;
+    var f=document.createElement("div"); f.id="fondPlan"; f.setAttribute("aria-hidden","true");
+    f.innerHTML='<div class="plan-grille"></div><div class="plan-faisceau"></div>';
+    document.body.insertBefore(f, document.body.firstChild);
+  }
+  if(document.body) poser(); else document.addEventListener("DOMContentLoaded", poser);
+})();
+
 var CLE_FICHE = "commande:courante";
 function ficheVierge(){ var s=blank(); s.auteur=(SESSION&&SESSION.nom)||""; return s; }
 function ficheRemplie(s){ if(!s) return false; return !!((s.lignes||[]).length || (s.taches||[]).length || (s.photos||[]).length || String(s.notes||"").trim()); }
