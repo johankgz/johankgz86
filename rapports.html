@@ -538,6 +538,118 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   box-shadow:0 0 0 2px #fff;animation:pastilleBat 1.6s ease-out 2}
 @keyframes pastilleBat{0%{transform:scale(1)}30%{transform:scale(1.25)}60%{transform:scale(1)}}
 @media (prefers-reduced-motion:reduce){ .pastille-discu{animation:none} }
+/* =====================================================================
+   TOUS MES CHANTIERS — la liste épurée
+   ---------------------------------------------------------------------
+   Une fiche par dossier, repliée quand il y en a beaucoup : le client,
+   sa référence et sa commune, ce qui est neuf. Les outils (itinéraire,
+   accès, discussion) sont de petites icônes rondes alignées à droite ;
+   leur libellé n'apparaît qu'en grand écran. Les documents se lisent en
+   lignes serrées : le titre, puis l'étiquette et les détails.
+   ===================================================================== */
+.sr{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+#bonjour{margin:0 2px 12px;font-size:13px;line-height:1.4}
+.outils-liste{display:flex;gap:8px;align-items:center;margin:0 0 14px}
+.outils-liste .cherche{flex:1 1 auto;position:relative;display:block;min-width:0}
+.outils-liste .cherche:has(#recherche[hidden]){display:none}
+.outils-liste .cherche svg{position:absolute;left:12px;top:50%;margin-top:-8px;width:16px;height:16px;
+  stroke:var(--ink-3);fill:none;stroke-width:2;stroke-linecap:round;pointer-events:none}
+.outils-liste #recherche{margin:0;min-height:42px;padding:9px 12px 9px 36px;font-size:15px;border-radius:10px}
+.barre-carte{margin:0;flex:0 0 auto}
+.barre-carte button{min-height:42px;padding:9px 14px;border-radius:10px;font-size:13px;gap:7px}
+.barre-carte button svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+
+#liste{display:flex;flex-direction:column;gap:8px}
+.travaux{margin:0;border-radius:12px;box-shadow:none}
+.travaux.attente{box-shadow:inset 3px 0 0 var(--accent-vif)}
+.travaux .head{display:block;padding:11px 12px 10px 14px;cursor:pointer;user-select:none}
+.travaux .head:focus-visible{outline:2px solid var(--data);outline-offset:-2px;border-radius:12px}
+.travaux .titre{display:flex;align-items:center;gap:8px;min-height:32px}
+.travaux .titre b{flex:0 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:15px;font-weight:650;letter-spacing:-.015em;color:var(--ink)}
+.travaux .head .pastille-docs{min-width:17px;height:17px;padding:0 5px;font-size:10.5px;background:#EA7A1E}
+.travaux .outils{display:flex;gap:4px;margin-left:auto;flex:0 0 auto}
+.travaux .outil{position:relative;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  width:32px;height:32px;min-height:32px;padding:0;border:1px solid var(--rule);border-radius:999px;
+  background:#fff;color:var(--ink-2);box-shadow:none;cursor:pointer}
+.travaux .outil svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.travaux .outil .lib{display:none;font-size:12px;font-weight:600;white-space:nowrap}
+.travaux .outil.iti svg{color:var(--accent)}
+.travaux .outil.a-lire{border-color:rgba(160,58,51,.4)!important;color:var(--danger)!important}
+.travaux .outil .pastille-discu{position:absolute;top:-5px;right:-6px;margin:0;min-width:16px;height:16px;
+  padding:0 4px;font-size:10px;box-shadow:0 0 0 2px #fff}
+.travaux .pli{flex:0 0 auto;display:inline-flex;width:20px;justify-content:center;color:var(--ink-3)}
+.travaux .pli svg{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:2;
+  stroke-linecap:round;stroke-linejoin:round;transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.travaux.ouvert .pli svg{transform:rotate(180deg)}
+.travaux .sous{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin-top:1px;
+  font-size:12px;color:var(--ink-3);line-height:1.5}
+.travaux .sous > span + span::before{content:"·";margin:0 6px;color:#B4BCC6}
+.travaux .head .ref{background:none;color:var(--data);padding:0;font-size:11.5px;font-weight:700;letter-spacing:.04em}
+.travaux .head .n{font-size:12px;color:var(--ink-3);letter-spacing:0}
+.travaux .sous .etiq-attente{padding:0;background:none;font-size:12px;color:var(--accent)}
+.travaux .sous .etiq-attente.du{background:none;color:var(--danger)}
+
+.travaux .fichiers{border-top:1px solid var(--rule);padding:2px 0}
+.travaux:not(.ouvert) .fichiers,.travaux .fichiers[hidden],.travaux .actions[hidden]{display:none}
+.travaux .f{display:flex;align-items:center;gap:10px;padding:9px 12px 9px 14px;border-bottom:1px solid #EEF1F4}
+.travaux .f:last-child{border-bottom:0}
+.travaux .f .t{flex:1 1 auto;min-width:0}
+.travaux .f .tl{display:flex;align-items:center;gap:7px;min-width:0}
+.travaux .f .t b{display:block;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:14px;font-weight:600;color:var(--ink)}
+.travaux .f .neuf{flex:0 0 auto;font-size:9.5px;padding:2px 6px;background:#EA7A1E}
+.travaux .f .meta{display:flex;align-items:center;gap:7px;margin-top:2px;min-width:0}
+.travaux .f .tag{flex:0 0 auto;font-size:9.5px;letter-spacing:.06em;padding:2px 7px}
+.travaux .f .t span.infos{display:block;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;
+  font-size:11.5px;color:var(--ink-3)}
+.travaux .f .t span.lu{display:block;margin-top:2px;font-size:11.5px;font-weight:600}
+.travaux .f .t span.lu.na{font-weight:500}
+.travaux .f .saisie{margin-top:2px;font-size:11.5px}
+.travaux .f .droite{flex:0 0 auto;display:flex;align-items:center;gap:4px}
+.travaux .f .part{margin:0;min-height:30px;padding:5px 11px;font-size:12px;border-radius:999px;border-color:var(--rule)}
+.travaux .f .sup{margin:0;width:28px;height:28px;min-height:28px;font-size:17px;border-radius:999px}
+.travaux .f .ok-saisie{min-height:30px}
+.travaux .actions{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:9px 12px 11px 14px;
+  border-top:1px solid var(--rule);background:#FAFBFC}
+.travaux .actions button{min-height:32px;padding:6px 12px;font-size:12px;border-radius:999px;
+  background:#fff;color:var(--ink-2);border:1px solid var(--rule);box-shadow:none}
+.travaux .actions button.danger{background:#fff;color:var(--rouge);border-color:rgba(160,58,51,.25)}
+.travaux .actions .hint{flex:1 1 180px;margin:0;font-size:11.5px}
+#compteur{font-size:12px;color:var(--sur-fond-2);text-align:center}
+.restaurer{margin-top:18px;padding:12px 14px}
+.restaurer .act.ghost{min-height:38px;padding:8px 14px;font-size:13px}
+.restaurer .hint{font-size:12px}
+
+@keyframes ficheArrive{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@keyframes docsDeplie{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:none}}
+.travaux{animation:ficheArrive .32s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 40ms)}
+.travaux.ouvert .fichiers{animation:docsDeplie .2s cubic-bezier(.2,.8,.2,1)}
+@media (hover:hover){
+  .travaux .head:hover .titre b{color:var(--accent-fonce)}
+  .travaux .outil:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .travaux .f:hover{background:#FAFBFC}
+  .travaux .actions button:hover{border-color:#BFC7D1;color:var(--ink)}
+}
+/* sur téléphone, une commande garde son titre entier : ses boutons passent dessous */
+@media (max-width:599px){
+  .travaux .f:has(.ok-saisie){flex-wrap:wrap;row-gap:6px}
+  .travaux .f:has(.ok-saisie) .t{flex-basis:100%}
+  .travaux .f:has(.ok-saisie) .droite{margin-left:auto}
+}
+@media (min-width:600px){
+  .travaux .outil{width:auto;padding:0 11px}
+  .travaux .outil .lib{display:inline}
+}
+@media (min-width:820px){
+  main{max-width:780px}
+}
+@media (prefers-reduced-motion:reduce){
+  .travaux,.travaux.ouvert .fichiers{animation:none}
+  .travaux .pli svg{transition:none}
+}
 </style>
 </head>
 <body>
@@ -551,17 +663,20 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   </div>
 </header>
 <main>
-  <p id="bonjour" style="margin:0 0 14px;font-size:14.5px"></p>
-  <div class="barre-carte" id="barreCarte" hidden>
-    <button type="button" id="btnCarte">
-      <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"
-           style="width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.9;
-                  stroke-linecap:round;stroke-linejoin:round"><path d="M9 3 3 5.4v15.1L9 18l6 2.5 6-2.4V2.9L15 5.4z"/>
-      <path d="M9 3v15M15 5.4v15.1"/></svg>Carte des chantiers</button>
-    <span class="hint" id="carteHint" style="margin:0"></span>
+  <p id="bonjour"></p>
+  <div class="outils-liste">
+    <label class="cherche">
+      <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.3-4.3"/></svg>
+      <input type="search" id="recherche" placeholder="Chercher un chantier…" autocapitalize="off"
+             aria-label="Rechercher un dossier" hidden>
+    </label>
+    <div class="barre-carte" id="barreCarte" hidden>
+      <button type="button" id="btnCarte">
+        <svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16"><path d="M9 3 3 5.4v15.1L9 18l6 2.5 6-2.4V2.9L15 5.4z"/>
+        <path d="M9 3v15M15 5.4v15.1"/></svg><span>Carte</span></button>
+      <span class="sr" id="carteHint"></span>
+    </div>
   </div>
-  <input type="search" id="recherche" placeholder="Rechercher un dossier, un client…" autocapitalize="off"
-         style="margin-bottom:14px" hidden>
   <div id="liste"></div>
   <p class="hint" id="compteur" style="margin:14px 2px"></p>
   <div class="restaurer">
@@ -1545,6 +1660,47 @@ function depuisCombien(jours){
   var an=Math.floor(m/12);
   return an+" an"+(an>1?"s":"")+(m%12 ? " et "+(m%12)+" mois" : "");
 }
+/* la commune, pour situer le dossier d'un coup d'œil : ce qui suit le
+   code postal, sinon le dernier morceau de l'adresse */
+function villeDe(adresse){
+  var a=String(adresse||"").replace(/\n/g, ", ").trim();
+  if(!a) return "";
+  var m=a.match(/\b\d{5}\s+([^,]+)/);
+  if(m) return m[1].trim();
+  var p=a.split(",");
+  return p.length > 1 ? p[p.length-1].trim() : "";
+}
+var ICO={
+  iti:'<path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/><path d="M21 3 10.6 13.4"/>',
+  acces:'<circle cx="9" cy="8.4" r="3.3"/><path d="M3.4 19.2c.4-3 2.8-4.8 5.6-4.8s5.2 1.8 5.6 4.8"/>'
+    +'<path d="M16.2 6.2a3 3 0 0 1 0 5.9M17.4 14.6c2.1.4 3.4 2 3.6 4.6"/>',
+  discu:'<path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4'
+    +'A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/>',
+  pli:'<path d="m6 9 6 6 6-6"/>'
+};
+function icone(nom){
+  return '<svg viewBox="0 0 24 24" aria-hidden="true" width="16" height="16">'+ICO[nom]+'</svg>';
+}
+/* Un petit bouton rond, l'icône seule : le libellé n'apparaît qu'en
+   grand écran, il reste lu par le lecteur d'écran et en infobulle. */
+function boutonOutil(classe, nom, libelle, titre){
+  var b=document.createElement("button");
+  b.type="button"; b.className="outil "+classe;
+  b.title=titre||libelle;
+  b.setAttribute("aria-label", titre||libelle);
+  b.innerHTML=icone(nom)+'<span class="lib">'+libelle+'</span>';
+  return b;
+}
+/* Replié ou déplié : ce que la personne a choisi, dossier par dossier,
+   tient jusqu'à la fin de la visite, même quand la liste se repeint
+   (après l'ouverture d'un document, par exemple). Sans choix, les
+   dossiers se déplient quand il y en a peu à l'écran. */
+var PLI={};
+try{ PLI=JSON.parse(sessionStorage.getItem("rapports:pli")||"{}")||{}; }catch(e){ PLI={}; }
+function retenirPli(ref, ouvert){
+  PLI[ref]=ouvert;
+  try{ sessionStorage.setItem("rapports:pli", JSON.stringify(PLI)); }catch(e){}
+}
 function afficher(chantiers){
   chantiers.forEach(trierDocs);
   majCompteur(chantiers.length);
@@ -1556,82 +1712,87 @@ function afficher(chantiers){
       : "Aucun rapport ne vous est attribué pour le moment.";
     host.appendChild(v); return;
   }
+  var ouvertParDefaut = chantiers.length <= 3;
+  var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin"));
   chantiers.forEach(function(c, i){
     var box=document.createElement("div"); box.className="travaux";
+    box.setAttribute("data-ref", c.ref);
+    if(c.etat === "attente") box.classList.add("attente");
     var head=document.createElement("div"); head.className="head";
-    var ref=document.createElement("span"); ref.className="ref"; ref.textContent=c.ref;
+    head.setAttribute("role", "button"); head.tabIndex=0;
+
+    /* ----- 1re ligne : le client, ce qui est neuf, les outils ----- */
+    var titre=document.createElement("div"); titre.className="titre";
     var b=document.createElement("b"); b.textContent=c.client||c.ref;
-    var n=document.createElement("span"); n.className="n";
-    n.textContent=c.fichiers.length+" doc"+(c.fichiers.length>1?"s":"");
-    head.appendChild(ref); head.appendChild(b); head.appendChild(n);
-    if(c.etat === "attente"){
-      var att=document.createElement("span");
-      att.className="etiq-attente"+(c.relanceDue?" du":"");
-      att.textContent = c.relanceDue ? "À relancer" : "En attente";
-      att.title = "En attente de réponse depuis "+depuisCombien(c.joursAttente)
-        + (c.attenteNote ? "  ·  "+c.attenteNote : "");
-      head.appendChild(att);
-    }
+    titre.appendChild(b);
     var nonLus=docsNonLus(c);
     if(nonLus){
       var pd=document.createElement("span"); pd.className="pastille-docs";
       pd.textContent=String(nonLus);
       pd.title=nonLus+" document"+(nonLus>1?"s":"")+" que vous n'avez pas encore ouvert"+(nonLus>1?"s":"");
       pd.setAttribute("aria-label", pd.title);
-      head.appendChild(pd);
+      titre.appendChild(pd);
     }
-    var barreBoutons=document.createElement("div"); barreBoutons.className="barre";
+    var outils=document.createElement("div"); outils.className="outils";
     if((c.adresse||"").trim()){
-      var iti=document.createElement("button");
-      iti.type="button"; iti.className="iti";
-      iti.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" width="15" height="15" '
-        +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;'
-        +'stroke-linecap:round;stroke-linejoin:round"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/>'
-        +'<path d="M21 3 10.6 13.4"/></svg>Itinéraire';
-      iti.title="Itinéraire vers les travaux";
+      var iti=boutonOutil("iti", "iti", "Itinéraire", "Itinéraire vers les travaux");
       iti.addEventListener("click", function(e){
         e.preventDefault(); e.stopPropagation();
         var q=String(c.adresse).replace(/\n/g, ", ");
         window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
       });
-      barreBoutons.appendChild(iti);
+      outils.appendChild(iti);
     }
-    var acces=document.createElement("button");
-    acces.type="button"; acces.className="iti";
-    acces.title="Qui voit ce dossier";
-    acces.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
-      +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;'
-      +'stroke-linejoin:round"><circle cx="9" cy="8.4" r="3.3"/><path d="M3.4 19.2c.4-3 2.8-4.8 5.6-4.8s5.2 1.8 5.6 4.8"/>'
-      +'<path d="M16.2 6.2a3 3 0 0 1 0 5.9M17.4 14.6c2.1.4 3.4 2 3.6 4.6"/></svg>Accès'
-      + ((c.equipe||[]).length ? "  ·  "+(c.equipe||[]).length : "");
+    var nEq=(c.equipe||[]).length;
+    var acces=boutonOutil("acces", "acces", "Accès"+(nEq ? " · "+nEq : ""),
+      "Qui voit ce dossier"+(nEq ? " ("+nEq+" personne"+(nEq>1?"s":"")+")" : ""));
     acces.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation(); ouvrirAcces(c);
     });
-    barreBoutons.appendChild(acces);
+    outils.appendChild(acces);
 
-    var discu=document.createElement("button");
-    discu.type="button"; discu.className="iti discu";
+    var discu=boutonOutil("discu", "discu", "Discussion", "Discussion du dossier");
     discu.setAttribute("data-ref", c.ref);
-    discu.title="Discussion du dossier";
-    var nonLus=(NON_LUS[c.ref]||0);
-    discu.innerHTML='<svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" '
-      +'style="width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;'
-      +'stroke-linejoin:round"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4'
-      +'A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>Discussion';
-    if(nonLus){
+    var nMsg=(NON_LUS[c.ref]||0);
+    if(nMsg){
       var pastille=document.createElement("span"); pastille.className="pastille-discu";
-      pastille.textContent=String(nonLus);
+      pastille.textContent=String(nMsg);
       discu.appendChild(pastille);
       discu.classList.add("a-lire");
-      discu.title=nonLus+" message"+(nonLus>1?"s":"")+" non lu"+(nonLus>1?"s":"")+" dans la discussion";
+      discu.title=nMsg+" message"+(nMsg>1?"s":"")+" non lu"+(nMsg>1?"s":"")+" dans la discussion";
     }
     discu.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c);
     });
-    barreBoutons.appendChild(discu);
-    head.appendChild(barreBoutons);
-    var fs=document.createElement("div"); fs.className="fichiers"; fs.hidden = false;
-    head.addEventListener("click", function(){ fs.hidden=!fs.hidden; });
+    outils.appendChild(discu);
+    var pli=document.createElement("span"); pli.className="pli"; pli.innerHTML=icone("pli");
+    titre.appendChild(outils); titre.appendChild(pli);
+    head.appendChild(titre);
+
+    /* ----- 2e ligne : référence, commune, nombre de documents ----- */
+    var sous=document.createElement("div"); sous.className="sous";
+    var ref=document.createElement("span"); ref.className="ref"; ref.textContent=c.ref;
+    sous.appendChild(ref);
+    var ville=villeDe(c.adresse);
+    if(ville){
+      var sv=document.createElement("span"); sv.className="ville"; sv.textContent=ville;
+      sv.title=String(c.adresse).replace(/\n/g, ", ");
+      sous.appendChild(sv);
+    }
+    var n=document.createElement("span"); n.className="n";
+    n.textContent=c.fichiers.length+" document"+(c.fichiers.length>1?"s":"");
+    sous.appendChild(n);
+    if(c.etat === "attente"){
+      var att=document.createElement("span");
+      att.className="etiq-attente"+(c.relanceDue?" du":"");
+      att.textContent = c.relanceDue ? "À relancer" : "En attente";
+      att.title = "En attente de réponse depuis "+depuisCombien(c.joursAttente)
+        + (c.attenteNote ? "  ·  "+c.attenteNote : "");
+      sous.appendChild(att);
+    }
+    head.appendChild(sous);
+
+    var fs=document.createElement("div"); fs.className="fichiers";
     c.fichiers.forEach(function(f){
       var a=document.createElement("a"); a.className="f";
       var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
@@ -1642,8 +1803,6 @@ function afficher(chantiers){
          le sien. Un ensemble de photos reste une galerie sur place : un
          ZIP ne s'affiche pas tout seul dans un onglet. */
       if(zip){
-        a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
-        a.removeAttribute("target"); a.removeAttribute("href");
         a.style.cursor="pointer";
         a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
       } else {
@@ -1658,11 +1817,39 @@ function afficher(chantiers){
           .catch(function(){});
       });
       var t=document.createElement("div"); t.className="t";
+      var tl=document.createElement("div"); tl.className="tl";
       var tb=document.createElement("b"); tb.textContent=f.titre;
-      var ts=document.createElement("span");
+      tl.appendChild(tb);
+      if(pasEncoreLu(f)){
+        var neuf=document.createElement("span"); neuf.className="neuf";
+        neuf.textContent="Nouveau";
+        tl.appendChild(neuf);
+      }
+      t.appendChild(tl);
+
+      var tag=document.createElement("span");
+      tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reportage"?" reportage":(f.type==="carnet"?" carnet":(f.type==="memoire"?" memoire":(f.type==="doe"?" doe":(f.type==="autocontrole"?" autoc":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":(f.type==="technique"?" technique":(f.type==="point"?" point":"")))))))))))));
+      tag.textContent = f.type==="point" ? "Le point"
+                      : f.type==="technique" ? "Technique"
+                      : f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:""))
+                      : f.type==="commande" ? "Commande"
+                      : f.type==="photos" ? "Photos"
+                      : f.type==="reportage" ? "Reportage"
+                      : f.type==="autocontrole" ? "Autocontrôle"
+                      : f.type==="carnet" ? "Carnet"
+                      : f.type==="memoire" ? "Mémoire"
+                      : f.type==="doe" ? "DOE"
+                      : f.type==="reception" ? "Réception"
+                      : f.type==="etiquettes" ? "Étiquettes"
+                      : f.type==="sav" ? "SAV" : "Relevé";
+      var meta=document.createElement("div"); meta.className="meta";
+      meta.appendChild(tag);
+      var ts=document.createElement("span"); ts.className="infos";
       ts.textContent=[frDate(f.date), f.etape, f.auteur,
-        (f.versions>1 ? "mis à jour "+f.versions+" fois" : ""), octets(f.taille)].filter(Boolean).join("   ");
-      t.appendChild(tb); t.appendChild(ts);
+        (f.versions>1 ? "mis à jour "+f.versions+" fois" : ""), octets(f.taille)].filter(Boolean).join(" · ");
+      meta.appendChild(ts);
+      t.appendChild(meta);
+
       var lus=Object.keys(f.lectures||{}).filter(function(n){ return n!==f.auteur; });
       if(lus.length){
         var lu=document.createElement("span");
@@ -1674,12 +1861,19 @@ function afficher(chantiers){
             + (avant ? " (avant la mise à jour)" : "");
         }).join(", ");
         t.appendChild(lu);
-      } else if(MOI && (MOI.role==="bureau"||MOI.role==="admin") && (f.destinataires||[]).length){
+      } else if(bureau && (f.destinataires||[]).length){
         var na=document.createElement("span");
         na.className="lu na";
         na.textContent="Pas encore ouvert";
         t.appendChild(na);
       }
+      var mS=ligneSaisie(f);
+      if(mS) t.appendChild(mS);
+      a.appendChild(t);
+
+      var droite=document.createElement("div"); droite.className="droite";
+      var bS=boutonSaisie(f, charger);
+      if(bS) droite.appendChild(bS);
       var bPartage=document.createElement("button");
       bPartage.type="button"; bPartage.className="part";
       bPartage.textContent="Ouvrir";
@@ -1688,8 +1882,8 @@ function afficher(chantiers){
         e.preventDefault(); e.stopPropagation();
         ouvrirDocument(f, bPartage);
       });
-      var aSupprimer=null;
-      if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
+      droite.appendChild(bPartage);
+      if(bureau){
         var sup=document.createElement("button");
         sup.type="button"; sup.className="sup";
         sup.textContent="×";
@@ -1708,44 +1902,16 @@ function afficher(chantiers){
             })
             .catch(function(){ alert("Pas de réseau."); sup.disabled=false; sup.textContent="×"; });
         });
-        aSupprimer = sup;
+        droite.appendChild(sup);
       }
-      var tag=document.createElement("span");
-      tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reportage"?" reportage":(f.type==="carnet"?" carnet":(f.type==="memoire"?" memoire":(f.type==="doe"?" doe":(f.type==="autocontrole"?" autoc":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":(f.type==="technique"?" technique":(f.type==="point"?" point":"")))))))))))));
-      tag.textContent = f.type==="point" ? "Le point"
-                      : f.type==="technique" ? "Technique"
-                      : f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:""))
-                      : f.type==="commande" ? "Commande"
-                      : f.type==="photos" ? "Photos"
-                      : f.type==="reportage" ? "Reportage"
-                      : f.type==="autocontrole" ? "Autocontrôle"
-                      : f.type==="carnet" ? "Carnet"
-                      : f.type==="memoire" ? "Mémoire"
-                      : f.type==="doe" ? "DOE"
-                      : f.type==="reception" ? "Réception"
-                      : f.type==="etiquettes" ? "Étiquettes"
-                      : f.type==="sav" ? "SAV" : "Relevé";
-      var mS=ligneSaisie(f);
-      if(mS) t.appendChild(mS);
-      a.appendChild(t);
-      var marques=0;
-      if(pasEncoreLu(f)){
-        var neuf=document.createElement("span"); neuf.className="neuf";
-        neuf.textContent="Nouveau";
-        a.appendChild(neuf); marques++;
-      }
-      var bS=boutonSaisie(f, charger);
-      if(bS){ a.appendChild(bS); marques++; }
-      /* une ligne chargée respire mieux sur deux rangées */
-      if(marques) a.className += " riche";
-      a.appendChild(tag); a.appendChild(bPartage);
-      if(aSupprimer) a.appendChild(aSupprimer);
+      a.appendChild(droite);
       fs.appendChild(a);
     });
     box.appendChild(head); box.appendChild(fs);
-    if(MOI && (MOI.role==="bureau"||MOI.role==="admin")){
-      var act=document.createElement("div"); act.className="actions";
-      act.hidden = fs.hidden;
+
+    var act=null;
+    if(bureau){
+      act=document.createElement("div"); act.className="actions";
       /* mettre de côté un dossier qui n'est qu'au chiffrage : il quitte
          « Mes chantiers » et le site reposera la question dans un mois. */
       var att2=document.createElement("button"); att2.type="button";
@@ -1777,17 +1943,34 @@ function afficher(chantiers){
       arc.textContent="Archiver";
       arc.addEventListener("click", function(){ archiver(c, arc); });
       var note=document.createElement("span"); note.className="hint";
-      note.style.cssText="align-self:center";
       note.textContent = c.etat === "attente"
         ? ((c.attenteAuto ? "En attente d'après le statut du relevé, depuis "
                           : "En attente depuis ")
            + depuisCombien(c.joursAttente)
-           + "   ·   « Archiver » exporte en ZIP puis retire du site")
-        : "Exporte en ZIP puis retire du site";
+           + " · « Archiver » exporte en ZIP puis retire du site")
+        : "« Archiver » exporte en ZIP puis retire du site";
       act.appendChild(att2); act.appendChild(arc); act.appendChild(note);
-      head.addEventListener("click", function(){ act.hidden=fs.hidden; });
       box.appendChild(act);
     }
+
+    function deplier(ouvert){
+      fs.hidden = !ouvert;
+      if(act) act.hidden = !ouvert;
+      box.classList.toggle("ouvert", ouvert);
+      head.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    }
+    box.__deplier = deplier;
+    deplier(PLI.hasOwnProperty(c.ref) ? !!PLI[c.ref] : ouvertParDefaut);
+    function basculer(){
+      var ouvert = fs.hidden;
+      deplier(ouvert); retenirPli(c.ref, ouvert);
+    }
+    head.addEventListener("click", basculer);
+    head.addEventListener("keydown", function(e){
+      if(e.target !== head) return;
+      if(e.key === "Enter" || e.key === " "){ e.preventDefault(); basculer(); }
+    });
+    box.style.setProperty("--i", String(Math.min(i, 12)));
     host.appendChild(box);
   });
 }
@@ -2102,8 +2285,7 @@ function carteAuDossier(ref){
   var box=$("liste").querySelector(".travaux");
   if(box){
     box.scrollIntoView({behavior:"smooth", block:"start"});
-    var head=box.querySelector(".head");
-    if(head) head.click();
+    if(box.__deplier) box.__deplier(true);
   }
 }
 
@@ -2222,6 +2404,7 @@ function carteMajBouton(){
   $("carteHint").textContent = n
     ? (situes ? situes+" sur "+n+" déjà situé"+(situes>1?"s":"") : "les adresses seront cherchées à l'ouverture")
     : "";
+  $("btnCarte").title = "Carte des chantiers" + ($("carteHint").textContent ? " — "+$("carteHint").textContent : "");
 }
 
 (function carteBind(){
