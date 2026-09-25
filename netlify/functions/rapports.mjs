@@ -33,7 +33,7 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
 
   const quoi =
     entree.type === "commande" ? "Commande et reste à faire"
-    : entree.type === "suivi" ? "Suivi de chantier" + (entree.visite ? " — visite n° " + entree.visite : "")
+    : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
     : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
     : entree.type === "carnet" ? "Carnet d'échantillons"
@@ -518,7 +518,22 @@ function rang(f) {
   return isNaN(n) ? 0 : n;
 }
 
+/* Les actions qui écrivent passent une par une. Presque toutes relisent
+   puis réécrivent l'index des chantiers : deux à la fois (un suivi et
+   ses photos, une lecture et une publication) liraient la même version,
+   et la seconde effacerait ce que la première venait d'ajouter. Les
+   lectures, elles, ne s'attendent pas. */
+const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
+  "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
+  "societes-publiques"]);
 export default async (req) => {
+  let action = "";
+  try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
+  if (LECTURES.has(action)) return traiter(req);
+  return sousVerrou("ecritures", () => traiter(req));
+};
+
+async function traiter(req) {
   const url = new URL(req.url);
   const action = url.searchParams.get("action") || "";
   let store = getStore({ name: "rapports", consistency: "strong" });
@@ -887,11 +902,15 @@ export default async (req) => {
       : point
       ? "point-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".pdf"
       : photos
-      ? "photos-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".zip"
+      ? "photos-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.suiviId || personne.nom) + ".zip"
       : commande
         ? "commande-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".pdf"
         : suivi
-          ? "suivi-de-travaux.pdf"        /* un seul rapport, enrichi à chaque visite */
+          /* chaque suivi est indépendant : un fichier par suivi, sans
+             numéro de visite. Les anciens gardaient un seul rapport. */
+          ? (d.suiviId
+              ? "suivi-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.suiviId) + ".pdf"
+              : "suivi-de-travaux.pdf")
           : "releve.pdf";
     const cle = ref + "/" + nomFichier;
 
@@ -984,7 +1003,50 @@ export default async (req) => {
       }
     }
 
-    return json({ ok: true, ref, cle, remplace: !!ancien, versions: entree.versions, prevenus });
+    /* les rappels des points bloquants d'un suivi : pour le conducteur
+       de travaux seul. Une clé stable par point, pour qu'un suivi
+       republié mette ses rappels à jour au lieu de les doubler ; ceux
+       qui ont disparu (point levé, rappel coupé) sont retirés. */
+    let nbRappels = 0;
+    if (suivi && d.suiviId) {
+      const prefixe = "taches/rappel-" + slug(d.suiviId) + "-";
+      /* le rappel va à un compte qui existe : le nom exact, sinon
+         l'identifiant, sinon le prénom (une session peut garder un nom
+         affiché plus long que celui du compte) */
+      let pour = String(d.rappelPour || "").trim() || personne.nom;
+      try {
+        const gens = await lireComptes(personne.societe);
+        const bas = pour.toLowerCase();
+        const trouve = gens.find((u) => u.nom === pour)
+          || gens.find((u) => String(u.identifiant || "").toLowerCase() === bas)
+          || gens.find((u) => String(u.nom || "").toLowerCase() === bas.split(/\s+/)[0]);
+        if (trouve) pour = trouve.nom;
+      } catch { /* on garde le nom tel quel */ }
+      const gardes = new Set();
+      for (const r of (Array.isArray(d.rappels) ? d.rappels : [])) {
+        const quand = String(r.quand || "").slice(0, 10);
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(quand) || !String(r.texte || "").trim()) continue;
+        const cleR = prefixe + slug(String(r.id || r.texte).slice(0, 40)) + ".json";
+        gardes.add(cleR);
+        let avant = null;
+        try { avant = await store.get(cleR, { type: "json" }); } catch { avant = null; }
+        try {
+          await store.setJSON(cleR, {
+            texte: String(r.texte), prio: "", qui: pour, quand, heure: /^\d{2}:\d{2}$/.test(r.heure || "") ? r.heure : "08:00",
+            rappel: true, suivi: cle, chantier: ref, client: d.client || "", auteur: personne.nom,
+            cree: (avant && avant.cree) || new Date().toISOString(),
+            faite: !!(avant && avant.faite && avant.quand === quand)
+          });
+          nbRappels++;
+        } catch { /* la publication reste valable */ }
+      }
+      try {
+        const res = await store.list({ prefix: prefixe });
+        for (const b of (res.blobs || [])) if (!gardes.has(b.key)) { try { await store.delete(b.key); } catch { /* tant pis */ } }
+      } catch { /* rien d'ancien */ }
+    }
+
+    return json({ ok: true, ref, cle, remplace: !!ancien, versions: entree.versions, prevenus, rappels: nbRappels });
   }
 
   /* dépôt du contenu de la fiche, pour pouvoir la rouvrir plus tard dans l'appli */
@@ -1370,6 +1432,7 @@ export default async (req) => {
         const t = await store.get(b.key, { type: "json" });
         if (!t || t.faite) continue;
         if (!bureau && t.qui !== personne.nom) continue;   /* chacun voit les siennes */
+        if (t.rappel && t.qui !== personne.nom) continue;  /* un rappel n'est qu'à son conducteur de travaux */
         out.push({ cle: b.key, ...t });
       }
     } catch { /* rien de stocké */ }
@@ -1769,6 +1832,6 @@ export default async (req) => {
   }
 
   return json({ erreur: "Action inconnue." }, 400);
-};
+}
 
 export const config = { path: "/api/rapports" };

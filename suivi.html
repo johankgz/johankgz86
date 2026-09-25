@@ -15,7 +15,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Travaux 360">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Suivi de travaux — Suivi travaux 360</title>
+<title>Suivi de chantier — Suivi travaux 360</title>
 <style>
 :root{
   --bg:#F4F1EA;
@@ -723,11 +723,79 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .grille{border-top-color:var(--trait-fond)}
 .stepnav .dots button{color:var(--sur-fond-2);border-color:var(--trait-fond)}
 .stepnav .dots button[aria-current="true"]{background:var(--sur-fond);color:var(--g-900)}
+
+/* =====================================================================
+   SUIVI DE CHANTIER — une seule page
+   ---------------------------------------------------------------------
+   Plus d'onglets : client, objet, travaux supplémentaires, photos,
+   plans, points bloquants et enregistrement se suivent sur une page
+   qu'on descend au fil de la visite. Chaque partie porte son numéro.
+   ===================================================================== */
+#nav,#stepnav,.stepnav,header .avance{display:none!important}
+main{padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+.block h2 .sv-num{display:inline-flex;align-items:center;justify-content:center;width:24px;height:24px;margin-right:9px;
+  border-radius:50%;background:var(--accent);color:#fff;font-size:12.5px;font-weight:700;vertical-align:1px}
+.sv-tete .row{flex-wrap:wrap}
+.sv-disc{font-weight:500;text-transform:none;letter-spacing:0;color:var(--ink-3)}
+.sv-plus summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink-2);padding:8px 0;list-style-position:inside}
+.sv-plus[open] summary{margin-bottom:8px}
+details.block.sv-societe summary{padding:0}
+.sv-liste{display:flex;flex-direction:column}
+.sv-ligne{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--rule)}
+.sv-ligne:last-child{border-bottom:0}
+.sv-case{flex:0 0 auto;width:26px;height:26px;min-height:26px;padding:0;margin-top:6px;border-radius:7px;cursor:pointer;
+  border:2px solid rgba(15,23,42,.35);background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:none}
+.sv-case[aria-checked="true"]{background:#16A34A;border-color:#16A34A}
+.sv-case svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+.sv-corps{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:7px}
+.sv-corps .sv-txt{width:100%;min-height:40px;padding:8px 10px;font-size:15px}
+.sv-ligne.fait .sv-txt{color:var(--ink-3);text-decoration:line-through}
+.sv-qui{display:flex;flex-wrap:wrap;gap:6px}
+.sv-qui .chip{min-height:32px;padding:5px 11px;font-size:12.5px}
+.sv-sup{flex:0 0 auto;width:34px;height:34px;min-height:34px;padding:0;margin-top:5px;border:0;border-radius:50%;
+  background:none;color:var(--ink-3);font-size:20px;line-height:1;cursor:pointer;box-shadow:none}
+.sv-sup:hover{background:var(--rouge-soft);color:var(--rouge)}
+.sv-ajout{display:flex;gap:8px;margin-top:10px}
+.sv-ajout input{flex:1 1 auto;min-width:0;min-height:44px;padding:10px 12px;font-size:15px}
+.sv-ajout .act{flex:0 0 auto}
+.sv-rappel{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.sv-sw{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0;border:0;background:none;cursor:pointer;
+  font-size:13px;font-weight:600;color:var(--ink-2);box-shadow:none}
+.sv-sw i{position:relative;display:inline-block;width:40px;height:24px;border-radius:999px;background:#D8DDE4;transition:background .2s ease}
+.sv-sw i::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 2px rgba(0,0,0,.25);transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.sv-sw[aria-checked="true"] i{background:#16A34A}
+.sv-sw[aria-checked="true"] i::after{transform:translateX(16px)}
+.sv-rappel input[type=date],.sv-rappel input[type=time]{min-height:38px;padding:6px 9px;font-size:14px;width:auto!important;flex:0 0 auto}
+.sv-aide{margin:-6px 0 10px!important;font-size:13px}
+#ph_grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
+#ph_grille:empty{display:none}
+.sv-photo{position:relative;border-radius:10px;overflow:hidden;background:#1A1815;box-shadow:var(--ombre-1)}
+.sv-photo img{display:block;width:100%;height:130px;object-fit:cover;cursor:zoom-in}
+.sv-photo input{width:100%;border:0;border-radius:0;min-height:40px;font-size:14px;padding:7px 9px;background:#fff}
+.sv-photo .sv-ph-b{position:absolute;top:6px;width:32px;height:32px;min-height:32px;padding:0;border:0;border-radius:50%;
+  background:rgba(10,14,20,.62);color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:none}
+.sv-photo .sv-ph-b.sup{right:6px}
+.sv-photo .sv-ph-b.ann{right:44px}
+.sv-photo .sv-badge{position:absolute;top:8px;left:8px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#EF4444;color:#fff}
+.sv-plan-d{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule)}
+.sv-plan-d:last-child{border-bottom:0}
+.sv-plan-d .t{flex:1 1 auto;min-width:0}
+.sv-plan-d .t b{display:block;font-size:14px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.sv-plan-d .t span{display:block;font-size:12px;color:var(--ink-3)}
+.sv-plan-d .act{flex:0 0 auto;min-height:36px;padding:7px 12px;font-size:13px}
+.sv-plan{border:1px solid var(--rule);border-radius:10px;padding:10px;margin-bottom:10px;background:#fff}
+.sv-plan img{display:block;width:100%;max-height:260px;object-fit:contain;background:#F8FAFC;border-radius:6px;cursor:zoom-in}
+.sv-plan .sv-plan-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.sv-plan .sv-plan-h input{flex:1 1 160px;min-width:0;min-height:38px;padding:7px 10px;font-size:14px;font-weight:600}
+.sv-go{width:100%;min-height:52px;margin-top:14px;font-size:16px}
+a.act{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
+a.act[hidden]{display:none}
 </style>
 </head>
 <body>
 <header>
-  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Suivi de travaux</h1>
+  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Suivi de chantier</h1>
     <div class="ref" id="hdrRef"></div>
   </div>
   <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
@@ -739,70 +807,60 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <main>
 
-<section id="tab-visite">
-  <div class="block" style="padding:14px 18px">
+<section id="tab-suivi">
+  <div class="block sv-tete">
     <div class="row">
-      <button class="act danger" id="btnNew">Nouvelle fiche</button>
-      <span class="hint" style="flex:1;margin:0">Repartir de zéro efface la fiche en cours sur cet appareil.</span>
+      <button class="act blue" id="btnNew">Nouveau suivi</button>
+      <button class="act ghost" id="btnReleveSite">Reprendre un dossier</button>
+      <button class="act ghost" id="btnOpenSite">Rouvrir un suivi</button>
     </div>
+    <p class="hint" id="lienInfo" style="margin:10px 0 0"></p>
   </div>
 
-  <div class="block" style="padding:14px 18px">
-    <div class="row">
-      <button class="act blue" id="btnNouvelleVisite">Nouvelle visite</button>
-      <span class="hint" style="flex:1;margin:0" id="etatVisites">Le rapport garde toutes les visites.</span>
-    </div>
-  </div>
-
-  <div class="block">
-    <h2>Travaux</h2>
-    <div class="row" style="margin-bottom:14px">
-      <button class="act ghost" id="btnReleveSite">Reprendre un relevé</button>
-    </div>
-    <p class="hint" id="lienInfo" style="margin:-6px 0 14px"></p>
+  <div class="block" id="sec-client">
+    <h2><span class="sv-num">1</span>Client</h2>
     <label class="f"><span>Client</span><input type="text" id="c_nom" placeholder="Nom ou raison sociale"></label>
     <div class="grid2">
-      <label class="f"><span>Code client</span><input type="text" id="c_code"></label>
       <label class="f"><span>Téléphone</span><input type="tel" id="c_tel"></label>
       <label class="f"><span>Interlocuteur sur place</span><input type="text" id="c_contact"></label>
-      <label class="f"><span>E-mail</span><input type="email" id="c_email"></label>
-      <label class="f"><span>Devis Batigest</span><input type="text" id="a_devis"></label>
       <label class="f"><span>Référence travaux</span><input type="text" id="a_chantier"></label>
+      <label class="f"><span>Devis Batigest</span><input type="text" id="a_devis"></label>
     </div>
     <label class="f"><span>Adresse des travaux</span><textarea id="c_adresse" rows="2"></textarea></label>
     <div class="row">
-      <button class="act" id="btnGps"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6"/></svg>Position GPS</button>
-      <button class="act ghost" id="btnCarte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/></svg>Placer sur la carte</button>
-      <button class="act ghost" id="btnMaps"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/><path d="M21 3 10.6 13.4"/></svg>Itinéraire dans Maps</button>
+      <button class="act ghost" id="btnMaps"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3 3 10.5l7.6 2.9L13.5 21z"/><path d="M21 3 10.6 13.4"/></svg>Itinéraire</button>
+      <a class="act ghost" id="lienAppel" href="#" hidden>Appeler</a>
     </div>
-    <div class="row" style="margin-top:8px;flex-wrap:nowrap">
-      <input type="text" id="c_coord" placeholder="Coller des coordonnées ou un lien Maps"
-             autocapitalize="off" spellcheck="false"
-             style="flex:1;min-width:0;min-height:44px;padding:11px 13px;border:0;border-radius:var(--r-field);background:var(--field);font-size:16px;font-family:inherit">
-      <button class="act ghost" id="btnCoord" style="flex:0 0 auto">Placer</button>
-    </div>
-    <p class="hint" id="gpsInfo"></p>
+    <details class="sv-plus">
+      <summary>Code client, e-mail et position GPS</summary>
+      <div class="grid2">
+        <label class="f"><span>Code client</span><input type="text" id="c_code"></label>
+        <label class="f"><span>E-mail</span><input type="email" id="c_email"></label>
+      </div>
+      <div class="row">
+        <button class="act" id="btnGps"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2"/><circle cx="12" cy="12" r="7.6"/><path d="M12 1.8v2.6M12 19.6v2.6M1.8 12h2.6M19.6 12h2.6"/></svg>Position GPS</button>
+        <button class="act ghost" id="btnCarte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/></svg>Placer sur la carte</button>
+      </div>
+      <div class="row" style="margin-top:8px;flex-wrap:nowrap">
+        <input type="text" id="c_coord" placeholder="Coller des coordonnées ou un lien Maps"
+               autocapitalize="off" spellcheck="false"
+               style="flex:1;min-width:0;min-height:44px;padding:11px 13px;border:0;border-radius:var(--r-field);background:var(--field);font-size:16px;font-family:inherit">
+        <button class="act ghost" id="btnCoord" style="flex:0 0 auto">Placer</button>
+      </div>
+      <p class="hint" id="gpsInfo"></p>
+    </details>
   </div>
 
-  <div class="block">
-    <h2>Visite</h2>
+  <div class="block" id="sec-visite">
+    <h2><span class="sv-num">2</span>Objet de la visite</h2>
+    <div class="chips" id="ch_objet"></div>
+    <label class="f"><span>Précisions</span><textarea id="v_objet" rows="2" placeholder="Ce qui a motivé la visite, ce qu'on est venu voir…"></textarea></label>
+    <div class="row" style="margin:-6px 0 12px"><button class="act rec" data-dictee="v_objet">Dicter</button></div>
     <div class="grid2">
       <label class="f"><span>Date</span><input type="date" id="v_date"></label>
       <label class="f"><span>Heure</span><input type="time" id="v_heure"></label>
-      <label class="f"><span>Numéro de visite</span><input type="number" id="v_numero" inputmode="numeric" placeholder="1"></label>
-      <label class="f"><span>Avancement global</span><input type="number" id="v_avancement" inputmode="numeric" placeholder="%"></label>
     </div>
-    <p class="legend">Phase des travaux</p>
-    <div class="chips" id="ch_phase"></div>
-    <p class="legend">Personnes présentes</p>
-    <div class="chips" id="ch_presents"></div>
-    <label class="f"><span>Objet de la visite</span><input type="text" id="v_objet" placeholder="Point d'avancement, validation client, levée de réserves…"></label>
-    <label class="f"><span>Compte rendu du rendez-vous</span><textarea id="v_compte" rows="4" placeholder="Ce qui a été vu et dit sur place."></textarea></label>
-    <div class="row"><button class="act rec" data-dictee="v_compte">Dicter</button></div>
-  </div>
-
-  <div class="block">
-    <h2>Conducteur de travaux</h2>
+    <p class="legend">Conducteur de travaux <span class="sv-disc">— reçoit les rappels des points bloquants</span></p>
     <div class="chips" id="ch_ca"></div>
     <div class="grid2">
       <label class="f"><span>Téléphone</span><input type="tel" id="m_caTel"></label>
@@ -810,9 +868,81 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
   </div>
 
-  <div class="block">
-    <h2>Société</h2>
-    <div class="row" style="margin-bottom:12px">
+  <div class="block" id="sec-ts">
+    <h2><span class="sv-num">3</span>Travaux supplémentaires</h2>
+    <p class="hint sv-aide">Une ligne par demande, au fil de la visite, et en face qui l'a demandée. La case se coche une fois la demande chiffrée ou validée.</p>
+    <div id="ts_liste" class="sv-liste"></div>
+    <div class="sv-ajout">
+      <input type="text" id="ts_texte" placeholder="Nouvelle demande…" enterkeyhint="done" aria-label="Nouvelle demande de travaux supplémentaires">
+      <button type="button" class="act blue" id="ts_ajout">Ajouter</button>
+    </div>
+    <p class="hint" id="ts_bilan"></p>
+  </div>
+
+  <div class="block" id="sec-photos">
+    <h2><span class="sv-num">4</span>Reportage photo</h2>
+    <div class="row">
+      <button class="act blue" id="ph_prendre">Prendre une photo</button>
+      <button class="act ghost" id="ph_galerie">Depuis la galerie</button>
+      <input type="file" id="ph_fichier" accept="image/*" capture="environment" multiple hidden>
+      <input type="file" id="ph_fichierG" accept="image/*" multiple hidden>
+    </div>
+    <div id="ph_grille"></div>
+    <p class="hint" id="ph_aide">Le crayon d'une photo l'annote : flèches, cercles, texte.</p>
+    <label class="f" style="margin-top:12px"><span>Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite."></textarea></label>
+    <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
+  </div>
+
+  <div class="block" id="sec-plans">
+    <h2><span class="sv-num">5</span>Plans</h2>
+    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote.</p>
+    <div id="plans_dossier" class="sv-liste"></div>
+    <div id="plansListe" style="margin-top:12px"></div>
+    <div class="row" style="margin-top:10px">
+      <button class="act ghost" id="btnPlanImport">Importer un autre plan</button>
+      <button class="act ghost" id="btnPlanPhoto">Photographier un plan</button>
+      <input type="file" id="filePlan" accept="image/*,application/pdf" hidden>
+      <input type="file" id="filePlanPhoto" accept="image/*" capture="environment" hidden>
+    </div>
+  </div>
+
+  <div class="block" id="sec-points">
+    <h2><span class="sv-num">6</span>Points bloquants</h2>
+    <p class="hint sv-aide">Comme une to-do : cochez quand le point est levé. Un rappel revient à la date choisie, sur l'accueil du conducteur de travaux.</p>
+    <div id="pts_liste" class="sv-liste"></div>
+    <div class="sv-ajout">
+      <input type="text" id="pts_texte" placeholder="Nouveau point bloquant…" enterkeyhint="done" aria-label="Nouveau point bloquant">
+      <button type="button" class="act blue" id="pts_ajout">Ajouter</button>
+    </div>
+  </div>
+
+  <div class="block" id="sec-enregistrer">
+    <h2><span class="sv-num">7</span>Enregistrer</h2>
+    <div id="resume"></div>
+    <div class="choix-pub" id="choixPublication" style="margin-top:14px">
+      <button type="button" class="opt on" data-pub="dossier">
+        <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
+      </button>
+      <button type="button" class="opt" data-pub="cible">
+        <b>Seulement à une personne</b><span>vous choisissez qui</span>
+      </button>
+    </div>
+    <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
+    <div class="chips" id="pubDest"></div>
+    <button class="act blue sv-go" id="btnPublier">Enregistrer le suivi</button>
+    <p class="hint" id="pubIntro" style="margin:8px 0 0">Le PDF part dans le dossier du chantier, sous « Suivi de chantier », et les photos sur le site. Les rappels partent au conducteur de travaux.</p>
+    <p class="hint" id="pubEtat"></p>
+    <div class="row" style="margin-top:12px">
+      <button class="act ghost" id="btnPdf">Télécharger le PDF</button>
+      <button class="act ghost" id="btnPartage">Partager le PDF</button>
+      <button class="act ghost" id="btnPhotosZip">Photos sur le téléphone</button>
+    </div>
+    <p class="hint" id="pdfInfo"></p>
+  </div>
+
+  <details class="block sv-plus sv-societe">
+    <summary>Société : logo et pied de page du PDF</summary>
+    <div class="row" style="margin:12px 0">
       <button class="act" id="btnLogo">Choisir le logo</button>
       <input type="file" id="fileLogo" accept="image/*" hidden>
       <img id="logoPreview" alt="" style="height:34px;display:none;border-radius:var(--r-field)">
@@ -824,117 +954,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
     <label class="f"><span>Adresse</span><input type="text" id="p_socAdr"></label>
     <label class="f"><span>Mention de pied de page</span><input type="text" id="p_socLegal"></label>
-  </div>
-</section>
-
-<section id="tab-avancement" hidden>
-  <div class="block">
-    <h2>Avancement par lot</h2>
-    <p class="hint" style="margin:-8px 0 14px">Un lot sans état ni note n'apparaît pas dans le rapport.</p>
-    <div id="list-lots"></div>
-    <div class="row"><button class="act ghost" data-add="lots">Ajouter un lot</button></div>
-  </div>
-</section>
-
-<section id="tab-plan" hidden>
-  <div class="block">
-    <h2>Plans du chantier</h2>
-    <p class="legend">Importez le plan d'exécution, puis posez dessus les prises, interrupteurs et points lumineux ajoutés ou déplacés. Le plan annoté part dans le rapport.</p>
-    <div class="row">
-      <button class="act blue" id="btnPlanImport">Importer un plan</button>
-      <button class="act ghost" id="btnPlanPhoto">Photographier un plan</button>
-      <input type="file" id="filePlan" accept="image/*" hidden>
-      <input type="file" id="filePlanPhoto" accept="image/*" capture="environment" hidden>
-    </div>
-    <p class="hint">Une photo du plan papier fait très bien l'affaire. Prenez-la bien à plat, le plus droit possible.</p>
-    <div id="plansListe" style="margin-top:14px"></div>
-  </div>
-</section>
-
-<section id="tab-points" hidden>
-  <div class="block">
-    <h2>Modifications de plan</h2>
-    <div id="list-modifs"></div>
-    <div class="row"><button class="act ghost" data-add="modifs">Ajouter une modification</button></div>
-  </div>
-  <div class="block">
-    <h2>Points bloquants et réserves</h2>
-    <div id="list-blocages"></div>
-    <div class="row"><button class="act ghost" data-add="blocages">Ajouter un point</button></div>
-  </div>
-</section>
-
-<section id="tab-actions" hidden>
-  <div class="block">
-    <h2>Interventions à planifier</h2>
-    <div id="list-interventions"></div>
-    <div class="row"><button class="act ghost" data-add="interventions">Ajouter une intervention</button></div>
-  </div>
-  <div class="block">
-    <h2>Intervenants à contacter</h2>
-    <div id="list-contacts"></div>
-    <div class="row"><button class="act ghost" data-add="contacts">Ajouter un intervenant</button></div>
-  </div>
-  <div class="block">
-    <h2>Notes pour le technicien</h2>
-    <div id="list-notes"></div>
-    <div class="row"><button class="act ghost" data-add="notes">Ajouter une note</button></div>
-  </div>
-</section>
-
-<section id="tab-rapport" hidden>
-  <div class="block">
-    <h2>Synthèse</h2>
-    <label class="f"><span>Ce qu'il faut retenir</span><textarea id="s_resume" rows="4" placeholder="Deux ou trois phrases : où en est les travaux, ce qui change, ce qui bloque."></textarea></label>
-    <div class="row" style="margin-bottom:14px"><button class="act rec" data-dictee="s_resume">Dicter</button></div>
-    <label class="f"><span>Décisions validées avec le client</span><textarea id="s_decisions" rows="3"></textarea></label>
-    <div class="grid2">
-      <label class="f"><span>Prochaine visite</span><input type="date" id="s_prochaine"></label>
-      <label class="f"><span>Objet de la prochaine visite</span><input type="text" id="s_prochaineObjet"></label>
-    </div>
-  </div>
-
-  <div class="block">
-    <h2>Rapport</h2>
-    <div id="resume"></div>
-    <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer le rapport</button></div>
-    <p class="hint" id="pdfInfo"></p>
-  </div>
-
-  <div class="block">
-    <h2>Partage du rapport</h2>
-    <p class="hint" style="margin:-8px 0 14px">Ouvre la feuille de partage du téléphone : e-mail, WhatsApp, SMS, AirDrop, enregistrement dans les fichiers… vous choisissez sur place.</p>
-    <button class="act blue" id="btnPartage" style="width:100%">Partager le rapport</button>
-  </div>
-
-  <div class="block">
-    <h2>Publication</h2>
-    <p class="hint" id="pubIntro" style="margin:-8px 0 14px">Le rapport est déposé sur le site, directement dans l'espace des personnes choisies. Chaque visite garde sa propre version.</p>
-    <div class="choix-pub" id="choixPublication">
-      <button type="button" class="opt on" data-pub="dossier">
-        <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
-      </button>
-      <button type="button" class="opt" data-pub="cible">
-        <b>Seulement à une personne</b><span>vous choisissez qui</span>
-      </button>
-    </div>
-    <p class="legend" id="legendeDest" hidden id="pubTitre">Qui doit recevoir ce rapport</p>
-    <div class="chips" id="pubDest"></div>
-    <button class="act blue" id="btnPublier" style="width:100%">Publier</button>
-    <p class="hint" id="pubEtat"></p>
-  </div>
-
-  <div class="block">
-    <h2>Enregistrements</h2>
-    <div class="row">
-      <button class="act ghost" id="btnPhotosZip">Enregistrer les photos</button>
-      <button class="act ghost" id="btnPhotosSite">Enregistrer les photos sur le site</button>
-    </div>
-    <div class="row" style="margin-top:10px">
-      <button class="act ghost" id="btnOpenSite">Reprendre un suivi en cours</button>
-    </div>
-    <p class="hint">La fiche est conservée sur le site à chaque publication : rien à garder sur le téléphone.</p>
-  </div>
+  </details>
 </section>
 
 <div class="stepnav" id="stepnav"></div>
@@ -1194,17 +1214,28 @@ function maintenant(){ var d=new Date(); return String(d.getHours()).padStart(2,
 /* ---------- état ---------- */
 var S=null, P=null;
 function blank(){
+  /* Un suivi = une visite, indépendante des autres : pas de numéro. Il se
+     range dans le dossier du chantier sous « Suivi de chantier », nommé
+     par sa date et son objet. */
   return {
+    version:2, suiviId:"s"+Date.now().toString(36)+Math.random().toString(36).slice(2,6),
     lien:{ref:"", date:"", pieces:[], objet:""},
     client:{nom:"",code:"",tel:"",contact:"",email:"",adresse:"",lat:null,lon:null},
     affaire:{devis:"",chantier:""},
-    visite:{date:aujourdhui(),heure:maintenant(),numero:"",phase:"",presents:[],avancement:"",objet:"",compte:""},
+    visite:{date:aujourdhui(),heure:maintenant(),type:"",objet:"",note:""},
     meta:{ca:"",caTel:"",caMail:"",societe:""},
-    visites:[],
-    lots:[], modifs:[], blocages:[], interventions:[], contacts:[], notes:[], plans:[], destinataires:[],
-    synthese:{resume:"",decisions:"",prochaine:"",prochaineObjet:""},
+    ts:[], photos:[], plans:[], points:[], destinataires:[],
     dest:""
   };
+}
+/* une fiche d'avant (visites numérotées) : on garde le client et le
+   chantier, le reste repart à neuf */
+function migrerFiche(v){
+  if(!v) return blank();
+  if(v.version === 2) return Object.assign(blank(), v);
+  var n = blank();
+  ["client","affaire","meta","lien"].forEach(function(k){ if(v[k]) n[k] = Object.assign(n[k], v[k]); });
+  return n;
 }
 function blankPrefs(){
   return {societe:"TRICHET LOUÉ ÉNERGIES", socTel:"02 51 05 03 03", socWeb:"contact@tlenergies.com",
@@ -1236,207 +1267,139 @@ function save(){
 }
 function savePrefs(){ try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} }
 
-/* ---------- listes ---------- */
-var ETATS = ["Non commencé","En cours","Terminé","Bloqué"];
-var LISTS = {
-  lots:{
-    titre:"Lot", nomLabel:"Lot", nomPlaceholder:"Électricité, Plomberie, Climatisation…",
-    presets:["Électricité","Plomberie","Climatisation","Photovoltaïque","VMC","Maçonnerie","Plâtrerie","Menuiserie"],
-    photos:true, pdf:"lot",
-    fields:[
-      {k:"etat", l:"État", type:"chips", opts:ETATS},
-      {k:"pct", l:"Avancement", type:"number", unite:"%"},
-      {k:"note", l:"Observations", type:"textarea", dictee:true}
-    ]
-  },
-  modifs:{
-    titre:"Modification", nomLabel:"Modification demandée", nomPlaceholder:"Déplacement du tableau, prise supplémentaire…",
-    photos:true, pdf:"fiche",
-    fields:[
-      {k:"origine", l:"Demandée par", type:"chips", opts:["Client","Architecte","Maître d'œuvre","Notre entreprise","Autre entreprise"]},
-      {k:"desc", l:"Description", type:"textarea", dictee:true},
-      {k:"emplacement", l:"Emplacement", type:"text", pieces:true},
-      {k:"impact", l:"Incidence", type:"chips", opts:["Sans incidence","Devis supplémentaire","Avenant au marché","Moins-value","Délai à revoir"]},
-      {k:"suite", l:"Suite à donner", type:"chips", opts:["À chiffrer","Validé, à exécuter","En attente client","Refusé"]},
-      {k:"planRef", l:"Plan concerné", type:"text"}
-    ]
-  },
-  blocages:{
-    titre:"Point bloquant", nomLabel:"Point bloquant ou réserve", nomPlaceholder:"Cloison non montée, gaine écrasée…",
-    photos:true, pdf:"fiche",
-    fields:[
-      {k:"gravite", l:"Criticité", type:"chips", opts:["À surveiller","Gênant","Bloque les travaux"]},
-      {k:"desc", l:"Description", type:"textarea", dictee:true},
-      {k:"emplacement", l:"Emplacement", type:"text", pieces:true},
-      {k:"qui", l:"Qui doit lever le point", type:"text"},
-      {k:"quand", l:"Attendu pour le", type:"date"}
-    ]
-  },
-  interventions:{
-    titre:"Intervention", nomLabel:"Intervention", nomPlaceholder:"Tirage des câbles étage, pose des PAC…",
-    photos:false, pdf:"ligne",
-    fields:[
-      {k:"lot", l:"Lot", type:"chips", opts:["Électricité","Plomberie","Climatisation","Photovoltaïque","Autre"]},
-      {k:"equipe", l:"Technicien", type:"text", liste:"dl_equipe"},
-      {k:"date", l:"Date prévue", type:"date"},
-      {k:"duree", l:"Durée estimée", type:"text", placeholder:"1 jour, 2 h…"},
-      {k:"prerequis", l:"À faire avant", type:"text"},
-      {k:"materiel", l:"Matériel à approvisionner", type:"textarea", dictee:true}
-    ]
-  },
-  contacts:{
-    titre:"Intervenant", nomLabel:"Nom", nomPlaceholder:"Nom de la personne",
-    photos:false, pdf:"ligne",
-    fields:[
-      {k:"role", l:"Rôle", type:"chips", opts:["Client","Architecte","Maître d'œuvre","Maçon","Plaquiste","Menuisier","Fournisseur","Bureau de contrôle","Autre"]},
-      {k:"societe", l:"Société", type:"text"},
-      {k:"tel", l:"Téléphone", type:"tel"},
-      {k:"objet", l:"Objet de l'appel", type:"textarea", dictee:true},
-      {k:"avant", l:"À contacter avant le", type:"date"}
-    ]
-  },
-  notes:{
-    titre:"Note", nomLabel:"Sujet", nomPlaceholder:"Attention câble sous dalle, hauteur des prises…",
-    photos:true, pdf:"fiche",
-    fields:[
-      {k:"priorite", l:"Priorité", type:"chips", opts:["Information","Important","Impératif"]},
-      {k:"emplacement", l:"Emplacement", type:"text", pieces:true},
-      {k:"texte", l:"Consigne", type:"textarea", dictee:true}
-    ]
-  }
-};
-
-function itemVide(key, it){
-  var cfg=LISTS[key];
-  if((it.nom||"").trim()) return false;
-  var plein=false;
-  cfg.fields.forEach(function(f){ if((it[f.k]||"").toString().trim()) plein=true; });
-  if(it.photos && it.photos.length) plein=true;
-  return !plein;
+/* ---------- les listes : travaux supplémentaires et points bloquants ---------- */
+var DEMANDEURS=["Client","Architecte","Maître d'œuvre","Technicien"];
+var COCHE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+function caseACocher(it, libelle, apres){
+  var c=document.createElement("button"); c.type="button"; c.className="sv-case";
+  c.setAttribute("role","checkbox"); c.setAttribute("aria-checked", it.fait ? "true" : "false");
+  c.setAttribute("aria-label", libelle);
+  c.innerHTML = it.fait ? COCHE : "";
+  c.addEventListener("click", function(){ it.fait=!it.fait; save(); apres(); });
+  return c;
 }
-function itemsUtiles(key){
-  return S[key].filter(function(it){ return !itemVide(key, it); });
-}
-
-/* ---------- rendu des listes ---------- */
-function champ(it, f, key){
-  var wrap=document.createElement("div");
-  if(f.type==="chips"){
-    var lg=document.createElement("p"); lg.className="legend"; lg.textContent=f.l; wrap.appendChild(lg);
-    var box=document.createElement("div"); box.className="chips";
-    f.opts.forEach(function(o){
-      var lab=document.createElement("label");
-      lab.className="chip"+(it[f.k]===o?" on":"");
-      lab.textContent=o;
-      lab.addEventListener("click", function(e){
-        e.preventDefault();
-        it[f.k] = (it[f.k]===o) ? "" : o;
-        save(); renderList(key);
-      });
-      box.appendChild(lab);
-    });
-    wrap.appendChild(box);
-    return wrap;
-  }
-  var lab2=document.createElement("label"); lab2.className="f";
-  var sp=document.createElement("span"); sp.textContent=f.l + (f.unite?" ("+f.unite+")":"");
-  lab2.appendChild(sp);
-  var el;
-  if(f.type==="textarea"){ el=document.createElement("textarea"); el.rows=3; }
-  else { el=document.createElement("input"); el.type = f.type==="number" ? "number" : (f.type||"text"); }
-  if(f.type==="number") el.inputMode="numeric";
-  if(f.placeholder) el.placeholder=f.placeholder;
-  if(f.pieces) el.setAttribute("list","dl_pieces");
-  el.value = it[f.k]||"";
-  el.addEventListener("input", function(){ it[f.k]=el.value; save(); });
-  el.addEventListener("change", function(){ renderResume(); });
-  lab2.appendChild(el);
-  wrap.appendChild(lab2);
-  if(f.dictee){
-    var row=document.createElement("div"); row.className="row"; row.style.margin="-6px 0 14px";
-    var b=document.createElement("button"); b.type="button"; b.className="act rec"; b.textContent="Dicter";
-    b.dataset.target = el.id = "f"+uid();
-    setupDictation(b); row.appendChild(b); wrap.appendChild(row);
-  }
-  return wrap;
-}
-
-function renderList(key){
-  var cfg=LISTS[key], host=$("list-"+key);
-  host.textContent="";
-  S[key].forEach(function(it, idx){
-    var card=document.createElement("div");
-    card.className="room"; card.dataset.open = it._open ? "1" : "0";
-
-    var head=document.createElement("div"); head.className="head";
-    var n=document.createElement("span"); n.className="n"; n.textContent=String(idx+1);
-    var t=document.createElement("span"); t.className="t"; t.textContent = (it.nom||"").trim() || cfg.titre+" "+(idx+1);
-    var meta=document.createElement("span"); meta.className="meta";
-    var bits=[];
-    if(it.etat) bits.push(it.etat);
-    if(it.gravite) bits.push(it.gravite);
-    if(it.priorite) bits.push(it.priorite);
-    if(it.date) bits.push(frDate(it.date));
-    if(it.photos && it.photos.length) bits.push(it.photos.length+" photo"+(it.photos.length>1?"s":""));
-    meta.textContent = bits.join("  ");
-    head.appendChild(n); head.appendChild(t); head.appendChild(meta);
-    head.addEventListener("click", function(){ it._open = !it._open; renderList(key); });
-    card.appendChild(head);
-
-    var body=document.createElement("div"); body.className="body";
-    var lab=document.createElement("label"); lab.className="f";
-    var sp=document.createElement("span"); sp.textContent=cfg.nomLabel; lab.appendChild(sp);
-    var inp=document.createElement("input"); inp.type="text"; inp.value=it.nom||"";
-    if(cfg.nomPlaceholder) inp.placeholder=cfg.nomPlaceholder;
-    inp.addEventListener("input", function(){ it.nom=inp.value; save(); });
-    inp.addEventListener("change", function(){ renderList(key); });
-    lab.appendChild(inp); body.appendChild(lab);
-
-    if(cfg.presets){
-      var pr=document.createElement("div"); pr.className="chips";
-      cfg.presets.forEach(function(o){
-        if(S[key].some(function(x){ return x.nom===o; })) return;
-        var c=document.createElement("label"); c.className="chip"; c.textContent=o;
-        c.addEventListener("click", function(e){ e.preventDefault(); it.nom=o; save(); renderList(key); });
-        pr.appendChild(c);
-      });
-      if(pr.children.length) body.appendChild(pr);
-    }
-
-    cfg.fields.forEach(function(f){ body.appendChild(champ(it, f, key)); });
-
-    if(cfg.photos){
-      var row=document.createElement("div"); row.className="row";
-      var bp=document.createElement("button"); bp.type="button"; bp.className="act blue"; bp.textContent="Photo";
-      var fi=document.createElement("input"); fi.type="file"; fi.accept="image/*"; fi.multiple=true; fi.hidden=true;
-      bp.addEventListener("click", function(){ fi.click(); });
-      fi.addEventListener("change", function(){ ajouterPhotos(fi.files, it, function(){ renderList(key); }); fi.value=""; });
-      var bs=document.createElement("button"); bs.type="button"; bs.className="act ghost"; bs.textContent="Croquis";
-      bs.addEventListener("click", function(){ openSketch(it, null, function(){ renderList(key); }); });
-      row.appendChild(bp); row.appendChild(fi); row.appendChild(bs);
-      body.appendChild(row);
-      body.appendChild(galerie(it, function(){ renderList(key); }));
-    }
-
-    var del=document.createElement("div"); del.className="row"; del.style.marginTop="14px";
-    var bd=document.createElement("button"); bd.type="button"; bd.className="act danger"; bd.textContent="Supprimer";
-    bd.addEventListener("click", function(){
-      if(!window.confirm("Supprimer cet élément ?")) return;
-      S[key].splice(idx,1); save(); renderList(key); renderResume();
-    });
-    del.appendChild(bd); body.appendChild(del);
-
-    card.appendChild(body);
-    host.appendChild(card);
+function boutonRetirer(liste, it, quoi, apres){
+  var b=document.createElement("button"); b.type="button"; b.className="sv-sup";
+  b.textContent="×"; b.title="Retirer"; b.setAttribute("aria-label","Retirer « "+(it.texte||quoi)+" »");
+  b.addEventListener("click", function(){
+    if((it.texte||"").trim() && !window.confirm("Retirer « "+it.texte+" » ?")) return;
+    var i=liste.indexOf(it); if(i>=0) liste.splice(i,1);
+    save(); apres();
   });
-  if(!S[key].length){
-    var p=document.createElement("p"); p.className="hint";
-    p.textContent="Rien pour l'instant.";
-    host.appendChild(p);
+  return b;
+}
+function champTexte(it, apres){
+  var t=document.createElement("input"); t.type="text"; t.className="sv-txt"; t.value=it.texte||"";
+  t.addEventListener("input", function(){ it.texte=t.value; save(); });
+  t.addEventListener("change", apres);
+  return t;
+}
+function renderTs(){
+  var host=$("ts_liste"); if(!host) return;
+  host.textContent="";
+  (S.ts||[]).forEach(function(it){
+    var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
+    l.appendChild(caseACocher(it, "Demande chiffrée ou validée : "+(it.texte||""), renderTs));
+    var corps=document.createElement("div"); corps.className="sv-corps";
+    corps.appendChild(champTexte(it, renderResume));
+    var qui=document.createElement("div"); qui.className="sv-qui";
+    qui.setAttribute("role","group"); qui.setAttribute("aria-label","Demandée par");
+    DEMANDEURS.forEach(function(d){
+      var c=document.createElement("button"); c.type="button";
+      c.className="chip"+(it.qui===d?" on":""); c.textContent=d;
+      c.setAttribute("aria-pressed", it.qui===d ? "true" : "false");
+      c.addEventListener("click", function(){ it.qui = it.qui===d ? "" : d; save(); renderTs(); });
+      qui.appendChild(c);
+    });
+    corps.appendChild(qui);
+    l.appendChild(corps);
+    l.appendChild(boutonRetirer(S.ts, it, "cette demande", renderTs));
+    host.appendChild(l);
+  });
+  var b=$("ts_bilan");
+  if(b){
+    var n=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
+    var par={};
+    n.forEach(function(x){ var k=x.qui||"sans demandeur"; par[k]=(par[k]||0)+1; });
+    b.textContent = n.length
+      ? n.length+" demande"+(n.length>1?"s":"")+" · "+Object.keys(par).map(function(k){ return par[k]+" "+k.toLowerCase(); }).join(", ")
+      : "";
   }
   renderResume();
 }
-
+function renderPoints(){
+  var host=$("pts_liste"); if(!host) return;
+  host.textContent="";
+  (S.points||[]).forEach(function(it){
+    var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
+    l.appendChild(caseACocher(it, "Point levé : "+(it.texte||""), renderPoints));
+    var corps=document.createElement("div"); corps.className="sv-corps";
+    corps.appendChild(champTexte(it, renderResume));
+    var r=document.createElement("div"); r.className="sv-rappel";
+    var sw=document.createElement("button"); sw.type="button"; sw.className="sv-sw";
+    sw.setAttribute("role","switch"); sw.setAttribute("aria-checked", it.rappel ? "true" : "false");
+    sw.innerHTML='<i></i><span>Rappel</span>';
+    sw.addEventListener("click", function(){
+      it.rappel=!it.rappel;
+      if(it.rappel && !it.quand){
+        var d=new Date(Date.now()+2*864e5);
+        it.quand=d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+        it.heure=it.heure||"08:00";
+      }
+      save(); renderPoints();
+    });
+    r.appendChild(sw);
+    if(it.rappel && !it.fait){
+      var dq=document.createElement("input"); dq.type="date"; dq.value=it.quand||""; dq.setAttribute("aria-label","Date du rappel");
+      dq.addEventListener("change", function(){ it.quand=dq.value; save(); renderResume(); });
+      var hq=document.createElement("input"); hq.type="time"; hq.value=it.heure||"08:00"; hq.setAttribute("aria-label","Heure du rappel");
+      hq.addEventListener("change", function(){ it.heure=hq.value; save(); });
+      r.appendChild(dq); r.appendChild(hq);
+    }
+    if(it.fait){ var lv=document.createElement("span"); lv.className="hint"; lv.style.margin="0"; lv.textContent="Levé"; r.appendChild(lv); }
+    corps.appendChild(r);
+    l.appendChild(corps);
+    l.appendChild(boutonRetirer(S.points, it, "ce point", renderPoints));
+    host.appendChild(l);
+  });
+  renderResume();
+}
+function ajouterLigne(cle, champ, rendu){
+  var t=$(champ), v=(t.value||"").trim();
+  if(!v){ t.focus(); return; }
+  var it={id:uid(), texte:v, fait:false};
+  if(cle==="ts") it.qui="";
+  if(cle==="points"){ it.rappel=false; it.quand=""; it.heure=""; }
+  S[cle].push(it); t.value=""; save(); rendu();
+  t.focus();
+}
+/* ---------- reportage photo ---------- */
+function renderPhotos(){
+  var g=$("ph_grille"); if(!g) return;
+  g.textContent="";
+  (S.photos||[]).forEach(function(ph, i){
+    var d=document.createElement("div"); d.className="sv-photo";
+    var im=document.createElement("img"); im.src=ph.data; im.alt=ph.legende||"Photo "+(i+1);
+    im.addEventListener("click", function(){ openSketch(S, i, renderPhotos); });
+    var lg=document.createElement("input"); lg.type="text"; lg.placeholder="Légende"; lg.value=ph.legende||"";
+    lg.setAttribute("aria-label","Légende de la photo "+(i+1));
+    lg.addEventListener("input", function(){ ph.legende=lg.value; save(); });
+    var ba=document.createElement("button"); ba.type="button"; ba.className="sv-ph-b ann"; ba.textContent="✎";
+    ba.title="Annoter"; ba.setAttribute("aria-label","Annoter la photo "+(i+1));
+    ba.addEventListener("click", function(){ openSketch(S, i, renderPhotos); });
+    var bd=document.createElement("button"); bd.type="button"; bd.className="sv-ph-b sup"; bd.textContent="×";
+    bd.title="Retirer"; bd.setAttribute("aria-label","Retirer la photo "+(i+1));
+    bd.addEventListener("click", function(){
+      if(!window.confirm("Retirer cette photo du suivi ?")) return;
+      S.photos.splice(i,1); save(); renderPhotos();
+    });
+    d.appendChild(im);
+    if(ph.annotee){ var bg=document.createElement("span"); bg.className="sv-badge"; bg.textContent="Annotée"; d.appendChild(bg); }
+    d.appendChild(ba); d.appendChild(bd); d.appendChild(lg);
+    g.appendChild(d);
+  });
+  renderResume();
+}
 function galerie(cible, apres){
   var g=document.createElement("div"); g.className="thumbs";
   (cible.photos||[]).forEach(function(ph, i){
@@ -1465,7 +1428,11 @@ function ajouterPhotos(files, cible, apres){
 }
 
 /* ---------- onglets ---------- */
-var TABS=[["visite","Visite"],["avancement","Avancement"],["plan","Plan"],["points","Points"],["actions","Actions"],["rapport","Rapport"]];
+/* une seule page : l'onglet unique porte tout, les anciens noms mènent
+   à la partie correspondante */
+var TABS=[["suivi","Suivi"]];
+var PARTIES={visite:"sec-visite", client:"sec-client", ts:"sec-ts", photos:"sec-photos", plan:"sec-plans", plans:"sec-plans",
+  points:"sec-points", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -1518,20 +1485,13 @@ function majAvance(name){
   if(titre) titre.textContent = TABS[i][1];
 }
 function showTab(name){
-  TABS.forEach(function(t){
-    $("tab-"+t[0]).hidden = (t[0]!==name);
-    var b=$("nav").querySelector('[data-tab="'+t[0]+'"]');
-    b.setAttribute("aria-current", t[0]===name ? "true" : "false");
-  });
-  majAvance(name);
-  stepNav(name);
-  boutonHaut($("tab-"+name));
-  window.scrollTo(0,0);
-  var nav=$("nav"), actif=nav.querySelector('[aria-current="true"]');
-  if(actif && actif.scrollIntoView && nav.scrollWidth > nav.clientWidth + 4){
-    actif.scrollIntoView({inline:"center", block:"nearest", behavior:"smooth"});
-  }
-  if(name==="rapport") renderResume();
+  var sec=$("tab-suivi"); if(!sec) return;
+  sec.hidden=false;
+  if(!sec.querySelector(".haut")) boutonHaut(sec);
+  var cible = PARTIES[name] && $(PARTIES[name]);
+  if(cible && name!=="visite" && name!=="suivi" && name!=="client") cible.scrollIntoView({block:"start", behavior:"smooth"});
+  else window.scrollTo(0,0);
+  renderResume();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -1576,11 +1536,8 @@ var FIELDS=[
   ["c_nom","client.nom"],["c_code","client.code"],["c_tel","client.tel"],["c_contact","client.contact"],
   ["c_email","client.email"],["c_adresse","client.adresse"],
   ["a_devis","affaire.devis"],["a_chantier","affaire.chantier"],
-  ["v_date","visite.date"],["v_heure","visite.heure"],["v_numero","visite.numero"],
-  ["v_avancement","visite.avancement"],["v_objet","visite.objet"],["v_compte","visite.compte"],
-  ["m_caTel","meta.caTel"],["m_caMail","meta.caMail"],
-  ["s_resume","synthese.resume"],["s_decisions","synthese.decisions"],
-  ["s_prochaine","synthese.prochaine"],["s_prochaineObjet","synthese.prochaineObjet"]
+  ["v_date","visite.date"],["v_heure","visite.heure"],["v_objet","visite.objet"],["v_note","visite.note"],
+  ["m_caTel","meta.caTel"],["m_caMail","meta.caMail"]
 ];
 function getPath(p){ var a=p.split("."); return a.length===1 ? S[a[0]] : S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[0]][a[1]]=v; }
@@ -1594,20 +1551,22 @@ function bindFields(){
 function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   habillerBarres();
-  renderPlans();
-  setTimeout(majEtatVisites, 0);
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
   paintChips();
   paintLien();
-  ["lots","modifs","blocages","interventions","contacts","notes"].forEach(renderList);
-  renderPlans();
+  paintAppel();
+  renderTs(); renderPhotos(); renderPlans(); renderPoints();
   paintPieces();
   renderDest();
   refreshHeader();
+  chargerPlansDossier();
 }
-
-var PHASES=["Préparation","Gros œuvre","Second œuvre","Finitions","Mise en service","Levée de réserves"];
-var PRESENTS=["Client","Maître d'œuvre","Architecte","Autres entreprises","Notre équipe"];
+function paintAppel(){
+  var a=$("lienAppel"); if(!a) return;
+  var t=String(S.client.tel||"").replace(/[^\d+]/g,"");
+  a.hidden=!t; a.href = t ? "tel:"+t : "#";
+}
+var OBJETS=["Point d'avancement","Réunion de chantier","Réception","Levée de réserves","Visite client"];
 function chipsSimple(host, opts, get, set){
   var box=$(host); box.textContent="";
   opts.forEach(function(o){
@@ -1619,15 +1578,9 @@ function chipsSimple(host, opts, get, set){
   });
 }
 function paintChips(){
-  chipsSimple("ch_phase", PHASES,
-    function(o){ return S.visite.phase===o; },
-    function(o){ S.visite.phase = (S.visite.phase===o) ? "" : o; });
-  chipsSimple("ch_presents", PRESENTS,
-    function(o){ return S.visite.presents.indexOf(o)>=0; },
-    function(o){
-      var i=S.visite.presents.indexOf(o);
-      if(i<0) S.visite.presents.push(o); else S.visite.presents.splice(i,1);
-    });
+  chipsSimple("ch_objet", OBJETS,
+    function(o){ return S.visite.type===o; },
+    function(o){ S.visite.type = (S.visite.type===o) ? "" : o; renderResume(); });
   var noms;
   if(EQUIPE_CACHE && EQUIPE_CACHE.length){
     noms = EQUIPE_CACHE.filter(function(p){ return (p.role==="bureau"||p.role==="admin"); }).map(function(p){ return p.nom; });
@@ -1687,9 +1640,6 @@ function importerReleve(txt){
   S.lien.ref = (R.affaire&&R.affaire.chantier) || (R.affaire&&R.affaire.devis) || "";
   S.lien.objet = (R.rdv&&R.rdv.objet)||"";
   S.lien.pieces = (R.pieces||[]).map(function(p){ return p.nom; });
-  if(!S.lots.length && R.chantier && R.chantier.natures){
-    R.chantier.natures.forEach(function(n){ S.lots.push({id:uid(), nom:n, etat:"", pct:"", note:"", photos:[], _open:false}); });
-  }
   save(); paintForm();
   toast("Relevé repris. Client et affaire pré-remplis.");
 }
@@ -1702,40 +1652,40 @@ function refAffaire(){
 function frDate(d){ if(!d) return ""; var a=d.split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 function refreshHeader(){
   var r=[];
-  if(S.visite.numero) r.push("Visite "+S.visite.numero);
   if(refAffaire()) r.push(refAffaire());
-  $("hdrRef").textContent = r.join("  ");
+  if(S.visite.date) r.push(frDate(S.visite.date));
+  $("hdrRef").textContent = r.join("  ·  ");
+  paintAppel();
+}
+function titreSuivi(){
+  return "Suivi du "+frDate(S.visite.date)+((S.visite.type||"").trim() ? " — "+S.visite.type : "");
+}
+function rappelsActifs(){
+  return (S.points||[]).filter(function(p){ return p.rappel && !p.fait && p.quand && (p.texte||"").trim(); });
 }
 function renderResume(){
   var host=$("resume"); if(!host) return;
   host.textContent="";
+  var ts=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
+  var pts=(S.points||[]).filter(function(x){ return (x.texte||"").trim(); });
+  var modif=(S.plans||[]).filter(function(p){ return p.etat==="modifie"; }).length;
+  var annot=(S.photos||[]).filter(function(p){ return p.annotee; }).length;
   var lignes=[
-    ["Client", S.client.nom || "à renseigner"],
-    ["Visite", (S.visite.numero?"n° "+S.visite.numero+"  ":"")+frDate(S.visite.date)],
-    ["Lots suivis", String(itemsUtiles("lots").length)],
-    ["Modifications de plan", String(itemsUtiles("modifs").length)],
-    ["Points bloquants", String(itemsUtiles("blocages").length)],
-    ["Interventions à planifier", String(itemsUtiles("interventions").length)],
-    ["Intervenants à contacter", String(itemsUtiles("contacts").length)],
-    ["Notes pour le technicien", String(itemsUtiles("notes").length)],
-    ["Photos et plans", String(nbPhotos())]
+    [titreSuivi(), [S.client.nom, refAffaire()].filter(Boolean).join(" · ") || "client à renseigner"],
+    [ts.length+" travaux supplémentaire"+(ts.length>1?"s":""), ts.length ? ts.filter(function(x){ return x.fait; }).length+" chiffré"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"")+" ou validé"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"") : "aucune demande"],
+    [(S.photos||[]).length+" photo"+((S.photos||[]).length>1?"s":""), (annot ? annot+" annotée"+(annot>1?"s":"")+" · " : "")+((S.visite.note||"").trim() ? "note générale" : "sans note générale")],
+    [(S.plans||[]).length+" plan"+((S.plans||[]).length>1?"s":""), (S.plans||[]).length ? modif+" modifié"+(modif>1?"s":"")+" · "+((S.plans||[]).length-modif)+" sans modification" : "aucun plan"],
+    [pts.length+" point"+(pts.length>1?"s":"")+" bloquant"+(pts.length>1?"s":""), rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
   ];
   lignes.forEach(function(l){
     var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
+    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:14px";
+    var a=document.createElement("b"); a.textContent=l[0];
+    var b=document.createElement("span"); b.style.cssText="color:var(--ink-3);text-align:right"; b.textContent=l[1];
     d.appendChild(a); d.appendChild(b); host.appendChild(d);
   });
 }
-function nbPhotos(){
-  var n=S.plans.length;
-  ["lots","modifs","blocages","notes"].forEach(function(k){
-    S[k].forEach(function(it){ n += (it.photos||[]).length; });
-  });
-  return n;
-}
-
+function nbPhotos(){ return (S.photos||[]).length + (S.plans||[]).length; }
 
 /* ---------- symboles de plan électrique ---------- */
 var SYMBOLES = [
@@ -2094,7 +2044,7 @@ function skPos(e){
       toast("Croquis ajouté.");
     } else {
       var ph=p.photos[SK.index];
-      ph.data=data; ph.w=cv.width; ph.h=cv.height;
+      ph.data=data; ph.w=cv.width; ph.h=cv.height; ph.annotee=true;
       toast("Photo annotée.");
     }
     $("sketch").hidden=true;
@@ -2142,46 +2092,21 @@ function buildPdf(){
   var y=M, page=1;
   var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206];
   var ACC=[180,98,26], ACC_BG=[251,237,224];
-  var SOL=[138,90,20], SOL_BG=[250,239,222];
-  var GREEN=[94,110,66], AMBER=[232,163,61], RED=[166,41,31], RED_BG=[248,228,224];
+  var OK=[63,107,82], OK_BG=[234,242,237], RED=[166,41,31], RED_BG=[248,228,224];
   var theme=ACC, themeBg=ACC_BG;
-  function fmtDate(d){ if(!d) return ""; var a=d.split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
-  function nb(n){ return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
   function vide(v){ return v===null || v===undefined || v==="" || (v.join && !v.length); }
   function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
+  function setDraw(c){ doc.setDrawColor(c[0],c[1],c[2]); }
   function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-
-  /* ---------- structure de page ---------- */
-
-  /* ---------- blocs de contenu ---------- */
-  function h2(t, est, couleur){
-    theme = couleur || ACC; themeBg = (couleur===SOL) ? SOL_BG : ACC_BG;
+  function need(h){ if(y+h > PH-22) newPage(); }
+  function h2(t, est){
     if(est && (y + est > PH-22) && y > 45) newPage();
-    need(34); y+=4;
+    need(30); y+=4;
     setFill(themeBg); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
     setFill(theme); doc.roundedRect(M, y, 2.6, 9.5, 0.8, 0.8, "F");
     doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setText(theme);
     doc.text(t, M+7, y+6.4);
     setText(INK); y+=15;
-  }
-  function sousTitre(t){
-    need(20); doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme);
-    doc.text(t, M+1, y); setText(INK); y+=5.8;
-  }
-  function ecrireExp(txt, x, yy, taille){   // gère le "²" absent des polices PDF de base
-    var parts = String(txt).split("²");
-    var cx = x;
-    for(var i=0;i<parts.length;i++){
-      doc.setFontSize(taille);
-      doc.text(parts[i], cx, yy);
-      cx += doc.getTextWidth(parts[i]);
-      if(i < parts.length-1){
-        doc.setFontSize(taille*0.68);
-        doc.text("2", cx, yy-1.3);
-        cx += doc.getTextWidth("2");
-        doc.setFontSize(taille);
-      }
-    }
   }
   function kv(k,v){
     if(vide(v)) return;
@@ -2191,42 +2116,35 @@ function buildPdf(){
     var n=Math.max(kL.length, vL.length);
     need(n*4.8+3);
     setText(GREY); doc.text(kL, M+1, y);
-    setText(INK); doc.setFont("helvetica","bold");
-    if(v.indexOf("²")>=0 && vL.length===1) ecrireExp(vL[0], M+48, y, 9.5);
-    else doc.text(vL, M+48, y);
+    setText(INK); doc.setFont("helvetica","bold"); doc.text(vL, M+48, y);
     y += n*4.8 + 3.4;
   }
   function para(txt){
-    if(vide(txt) || !txt.trim()) return;
+    if(vide(txt) || !String(txt).trim()) return;
     doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-    var lines=doc.splitTextToSize(txt.trim(), CW-4);
+    var lines=doc.splitTextToSize(String(txt).trim(), CW-4);
     for(var i=0;i<lines.length;i++){ need(6); doc.text(lines[i], M+2, y); y+=5.2; }
     y+=2;
   }
-  function encadre(txt){
-    if(vide(txt) || !txt.trim()) return;
+  function encadre(titre, txt){
+    if(vide(txt) || !String(txt).trim()) return;
     doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var lines=doc.splitTextToSize(txt.trim(), CW-14);
-    var h = lines.length*5.2 + 11;
+    var lines=doc.splitTextToSize(String(txt).trim(), CW-14);
+    var h = lines.length*5.2 + 16;
     need(h+2);
     setFill(themeBg); doc.roundedRect(M, y, CW, h, 0.8, 0.8, "F");
-    setText(INK); doc.text(lines, M+7, y+7.5);
+    doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme); doc.text(titre, M+7, y+6.5);
+    doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK); doc.text(lines, M+7, y+12.5);
     y += h + 5;
   }
-  function bloc(titre, paires){          // sous-partie : rien d'affiché si tout est vide
-    var utiles = paires.filter(function(pp){ return !vide(pp[1]); });
-    if(!utiles.length) return false;
-    if(titre){ y+=1.5; sousTitre(titre); }
-    utiles.forEach(function(pp){ kv(pp[0], pp[1]); });
-    return true;
+  /* une case dessinée : les polices de base du PDF n'ont pas de ☐ */
+  function caseDessinee(x, yy, cochee, couleur){
+    setDraw(cochee ? couleur : GREY); doc.setLineWidth(0.35);
+    if(cochee){ setFill(couleur); doc.roundedRect(x, yy-3.2, 3.6, 3.6, 0.5, 0.5, "FD");
+      doc.setDrawColor(255,255,255); doc.setLineWidth(0.5);
+      doc.line(x+0.8, yy-1.4, x+1.6, yy-0.6); doc.line(x+1.6, yy-0.6, x+2.9, yy-2.4); }
+    else doc.roundedRect(x, yy-3.2, 3.6, 3.6, 0.5, 0.5, "S");
   }
-  function rempli(){
-    for(var i=0;i<arguments.length;i++) if(!vide(arguments[i])) return true;
-    return false;
-  }
-
-
-
   function bandeau(){
     setFill(INK); doc.rect(0,0,PW,3.2,"F");
     var L=P&&P.logo, tx=M;
@@ -2237,10 +2155,9 @@ function buildPdf(){
       tx = M + lw + 7;
     }
     setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Suivi de travaux", tx, 19);
+    doc.text("Suivi de chantier", tx, 19);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous = (S.visite.numero ? "Visite n° "+S.visite.numero+" du " : "Visite du ")
-      + frDate(S.visite.date) + (S.visite.heure ? " à "+S.visite.heure : "");
+    var sous = "Visite du " + frDate(S.visite.date) + (S.visite.heure ? " à "+S.visite.heure : "");
     if(refAffaire()) sous += "     Travaux "+refAffaire();
     doc.text(sous, tx, 25);
     var soc=(P&&P.societe)||"";
@@ -2259,7 +2176,7 @@ function buildPdf(){
     doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
     doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
     doc.text((refAffaire()?"Travaux "+refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-        doc.setFontSize(6.5); setText([140,132,117]);
+    doc.setFontSize(6.5); setText([140,132,117]);
     doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-5.5, {align:"center"});
     setText(INK);
   }
@@ -2267,292 +2184,138 @@ function buildPdf(){
     footer(); doc.addPage(); page++;
     setFill(INK); doc.rect(0,0,PW,2.2,"F");
     doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.client.nom||"Suivi de travaux"), M, 12);
-    doc.text((S.visite.numero?"Visite "+S.visite.numero+"  ":"")+frDate(S.visite.date), PW-M, 12, {align:"right"});
+    doc.text((S.client.nom||"Suivi de chantier"), M, 12);
+    doc.text(titreSuivi(), PW-M, 12, {align:"right"});
     setText(INK); y=20;
   }
-  function need(h){ if(y+h > PH-22) newPage(); }
 
-  /* entrée numérotée d'une liste */
-  function entete(num, titre, droite, couleur){
-    need(24);
-    var c = couleur||ACC;
-    setFill(c); doc.roundedRect(M, y, CW, 8.6, 0.8, 0.8, "F");
-    doc.setFillColor(255,255,255); doc.roundedRect(M+3, y+1.9, 8, 4.8, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(c);
-    doc.text(String(num), M+7, y+5.6, {align:"center"});
-    doc.setTextColor(255,255,255); doc.setFontSize(10);
-    doc.text(doc.splitTextToSize(titre, CW-58)[0], M+14.5, y+5.9);
-    if(droite){
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-      doc.text(droite, PW-M-4, y+5.8, {align:"right"});
-    }
-    setText(INK); y+=12;
-  }
-  function photosDe(it){
-    var ph=(it.photos||[]);
-    if(!ph.length) return;
-    var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
-    ph.forEach(function(p){
-      var h=Math.min(66, cw*(p.h/p.w));
-      if(ci===0){ need(h+10); startY=y; rowH=0; }
-      var x=M+ci*(cw+6);
-      try{ doc.addImage(p.data,"JPEG", x, startY, cw, h); }catch(e){}
-      if(p.legende){
-        doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-        doc.text(doc.splitTextToSize(p.legende, cw)[0], x, startY+h+3.8); setText(INK);
-      }
-      rowH=Math.max(rowH, h+(p.legende?5:0));
-      ci++;
-      if(ci===2){ y=startY+rowH+6; ci=0; }
-    });
-    if(ci){ y=startY+rowH+6; }
-  }
-
-  function liste(key, titre, couleur, estim){
-    var cfg=LISTS[key], items=itemsUtiles(key);
-    if(!items.length) return;
-    h2(titre+"  ("+items.length+")", estim||50, couleur);
-    items.forEach(function(it, i){
-      var droite="";
-      if(key==="interventions") droite = [it.lot, it.date?frDate(it.date):""].filter(Boolean).join("   ");
-      if(key==="contacts") droite = [it.role, it.tel].filter(Boolean).join("   ");
-      if(key==="blocages") droite = it.gravite||"";
-      if(key==="notes") droite = it.priorite||"";
-      if(key==="modifs") droite = it.suite||"";
-      entete(i+1, (it.nom||"").trim() || cfg.titre+" "+(i+1), droite, couleur);
-      if(cfg.pdf==="ligne"){
-        var meta=[];
-        cfg.fields.forEach(function(f){
-          if(f.type==="textarea") return;
-          var v=(it[f.k]||"").toString().trim();
-          if(!v) return;
-          if(key==="interventions" && (f.k==="lot"||f.k==="date")) return;
-          if(key==="contacts" && (f.k==="role"||f.k==="tel")) return;
-          meta.push(f.l+" : "+(f.type==="date"?frDate(v):v));
-        });
-        if(meta.length){
-          doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-          var ml=doc.splitTextToSize(meta.join("     "), CW-4);
-          for(var q=0;q<ml.length;q++){ need(6); doc.text(ml[q], M+2, y); y+=4.6; }
-          setText(INK); y+=1;
-        }
-        cfg.fields.forEach(function(f){
-          if(f.type!=="textarea") return;
-          var v=(it[f.k]||"").trim(); if(!v) return;
-          doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(theme);
-          need(6); doc.text(f.l, M+2, y); y+=4.4; setText(INK);
-          para(v);
-        });
-      } else {
-        cfg.fields.forEach(function(f){
-          var v=(it[f.k]||"").toString().trim(); if(!v) return;
-          if(f.type==="textarea"){ if(key==="notes") encadre(v); else para(v); return; }
-          kv(f.l, f.type==="date" ? frDate(v) : v + (f.unite?" "+f.unite:""));
-        });
-      }
-      photosDe(it);
-      y+=3;
-    });
-  }
-
-  /* ---------- page de garde : le chantier en un coup d'oeil ---------- */
   bandeau();
 
-  var lots=itemsUtiles("lots");
-  var bloq=itemsUtiles("blocages").filter(function(b){ return b.gravite==="Bloque les travaux"; });
-  var toutes=(S.visites||[]).concat([S.visite]).filter(function(v){
-    return v && ((v.compte||"").trim() || (v.objet||"").trim() || v.date);
-  });
-  toutes.sort(function(a,b){
-    var na=parseInt(a.numero,10)||0, nb2=parseInt(b.numero,10)||0;
-    if(na!==nb2) return na-nb2;
-    return String(a.date||"").localeCompare(String(b.date||""));
-  });
-
-  var bandeC = bloq.length ? RED : (S.visite.phase==="Levée de réserves" ? GREEN : ACC);
-  var mot = bloq.length ? (bloq.length+" point"+(bloq.length>1?"s":"")+" bloque"+(bloq.length>1?"nt":"")+" l'avancement")
-    : (S.visite.phase ? "Phase : "+S.visite.phase : "Point d'avancement");
-  setFill(bandeC); doc.rect(M, y, CW, 11, "F");
-  doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  doc.text(mot, M+5, y+7.2);
-  if(S.visite.avancement) doc.text("Avancement "+S.visite.avancement+" %", PW-M-5, y+7.2, {align:"right"});
-  setText(INK); y+=16;
-
-  h2("Le chantier", 58);
+  /* ---------- 1. le client ---------- */
+  h2("Client et travaux", 40);
   kv("Client", S.client.nom);
-  kv("Adresse", (S.client.adresse||"").replace(/\n/g,", "));
-  kv("Interlocuteur sur place", [S.client.contact, S.client.tel].filter(Boolean).join("   "));
-  kv("Devis Batigest", S.affaire.devis);
-  kv("Référence travaux", S.affaire.chantier);
-  kv("Conducteur de travaux", [S.meta.ca, S.meta.caTel].filter(Boolean).join("   "));
-  if(S.lien.date) kv("Relevé technique du", frDate(S.lien.date));
-  kv("Visites à ce jour", String(toutes.length));
+  kv("Adresse des travaux", (S.client.adresse||"").replace(/\n/g,", "));
+  kv("Interlocuteur sur place", S.client.contact);
+  kv("Téléphone", S.client.tel);
+  kv("Référence travaux", refAffaire());
+  kv("Conducteur de travaux", [S.meta.ca, S.meta.caTel].filter(Boolean).join("  ·  "));
 
-  if((S.synthese.resume||"").trim()){
-    h2("Ce qu'il faut retenir", 40);
-    encadre(S.synthese.resume);
+  /* ---------- 2. l'objet de la visite ---------- */
+  if((S.visite.type||"").trim() || (S.visite.objet||"").trim()){
+    h2("Objet de la visite", 26);
+    if((S.visite.type||"").trim()){
+      need(8); doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
+      doc.text(S.visite.type, M+2, y); y+=6.5;
+    }
+    para(S.visite.objet);
   }
 
-  /* avancement par lot dès la page de garde : c'est ce qu'on regarde en premier */
-  if(lots.length){
-    h2("Avancement par lot", 26 + lots.length*9);
-    need(12);
-    setFill([244,241,234]); doc.rect(M, y, CW, 8, "F");
+  /* ---------- 3. les travaux supplémentaires ---------- */
+  var ts=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
+  if(ts.length){
+    h2("Travaux supplémentaires", 40);
+    var cQui=44, xQui=PW-M-cQui;
+    need(10);
+    setFill([246,244,239]); doc.rect(M, y-4.6, CW, 7, "F");
     doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(GREY);
-    doc.text("Lot", M+4, y+5.4);
-    doc.text("État", M+62, y+5.4);
-    doc.text("Avancement", M+108, y+5.4);
-    setText(INK); y+=11;
-    lots.forEach(function(it){
-      need(9);
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(doc.splitTextToSize(it.nom||"Lot", 54)[0], M+4, y);
-      if(it.etat){
-        var ec = it.etat==="Terminé" ? GREEN : (it.etat==="Bloqué" ? RED : (it.etat==="En cours" ? ACC : GREY));
-        var eb = it.etat==="Terminé" ? [237,240,228] : (it.etat==="Bloqué" ? RED_BG : (it.etat==="En cours" ? ACC_BG : [239,235,225]));
-        doc.setFont("helvetica","bold"); doc.setFontSize(8);
-        var w=doc.getTextWidth(it.etat)+7;
-        setFill(eb); doc.rect(M+60, y-4, w, 6.4, "F");
-        setText(ec); doc.text(it.etat, M+63.5, y+0.4);
-      }
-      if(it.pct){
-        setFill([236,232,222]); doc.rect(M+108, y-3, 52, 3.4, "F");
-        var pc=Math.max(0, Math.min(100, parseFloat(it.pct)||0));
-        setFill(ACC); doc.rect(M+108, y-3, 52*pc/100, 3.4, "F");
-        doc.setFont("helvetica","bold"); doc.setFontSize(8); setText(GREY);
-        doc.text(pc+" %", PW-M-2, y+0.2, {align:"right"});
-      }
-      setText(INK); y+=6.5;
-      setFill(LIGHT); doc.rect(M, y-2, CW, 0.25, "F");
-    });
-    y+=4;
-  }
-
-  /* ---------- une page par visite, de la première à la dernière ---------- */
-  function ongletVisite(v, rang, total){
-    newPage();
-    var derniere = rang===total;
-    var couleur = derniere ? ACC : INK;
-    setFill(couleur); doc.rect(M, y, CW, 15, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(255,255,255);
-    doc.text("VISITE "+(v.numero||rang), M+6, y+10.2);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var droite=[frDate(v.date)+(v.heure?"  "+v.heure:""), derniere ? "dernière visite" : ""].filter(Boolean).join("   ");
-    doc.text(droite, PW-M-6, y+10.2, {align:"right"});
-    setText(INK); y+=21;
-
-    /* bandeau d'informations courtes */
-    var infos=[["Phase", v.phase||"—"],
-               ["Avancement", v.avancement ? v.avancement+" %" : "—"],
-               ["Présents", (v.presents||[]).join(", ")||"—"]];
-    need(16);
-    setFill([244,241,234]); doc.rect(M, y, CW, 13, "F");
-    infos.forEach(function(c, k){
-      var cx=M+6+k*(CW-12)/3;
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      doc.text(c[0].toUpperCase(), cx, y+5);
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(doc.splitTextToSize(String(c[1]), (CW-12)/3-4)[0], cx, y+10);
-    });
-    y+=19;
-
-    if((v.objet||"").trim()){
-      doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
-      doc.text(doc.splitTextToSize(v.objet, CW), M, y);
-      y+=7;
-    }
-    if((v.compte||"").trim()){
-      sousTitre("Compte rendu");
-      para(v.compte);
-    }
-    /* la dernière visite porte les points du jour */
-    if(derniere){
-      var court=[["modifs","Modifications de plan"],["blocages","Points bloquants"]];
-      court.forEach(function(c){
-        var items=itemsUtiles(c[0]);
-        if(!items.length) return;
-        y+=1;
-        sousTitre(c[1]+"  ("+items.length+")");
-        items.forEach(function(it){
-          need(9);
-          doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-          doc.text("•  "+doc.splitTextToSize(it.nom||"", CW-6)[0], M, y); y+=5;
-          var det=[it.gravite, it.qui, it.date?frDate(it.date):"", it.impact, it.demandeur].filter(Boolean).join("   ");
-          if(det){
-            doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-            doc.text(det, M+5, y); y+=4.6; setText(INK);
-          }
-          if((it.note||"").trim()){
-            doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(INK);
-            doc.splitTextToSize(it.note, CW-6).forEach(function(t){ need(5.5); doc.text(t, M+5, y); y+=4.4; });
-          }
-          y+=2;
-        });
-      });
-      lots.forEach(function(it){ photosDe(it); });
-    }
-  }
-  toutes.forEach(function(v, k){ ongletVisite(v, k+1, toutes.length); });
-
-  /* ---------- plans annotés ---------- */
-  if((S.plans||[]).length){
-    S.plans.forEach(function(p, i){
-      newPage();
-      setFill(INK); doc.rect(M, y, CW, 15, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(255,255,255);
-      doc.text("PLAN" + (S.plans.length>1 ? " "+(i+1) : ""), M+6, y+10.2);
+    doc.text("Demande", M+9, y); doc.text("Demandée par", xQui+2, y);
+    y+=5.5;
+    ts.forEach(function(it){
       doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      if(p.legende) doc.text(p.legende, PW-M-6, y+10.2, {align:"right"});
-      setText(INK); y+=20;
-      var dispoH = PH - 26 - y, dispoW = CW;
-      var w=dispoW, hh=w*(p.h/p.w);
-      if(hh>dispoH){ hh=dispoH; w=hh*(p.w/p.h); }
-      var x=M+(CW-w)/2;
-      try{ doc.addImage(p.data,"JPEG", x, y, w, hh); }catch(e){}
-      doc.setDrawColor(LIGHT[0],LIGHT[1],LIGHT[2]); doc.setLineWidth(0.25); doc.rect(x, y, w, hh);
-      y += hh + 6;
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-      doc.text("Modifications relevées sur place, à reporter au dossier d'exécution.", M, y);
-      setText(INK);
+      var lignes=doc.splitTextToSize(it.texte, xQui-M-12);
+      var h=lignes.length*5+3;
+      need(h+2);
+      caseDessinee(M+2, y, !!it.fait, OK);
+      setText(INK); doc.text(lignes, M+9, y);
+      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(it.qui ? ACC : GREY);
+      doc.text(it.qui || "—", xQui+2, y);
+      y += h;
+      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
+      y += 1.5;
     });
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+    need(6); doc.text("Case cochée : demande chiffrée ou validée.", M+1, y+1); setText(INK); y+=7;
   }
 
-  /* ---------- dernière page : ce qu'il reste à faire ---------- */
-  newPage();
-  setFill(SOL); doc.rect(M, y, CW, 15, "F");
-  doc.setFont("helvetica","bold"); doc.setFontSize(14); doc.setTextColor(255,255,255);
-  doc.text("SUITE À FAIRE", M+6, y+10.2);
-  doc.setFont("helvetica","normal"); doc.setFontSize(10);
-  if(S.synthese.prochaine){
-    doc.text("prochaine visite le "+frDate(S.synthese.prochaine), PW-M-6, y+10.2, {align:"right"});
-  }
-  setText(INK); y+=21;
-
-  liste("interventions", "Interventions à planifier", ACC, 50);
-  liste("contacts", "Intervenants à contacter", ACC, 45);
-  liste("notes", "Notes pour le technicien", ACC, 55);
-
-  if((S.synthese.decisions||"").trim() || S.synthese.prochaine){
-    h2("Décisions", 45);
-    encadre(S.synthese.decisions);
-    if(S.synthese.prochaine){
-      kv("Prochaine visite", frDate(S.synthese.prochaine)
-        + (S.synthese.prochaineObjet ? "   "+S.synthese.prochaineObjet : ""));
+  /* ---------- 4. le reportage photo ---------- */
+  var ph=(S.photos||[]);
+  if(ph.length || (S.visite.note||"").trim()){
+    h2("Reportage photo", ph.length ? 80 : 30);
+    if(ph.length){
+      var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
+      ph.forEach(function(p, k){
+        var h=Math.min(70, cw*(p.h/p.w)), w=h*(p.w/p.h);
+        if(ci===0){ need(h+12); startY=y; rowH=0; }
+        var x=M+ci*(cw+6)+(cw-w)/2;
+        try{ doc.addImage(p.data,"JPEG", x, startY, w, h); }catch(e){}
+        doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
+        var lg=(p.legende||"").trim() || "Photo "+(k+1);
+        doc.text(doc.splitTextToSize(lg + (p.annotee ? "  (annotée)" : ""), cw)[0], M+ci*(cw+6), startY+h+4.2);
+        rowH=Math.max(rowH, h+8);
+        ci++;
+        if(ci===2 || k===ph.length-1){ y=startY+rowH+2; ci=0; }
+      });
+      setText(INK);
     }
+    encadre("Note générale", S.visite.note);
+  }
+
+  /* ---------- 5. les plans ---------- */
+  var plans=(S.plans||[]);
+  if(plans.length){
+    h2("Plans", 90);
+    plans.forEach(function(pl){
+      var hMax=150, w=CW, h=w*(pl.h/pl.w);
+      if(h>hMax){ h=hMax; w=h*(pl.w/pl.h); }
+      need(h+14);
+      var modifie = pl.etat==="modifie";
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); setText(INK);
+      doc.text(doc.splitTextToSize(pl.legende||"Plan", CW-50)[0], M+1, y);
+      var etiquette = modifie ? "Modifié" : "Sans modification";
+      doc.setFontSize(8.5);
+      var lw=doc.getTextWidth(etiquette)+6;
+      setFill(modifie ? ACC_BG : OK_BG); doc.roundedRect(PW-M-lw, y-3.9, lw, 5.4, 1.2, 1.2, "F");
+      setText(modifie ? ACC : OK); doc.text(etiquette, PW-M-lw/2, y-0.1, {align:"center"});
+      y+=3.5;
+      try{ doc.addImage(pl.data,"JPEG", M+(CW-w)/2, y, w, h); }catch(e){}
+      setDraw(LIGHT); doc.setLineWidth(0.3); doc.rect(M+(CW-w)/2, y, w, h, "S");
+      y += h + 8;
+    });
+    setText(INK);
+  }
+
+  /* ---------- 6. les points bloquants ---------- */
+  var pts=(S.points||[]).filter(function(x){ return (x.texte||"").trim(); });
+  if(pts.length){
+    h2("Points bloquants", 30);
+    pts.forEach(function(it){
+      doc.setFont("helvetica","normal"); doc.setFontSize(10);
+      var lignes=doc.splitTextToSize(it.texte, CW-58);
+      var h=lignes.length*5+3;
+      need(h+2);
+      caseDessinee(M+2, y, !!it.fait, OK);
+      setText(INK); doc.text(lignes, M+9, y);
+      doc.setFontSize(8.5);
+      var etat = it.fait ? "Levé" : (it.rappel && it.quand ? "Rappel le "+frDate(it.quand)+(it.heure ? " à "+it.heure : "") : "À lever");
+      setText(it.fait ? OK : (it.rappel ? ACC : RED));
+      doc.setFont("helvetica","bold");
+      doc.text(etat, PW-M, y, {align:"right"});
+      y += h;
+      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
+      y += 1.5;
+    });
+    setText(INK);
   }
 
   footer();
   return doc;
 }
 function pdfName(){
-  return "Suivi-travaux-"+(refAffaire()||"sans-ref")
-    +(S.visite.numero?"-visite"+S.visite.numero:"")+".pdf";
+  return "Suivi-"+(refAffaire()||"sans-ref")+"-"+String(S.visite.date||"").replace(/-/g,"")
+    +((S.visite.type||"").trim() ? "-"+nomFichier(S.visite.type) : "")+".pdf";
 }
-
 function mailSubject(){
-  return "Suivi de travaux"+(S.visite.numero?" — visite n° "+S.visite.numero:"")
-    +" — "+(S.client.nom||"chantier")+(refAffaire()?" ("+refAffaire()+")":"");
+  return titreSuivi()+" — "+(S.client.nom||"chantier")+(refAffaire()?" ("+refAffaire()+")":"");
 }
 function dl(blob, name){
   var a=document.createElement("a");
@@ -2563,22 +2326,17 @@ function dl(blob, name){
 var APP_TYPE="suivi";
 function destinataires(){ if(!S.destinataires) S.destinataires=[]; return S.destinataires; }
 function ficheCharger(d, f){
-  if(f && f.type==="releve"){ importerReleve(JSON.stringify(d)); showTab("visite"); return; }
-  if(d.lots && d.visite){ S=Object.assign(blank(), d); save(); majDateDuJour(); paintForm(); showTab("visite"); toast("Fiche ouverte."); }
+  if(f && f.type==="releve"){ importerReleve(JSON.stringify(d)); showTab("suivi"); return; }
+  if(d && d.client && (d.version===2 || d.visite)){
+    S=migrerFiche(d); save(); majDateDuJour(); paintForm(); showTab("suivi");
+    toast(d.version===2 ? "Suivi rouvert." : "Ancien suivi : client et chantier repris, le reste repart à neuf.");
+  }
   else { importerReleve(JSON.stringify(d)); }
 }
 function toutesLesPhotos(){
   var out=[];
-  ["lots","modifs","blocages","notes"].forEach(function(k){
-    S[k].forEach(function(it){
-      (it.photos||[]).forEach(function(ph){
-        out.push({data:ph.data, legende:ph.legende, section:it.nom});
-      });
-    });
-  });
-  S.plans.forEach(function(ph){
-    out.push({data:ph.data, legende:ph.legende, section:"Plan"});
-  });
+  (S.photos||[]).forEach(function(ph){ out.push({data:ph.data, legende:ph.legende, section:"Photo"}); });
+  (S.plans||[]).forEach(function(ph){ out.push({data:ph.data, legende:ph.legende, section:"Plan"}); });
   return out;
 }
 /* ---------- export des photos en ZIP (sans bibliothèque) ---------- */
@@ -2639,48 +2397,38 @@ function adresseTravaux(){ return (S.client.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.visite.date; }
 
 /* ---------- dépôt des photos sur le site ---------- */
-function deposerPhotos(){
-  if(!apiPret()) return;
-  var liste;
-  try{ liste = toutesLesPhotos(); }catch(e){ liste = []; }
-  if(!liste.length){ toast("Aucune photo dans cette fiche."); return; }
-  if(!refAffaire()){ toast("Renseignez les travaux avant de déposer."); return; }
+function deposerPhotos(auto){
+  if(!apiPret()) return Promise.resolve(false);
+  var liste=(S.photos||[]).map(function(ph){ return {data:ph.data, legende:ph.legende, section:"Photo"}; });
+  if(!liste.length){ if(!auto) toast("Aucune photo dans ce suivi."); return Promise.resolve(false); }
+  if(!refAffaire()){ toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
   var dossier = nomFichier(refAffaire());
   var fichiers = liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
-    var etiquette = [p.section, p.legende].filter(Boolean).join(" ");
+    var etiquette = [p.legende].filter(Boolean).join(" ");
     return {nom: dossier + "/" + num + (etiquette ? "-" + nomFichier(etiquette) : "") + ".jpg",
             octets: b64ToBytes(String(p.data).split(",")[1])};
   });
   var blob = creerZip(fichiers);
-  var el = $("pubEtat");
-  if(el) el.textContent = "Dépôt des photos…";
-  var fr = new FileReader();
-  fr.onload = function(){
-    var b64 = String(fr.result).split(",")[1];
-    if(b64.length*0.75 > 5.4*1024*1024){
-      if(el) el.textContent = "Lot de photos trop lourd. Retirez-en quelques-unes.";
-      toast("Lot trop lourd pour le dépôt.");
-      return;
-    }
-    fetch(apiUrl("publier"), {
-      method:"POST", headers:apiEnTetes(),
-      body:JSON.stringify({
-        pdf: b64, type:"photos",
-        chantier: refAffaire(), client: nomClient(), adresse: adresseTravaux(),
-        date: dateFiche(), destinataires: destinataires().slice(),
-        titre: "Photos des travaux (" + liste.length + ")"
+  return new Promise(function(fin){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var b64 = String(fr.result).split(",")[1];
+      if(b64.length*0.75 > 5.4*1024*1024){ toast("Photos trop lourdes pour le dépôt : retirez-en quelques-unes."); fin(false); return; }
+      fetch(apiUrl("publier"), {
+        method:"POST", headers:apiEnTetes(),
+        body:JSON.stringify({
+          pdf: b64, type:"photos", suiviId: S.suiviId,
+          chantier: refAffaire(), client: nomClient(), adresse: adresseTravaux(),
+          date: dateFiche(), destinataires: destinataires().slice(),
+          titre: "Photos · "+titreSuivi()+" ("+liste.length+")"
+        })
       })
-    })
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-    .then(function(res){
-      if(!res.ok){ if(el) el.textContent = res.d.erreur || "Dépôt refusé."; return; }
-      if(el) el.textContent = liste.length + " photos déposées sur le site. Vous les retrouverez dans les rapports des travaux, en ZIP.";
-      toast("Photos déposées.");
-    })
-    .catch(function(){ if(el) el.textContent="Pas de réseau. Réessayez une fois connecté."; });
-  };
-  fr.readAsDataURL(blob);
+      .then(function(r){ fin(r.ok); })
+      .catch(function(){ fin(false); });
+    };
+    fr.readAsDataURL(blob);
+  });
 }
 
 /* Le dossier de photos porte le nom du client, suivi de « photos » :
@@ -2883,10 +2631,11 @@ function publierRapport(meta){
     effacerMarques();
     var msg = res.d.remplace
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
-                             : "Visite remplacée par cette nouvelle version.")
-      : "Rapport publié.";
+                             : "Suivi mis à jour : cette version remplace la précédente.")
+      : "Suivi enregistré et publié dans le dossier, sous « Suivi de chantier ».";
+    if(res.d.rappels) msg += " "+res.d.rappels+" rappel"+(res.d.rappels>1?"s":"")+" pour "+(meta.rappelPour||"vous")+".";
     var prevenus = res.d.prevenus || [];
-    el.textContent = msg + " Disponible pour " + meta.destinataires.join(", ") + "."
+    el.textContent = msg + (meta.destinataires.length ? " Disponible pour " + meta.destinataires.join(", ") + "." : "")
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
     toast("Rapport publié.");
     try{ window.dispatchEvent(new Event("suivi:publie")); }catch(e){}
@@ -3013,7 +2762,7 @@ function reprendreDossier(d){
   S.client.nom = d.client || S.client.nom;
   S.client.adresse = d.adresse || S.client.adresse;
   S.affaire.chantier = d.ref || S.affaire.chantier;
-  save(); paintForm(); equipeDuDossier(); showTab("visite");
+  save(); paintForm(); equipeDuDossier(); showTab("suivi");
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
@@ -3338,8 +3087,7 @@ function mapChercher(){
 
 function messagePartage(){
   return ["Bonjour,", "",
-    "Compte rendu de la visite du " + frDate(S.visite.date)
-      + (S.client.nom ? " — " + S.client.nom : "") + ".",
+    titreSuivi() + (S.client.nom ? " — " + S.client.nom : "") + ".",
     "", "Cordialement,", (S.meta.ca||""), (P&&P.societe)||""].join("\n");
 }
 
@@ -3365,47 +3113,20 @@ function partagerRapport(){
   toast("Partage indisponible sur cet appareil : document enregistré.");
 }
 
-/* ---------- une visite par rendez-vous, un seul rapport ---------- */
-function visiteVide(){
-  return !((S.visite.objet||"").trim() || (S.visite.compte||"").trim() || (S.visite.avancement||"").trim());
-}
-function archiverVisite(){
-  if(!S.visites) S.visites=[];
-  if(visiteVide()) return false;
-  S.visites.push({
-    numero: S.visite.numero || String(S.visites.length+1),
-    date: S.visite.date, heure: S.visite.heure, phase: S.visite.phase,
-    presents: (S.visite.presents||[]).slice(),
-    objet: S.visite.objet, compte: S.visite.compte, avancement: S.visite.avancement
-  });
-  return true;
-}
-function nouvelleVisite(){
-  if(visiteVide()){
-    toast("La visite en cours est vide : écrivez son compte rendu avant d'en ouvrir une nouvelle.");
-    showTab("visite");
-    var c=$("v_compte");
-    if(c){ c.scrollIntoView({block:"center", behavior:"smooth"}); setTimeout(function(){ c.focus(); }, 300); }
+/* ---------- un nouveau suivi ----------
+   Chaque suivi est indépendant : on garde le client, le chantier et le
+   conducteur de travaux, on repart d'une page blanche pour le reste. */
+function nouveauSuivi(demander){
+  var plein = (S.ts||[]).length || (S.photos||[]).length || (S.points||[]).length || (S.plans||[]).length
+    || (S.visite.objet||"").trim() || (S.visite.note||"").trim();
+  if(demander && plein && !window.confirm("Commencer un nouveau suivi ?\n\nLe client et le chantier sont gardés ; les travaux supplémentaires, photos, plans et points repartent à zéro. Pensez à enregistrer celui-ci avant."))
     return;
-  }
-  if(!window.confirm("Clore cette visite et en ouvrir une nouvelle ?\n\nLa visite en cours est conservée dans le rapport.")) return;
-  archiverVisite();
-  var n = parseInt(S.visite.numero,10);
-  S.visite.numero = String(isNaN(n) ? S.visites.length+1 : n+1);
-  S.visite.date = new Date().toISOString().slice(0,10);
-  S.visite.heure = maintenant();
-  S.visite.objet = "";
-  S.visite.compte = "";
-  S.visite.avancement = "";
-  save(); paintForm(); majEtatVisites(); showTab("visite");
-  toast("Visite n° "+S.visite.numero+" ouverte.");
-}
-function majEtatVisites(){
-  var e=$("etatVisites"); if(!e) return;
-  var n=(S.visites||[]).length;
-  e.textContent = n
-    ? n+" visite"+(n>1?"s":"")+" déjà dans le rapport, celle-ci sera la n° "+(S.visite.numero||String(n+1))+"."
-    : "Le rapport garde toutes les visites.";
+  var n=blank();
+  n.client=S.client; n.affaire=S.affaire; n.meta=S.meta; n.lien=S.lien;
+  S=n; save(); paintForm(); showTab("suivi");
+  var b=$("btnSuivant"); if(b) b.remove();
+  $("pubEtat").textContent="";
+  toast("Nouveau suivi.");
 }
 
 /* ---------- coordonnées saisies à la main (ordinateur) ---------- */
@@ -3459,26 +3180,22 @@ function bindAll(){
     adresseDepuisPosition(la, lo, true);
   });
   
-  $("btnNouvelleVisite").addEventListener("click", nouvelleVisite);
   $("btnPlanImport").addEventListener("click", function(){ $("filePlan").click(); });
-  $("btnPlanPhoto").addEventListener("click", function(){ $("filePlanPhoto").click(); });
-  
-  document.querySelectorAll("[data-add]").forEach(function(b){
-    b.addEventListener("click", function(){
-      var key=b.dataset.add;
-      var it={id:uid(), nom:"", photos:[], _open:true};
-      LISTS[key].fields.forEach(function(f){ it[f.k]=""; });
-      S[key].push(it); save(); renderList(key);
-      /* on amène le nouvel élément sous les yeux, prêt à la saisie */
-      var host=$("list-"+key);
-      var carte=host && host.lastElementChild;
-      if(carte){
-        carte.scrollIntoView({block:"center", behavior:"smooth"});
-        var champ=carte.querySelector("input, textarea");
-        if(champ) setTimeout(function(){ champ.focus(); }, 260);
-      }
+  $("ts_ajout").addEventListener("click", function(){ ajouterLigne("ts", "ts_texte", renderTs); });
+  $("pts_ajout").addEventListener("click", function(){ ajouterLigne("points", "pts_texte", renderPoints); });
+  [["ts_texte","ts",renderTs],["pts_texte","points",renderPoints]].forEach(function(x){
+    $(x[0]).addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterLigne(x[1], x[0], x[2]); } });
+  });
+  $("ph_prendre").addEventListener("click", function(){ $("ph_fichier").click(); });
+  $("ph_galerie").addEventListener("click", function(){ $("ph_fichierG").click(); });
+  ["ph_fichier","ph_fichierG"].forEach(function(id){
+    $(id).addEventListener("change", function(){
+      var f=this.files; if(!f || !f.length) return;
+      ajouterPhotos(f, S, renderPhotos); this.value="";
     });
   });
+  $("btnPlanPhoto").addEventListener("click", function(){ $("filePlanPhoto").click(); });
+  
   document.querySelectorAll("[data-dictee]").forEach(function(b){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
   });
@@ -3514,54 +3231,53 @@ function bindAll(){
   $("m_caMail").addEventListener("input", function(){ majAnnuaire(); });
 
   $("btnPdf").addEventListener("click", function(){
-    if(!S.client.nom.trim()){ toast("Renseignez au moins le nom du client."); showTab("visite"); return; }
+    if(!S.client.nom.trim()){ toast("Renseignez au moins le nom du client."); showTab("client"); return; }
     var doc;
     try{ doc=buildPdf(); }catch(e){ toast("Rapport impossible à générer."); return; }
     dl(doc.output("blob"), pdfName());
-    $("pdfInfo").textContent = "Rapport enregistré : "+pdfName();
-    toast("Rapport généré.");
+    $("pdfInfo").textContent = "PDF enregistré : "+pdfName();
+    toast("PDF enregistré.");
   });
   $("btnPartage").addEventListener("click", partagerRapport);
-  $("btnOpenSite").addEventListener("click", function(){ ouvrirDepuisSite("suivi", "Suivis en cours"); });
+  $("btnOpenSite").addEventListener("click", function(){ ouvrirDepuisSite("suivi", "Suivis enregistrés"); });
   $("btnReleveSite").addEventListener("click", function(){
     ouvrirDepuisSite("releve", "Relevés techniques");
   });
-  /* une fois le rapport publié, la visite suivante s'ouvre d'un appui */
-  window.addEventListener("suivi:publie", function(){
-    var el=$("pubEtat");
-    if(!el || document.getElementById("btnVisiteSuivante")) return;
-    var b=document.createElement("button");
-    b.type="button"; b.className="act blue"; b.id="btnVisiteSuivante";
-    b.textContent="Ouvrir la visite n° "
-      + String((parseInt(S.visite.numero,10)||(S.visites||[]).length+1)+1);
-    b.style.cssText="width:100%;margin-top:10px";
-    b.addEventListener("click", function(){ b.remove(); nouvelleVisite(); });
-    el.parentNode.insertBefore(b, el.nextSibling);
-  });
   $("btnPublier").addEventListener("click", function(){
-    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et le référence travaux."); showTab("visite"); return; }
+    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); return; }
+    var sansHeure = rappelsActifs().filter(function(p){ return !p.quand; });
+    if(sansHeure.length){ toast("Choisissez la date des rappels."); showTab("points"); return; }
     publierRapport({
-      taches: (S.interventions||[])
-        .filter(function(it){ return it.equipe && it.date; })
-        .map(function(it){
-          return {texte: it.nom || "Intervention à planifier", qui: it.equipe, quand: it.date,
-                  prio: it.prio || ""};
-        }),
+      /* les rappels des points bloquants : pour le conducteur de travaux seul */
+      rappels: rappelsActifs().map(function(p){
+        return {id:p.id, texte:p.texte, quand:p.quand, heure:p.heure||"08:00"};
+      }),
+      rappelPour: S.meta.ca || "",          /* sans conducteur choisi : celui qui enregistre */
       chantier: refAffaire(), client: S.client.nom, adresse: (S.client.adresse||"").replace(/\n/g,", "),
       lat: S.client.lat, lon: S.client.lon,
-      type: "suivi", visite: S.visite.numero, date: S.visite.date, auteur: S.meta.ca,
-      etape: S.visite.phase,
-      nom: "suivi-"+(S.visite.numero||""),
-      titre: "Suivi de travaux"+(S.visite.numero?" — "+((S.visites||[]).length+1)+" visites":"")
+      type: "suivi", suiviId: S.suiviId, visite: "", date: S.visite.date, auteur: S.meta.ca,
+      etape: S.visite.type || "",
+      titre: titreSuivi()
     });
+  });
+  /* le suivi enregistré : ses photos partent sur le site, et un nouveau
+     suivi s'ouvre d'un appui */
+  window.addEventListener("suivi:publie", function(){
+    var el=$("pubEtat");
+    deposerPhotos(true).then(function(ok){
+      if(ok && el) el.textContent += " Photos enregistrées sur le site.";
+    });
+    if(!el || document.getElementById("btnSuivant")) return;
+    var b=document.createElement("button");
+    b.type="button"; b.className="act ghost"; b.id="btnSuivant";
+    b.textContent="Commencer un nouveau suivi";
+    b.style.cssText="width:100%;margin-top:10px";
+    b.addEventListener("click", function(){ nouveauSuivi(false); });
+    el.parentNode.insertBefore(b, el.nextSibling);
   });
 
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
-  $("btnPhotosSite").addEventListener("click", deposerPhotos);
-  $("btnNew").addEventListener("click", function(){
-    if(!window.confirm("Effacer cette fiche de suivi et repartir de zéro ?")) return;
-    S=blank(); S.meta.societe=P.societe; save(); paintForm(); showTab("visite"); toast("Nouvelle fiche.");
-  });
+  $("btnNew").addEventListener("click", function(){ nouveauSuivi(true); });
 }
 function majAnnuaire(){
   if(!S.meta.ca) return;
@@ -3891,7 +3607,7 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
 
 var CLE_FICHE = "suivi:courant";
 function ficheVierge(){ var s=blank(); s.meta.societe=(P&&P.societe)||""; return s; }
-function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!((s.visites||[]).length || String(v.objet||"").trim() || String(v.compte||"").trim() || String(v.avancement||"").trim() || (s.lots||[]).length || (s.modifs||[]).length || (s.blocages||[]).length || (s.interventions||[]).length || (s.notes||[]).length); }
+function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!(String(v.objet||"").trim() || String(v.note||"").trim() || String(v.type||"").trim() || (s.ts||[]).length || (s.photos||[]).length || (s.plans||[]).length || (s.points||[]).length); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
 function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }
@@ -4131,58 +3847,167 @@ function majDateDuJour(){
   }catch(e){}
 }
 
-/* ---------- plans du chantier ---------- */
+/* ---------- plans du chantier ----------
+   Les plans viennent d'abord du dossier : ce que « Documents techniques »
+   a déposé dans la catégorie Plan. On en ajoute au suivi ceux qu'on a
+   vus ; chacun est « Modifié » (on l'annote) ou « Sans modification ».
+   Un plan PDF devient une image de sa première page. */
+var PDFJS_URL="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js";
+var PDFJS_WORKER="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+function chargerPdfJs(){
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(chargerPdfJs.p) return chargerPdfJs.p;
+  chargerPdfJs.p = new Promise(function(ok, ko){
+    var sc=document.createElement("script"); sc.src=PDFJS_URL;
+    sc.onload=function(){
+      try{ window.pdfjsLib.GlobalWorkerOptions.workerSrc=PDFJS_WORKER; }catch(e){}
+      ok(window.pdfjsLib);
+    };
+    sc.onerror=function(){ chargerPdfJs.p=null; ko(new Error("Lecteur de PDF indisponible : vérifiez la connexion.")); };
+    document.head.appendChild(sc);
+  });
+  return chargerPdfJs.p;
+}
+/* la première page d'un PDF, en image JPEG (2000 px au plus) */
+function pdfEnImage(octets){
+  return chargerPdfJs().then(function(lib){
+    return lib.getDocument({data:octets}).promise.then(function(pdf){
+      return pdf.getPage(1).then(function(pg){
+        var v1=pg.getViewport({scale:1});
+        var ech=Math.min(3, 2000/Math.max(v1.width, v1.height));
+        var v=pg.getViewport({scale:ech});
+        var cv=document.createElement("canvas");
+        cv.width=Math.round(v.width); cv.height=Math.round(v.height);
+        var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
+        return pg.render({canvasContext:cx, viewport:v}).promise.then(function(){
+          return {data:cv.toDataURL("image/jpeg", 0.85), w:cv.width, h:cv.height};
+        });
+      });
+    });
+  });
+}
+/* une image quelconque, ramenée à 2000 px au plus */
+function imageEnPlan(blob){
+  return new Promise(function(ok, ko){
+    var f=new File([blob], "plan", {type:blob.type||"image/jpeg"});
+    compress(f, function(ph){ if(ph) ok(ph); else ko(new Error("Image illisible.")); }, 2000);
+  });
+}
+function planDepuisBlob(blob, nom){
+  var estPdf = /pdf/i.test(blob.type||"") || /\.pdf$/i.test(nom||"");
+  if(estPdf) return blob.arrayBuffer().then(function(a){ return pdfEnImage(new Uint8Array(a)); });
+  return imageEnPlan(blob);
+}
+function ajouterAuSuivi(ph, legende, source){
+  if(!S.plans) S.plans=[];
+  ph.legende = legende || ph.legende || "";
+  ph.source = source || "";
+  ph.etat = ph.etat || "sans";
+  S.plans.push(ph);
+  save(); renderPlans(); renderPlansDossier();
+}
+var PLANS_DOSSIER=null;
+function chargerPlansDossier(){
+  var host=$("plans_dossier"); if(!host) return;
+  if(!refAffaire() || !apiPret(true)){ PLANS_DOSSIER=[]; renderPlansDossier(); return; }
+  fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var c=(d.chantiers||[]).filter(function(x){ return memeRef(x.ref, refAffaire()); })[0];
+      PLANS_DOSSIER=((c && c.fichiers)||[]).filter(function(f){
+        return f.type==="technique" && /^plan/i.test(String(f.visite||"").trim());
+      });
+      renderPlansDossier();
+    })
+    .catch(function(){ PLANS_DOSSIER=null; renderPlansDossier(); });
+}
+function renderPlansDossier(){
+  var host=$("plans_dossier"); if(!host) return;
+  host.textContent="";
+  if(PLANS_DOSSIER===null){
+    var h=document.createElement("p"); h.className="hint"; h.style.margin="0";
+    h.textContent = apiPret(true) ? "Recherche des plans du dossier…" : "Connectez-vous pour retrouver les plans du dossier.";
+    host.appendChild(h); return;
+  }
+  if(!PLANS_DOSSIER.length){
+    var v=document.createElement("p"); v.className="hint"; v.style.margin="0";
+    v.textContent = refAffaire()
+      ? "Aucun plan dans les documents techniques de ce chantier. Vous pouvez en importer un ou le photographier."
+      : "Renseignez la référence des travaux pour retrouver les plans du dossier.";
+    host.appendChild(v); return;
+  }
+  PLANS_DOSSIER.forEach(function(f){
+    var deja=(S.plans||[]).some(function(pl){ return pl.source===f.cle; });
+    var l=document.createElement("div"); l.className="sv-plan-d";
+    var t=document.createElement("div"); t.className="t";
+    var b=document.createElement("b"); b.textContent=f.titre||"Plan";
+    var sp=document.createElement("span"); sp.textContent="Documents techniques · "+frDate(f.date)+(f.auteur ? " · "+f.auteur : "");
+    t.appendChild(b); t.appendChild(sp);
+    var bt=document.createElement("button"); bt.type="button";
+    bt.className="act "+(deja ? "ghost" : "blue");
+    bt.textContent = deja ? "Dans le suivi" : "Ajouter au suivi";
+    bt.disabled = deja;
+    bt.addEventListener("click", function(){
+      bt.disabled=true; bt.textContent="Ouverture…";
+      fetch(apiUrl("fichier")+"&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(jetonSession()))
+        .then(function(r){ if(!r.ok) throw new Error("Plan introuvable sur le site."); return r.blob(); })
+        .then(function(blob){ return planDepuisBlob(blob, f.cle); })
+        .then(function(ph){ ajouterAuSuivi(ph, f.titre, f.cle); toast("Plan ajouté. Dites s'il est modifié."); })
+        .catch(function(e){ bt.disabled=false; bt.textContent="Ajouter au suivi"; toast((e && e.message) || "Plan impossible à ouvrir."); });
+    });
+    l.appendChild(t); l.appendChild(bt);
+    host.appendChild(l);
+  });
+}
 function renderPlans(){
   var host=$("plansListe"); if(!host) return;
   host.textContent="";
   if(!S.plans) S.plans=[];
-  if(!S.plans.length){
-    var v=document.createElement("p"); v.className="hint"; v.style.margin="0";
-    v.textContent="Aucun plan pour l'instant.";
-    host.appendChild(v); return;
-  }
   S.plans.forEach(function(pl, i){
-    var d=document.createElement("div");
-    d.style.cssText="border:1px solid var(--rule);background:var(--card);padding:12px;margin-bottom:10px";
-    var im=document.createElement("img");
-    im.src=pl.data; im.alt="";
-    im.style.cssText="display:block;width:100%;max-height:260px;object-fit:contain;background:#fff;cursor:zoom-in";
+    var d=document.createElement("div"); d.className="sv-plan";
+    var h=document.createElement("div"); h.className="sv-plan-h";
+    var lg=document.createElement("input"); lg.type="text"; lg.value=pl.legende||"";
+    lg.placeholder="Nom du plan (RDC, étage, TGBT…)"; lg.setAttribute("aria-label","Nom du plan");
+    lg.addEventListener("input", function(){ pl.legende=lg.value; save(); });
+    h.appendChild(lg);
+    [["modifie","Modifié"],["sans","Sans modification"]].forEach(function(e){
+      var c=document.createElement("button"); c.type="button";
+      c.className="chip"+(pl.etat===e[0] ? " on" : ""); c.textContent=e[1];
+      c.setAttribute("aria-pressed", pl.etat===e[0] ? "true" : "false");
+      c.addEventListener("click", function(){
+        pl.etat=e[0]; save(); renderPlans();
+        if(e[0]==="modifie") toast("Touchez le plan pour l'annoter.");
+      });
+      h.appendChild(c);
+    });
+    d.appendChild(h);
+    var im=document.createElement("img"); im.src=pl.data; im.alt=pl.legende||"Plan";
     im.addEventListener("click", function(){ annoterPlan(i); });
     d.appendChild(im);
-    var lg=document.createElement("input"); lg.type="text"; lg.value=pl.legende||"";
-    lg.placeholder="Nom du plan (RDC, étage, TGBT…)";
-    lg.style.cssText="width:100%;margin-top:9px";
-    lg.addEventListener("input", function(){ pl.legende=lg.value; save(); });
-    d.appendChild(lg);
     var r=document.createElement("div"); r.className="row"; r.style.marginTop="9px";
-    var b1=document.createElement("button"); b1.type="button"; b1.className="act blue";
-    b1.textContent="Annoter le plan";
+    var b1=document.createElement("button"); b1.type="button"; b1.className="act blue"; b1.textContent="Annoter le plan";
     b1.addEventListener("click", function(){ annoterPlan(i); });
-    var b2=document.createElement("button"); b2.type="button"; b2.className="act danger";
-    b2.textContent="Retirer";
+    var b2=document.createElement("button"); b2.type="button"; b2.className="act danger"; b2.textContent="Retirer du suivi";
     b2.addEventListener("click", function(){
-      if(!window.confirm("Retirer ce plan du rapport ?")) return;
-      S.plans.splice(i,1); save(); renderPlans();
+      if(!window.confirm("Retirer ce plan du suivi ?")) return;
+      S.plans.splice(i,1); save(); renderPlans(); renderPlansDossier();
     });
     r.appendChild(b1); r.appendChild(b2);
     d.appendChild(r);
     host.appendChild(d);
   });
+  renderResume();
 }
 function annoterPlan(i){
   var porteur={nom:(S.plans[i].legende||"du chantier"), photos:S.plans};
-  openSketch(porteur, i, function(){ save(); renderPlans(); }, {plan:true});
+  /* un plan annoté est un plan modifié */
+  openSketch(porteur, i, function(){ S.plans[i].etat="modifie"; save(); renderPlans(); }, {plan:true});
 }
 function ajouterPlan(f){
   if(!f) return;
-  compress(f, function(ph){
-    if(!ph) return;
-    if(!S.plans) S.plans=[];
-    ph.legende = ph.legende || "";
-    S.plans.push(ph);
-    save(); renderPlans();
-    toast("Plan importé. Touchez-le pour l'annoter.");
-  }, 2000);
+  planDepuisBlob(f, f.name)
+    .then(function(ph){ ajouterAuSuivi(ph, (f.name||"").replace(/\.[a-z0-9]+$/i, "").replace(/[-_]+/g, " "), ""); toast("Plan ajouté. Dites s'il est modifié."); })
+    .catch(function(e){ toast((e && e.message) || "Plan illisible."); });
 }
 
 /* ---------- habillage des barres plein écran : icône + petit mot ---------- */
@@ -4303,9 +4128,9 @@ function start(){
   var pending=2, sBrut=null, pBrut=null;
   function go(){
     P = pBrut ? Object.assign(blankPrefs(), pBrut) : blankPrefs();
-    S = sBrut ? Object.assign(blank(), sBrut) : blank();
+    S = sBrut ? migrerFiche(sBrut) : blank();
     if(!S.meta.societe) S.meta.societe=P.societe;
-    paintPrefs(); paintForm(); showTab("visite");
+    paintPrefs(); paintForm(); showTab("suivi");
     chargerEquipe();
   }
   function fini(){ if(--pending===0) go(); }

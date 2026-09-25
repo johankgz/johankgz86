@@ -34,11 +34,14 @@ function cleDepuisChemin(magasin, fichier) {
   return path.relative(path.join(RACINE, magasin), fichier).split(path.sep).join("/");
 }
 
+let NUMERO_ECRITURE = 0;
 /* écriture en deux temps : un fichier à moitié écrit ne remplace jamais l'ancien */
 async function ecrire(fichier, contenu) {
   /* 700 : sur un hébergement partagé, les données ne regardent que nous */
   await fs.mkdir(path.dirname(fichier), { recursive: true, mode: 0o700 });
-  const provisoire = fichier + ".en-cours-" + process.pid + "-" + Date.now();
+  /* un nom propre à chaque écriture : deux écritures dans la même
+     milliseconde ne se marchent plus dessus */
+  const provisoire = fichier + ".en-cours-" + process.pid + "-" + Date.now() + "-" + (++NUMERO_ECRITURE) + "-" + Math.random().toString(36).slice(2, 8);
   await fs.writeFile(provisoire, contenu);
   await fs.rename(provisoire, fichier);
 }

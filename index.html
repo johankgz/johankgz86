@@ -1571,10 +1571,62 @@ var TACHES=[];
 function chargerTaches(s){
   fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-    .then(function(d){ TACHES=d.taches||[]; peindreTaches(s); })
+    .then(function(d){ TACHES=d.taches||[]; peindreTaches(s); peindreRappels(s); peindreCloche(); })
     .catch(function(){});
 }
+/* Un rappel de point bloquant (suivi de chantier) : il revient à la date
+   ET à l'heure choisies, pour son conducteur de travaux seul. */
+function rappelDu(t){
+  if(!t.rappel || !t.quand) return false;
+  var q=new Date(t.quand+"T"+(t.heure||"08:00")+":00");
+  return !isNaN(q) && q.getTime() <= Date.now();
+}
+function rappelsDus(){ return TACHES.filter(rappelDu); }
+function peindreRappels(s){
+  var host=$("notifs"); if(!host) return;
+  var vieux=document.getElementById("notifRappels"); if(vieux) vieux.remove();
+  var vieuxP=document.getElementById("panneauRappels"); if(vieuxP) vieuxP.remove();
+  var dus=rappelsDus();
+  if(!dus.length){ host.hidden = !host.children.length; return; }
+  var a=notif("rge urgent", String(dus.length),
+    dus.length>1 ? dus.length+" points bloquants à relancer" : "Un point bloquant à relancer",
+    dus.length>1 ? "Rappels de vos suivis de chantier" : (dus[0].texte+" — "+(dus[0].client||dus[0].chantier)));
+  a.id="notifRappels"; a.style.cursor="pointer";
+  var u=document.createElement("span"); u.className="urg"; u.textContent="rappel";
+  a.querySelector("b").appendChild(u);
+  var liste=document.createElement("div");
+  liste.className="demandes"; liste.id="panneauRappels"; liste.hidden=false;
+  dus.forEach(function(t){
+    var d=document.createElement("div"); d.className="d";
+    var b=document.createElement("b"); b.textContent=t.texte; d.appendChild(b);
+    var info=document.createElement("span");
+    info.textContent=[t.client||t.chantier, "rappel du "+frCourt(t.quand)+(t.heure ? " à "+t.heure : "")].filter(Boolean).join("  •  ");
+    d.appendChild(info);
+    var row=document.createElement("div"); row.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+    var ouvrir=document.createElement("a"); ouvrir.href="./chantier.html?ref="+encodeURIComponent(t.chantier||"");
+    ouvrir.textContent="Ouvrir le chantier";
+    ouvrir.style.cssText="min-height:36px;padding:9px 14px;border-radius:var(--r-field);background:var(--accent);"
+      +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
+    var btn=document.createElement("button"); btn.type="button"; btn.textContent="Point levé";
+    btn.style.cssText="min-height:36px;padding:0 14px;border:0;border-radius:var(--r-field);background:var(--field);"
+      +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+    btn.addEventListener("click", function(){
+      btn.disabled=true; btn.textContent="…";
+      fetch(apiUrl("tache-faite")+"&cle="+encodeURIComponent(t.cle), {headers:{"x-auth":s.jeton}})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(){ TACHES=TACHES.filter(function(x){ return x.cle!==t.cle; }); peindreRappels(s); peindreCloche(); })
+        .catch(function(){ btn.disabled=false; btn.textContent="Point levé"; });
+    });
+    row.appendChild(ouvrir); row.appendChild(btn); d.appendChild(row);
+    liste.appendChild(d);
+  });
+  a.addEventListener("click", function(){ liste.hidden=!liste.hidden; });
+  host.insertBefore(a, host.firstChild);
+  host.insertBefore(liste, a.nextSibling);
+  host.hidden=false;
+}
 function tacheDue(t){
+  if(t.rappel) return false;          /* les rappels ont leur propre ligne */
   /* due le jour dit à partir de 7 h, et tant qu'elle n'est pas faite */
   var d=new Date(), auj=d.toISOString().slice(0,10);
   if(!t.quand) return false;
@@ -2049,6 +2101,8 @@ function peindreCloche(){
   if(!cloche || !pan) return;
   var moi=(SESSION_COURANTE && SESSION_COURANTE.nom) || "";
   var lignes=[], total=0;
+  var rappels=(typeof rappelsDus==="function") ? rappelsDus() : [];
+  total += rappels.length;
   (DERNIERS_CHANTIERS||[]).forEach(function(c){
     var nouveaux=(c.fichiers||[]).filter(function(f){
       return f.auteur !== moi && !((f.lectures||{})[moi]);
@@ -2075,7 +2129,15 @@ function peindreCloche(){
   cloche.setAttribute("aria-label", cloche.title);
 
   pan.textContent="";
-  if(!lignes.length){
+  rappels.forEach(function(t){
+    var r=document.createElement("a"); r.className="d"; r.href="./chantier.html?ref="+encodeURIComponent(t.chantier||"");
+    var b=document.createElement("b"); b.textContent="Rappel · "+t.texte; r.appendChild(b);
+    var sp=document.createElement("span");
+    sp.textContent=(t.client||t.chantier)+"  ·  point bloquant, rappel du "+frCourt(t.quand)+(t.heure?" à "+t.heure:"");
+    r.appendChild(sp);
+    pan.appendChild(r);
+  });
+  if(!lignes.length && !rappels.length){
     var v=document.createElement("div"); v.className="d vide-cloche";
     v.textContent="Rien de nouveau sur vos chantiers.";
     pan.appendChild(v);

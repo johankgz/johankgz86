@@ -665,6 +665,22 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   .travaux,.travaux.ouvert .fichiers{animation:none}
   .travaux .pli svg{transition:none}
 }
+
+/* ---------- le sous-dossier « Suivi de chantier » ---------- */
+.travaux .dossier-suivi{border-bottom:1px solid #EEF1F4}
+.travaux .dossier-suivi .ds-tete{display:flex;align-items:center;gap:10px;width:100%;min-height:46px;padding:9px 12px 9px 14px;border:0;
+  border-radius:0;background:#F8FAFC;color:var(--ink);font-family:inherit;text-align:left;cursor:pointer;box-shadow:none}
+.travaux .dossier-suivi .ds-ico{flex:0 0 auto;width:19px;height:19px;stroke:var(--accent);fill:var(--accent-soft);stroke-width:1.8;stroke-linejoin:round}
+.travaux .dossier-suivi .ds-nom{flex:1 1 auto;font-size:14px;font-weight:700}
+.travaux .dossier-suivi .neuf{flex:0 0 auto;font-size:9.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:#EA7A1E;color:#fff}
+.travaux .dossier-suivi .ds-nb{flex:0 0 auto;min-width:20px;height:20px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;
+  font-size:11px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.travaux .dossier-suivi .ds-pli{flex:0 0 auto;width:16px;height:16px;stroke:var(--ink-3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+  transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.travaux .dossier-suivi .ds-tete[aria-expanded="true"] .ds-pli{transform:rotate(180deg)}
+.travaux .dossier-suivi .ds-liste{padding-left:12px;background:#FBFCFD}
+.travaux .dossier-suivi .ds-liste[hidden]{display:none}
+@media (prefers-reduced-motion:reduce){ .travaux .dossier-suivi .ds-pli{transition:none} }
 </style>
 </head>
 <body>
@@ -1756,6 +1772,38 @@ function retenirPli(ref, ouvert){
   PLI[ref]=ouvert;
   try{ sessionStorage.setItem("rapports:pli", JSON.stringify(PLI)); }catch(e){}
 }
+/* Le sous-dossier « Suivi de chantier » d'un dossier : replié, avec le
+   nombre de suivis ; les plus récents en premier une fois ouvert. */
+var SUIVIS_OUVERTS={};
+try{ SUIVIS_OUVERTS=JSON.parse(sessionStorage.getItem("rapports:suivis")||"{}")||{}; }catch(e){ SUIVIS_OUVERTS={}; }
+function sousDossierSuivi(ref){
+  var boite=document.createElement("div"); boite.className="dossier-suivi";
+  var tete=document.createElement("button"); tete.type="button"; tete.className="ds-tete";
+  var dedans=document.createElement("div"); dedans.className="ds-liste";
+  var ouvert=!!SUIVIS_OUVERTS[ref];
+  dedans.hidden=!ouvert; tete.setAttribute("aria-expanded", ouvert ? "true" : "false");
+  tete.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    var o=dedans.hidden; dedans.hidden=!o;
+    tete.setAttribute("aria-expanded", o ? "true" : "false");
+    SUIVIS_OUVERTS[ref]=o;
+    try{ sessionStorage.setItem("rapports:suivis", JSON.stringify(SUIVIS_OUVERTS)); }catch(err){}
+  });
+  boite.appendChild(tete); boite.appendChild(dedans);
+  return {boite:boite, remplir:function(lignes){
+    lignes.sort(function(x,y){
+      return String(y.f.date||"").localeCompare(String(x.f.date||"")) || String(y.f.publie||"").localeCompare(String(x.f.publie||""));
+    });
+    var neufs=lignes.filter(function(l){ return pasEncoreLu(l.f); }).length;
+    tete.innerHTML='<svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
+      +'<span class="ds-nom">Suivi de chantier</span>'
+      +(neufs ? '<span class="neuf">'+neufs+' nouveau'+(neufs>1?'x':'')+'</span>' : '')
+      +'<span class="ds-nb">'+lignes.length+'</span>'
+      +'<svg class="ds-pli" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+    tete.setAttribute("aria-label", "Suivi de chantier, "+lignes.length+" suivi"+(lignes.length>1?"s":""));
+    lignes.forEach(function(l){ dedans.appendChild(l.a); });
+  }};
+}
 function afficher(chantiers){
   chantiers.forEach(trierDocs);
   majCompteur(chantiers.length);
@@ -1850,6 +1898,13 @@ function afficher(chantiers){
     head.appendChild(sous);
 
     var fs=document.createElement("div"); fs.className="fichiers";
+    /* les suivis de chantier vont dans un sous-dossier repliable */
+    var suivisLignes=[], dossierSuivi=null;
+    function ranger(f, a){
+      if(f.type!=="suivi"){ fs.appendChild(a); return; }
+      if(!dossierSuivi){ dossierSuivi=sousDossierSuivi(c.ref); fs.appendChild(dossierSuivi.boite); }
+      suivisLignes.push({f:f, a:a});
+    }
     c.fichiers.forEach(function(f){
       var a=document.createElement("a"); a.className="f";
       var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
@@ -1888,7 +1943,7 @@ function afficher(chantiers){
       tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reportage"?" reportage":(f.type==="carnet"?" carnet":(f.type==="memoire"?" memoire":(f.type==="doe"?" doe":(f.type==="autocontrole"?" autoc":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":(f.type==="technique"?" technique":(f.type==="point"?" point":"")))))))))))));
       tag.textContent = f.type==="point" ? "Le point"
                       : f.type==="technique" ? "Technique"
-                      : f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:""))
+                      : f.type==="suivi" ? (f.visite ? "Visite "+f.visite : "Suivi")
                       : f.type==="commande" ? "Commande"
                       : f.type==="photos" ? "Photos"
                       : f.type==="reportage" ? "Reportage"
@@ -1962,8 +2017,9 @@ function afficher(chantiers){
         droite.appendChild(sup);
       }
       a.appendChild(droite);
-      fs.appendChild(a);
+      ranger(f, a);
     });
+    if(dossierSuivi) dossierSuivi.remplir(suivisLignes);
     box.appendChild(head); box.appendChild(fs);
 
     var act=null;

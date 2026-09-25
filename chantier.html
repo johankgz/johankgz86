@@ -653,6 +653,22 @@ nav#nav a .nb-discu{animation:saute .45s cubic-bezier(.2,1.4,.4,1) .3s both}
 @media (prefers-reduced-motion:reduce){
   *,*::before,*::after{animation:none!important;transition:none!important}
 }
+
+/* ---------- le sous-dossier « Suivi de chantier » ---------- */
+.dossier-suivi{border-bottom:1px solid var(--rule)}
+.dossier-suivi .ds-tete{display:flex;align-items:center;gap:10px;width:100%;min-height:52px;padding:12px 16px;border:0;border-radius:0;
+  background:#F8FAFC;color:var(--ink);font-family:inherit;text-align:left;cursor:pointer;box-shadow:none}
+.dossier-suivi .ds-ico{flex:0 0 auto;width:21px;height:21px;stroke:var(--accent);fill:var(--accent-soft);stroke-width:1.8;stroke-linejoin:round}
+.dossier-suivi .ds-nom{flex:1 1 auto;font-size:15px;font-weight:700}
+.dossier-suivi .ds-tete .neuf{flex:0 0 auto;font-size:10px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;padding:3px 8px;border-radius:999px;background:var(--accent);color:#fff}
+.dossier-suivi .ds-nb{flex:0 0 auto;min-width:22px;height:22px;padding:0 7px;border-radius:999px;background:var(--accent);color:#fff;
+  font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center;font-variant-numeric:tabular-nums}
+.dossier-suivi .ds-pli{flex:0 0 auto;width:18px;height:18px;stroke:var(--ink-3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;
+  transition:transform .2s cubic-bezier(.2,.8,.2,1)}
+.dossier-suivi .ds-tete[aria-expanded="true"] .ds-pli{transform:rotate(180deg)}
+.dossier-suivi .ds-liste{padding-left:14px;background:#FBFCFD}
+.dossier-suivi .ds-liste .f:last-child{border-bottom:0}
+@media (prefers-reduced-motion:reduce){ .dossier-suivi .ds-pli{transition:none} }
 </style></head>
 <body>
 <header>
@@ -1108,7 +1124,51 @@ function peindreDocs(){
   }
   var fs=document.createElement("div"); fs.className="fs";
   var cascade = !DOCS_VUS; DOCS_VUS = true;
+  /* Les suivis de chantier se rangent dans un sous-dossier repliable :
+     il peut y en avoir beaucoup, ils ne doivent pas noyer le reste. */
+  var suivis=liste.filter(function(f){ return f.type==="suivi"; })
+    .sort(function(a,b){ return String(b.date||b.publie||"").localeCompare(String(a.date||a.publie||"")) || String(b.publie||"").localeCompare(String(a.publie||"")); });
+  var dossierPose=false;
   liste.forEach(function(f, rang){
+    if(f.type==="suivi"){
+      if(dossierPose) return;
+      dossierPose=true;
+      fs.appendChild(sousDossierSuivi(suivis, cascade, rang));
+      return;
+    }
+    fs.appendChild(ligneDocument(f, rang, cascade));
+  });
+  hote.appendChild(fs);
+  $("compteur").textContent = liste.length + " document" + (liste.length>1?"s":"") + " sur ce chantier.";
+}
+var SUIVI_OUVERT={};
+try{ SUIVI_OUVERT=JSON.parse(sessionStorage.getItem("chantier:suivis")||"{}")||{}; }catch(e){ SUIVI_OUVERT={}; }
+function sousDossierSuivi(suivis, cascade, rang){
+  var ref=(CHANTIER && CHANTIER.ref) || "";
+  var boite=document.createElement("div"); boite.className="dossier-suivi"+(cascade ? " entre" : "");
+  if(cascade) boite.style.animationDelay=Math.min(rang, 8)*40+"ms";
+  var tete=document.createElement("button"); tete.type="button"; tete.className="ds-tete";
+  var ouvert=!!SUIVI_OUVERT[ref];
+  tete.setAttribute("aria-expanded", ouvert ? "true" : "false");
+  var neufs=suivis.filter(pasEncoreLu).length;
+  tete.innerHTML='<svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
+    +'<span class="ds-nom">Suivi de chantier</span>'
+    +(neufs ? '<span class="neuf">'+neufs+' nouveau'+(neufs>1?'x':'')+'</span>' : '')
+    +'<span class="ds-nb">'+suivis.length+'</span>'
+    +'<svg class="ds-pli" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+  var dedans=document.createElement("div"); dedans.className="ds-liste"; dedans.hidden=!ouvert;
+  suivis.forEach(function(f, k){ dedans.appendChild(ligneDocument(f, k, false)); });
+  tete.addEventListener("click", function(){
+    var o=dedans.hidden; dedans.hidden=!o;
+    tete.setAttribute("aria-expanded", o ? "true" : "false");
+    SUIVI_OUVERT[ref]=o;
+    try{ sessionStorage.setItem("chantier:suivis", JSON.stringify(SUIVI_OUVERT)); }catch(e){}
+  });
+  boite.appendChild(tete); boite.appendChild(dedans);
+  return boite;
+}
+function ligneDocument(f, rang, cascade){
+  {
     var a=document.createElement("a"); a.className="f"+(cascade ? " entre" : "");
     if(cascade) a.style.animationDelay=Math.min(rang, 8)*40+"ms";
     a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(SESSION.jeton);
@@ -1139,16 +1199,14 @@ function peindreDocs(){
     if(bs) cote.appendChild(bs);
     var tag=document.createElement("span");
     tag.className="tag"+(CLASSE[f.type] ? " "+CLASSE[f.type] : "");
-    tag.textContent = f.type==="suivi" ? ("Visite"+(f.visite?" "+f.visite:"")) : (LIBELLE[f.type]||"Relevé");
+    tag.textContent = f.type==="suivi" ? (f.visite ? "Visite "+f.visite : "Suivi") : (LIBELLE[f.type]||"Relevé");
     cote.appendChild(tag);
     /* une ligne chargée — neuf, saisie, étiquette — respire mieux sur deux
        rangées que serrée contre un titre qui se casse en trois morceaux */
     if(cote.children.length > 1) a.className += " riche";
     a.appendChild(t); a.appendChild(cote);
-    fs.appendChild(a);
-  });
-  hote.appendChild(fs);
-  $("compteur").textContent = liste.length + " document" + (liste.length>1?"s":"") + " sur ce chantier.";
+    return a;
+  }
 }
 
 /* ---------- tout publier en même temps ----------
@@ -1188,10 +1246,16 @@ function refAffaireDe(id, S){
 function contenuDe(id, S){
   switch(id){
     case "suivi":
-      var v=S.visite||{}, nb=(S.visites||[]).length;
-      var vif=!!((v.objet||"").trim() || (v.compte||"").trim() || (v.avancement||"").trim());
-      if(!(S.client && S.client.nom && S.client.nom.trim()) || !(vif || nb)) return null;
-      return v.objet || (nb ? nb+" visite"+(nb>1?"s":"")+" en cours" : "Compte-rendu de visite");
+      var v=S.visite||{};
+      var nts=(S.ts||[]).length, nph=(S.photos||[]).length, npt=(S.points||[]).length, npl=(S.plans||[]).length;
+      var vif=!!((v.objet||"").trim() || (v.note||"").trim() || (v.type||"").trim() || nts || nph || npt || npl
+        || (v.compte||"").trim() || (S.visites||[]).length);
+      if(!(S.client && S.client.nom && S.client.nom.trim()) || !vif) return null;
+      var bouts=[];
+      if(nts) bouts.push(nts+" TS");
+      if(nph) bouts.push(nph+" photo"+(nph>1?"s":""));
+      if(npt) bouts.push(npt+" point"+(npt>1?"s":""));
+      return (v.type || "Suivi en cours") + (bouts.length ? " · "+bouts.join(", ") : "");
     case "commande":
       var n=(S.lignes||[]).length;
       return n ? n+" article"+(n>1?"s":"") : null;
