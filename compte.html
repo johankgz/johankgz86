@@ -379,6 +379,31 @@ a.aide .fl svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width
 
 button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-top:4px;
  background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18)}
+/* ---------- notifications sur ce téléphone ---------- */
+.nt-etat{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:10px;background:var(--field);
+  font-size:14px;margin:0 0 12px;line-height:1.4}
+.nt-etat .pt{flex:0 0 auto;width:10px;height:10px;border-radius:50%;background:var(--ink-3)}
+.nt-etat.on{background:rgba(22,128,77,.09)}
+.nt-etat.on .pt{background:var(--vert)}
+.nt-etat.off .pt{background:var(--accent)}
+.nt-aide{margin:0 0 12px;padding:0 0 0 20px;font-size:14px;line-height:1.6;color:var(--ink-2)}
+.nt-prefs{margin:14px 0 4px;border-top:1px solid var(--rule)}
+.nt-prefs label.bascule{display:flex;align-items:center;gap:12px;margin:0;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer}
+.nt-prefs label.bascule span{flex:1;margin:0;font-size:15px;color:var(--ink)}
+.nt-prefs label.bascule small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.bascule input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:46px;height:28px;min-height:0;padding:0;margin:0;
+  border-radius:999px;background:#D5D9DF;border:0;position:relative;cursor:pointer;transition:background .18s ease}
+.bascule input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s ease}
+.bascule input:checked{background:var(--vert)}
+.bascule input:checked::after{transform:translateX(18px)}
+.bascule input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.nt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.nt-actions button{flex:1 1 auto;min-height:42px;padding:9px 14px;border-radius:10px;font-size:14px;font-weight:600;font-family:inherit;
+  cursor:pointer;background:var(--card);color:var(--ink-2);border:1px solid var(--rule)}
+.nt-actions button.coupe{color:var(--rouge)}
+[hidden]{display:none!important}
+@media (prefers-reduced-motion:reduce){ .bascule input,.bascule input::after{transition:none} }
 </style>
 </head>
 <body>
@@ -408,6 +433,31 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
     <p class="err" id="errCoord"></p>
   </div>
 
+  <div class="block" id="blocNotif">
+    <h2>Notifications sur ce téléphone</h2>
+    <p class="legend">Le téléphone vous prévient comme pour un SMS, même quand le site est fermé.</p>
+    <div class="nt-etat" id="nt_etat"><span class="pt"></span><span id="nt_etatTxt">Vérification…</span></div>
+    <ol class="nt-aide" id="nt_ios" hidden>
+      <li>Ouvrez ce site dans <b>Safari</b>.</li>
+      <li>Touchez <b>Partager</b> (le carré avec une flèche), puis <b>Sur l'écran d'accueil</b>.</li>
+      <li>Ouvrez le site depuis sa nouvelle icône, revenez ici et touchez « Activer ».</li>
+    </ol>
+    <button class="p" id="nt_activer" hidden>Activer sur cet appareil</button>
+    <div class="nt-prefs" id="nt_prefs" hidden>
+      <label class="bascule"><span>Messages de discussion<small>Quand quelqu'un écrit dans un de vos dossiers</small></span>
+        <input type="checkbox" id="nt_messages" role="switch"></label>
+      <label class="bascule"><span>Documents déposés<small>Un relevé, un suivi, une commande… qui vous est destiné</small></span>
+        <input type="checkbox" id="nt_documents" role="switch"></label>
+      <label class="bascule"><span>Rappels et tâches<small>À la date et à l'heure choisies</small></span>
+        <input type="checkbox" id="nt_rappels" role="switch"></label>
+    </div>
+    <div class="nt-actions" id="nt_actions" hidden>
+      <button type="button" id="nt_essai">Envoyer un essai</button>
+      <button type="button" class="coupe" id="nt_couper">Désactiver ici</button>
+    </div>
+    <p class="err" id="nt_err"></p>
+  </div>
+
   <div class="block">
     <h2>Mon mot de passe</h2>
     <p class="legend">Personne ne le voit, pas même l'administrateur : le site n'en garde qu'une
@@ -432,6 +482,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
   <button class="sortie" id="btnOut">Se déconnecter</button>
 
 </main>
+<script src="./notifications.js?v=1"></script>
 <script>
 (function(){
 function $(i){ return document.getElementById(i); }
@@ -517,6 +568,56 @@ $("k_valider").addEventListener("click", function(){
 $("k_neuf2").addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("k_valider").click(); });
 
 $("btnOut").addEventListener("click", sortir);
+
+/* ---------- notifications ---------- */
+function ntMessage(t, ok){ var e=$("nt_err"); e.className="err"+(ok?" ok":""); e.textContent=t||""; }
+function ntPeindre(e){
+  var boite=$("nt_etat"), txt=$("nt_etatTxt");
+  $("nt_ios").hidden = e.raison!=="ios-installer";
+  $("nt_activer").hidden = !e.possible || e.actif;
+  $("nt_prefs").hidden = !e.actif;
+  $("nt_actions").hidden = !e.actif;
+  boite.className="nt-etat"+(e.actif ? " on" : " off");
+  txt.textContent = e.actif
+    ? "Activées sur cet appareil" + (e.appareils>1 ? " (et sur "+(e.appareils-1)+" autre"+(e.appareils>2?"s":"")+")" : "") + "."
+    : e.raison==="ios-installer" ? "Sur iPhone, les notifications arrivent seulement quand le site est installé sur l'écran d'accueil."
+    : e.raison==="refuse" ? "Notifications refusées sur cet appareil. Rétablissez-les dans les réglages du téléphone (Notifications › Travaux 360), puis rouvrez cette page."
+    : e.raison==="non-pris" ? "Ce navigateur ne reçoit pas les notifications d'un site."
+    : "Pas encore activées sur cet appareil.";
+  if(e.prefs){
+    $("nt_messages").checked = e.prefs.messages!==false;
+    $("nt_documents").checked = e.prefs.documents!==false;
+    $("nt_rappels").checked = e.prefs.rappels!==false;
+  }
+}
+function ntCharger(){
+  Notif.etat(S).then(ntPeindre).catch(function(){ $("nt_etatTxt").textContent="État indisponible hors réseau."; });
+}
+Notif.preparer(S);
+ntCharger();
+$("nt_activer").addEventListener("click", function(){
+  var b=this; b.disabled=true; ntMessage("Activation…");
+  Notif.activer(S).then(function(){ ntMessage("Notifications activées.", true); ntCharger(); })
+    .catch(function(err){ ntMessage(err && err.message ? err.message : "Activation impossible."); ntCharger(); })
+    .then(function(){ b.disabled=false; });
+});
+["messages","documents","rappels"].forEach(function(k){
+  $("nt_"+k).addEventListener("change", function(){
+    var c={}; c[k]=this.checked;
+    var box=this;
+    Notif.prefs(S, c).then(function(){ ntMessage("Enregistré.", true); })
+      .catch(function(){ box.checked=!box.checked; ntMessage("Pas de réseau : réglage non enregistré."); });
+  });
+});
+$("nt_essai").addEventListener("click", function(){
+  ntMessage("Envoi…");
+  Notif.essai(S).then(function(d){ ntMessage(d.ok ? "Essai envoyé : la notification arrive dans quelques secondes." : "L'essai n'est pas parti. Désactivez puis réactivez ici.", !!d.ok); })
+    .catch(function(){ ntMessage("Pas de réseau."); });
+});
+$("nt_couper").addEventListener("click", function(){
+  Notif.desactiver(S).then(function(){ ntMessage("Notifications coupées sur cet appareil.", true); ntCharger(); })
+    .catch(function(){ ntMessage("Pas de réseau."); });
+});
 })();
 </script>
 </body>

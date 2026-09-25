@@ -14,6 +14,8 @@
      EXPEDITEUR        expéditeur des e-mails
      PLAN_ANALYSE_URL  adresse de l'analyseur de plans (facultatif)
      PLAN_ANALYSE_CLE  sa clé partagée
+     PUSH_CONTACT      contact signé dans les notifications (facultatif :
+                       l'adresse du site par défaut)
    ===================================================================== */
 
 process.env.DONNEES_DOSSIER = process.env.DONNEES_DOSSIER || "./donnees";
@@ -95,7 +97,9 @@ const serveur = http.createServer(async (req, res) => {
     catch { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("Page introuvable"); return; }
     res.writeHead(200, {
       "content-type": TYPES[path.extname(fichier).toLowerCase()] || "application/octet-stream",
-      "cache-control": path.extname(fichier) === ".html" ? "no-cache" : "public, max-age=3600"
+      /* les pages et le service des notifications sont toujours relus */
+      "cache-control": (path.extname(fichier) === ".html" || path.basename(fichier) === "sw.js")
+        ? "no-cache" : "public, max-age=3600"
     });
     res.end(contenu);
   } catch (e) {
@@ -104,6 +108,11 @@ const serveur = http.createServer(async (req, res) => {
        .end(JSON.stringify({ erreur: "Erreur du serveur." }));
   }
 });
+
+/* les rappels partent à leur heure : un coup d'œil chaque minute */
+setInterval(() => {
+  rapports(new Request("http://localhost/api/rapports?action=tic")).catch(() => {});
+}, 60000).unref();
 
 serveur.listen(PORT, () => {
   console.log("Outils de chantier");

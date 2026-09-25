@@ -959,6 +959,19 @@ body.connexion .ciel{display:none}
   .ciel *{animation:none!important}
   .ciel-pluie{display:none}
 }
+/* ---------- l'invitation aux notifications ---------- */
+.invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
+  padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
+.invite-notif[hidden]{display:none}
+.invite-notif .in-ic{flex:0 0 auto;width:36px;height:36px;border-radius:50%;background:#FDF0E3;display:flex;align-items:center;justify-content:center}
+.invite-notif .in-ic svg{width:19px;height:19px;stroke:#EA7A1E;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.invite-notif .in-tx{flex:1 1 180px;min-width:0}
+.invite-notif .in-tx b{display:block;font-size:14.5px;color:var(--ink)}
+.invite-notif .in-tx span{display:block;font-size:12.5px;color:var(--ink-3);line-height:1.4;margin-top:1px}
+.invite-notif .in-btns{display:flex;gap:6px;margin-left:auto}
+.invite-notif button{min-height:36px;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.invite-notif .in-oui{background:#EA7A1E;color:#fff;border:0}
+.invite-notif .in-non{background:none;color:var(--ink-3);border:1px solid var(--rule)}
 </style>
 </head>
 <body>
@@ -1061,6 +1074,7 @@ body.connexion .ciel{display:none}
     <p class="demo-ban" id="banniere" hidden></p>
     <p class="acces-ban" id="banniereAcces" hidden></p>
     <div class="notifs" id="notifs" hidden></div>
+    <div class="invite-notif" id="inviteNotif" hidden></div>
 
     <a class="raccourci" href="./notes.html">
       <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
@@ -1111,6 +1125,7 @@ body.connexion .ciel{display:none}
   </div>
 
 </main>
+<script src="./notifications.js?v=1"></script>
 <script>
 var $=function(i){return document.getElementById(i);};
 function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
@@ -1568,7 +1583,10 @@ function bandeauPublic(){
 
 /* ---------- tâches du jour ---------- */
 var TACHES=[];
+var NOTIF_INVITEE=false;
 function chargerTaches(s){
+  /* une fois par visite : proposer les notifications sur ce téléphone */
+  if(!NOTIF_INVITEE && window.Notif){ NOTIF_INVITEE=true; Notif.inviter($("inviteNotif"), s); }
   fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){ TACHES=d.taches||[]; peindreTaches(s); peindreRappels(s); peindreCloche(); })

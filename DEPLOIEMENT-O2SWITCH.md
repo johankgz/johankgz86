@@ -267,6 +267,24 @@ obtenu dans `/home/VOTRECOMPTE/outils-donnees`.
 
 ## 5. Au quotidien
 
+**Les notifications sur le téléphone** marchent sans rien installer ni
+régler : les clés sont fabriquées au premier usage et rangées dans le
+dossier des données. Il faut seulement le site en **https** (voir 3).
+
+Les rappels partent à leur heure tant que l'application tourne. Si
+Passenger l'endort la nuit faute de visites, un rappel de 7 h pourrait
+partir au premier passage du matin. Pour qu'il parte pile à l'heure,
+ajoutez une tâche cron dans cPanel → **Tâches Cron** (toutes les
+5 minutes) :
+
+```bash
+curl -s "https://VOTREDOMAINE/api/rapports?action=tic" > /dev/null
+```
+
+Facultatif : la variable `PUSH_CONTACT` (par exemple
+`mailto:contact@votredomaine.fr`) remplace l'adresse du site comme
+contact signé dans les notifications.
+
 **Publier une modification** : cPanel → Git Version Control → *Update
 from Remote*, puis *Restart*. Si le changement ne touche que des pages
 `.html`, le redémarrage n'est même pas nécessaire.

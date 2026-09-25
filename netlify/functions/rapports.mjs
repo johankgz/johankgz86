@@ -2,6 +2,7 @@ import { getStore } from "./magasin.mjs";
 import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT } from "./notifications.mjs";
 
 const INDEX = "_index";
 
@@ -17,6 +18,58 @@ function frDate(d) {
   const a = String(d).slice(0, 10).split("-");
   return a[2] + "/" + a[1] + "/" + a[0];
 }
+function libelleDocument(entree) {
+  return (
+    entree.type === "commande" ? "Commande et reste à faire"
+    : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
+    : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
+    : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
+    : entree.type === "carnet" ? "Carnet d'échantillons"
+    : entree.type === "memoire" ? "Mémoire technique"
+    : entree.type === "doe" ? "Dossier des ouvrages exécutés"
+    : entree.type === "point" ? "Le point de chantier"
+    : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
+    : "Relevé technique"
+  );
+}
+/* qui une publication concerne : les personnes désignées, sinon toute
+   l'équipe du chantier sauf l'auteur */
+function concernes(entree, chantier, auteur) {
+  const vises = entree.destinataires || [];
+  return (vises.length ? vises : ((chantier && chantier.equipe) || [])).filter((n) => n && n !== auteur);
+}
+/* ce qui signe les notifications : l'adresse du site en https, sinon
+   une adresse de contact (exigée par les services de notification) */
+function contactPush(origine) {
+  if (process.env.PUSH_CONTACT) return process.env.PUSH_CONTACT;
+  return /^https:\/\//.test(origine || "") ? origine : "mailto:contact@exemple.fr";
+}
+/* Les rappels partent à leur heure : vérifiés chaque minute par le
+   serveur, et à chaque appel du site (au plus une fois par minute),
+   au cas où l'hébergeur aurait endormi le serveur entre-temps. */
+let DERNIER_TIC = 0;
+async function tic(force) {
+  if (!force && Date.now() - DERNIER_TIC < 50000) return 0;
+  DERNIER_TIC = Date.now();
+  const annuaire = magasinAnnuaire();
+  const lots = [];
+  await sousVerrou("ecritures", async () => {
+    try {
+      for (const soc of await lireSocietes()) {
+        if (soc.actif === false) continue;
+        const store = magasinSociete(soc.code);
+        try { lots.push({ store, dus: await repererRappelsDus(store) }); } catch { /* société suivante */ }
+      }
+    } catch { /* on réessaiera */ }
+  });
+  let n = 0;
+  for (const l of lots) {
+    for (const r of l.dus) {
+      try { n += (await prevenirPush(l.store, annuaire, [r.qui], "rappels", r.charge, contactPush(""))).length; } catch { /* suivant */ }
+    }
+  }
+  return n;
+}
 async function prevenir(entree, chantier, auteur, origine, comptes) {
   if (!CLE_RESEND) return [];
   /* Qui prévenir ? Les personnes désignées quand il y en a. Sinon —
@@ -31,17 +84,7 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
   );
   if (!cibles.length) return [];
 
-  const quoi =
-    entree.type === "commande" ? "Commande et reste à faire"
-    : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
-    : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
-    : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
-    : entree.type === "carnet" ? "Carnet d'échantillons"
-    : entree.type === "memoire" ? "Mémoire technique"
-    : entree.type === "doe" ? "Dossier des ouvrages exécutés"
-    : entree.type === "point" ? "Le point de chantier"
-    : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
-    : "Relevé technique";
+  const quoi = libelleDocument(entree);
   const titre = chantier.client || chantier.ref;
   const lien = origine + "/rapports.html";
 
@@ -525,10 +568,12 @@ function rang(f) {
    lectures, elles, ne s'attendent pas. */
 const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques"]);
+  "societes-publiques", "push-cle", "push-etat"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
+  if (action !== "tic") tic().catch(() => {});
+  if (action === "tic") return json({ ok: true, envoyes: await tic(true) });
   if (LECTURES.has(action)) return traiter(req);
   return sousVerrou("ecritures", () => traiter(req));
 };
@@ -983,6 +1028,13 @@ async function traiter(req) {
     let prevenus = [];
     if (!photos) {
       try { prevenus = await prevenir(entree, c, entree.auteur, url.origin, await lireComptes(personne.societe)); } catch { prevenus = []; }
+      /* et sur le téléphone, sans faire attendre la publication */
+      prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
+        titre: libelleDocument(entree),
+        texte: (c.client || ref) + " — déposé par " + entree.auteur,
+        url: "./chantier.html?ref=" + encodeURIComponent(ref),
+        tag: "doc-" + cle
+      }, contactPush(url.origin)).catch(() => {});
     }
 
     /* tâches datées : une entrée par tâche, pour les notifications */
@@ -1037,7 +1089,8 @@ async function traiter(req) {
             texte: String(r.texte), prio: "", qui: pour, quand, heure: /^\d{2}:\d{2}$/.test(r.heure || "") ? r.heure : "08:00",
             rappel: true, suivi: cle, suiviId: String(d.suiviId), chantier: ref, client: d.client || "", auteur: personne.nom,
             cree: (avant && avant.cree) || new Date().toISOString(),
-            faite: !!(avant && avant.faite && avant.quand === quand)
+            faite: !!(avant && avant.faite && avant.quand === quand),
+            notifie: (avant && avant.notifie) || ""
           });
           nbRappels++;
         } catch { /* la publication reste valable */ }
@@ -1523,6 +1576,47 @@ async function traiter(req) {
     return json({ ok: true, equipe });
   }
 
+  /* ---------- notifications sur le téléphone ---------- */
+  if (action === "push-cle") {
+    return json({ cle: (await clesVapid(magasinAnnuaire())).publique });
+  }
+  if (action === "push-etat") {
+    const f = await lireAbonne(store, personne.nom);
+    const ep = url.searchParams.get("endpoint") || "";
+    return json({ prefs: f.prefs, appareils: f.abonnements.length,
+      cetAppareil: !!ep && f.abonnements.some((a) => a.endpoint === ep) });
+  }
+  if (action === "push-abonner" || action === "push-desabonner" || action === "push-prefs") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const f = await lireAbonne(store, personne.nom);
+    if (action === "push-abonner") {
+      const a = d.abonnement || {};
+      if (!/^https:\/\//.test(a.endpoint || "") || !a.keys || !a.keys.p256dh || !a.keys.auth) {
+        return json({ erreur: "Abonnement illisible." }, 400);
+      }
+      f.abonnements = f.abonnements.filter((x) => x.endpoint !== a.endpoint);
+      f.abonnements.push({ endpoint: a.endpoint, keys: { p256dh: a.keys.p256dh, auth: a.keys.auth },
+        appareil: String(d.appareil || "").slice(0, 80), le: new Date().toISOString(),
+        contact: contactPush(url.origin) });
+      if (f.abonnements.length > 8) f.abonnements = f.abonnements.slice(-8);
+    } else if (action === "push-desabonner") {
+      f.abonnements = f.abonnements.filter((x) => x.endpoint !== d.endpoint);
+    } else {
+      for (const k of Object.keys(PREFS_DEFAUT)) if (typeof d[k] === "boolean") f.prefs[k] = d[k];
+    }
+    await store.setJSON(cleAbonne(personne.nom), f);
+    return json({ ok: true, prefs: f.prefs, appareils: f.abonnements.length });
+  }
+  if (action === "push-essai") {
+    const prevenus = await prevenirPush(store, magasinAnnuaire(), [personne.nom], "essai", {
+      titre: "Notifications activées",
+      texte: "C'est ici que vous serez prévenu : messages, documents et rappels.",
+      url: "./index.html", tag: "essai"
+    }, contactPush(url.origin));
+    return json({ ok: prevenus.length > 0 });
+  }
+
   /* ---------- discussion du dossier ---------- */
   function cleMessages(ref) { return "messages/" + ref + ".json"; }
   async function lireMessages(ref) {
@@ -1586,6 +1680,12 @@ async function traiter(req) {
         if (await envoyerMail(u.email, sujet, corpsMail)) prevenus.push(u.nom);
       }
     }
+    prevenirPush(store, magasinAnnuaire(), vises, "messages", {
+      titre: "Message — " + (c.client || ref),
+      texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : "une photo"),
+      url: "./rapports.html?discussion=" + encodeURIComponent(ref),
+      tag: "discu-" + ref
+    }, contactPush(url.origin)).catch(() => {});
     return json({ ok: true, message, prevenus });
   }
 
