@@ -217,11 +217,33 @@ button.act:disabled{opacity:.4}
 .toast[hidden]{display:none}
 
 /* ---------- plein écran : croquis et implantation ---------- */
-#sketch,#toit,#carte,#irve{
+#sketch,#toit,#carte,#irve,#soleil{
   position:fixed;inset:0;z-index:60;background:#1A1815;display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top,0px);
 }
-#sketch[hidden],#toit[hidden],#carte[hidden],#irve[hidden]{display:none}
+#sketch[hidden],#toit[hidden],#carte[hidden],#irve[hidden],#soleil[hidden]{display:none}
+/* ---------- course du soleil ---------- */
+#soleil .sk-bar button{flex-direction:column;gap:2px;min-width:52px;padding:6px 8px;font-size:9.5px;line-height:1.1}
+.sol-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
+#sol_canvas{position:absolute;inset:0;display:block;touch-action:none;cursor:grab;background:#1A1815}
+#sol_canvas:active{cursor:grabbing}
+.sol-reglages{flex:0 0 auto;background:#262320;color:#F4F1EA;padding:10px 12px calc(12px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-direction:column;gap:8px}
+.sol-dates{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none}
+.sol-dates::-webkit-scrollbar{display:none}
+.sol-dates button{flex:0 0 auto;min-height:36px;padding:7px 12px;border:0;border-radius:999px;background:rgba(255,255,255,.1);
+  color:#F4F1EA;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+.sol-dates button[aria-pressed="true"]{background:#FDBA74;color:#1A1815}
+.sol-l{display:flex;flex-direction:column;gap:2px;font-size:12px;color:#C9C2B6}
+.sol-l b{color:#fff;font-weight:600}
+.sol-l input[type=range]{width:100%;min-height:30px;accent-color:#FB923C;background:none;border:0;padding:0;box-shadow:none}
+.sol-bas{display:flex;align-items:center;gap:10px}
+.sol-bas p{flex:1 1 auto;margin:0;font-size:12px;line-height:1.4;color:#E7E1D6}
+.sol-bas .act{flex:0 0 auto;min-height:38px;padding:8px 12px;font-size:12.5px}
+@media (min-width:820px){
+  .sol-reglages{display:grid;grid-template-columns:1fr 1fr;column-gap:18px}
+  .sol-dates,.sol-bas{grid-column:1 / -1}
+}
 .sk-bar{
   display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:8px 10px;background:#262320;
   -webkit-overflow-scrolling:touch;scrollbar-width:none;flex:0 0 auto;
@@ -1015,6 +1037,16 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
+    <h2>Course du soleil</h2>
+    <p class="legend">Le trajet du soleil au-dessus de la maison, sur la vue aérienne, avec l'orientation du pan de toiture : lever, coucher, hauteur à midi, et les heures où le pan est face au soleil. À montrer au client, et à joindre au rapport.</p>
+    <div class="row">
+      <button class="act solid" id="btnSoleil">Ouvrir la course du soleil</button>
+    </div>
+    <p class="hint" id="soleilEtat"></p>
+    <div id="soleilBox"></div>
+  </div>
+
+  <div class="block">
     <h2>Consommation mois par mois</h2>
     <p class="legend">Relevé sur les factures ou l'espace client Enedis, en kWh. Comparé à la production PVGIS sous forme de courbes dans le rapport.</p>
     <div id="moisGrid"></div>
@@ -1293,6 +1325,32 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <button type="button" id="carte_chercher">Chercher</button>
   </div>
   <div class="sk-wrap"><canvas id="carte_canvas"></canvas></div>
+</div>
+
+<div id="soleil" hidden>
+  <div class="sk-bar">
+    <span class="title" id="sol_titre">Course du soleil</span>
+    <button type="button" id="sol_fermer">Fermer</button>
+    <button type="button" class="go" id="sol_garder">Ajouter au relevé</button>
+  </div>
+  <div class="sk-bar">
+    <button type="button" id="sol_moins">Reculer</button>
+    <button type="button" id="sol_plus">Zoomer</button>
+    <button type="button" id="sol_fond">Plan</button>
+    <span class="etat" id="sol_etat" style="margin-left:auto;margin-right:4px"></span>
+  </div>
+  <div class="sol-wrap"><canvas id="sol_canvas"></canvas></div>
+  <div class="sol-reglages">
+    <div class="sol-dates" id="sol_dates" role="group" aria-label="Date"></div>
+    <label class="sol-l"><span>Heure <b id="sol_heureTxt"></b></span>
+      <input type="range" id="sol_heure" min="0" max="1439" step="5"></label>
+    <label class="sol-l"><span>Orientation du pan <b id="sol_panTxt"></b></span>
+      <input type="range" id="sol_pan" min="-180" max="180" step="1"></label>
+    <div class="sol-bas">
+      <p id="sol_resume"></p>
+      <button type="button" class="act ghost" id="sol_pvgis">Reporter dans PVGIS</button>
+    </div>
+  </div>
 </div>
 
 <div id="irve" hidden>
@@ -1754,7 +1812,7 @@ function paintForm(){
   paintPvgis();
   paintSimuls();
   if(S.chantier.alim && (!S.pv.pvAlim || !S.pv.irve.raccordement)) propagerAlimentation();
-  paintAir();
+  paintAir(); paintSoleil();
   paintMois();
   paintCompa();
   paintAmorti();
@@ -2533,6 +2591,439 @@ function annoterVue(a){
   save(); renderRooms();
   openSketch(piece, piece.photos.length-1);
 }
+
+/* ================= course du soleil =================
+   Le trajet du soleil au-dessus de la maison, dessiné sur la vue
+   aérienne : une rose des vents autour des travaux, la course du jour
+   choisi (hauteur au centre, horizon sur le cercle), le lever et le
+   coucher, le soleil à l'heure choisie avec l'ombre d'un mât de 5 m,
+   et le pan de toiture orienté comme dans l'étude. La position du
+   soleil suit l'algorithme de la NOAA, au dixième de degré près. */
+var COURSE = {lat:null, lon:null, zoom:19, source:"ign", cache:{}, echec:{}, rendu:0,
+           L:0, H:0, dpr:1, date:null, cle:"mars", minute:13*60, pan:0};
+function solRad(d){ return d*Math.PI/180; }
+function solDeg(r){ return r*180/Math.PI; }
+/* hauteur et azimut (depuis le nord, sens horaire) du soleil à l'instant t */
+function positionSoleil(t, lat, lon){
+  var jd = t.getTime()/86400000 + 2440587.5, T = (jd - 2451545)/36525;
+  var L0 = (280.46646 + T*(36000.76983 + T*0.0003032)) % 360;
+  var M = 357.52911 + T*(35999.05029 - 0.0001537*T);
+  var e = 0.016708634 - T*(0.000042037 + 0.0000001267*T);
+  var Mr = solRad(M);
+  var C = Math.sin(Mr)*(1.914602 - T*(0.004817 + 0.000014*T)) + Math.sin(2*Mr)*(0.019993 - 0.000101*T) + Math.sin(3*Mr)*0.000289;
+  var omega = 125.04 - 1934.136*T;
+  var lambda = L0 + C - 0.00569 - 0.00478*Math.sin(solRad(omega));
+  var eps0 = 23 + (26 + (21.448 - T*(46.815 + T*(0.00059 - T*0.001813)))/60)/60;
+  var eps = eps0 + 0.00256*Math.cos(solRad(omega));
+  var decl = Math.asin(Math.sin(solRad(eps))*Math.sin(solRad(lambda)));
+  var y = Math.pow(Math.tan(solRad(eps)/2), 2), L0r = solRad(L0);
+  var eqT = 4*solDeg(y*Math.sin(2*L0r) - 2*e*Math.sin(Mr) + 4*e*y*Math.sin(Mr)*Math.cos(2*L0r)
+            - 0.5*y*y*Math.sin(4*L0r) - 1.25*e*e*Math.sin(2*Mr));
+  var minUTC = t.getUTCHours()*60 + t.getUTCMinutes() + t.getUTCSeconds()/60;
+  var ha = (minUTC + eqT + 4*lon)/4 - 180;
+  var latr = solRad(lat);
+  var cz = Math.sin(latr)*Math.sin(decl) + Math.cos(latr)*Math.cos(decl)*Math.cos(solRad(ha));
+  cz = Math.max(-1, Math.min(1, cz));
+  var zen = Math.acos(cz);
+  var den = Math.cos(latr)*Math.sin(zen), az;
+  if(Math.abs(den) < 1e-9) az = 180;
+  else {
+    var ca = ((Math.sin(latr)*Math.cos(zen)) - Math.sin(decl))/den;
+    az = solDeg(Math.acos(Math.max(-1, Math.min(1, ca))));
+    az = ha > 0 ? (az + 180) % 360 : (540 - az) % 360;
+  }
+  return {el: 90 - solDeg(zen), az: az};
+}
+function solInstant(jour, minute){
+  var d = new Date(jour.getFullYear(), jour.getMonth(), jour.getDate(), 0, 0, 0);
+  d.setMinutes(minute);
+  return d;
+}
+/* le jour entier, minute par minute : lever, coucher, midi solaire, et
+   la course pour le dessin (toutes les 5 minutes) */
+function journeeSoleil(jour, lat, lon){
+  var lever=null, coucher=null, midi=null, hmax=-90, pts=[], avant=null;
+  for(var m=0; m<=1440; m++){
+    var p = positionSoleil(solInstant(jour, m), lat, lon);
+    if(avant){
+      if(avant.el < -0.833 && p.el >= -0.833) lever = {minute:m, az:p.az};
+      if(avant.el >= -0.833 && p.el < -0.833) coucher = {minute:m, az:p.az};
+    }
+    if(p.el > hmax){ hmax = p.el; midi = {minute:m, az:p.az, el:p.el}; }
+    if(m % 5 === 0 && p.el > -1) pts.push({minute:m, el:p.el, az:p.az});
+    avant = p;
+  }
+  return {lever:lever, coucher:coucher, midi:midi, pts:pts};
+}
+function hhmm(minute){
+  minute = Math.round(minute);
+  return ("0"+Math.floor(minute/60)).slice(-2)+":"+("0"+(minute%60)).slice(-2);
+}
+var POINTS_CARDINAUX=["nord","nord-est","est","sud-est","sud","sud-ouest","ouest","nord-ouest"];
+function cardinal(az){ return POINTS_CARDINAUX[Math.round((((az%360)+360)%360)/45)%8]; }
+/* le pan : l'orientation PVGIS (0 = sud, -90 = est, 90 = ouest) devient
+   un azimut ordinaire (180 = sud) */
+function panAzimut(){ return (((180 + COURSE.pan)%360)+360)%360; }
+function panNom(a){
+  a = Math.round(a);
+  var nom = a===0 ? "plein sud" : a===180||a===-180 ? "plein nord" : a===-90 ? "plein est" : a===90 ? "plein ouest"
+    : cardinal(180 + a).replace(/^./, function(c){ return c.toUpperCase(); });
+  return nom + (a ? " ("+(a>0?"+":"")+a+"°)" : " (0°)");
+}
+function solDates(){
+  var an = new Date().getFullYear();
+  return [
+    {cle:"juin",   nom:"21 juin",           date:new Date(an, 5, 21)},
+    {cle:"mars",   nom:"21 mars · 21 sept.", date:new Date(an, 2, 21)},
+    {cle:"dec",    nom:"21 déc.",           date:new Date(an, 11, 21)},
+    {cle:"auj",    nom:"Aujourd'hui",       date:new Date()}
+  ];
+}
+function solJour(){
+  var d = solDates().filter(function(x){ return x.cle === COURSE.cle; })[0] || solDates()[1];
+  return d.date;
+}
+
+/* ---------- la carte ---------- */
+function solTaille(){
+  var cv=$("sol_canvas"), wrap=cv.parentNode;
+  var L=Math.max(200, wrap.clientWidth), H=Math.max(200, wrap.clientHeight);
+  var dpr=Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  COURSE.L=L; COURSE.H=H; COURSE.dpr=dpr;
+  var lp=Math.round(L*dpr), hp=Math.round(H*dpr);
+  if(cv.width!==lp || cv.height!==hp){ cv.width=lp; cv.height=hp; cv.style.width=L+"px"; cv.style.height=H+"px"; }
+}
+function solTuile(z, x, y){
+  var cle=COURSE.source+"/"+z+"/"+x+"/"+y;
+  if(COURSE.cache[cle]) return Promise.resolve(COURSE.cache[cle]);
+  if(COURSE.echec[cle]) return Promise.reject(new Error("tuile"));
+  return chargerTuile(urlsTuile(COURSE.source, z, x, y))
+    .then(function(b){ COURSE.cache[cle]=b; return b; })
+    .catch(function(e){ COURSE.echec[cle]=true; throw e; });
+}
+function solRedessiner(){
+  if(COURSE.rendu) return;
+  COURSE.rendu=requestAnimationFrame(function(){ COURSE.rendu=0; solDessiner(); });
+}
+function solDessiner(){
+  var cv=$("sol_canvas"); if(!cv || $("soleil").hidden || COURSE.lat==null) return;
+  var ctx=cv.getContext("2d"), L=COURSE.L, H=COURSE.H, dpr=COURSE.dpr;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle="#1A1815"; ctx.fillRect(0,0,cv.width,cv.height);
+  /* les images : un zoom au-dessus sur un écran fin, pour la netteté */
+  var max = MAP_MAX[COURSE.source] || 19;
+  var tz = Math.min(COURSE.zoom + (dpr >= 1.5 ? 1 : 0), max);
+  var taille = 256*Math.pow(2, COURSE.zoom - tz), n = Math.pow(2, tz);
+  var c = mondePx(COURSE.lat, COURSE.lon, COURSE.zoom), gauche = c[0]-L/2, haut = c[1]-H/2;
+  for(var ty=Math.floor(haut/taille); ty<=Math.floor((haut+H)/taille); ty++){
+    if(ty<0 || ty>=n) continue;
+    for(var tx=Math.floor(gauche/taille); tx<=Math.floor((gauche+L)/taille); tx++){
+      var X=Math.round((tx*taille-gauche)*dpr), Y=Math.round((ty*taille-haut)*dpr);
+      var W=Math.round(((tx+1)*taille-gauche)*dpr)-X, Hh=Math.round(((ty+1)*taille-haut)*dpr)-Y;
+      var b=COURSE.cache[COURSE.source+"/"+tz+"/"+tx+"/"+ty];
+      if(b) ctx.drawImage(b, X, Y, W, Hh);
+      else if(!COURSE.echec[COURSE.source+"/"+tz+"/"+tx+"/"+ty]) solTuile(tz, tx, ty).then(solRedessiner).catch(function(){});
+    }
+  }
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  solCalque(ctx, L, H);
+  solEtat();
+}
+/* un point du ciel sur la carte : l'azimut donne la direction, la
+   hauteur le rapproche du centre (au zénith, il serait au centre) */
+function solPoint(az, el, cx, cy, R){
+  var r = R*(90 - Math.max(0, el))/90, a = solRad(az);
+  return [cx + r*Math.sin(a), cy - r*Math.cos(a)];
+}
+function solTexte(ctx, t, x, y, couleur, align){
+  ctx.font = "600 12px \"Plus Jakarta Sans\", -apple-system, system-ui, sans-serif";
+  ctx.textAlign = align || "center"; ctx.textBaseline = "middle";
+  var l = ctx.measureText(t).width, x0 = align==="left" ? x : align==="right" ? x-l : x-l/2;
+  ctx.fillStyle = "rgba(10,14,20,.72)";
+  ctx.beginPath();
+  if(ctx.roundRect) ctx.roundRect(x0-6, y-10, l+12, 20, 10); else ctx.rect(x0-6, y-10, l+12, 20);
+  ctx.fill();
+  ctx.fillStyle = couleur || "#fff";
+  ctx.fillText(t, x, y+.5);
+}
+function solCalque(ctx, L, H){
+  /* le cercle laisse la place aux lettres N, E, S, O sur un téléphone */
+  var cx=L/2, cy=H/2, R=Math.max(80, Math.min(Math.min(L, H)*0.42, L/2-38, H/2-38));
+  var jour=solJour(), J=journeeSoleil(jour, COURSE.lat, COURSE.lon);
+  COURSE.journee=J;
+  /* voile léger : la carte reste lisible, les tracés ressortent */
+  ctx.fillStyle="rgba(10,14,20,.18)"; ctx.fillRect(0,0,L,H);
+  /* la rose des vents */
+  ctx.save();
+  ctx.lineWidth=10; ctx.strokeStyle="rgba(255,255,255,.28)";
+  ctx.beginPath(); ctx.arc(cx, cy, R+6, 0, Math.PI*2); ctx.stroke();
+  ctx.lineWidth=1.2; ctx.strokeStyle="rgba(255,255,255,.75)";
+  for(var g=0; g<360; g+=10){
+    var a=solRad(g), l=g%90===0 ? 14 : g%30===0 ? 9 : 5;
+    ctx.beginPath();
+    ctx.moveTo(cx+(R+1)*Math.sin(a), cy-(R+1)*Math.cos(a));
+    ctx.lineTo(cx+(R+1+l)*Math.sin(a), cy-(R+1+l)*Math.cos(a));
+    ctx.stroke();
+  }
+  ctx.setLineDash([4,5]); ctx.strokeStyle="rgba(255,255,255,.35)";
+  ctx.beginPath(); ctx.moveTo(cx, cy-R); ctx.lineTo(cx, cy+R); ctx.moveTo(cx-R, cy); ctx.lineTo(cx+R, cy); ctx.stroke();
+  ctx.setLineDash([]);
+  [["N",0],["E",90],["S",180],["O",270]].forEach(function(p){
+    var a=solRad(p[1]);
+    solTexte(ctx, p[0], cx+(R+28)*Math.sin(a), cy-(R+28)*Math.cos(a), p[0]==="N" ? "#FCA5A5" : "#fff");
+  });
+  ctx.restore();
+
+  /* les deux solstices en fin, pour situer le jour choisi */
+  [new Date(jour.getFullYear(), 5, 21), new Date(jour.getFullYear(), 11, 21)].forEach(function(d){
+    var j=journeeSoleil(d, COURSE.lat, COURSE.lon);
+    ctx.save(); ctx.lineWidth=1.4; ctx.setLineDash([3,4]); ctx.strokeStyle="rgba(253,224,71,.5)";
+    ctx.beginPath();
+    j.pts.forEach(function(p, i){ var q=solPoint(p.az, p.el, cx, cy, R); if(i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+    ctx.stroke(); ctx.restore();
+  });
+
+  /* lever et coucher */
+  function rayon(evt, couleur, mot){
+    if(!evt) return;
+    var q=solPoint(evt.az, 0, cx, cy, R);
+    ctx.save(); ctx.lineWidth=2; ctx.strokeStyle=couleur;
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(q[0], q[1]); ctx.stroke(); ctx.restore();
+    /* l'étiquette à l'intérieur du cercle, sous le rayon : jamais coupée au bord */
+    var e=solPoint(evt.az, 0, cx, cy, R*0.66);
+    solTexte(ctx, mot+" "+hhmm(evt.minute), e[0], e[1]+14, couleur);
+  }
+  rayon(J.lever, "#FDBA74", "Lever");
+  rayon(J.coucher, "#F87171", "Coucher");
+
+  /* la course du jour, graduée heure par heure */
+  ctx.save();
+  ctx.lineWidth=3.2; ctx.strokeStyle="#FACC15"; ctx.shadowColor="rgba(0,0,0,.45)"; ctx.shadowBlur=4;
+  ctx.beginPath();
+  J.pts.forEach(function(p, i){ var q=solPoint(p.az, p.el, cx, cy, R); if(i) ctx.lineTo(q[0], q[1]); else ctx.moveTo(q[0], q[1]); });
+  ctx.stroke(); ctx.restore();
+  J.pts.forEach(function(p){
+    if(p.minute % 60 || p.el < 0) return;
+    var q=solPoint(p.az, p.el, cx, cy, R);
+    ctx.beginPath(); ctx.arc(q[0], q[1], 3.2, 0, Math.PI*2); ctx.fillStyle="#FACC15"; ctx.fill();
+    ctx.lineWidth=1.2; ctx.strokeStyle="#1A1815"; ctx.stroke();
+    if((p.minute/60) % 2 === 0){
+      ctx.font="700 10.5px \"Plus Jakarta Sans\", system-ui, sans-serif"; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.lineWidth=3; ctx.strokeStyle="rgba(10,14,20,.85)"; ctx.strokeText(p.minute/60+"h", q[0], q[1]-11);
+      ctx.fillStyle="#FEF9C3"; ctx.fillText(p.minute/60+"h", q[0], q[1]-11);
+    }
+  });
+
+  /* le pan de toiture : un rectangle de panneaux, sa flèche vers le ciel qu'il regarde */
+  var pa=panAzimut(), ar=solRad(pa);
+  ctx.save();
+  ctx.translate(cx, cy); ctx.rotate(ar);
+  ctx.fillStyle="rgba(30,58,138,.88)"; ctx.strokeStyle="#93C5FD"; ctx.lineWidth=1.2;
+  ctx.fillRect(-R*0.2, -R*0.08, R*0.4, R*0.16); ctx.strokeRect(-R*0.2, -R*0.08, R*0.4, R*0.16);
+  for(var k=1; k<4; k++){ ctx.beginPath(); ctx.moveTo(-R*0.2 + k*R*0.1, -R*0.08); ctx.lineTo(-R*0.2 + k*R*0.1, R*0.08); ctx.stroke(); }
+  ctx.restore();
+  var bout=[cx+R*0.62*Math.sin(ar), cy-R*0.62*Math.cos(ar)];
+  ctx.save(); ctx.lineWidth=3.4; ctx.strokeStyle="#60A5FA"; ctx.fillStyle="#60A5FA";
+  ctx.beginPath(); ctx.moveTo(cx+R*0.08*Math.sin(ar), cy-R*0.08*Math.cos(ar)); ctx.lineTo(bout[0], bout[1]); ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(bout[0]+10*Math.sin(ar), bout[1]-10*Math.cos(ar));
+  ctx.lineTo(bout[0]+8*Math.sin(ar+2.2), bout[1]-8*Math.cos(ar+2.2));
+  ctx.lineTo(bout[0]+8*Math.sin(ar-2.2), bout[1]-8*Math.cos(ar-2.2));
+  ctx.closePath(); ctx.fill();
+  ctx.beginPath(); ctx.arc(bout[0], bout[1], 16, 0, Math.PI*2); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(147,197,253,.7)"; ctx.stroke();
+  ctx.restore();
+  COURSE.poignee=bout;
+  var et=[cx+R*0.62*Math.sin(ar)+28*Math.sin(ar), cy-R*0.62*Math.cos(ar)-28*Math.cos(ar)];
+  solTexte(ctx, "Pan "+panNom(COURSE.pan), et[0], et[1], "#BFDBFE");
+
+  /* le soleil à l'heure choisie, et l'ombre d'un mât de 5 m */
+  var ps=positionSoleil(solInstant(jour, COURSE.minute), COURSE.lat, COURSE.lon);
+  if(ps.el > 0){
+    var mpp=metresParPixel(COURSE.lat, COURSE.zoom);
+    var lo=Math.min(R*0.95, (5/Math.tan(solRad(ps.el)))/mpp), ao=solRad((ps.az+180)%360);
+    ctx.save(); ctx.lineWidth=5; ctx.lineCap="round"; ctx.strokeStyle="rgba(10,14,20,.55)";
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx+lo*Math.sin(ao), cy-lo*Math.cos(ao)); ctx.stroke(); ctx.restore();
+    var q=solPoint(ps.az, ps.el, cx, cy, R);
+    ctx.save(); ctx.strokeStyle="rgba(250,204,21,.8)"; ctx.lineWidth=1.4; ctx.setLineDash([5,4]);
+    ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(q[0], q[1]); ctx.stroke(); ctx.restore();
+    var grad=ctx.createRadialGradient(q[0], q[1], 2, q[0], q[1], 26);
+    grad.addColorStop(0, "rgba(253,224,71,.55)"); grad.addColorStop(1, "rgba(253,224,71,0)");
+    ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(q[0], q[1], 26, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(q[0], q[1], 12, 0, Math.PI*2);
+    ctx.fillStyle="#FCD34D"; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle="#F59E0B"; ctx.stroke();
+    solTexte(ctx, hhmm(COURSE.minute), q[0], q[1]-24, "#FDE68A");
+  }
+  /* la maison au centre */
+  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
+  ctx.lineWidth=2; ctx.strokeStyle="#1A1815"; ctx.stroke();
+  solResume(J, ps);
+}
+/* les heures où le soleil est devant le pan (moins de 90° d'écart) */
+function faceAuSoleil(jour){
+  var pa=panAzimut(), debut=null, fin=null;
+  for(var m=0; m<=1440; m+=5){
+    var p=positionSoleil(solInstant(jour, m), COURSE.lat, COURSE.lon);
+    var ecart=Math.abs(((p.az - pa + 540) % 360) - 180);
+    if(p.el > 0 && ecart < 90){ if(debut===null) debut=m; fin=m; }
+  }
+  return debut===null ? null : {debut:debut, fin:fin};
+}
+function solResume(J, ps){
+  var jour=solJour();
+  var d=solDates().filter(function(x){ return x.cle===COURSE.cle; })[0];
+  var f=faceAuSoleil(jour);
+  var txt = "Le "+(COURSE.cle==="auj" ? jour.toLocaleDateString("fr-FR") : d.nom.split(" · ")[0])+" : "
+    + (J.lever ? "lever "+hhmm(J.lever.minute)+" ("+cardinal(J.lever.az)+"), " : "")
+    + (J.coucher ? "coucher "+hhmm(J.coucher.minute)+" ("+cardinal(J.coucher.az)+"), " : "")
+    + "hauteur à midi "+Math.round(J.midi.el)+"°. "
+    + (f ? "Le pan "+panNom(COURSE.pan).toLowerCase().replace(/^(.)/, function(c){ return c; })+" a le soleil de face de "+hhmm(f.debut)+" à "+hhmm(f.fin)+"."
+         : "Le pan ne voit pas le soleil ce jour-là.");
+  $("sol_resume").textContent = txt;
+  COURSE.resume = txt;
+  $("sol_heureTxt").textContent = hhmm(COURSE.minute) + (ps.el > 0
+    ? " · soleil à "+Math.round(ps.el)+"° de haut, "+cardinal(ps.az)+" ("+Math.round(ps.az)+"°)"
+    : " · le soleil est couché");
+  $("sol_panTxt").textContent = panNom(COURSE.pan);
+}
+function solEtat(){
+  $("sol_etat").textContent = (MAP_NOM[COURSE.source]||"") + "  ·  zoom " + COURSE.zoom
+    + "  ·  environ " + Math.round(COURSE.L*metresParPixel(COURSE.lat, COURSE.zoom)) + " m de large";
+}
+function solPeindreDates(){
+  var box=$("sol_dates"); box.textContent="";
+  solDates().forEach(function(d){
+    var b=document.createElement("button"); b.type="button"; b.textContent=d.nom;
+    b.setAttribute("aria-pressed", d.cle===COURSE.cle ? "true" : "false");
+    b.addEventListener("click", function(){ COURSE.cle=d.cle; solPeindreDates(); solBornesHeure(); solDessiner(); });
+    box.appendChild(b);
+  });
+}
+/* le curseur d'heure va du lever au coucher */
+function solBornesHeure(){
+  var J=journeeSoleil(solJour(), COURSE.lat, COURSE.lon), r=$("sol_heure");
+  var a=J.lever ? J.lever.minute : 0, b=J.coucher ? J.coucher.minute : 1439;
+  /* des bornes rondes : le curseur tombe sur 10:00, pas sur 09:59 */
+  a=Math.floor(a/5)*5; b=Math.ceil(b/5)*5;
+  r.min=a; r.max=b;
+  if(COURSE.minute < a || COURSE.minute > b) COURSE.minute = Math.round((J.midi ? J.midi.minute : 780)/5)*5;
+  r.value=COURSE.minute;
+}
+function solOuvrir(){
+  $("soleilEtat").textContent="Ouverture de la carte…";
+  coordsTravaux().then(function(c){
+    COURSE.lat=c[0]; COURSE.lon=c[1]; COURSE.cache={}; COURSE.echec={};
+    COURSE.pan=parseInt(S.pv.azimut||"0",10) || 0;
+    if(S.pv.soleil && typeof S.pv.soleil.pan==="number") COURSE.pan=S.pv.soleil.pan;
+    if(S.pv.soleil && S.pv.soleil.cle) COURSE.cle=S.pv.soleil.cle;
+    if(S.pv.soleil && S.pv.soleil.centre){ COURSE.lat=S.pv.soleil.centre[0]; COURSE.lon=S.pv.soleil.centre[1]; }
+    $("sol_pan").value=COURSE.pan;
+    $("sol_titre").textContent="Course du soleil — "+(S.client.nom||S.client.adresse||"les travaux");
+    $("sol_fond").textContent = COURSE.source==="ign" ? "Plan" : "Photo";
+    $("soleil").hidden=false;
+    $("soleilEtat").textContent="";
+    solTaille(); solPeindreDates(); solBornesHeure(); solDessiner();
+  }).catch(function(){
+    $("soleilEtat").textContent="Position des travaux introuvable : relevez-la dans l'onglet Client (GPS ou coordonnées Google Maps).";
+  });
+}
+function solGarder(){
+  var cv=$("sol_canvas");
+  /* l'image du rapport : la carte, puis un bandeau qui dit ce qu'on y voit */
+  var larg=Math.min(1400, cv.width), haut=Math.round(cv.height*larg/cv.width), bande=Math.round(larg*0.07);
+  var out=document.createElement("canvas"); out.width=larg; out.height=haut+bande;
+  var o=out.getContext("2d");
+  try{ o.drawImage(cv, 0, 0, larg, haut); }catch(e){ toast("Image impossible à enregistrer."); return; }
+  o.fillStyle="#1A1815"; o.fillRect(0, haut, larg, bande);
+  o.fillStyle="#FDE68A"; o.font="700 "+Math.round(bande*0.36)+"px -apple-system, system-ui, sans-serif";
+  o.textBaseline="middle"; o.textAlign="left";
+  var d=solDates().filter(function(x){ return x.cle===COURSE.cle; })[0];
+  o.fillText("Course du soleil — "+(COURSE.cle==="auj" ? solJour().toLocaleDateString("fr-FR") : d.nom)
+    +" · Pan "+panNom(COURSE.pan), bande*0.4, haut+bande/2);
+  var data;
+  try{ data=out.toDataURL("image/jpeg", 0.84); }catch(e){ toast("Image impossible à enregistrer."); return; }
+  S.pv.soleil={data:data, w:out.width, h:out.height, cle:COURSE.cle, minute:COURSE.minute, pan:COURSE.pan,
+               centre:[COURSE.lat, COURSE.lon], resume:COURSE.resume||""};
+  save(); paintSoleil();
+  $("soleil").hidden=true;
+  toast("Course du soleil ajoutée au relevé.");
+}
+function paintSoleil(){
+  var box=$("soleilBox"); if(!box) return;
+  box.textContent="";
+  var a=S.pv && S.pv.soleil; if(!a) return;
+  var card=document.createElement("div"); card.className="simcard"; card.style.marginTop="12px";
+  var im=document.createElement("img"); im.src=a.data; im.alt="Course du soleil"; im.style.maxHeight="none";
+  card.appendChild(im);
+  var meta=document.createElement("div"); meta.className="meta";
+  var b=document.createElement("b"); b.textContent="Course du soleil";
+  var sp=document.createElement("span"); sp.style.color="var(--ink-3)"; sp.textContent=a.resume||"";
+  meta.appendChild(b); meta.appendChild(sp); card.appendChild(meta);
+  var row=document.createElement("div"); row.className="row"; row.style.cssText="padding:0 14px 14px;gap:8px";
+  var b1=document.createElement("button"); b1.className="act ghost"; b1.type="button"; b1.textContent="Reprendre";
+  b1.addEventListener("click", solOuvrir);
+  var b2=document.createElement("button"); b2.className="act danger"; b2.type="button"; b2.textContent="Retirer";
+  b2.addEventListener("click", function(){ S.pv.soleil=null; save(); paintSoleil(); });
+  row.appendChild(b1); row.appendChild(b2); card.appendChild(row);
+  box.appendChild(card);
+}
+/* accès pour les essais et la console : le calcul seul, rien d'autre */
+window.CourseSoleil = {position:positionSoleil, journee:journeeSoleil, instant:solInstant, etat:COURSE,
+  enregistre:function(){ return S.pv && S.pv.soleil; },
+  photos:function(){ return toutesLesPhotos().map(function(p){ return p.legende; }); }};
+(function solBind(){
+  var cv=$("sol_canvas"); if(!cv) return;
+  var glisse=null, tourne=false;
+  function local(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+  cv.addEventListener("pointerdown", function(e){
+    var p=local(e);
+    /* on attrape la pointe de la flèche : on tourne le pan */
+    tourne = !!COURSE.poignee && Math.hypot(p[0]-COURSE.poignee[0], p[1]-COURSE.poignee[1]) < 26;
+    glisse=p; try{ cv.setPointerCapture(e.pointerId); }catch(x){}
+  });
+  cv.addEventListener("pointermove", function(e){
+    if(!glisse) return;
+    var p=local(e);
+    if(tourne){
+      var az=solDeg(Math.atan2(p[0]-COURSE.L/2, -(p[1]-COURSE.H/2)));
+      var a=Math.round(((az - 180 + 540) % 360) - 180);
+      COURSE.pan = a===-180 ? 180 : a; $("sol_pan").value=COURSE.pan;
+    } else {
+      var c=mondePx(COURSE.lat, COURSE.lon, COURSE.zoom);
+      var ll=pxMonde(c[0]-(p[0]-glisse[0]), c[1]-(p[1]-glisse[1]), COURSE.zoom);
+      COURSE.lat=ll[0]; COURSE.lon=ll[1];
+    }
+    glisse=p; solRedessiner();
+  });
+  ["pointerup","pointercancel"].forEach(function(t){ cv.addEventListener(t, function(){ glisse=null; tourne=false; }); });
+  cv.addEventListener("wheel", function(e){
+    e.preventDefault();
+    var z=COURSE.zoom+(e.deltaY<0?1:-1);
+    COURSE.zoom=Math.max(14, Math.min(MAP_MAX[COURSE.source]||19, z)); solDessiner();
+  }, {passive:false});
+  $("btnSoleil").addEventListener("click", solOuvrir);
+  $("sol_fermer").addEventListener("click", function(){ $("soleil").hidden=true; });
+  $("sol_garder").addEventListener("click", solGarder);
+  $("sol_plus").addEventListener("click", function(){ COURSE.zoom=Math.min(MAP_MAX[COURSE.source]||19, COURSE.zoom+1); solDessiner(); });
+  $("sol_moins").addEventListener("click", function(){ COURSE.zoom=Math.max(14, COURSE.zoom-1); solDessiner(); });
+  $("sol_fond").addEventListener("click", function(){
+    COURSE.source = COURSE.source==="ign" ? "plan" : "ign";
+    this.textContent = COURSE.source==="ign" ? "Plan" : "Photo";
+    COURSE.zoom=Math.min(COURSE.zoom, MAP_MAX[COURSE.source]||19); solDessiner();
+  });
+  $("sol_heure").addEventListener("input", function(){ COURSE.minute=parseInt(this.value,10)||0; solRedessiner(); });
+  $("sol_pan").addEventListener("input", function(){ COURSE.pan=parseInt(this.value,10)||0; solRedessiner(); });
+  $("sol_pvgis").addEventListener("click", function(){
+    /* l'orientation fine va dans l'étude PVGIS ; la liste en garde le libellé */
+    var sel=$("v_azimut"), v=String(COURSE.pan);
+    if(!Array.prototype.some.call(sel.options, function(o){ return o.value===v; })){
+      var o=document.createElement("option"); o.value=v; o.textContent=panNom(COURSE.pan); sel.appendChild(o);
+    }
+    sel.value=v; S.pv.azimut=v; save();
+    toast("Orientation "+panNom(COURSE.pan)+" reportée dans PVGIS.");
+  });
+  window.addEventListener("resize", function(){ if(!$("soleil").hidden){ solTaille(); solRedessiner(); } });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("soleil").hidden) $("soleil").hidden=true; });
+})();
 
 /* ================= carte aérienne déplaçable ================= */
 var MAP = {lat:null, lon:null, zoom:19, source:"ign", cache:{}, echec:{}, pret:false, mode:"aerienne"};
@@ -4280,12 +4771,13 @@ function buildPdf(){
   var V=S.pv, cv40=parseFloat((V.conso||"").toString().replace(",","."));
   var pvRempli = rempli(V.conso, V.foyer, V.chauffage, V.exposition, V.toitureType, V.inclinaison,
     V.surfToit, V.masques, V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat)
-    || V.pvgis || (V.simuls && V.simuls.length);
+    || V.pvgis || (V.simuls && V.simuls.length) || V.aerienne || V.soleil;
   if(V.actif !== "oui") pvRempli = false;          /* partie éteinte au relevé */
   if(pvRempli){
     var estPv = 45;
     if(V.simuls) V.simuls.forEach(function(it){ estPv += Math.min(135, CW*(it.h/it.w)) + 12; });
     if(V.pvgis) estPv += 95;
+    if(V.soleil) estPv += 125;
     estPv += 60;
     h2("Photovoltaïque", estPv, SOL);
 
@@ -4373,6 +4865,17 @@ function buildPdf(){
       doc.text("Source "+V.aerienne.source+" - environ "
         + Math.round(V.aerienne.w*V.aerienne.echelle) + " m de large", xa2, y+ha+4);
       setText(INK); y += ha + 9;
+    }
+    if(V.soleil){
+      y+=1.5; sousTitre("Course du soleil et orientation du pan");
+      var hs=Math.min(115, CW*(V.soleil.h/V.soleil.w)), ws=hs*(V.soleil.w/V.soleil.h);
+      need(hs+16);
+      var xs2=M+(CW-ws)/2;
+      try{ doc.addImage(V.soleil.data,"JPEG", xs2, y, ws, hs); }catch(e){}
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+      var lignesSol=doc.splitTextToSize(String(V.soleil.resume||""), CW);
+      doc.text(lignesSol, M, y+hs+4);
+      setText(INK); y += hs + 6 + lignesSol.length*3.4;
     }
 
     var CP = (function(){
@@ -4659,6 +5162,7 @@ function toutesLesPhotos(){
     out.push({data:it.data, legende:it.nb+" panneaux", section:"Implantation"});
   });
   if(S.pv && S.pv.aerienne) out.push({data:S.pv.aerienne.data, legende:"vue aerienne", section:"Toiture"});
+  if(S.pv && S.pv.soleil) out.push({data:S.pv.soleil.data, legende:"course du soleil", section:"Toiture"});
   ((S.pv&&S.pv.irve&&S.pv.irve.photos)||[]).forEach(function(it){
     out.push({data:it.data, legende:"emplacement borne", section:"IRVE"});
   });
