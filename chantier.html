@@ -494,10 +494,37 @@ nav#nav button svg{stroke-width:1.9}
 .avancement.fini .av-anneau .plein{stroke:var(--ok)}
 .av-centre{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .av-centre .valeur{font-size:23px!important}
-.av-mot{font-size:9.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.av-mot{font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
 .av-droite{flex:1;min-width:0}
 .av-droite h2{margin:0 0 4px}
-.avancement input[type=range]{display:block;width:100%;height:32px;margin:6px 0 0;accent-color:var(--accent);cursor:pointer}
+/* Le curseur est dessiné ici plutôt que laissé au téléphone : sur iPhone,
+   le remplissage natif ne suit pas le pouce (à 90 %, l'orange dépassait
+   le rond, posé vers 80 %). Le pouce se déplace entre son demi-diamètre
+   et la largeur moins ce demi-diamètre ; le remplissage et la graduation
+   suivent exactement la même règle, donc ils tombent pile sous lui. */
+.avancement input[type=range]{
+  --pouce:26px; --pct:0;
+  --ici:calc(var(--pouce) / 2 + (100% - var(--pouce)) * var(--pct) / 100);
+  -webkit-appearance:none;appearance:none;display:block;width:100%;height:36px;margin:8px 0 0;padding:0;
+  background:transparent;border:0;box-shadow:none;cursor:pointer;touch-action:pan-y}
+.avancement input[type=range]:focus{outline:none;box-shadow:none;background:transparent}
+.avancement input[type=range]::-webkit-slider-runnable-track{
+  height:8px;border-radius:999px;
+  background:linear-gradient(to right,var(--accent) 0,var(--accent) var(--ici),var(--rule) var(--ici),var(--rule) 100%)}
+.avancement input[type=range]::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:var(--pouce);height:var(--pouce);margin-top:calc((8px - var(--pouce)) / 2);
+  border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.avancement input[type=range]:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 4px rgba(180,98,26,.25)}
+.avancement input[type=range]::-moz-range-track{height:8px;border-radius:999px;background:var(--rule)}
+.avancement input[type=range]::-moz-range-progress{height:8px;border-radius:999px;background:var(--accent)}
+.avancement input[type=range]::-moz-range-thumb{width:var(--pouce);height:var(--pouce);box-sizing:border-box;
+  border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.25)}
+.avancement.fini input[type=range]{--accent:var(--ok)}
+/* la graduation, alignée sur la course du pouce */
+.av-echelle{--pouce:26px;position:relative;height:16px;margin:2px 0 4px;font-size:10.5px;color:var(--ink-3);
+  font-variant-numeric:tabular-nums}
+.av-echelle span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
+.av-echelle span::before{content:"";position:absolute;left:50%;top:-5px;width:1px;height:4px;background:var(--rule)}
 .avancement [hidden]{display:none}
 .avancement .hint{margin:4px 0 0}
 
@@ -847,6 +874,13 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
         <h2>Avancement du chantier</h2>
         <input type="range" id="av_curseur" min="0" max="100" step="5" value="0" hidden
           aria-label="Avancement du chantier, en pourcentage">
+        <div class="av-echelle" id="av_echelle" hidden aria-hidden="true">
+          <span style="left:calc(13px + (100% - 26px) * 0)">0</span>
+          <span style="left:calc(13px + (100% - 26px) * .25)">25</span>
+          <span style="left:calc(13px + (100% - 26px) * .5)">50</span>
+          <span style="left:calc(13px + (100% - 26px) * .75)">75</span>
+          <span style="left:calc(13px + (100% - 26px) * 1)">100</span>
+        </div>
         <p class="hint" id="av_note"></p>
       </div>
     </div>
@@ -1469,6 +1503,7 @@ function afficherAvancement(pct){
   if(!AV_VU){ anneau.style.strokeDashoffset = AV_TOUR; void anneau.getBoundingClientRect(); AV_VU = true; }
   anneau.style.strokeDashoffset = AV_TOUR*(1-pct/100);
   $("avancement").classList.toggle("fini", pct>=100);
+  $("av_curseur").style.setProperty("--pct", String(pct));
 }
 function peindreAvancement(){
   var pct=Math.max(0, Math.min(100, parseInt(CHANTIER.avancement, 10) || 0));
@@ -1477,6 +1512,7 @@ function peindreAvancement(){
   afficherAvancement(pct);
   var curseur=$("av_curseur");
   curseur.hidden=!moi;
+  $("av_echelle").hidden=!moi;
   curseur.value=pct;
   var qui = CHANTIER.avancementPar
     ? "Mis à jour par "+CHANTIER.avancementPar+(CHANTIER.avancementLe ? " le "+frDate(CHANTIER.avancementLe) : "")+"."
