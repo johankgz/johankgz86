@@ -777,22 +777,42 @@ function retenirPli(ref, ouvert){
   PLI[ref]=ouvert;
   try{ sessionStorage.setItem("rapports:pli", JSON.stringify(PLI)); }catch(e){}
 }
-/* Le sous-dossier « Suivi de chantier » d'un dossier : replié, avec le
-   nombre de suivis ; les plus récents en premier une fois ouvert. */
-var SUIVIS_OUVERTS={};
-try{ SUIVIS_OUVERTS=JSON.parse(sessionStorage.getItem("rapports:suivis")||"{}")||{}; }catch(e){ SUIVIS_OUVERTS={}; }
-function sousDossierSuivi(ref){
-  var boite=document.createElement("div"); boite.className="dossier-suivi";
+/* Les sous-dossiers d'un dossier : « Suivi de chantier » et « Photos du
+   chantier ». Repliés, avec leur nombre de documents ; les plus récents
+   en premier une fois ouverts. Ouvert ou fermé tient jusqu'à la fin de
+   la visite, dossier par dossier. */
+var SOUS_DOSSIERS={
+  suivi:{nom:"Suivi de chantier", classe:"sous-dossier dossier-suivi", memo:"rapports:suivis", mot:"suivi",
+    ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
+  photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document",
+    ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
+};
+/* le sous-dossier où range un document, s'il y en a un */
+function sousDossierDe(f){
+  if(f.type==="suivi") return "suivi";
+  if(f.type==="photos" || f.type==="reportage") return "photos";
+  return null;
+}
+var OUVERTS={};
+function ouverts(genre){
+  if(!OUVERTS[genre]){
+    try{ OUVERTS[genre]=JSON.parse(sessionStorage.getItem(SOUS_DOSSIERS[genre].memo)||"{}")||{}; }catch(e){ OUVERTS[genre]={}; }
+  }
+  return OUVERTS[genre];
+}
+function sousDossier(ref, genre){
+  var g=SOUS_DOSSIERS[genre];
+  var boite=document.createElement("div"); boite.className=g.classe;
   var tete=document.createElement("button"); tete.type="button"; tete.className="ds-tete";
   var dedans=document.createElement("div"); dedans.className="ds-liste";
-  var ouvert=!!SUIVIS_OUVERTS[ref];
+  var ouvert=!!ouverts(genre)[ref];
   dedans.hidden=!ouvert; tete.setAttribute("aria-expanded", ouvert ? "true" : "false");
   tete.addEventListener("click", function(e){
     e.preventDefault(); e.stopPropagation();
     var o=dedans.hidden; dedans.hidden=!o;
     tete.setAttribute("aria-expanded", o ? "true" : "false");
-    SUIVIS_OUVERTS[ref]=o;
-    try{ sessionStorage.setItem("rapports:suivis", JSON.stringify(SUIVIS_OUVERTS)); }catch(err){}
+    ouverts(genre)[ref]=o;
+    try{ sessionStorage.setItem(g.memo, JSON.stringify(ouverts(genre))); }catch(err){}
   });
   boite.appendChild(tete); boite.appendChild(dedans);
   return {boite:boite, remplir:function(lignes){
@@ -800,12 +820,12 @@ function sousDossierSuivi(ref){
       return String(y.f.date||"").localeCompare(String(x.f.date||"")) || String(y.f.publie||"").localeCompare(String(x.f.publie||""));
     });
     var neufs=lignes.filter(function(l){ return pasEncoreLu(l.f); }).length;
-    tete.innerHTML='<svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>'
-      +'<span class="ds-nom">Suivi de chantier</span>'
+    tete.innerHTML='<svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true">'+g.ico+'</svg>'
+      +'<span class="ds-nom">'+g.nom+'</span>'
       +(neufs ? '<span class="neuf">'+neufs+' nouveau'+(neufs>1?'x':'')+'</span>' : '')
       +'<span class="ds-nb">'+lignes.length+'</span>'
       +'<svg class="ds-pli" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
-    tete.setAttribute("aria-label", "Suivi de chantier, "+lignes.length+" suivi"+(lignes.length>1?"s":""));
+    tete.setAttribute("aria-label", g.nom+", "+lignes.length+" "+g.mot+(lignes.length>1?"s":""));
     lignes.forEach(function(l){ dedans.appendChild(l.a); });
   }};
 }
@@ -892,12 +912,15 @@ function carteDossier(c, i, opts){
   head.appendChild(sous);
 
   var fs=document.createElement("div"); fs.className="fichiers";
-  /* les suivis de chantier vont dans un sous-dossier repliable */
-  var suivisLignes=[], dossierSuivi=null;
+  /* les suivis, et toutes les photos du chantier (reportages, lots de
+     photos du suivi ou du relevé), vont chacun dans un sous-dossier
+     repliable, posé à la place de leur premier document */
+  var sous={}, lignesDe={};
   function ranger(f, a){
-    if(f.type!=="suivi"){ fs.appendChild(a); return; }
-    if(!dossierSuivi){ dossierSuivi=sousDossierSuivi(c.ref); fs.appendChild(dossierSuivi.boite); }
-    suivisLignes.push({f:f, a:a});
+    var genre=sousDossierDe(f);
+    if(!genre){ fs.appendChild(a); return; }
+    if(!sous[genre]){ sous[genre]=sousDossier(c.ref, genre); lignesDe[genre]=[]; fs.appendChild(sous[genre].boite); }
+    lignesDe[genre].push({f:f, a:a});
   }
   c.fichiers.forEach(function(f){
     var a=document.createElement("a"); a.className="f";
@@ -1013,7 +1036,7 @@ function carteDossier(c, i, opts){
     a.appendChild(droite);
     ranger(f, a);
   });
-  if(dossierSuivi) dossierSuivi.remplir(suivisLignes);
+  Object.keys(sous).forEach(function(genre){ sous[genre].remplir(lignesDe[genre]); });
   if(!c.fichiers.length && opts.integree){
     var vide=document.createElement("p"); vide.className="vide";
     vide.textContent="Aucun document publié sur ce chantier pour le moment.";
