@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#F4F1EA">
+<meta name="theme-color" content="#FFF9F2">
 <meta name="apple-mobile-web-app-capable" content="yes">
 
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
@@ -760,6 +760,72 @@ body.ed-ouvert{overflow:hidden}
 #corbeille .cb-l span{display:block;font-size:12px;color:#6B7684;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 #corbeille .cb-l button{flex:0 0 auto;min-height:36px;padding:7px 12px;font-size:13px}
 #corbeille .hint{font-size:13px;color:#6B7684;margin:6px 0}
+
+/* =====================================================================
+   PASTEL VIVANT — le fond de la To-do list
+   ---------------------------------------------------------------------
+   La page qu'on ouvre le plus souvent : un fond crème, trois grandes
+   bulles de couleur floues (pêche, menthe, lilas) qui dérivent très
+   lentement. L'en-tête devient clair, en verre dépoli. Seuls transform
+   et opacity bougent ; tout s'arrête si le téléphone réduit les
+   animations.
+   ===================================================================== */
+:root{--sur-fond:#1F2937;--sur-fond-2:#4B5563;--trait-fond:rgba(15,23,42,.10)}
+/* le crème va sur html seul : un fond sur body recouvrirait les bulles */
+html{background:#FFF9F2}
+body{background:transparent!important}
+#fondPastel{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}
+#fondPastel i{position:absolute;display:block;border-radius:50%;filter:blur(56px);will-change:transform}
+#fondPastel .b1{width:62vmax;height:62vmax;left:-22vmax;top:-18vmax;background:rgba(255,196,153,.62);animation:pastel1 18s ease-in-out infinite}
+#fondPastel .b2{width:56vmax;height:56vmax;right:-24vmax;top:28vh;background:rgba(167,235,200,.6);animation:pastel2 22s ease-in-out infinite}
+#fondPastel .b3{width:64vmax;height:64vmax;left:-14vmax;bottom:-30vmax;background:rgba(200,184,255,.55);animation:pastel3 26s ease-in-out infinite}
+@keyframes pastel1{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(12vw,10vh) scale(1.12)}}
+@keyframes pastel2{0%,100%{transform:translate(0,0) scale(1.05)}50%{transform:translate(-14vw,-8vh) scale(.92)}}
+@keyframes pastel3{0%,100%{transform:translate(0,0) scale(1)}50%{transform:translate(10vw,-12vh) scale(1.16)}}
+header{background:rgba(255,255,255,.62);backdrop-filter:saturate(160%) blur(16px);-webkit-backdrop-filter:saturate(160%) blur(16px);
+  border-bottom:1px solid rgba(15,23,42,.06);color:#1F2937}
+header::after{display:none}
+header h1{color:#1F2937}
+.menu-link,header a[href="./index.html"]{background:rgba(255,255,255,.8);border:1px solid rgba(15,23,42,.08);color:#1F2937}
+header .chip{background:rgba(255,255,255,.7);border-color:rgba(15,23,42,.08);color:#4B5563}
+header .chip.on{background:#1F2937;border-color:#1F2937;color:#fff}
+@media (hover:hover){
+  .menu-link:hover,header a[href="./index.html"]:hover{background:#fff;color:#0C1119}
+  header .chip:hover:not(.on){background:#fff}
+}
+.k-carte{box-shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px -16px rgba(15,23,42,.4)}
+
+/* ---------- la journée : combien de tâches, et le petit bonhomme ---------- */
+#journee{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:11px 14px;border-radius:16px;
+  background:rgba(255,255,255,.86);box-shadow:0 1px 2px rgba(15,23,42,.06);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+#journee[hidden]{display:none}
+#journee .bonhomme{flex:0 0 auto;width:42px;height:42px}
+#journee .bonhomme.saute{animation:bonhommeSaute .55s cubic-bezier(.3,1.6,.5,1)}
+#journee .j-t{flex:1 1 auto;min-width:0}
+#journee .j-t b{display:block;font-size:13.5px;font-weight:700;color:#0C1119;line-height:1.3}
+#journee .j-barre{height:8px;border-radius:999px;background:#F3EBDD;margin-top:7px;overflow:hidden}
+#journee .j-barre i{display:block;height:100%;width:100%;border-radius:999px;transform-origin:left;
+  background:linear-gradient(90deg,#F97316,#22C55E);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+#journee .j-n{flex:0 0 auto;font-size:13px;font-weight:800;color:#16A34A;font-variant-numeric:tabular-nums}
+@keyframes bonhommeSaute{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-6deg)}70%{transform:scale(.96)}100%{transform:scale(1)}}
+
+/* ---------- la fête : une liste terminée ---------- */
+#fete{position:fixed;inset:0;z-index:90;pointer-events:none;overflow:hidden}
+#fete[hidden]{display:none}
+#fete span{position:absolute;top:-16px;width:8px;height:12px;border-radius:2px;
+  animation:confettiTombe 1.7s cubic-bezier(.2,.6,.4,1) forwards}
+@keyframes confettiTombe{0%{transform:translate(0,0) rotate(0);opacity:1}100%{transform:translate(var(--dx),105vh) rotate(560deg);opacity:0}}
+#fete .bravo{position:absolute;left:50%;top:38%;width:auto;height:auto;border-radius:14px;
+  transform:translateX(-50%);background:#0C1119;color:#fff;padding:12px 18px;font-weight:700;font-size:14.5px;
+  white-space:nowrap;max-width:calc(100% - 32px);overflow:hidden;text-overflow:ellipsis;
+  box-shadow:0 18px 40px -16px rgba(0,0,0,.5);animation:bravoArrive 2.2s ease forwards}
+@keyframes bravoArrive{0%{opacity:0;transform:translate(-50%,10px) scale(.96)}12%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0}}
+@media (prefers-reduced-motion:reduce){
+  #fondPastel i,#journee .bonhomme.saute{animation:none!important}
+  #journee .j-barre i{transition:none}
+  #fete span{display:none}
+  #fete .bravo{animation:none}
+}
 </style>
 </head>
 <body>
@@ -770,7 +836,22 @@ body.ed-ouvert{overflow:hidden}
   <div class="chips filtres" id="filtres"></div>
 </header>
 
+<div id="fondPastel" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
+<div id="fete" aria-hidden="true" hidden></div>
 <main>
+  <div id="journee" role="status" hidden>
+    <svg class="bonhomme" viewBox="0 0 42 42" aria-hidden="true">
+      <circle cx="21" cy="21" r="19" fill="#FDE68A"></circle>
+      <circle class="joue" cx="10.5" cy="25" r="3.2" fill="#FDA4AF" opacity="0"></circle>
+      <circle class="joue" cx="31.5" cy="25" r="3.2" fill="#FDA4AF" opacity="0"></circle>
+      <g class="yeux-ronds" fill="#78350F"><circle cx="15" cy="17" r="2.2"></circle><circle cx="27" cy="17" r="2.2"></circle></g>
+      <g class="yeux-rieurs" fill="none" stroke="#78350F" stroke-width="2.2" stroke-linecap="round" opacity="0">
+        <path d="M12 18 Q15 14 18 18"></path><path d="M24 18 Q27 14 30 18"></path></g>
+      <path class="bouche" d="M15 27 L27 27" stroke="#78350F" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
+    </svg>
+    <div class="j-t"><b id="journeeTitre"></b><div class="j-barre"><i id="journeeBarre"></i></div></div>
+    <span class="j-n" id="journeeN"></span>
+  </div>
   <div class="row" style="margin-bottom:14px">
     <button class="act blue" id="btnNouvelle" style="flex:1">Nouvelle liste</button>
     <button class="act ghost" id="btnSync">Synchroniser</button>
@@ -1102,6 +1183,90 @@ function touche(l){ l.maj=maintenant(); l.local=false; }
    lieu de laisser le dernier qui enregistre effacer le travail de
    l'autre. */
 function toucheItem(l, it){ it.maj=maintenant(); touche(l); }
+/* ---------- la journée ----------
+   Aujourd'hui = les tâches cochées aujourd'hui, sur toutes celles qu'il
+   restait à faire ce matin (les cochées du jour + les pas encore faites).
+   Le bonhomme sourit de plus en plus à mesure que la barre avance. */
+function aujourdhui(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+function faiteAujourdhui(it){
+  if(!it.fait || !it.faitLe) return false;
+  var d=new Date(it.faitLe);
+  var j=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+  return j===aujourdhui();
+}
+var JOURNEE_AVANT=-1;
+var BOUCHES=[
+  "M15 27 L27 27",                 /* rien encore : on attend */
+  "M14 26 Q21 29 28 26",           /* un début */
+  "M13 25 Q21 31 29 25",           /* à mi-chemin */
+  "M12 24 Q21 34 30 24",           /* presque */
+  "M11.5 23.5 Q21 37 30.5 23.5 Z"  /* tout est fait */
+];
+function majJournee(){
+  var e=$("journee"); if(!e) return;
+  var faites=0, reste=0;
+  N.listes.forEach(function(l){
+    (l.items||[]).forEach(function(it){
+      if(!String(it.texte||"").trim()) return;
+      if(!it.fait) reste++;
+      else if(faiteAujourdhui(it)) faites++;
+    });
+  });
+  var total=faites+reste;
+  e.hidden = !N.listes.length;
+  var r = total ? faites/total : 0;
+  var niveau = !total ? 0 : (r>=1 ? 4 : r>=0.66 ? 3 : r>=0.33 ? 2 : faites ? 1 : 0);
+  $("journeeTitre").textContent = !total ? "Rien à faire aujourd'hui, profitez-en !"
+    : r>=1 ? "Tout est fait, bravo !"
+    : faites ? "Aujourd'hui : "+faites+" tâche"+(faites>1?"s":"")+" faite"+(faites>1?"s":"")+" sur "+total
+    : "C'est parti : "+total+" tâche"+(total>1?"s":"")+" à faire";
+  $("journeeN").textContent = total ? faites+"/"+total : "";
+  $("journeeBarre").style.transform = "scaleX("+(total ? r : 0)+")";
+  var svg=e.querySelector(".bonhomme");
+  var bouche=svg.querySelector(".bouche");
+  bouche.setAttribute("d", BOUCHES[!total ? 2 : niveau]);
+  bouche.setAttribute("fill", niveau===4 ? "#78350F" : "none");
+  var rieur = niveau===4 || !total;
+  svg.querySelector(".yeux-ronds").setAttribute("opacity", rieur ? "0" : "1");
+  svg.querySelector(".yeux-rieurs").setAttribute("opacity", rieur ? "1" : "0");
+  svg.querySelectorAll(".joue").forEach(function(j){ j.setAttribute("opacity", niveau>=3 ? ".8" : "0"); });
+  /* une tâche de plus : le bonhomme sautille */
+  if(JOURNEE_AVANT>=0 && faites>JOURNEE_AVANT){
+    svg.classList.remove("saute"); void svg.getBoundingClientRect(); svg.classList.add("saute");
+  }
+  JOURNEE_AVANT=faites;
+}
+/* une liste vient d'être terminée : confettis et un mot */
+function feter(l){
+  var f=$("fete"); if(!f) return;
+  f.textContent="";
+  var reduit=false;
+  try{ reduit=window.matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){}
+  var couleurs=["#F97316","#22C55E","#3B82F6","#EAB308","#EC4899","#8B5CF6"];
+  if(!reduit){
+    for(var i=0;i<42;i++){
+      var c=document.createElement("span");
+      c.style.left=(2+((i*37+i*i*11)%96))+"%";
+      c.style.background=couleurs[i%6];
+      c.style.setProperty("--dx", (((i*37)%140)-70)+"px");
+      c.style.animationDelay=(((i*7)%11)*0.04)+"s";
+      f.appendChild(c);
+    }
+  }
+  var b=document.createElement("div"); b.className="bravo";
+  b.textContent="Liste « "+(l.titre||"sans titre")+" » terminée !";
+  f.appendChild(b);
+  f.hidden=false;
+  clearTimeout(feter.t);
+  feter.t=setTimeout(function(){ f.hidden=true; f.textContent=""; }, 2400);
+}
+function cocherItem(l, it, fait){
+  var avant=toutFait(l);
+  it.fait=fait; it.faitLe = fait ? maintenant() : ""; it.maj=maintenant();
+  touche(l); save(); render();
+  if(fait && !avant && toutFait(l)) feter(l);
+}
+
 function restantes(l){ return (l.items||[]).filter(function(i){ return !i.fait; }).length; }
 function toutFait(l){ return (l.items||[]).length>0 && restantes(l)===0; }
 
@@ -1139,6 +1304,7 @@ function render(){
   if(epinglees.length){ titreSection(host, "Épinglées"); grille(host, epinglees); }
   if(autres.length){ if(epinglees.length) titreSection(host, "Autres"); grille(host, autres); }
   peindreEditeur();
+  majJournee();
 }
 function nbColonnes(){
   var w=$("listes").clientWidth || (window.innerWidth-28);
@@ -1195,8 +1361,7 @@ function apercu(l){
       cs.setAttribute("aria-label","Cocher « "+it.texte+" »");
       cs.addEventListener("click", function(e){
         e.stopPropagation();
-        it.fait=true; it.faitLe=maintenant(); it.maj=maintenant();
-        touche(l); save(); render();
+        cocherItem(l, it, true);
       });
       var tx=document.createElement("span"); tx.className="k-texte"; tx.textContent=it.texte;
       row.appendChild(cs); row.appendChild(tx);
@@ -1462,8 +1627,7 @@ function ligneItem(l, it, i){
       +'stroke-width:3;stroke-linecap:round;stroke-linejoin:round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>'
     : '';
   case_.addEventListener("click", function(){
-    it.fait=!it.fait; it.faitLe = it.fait ? maintenant() : ""; it.maj=maintenant();
-    touche(l); save(); render();
+    cocherItem(l, it, !it.fait);
   });
   var txt=document.createElement("input"); txt.type="text"; txt.value=it.texte;
   txt.placeholder="Tâche"; txt.className="n-texte";
