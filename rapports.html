@@ -137,6 +137,21 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
 #carte_q:focus{outline:none;background:rgba(255,255,255,.2)}
 #carte_canvas{display:block;background:#1A1815;touch-action:none;cursor:grab}
 #carte_canvas:active{cursor:grabbing}
+#carte_fonds{position:absolute;top:8px;right:8px;z-index:3;width:min(270px,calc(100% - 16px));
+ background:#fff;border-radius:12px;padding:6px;box-shadow:0 18px 44px -16px rgba(0,0,0,.55);
+ display:flex;flex-direction:column;gap:2px;animation:fondsMenu .16s cubic-bezier(.2,.8,.2,1)}
+#carte_fonds[hidden]{display:none}
+#carte_fonds button{display:flex;flex-direction:column;align-items:flex-start;gap:1px;width:100%;min-height:44px;
+ padding:7px 10px 7px 30px;border:0;border-radius:8px;background:none;color:#0C1119;text-align:left;
+ font-family:inherit;cursor:pointer;position:relative;box-shadow:none}
+#carte_fonds button b{font-size:13.5px;font-weight:600}
+#carte_fonds button span{font-size:11.5px;color:#6B7684;font-weight:500}
+#carte_fonds button[aria-checked="true"]{background:#FDF4EA}
+#carte_fonds button[aria-checked="true"]::before{content:"";position:absolute;left:11px;top:50%;width:8px;height:8px;
+ margin-top:-4px;border-radius:50%;background:#EA7A1E}
+@media (hover:hover){ #carte_fonds button:hover{background:#F4F6F9} }
+@keyframes fondsMenu{from{opacity:0;transform:translateY(-4px) scale(.98)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){ #carte_fonds{animation:none} }
 #carte_fiche{position:absolute;left:10px;right:10px;bottom:10px;background:var(--card);
  border:1px solid var(--rule);border-radius:var(--r-field);padding:12px 14px;
  box-shadow:0 18px 50px -20px rgba(0,0,0,.8)}
@@ -695,7 +710,7 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   <div class="sk-bar">
     <button type="button" id="carte_moins">Reculer</button>
     <button type="button" id="carte_plus">Zoomer</button>
-    <button type="button" id="carte_source" title="Changer de fond de carte">Plan</button>
+    <button type="button" id="carte_source" title="Changer de fond de carte" aria-haspopup="true" aria-expanded="false">Plan clair</button>
     <span class="etat" id="carte_etat" style="margin-left:auto;margin-right:4px"></span>
   </div>
   <div class="sk-bar" id="carte_recherche">
@@ -710,6 +725,7 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   </div>
   <div class="sk-wrap">
     <canvas id="carte_canvas"></canvas>
+    <div id="carte_fonds" role="menu" aria-label="Fond de carte" hidden></div>
     <div id="carte_fiche" hidden></div>
   </div>
 </div>
@@ -2009,30 +2025,57 @@ function afficher(chantiers){
    Un fond de carte dessiné en tuiles, une épingle par dossier.
    La position vient du relevé quand elle existe ; sinon on la cherche
    une fois à partir de l'adresse, et le site la retient. */
-var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"plan", cache:{}, echec:{}, echecs:0,
-             points:[], choisi:null, pose:"", rendu:0};
-/* Les fonds de carte, dans l'ordre du bouton : le plan des rues, le
-   satellite, le satellite avec les noms par-dessus, et l'aérien IGN
-   pour la précision sur la France.
+var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"clair", cache:{}, echec:{}, echecs:0,
+             points:[], choisi:null, pose:"", rendu:0, L:0, H:0, dpr:1, essayes:{}, express:""};
+/* Les couches d'images, ce qu'elles savent faire :
+     max     le zoom le plus fin où le serveur a des images ; au-delà, on
+             agrandit les siennes plutôt que de demander dans le vide ;
+     retina  "2x" : le serveur a des images doubles (512 px), écriture
+             comprise, pour les écrans fins des téléphones ;
+             1 : une photo, sans texte — on prend le zoom au-dessus,
+             dessiné deux fois plus petit, et elle devient nette ;
+             0 : un plan dont le texte deviendrait illisible à moitié
+             taille — on le laisse tel quel.
 
    Tous sont libres d'accès, sans clé ni compte. C'est la condition :
    un fournisseur qui réclame une clé sert des tuiles barrées d'un
    filigrane « API KEY REQUIRED » — et comme il répond quand même, rien
    ne permet de le détecter automatiquement. */
+var COUCHES = {
+  clair:   {max:20, retina:"2x", mention:"© OpenStreetMap © CARTO", vide:"#EDEAE4"},
+  plan:    {max:19, retina:0,    mention:"© IGN", vide:"#EEF0F2"},
+  ortho:   {max:21, retina:1,    mention:"© IGN"},
+  express: {max:19, retina:1,    mention:"© IGN Ortho Express"},
+  esri:    {max:19, retina:1,    mention:"© Esri, Maxar"},
+  noms:    {max:19, retina:0,    mention:"© Esri"}
+};
+/* Les fonds proposés, dans l'ordre du menu. « secours » : où aller si
+   celui-ci ne répond pas. */
 var FONDS = {
-  plan:      {nom:"Plan",               max:19, couches:["plan"]},
-  satellite: {nom:"Satellite",          max:19, couches:["esri"]},
-  hybride:   {nom:"Satellite et noms",  max:19, couches:["esri", "noms"]},
-  ign:       {nom:"IGN, vue aérienne",  max:21, couches:["ign"]}
+  clair:     {nom:"Plan clair",        detail:"OpenStreetMap, rues et noms bien lisibles", max:20, couches:["clair"],  secours:"plan"},
+  plan:      {nom:"Plan IGN",          detail:"Le plan officiel, très précis en France",  max:19, couches:["plan"],   secours:"clair"},
+  satellite: {nom:"Satellite IGN",     detail:"Photo aérienne de l'IGN, 20 cm",           max:21, couches:["ortho"],  secours:"monde"},
+  recent:    {nom:"Satellite récent",  detail:"Ortho Express de l'IGN, la prise de vue la plus récente", max:21, couches:["express"], secours:"satellite"},
+  hybride:   {nom:"Satellite et noms", detail:"Photo IGN avec les noms des lieux",        max:21, couches:["ortho", "noms"], secours:"monde"},
+  monde:     {nom:"Satellite Esri",    detail:"Photo mondiale, utile hors de France",     max:19, couches:["esri"],   secours:""}
 };
-var ORDRE_FONDS = ["plan", "satellite", "hybride", "ign"];
-var MENTIONS = {
-  plan:  "\u00A9 IGN",
-  esri:  "\u00A9 Esri, Maxar",
-  noms:  "\u00A9 Esri",
-  ign:   "\u00A9 IGN"
-};
-function fond(){ return FONDS[CARTE.source] || FONDS.plan; }
+var ORDRE_FONDS = ["clair", "plan", "satellite", "recent", "hybride", "monde"];
+function fond(){ return FONDS[CARTE.source] || FONDS.clair; }
+try{
+  var fondRetenu=localStorage.getItem("carte:fond");
+  if(fondRetenu && FONDS[fondRetenu]) CARTE.source=fondRetenu;
+  var expressRetenu=JSON.parse(localStorage.getItem("carte:express")||"null");
+  /* la couche la plus récente change une fois l'an : on la recherche au bout d'un mois */
+  if(expressRetenu && expressRetenu.couche && Date.now()-expressRetenu.le < 30*864e5) CARTE.express=expressRetenu.couche;
+}catch(e){}
+function nomFond(cle){
+  var f=FONDS[cle]||FONDS.clair;
+  if(cle === "recent" && CARTE.express){
+    var an=(CARTE.express.match(/(\d{4})$/)||[])[1];
+    if(an) return f.nom+" ("+an+")";
+  }
+  return f.nom;
+}
 
 function toast(t){
   var e=$("toast"); if(!e) return;
@@ -2055,6 +2098,22 @@ function pxMonde(x, y, z){
   return [lat, lon];
 }
 function urlsTuile(couche, z, x, y){
+  if(couche === "clair"){
+    /* OpenStreetMap mis en forme par CARTO (« Voyager ») : des couleurs
+       douces, les rues et les noms nets. Les images doubles (@2x) sont
+       faites pour les écrans de téléphone. */
+    var sous="abcd".charAt((x + y) % 4);
+    return "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/".replace("{s}", sous)
+      +z+"/"+x+"/"+y+(CARTE.dpr >= 1.5 ? "@2x" : "")+".png";
+  }
+  if(couche === "express"){
+    /* l'Ortho Express : l'IGN la reprend chaque année sur toute la
+       France, un peu moins soignée que la photo habituelle mais plus
+       récente. La couche de l'année est trouvée à l'ouverture. */
+    return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
+      +"&LAYER="+encodeURIComponent(CARTE.express)+"&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
+      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
+  }
   if(couche === "plan"){
     /* le plan des rues de l'IGN : service public, libre d'accès,
        couverture française au mètre près */
@@ -2067,7 +2126,7 @@ function urlsTuile(couche, z, x, y){
     return "https://server.arcgisonline.com/ArcGIS/rest/services/Reference/"
       +"World_Boundaries_and_Places/MapServer/tile/"+z+"/"+y+"/"+x;
   }
-  if(couche === "ign"){
+  if(couche === "ortho"){
     return "https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
       +"&LAYER=ORTHOIMAGERY.ORTHOPHOTOS&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
       +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
@@ -2088,69 +2147,111 @@ function carteTuile(couche, z, x, y){
     .then(function(bmp){ CARTE.cache[cle]=bmp; return bmp; })
     .catch(function(e){ CARTE.echec[cle]=true; throw e; });
 }
+/* Un fond qui ne répond pas : on passe à son secours, sans jamais
+   revenir sur un fond déjà essayé. */
 function carteSecours(){
-  if(CARTE.source === "satellite") return;
-  var avant=fond().nom;
-  CARTE.source = "satellite";
+  var avant=CARTE.source;
+  CARTE.essayes[avant]=true;
+  var suivant=fond().secours, tours=0;
+  while(suivant && CARTE.essayes[suivant] && tours++ < ORDRE_FONDS.length) suivant=(FONDS[suivant]||{}).secours;
+  if(!suivant || CARTE.essayes[suivant]) return;
+  CARTE.source=suivant;
   if(CARTE.zoom > fond().max) CARTE.zoom = fond().max;
   CARTE.echecs = 0;
-  toast("Fond « " + avant + " » indisponible : passage sur le satellite.");
+  majBoutonFond();
+  toast("Fond « " + nomFond(avant) + " » indisponible : passage sur « " + nomFond(suivant) + " ».");
   carteDessiner();
 }
+/* Le canevas est dessiné à la vraie finesse de l'écran : un iPhone
+   affiche trois points là où l'ordinateur en met un. Tout le reste
+   (épingles, doigts, souris) compte en pixels d'écran ordinaires :
+   CARTE.L et CARTE.H. */
 function carteTaille(){
   var cv=$("carte_canvas"), wrap=cv.parentNode;
   var L=Math.max(240, wrap.clientWidth), H=Math.max(240, wrap.clientHeight);
-  if(cv.width!==L || cv.height!==H){
-    cv.width=L; cv.height=H;
+  var dpr=Math.min(3, Math.max(1, window.devicePixelRatio || 1));
+  if(dpr !== CARTE.dpr){ CARTE.cache={}; CARTE.echec={}; }
+  CARTE.L=L; CARTE.H=H; CARTE.dpr=dpr;
+  var lp=Math.round(L*dpr), hp=Math.round(H*dpr);
+  if(cv.width!==lp || cv.height!==hp){
+    cv.width=lp; cv.height=hp;
     cv.style.width=L+"px"; cv.style.height=H+"px";
   }
 }
 function majBoutonFond(){
   var b=$("carte_source");
-  if(b) b.textContent = fond().nom;
+  if(b) b.textContent = nomFond(CARTE.source);
+  var m=$("carte_fonds");
+  if(m && !m.hidden) carteMenuFonds(true);
 }
 function carteEtat(){
   var e=$("carte_etat"); if(!e) return;
   var avec=CARTE.points.filter(function(p){ return p.lat!=null; }).length;
-  var credit = fond().couches.map(function(c){ return MENTIONS[c]; })
+  var credit = fond().couches.map(function(c){ return COUCHES[c].mention; })
     .filter(function(m, i, t){ return m && t.indexOf(m) === i; }).join(" ");
-  e.textContent = fond().nom + "  ·  zoom " + CARTE.zoom
+  e.textContent = nomFond(CARTE.source) + "  ·  zoom " + CARTE.zoom
     + "  ·  " + avec + " chantier" + (avec>1?"s":"") + " situé" + (avec>1?"s":"")
     + "  ·  " + credit;
 }
+/* le zoom des images à demander pour une couche, et la taille (en
+   pixels d'écran) à laquelle chacune se dessine */
+function carteNiveau(couche){
+  var K=COUCHES[couche];
+  var dessus = (K.retina === 1 && CARTE.dpr >= 1.5) ? 1 : 0;
+  var tz=Math.min(CARTE.zoom + dessus, K.max);
+  return {tz:tz, taille:256*Math.pow(2, CARTE.zoom - tz)};
+}
 function carteDessiner(){
   var cv=$("carte_canvas"); if(!cv || $("carte").hidden) return;
-  var ctx=cv.getContext("2d"), L=cv.width, H=cv.height;
-  ctx.fillStyle="#1A1815"; ctx.fillRect(0,0,L,H);
+  if(!CARTE.L) carteTaille();
+  var ctx=cv.getContext("2d"), L=CARTE.L, H=CARTE.H, dpr=CARTE.dpr;
+  var premiere=COUCHES[fond().couches[0]];
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality="high";
+  ctx.fillStyle=premiere.vide || "#1A1815"; ctx.fillRect(0,0,cv.width,cv.height);
   var c=mondePx(CARTE.lat, CARTE.lon, CARTE.zoom);
   var gauche=c[0]-L/2, haut=c[1]-H/2;
-  var n=Math.pow(2, CARTE.zoom);
-  var x0=Math.floor(gauche/256), y0=Math.floor(haut/256);
-  var x1=Math.floor((gauche+L)/256), y1=Math.floor((haut+H)/256);
   var attendre=[];
   /* les couches dans l'ordre : le satellite d'abord, les noms par-dessus */
   fond().couches.forEach(function(couche){
+    var niv=carteNiveau(couche), tz=niv.tz, taille=niv.taille, n=Math.pow(2, tz);
+    var x0=Math.floor(gauche/taille), y0=Math.floor(haut/taille);
+    var x1=Math.floor((gauche+L)/taille), y1=Math.floor((haut+H)/taille);
     for(var ty=y0; ty<=y1; ty++){
       if(ty<0 || ty>=n) continue;
       for(var tx=x0; tx<=x1; tx++){
         var wx=((tx%n)+n)%n;
-        var cle=couche+"/"+CARTE.zoom+"/"+wx+"/"+ty;
+        /* bords arrondis au point d'écran près : pas de fente entre deux images */
+        var X=Math.round((tx*taille-gauche)*dpr), Y=Math.round((ty*taille-haut)*dpr);
+        var W=Math.round(((tx+1)*taille-gauche)*dpr)-X, Hh=Math.round(((ty+1)*taille-haut)*dpr)-Y;
+        var cle=couche+"/"+tz+"/"+wx+"/"+ty;
         var bmp=CARTE.cache[cle];
-        if(bmp){ ctx.drawImage(bmp, Math.round(tx*256-gauche), Math.round(ty*256-haut), 256, 256); }
-        else if(!CARTE.echec[cle]) attendre.push([couche, wx, ty]);
+        if(bmp){ ctx.drawImage(bmp, X, Y, W, Hh); continue; }
+        /* en attendant, l'image du zoom d'avant, agrandie : la carte ne
+           passe jamais par le noir quand on zoome */
+        for(var k=1; k<=4 && tz-k>=0; k++){
+          var parent=CARTE.cache[couche+"/"+(tz-k)+"/"+(wx>>k)+"/"+(ty>>k)];
+          if(!parent) continue;
+          var cote=parent.width/Math.pow(2,k);
+          ctx.drawImage(parent, (wx-((wx>>k)<<k))*cote, (ty-((ty>>k)<<k))*cote, cote, cote, X, Y, W, Hh);
+          break;
+        }
+        if(!CARTE.echec[cle]) attendre.push([couche, tz, wx, ty]);
       }
     }
   });
   attendre.forEach(function(t){
-    carteTuile(t[0], CARTE.zoom, t[1], t[2])
+    carteTuile(t[0], t[1], t[2], t[3])
       .then(function(){ carteRedessiner(); })
       .catch(function(){
-        /* les noms qui manquent ne valent pas qu'on change de fond */
-        if(t[0] === "noms") return;
+        /* les noms qui manquent ne valent pas qu'on change de fond, et
+           une image d'un fond qu'on a déjà quitté ne compte plus */
+        if(t[0] === "noms" || fond().couches.indexOf(t[0]) < 0) return;
         CARTE.echecs++;
         if(CARTE.echecs >= 4) carteSecours();
       });
   });
+  ctx.setTransform(dpr,0,0,dpr,0,0);
   carteEpingles(ctx, gauche, haut);
   if(CARTE.pose) carteReticule(ctx, L, H);
   carteEtat();
@@ -2178,7 +2279,7 @@ function carteEcran(p, gauche, haut){
   return [w[0]-gauche, w[1]-haut];
 }
 function carteEpingles(ctx, gauche, haut){
-  var cv=$("carte_canvas"), L=cv.width, H=cv.height;
+  var L=CARTE.L, H=CARTE.H;
   var nomme = CARTE.zoom >= 10 || CARTE.points.length <= 12;
   CARTE.points.forEach(function(p){
     if(p.lat == null) return;
@@ -2194,24 +2295,27 @@ function carteEpingles(ctx, gauche, haut){
     ctx.lineTo(e[0]-r*0.55, e[1]-r*1.25);
     ctx.lineTo(e[0]+r*0.55, e[1]-r*1.25);
     ctx.closePath();
-    ctx.fillStyle = choisi ? "#B4472E" : "#8C6A3F";
+    ctx.fillStyle = choisi ? "#B45309" : "#EA7A1E";
     ctx.fill();
     /* la tête */
     ctx.beginPath();
     ctx.arc(e[0], e[1]-r*1.6, r, 0, Math.PI*2);
-    ctx.fillStyle = choisi ? "#B4472E" : "#8C6A3F";
+    ctx.fillStyle = choisi ? "#B45309" : "#EA7A1E";
     ctx.fill();
     ctx.lineWidth=2; ctx.strokeStyle="rgba(255,255,255,.92)"; ctx.stroke();
     if(nomme){
       var nom=String(p.client || p.ref || "").slice(0, 22);
       if(nom){
-        ctx.font="600 11px -apple-system, system-ui, sans-serif";
+        ctx.font="600 11.5px \"Plus Jakarta Sans\", -apple-system, system-ui, sans-serif";
         ctx.textAlign="center";
         var l=ctx.measureText(nom).width;
-        ctx.fillStyle="rgba(26,24,21,.78)";
-        ctx.fillRect(e[0]-l/2-5, e[1]+4, l+10, 16);
-        ctx.fillStyle="#F4F1EA";
-        ctx.fillText(nom, e[0], e[1]+15.5);
+        ctx.fillStyle="rgba(10,14,20,.8)";
+        ctx.beginPath();
+        if(ctx.roundRect) ctx.roundRect(e[0]-l/2-6, e[1]+4, l+12, 17, 8.5);
+        else ctx.rect(e[0]-l/2-6, e[1]+4, l+12, 17);
+        ctx.fill();
+        ctx.fillStyle="#F2F5F9";
+        ctx.fillText(nom, e[0], e[1]+16.5);
       }
     }
     ctx.restore();
@@ -2227,12 +2331,11 @@ function carteZoom(d, autour){
   if(z === CARTE.zoom) return;
   if(autour){
     /* garder sous le curseur le point que l'on vise */
-    var cv=$("carte_canvas");
     var c=mondePx(CARTE.lat, CARTE.lon, CARTE.zoom);
-    var vise=pxMonde(c[0]-cv.width/2+autour[0], c[1]-cv.height/2+autour[1], CARTE.zoom);
+    var vise=pxMonde(c[0]-CARTE.L/2+autour[0], c[1]-CARTE.H/2+autour[1], CARTE.zoom);
     CARTE.zoom=z;
     var v=mondePx(vise[0], vise[1], z);
-    var centre=pxMonde(v[0]+cv.width/2-autour[0], v[1]+cv.height/2-autour[1], z);
+    var centre=pxMonde(v[0]+CARTE.L/2-autour[0], v[1]+CARTE.H/2-autour[1], z);
     CARTE.lat=centre[0]; CARTE.lon=centre[1];
   } else {
     CARTE.zoom=z;
@@ -2245,8 +2348,8 @@ function carteCadrer(){
   if(pts.length === 1){
     CARTE.lat=pts[0].lat; CARTE.lon=pts[0].lon; CARTE.zoom=15; carteDessiner(); return;
   }
-  var cv=$("carte_canvas"), L=cv.width, H=cv.height;
-  var z=fond().max;
+  var L=CARTE.L, H=CARTE.H;
+  var z=Math.min(fond().max, 18);
   for(; z>4; z--){
     var xs=[], ys=[];
     pts.forEach(function(p){ var w=mondePx(p.lat,p.lon,z); xs.push(w[0]); ys.push(w[1]); });
@@ -2410,6 +2513,75 @@ function carteChercherAdresse(){
     .catch(function(){ toast("Recherche indisponible : déplacez la carte à la main."); });
 }
 
+/* ---------- le choix du fond ---------- */
+function carteMenuFonds(ouvrir){
+  var m=$("carte_fonds"), b=$("carte_source");
+  if(!ouvrir){ m.hidden=true; b.setAttribute("aria-expanded","false"); return; }
+  m.textContent="";
+  ORDRE_FONDS.forEach(function(cle){
+    var o=document.createElement("button");
+    o.type="button"; o.setAttribute("role","menuitemradio");
+    o.setAttribute("data-fond", cle);
+    o.setAttribute("aria-checked", cle === CARTE.source ? "true" : "false");
+    var t=document.createElement("b"); t.textContent=nomFond(cle);
+    var d=document.createElement("span"); d.textContent=FONDS[cle].detail;
+    o.appendChild(t); o.appendChild(d);
+    o.addEventListener("click", function(){ carteChoisirFond(cle); carteMenuFonds(false); });
+    m.appendChild(o);
+  });
+  m.hidden=false; b.setAttribute("aria-expanded","true");
+}
+function carteChoisirFond(cle){
+  if(!FONDS[cle]) return;
+  if(cle === "recent" && !CARTE.express){
+    toast("Recherche de la prise de vue la plus récente…");
+    carteTrouverExpress().then(function(ok){
+      if(ok){ carteChoisirFond("recent"); toast("Fond : " + nomFond("recent")); }
+      else { toast("Pas de prise de vue récente disponible : photo IGN habituelle."); carteChoisirFond("satellite"); }
+    });
+    return;
+  }
+  CARTE.source=cle; CARTE.essayes={}; CARTE.echecs=0;
+  try{ localStorage.setItem("carte:fond", cle); }catch(e){}
+  if(CARTE.zoom > fond().max) CARTE.zoom=fond().max;
+  majBoutonFond();
+  carteDessiner();
+}
+/* L'IGN publie une couche Ortho Express par année. Son nom exact n'est
+   pas garanti : on essaie de la plus récente à la plus ancienne, sur
+   une image du centre de la carte, et on retient la première qui
+   répond vraiment par une image. */
+function carteCandidatsExpress(){
+  var liste=[], an=new Date().getFullYear();
+  for(var a=an; a>=2020; a--){
+    liste.push("ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS."+a);
+    liste.push("ORTHOIMAGERY.ORTHO-EXPRESS."+a);
+  }
+  liste.push("ORTHOIMAGERY.ORTHOPHOTOS.ORTHO-EXPRESS");
+  return liste;
+}
+function carteTrouverExpress(){
+  var z=12, w=mondePx(CARTE.lat, CARTE.lon, z);
+  var x=Math.floor(w[0]/256), y=Math.floor(w[1]/256);
+  var liste=carteCandidatsExpress(), i=0;
+  function essai(){
+    if(i >= liste.length) return Promise.resolve(false);
+    var couche=liste[i++];
+    var url="https://data.geopf.fr/wmts?SERVICE=WMTS&VERSION=1.0.0&REQUEST=GetTile"
+      +"&LAYER="+encodeURIComponent(couche)+"&STYLE=normal&TILEMATRIXSET=PM&FORMAT=image/jpeg"
+      +"&TILEMATRIX="+z+"&TILEROW="+y+"&TILECOL="+x;
+    return fetch(url, {mode:"cors"})
+      .then(function(r){
+        if(!r.ok || (r.headers.get("content-type")||"").indexOf("image") < 0) return essai();
+        CARTE.express=couche;
+        try{ localStorage.setItem("carte:express", JSON.stringify({couche:couche, le:Date.now()})); }catch(e){}
+        return true;
+      })
+      .catch(function(){ return essai(); });
+  }
+  return essai();
+}
+
 /* ---------- ouverture ---------- */
 function carteOuvrir(){
   CARTE.points = CHANTIERS.map(function(c){
@@ -2418,7 +2590,9 @@ function carteOuvrir(){
             lon: typeof c.lon==="number" ? c.lon : null,
             situe: typeof c.lat==="number" ? "connue" : ""};
   });
-  CARTE.choisi=null; CARTE.pose=""; CARTE.echecs=0;
+  CARTE.choisi=null; CARTE.pose=""; CARTE.echecs=0; CARTE.essayes={};
+  if(CARTE.source === "recent" && !CARTE.express) CARTE.source="satellite";
+  carteMenuFonds(false);
   $("carte_fiche").hidden=true;
   $("carte_pose").hidden=true;
   $("carte").hidden=false;
@@ -2520,14 +2694,9 @@ function carteMajBouton(){
   $("carte_plus").addEventListener("click", function(){ carteZoom(1); });
   $("carte_moins").addEventListener("click", function(){ carteZoom(-1); });
   $("carte_source").addEventListener("click", function(){
-    var i=ORDRE_FONDS.indexOf(CARTE.source);
-    CARTE.source = ORDRE_FONDS[(i + 1) % ORDRE_FONDS.length];
-    if(CARTE.zoom > fond().max) CARTE.zoom=fond().max;
-    CARTE.echecs=0;
-    carteDessiner();
-    majBoutonFond();
-    toast("Fond : " + fond().nom);
+    carteMenuFonds($("carte_fonds").hidden);
   });
+  cv.addEventListener("pointerdown", function(){ carteMenuFonds(false); });
   $("carte_chercher").addEventListener("click", carteChercherAdresse);
   $("carte_q").addEventListener("keydown", function(e){
     if(e.key === "Enter"){ e.preventDefault(); carteChercherAdresse(); }
@@ -2540,7 +2709,8 @@ function carteMajBouton(){
   });
   document.addEventListener("keydown", function(e){
     if(e.key === "Escape" && !$("carte").hidden){
-      if(CARTE.pose) cartePoseFin();
+      if(!$("carte_fonds").hidden){ carteMenuFonds(false); $("carte_source").focus(); }
+      else if(CARTE.pose) cartePoseFin();
       else $("carte").hidden=true;
     }
   });
