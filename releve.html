@@ -1337,6 +1337,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <button type="button" id="sol_moins">Reculer</button>
     <button type="button" id="sol_plus">Zoomer</button>
     <button type="button" id="sol_fond">Plan</button>
+    <button type="button" id="sol_vue">Nord en haut</button>
     <span class="etat" id="sol_etat" style="margin-left:auto;margin-right:4px"></span>
   </div>
   <div class="sol-wrap"><canvas id="sol_canvas"></canvas></div>
@@ -2600,7 +2601,7 @@ function annoterVue(a){
    et le pan de toiture orienté comme dans l'étude. La position du
    soleil suit l'algorithme de la NOAA, au dixième de degré près. */
 var COURSE = {lat:null, lon:null, zoom:19, source:"ign", cache:{}, echec:{}, rendu:0,
-           L:0, H:0, dpr:1, date:null, cle:"mars", minute:13*60, pan:0};
+           L:0, H:0, dpr:1, date:null, cle:"mars", minute:13*60, pan:0, vue:"face"};
 function solRad(d){ return d*Math.PI/180; }
 function solDeg(r){ return r*180/Math.PI; }
 /* hauteur et azimut (depuis le nord, sens horaire) du soleil à l'instant t */
@@ -2715,11 +2716,19 @@ function solDessiner(){
   var tz = Math.min(COURSE.zoom + (dpr >= 1.5 ? 1 : 0), max);
   var taille = 256*Math.pow(2, COURSE.zoom - tz), n = Math.pow(2, tz);
   var c = mondePx(COURSE.lat, COURSE.lon, COURSE.zoom), gauche = c[0]-L/2, haut = c[1]-H/2;
-  for(var ty=Math.floor(haut/taille); ty<=Math.floor((haut+H)/taille); ty++){
+  var rot = solRot(), D = rot ? Math.sqrt(L*L + H*H)/2 : 0, deb = rot ? 1 : 0;
+  COURSE.rot = rot;
+  if(rot){
+    /* on tourne autour du centre, et on couvre la diagonale de l'écran */
+    ctx.translate(L/2*dpr, H/2*dpr); ctx.rotate(solRad(rot)); ctx.translate(-L/2*dpr, -H/2*dpr);
+  }
+  var x0 = rot ? c[0]-D : gauche, x1 = rot ? c[0]+D : gauche+L, y0 = rot ? c[1]-D : haut, y1 = rot ? c[1]+D : haut+H;
+  for(var ty=Math.floor(y0/taille); ty<=Math.floor(y1/taille); ty++){
     if(ty<0 || ty>=n) continue;
-    for(var tx=Math.floor(gauche/taille); tx<=Math.floor((gauche+L)/taille); tx++){
+    for(var tx=Math.floor(x0/taille); tx<=Math.floor(x1/taille); tx++){
       var X=Math.round((tx*taille-gauche)*dpr), Y=Math.round((ty*taille-haut)*dpr);
-      var W=Math.round(((tx+1)*taille-gauche)*dpr)-X, Hh=Math.round(((ty+1)*taille-haut)*dpr)-Y;
+      /* tournées, deux images voisines se recouvrent d'un point : pas de fente */
+      var W=Math.round(((tx+1)*taille-gauche)*dpr)-X+deb, Hh=Math.round(((ty+1)*taille-haut)*dpr)-Y+deb;
       var b=COURSE.cache[COURSE.source+"/"+tz+"/"+tx+"/"+ty];
       if(b) ctx.drawImage(b, X, Y, W, Hh);
       else if(!COURSE.echec[COURSE.source+"/"+tz+"/"+tx+"/"+ty]) solTuile(tz, tx, ty).then(solRedessiner).catch(function(){});
@@ -2729,10 +2738,18 @@ function solDessiner(){
   solCalque(ctx, L, H);
   solEtat();
 }
+/* La vue « pan en face » tourne tout le dessin — carte, rose, soleil —
+   pour que le pan regarde vers le bas de l'écran : on voit la maison
+   comme en se tenant devant sa façade exposée. « Nord en haut » est la
+   vue de carte habituelle. Renvoie l'angle, en degrés, sens horaire. */
+function solRot(){
+  if(COURSE.vue !== "face") return 0;
+  return ((180 - panAzimut()) % 360 + 540) % 360 - 180;
+}
 /* un point du ciel sur la carte : l'azimut donne la direction, la
    hauteur le rapproche du centre (au zénith, il serait au centre) */
 function solPoint(az, el, cx, cy, R){
-  var r = R*(90 - Math.max(0, el))/90, a = solRad(az);
+  var r = R*(90 - Math.max(0, el))/90, a = solRad(az + solRot());
   return [cx + r*Math.sin(a), cy - r*Math.cos(a)];
 }
 function solTexte(ctx, t, x, y, couleur, align){
@@ -2753,23 +2770,38 @@ function solCalque(ctx, L, H){
   COURSE.journee=J;
   /* voile léger : la carte reste lisible, les tracés ressortent */
   ctx.fillStyle="rgba(10,14,20,.18)"; ctx.fillRect(0,0,L,H);
-  /* la rose des vents */
+  /* la rose des vents, tournée avec la vue */
+  var rot=solRot();
   ctx.save();
   ctx.lineWidth=10; ctx.strokeStyle="rgba(255,255,255,.28)";
   ctx.beginPath(); ctx.arc(cx, cy, R+6, 0, Math.PI*2); ctx.stroke();
+  /* le côté que regarde le pan : l'exposition de la maison, en orange,
+     plus vif face au pan, qui s'estompe vers les côtés */
+  var pe=panAzimut();
+  COURSE.expose=[(pe+270)%360, (pe+90)%360];
+  [[90,"rgba(251,146,60,.32)"],[60,"rgba(251,146,60,.5)"],[30,"rgba(251,146,60,.75)"],[10,"rgba(253,186,116,.95)"]].forEach(function(s){
+    ctx.lineWidth=10; ctx.strokeStyle=s[1];
+    ctx.beginPath();
+    ctx.arc(cx, cy, R+6, solRad(pe+rot-s[0]-90), solRad(pe+rot+s[0]-90));
+    ctx.stroke();
+  });
   ctx.lineWidth=1.2; ctx.strokeStyle="rgba(255,255,255,.75)";
   for(var g=0; g<360; g+=10){
-    var a=solRad(g), l=g%90===0 ? 14 : g%30===0 ? 9 : 5;
+    var a=solRad(g+rot), l=g%90===0 ? 14 : g%30===0 ? 9 : 5;
     ctx.beginPath();
     ctx.moveTo(cx+(R+1)*Math.sin(a), cy-(R+1)*Math.cos(a));
     ctx.lineTo(cx+(R+1+l)*Math.sin(a), cy-(R+1+l)*Math.cos(a));
     ctx.stroke();
   }
   ctx.setLineDash([4,5]); ctx.strokeStyle="rgba(255,255,255,.35)";
-  ctx.beginPath(); ctx.moveTo(cx, cy-R); ctx.lineTo(cx, cy+R); ctx.moveTo(cx-R, cy); ctx.lineTo(cx+R, cy); ctx.stroke();
+  var ra=solRad(rot);
+  ctx.beginPath();
+  ctx.moveTo(cx+R*Math.sin(ra), cy-R*Math.cos(ra)); ctx.lineTo(cx-R*Math.sin(ra), cy+R*Math.cos(ra));
+  ctx.moveTo(cx+R*Math.cos(ra), cy+R*Math.sin(ra)); ctx.lineTo(cx-R*Math.cos(ra), cy-R*Math.sin(ra));
+  ctx.stroke();
   ctx.setLineDash([]);
   [["N",0],["E",90],["S",180],["O",270]].forEach(function(p){
-    var a=solRad(p[1]);
+    var a=solRad(p[1]+rot);
     solTexte(ctx, p[0], cx+(R+28)*Math.sin(a), cy-(R+28)*Math.cos(a), p[0]==="N" ? "#FCA5A5" : "#fff");
   });
   ctx.restore();
@@ -2815,7 +2847,7 @@ function solCalque(ctx, L, H){
   });
 
   /* le pan de toiture : un rectangle de panneaux, sa flèche vers le ciel qu'il regarde */
-  var pa=panAzimut(), ar=solRad(pa);
+  var pa=panAzimut(), ar=solRad(pa+rot);
   ctx.save();
   ctx.translate(cx, cy); ctx.rotate(ar);
   ctx.fillStyle="rgba(30,58,138,.88)"; ctx.strokeStyle="#93C5FD"; ctx.lineWidth=1.2;
@@ -2832,7 +2864,7 @@ function solCalque(ctx, L, H){
   ctx.closePath(); ctx.fill();
   ctx.beginPath(); ctx.arc(bout[0], bout[1], 16, 0, Math.PI*2); ctx.lineWidth=1.5; ctx.strokeStyle="rgba(147,197,253,.7)"; ctx.stroke();
   ctx.restore();
-  COURSE.poignee=bout;
+  COURSE.poignee = COURSE.vue==="face" ? null : bout;
   var et=[cx+R*0.62*Math.sin(ar)+28*Math.sin(ar), cy-R*0.62*Math.cos(ar)-28*Math.cos(ar)];
   solTexte(ctx, "Pan "+panNom(COURSE.pan), et[0], et[1], "#BFDBFE");
 
@@ -2840,7 +2872,7 @@ function solCalque(ctx, L, H){
   var ps=positionSoleil(solInstant(jour, COURSE.minute), COURSE.lat, COURSE.lon);
   if(ps.el > 0){
     var mpp=metresParPixel(COURSE.lat, COURSE.zoom);
-    var lo=Math.min(R*0.95, (5/Math.tan(solRad(ps.el)))/mpp), ao=solRad((ps.az+180)%360);
+    var lo=Math.min(R*0.95, (5/Math.tan(solRad(ps.el)))/mpp), ao=solRad((ps.az+180+rot)%360);
     ctx.save(); ctx.lineWidth=5; ctx.lineCap="round"; ctx.strokeStyle="rgba(10,14,20,.55)";
     ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx+lo*Math.sin(ao), cy-lo*Math.cos(ao)); ctx.stroke(); ctx.restore();
     var q=solPoint(ps.az, ps.el, cx, cy, R);
@@ -2908,6 +2940,12 @@ function solBornesHeure(){
   if(COURSE.minute < a || COURSE.minute > b) COURSE.minute = Math.round((J.midi ? J.midi.minute : 780)/5)*5;
   r.value=COURSE.minute;
 }
+function solBoutonVue(){
+  var b=$("sol_vue"); if(!b) return;
+  b.textContent = COURSE.vue==="face" ? "Nord en haut" : "Pan en face";
+  b.title = COURSE.vue==="face" ? "Revenir à la carte orientée nord en haut"
+                                : "Tourner la vue : le pan face à vous, comme devant la façade";
+}
 function solOuvrir(){
   $("soleilEtat").textContent="Ouverture de la carte…";
   coordsTravaux().then(function(c){
@@ -2915,6 +2953,8 @@ function solOuvrir(){
     COURSE.pan=parseInt(S.pv.azimut||"0",10) || 0;
     if(S.pv.soleil && typeof S.pv.soleil.pan==="number") COURSE.pan=S.pv.soleil.pan;
     if(S.pv.soleil && S.pv.soleil.cle) COURSE.cle=S.pv.soleil.cle;
+    COURSE.vue = (S.pv.soleil && S.pv.soleil.vue) || "face";
+    solBoutonVue();
     if(S.pv.soleil && S.pv.soleil.centre){ COURSE.lat=S.pv.soleil.centre[0]; COURSE.lon=S.pv.soleil.centre[1]; }
     $("sol_pan").value=COURSE.pan;
     $("sol_titre").textContent="Course du soleil — "+(S.client.nom||S.client.adresse||"les travaux");
@@ -2941,7 +2981,7 @@ function solGarder(){
     +" · Pan "+panNom(COURSE.pan), bande*0.4, haut+bande/2);
   var data;
   try{ data=out.toDataURL("image/jpeg", 0.84); }catch(e){ toast("Image impossible à enregistrer."); return; }
-  S.pv.soleil={data:data, w:out.width, h:out.height, cle:COURSE.cle, minute:COURSE.minute, pan:COURSE.pan,
+  S.pv.soleil={data:data, w:out.width, h:out.height, cle:COURSE.cle, minute:COURSE.minute, pan:COURSE.pan, vue:COURSE.vue,
                centre:[COURSE.lat, COURSE.lon], resume:COURSE.resume||""};
   save(); paintSoleil();
   $("soleil").hidden=true;
@@ -2984,12 +3024,15 @@ window.CourseSoleil = {position:positionSoleil, journee:journeeSoleil, instant:s
     if(!glisse) return;
     var p=local(e);
     if(tourne){
-      var az=solDeg(Math.atan2(p[0]-COURSE.L/2, -(p[1]-COURSE.H/2)));
+      var az=solDeg(Math.atan2(p[0]-COURSE.L/2, -(p[1]-COURSE.H/2))) - solRot();
       var a=Math.round(((az - 180 + 540) % 360) - 180);
       COURSE.pan = a===-180 ? 180 : a; $("sol_pan").value=COURSE.pan;
     } else {
       var c=mondePx(COURSE.lat, COURSE.lon, COURSE.zoom);
-      var ll=pxMonde(c[0]-(p[0]-glisse[0]), c[1]-(p[1]-glisse[1]), COURSE.zoom);
+      /* un glissé à l'écran, ramené dans le sens de la carte */
+      var r=-solRad(solRot()), dx=p[0]-glisse[0], dy=p[1]-glisse[1];
+      var wx=dx*Math.cos(r)-dy*Math.sin(r), wy=dx*Math.sin(r)+dy*Math.cos(r);
+      var ll=pxMonde(c[0]-wx, c[1]-wy, COURSE.zoom);
       COURSE.lat=ll[0]; COURSE.lon=ll[1];
     }
     glisse=p; solRedessiner();
@@ -3009,6 +3052,10 @@ window.CourseSoleil = {position:positionSoleil, journee:journeeSoleil, instant:s
     COURSE.source = COURSE.source==="ign" ? "plan" : "ign";
     this.textContent = COURSE.source==="ign" ? "Plan" : "Photo";
     COURSE.zoom=Math.min(COURSE.zoom, MAP_MAX[COURSE.source]||19); solDessiner();
+  });
+  $("sol_vue").addEventListener("click", function(){
+    COURSE.vue = COURSE.vue==="face" ? "nord" : "face";
+    solBoutonVue(); solDessiner();
   });
   $("sol_heure").addEventListener("input", function(){ COURSE.minute=parseInt(this.value,10)||0; solRedessiner(); });
   $("sol_pan").addEventListener("input", function(){ COURSE.pan=parseInt(this.value,10)||0; solRedessiner(); });
