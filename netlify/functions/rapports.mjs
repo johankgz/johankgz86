@@ -112,6 +112,19 @@ function slug(t) {
 /* =================== sociétés et comptes =================== */
 const ANNUAIRE = "annuaire";                 /* magasin commun à toutes les sociétés */
 function magasinAnnuaire() { return getStore({ name: ANNUAIRE, consistency: "strong" }); }
+/* Les opérations sur les listes d'une même personne passent une par
+   une : une suppression et un enregistrement partis ensemble liraient
+   la même version, et le second à écrire ferait revenir la liste que
+   le premier venait de retirer. */
+const VERROUS_NOTES = new Map();
+function sousVerrou(cle, fn) {
+  const avant = VERROUS_NOTES.get(cle) || Promise.resolve();
+  const suite = avant.catch(() => {}).then(fn);
+  const garde = suite.catch(() => {});
+  VERROUS_NOTES.set(cle, garde);
+  garde.then(() => { if (VERROUS_NOTES.get(cle) === garde) VERROUS_NOTES.delete(cle); });
+  return suite;
+}
 function magasinSociete(code) {
   /* la première société garde son magasin d'origine, pour ne rien perdre */
   return getStore({ name: code === SOCIETE_DEPART.code ? "rapports" : "rapports-" + code, consistency: "strong" });
@@ -1136,10 +1149,54 @@ export default async (req) => {
       : fond;
   }
 
+  /* ---------- la mémoire des listes ----------
+     Trois garde-fous, depuis que des listes entières ont disparu :
+       1. un enregistrement AJOUTE et MET À JOUR, il ne retire jamais.
+          Un écran qui n'envoie qu'une liste (le « Tout cocher » de
+          l'accueil) ou un téléphone dont la mémoire a été vidée ne peut
+          plus effacer les autres. Retirer une liste passe uniquement
+          par « note-supprimer ».
+       2. une liste supprimée va à la corbeille (60 jours), d'où on la
+          fait revenir ; son identifiant empêche aussi un vieil écran de
+          la ressusciter sans le vouloir.
+       3. chaque jour, avant la première écriture, une copie complète
+          est gardée (14 jours), et elle se restaure depuis la page. */
+  const cleNotes = (nom) => "notes/" + slug(nom) + ".json";
+  const cleCorbeille = (nom) => "notes-corbeille/" + slug(nom) + ".json";
+  const prefixeSauvegardes = (nom) => "notes-sauvegardes/" + slug(nom) + "/";
+  /* une lecture qui échoue n'est pas une liste vide : on s'arrête là,
+     plutôt que de repartir de rien et d'écraser ce qui existe */
+  async function lireNotes(cle) {
+    const v = await store.get(cle, { type: "json" });
+    return Array.isArray(v) ? v : [];
+  }
+  async function lireCorbeille(nom) {
+    let v = [];
+    try { v = (await store.get(cleCorbeille(nom), { type: "json" })) || []; } catch { v = []; }
+    const limite = new Date(Date.now() - 60 * 864e5).toISOString();
+    return (Array.isArray(v) ? v : []).filter((n) => String(n.supprimeeLe || "") >= limite);
+  }
+  async function sauvegarderDuJour(nom, contenu) {
+    if (!contenu.length) return;
+    const jour = new Date().toISOString().slice(0, 10);
+    const pre = prefixeSauvegardes(nom);
+    try {
+      const deja = await store.get(pre + jour + ".json", { type: "json" });
+      if (deja) return;
+      await store.setJSON(pre + jour + ".json", contenu);
+      const res = await store.list({ prefix: pre });
+      const cles = (res.blobs || []).map((b) => b.key).sort();
+      for (const k of cles.slice(0, Math.max(0, cles.length - 14))) {
+        try { await store.delete(k); } catch { /* tant pis */ }
+      }
+    } catch { /* la sauvegarde ne doit jamais bloquer l'enregistrement */ }
+  }
+
   if (action === "notes") {
-    const cle = "notes/" + slug(personne.nom) + ".json";
-    let mien = [];
-    try { mien = (await store.get(cle, { type: "json" })) || []; } catch { mien = []; }
+    const cle = cleNotes(personne.nom);
+    let mien;
+    try { mien = await lireNotes(cle); }
+    catch { return json({ erreur: "Listes momentanément illisibles. Réessayez." }, 503); }
     /* on ajoute les listes que d'autres partagent avec moi */
     const out = mien.slice();
     try {
@@ -1150,87 +1207,158 @@ export default async (req) => {
         l.forEach((n) => { if (laVoit(n, personne.nom)) out.push(n); });
       }
     } catch { /* rien d'autre */ }
-    return json({ listes: out });
+    const corbeille = await lireCorbeille(personne.nom);
+    return json({ listes: out, supprimees: corbeille.map((n) => n.id), moi: personne.nom });
   }
 
   if (action === "notes-enregistrer") {
-    let d;
-    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
-    if (!Array.isArray(d.listes)) return json({ erreur: "Listes attendues." }, 400);
-    const cle = "notes/" + slug(personne.nom) + ".json";
-    /* Une liste reçue ne devient pas la mienne : si son identifiant vit
-       déjà chez quelqu'un d'autre, elle reste à lui, quoi qu'on m'envoie.
-       Sans cela, il suffirait de renvoyer une liste partagée à son nom
-       pour s'en emparer et en exclure les autres. */
-    const ailleurs = new Set();
-    try {
-      const res = await store.list({ prefix: "notes/" });
-      for (const b of (res.blobs || [])) {
-        if (b.key === cle) continue;
-        const l = (await store.get(b.key, { type: "json" })) || [];
-        l.forEach((n) => ailleurs.add(n.id));
-      }
-    } catch { /* rien d'autre */ }
-    /* on ne garde que les listes dont je suis l'auteur ou qui n'en ont pas.
-       Une liste partagée se fusionne case par case même chez son auteur :
-       un enregistrement parti d'un écran un peu vieux effacerait sinon
-       ce qu'un collègue vient d'ajouter. */
-    const deja = new Map();
-    try { ((await store.get(cle, { type: "json" })) || []).forEach((n) => deja.set(n.id, n)); }
-    catch { /* rien encore */ }
-    const miennes = d.listes
-      .filter((n) => !n.auteur || n.auteur === personne.nom)
-      .filter((n) => !ailleurs.has(n.id))
-      .map((n) => {
-        const vieille = deja.get(n.id);
-        const base = vieille && partageDe(vieille).length ? fusionnerListe(vieille, n, false) : n;
-        return { ...base, auteur: personne.nom };
-      })
-      .slice(0, 300);
-    await store.setJSON(cle, miennes);
-
-    /* ce qu'on écrit sur une liste partagée remonte chez son auteur —
-       et seulement si on fait bien partie du partage. */
-    const recues = d.listes.filter((n) => n.auteur && n.auteur !== personne.nom);
-    for (const n of recues) {
-      const autre = "notes/" + slug(n.auteur) + ".json";
+    return sousVerrou(personne.societe + ":" + cleNotes(personne.nom), async () => {
+      let d;
+      try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      if (!Array.isArray(d.listes)) return json({ erreur: "Listes attendues." }, 400);
+      const cle = cleNotes(personne.nom);
+      /* Une liste reçue ne devient pas la mienne : si son identifiant vit
+         déjà chez quelqu'un d'autre, elle reste à lui, quoi qu'on m'envoie.
+         Sans cela, il suffirait de renvoyer une liste partagée à son nom
+         pour s'en emparer et en exclure les autres. */
+      const ailleurs = new Set();
       try {
-        const l = (await store.get(autre, { type: "json" })) || [];
-        const i = l.findIndex((x) => x.id === n.id);
-        if (i < 0 || !laVoit(l[i], personne.nom)) continue;
-        l[i] = fusionnerListe(l[i], n, true);
-        await store.setJSON(autre, l);
-      } catch { /* l'auteur n'a rien encore */ }
-    }
-    return json({ ok: true, enregistrees: miennes.length });
+        const res = await store.list({ prefix: "notes/" });
+        for (const b of (res.blobs || [])) {
+          if (b.key === cle) continue;
+          const l = (await store.get(b.key, { type: "json" })) || [];
+          l.forEach((n) => ailleurs.add(n.id));
+        }
+      } catch { /* rien d'autre */ }
+      let stockees;
+      try { stockees = await lireNotes(cle); }
+      catch { return json({ erreur: "Listes momentanément illisibles : rien n'a été écrit." }, 503); }
+      await sauvegarderDuJour(personne.nom, stockees);
+      const jetees = new Set((await lireCorbeille(personne.nom)).map((n) => n.id));
+      /* Les listes déjà là restent, dans leur ordre. Une liste reçue
+         remplace la sienne si elle est au moins aussi récente ; une liste
+         partagée se fusionne case par case, même chez son auteur : un
+         écran un peu vieux effacerait sinon ce qu'un collègue vient
+         d'ajouter. */
+      const par = new Map(stockees.map((n) => [n.id, n]));
+      const nouvelles = [];
+      d.listes
+        .filter((n) => n && n.id && (!n.auteur || n.auteur === personne.nom))
+        .filter((n) => !ailleurs.has(n.id) && !jetees.has(n.id))
+        .forEach((n) => {
+          const vieille = par.get(n.id);
+          if (!vieille) { const l = { ...n, auteur: personne.nom }; par.set(n.id, l); nouvelles.push(n.id); return; }
+          if (partageDe(vieille).length) { par.set(n.id, { ...fusionnerListe(vieille, n, false), auteur: personne.nom }); return; }
+          if (String(n.maj || "") >= String(vieille.maj || "")) par.set(n.id, { ...n, auteur: personne.nom });
+        });
+      const ordre = nouvelles.concat(stockees.map((n) => n.id));
+      const miennes = ordre.map((id) => par.get(id)).filter(Boolean).slice(0, 500);
+      await store.setJSON(cle, miennes);
+
+      /* ce qu'on écrit sur une liste partagée remonte chez son auteur —
+         et seulement si on fait bien partie du partage. */
+      const recues = d.listes.filter((n) => n && n.auteur && n.auteur !== personne.nom);
+      for (const n of recues) {
+        const autre = cleNotes(n.auteur);
+        try {
+          const l = (await store.get(autre, { type: "json" })) || [];
+          const i = l.findIndex((x) => x.id === n.id);
+          if (i < 0 || !laVoit(l[i], personne.nom)) continue;
+          l[i] = fusionnerListe(l[i], n, true);
+          await store.setJSON(autre, l);
+        } catch { /* l'auteur n'a rien encore */ }
+      }
+      return json({ ok: true, enregistrees: miennes.length });
+    });
   }
 
   if (action === "note-supprimer") {
-    const id = url.searchParams.get("id") || "";
-    const cle = "notes/" + slug(personne.nom) + ".json";
+    return sousVerrou(personne.societe + ":" + cleNotes(personne.nom), async () => {
+      const id = url.searchParams.get("id") || "";
+      const cle = cleNotes(personne.nom);
+      try {
+        const l = await lireNotes(cle);
+        const jetee = l.find((n) => n.id === id);
+        if (jetee) {
+          /* d'abord la corbeille, ensuite seulement le retrait */
+          const corbeille = (await lireCorbeille(personne.nom)).filter((n) => n.id !== id);
+          corbeille.unshift({ ...jetee, supprimeeLe: new Date().toISOString() });
+          await store.setJSON(cleCorbeille(personne.nom), corbeille.slice(0, 100));
+          await store.setJSON(cle, l.filter((n) => n.id !== id));
+          return json({ ok: true });
+        }
+      } catch { return json({ erreur: "Suppression impossible pour le moment." }, 503); }
+      /* la liste n'est pas la mienne : je me retire du partage, je ne la
+         supprime pas chez son auteur. */
+      try {
+        const res = await store.list({ prefix: "notes/" });
+        for (const b of (res.blobs || [])) {
+          if (b.key === cle) continue;
+          const l = (await store.get(b.key, { type: "json" })) || [];
+          const i = l.findIndex((n) => n.id === id && laVoit(n, personne.nom));
+          if (i < 0) continue;
+          l[i] = { ...l[i],
+            partage: partageDe(l[i]).filter((x) => x !== personne.nom),
+            pour: l[i].pour === personne.nom ? "" : l[i].pour };
+          await store.setJSON(b.key, l);
+          return json({ ok: true, retire: true });
+        }
+      } catch { /* rien à faire */ }
+      return json({ ok: true });
+    });
+  }
+
+  /* la corbeille et les copies du jour, pour tout récupérer */
+  if (action === "notes-corbeille") {
+    const corbeille = await lireCorbeille(personne.nom);
+    const sauvegardes = [];
     try {
-      const l = (await store.get(cle, { type: "json" })) || [];
-      const avant = l.length;
-      const reste = l.filter((n) => n.id !== id);
-      if (reste.length !== avant) { await store.setJSON(cle, reste); return json({ ok: true }); }
-    } catch { /* rien à retirer */ }
-    /* la liste n'est pas la mienne : je me retire du partage, je ne la
-       supprime pas chez son auteur. */
-    try {
-      const res = await store.list({ prefix: "notes/" });
+      const res = await store.list({ prefix: prefixeSauvegardes(personne.nom) });
       for (const b of (res.blobs || [])) {
-        if (b.key === cle) continue;
+        const jour = b.key.slice(-15, -5);
         const l = (await store.get(b.key, { type: "json" })) || [];
-        const i = l.findIndex((n) => n.id === id && laVoit(n, personne.nom));
-        if (i < 0) continue;
-        l[i] = { ...l[i],
-          partage: partageDe(l[i]).filter((x) => x !== personne.nom),
-          pour: l[i].pour === personne.nom ? "" : l[i].pour };
-        await store.setJSON(b.key, l);
-        return json({ ok: true, retire: true });
+        sauvegardes.push({ jour, listes: l.length,
+          taches: l.reduce((a, n) => a + (n.items || []).length, 0),
+          titres: l.slice(0, 6).map((n) => n.titre || "Sans titre") });
       }
-    } catch { /* rien à faire */ }
-    return json({ ok: true });
+    } catch { /* aucune */ }
+    sauvegardes.sort((x, y) => y.jour.localeCompare(x.jour));
+    return json({ corbeille: corbeille.map((n) => ({ id: n.id, titre: n.titre || "", supprimeeLe: n.supprimeeLe,
+      taches: (n.items || []).length, couleur: n.couleur || "" })), sauvegardes });
+  }
+
+  if (action === "note-restaurer" || action === "notes-restaurer-jour") {
+    return sousVerrou(personne.societe + ":" + cleNotes(personne.nom), async () => {
+      const cle = cleNotes(personne.nom);
+      let l;
+      try { l = await lireNotes(cle); }
+      catch { return json({ erreur: "Listes momentanément illisibles." }, 503); }
+      const ids = new Set(l.map((n) => n.id));
+      let corbeille = await lireCorbeille(personne.nom);
+      let revenues = [];
+      if (action === "note-restaurer") {
+        const id = url.searchParams.get("id") || "";
+        const n = corbeille.find((x) => x.id === id);
+        if (!n) return json({ erreur: "Cette liste n'est plus dans la corbeille." }, 404);
+        const { supprimeeLe, ...propre } = n;
+        revenues = [{ ...propre, maj: new Date().toISOString() }];
+      } else {
+        const jour = String(url.searchParams.get("jour") || "");
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(jour)) return json({ erreur: "Jour attendu." }, 400);
+        let copie = null;
+        try { copie = await store.get(prefixeSauvegardes(personne.nom) + jour + ".json", { type: "json" }); } catch { copie = null; }
+        if (!Array.isArray(copie)) return json({ erreur: "Pas de copie ce jour-là." }, 404);
+        /* on rapporte ce qui manque aujourd'hui, sans toucher au reste */
+        revenues = copie.filter((n) => !ids.has(n.id)).map((n) => ({ ...n, maj: new Date().toISOString() }));
+      }
+      revenues = revenues.filter((n) => !ids.has(n.id));
+      const rid = new Set(revenues.map((n) => n.id));
+      corbeille = corbeille.filter((n) => !rid.has(n.id));
+      await sauvegarderDuJour(personne.nom, l);
+      await store.setJSON(cle, revenues.concat(l));
+      await store.setJSON(cleCorbeille(personne.nom), corbeille);
+      return json({ ok: true, restaurees: revenues.length, ids: revenues.map((n) => n.id) });
+    });
   }
 
   /* ---------- tâches datées ---------- */

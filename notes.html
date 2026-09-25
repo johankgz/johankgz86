@@ -741,6 +741,25 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .ed-fermer:hover{background:rgba(34,32,28,.06)}
 body.ed-ouvert{overflow:hidden}
 @media (min-width:700px){ .ed-fond{align-items:center;padding-top:40px} }
+/* ---------- corbeille et copies automatiques ---------- */
+#corbeille{position:fixed;inset:0;z-index:80;background:rgba(10,14,20,.55);display:flex;align-items:flex-end;
+  justify-content:center;padding:calc(12px + env(safe-area-inset-top,0px)) 0 0}
+#corbeille[hidden]{display:none}
+#corbeille .cb-boite{width:100%;max-width:620px;max-height:100%;overflow:auto;background:#fff;color:#0C1119;
+  border-radius:16px 16px 0 0;padding:16px 16px calc(20px + env(safe-area-inset-bottom,0px));
+  animation:cbMonte .22s cubic-bezier(.2,.8,.2,1)}
+@keyframes cbMonte{from{transform:translateY(24px);opacity:0}to{transform:none;opacity:1}}
+@media (prefers-reduced-motion:reduce){ #corbeille .cb-boite{animation:none} }
+#corbeille .cb-tete{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+#corbeille .cb-tete h2{flex:1;margin:0;font-size:17px;font-weight:650;letter-spacing:-.015em}
+#corbeille h3{margin:16px 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:#6B7684}
+#corbeille .cb-l{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #EEF1F4}
+#corbeille .cb-l:last-child{border-bottom:0}
+#corbeille .cb-l .t{flex:1;min-width:0}
+#corbeille .cb-l b{display:block;font-size:14.5px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#corbeille .cb-l span{display:block;font-size:12px;color:#6B7684;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+#corbeille .cb-l button{flex:0 0 auto;min-height:36px;padding:7px 12px;font-size:13px}
+#corbeille .hint{font-size:13px;color:#6B7684;margin:6px 0}
 </style>
 </head>
 <body>
@@ -755,6 +774,7 @@ body.ed-ouvert{overflow:hidden}
   <div class="row" style="margin-bottom:14px">
     <button class="act blue" id="btnNouvelle" style="flex:1">Nouvelle liste</button>
     <button class="act ghost" id="btnSync">Synchroniser</button>
+    <button class="act ghost" id="btnCorbeille" title="Listes supprimées et copies automatiques">Corbeille</button>
   </div>
 
   <label class="f" id="champRecherche" hidden>
@@ -767,6 +787,15 @@ body.ed-ouvert{overflow:hidden}
 
   <div class="haut"><button type="button" id="btnHaut"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6"/><path d="M6 11l6-6 6 6"/></svg>Revenir en haut</button></div>
 </main>
+<div id="corbeille" role="dialog" aria-modal="true" aria-labelledby="corbTitre" hidden>
+  <div class="cb-boite">
+    <div class="cb-tete">
+      <h2 id="corbTitre">Corbeille et copies</h2>
+      <button type="button" class="act ghost" id="corbFermer">Fermer</button>
+    </div>
+    <div id="corbCorps"><p class="hint">Chargement…</p></div>
+  </div>
+</div>
 <div id="sketch" hidden>
   <div class="sk-bar">
     <span class="title" id="sk_title"></span>
@@ -908,8 +937,15 @@ function ilya(iso){
   return "le "+frCourt(iso);
 }
 
-var N={listes:[], supprimees:[]}, FILTRE="toutes", EQUIPE=[], DOSSIERS=[], SYNC="local";
+var N={listes:[], aSupprimer:[]}, FILTRE="toutes", EQUIPE=[], DOSSIERS=[], SYNC="local";
 var MOI=(SESSION && SESSION.nom) ? SESSION.nom : "";
+/* Le nom sous lequel le serveur signe mes listes (« Johan ») n'est pas
+   forcément celui de la session (« Johan Klughertz ») : on retient le
+   sien pour reconnaître mes listes. */
+var AUTEUR_MOI="";
+try{ AUTEUR_MOI=localStorage.getItem("notes:moi")||""; }catch(e){}
+function estMoi(nom){ return !!nom && (nom === MOI || nom === AUTEUR_MOI); }
+function dAutrui(l){ return !!l.auteur && !estMoi(l.auteur); }
 var COULEURS=[["jaune","#FDF3D3"],["vert","#E6F4E4"],["bleu","#E3EEFC"],
               ["rose","#FBE6E6"],["violet","#EFE8FB"],["gris","#EEF1F5"]];
 
@@ -927,7 +963,10 @@ function charger_local(cb){
     window.storage.get("notes:local").then(function(r){
       if(r && r.value){ try{ N=JSON.parse(r.value); }catch(e){} }
       if(!N.listes) N.listes=[];
-      if(!N.supprimees) N.supprimees=[];
+      if(!N.aSupprimer) N.aSupprimer=[];
+      /* l'ancienne liste des suppressions ne sert plus : c'est la
+         corbeille du serveur qui fait foi */
+      delete N.supprimees;
       cb();
     }).catch(cb);
   }catch(e){ cb(); }
@@ -958,22 +997,28 @@ function pousser_serveur(){
     .catch(function(){ envoiEnCours=false; majSync("hors"); });
 }
 function tirer_serveur(cb){
-  if(!apiPret(true)){ majSync("hors"); if(cb) cb(); return; }
+  var fini=false;
+  function fin(){ if(fini) return; fini=true; if(cb) cb(); }
+  if(!apiPret(true)){ majSync("hors"); fin(); return; }
   majSync("cours");
   fetch(apiUrl("notes"), {headers:apiEnTetes()})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
-      fusionner(d.listes||[]);
+      if(d.moi){ AUTEUR_MOI=d.moi; try{ localStorage.setItem("notes:moi", d.moi); }catch(e){} }
+      fusionner(d.listes||[], d.supprimees||[]);
       majSync("ok");
       try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
       render();
-      if(cb) cb();
+      /* les suppressions en attente partent d'abord, l'envoi ensuite */
+      return supprimerEnAttente(d.listes||[], d.supprimees||[]).then(fin);
     })
-    .catch(function(){ majSync("hors"); if(cb) cb(); });
+    .catch(function(){ majSync("hors"); fin(); });
 }
-function fusionner(distantes){
+function fusionner(distantes, jeteesServeur){
   /* la version la plus récente gagne, liste par liste */
-  var jetees = N.supprimees || [];
+  /* ce qui est supprimé : la corbeille du serveur, plus ce qu'on a
+     supprimé ici sans avoir encore pu le lui dire */
+  var jetees = (N.aSupprimer || []).concat(jeteesServeur || []);
   distantes = distantes.filter(function(d){ return jetees.indexOf(d.id)<0; });
   var par={};
   N.listes.forEach(function(l){ par[l.id]=l; });
@@ -984,11 +1029,44 @@ function fusionner(distantes){
       for(var k in d) loc[k]=d[k];
     }
   });
-  /* les listes supprimées ailleurs disparaissent aussi ici */
+  /* Une liste ne disparaît d'ici que si elle a été supprimée — ici ou
+     ailleurs (le serveur tient la corbeille). Une liste à moi que le
+     serveur ne renvoie pas n'est PAS supprimée : elle lui manque, et le
+     prochain envoi la lui rend. C'est ce qui a permis, avant, de tout
+     perdre : un serveur qui répondait « rien » effaçait aussi le
+     téléphone. Seule une liste d'un collègue qui ne me la partage plus
+     s'en va. */
   var ids={};
   distantes.forEach(function(d){ ids[d.id]=1; });
-  N.listes = N.listes.filter(function(l){ return ids[l.id] || l.local; });
+  N.listes = N.listes.filter(function(l){
+    if(jetees.indexOf(l.id)>=0) return false;
+    if(ids[l.id] || l.local) return true;
+    /* « moi » tel que le serveur signe mes listes ; sans cette
+       réponse, dans le doute, on garde */
+    return !l.auteur || !AUTEUR_MOI || l.auteur === AUTEUR_MOI;
+  });
   trier();
+}
+/* une liste supprimée ici hors connexion : le serveur l'a encore, on
+   la lui fait mettre à la corbeille maintenant */
+function supprimerEnAttente(distantes, jeteesServeur){
+  var envois=[];
+  (N.aSupprimer||[]).slice().forEach(function(id){
+    if((jeteesServeur||[]).indexOf(id)>=0 || !distantes.some(function(d){ return d.id===id; })){
+      oublierSuppression(id); return;
+    }
+    envois.push(envoyerSuppression(id));
+  });
+  return Promise.all(envois);
+}
+function oublierSuppression(id){
+  N.aSupprimer=(N.aSupprimer||[]).filter(function(x){ return x!==id; });
+  try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
+}
+function envoyerSuppression(id){
+  return fetch(apiUrl("note-supprimer")+"&id="+encodeURIComponent(id), {headers:apiEnTetes()})
+    .then(function(r){ if(r.ok) oublierSuppression(id); return r.ok; })
+    .catch(function(){ return false; });
 }
 /* Une liste reste à sa place : on la retrouve là où on l'a laissée, qu'on
    la modifie ou qu'on la coche. Seule l'épingle la met en tête ; les
@@ -1031,7 +1109,7 @@ function visibles(){
   var q=($("q") && $("q").value || "").trim().toLowerCase();
   return N.listes.filter(function(l){
     if(FILTRE==="epinglees" && !l.epingle) return false;
-    if(FILTRE==="partagees" && !partageDe(l).length && !(l.auteur && l.auteur !== MOI)) return false;
+    if(FILTRE==="partagees" && !partageDe(l).length && !dAutrui(l)) return false;
     if(FILTRE==="faites" && !toutFait(l)) return false;
     if(q){
       var foin=[l.titre, l.auteur].concat(partageDe(l))
@@ -1142,7 +1220,7 @@ function apercu(l){
   }
   var tags=document.createElement("div"); tags.className="k-tags";
   var partagee=partageDe(l);
-  if(l.auteur && l.auteur !== MOI) tags.appendChild(tag("de "+l.auteur, "gris"));
+  if(dAutrui(l)) tags.appendChild(tag("de "+l.auteur, "gris"));
   else if(partagee.length) tags.appendChild(tag(partagee.length>2 ? "partagée · "+partagee.length : "partagée · "+partagee.join(", "), "gris"));
   if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < new Date().toISOString().slice(0,10) ? "rouge" : "ambre"));
   if(tags.children.length) corps.appendChild(tags);
@@ -1256,7 +1334,7 @@ function carte(l){
   var tags=document.createElement("div"); tags.className="n-tags";
   tags.style.cssText="display:flex;flex-wrap:wrap;gap:6px;margin:8px 0 2px;width:100%";
   var partagee=partageDe(l);
-  if(l.auteur && l.auteur !== MOI){
+  if(dAutrui(l)){
     tags.appendChild(tag("de "+l.auteur, "gris"));
   } else if(partagee.length){
     tags.appendChild(tag(partagee.length>2
@@ -1318,7 +1396,7 @@ function carte(l){
        : restantes(l)+" restante"+(restantes(l)>1?"s":"")+" sur "+l.items.length)
     : "Liste vide";
   if(l.maj) etat.textContent += " · modifiée "+ilya(l.maj);
-  if(l.auteur && l.auteur !== MOI) etat.textContent += " · liste de "+l.auteur;
+  if(dAutrui(l)) etat.textContent += " · liste de "+l.auteur;
   pied.appendChild(etat);
 
   var outils=document.createElement("div"); outils.className="n-outils";
@@ -1529,7 +1607,7 @@ function saisiePartage(l){
   lab.textContent="Partagée avec";
   box.appendChild(lab);
   var noms=partageDe(l);
-  var mien = !l.auteur || l.auteur === MOI;
+  var mien = !dAutrui(l);
 
   if(noms.length){
     var pils=document.createElement("div");
@@ -1585,7 +1663,7 @@ function saisiePartage(l){
                           : "Aucun utilisateur ne porte ce nom."));
       return;
     }
-    if(nom === MOI){ toast("La liste est déjà la vôtre."); return; }
+    if(estMoi(nom)){ toast("La liste est déjà la vôtre."); return; }
     if(noms.indexOf(nom)>=0){ toast(nom+" y a déjà accès."); return; }
     poserPartage(l, noms.concat([nom]));
     toast("Partagée avec "+nom+".");
@@ -1639,20 +1717,88 @@ function champDate(libelle, valeur, fn){
   lab.appendChild(s); lab.appendChild(i);
   return lab;
 }
+function frDateHeure(iso){
+  if(!iso) return "";
+  var a=String(iso).slice(0,10).split("-");
+  return a[2]+"/"+a[1]+"/"+a[0]+" à "+String(iso).slice(11,16);
+}
+function ouvrirCorbeille(){
+  var v=$("corbeille"), corps=$("corbCorps");
+  v.hidden=false;
+  corps.innerHTML='<p class="hint">Chargement…</p>';
+  if(!apiPret()){ corps.innerHTML='<p class="hint">La corbeille est sur le site : connectez-vous pour la voir.</p>'; return; }
+  fetch(apiUrl("notes-corbeille"), {headers:apiEnTetes()})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ peindreCorbeille(d); })
+    .catch(function(){ corps.innerHTML='<p class="hint">Pas de réseau. Réessayez dans un instant.</p>'; });
+}
+function peindreCorbeille(d){
+  var corps=$("corbCorps"); corps.textContent="";
+  function titre(t){ var h=document.createElement("h3"); h.textContent=t; corps.appendChild(h); }
+  function ligne(tb, ts, libelle, action){
+    var r=document.createElement("div"); r.className="cb-l";
+    var t=document.createElement("div"); t.className="t";
+    var b=document.createElement("b"); b.textContent=tb;
+    var sp=document.createElement("span"); sp.textContent=ts;
+    t.appendChild(b); t.appendChild(sp);
+    var bt=document.createElement("button"); bt.type="button"; bt.className="act ghost"; bt.textContent=libelle;
+    bt.addEventListener("click", function(){ action(bt); });
+    r.appendChild(t); r.appendChild(bt); corps.appendChild(r);
+  }
+  titre("Listes supprimées");
+  if(!(d.corbeille||[]).length){
+    var p=document.createElement("p"); p.className="hint";
+    p.textContent="Aucune. Une liste supprimée reste ici 60 jours.";
+    corps.appendChild(p);
+  }
+  (d.corbeille||[]).forEach(function(n){
+    ligne(n.titre || "Liste sans titre",
+      n.taches+" tâche"+(n.taches>1?"s":"")+" · supprimée le "+frDateHeure(n.supprimeeLe),
+      "Restaurer", function(bt){ restaurer("note-restaurer", "&id="+encodeURIComponent(n.id), bt); });
+  });
+  titre("Copies automatiques");
+  var ex=document.createElement("p"); ex.className="hint";
+  ex.textContent="Chaque jour, le site garde une copie de toutes vos listes (14 jours). « Récupérer » rapporte les listes de ce jour-là qui manquent aujourd'hui, sans toucher aux autres.";
+  corps.appendChild(ex);
+  if(!(d.sauvegardes||[]).length){
+    var q=document.createElement("p"); q.className="hint"; q.textContent="Pas encore de copie : la première se fait à la prochaine modification.";
+    corps.appendChild(q);
+  }
+  (d.sauvegardes||[]).forEach(function(c){
+    var j=c.jour.split("-");
+    ligne(j[2]+"/"+j[1]+"/"+j[0]+" — "+c.listes+" liste"+(c.listes>1?"s":"")+", "+c.taches+" tâche"+(c.taches>1?"s":""),
+      (c.titres||[]).join(" · "),
+      "Récupérer", function(bt){ restaurer("notes-restaurer-jour", "&jour="+encodeURIComponent(c.jour), bt); });
+  });
+}
+function restaurer(action, params, bt){
+  bt.disabled=true; bt.textContent="…";
+  fetch(apiUrl(action)+params, {method:"POST", headers:apiEnTetes(), body:"{}"})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ bt.disabled=false; bt.textContent="Réessayer"; toast(res.d.erreur || "Impossible pour le moment."); return; }
+      var n=res.d.restaurees||0;
+      (res.d.ids||[]).forEach(oublierSuppression);
+      /* ce qui revient n'est plus « supprimé » sur ce téléphone */
+      tirer_serveur(function(){
+        toast(n ? n+" liste"+(n>1?"s":"")+" de retour." : "Rien ne manquait : toutes ces listes sont déjà là.");
+        ouvrirCorbeille();
+      });
+    })
+    .catch(function(){ bt.disabled=false; bt.textContent="Réessayer"; toast("Pas de réseau."); });
+}
+
 function supprimer(l){
-  /* on garde une trace de la suppression pour que la synchronisation ne la rende pas */
-  N.supprimees = N.supprimees || [];
-  if(N.supprimees.indexOf(l.id)<0) N.supprimees.push(l.id);
-  if(N.supprimees.length>200) N.supprimees = N.supprimees.slice(-200);
+  /* La suppression reste « à dire au serveur » tant qu'il ne l'a pas
+     prise : hors connexion, elle part à la prochaine synchronisation.
+     Le serveur met la liste à la corbeille (60 jours). */
+  N.aSupprimer = N.aSupprimer || [];
+  if(N.aSupprimer.indexOf(l.id)<0) N.aSupprimer.push(l.id);
   N.listes = N.listes.filter(function(x){ return x.id!==l.id; });
   try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
   render();
-  toast("Liste supprimée.");
-  if(apiPret(true)){
-    fetch(apiUrl("note-supprimer")+"&id="+encodeURIComponent(l.id), {headers:apiEnTetes()})
-      .then(function(){ pousser_serveur(); })
-      .catch(function(){ save(); });
-  } else { save(); }
+  toast("Liste supprimée — elle reste 60 jours dans la corbeille.");
+  if(apiPret(true)) envoyerSuppression(l.id);
 }
 
 var SK = {
@@ -1962,6 +2108,10 @@ function renderFiltres(){
 function bindAll(){
   $("btnNouvelle").addEventListener("click", nouvelleListe);
   $("btnSync").addEventListener("click", function(){ tirer_serveur(function(){ pousser_serveur(); }); });
+  $("btnCorbeille").addEventListener("click", ouvrirCorbeille);
+  $("corbFermer").addEventListener("click", function(){ $("corbeille").hidden=true; });
+  $("corbeille").addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("corbeille").hidden) $("corbeille").hidden=true; });
   $("btnHaut").addEventListener("click", function(){ window.scrollTo({top:0, behavior:"smooth"}); });
   $("q").addEventListener("input", render);
   var attente=null;
