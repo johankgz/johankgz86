@@ -784,7 +784,7 @@ function retenirPli(ref, ouvert){
 var SOUS_DOSSIERS={
   suivi:{nom:"Suivi de chantier", classe:"sous-dossier dossier-suivi", memo:"rapports:suivis", mot:"suivi",
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
-  photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document",
+  photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document", exporter:true,
     ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
 };
 /* le sous-dossier où range un document, s'il y en a un */
@@ -799,6 +799,62 @@ function ouverts(genre){
     try{ OUVERTS[genre]=JSON.parse(sessionStorage.getItem(SOUS_DOSSIERS[genre].memo)||"{}")||{}; }catch(e){ OUVERTS[genre]={}; }
   }
   return OUVERTS[genre];
+}
+/* ---------- « Tout télécharger » : toutes les photos du chantier en un ZIP ----------
+   Chaque lot de photos (reportage, suivi, relevé) devient un dossier daté
+   dans l'archive, ses photos dedans ; les PDF de reportage sont posés à
+   côté. Un lot qu'on ne sait pas ouvrir est gardé tel quel, en ZIP. */
+function nomPropre(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[\/\\:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,70) || "photos";
+}
+function exporterPhotos(ref, lignes, bouton){
+  var docs=lignes.map(function(l){ return l.f; }).slice().sort(function(a,b){
+    return String(a.date||"").localeCompare(String(b.date||"")) || String(a.publie||"").localeCompare(String(b.publie||""));
+  });
+  var racine=nomPropre("Photos "+ref);
+  var fichiers=[], pris={}, nbPhotos=0, fait=0;
+  /* seul le libellé change pendant la préparation : l'icône reste */
+  var lib=bouton.querySelector("span")||bouton, avant=lib.textContent;
+  bouton.disabled=true;
+  function unique(nom){
+    var n=nom, k=2;
+    while(pris[n]){ n=nom.replace(/(\.[^.\/]+)?$/, " ("+(k++)+")$1"); }
+    pris[n]=true; return n;
+  }
+  function avancer(){ lib.textContent="Préparation "+(++fait)+"/"+docs.length+"…"; }
+  var suite=Promise.resolve();
+  docs.forEach(function(f){
+    suite=suite.then(function(){
+      return fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+        .then(function(r){ if(!r.ok) throw new Error("fichier"); return r.arrayBuffer(); })
+        .then(function(buf){
+          var octs=new Uint8Array(buf), date=String(f.date||"").slice(0,10);
+          var ext=String(f.cle).slice(String(f.cle).lastIndexOf(".")).toLowerCase();
+          var titre=nomPropre((date ? date+" " : "")+(f.titre||"Photos"));
+          var photos = ext===".zip" ? lireZip(octs) : [];
+          if(photos.length){
+            var dossier=unique(racine+"/"+titre);
+            photos.forEach(function(ph){
+              fichiers.push({nom:unique(dossier+"/"+String(ph.nom).split("/").pop()), octets:ph.octets});
+            });
+            nbPhotos+=photos.length;
+          } else {
+            fichiers.push({nom:unique(racine+"/"+titre+ext), octets:octs});
+          }
+          avancer();
+        });
+    });
+  });
+  suite.then(function(){
+    enregistrer(creerZip(fichiers), racine.replace(/\s+/g,"-")+".zip");
+    bouton.disabled=false; lib.textContent=avant;
+    toast(nbPhotos+" photo"+(nbPhotos>1?"s":"")+" exportée"+(nbPhotos>1?"s":"")
+      +(fichiers.length>nbPhotos ? ", avec "+(fichiers.length-nbPhotos)+" document"+((fichiers.length-nbPhotos)>1?"s":"") : "")+".");
+  }).catch(function(){
+    bouton.disabled=false; lib.textContent=avant;
+    alert("Export interrompu : un document n'a pas pu être téléchargé. Vérifiez la connexion.");
+  });
 }
 function sousDossier(ref, genre){
   var g=SOUS_DOSSIERS[genre];
@@ -826,6 +882,21 @@ function sousDossier(ref, genre){
       +'<span class="ds-nb">'+lignes.length+'</span>'
       +'<svg class="ds-pli" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
     tete.setAttribute("aria-label", g.nom+", "+lignes.length+" "+g.mot+(lignes.length>1?"s":""));
+    if(g.exporter){
+      var barre=document.createElement("div"); barre.className="ds-export";
+      var bx=document.createElement("button"); bx.type="button"; bx.className="ds-tout";
+      bx.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19.5h14"/></svg>'
+        +'<span>Tout télécharger</span>';
+      bx.title="Toutes les photos du chantier dans un seul fichier ZIP";
+      bx.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        exporterPhotos(ref, lignes, bx);
+      });
+      var mot=document.createElement("span"); mot.className="hint";
+      mot.textContent="Un seul ZIP, un dossier par reportage";
+      barre.appendChild(bx); barre.appendChild(mot);
+      dedans.appendChild(barre);
+    }
     lignes.forEach(function(l){ dedans.appendChild(l.a); });
   }};
 }
