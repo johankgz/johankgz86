@@ -751,6 +751,7 @@ details.block.sv-societe summary{padding:0}
 .sv-corps .sv-txt{width:100%;min-height:40px;padding:8px 10px;font-size:15px}
 .sv-ligne.fait .sv-txt{color:var(--ink-3);text-decoration:line-through}
 .sv-qui{display:flex;flex-wrap:wrap;gap:6px}
+.sv-depuis{font-size:12px;font-weight:600;color:var(--data)}
 .sv-qui .chip{min-height:32px;padding:5px 11px;font-size:12.5px}
 .sv-sup{flex:0 0 auto;width:34px;height:34px;min-height:34px;padding:0;margin-top:5px;border:0;border-radius:50%;
   background:none;color:var(--ink-3);font-size:20px;line-height:1;cursor:pointer;box-shadow:none}
@@ -870,7 +871,7 @@ a.act[hidden]{display:none}
 
   <div class="block" id="sec-ts">
     <h2><span class="sv-num">3</span>Travaux supplémentaires</h2>
-    <p class="hint sv-aide">Une ligne par demande, au fil de la visite, et en face qui l'a demandée. La case se coche une fois la demande chiffrée ou validée.</p>
+    <p class="hint sv-aide">Une ligne par demande, au fil de la visite, et en face qui l'a demandée. La case se coche une fois la demande chiffrée ou validée. Les demandes pas encore chiffrées passent d'un suivi au suivant : la liste suit le chantier jusqu'à la fin.</p>
     <div id="ts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="ts_texte" placeholder="Nouvelle demande…" enterkeyhint="done" aria-label="Nouvelle demande de travaux supplémentaires">
@@ -1302,6 +1303,11 @@ function renderTs(){
     l.appendChild(caseACocher(it, "Demande chiffrée ou validée : "+(it.texte||""), renderTs));
     var corps=document.createElement("div"); corps.className="sv-corps";
     corps.appendChild(champTexte(it, renderResume));
+    if(it.depuis){
+      var dp=document.createElement("span"); dp.className="sv-depuis";
+      dp.textContent="Demandée le "+frDate(it.depuis)+", reprise du suivi précédent";
+      corps.appendChild(dp);
+    }
     var qui=document.createElement("div"); qui.className="sv-qui";
     qui.setAttribute("role","group"); qui.setAttribute("aria-label","Demandée par");
     DEMANDEURS.forEach(function(d){
@@ -1321,8 +1327,10 @@ function renderTs(){
     var n=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
     var par={};
     n.forEach(function(x){ var k=x.qui||"sans demandeur"; par[k]=(par[k]||0)+1; });
+    var reprises=n.filter(function(x){ return x.depuis; }).length;
     b.textContent = n.length
-      ? n.length+" demande"+(n.length>1?"s":"")+" · "+Object.keys(par).map(function(k){ return par[k]+" "+k.toLowerCase(); }).join(", ")
+      ? n.length+" demande"+(n.length>1?"s":"")+(reprises ? " dont "+reprises+" reprise"+(reprises>1?"s":"")+" des suivis précédents" : "")
+        +" · "+Object.keys(par).map(function(k){ return par[k]+" "+k.toLowerCase(); }).join(", ")
       : "";
   }
   renderResume();
@@ -2223,10 +2231,15 @@ function buildPdf(){
     ts.forEach(function(it){
       doc.setFont("helvetica","normal"); doc.setFontSize(10);
       var lignes=doc.splitTextToSize(it.texte, xQui-M-12);
-      var h=lignes.length*5+3;
+      var h=lignes.length*5+3+(it.depuis ? 4 : 0);
       need(h+2);
       caseDessinee(M+2, y, !!it.fait, OK);
       setText(INK); doc.text(lignes, M+9, y);
+      if(it.depuis){
+        doc.setFontSize(8); setText(GREY);
+        doc.text("demandée le "+frDate(it.depuis), M+9, y+lignes.length*5-0.6);
+        doc.setFontSize(10);
+      }
       doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(it.qui ? ACC : GREY);
       doc.text(it.qui || "—", xQui+2, y);
       y += h;
@@ -2234,7 +2247,7 @@ function buildPdf(){
       y += 1.5;
     });
     doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    need(6); doc.text("Case cochée : demande chiffrée ou validée.", M+1, y+1); setText(INK); y+=7;
+    need(6); doc.text("Case cochée : demande chiffrée ou validée. Les demandes pas encore chiffrées sont reprises au suivi suivant.", M+1, y+1); setText(INK); y+=7;
   }
 
   /* ---------- 4. le reportage photo ---------- */
@@ -2763,6 +2776,8 @@ function reprendreDossier(d){
   S.client.adresse = d.adresse || S.client.adresse;
   S.affaire.chantier = d.ref || S.affaire.chantier;
   save(); paintForm(); equipeDuDossier(); showTab("suivi");
+  /* un suivi neuf sur ce chantier : les demandes en cours reviennent */
+  if(!ficheRemplie(S) || !(S.ts||[]).length) reprendreTsPrecedents();
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
@@ -3113,6 +3128,53 @@ function partagerRapport(){
   toast("Partage indisponible sur cet appareil : document enregistré.");
 }
 
+/* ---------- les travaux supplémentaires passent d'un suivi à l'autre ----------
+   Une demande pas encore chiffrée suit le chantier : elle revient dans
+   le suivi suivant, avec la date où elle a été faite. Chiffrée ou
+   validée (cochée), elle s'arrête là. On reprend le dernier suivi
+   enregistré du chantier, autre que celui-ci. */
+function tsAReporter(liste, dateSuivi){
+  return (liste||[]).filter(function(it){ return !it.fait && (it.texte||"").trim(); }).map(function(it){
+    return {id:it.id||uid(), texte:it.texte, qui:it.qui||"", fait:false, depuis:it.depuis||dateSuivi||""};
+  });
+}
+function reprendreTsPrecedents(){
+  if(!refAffaire() || !apiPret(true)) return Promise.resolve(0);
+  var monId=S.suiviId, maRef=refAffaire();
+  return fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var c=(d.chantiers||[]).filter(function(x){ return memeRef(x.ref, maRef); })[0];
+      var suivis=((c && c.fichiers)||[]).filter(function(f){ return f.type==="suivi" && f.donnees; })
+        .sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")) || String(b.publie||"").localeCompare(String(a.publie||"")); });
+      /* le plus récent qui n'est pas ce suivi-ci */
+      function essai(i){
+        if(i >= suivis.length) return Promise.resolve(null);
+        return fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(suivis[i].cle), {headers:{"x-auth":jetonSession()}})
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(f){ return (f && f.version===2 && f.suiviId!==monId) ? f : essai(i+1); })
+          .catch(function(){ return essai(i+1); });
+      }
+      return essai(0);
+    })
+    .then(function(f){
+      if(!f || S.suiviId!==monId || !memeRef(refAffaire(), maRef)) return 0;
+      var chiffres={};
+      (f.ts||[]).forEach(function(it){ if(it.fait && it.id) chiffres[it.id]=true; });
+      /* ce qu'on avait reporté ici et qui a été chiffré depuis s'en va */
+      S.ts=(S.ts||[]).filter(function(it){ return !(it.depuis && chiffres[it.id]); });
+      var deja={}; S.ts.forEach(function(it){ deja[it.id]=true; });
+      var neufs=tsAReporter(f.ts, (f.visite||{}).date).filter(function(it){ return !deja[it.id]; });
+      if(!neufs.length){ save(); renderTs(); return 0; }
+      S.ts = neufs.concat(S.ts);
+      save(); renderTs();
+      toast(neufs.length+" travaux supplémentaire"+(neufs.length>1?"s":"")+" pas encore chiffré"+(neufs.length>1?"s":"")
+        +" repris du suivi du "+frDate((f.visite||{}).date)+".");
+      return neufs.length;
+    })
+    .catch(function(){ return 0; });
+}
+
 /* ---------- un nouveau suivi ----------
    Chaque suivi est indépendant : on garde le client, le chantier et le
    conducteur de travaux, on repart d'une page blanche pour le reste. */
@@ -3123,7 +3185,10 @@ function nouveauSuivi(demander){
     return;
   var n=blank();
   n.client=S.client; n.affaire=S.affaire; n.meta=S.meta; n.lien=S.lien;
+  /* les demandes pas encore chiffrées continuent dans le nouveau suivi */
+  n.ts=tsAReporter(S.ts, S.visite.date);
   S=n; save(); paintForm(); showTab("suivi");
+  reprendreTsPrecedents();
   var b=$("btnSuivant"); if(b) b.remove();
   $("pubEtat").textContent="";
   toast("Nouveau suivi.");
