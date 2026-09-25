@@ -860,10 +860,17 @@ function creerZip(fichiers){          /* [{nom, octets}] -> Blob */
 }
 
 var CHANTIERS=[];
+/* Les dossiers en attente de réponse (au chiffrage, chez le client) ne
+   figurent pas ici : ils ont leur propre rubrique sur l'accueil, avec
+   les réponses à donner. CHANTIERS garde tout le monde, pour qu'une
+   discussion ouverte depuis la page d'un chantier en attente marche. */
+function actifs(){
+  return CHANTIERS.filter(function(c){ return c.etat !== "attente"; });
+}
 function filtrer(){
   var q=($("recherche").value||"").trim().toLowerCase();
-  if(!q) return CHANTIERS;
-  return CHANTIERS.filter(function(c){
+  if(!q) return actifs();
+  return actifs().filter(function(c){
     if((c.client||"").toLowerCase().indexOf(q)>=0) return true;
     if((c.ref||"").toLowerCase().indexOf(q)>=0) return true;
     if((c.adresse||"").toLowerCase().indexOf(q)>=0) return true;
@@ -871,9 +878,11 @@ function filtrer(){
   });
 }
 function majCompteur(n){
-  $("compteur").textContent = CHANTIERS.length
-    ? n + " dossier" + (n>1?"s":"") + " affiché" + (n>1?"s":"") + " sur " + CHANTIERS.length
-    : "";
+  var total=actifs().length, att=CHANTIERS.length-total;
+  $("compteur").textContent = (total
+    ? n + " dossier" + (n>1?"s":"") + " affiché" + (n>1?"s":"") + " sur " + total
+    : "")
+    + (att ? (total ? " · " : "") + att + " en attente de réponse, rangé" + (att>1?"s":"") + " sur l'accueil" : "");
 }
 function nomLisible(f){
   var base=(f.titre||"document").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
@@ -1619,7 +1628,7 @@ function charger(){
       $("bonjour").textContent = moi.nom+" — vos chantiers et les documents publiés ou reçus.";
       CHANTIERS = res.d.chantiers||[];
       MOI = res.d.moi || S;
-      $("recherche").hidden = CHANTIERS.length < 4;
+      $("recherche").hidden = actifs().length < 4;
       carteMajBouton();
       return nonLus.then(function(){
         afficher(filtrer());
@@ -1755,7 +1764,9 @@ function afficher(chantiers){
     var v=document.createElement("p"); v.className="vide";
     v.textContent = ($("recherche").value||"").trim()
       ? "Aucun dossier ne correspond à cette recherche."
-      : "Aucun rapport ne vous est attribué pour le moment.";
+      : CHANTIERS.length
+        ? "Tous vos dossiers sont en attente de réponse : ils sont rangés sur l'accueil."
+        : "Aucun rapport ne vous est attribué pour le moment.";
     host.appendChild(v); return;
   }
   var ouvertParDefaut = chantiers.length <= 3;
@@ -2584,7 +2595,7 @@ function carteTrouverExpress(){
 
 /* ---------- ouverture ---------- */
 function carteOuvrir(){
-  CARTE.points = CHANTIERS.map(function(c){
+  CARTE.points = actifs().map(function(c){
     return {ref:c.ref, client:c.client||"", adresse:c.adresse||"", documents:(c.fichiers||[]).length,
             lat: typeof c.lat==="number" ? c.lat : null,
             lon: typeof c.lon==="number" ? c.lon : null,
@@ -2602,9 +2613,9 @@ function carteOuvrir(){
   carteChercherManquants();
 }
 function carteMajBouton(){
-  var n=CHANTIERS.length;
+  var n=actifs().length;
   $("barreCarte").hidden = !n;
-  var situes=CHANTIERS.filter(function(c){ return typeof c.lat==="number"; }).length;
+  var situes=actifs().filter(function(c){ return typeof c.lat==="number"; }).length;
   $("carteHint").textContent = n
     ? (situes ? situes+" sur "+n+" déjà situé"+(situes>1?"s":"") : "les adresses seront cherchées à l'ouverture")
     : "";
