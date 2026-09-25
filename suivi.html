@@ -790,6 +790,10 @@ details.block.sv-societe summary{padding:0}
 .sv-plan .sv-plan-h{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
 .sv-plan .sv-plan-h input{flex:1 1 160px;min-width:0;min-height:38px;padding:7px 10px;font-size:14px;font-weight:600}
 .sv-go{width:100%;min-height:52px;margin-top:14px;font-size:16px}
+.sv-choix{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);border:1px solid rgba(180,83,9,.25)}
+.sv-choix[hidden]{display:none}
+.sv-choix p{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--ink)}
+.sv-choix .act{width:100%;margin-top:6px}
 a.act{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 a.act[hidden]{display:none}
 </style>
@@ -931,6 +935,12 @@ a.act[hidden]{display:none}
     <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
     <div class="chips" id="pubDest"></div>
     <button class="act blue sv-go" id="btnPublier">Enregistrer le suivi</button>
+    <div class="sv-choix" id="pubChoix" hidden>
+      <p id="pubChoixTxt"></p>
+      <button type="button" class="act blue" id="pubNouveau">Enregistrer comme nouveau suivi</button>
+      <button type="button" class="act ghost" id="pubMaj">Mettre à jour ce suivi</button>
+      <p class="hint" style="margin:6px 0 0">« Nouveau suivi » garde le précédent dans le dossier. « Mettre à jour » le remplace, pour corriger une faute par exemple.</p>
+    </div>
     <p class="hint" id="pubIntro" style="margin:8px 0 0">Le PDF part dans le dossier du chantier, sous « Suivi de chantier », et les photos sur le site. Les rappels partent au conducteur de travaux.</p>
     <p class="hint" id="pubEtat"></p>
     <div class="row" style="margin-top:12px">
@@ -2652,6 +2662,12 @@ function publierRapport(meta){
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
     toast("Rapport publié.");
     try{ window.dispatchEvent(new Event("suivi:publie")); }catch(e){}
+    if(APP_TYPE==="suivi"){
+      /* ce suivi est enregistré : le prochain enregistrement demandera
+         s'il s'agit d'un nouveau suivi ou d'une correction de celui-ci */
+      S.publie={cle:res.d.cle, le:new Date().toISOString(), titre:meta.titre||""};
+      save();
+    }
     deposerFiche(res.d.cle, el);
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
@@ -3175,6 +3191,17 @@ function reprendreTsPrecedents(){
     .catch(function(){ return 0; });
 }
 
+/* le contenu à l'écran devient un nouveau suivi : nouvel identifiant,
+   date du jour ; celui déjà enregistré reste tel quel dans le dossier */
+function suiviEnNouveau(){
+  var n=blank();
+  S.suiviId=n.suiviId;
+  var auj=aujourdhui();
+  if(!S.visite.date || S.visite.date < auj){ S.visite.date=auj; S.visite.heure=maintenant(); }
+  delete S.publie;
+  save(); paintForm();
+}
+
 /* ---------- un nouveau suivi ----------
    Chaque suivi est indépendant : on garde le client, le chantier et le
    conducteur de travaux, on repart d'une page blanche pour le reste. */
@@ -3308,8 +3335,7 @@ function bindAll(){
   $("btnReleveSite").addEventListener("click", function(){
     ouvrirDepuisSite("releve", "Relevés techniques");
   });
-  $("btnPublier").addEventListener("click", function(){
-    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); return; }
+  function publierSuivi(){
     var sansHeure = rappelsActifs().filter(function(p){ return !p.quand; });
     if(sansHeure.length){ toast("Choisissez la date des rappels."); showTab("points"); return; }
     publierRapport({
@@ -3324,7 +3350,26 @@ function bindAll(){
       etape: S.visite.type || "",
       titre: titreSuivi()
     });
+  }
+  $("btnPublier").addEventListener("click", function(){
+    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); return; }
+    /* Déjà enregistré ? On ne remplace jamais un suivi sans le demander :
+       par défaut, c'en est un nouveau et l'ancien reste dans le dossier.
+       Depuis « Tout publier » (sans personne pour choisir), aussi. */
+    if(S.publie && S.publie.cle){
+      if(window.__autoPublier){ suiviEnNouveau(); publierSuivi(); return; }
+      var quand=new Date(S.publie.le);
+      var jourLocal=quand.getFullYear()+"-"+String(quand.getMonth()+1).padStart(2,"0")+"-"+String(quand.getDate()).padStart(2,"0");
+      $("pubChoixTxt").textContent = "Ce suivi a déjà été enregistré le "+frDate(jourLocal)
+        +" à "+String(quand.getHours()).padStart(2,"0")+":"+String(quand.getMinutes()).padStart(2,"0")+".";
+      $("pubChoix").hidden=false;
+      $("pubChoix").scrollIntoView({block:"center", behavior:"smooth"});
+      return;
+    }
+    publierSuivi();
   });
+  $("pubNouveau").addEventListener("click", function(){ $("pubChoix").hidden=true; suiviEnNouveau(); publierSuivi(); });
+  $("pubMaj").addEventListener("click", function(){ $("pubChoix").hidden=true; publierSuivi(); });
   /* le suivi enregistré : ses photos partent sur le site, et un nouveau
      suivi s'ouvre d'un appui */
   window.addEventListener("suivi:publie", function(){
@@ -3842,6 +3887,7 @@ function ecrireFiche(){
   var p;
   try{ p = new URLSearchParams(location.search); }catch(e){ return; }
   if(p.get("autoPublier") !== "1") return;
+  window.__autoPublier = true;
   if(!window.parent || window.parent === window) return;
   function dire(ok, message){
     try{ window.parent.postMessage({source:"publier-tout", ok:ok, message:message||""}, "*"); }catch(e){}

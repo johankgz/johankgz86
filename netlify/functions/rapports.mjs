@@ -1009,7 +1009,9 @@ async function traiter(req) {
        qui ont disparu (point levé, rappel coupé) sont retirés. */
     let nbRappels = 0;
     if (suivi && d.suiviId) {
-      const prefixe = "taches/rappel-" + slug(d.suiviId) + "-";
+      /* une clé par point et par chantier : un point repris dans un
+         nouveau suivi garde un seul rappel, celui du suivi le plus récent */
+      const prefixe = "taches/rappel-" + slug(ref) + "-";
       /* le rappel va à un compte qui existe : le nom exact, sinon
          l'identifiant, sinon le prénom (une session peut garder un nom
          affiché plus long que celui du compte) */
@@ -1033,16 +1035,23 @@ async function traiter(req) {
         try {
           await store.setJSON(cleR, {
             texte: String(r.texte), prio: "", qui: pour, quand, heure: /^\d{2}:\d{2}$/.test(r.heure || "") ? r.heure : "08:00",
-            rappel: true, suivi: cle, chantier: ref, client: d.client || "", auteur: personne.nom,
+            rappel: true, suivi: cle, suiviId: String(d.suiviId), chantier: ref, client: d.client || "", auteur: personne.nom,
             cree: (avant && avant.cree) || new Date().toISOString(),
             faite: !!(avant && avant.faite && avant.quand === quand)
           });
           nbRappels++;
         } catch { /* la publication reste valable */ }
       }
+      /* ce suivi-ci ne demande plus ce rappel (point levé, rappel coupé,
+         point retiré) : il s'en va ; ceux des autres suivis restent */
       try {
         const res = await store.list({ prefix: prefixe });
-        for (const b of (res.blobs || [])) if (!gardes.has(b.key)) { try { await store.delete(b.key); } catch { /* tant pis */ } }
+        for (const b of (res.blobs || [])) {
+          if (gardes.has(b.key)) continue;
+          let t = null;
+          try { t = await store.get(b.key, { type: "json" }); } catch { t = null; }
+          if (t && t.suiviId === String(d.suiviId)) { try { await store.delete(b.key); } catch { /* tant pis */ } }
+        }
       } catch { /* rien d'ancien */ }
     }
 
