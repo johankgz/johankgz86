@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Analyse de plan — Suivi travaux 360</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:620px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.block p{margin:0 0 10px;font-size:15px}
+.block p:last-child{margin-bottom:0}
+ol,ul{margin:0;padding-left:20px;font-size:15px}
+li{margin-bottom:9px}
+li:last-child{margin-bottom:0}
+b.step{color:var(--accent)}
+.tag{display:inline-block;padding:4px 11px;border-radius:var(--r-field);font-size:12.5px;font-weight:600;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:10px}
+.tag.v{background:#EDF0E4;color:#0B7A45}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+/* ---------- analyse de plan ---------- */
+main{max-width:760px}
+@media (min-width:820px){ main{max-width:1000px} }
+.essai{display:inline-flex;align-items:center;margin-left:auto;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;
+  letter-spacing:.08em;text-transform:uppercase;background:rgba(251,146,60,.16);color:#FDBA74;border:1px solid rgba(251,146,60,.4)}
+.block h2{margin:0 0 10px}
+.hint{font-size:13px;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
+button.p{width:100%;min-height:50px;font-size:15.5px;cursor:pointer}
+button.p:disabled{opacity:.55;cursor:default}
+.etat-analyseur{border-left:3px solid var(--accent)}
+.etat-analyseur ol{margin:8px 0 0;padding-left:20px;font-size:14px;line-height:1.55}
+.etat-analyseur code{font-size:12.5px;background:var(--field);padding:1px 5px;border-radius:5px}
+.depot{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;min-height:150px;padding:18px;
+  border:2px dashed #C3CBD5;border-radius:14px;background:#F8FAFC;text-align:center;cursor:pointer;
+  transition:border-color .2s ease,background .2s ease}
+.depot:hover,.depot.survol{border-color:var(--accent);background:var(--accent-soft)}
+.depot svg{width:38px;height:38px;fill:none;stroke:var(--accent);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.depot b{font-size:15.5px}
+.depot span{font-size:13px;color:var(--ink-3)}
+.depot input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.options{display:flex;gap:12px;align-items:flex-end;margin:14px 0}
+.options label{display:block;flex:1;min-width:0}
+.options label span{display:block;font-size:13px;color:var(--ink-2);margin-bottom:6px;font-weight:500}
+.options input{width:100%;min-height:46px;padding:10px 12px;font-size:16px;font-family:inherit;border-radius:10px}
+.options select{width:100%;min-height:46px;padding:10px 12px;font-size:15px;font-family:inherit;border-radius:10px;border:1px solid var(--champ-bord);background:#fff}
+.err{color:var(--rouge);font-size:14px;margin:10px 0 0;min-height:20px}
+
+/* l'analyse en cours : un faisceau qui balaie un plan */
+@keyframes balayePlan{0%{transform:translateY(-10px)}100%{transform:translateY(118px)}}
+@keyframes clignePlan{0%,100%{opacity:.25}50%{opacity:1}}
+.encours{display:flex;align-items:center;gap:16px}
+.mini-plan{position:relative;width:110px;height:110px;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#0A0E14;
+  background-image:linear-gradient(rgba(34,211,238,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.18) 1px,transparent 1px);background-size:22px 22px}
+.mini-plan i{position:absolute;left:0;right:0;top:0;height:10px;background:linear-gradient(180deg,transparent,rgba(34,211,238,.9));animation:balayePlan 1.6s linear infinite}
+.mini-plan b{position:absolute;width:9px;height:9px;border-radius:50%;border:2px solid #FB923C;animation:clignePlan 1.6s ease-in-out infinite}
+.encours p{margin:0;font-size:15px}
+.encours small{display:block;margin-top:4px;color:var(--ink-3);font-size:13px}
+
+.pages{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.pages[hidden]{display:none}
+.pages button{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid var(--champ-bord);background:#fff;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;color:var(--ink-2)}
+.pages button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.chiffres{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:14px}
+.chiffre{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:12px 14px;box-shadow:var(--ombre-1)}
+.chiffre b{display:block;font-size:28px;font-weight:700;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.chiffre span{font-size:12px;color:var(--ink-3);font-weight:600}
+.chiffre.alerte b{color:var(--accent)}
+.tableau-q{width:100%;border-collapse:collapse;font-size:14px}
+.tableau-q th,.tableau-q td{padding:9px 8px;border-bottom:1px solid var(--rule);text-align:right;font-variant-numeric:tabular-nums}
+.tableau-q th:first-child,.tableau-q td:first-child{text-align:left}
+.tableau-q thead th{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);font-weight:700}
+.tableau-q tbody tr:hover{background:#FAFBFC}
+.tableau-q .tot{font-weight:700}
+.tableau-q .puce{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:8px;vertical-align:-1px}
+.tableau-q tfoot td{font-weight:700;border-bottom:0}
+#tableauPieces th:nth-child(2),#tableauPieces td:nth-child(2){text-align:left}
+#tableauPieces td:first-child{font-weight:600;white-space:nowrap}
+.defile{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.liste-v{list-style:none;margin:0;padding:0}
+.liste-v li{display:flex;gap:10px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--rule);font-size:14px}
+.liste-v li:last-child{border-bottom:0}
+.liste-v .niv{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--data-soft);color:var(--data)}
+.images figure{margin:0 0 14px}
+.images img{display:block;width:100%;border-radius:10px;border:1px solid var(--rule);background:#fff;cursor:zoom-in}
+.images figcaption{font-size:13px;font-weight:700;margin:0 0 6px}
+.actions{display:flex;gap:10px;flex-wrap:wrap}
+.actions button{flex:1;min-width:150px;min-height:46px;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+  background:#fff;color:var(--ink-2);border:1px solid var(--champ-bord)}
+.suite{border:1px dashed rgba(180,83,9,.45);background:var(--accent-soft)}
+.loupe{position:fixed;inset:0;z-index:80;background:rgba(10,14,20,.92);overflow:auto;-webkit-overflow-scrolling:touch}
+.loupe img{display:block;width:220%;max-width:none;background:#fff}
+.loupe button{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;min-height:44px;padding:0 16px;border-radius:10px;border:0;
+  background:var(--accent);color:#fff;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}
+@media (prefers-reduced-motion:reduce){ .mini-plan i,.mini-plan b{animation:none} }
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Analyse de plan</h1>
+  <span class="essai">Essai</span>
+</header>
+<main>
+
+  <div class="block etat-analyseur" id="blocEtat" hidden></div>
+
+  <div class="block" id="blocEnvoi">
+    <h2>Le plan à analyser</h2>
+    <label class="depot" id="depot">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg>
+      <b id="depotTitre">Choisir un plan PDF</b>
+      <span id="depotDetail">ou le glisser ici — plan électrique exporté du logiciel de dessin</span>
+      <input type="file" id="fichier" accept="application/pdf,.pdf">
+    </label>
+    <div class="options">
+      <label><span>Page du PDF</span><input type="text" id="page" inputmode="numeric" placeholder="Toutes"></label>
+      <label><span>Images annotées</span>
+        <select id="zoom"><option value="3">Normales</option><option value="5">Fines</option><option value="0">Aucune</option></select>
+      </label>
+    </div>
+    <button class="p" id="analyser" disabled>Analyser le plan</button>
+    <p class="err" id="err"></p>
+    <p class="hint">Le PDF doit être <b>vectoriel</b> : exporté d'AutoCAD, de Caneco, de ArchiCAD… Un scan ou une photo n'a pas de géométrie exploitable. Le plan doit porter sa légende : c'est elle qui dit quoi compter.</p>
+  </div>
+
+  <div class="block" id="blocEncours" hidden>
+    <div class="encours">
+      <div class="mini-plan" aria-hidden="true"><i></i><b style="left:24px;top:30px"></b><b style="left:70px;top:62px;animation-delay:.5s"></b><b style="left:40px;top:84px;animation-delay:1s"></b></div>
+      <div><p id="encoursTexte">Lecture de la légende…</p><small id="encoursTemps">0 s</small></div>
+    </div>
+  </div>
+
+  <div id="resultat" hidden>
+    <div class="pages" id="pages" hidden></div>
+    <div class="chiffres">
+      <div class="chiffre"><b id="nbSymboles">0</b><span>symboles comptés</span></div>
+      <div class="chiffre"><b id="nbNiveaux">0</b><span id="nomsNiveaux">niveaux</span></div>
+      <div class="chiffre" id="chiffreVerif"><b id="nbVerif">0</b><span>formes à vérifier</span></div>
+    </div>
+
+    <div class="block">
+      <h2>Quantités par niveau</h2>
+      <div class="defile"><table class="tableau-q" id="tableau"></table></div>
+      <p class="hint" id="noteTableau"></p>
+    </div>
+
+    <div class="block" id="blocPieces" hidden>
+      <h2>Par pièce</h2>
+      <div class="defile"><table class="tableau-q" id="tableauPieces"></table></div>
+    </div>
+
+    <div class="block" id="blocVariantes" hidden>
+      <h2>Variantes hors légende</h2>
+      <p class="hint" style="margin:-4px 0 8px">Même forme qu'un symbole de la légende, autre couleur : souvent des prises spécialisées. À confirmer.</p>
+      <ul class="liste-v" id="variantes"></ul>
+    </div>
+
+    <div class="block" id="blocVerif" hidden>
+      <h2>À vérifier sur le plan</h2>
+      <p class="hint" style="margin:-4px 0 8px">Formes colorées que l'analyse n'a pas reconnues. Elles ne sont pas comptées.</p>
+      <ul class="liste-v" id="verif"></ul>
+    </div>
+
+    <div class="block" id="blocAlertes" hidden>
+      <h2>Remarques de l'analyse</h2>
+      <ul class="liste-v" id="alertes"></ul>
+    </div>
+
+    <div class="block images" id="blocImages" hidden>
+      <h2>Plans annotés</h2>
+      <p class="hint" style="margin:-4px 0 10px">Chaque symbole compté porte un numéro. Touchez une image pour l'agrandir.</p>
+      <div id="images"></div>
+    </div>
+
+    <div class="block">
+      <div class="actions">
+        <button type="button" id="copier">Copier le tableau</button>
+        <button type="button" id="telecharger">Télécharger le résultat</button>
+      </div>
+    </div>
+
+    <div class="block suite">
+      <h2>Prochaine étape</h2>
+      <p class="hint" style="margin:0">Si les comptages se vérifient sur vos plans, ces quantités pourront remplir une commande de matériel toute seule. Dites ce qui manque ou ce qui est faux : c'est l'objet de cet essai.</p>
+    </div>
+  </div>
+
+</main>
+<script>
+(function(){
+function $(i){ return document.getElementById(i); }
+var S=null;
+try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+if(!S || !S.jeton){ location.replace("./index.html"); return; }
+
+/* ---------- l'analyseur est-il branché ? ---------- */
+function etat(){
+  fetch("/api/plan?etat=1", {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(r.status===401){ location.replace("./index.html"); return null; } return r.json(); })
+    .then(function(d){
+      if(!d) return;
+      var b=$("blocEtat");
+      if(d.branche && d.joignable){
+        b.hidden = !(d.cleCoteSite && !d.cleCoteAnalyseur) && !(!d.cleCoteSite && d.cleCoteAnalyseur);
+        if(!b.hidden) b.innerHTML='<h2>Clé à vérifier</h2><p class="hint" style="margin:0">L\'analyseur répond, mais la clé partagée n\'est réglée que d\'un côté. Mettez la même valeur dans <code>PLAN_ANALYSE_CLE</code> (site) et <code>PLAN_ANALYZER_KEY</code> (analyseur).</p>';
+        return;
+      }
+      b.hidden=false;
+      if(!d.branche){
+        b.innerHTML='<h2>Analyseur pas encore installé</h2>'
+          +'<p class="hint" style="margin:0">L\'analyse tourne à part, comme une petite application Python sur o2switch. Trois étapes, décrites dans le dépôt <b>Plan-</b> (README, « Sur o2switch ») :</p>'
+          +'<ol><li>installer l\'application Python sur un sous-domaine, par exemple <code>plan.votre-domaine.fr</code> ;</li>'
+          +'<li>lui donner une clé secrète : <code>PLAN_ANALYZER_KEY</code> ;</li>'
+          +'<li>dans l\'application du site, régler <code>PLAN_ANALYSE_URL</code> et <code>PLAN_ANALYSE_CLE</code>, puis redémarrer.</li></ol>';
+      } else {
+        b.innerHTML='<h2>Analyseur injoignable</h2><p class="hint" style="margin:0">Le site connaît son adresse mais il ne répond pas'
+          +(d.erreur ? ' ('+String(d.erreur).replace(/[<>&]/g,"")+')' : '')+'. Vérifiez que l\'application Python tourne, puis rechargez cette page.</p>';
+      }
+    }).catch(function(){});
+}
+etat();
+
+/* ---------- le fichier ---------- */
+var FICHIER=null;
+function choisir(f){
+  $("err").textContent="";
+  if(!f) return;
+  if(!/\.pdf$/i.test(f.name) && f.type!=="application/pdf"){ $("err").textContent="Ce n'est pas un PDF."; return; }
+  if(f.size > 30*1024*1024){ $("err").textContent="Plan trop lourd : 30 Mo au plus."; return; }
+  FICHIER=f;
+  $("depotTitre").textContent=f.name;
+  $("depotDetail").textContent=(f.size/1024/1024).toFixed(1).replace(".",",")+" Mo — touchez pour en choisir un autre";
+  $("analyser").disabled=false;
+}
+$("fichier").addEventListener("change", function(){ choisir(this.files[0]); });
+var depot=$("depot");
+["dragenter","dragover"].forEach(function(t){ depot.addEventListener(t, function(e){ e.preventDefault(); depot.classList.add("survol"); }); });
+["dragleave","drop"].forEach(function(t){ depot.addEventListener(t, function(e){ e.preventDefault(); depot.classList.remove("survol"); }); });
+depot.addEventListener("drop", function(e){ if(e.dataTransfer && e.dataTransfer.files[0]) choisir(e.dataTransfer.files[0]); });
+
+/* ---------- l'analyse ---------- */
+var RESULTAT=null, PAGE=0, minuteur=null;
+var ETAPES=["Lecture de la légende…","Reconstruction des symboles…","Comptage sur le plan…","Rattachement aux niveaux et aux pièces…","Dessin des plans annotés…"];
+$("analyser").addEventListener("click", function(){
+  if(!FICHIER) return;
+  var fd=new FormData(); fd.append("file", FICHIER, FICHIER.name);
+  var p=String($("page").value||"").trim(), z=$("zoom").value;
+  var q=[];
+  if(/^\d+$/.test(p)) q.push("page="+p);
+  if(z==="0") q.push("images=false"); else q.push("zoom="+z);
+  $("analyser").disabled=true; $("err").textContent="";
+  $("blocEncours").hidden=false; $("resultat").hidden=true;
+  var debut=Date.now();
+  clearInterval(minuteur);
+  minuteur=setInterval(function(){
+    var s=Math.round((Date.now()-debut)/1000);
+    $("encoursTemps").textContent=s+" s";
+    $("encoursTexte").textContent=ETAPES[Math.min(ETAPES.length-1, Math.floor(s/4))];
+  }, 500);
+  fetch("/api/plan?"+q.join("&"), {method:"POST", headers:{"x-auth":S.jeton}, body:fd})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }, function(){ return {ok:false, d:{erreur:"Réponse illisible (HTTP "+r.status+")."}}; }); })
+    .then(function(res){
+      clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
+      if(!res.ok){ $("err").textContent=res.d.erreur||"Analyse impossible."; return; }
+      RESULTAT=res.d; PAGE=0; afficher();
+    })
+    .catch(function(){ clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false; $("err").textContent="Pas de réseau."; });
+});
+
+function pagesDe(r){ return r && r.pages ? r.pages : (r ? [r] : []); }
+function nombre(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+var COULEURS={red:"#DC2626",blue:"#2563EB",green:"#16A34A",orange:"#EA7A1E",magenta:"#C026D3",cyan:"#0891B2",black:"#111827",yellow:"#CA8A04",purple:"#7C3AED",brown:"#92400E",gray:"#6B7280",grey:"#6B7280"};
+function texte(el, t){ el.textContent=t; return el; }
+function cellule(tag, t, cls){ var c=document.createElement(tag); c.textContent=t; if(cls) c.className=cls; return c; }
+
+function afficher(){
+  var pages=pagesDe(RESULTAT);
+  var hp=$("pages"); hp.textContent="";
+  hp.hidden = pages.length<2;
+  pages.forEach(function(p, i){
+    var b=document.createElement("button"); b.type="button";
+    b.textContent="Page "+(p.page||i+1);
+    b.setAttribute("aria-pressed", i===PAGE ? "true" : "false");
+    b.addEventListener("click", function(){ PAGE=i; afficher(); });
+    hp.appendChild(b);
+  });
+  var p=pages[PAGE]||{};
+  var niveaux=(p.floors||[]).slice();
+  var sommaire=p.summary||{};
+  var total=sommaire.TOTAL||{};
+  var libelles=[];
+  (p.legend||[]).forEach(function(l){ if(libelles.indexOf(l.label)<0) libelles.push(l.label); });
+  Object.keys(total).forEach(function(k){ if(k.charAt(0)!=="_" && libelles.indexOf(k)<0) libelles.push(k); });
+  var couleurDe={}; (p.legend||[]).forEach(function(l){ couleurDe[l.label]=l.color; });
+
+  var items=p.items||[];
+  var comptes=items.filter(function(x){ return !x.variant; }).length;
+  $("nbSymboles").textContent=nombre(items.length);
+  $("nbNiveaux").textContent=niveaux.length;
+  $("nomsNiveaux").textContent=niveaux.length ? niveaux.join(" · ") : "niveau";
+  $("nbVerif").textContent=(p.unrecognized||[]).length;
+  $("chiffreVerif").classList.toggle("alerte", (p.unrecognized||[]).length>0);
+
+  /* quantités par niveau */
+  var t=$("tableau"); t.textContent="";
+  var th=document.createElement("thead"), tr=document.createElement("tr");
+  tr.appendChild(cellule("th","Symbole"));
+  niveaux.forEach(function(n){ tr.appendChild(cellule("th", n)); });
+  tr.appendChild(cellule("th","Total"));
+  th.appendChild(tr); t.appendChild(th);
+  var tb=document.createElement("tbody");
+  libelles.forEach(function(l){
+    var r=document.createElement("tr");
+    var c0=document.createElement("td");
+    var puce=document.createElement("span"); puce.className="puce"; puce.style.background=COULEURS[couleurDe[l]]||"#9AA4B0";
+    c0.appendChild(puce); c0.appendChild(document.createTextNode(l));
+    r.appendChild(c0);
+    niveaux.forEach(function(n){ r.appendChild(cellule("td", nombre((sommaire[n]||{})[l]||0))); });
+    r.appendChild(cellule("td", nombre(total[l]||0), "tot"));
+    tb.appendChild(r);
+  });
+  t.appendChild(tb);
+  var vTot=total._variants||0;
+  $("noteTableau").textContent = !vTot ? ""
+    : (vTot>1 ? "Les "+vTot+" variantes hors légende ne sont pas dans ce tableau : voyez plus bas."
+              : "La variante hors légende n'est pas dans ce tableau : voyez plus bas.");
+
+  /* par pièce */
+  var parPiece={};
+  items.forEach(function(x){
+    if(!x.room || x.variant) return;
+    var k=(x.floor||"")+" — "+x.room;
+    parPiece[k]=parPiece[k]||{};
+    parPiece[k][x.label]=(parPiece[k][x.label]||0)+1;
+  });
+  var pieces=Object.keys(parPiece);
+  $("blocPieces").hidden=!pieces.length;
+  var tp=$("tableauPieces"); tp.textContent="";
+  if(pieces.length){
+    var h2=document.createElement("thead"), r2=document.createElement("tr");
+    r2.appendChild(cellule("th","Pièce")); r2.appendChild(cellule("th","Symbole")); r2.appendChild(cellule("th","Nombre"));
+    h2.appendChild(r2); tp.appendChild(h2);
+    var b2=document.createElement("tbody");
+    pieces.sort().forEach(function(k){
+      Object.keys(parPiece[k]).forEach(function(l, i){
+        var r=document.createElement("tr");
+        r.appendChild(cellule("td", i ? "" : k)); r.appendChild(cellule("td", l)); r.appendChild(cellule("td", String(parPiece[k][l]), "tot"));
+        b2.appendChild(r);
+      });
+    });
+    tp.appendChild(b2);
+  }
+
+  /* variantes hors légende, regroupées */
+  var groupes={};
+  items.filter(function(x){ return x.variant; }).forEach(function(x){
+    var k=x.label+"|"+(x.color||"")+"|"+(x.tag||"");
+    groupes[k]=groupes[k]||{label:x.label, color:x.color, tag:x.tag, n:0, niveaux:{}};
+    groupes[k].n++; groupes[k].niveaux[x.floor||"?"]=1;
+  });
+  var gv=Object.keys(groupes);
+  $("blocVariantes").hidden=!gv.length;
+  var ul=$("variantes"); ul.textContent="";
+  gv.forEach(function(k){
+    var g=groupes[k], li=document.createElement("li");
+    li.appendChild(cellule("span", g.n+" ×", "niv"));
+    li.appendChild(cellule("span", g.label+" en "+(g.color||"autre couleur")+(g.tag ? " — étiquette « "+g.tag+" »" : "")+" · "+Object.keys(g.niveaux).join(", ")));
+    ul.appendChild(li);
+  });
+
+  /* à vérifier */
+  var nr=p.unrecognized||[];
+  $("blocVerif").hidden=!nr.length;
+  var uv=$("verif"); uv.textContent="";
+  nr.slice(0, 80).forEach(function(u){
+    var li=document.createElement("li");
+    li.appendChild(cellule("span", u.floor||"?", "niv"));
+    li.appendChild(cellule("span", u.hint||"Forme non reconnue"));
+    uv.appendChild(li);
+  });
+  if(nr.length>80){ var li=document.createElement("li"); li.textContent="… et "+(nr.length-80)+" autres."; uv.appendChild(li); }
+
+  /* remarques */
+  var al=p.warnings||[];
+  $("blocAlertes").hidden=!al.length;
+  var ua=$("alertes"); ua.textContent="";
+  al.forEach(function(a){ var li=document.createElement("li"); li.textContent=a; ua.appendChild(li); });
+
+  /* images */
+  var im=p.annotated_images||{};
+  var cles=Object.keys(im);
+  $("blocImages").hidden=!cles.length;
+  var hi=$("images"); hi.textContent="";
+  cles.forEach(function(n){
+    var f=document.createElement("figure");
+    f.appendChild(cellule("figcaption", n));
+    var img=document.createElement("img"); img.src=im[n]; img.alt="Plan annoté — "+n;
+    img.addEventListener("click", function(){ loupe(im[n], n); });
+    f.appendChild(img); hi.appendChild(f);
+  });
+
+  $("resultat").hidden=false;
+  $("resultat").scrollIntoView({behavior:"smooth", block:"start"});
+}
+function loupe(src, nom){
+  var o=document.createElement("div"); o.className="loupe"; o.setAttribute("role","dialog"); o.setAttribute("aria-label","Plan annoté "+nom);
+  var img=document.createElement("img"); img.src=src; img.alt="Plan annoté — "+nom;
+  var b=document.createElement("button"); b.type="button"; b.textContent="Fermer";
+  b.addEventListener("click", function(){ o.remove(); });
+  o.appendChild(img); o.appendChild(b); document.body.appendChild(o);
+}
+$("copier").addEventListener("click", function(){
+  var p=pagesDe(RESULTAT)[PAGE]; if(!p) return;
+  var t=p.markdown||"";
+  var b=this;
+  (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject())
+    .then(function(){ b.textContent="Tableau copié ✓"; setTimeout(function(){ b.textContent="Copier le tableau"; }, 1800); })
+    .catch(function(){ b.textContent="Copie impossible"; });
+});
+$("telecharger").addEventListener("click", function(){
+  if(!RESULTAT) return;
+  var copie=JSON.parse(JSON.stringify(RESULTAT));
+  pagesDe(copie).forEach(function(p){ p.annotated_images={}; });
+  var blob=new Blob([JSON.stringify(copie, null, 2)], {type:"application/json"});
+  var nom=(FICHIER ? FICHIER.name.replace(/\.pdf$/i,"") : "plan")
+    .normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9_-]+/g,"-").replace(/^-+|-+$/g,"") || "plan";
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob);
+  a.download=nom+"-analyse.json";
+  document.body.appendChild(a); a.click();
+  setTimeout(function(){ a.remove(); URL.revokeObjectURL(a.href); }, 2000);
+});
+
+/* le fond : le plan technique, comme dans les applis de saisie */
+(function(){
+  var st=document.createElement("style");
+  st.textContent="@keyframes planGlisse{to{transform:translate(110px,110px)}}"
+    +"#fondPlan{position:fixed;inset:0;z-index:-1;pointer-events:none;overflow:hidden}"
+    +"#fondPlan div{position:absolute;left:-110px;top:-110px;right:-110px;bottom:-110px;will-change:transform;"
+    +"background-image:linear-gradient(rgba(34,211,238,.07) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.07) 1px,transparent 1px),"
+    +"linear-gradient(rgba(255,255,255,.028) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.028) 1px,transparent 1px);"
+    +"background-size:110px 110px,110px 110px,22px 22px,22px 22px;animation:planGlisse 60s linear infinite}"
+    +"@media (prefers-reduced-motion:reduce){#fondPlan div{animation:none}}";
+  document.head.appendChild(st);
+  var f=document.createElement("div"); f.id="fondPlan"; f.setAttribute("aria-hidden","true"); f.innerHTML="<div></div>";
+  document.body.insertBefore(f, document.body.firstChild);
+})();
+})();
+</script>
+</body>
+</html>

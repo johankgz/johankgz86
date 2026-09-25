@@ -420,6 +420,13 @@ async function identifier(auth) {
   return null;
 }
 
+/* Pour les autres fonctions du site (analyse de plan…) : la personne
+   derrière un jeton, ou null si le jeton ne vaut rien ou a expiré. */
+export async function sessionValide(auth) {
+  const p = await identifier(auth);
+  return p && p !== "perimee" && !p.aChanger ? p : null;
+}
+
 /* la société de démonstration est remplie au premier accès */
 async function garnirDemo(st) {
   /* listes d'exemple, rangées comme les listes ordinaires de la société */

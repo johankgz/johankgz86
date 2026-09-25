@@ -324,3 +324,23 @@ suffisent pas. Trois issues, de la plus simple à la plus lourde :
    pour Render, Railway, Fly ou un VPS.
 
 Dites-moi ce que vous trouvez dans votre cPanel, et je fais le reste.
+
+## Analyse de plan (essai)
+
+La page « Analyse de plan » compte les symboles d'un plan électrique PDF. Le
+calcul tourne à part, dans l'application Python du dépôt **Plan-**, installée
+sur un sous-domaine (par exemple `plan.votre-domaine.fr`). Le site lui
+transmet les plans des personnes connectées, avec une clé partagée : personne
+d'autre ne peut s'en servir.
+
+1. Installez l'analyseur en suivant le README du dépôt **Plan-** (section
+   « Sur o2switch, branché sur Suivi travaux 360 ») : sous-domaine, Git™
+   Version Control, Setup Python App, `PLAN_ANALYZER_KEY`.
+2. Ici, dans **Setup Node.js App** › l'application du site › variables
+   d'environnement :
+   - `PLAN_ANALYSE_URL` = `https://plan.votre-domaine.fr`
+   - `PLAN_ANALYSE_CLE` = la même phrase secrète que `PLAN_ANALYZER_KEY`
+3. **Restart** de l'application du site.
+
+La page « Analyse de plan » dit elle-même si l'analyseur est branché,
+injoignable, ou si la clé ne correspond pas.

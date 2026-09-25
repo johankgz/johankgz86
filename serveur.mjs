@@ -12,6 +12,8 @@
      DONNEES_DOSSIER   où ranger les données, ./donnees par défaut
      RESEND_API_KEY    clé Resend, pour les e-mails de publication
      EXPEDITEUR        expéditeur des e-mails
+     PLAN_ANALYSE_URL  adresse de l'analyseur de plans (facultatif)
+     PLAN_ANALYSE_CLE  sa clé partagée
    ===================================================================== */
 
 process.env.DONNEES_DOSSIER = process.env.DONNEES_DOSSIER || "./donnees";
@@ -22,6 +24,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import rapports from "./netlify/functions/rapports.mjs";
 import pvgis from "./netlify/functions/pvgis.mjs";
+import plan from "./netlify/functions/plan.mjs";
 import { dossierDonnees } from "./netlify/functions/magasin-fichiers.mjs";
 
 const RACINE = path.dirname(fileURLToPath(import.meta.url));
@@ -40,10 +43,11 @@ const TYPES = {
   ".woff2": "font/woff2", ".woff": "font/woff"
 };
 
-/* les deux fonctions du site, à leur adresse */
+/* les fonctions du site, à leur adresse */
 const ROUTES = [
   { chemins: ["/api/rapports", "/.netlify/functions/rapports"], fonction: rapports },
-  { chemins: ["/api/pvgis", "/.netlify/functions/pvgis"], fonction: pvgis }
+  { chemins: ["/api/pvgis", "/.netlify/functions/pvgis"], fonction: pvgis },
+  { chemins: ["/api/plan"], fonction: plan }
 ];
 
 /* jamais de fichier hors du site, ni le dossier des données, ni le dépôt */
