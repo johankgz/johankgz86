@@ -1,0 +1,774 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Tableau de bord — Suivi travaux 360</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:620px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.block p{margin:0 0 10px;font-size:15px}
+.block p:last-child{margin-bottom:0}
+ol,ul{margin:0;padding-left:20px;font-size:15px}
+li{margin-bottom:9px}
+li:last-child{margin-bottom:0}
+b.step{color:var(--accent)}
+.tag{display:inline-block;padding:4px 11px;border-radius:var(--r-field);font-size:12.5px;font-weight:600;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:10px}
+.tag.v{background:#EDF0E4;color:#0B7A45}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+/* =====================================================================
+   TABLEAU DE BORD DU BUREAU
+   ---------------------------------------------------------------------
+   Cinq cases qui comptent ce qui attend (un appui filtre la liste),
+   « À traiter » classé par urgence avec l'action au bout de la ligne,
+   l'avancement des chantiers en cours, ce qui s'est passé.
+   Couleurs : l'orange pour ce sur quoi on agit, le bleu-vert pour ce
+   que le site mesure (les barres), le rouge seulement pour un retard,
+   toujours avec son icône et son mot.
+   ===================================================================== */
+main{max-width:1240px}
+.entete-tb{display:flex;align-items:baseline;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:2px 2px 14px}
+.entete-tb .jour{font-size:15px;font-weight:600;color:var(--sur-fond)}
+.entete-tb .resume{font-size:13px;color:var(--sur-fond-2)}
+.portee{display:flex;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12);border-radius:10px;padding:3px;margin-left:auto}
+.portee[hidden]{display:none}
+@media (max-width:520px){
+  header{flex-wrap:wrap}
+  .portee{order:3;width:100%;margin-left:0}
+  .portee button{flex:1 1 0}
+}
+.portee button{min-height:32px;padding:5px 12px;border:0;border-radius:7px;background:none;color:#AEB7BF;font-size:12.5px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.portee button[aria-pressed="true"]{background:#EA7A1E;color:#0A0E14}
+
+.cases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 16px}
+@media (min-width:760px){ .cases{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px} }
+.case-tb{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:84px;padding:11px 13px;border-radius:14px;
+  background:var(--card);border:2px solid transparent;text-align:left;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);font-family:inherit}
+.case-tb .lib{font-size:12px;font-weight:600;color:var(--ink-2)}
+.case-tb .val{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
+.case-tb .sous{font-size:11.5px;color:var(--ink-3);line-height:1.35}
+.case-tb[aria-pressed="true"]{border-color:#EA7A1E}
+.case-tb:first-child{grid-column:1 / -1}
+@media (min-width:760px){ .case-tb:first-child{grid-column:auto} .case-tb .val{font-size:34px} }
+.retard{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--rouge)}
+.retard svg{width:13px;height:13px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+
+.grille-tb{display:grid;gap:16px}
+@media (min-width:980px){ .grille-tb{grid-template-columns:1.3fr 1fr;align-items:start} }
+.carte-tb{background:var(--card);border-radius:14px;box-shadow:var(--shadow);overflow:hidden;color:var(--ink)}
+.carte-tb + .carte-tb{margin-top:16px}
+.carte-tb .ct{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;padding:13px 16px 9px}
+.carte-tb .ct h2{margin:0;font-size:16px;font-weight:700;letter-spacing:-.015em}
+.carte-tb .ct .n{font-size:12.5px;color:var(--ink-3)}
+.carte-tb .ct .export{margin-left:auto}
+.vide-tb{padding:18px 16px 20px;font-size:13.5px;color:var(--ink-3);border-top:1px solid #EEF1F4}
+
+.lg{display:flex;align-items:center;gap:12px;padding:10px 14px 10px 16px;border-top:1px solid #EEF1F4}
+.lg .tag{flex:0 0 auto;width:112px;white-space:nowrap;text-align:center;font-size:9.5px;font-weight:700;letter-spacing:.05em;padding:4px 6px;border-radius:999px}
+.t-ts{background:#FDF4EA;color:#92400E}
+.t-commande{background:var(--vert-soft);color:var(--vert)}
+.t-point{background:var(--rouge-soft);color:var(--rouge)}
+.t-relance{background:#EFEFF4;color:#5B5F80}
+.lg a.quoi{flex:1 1 auto;min-width:0;text-decoration:none;color:inherit}
+.lg .quoi b{display:block;font-size:14px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg .quoi span{display:block;font-size:12px;color:var(--ink-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.lg .age{flex:0 0 auto;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums;white-space:nowrap}
+.lg .acts{flex:0 0 auto;display:flex;gap:6px}
+.lg .acts button{min-height:34px;padding:6px 13px;border-radius:999px;border:1px solid #E9D5C1;background:#fff;color:#92400E;
+  font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:none;white-space:nowrap}
+.lg .acts button.disc{border-color:var(--rule);color:var(--ink-2);font-weight:600}
+.lg .acts button[disabled]{opacity:.5;cursor:progress}
+.lg .autre{flex:0 0 auto;font-size:11.5px;color:var(--ink-3);max-width:150px;text-align:right}
+.lg.fait{opacity:.45}
+@media (max-width:640px){
+  .lg{flex-wrap:wrap;row-gap:6px;padding:10px 12px}
+  .lg .tag{width:auto}
+  .lg a.quoi{flex:1 1 calc(100% - 110px)}
+  .lg .age{order:3}
+  .lg .acts,.lg .autre{order:4;margin-left:auto}
+}
+.plus{display:block;width:100%;min-height:42px;border:0;border-top:1px solid #EEF1F4;background:none;color:#92400E;font-size:13px;font-weight:700;font-family:inherit;cursor:pointer;box-shadow:none}
+
+.av-l{display:grid;grid-template-columns:minmax(0,170px) 1fr 44px;align-items:center;gap:12px;padding:8px 16px;text-decoration:none;color:inherit}
+.av-l .nom{font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.av-l .nom small{display:block;font-size:11px;font-weight:500;color:var(--ink-3)}
+.av-l .nom small.vieux{color:var(--rouge);font-weight:700}
+.barre-tb{height:8px;border-radius:999px;background:#E6EAEE;overflow:hidden}
+.barre-tb i{display:block;height:100%;border-radius:999px;background:var(--data,#0E7490);transition:width .6s cubic-bezier(.2,.8,.2,1)}
+.av-l .pct{font-size:13px;font-weight:700;text-align:right;font-variant-numeric:tabular-nums}
+.alerte{margin:6px 16px 14px;padding:9px 12px;border-radius:10px;background:var(--rouge-soft);display:flex;align-items:flex-start;gap:8px;font-size:12.5px;color:#7A2A24;line-height:1.45}
+.alerte svg{width:15px;height:15px;flex:0 0 auto;margin-top:2px;stroke:var(--rouge);fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.fil{display:flex;gap:10px;padding:9px 16px;border-top:1px solid #EEF1F4;font-size:12.5px;line-height:1.45;text-decoration:none;color:inherit}
+.fil .h{flex:0 0 46px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.bt-export{min-height:32px;padding:5px 12px;border-radius:999px;border:1px solid var(--rule);background:#fff;color:var(--ink);font-size:12px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.err-tb{color:var(--sur-fond);font-size:14px;text-align:center;padding:30px 10px}
+@media (hover:hover){
+  .case-tb:hover{border-color:#D8DDE4}
+  .case-tb[aria-pressed="true"]:hover{border-color:#EA7A1E}
+  .lg .acts button:hover{background:#FDF4EA}
+  .lg a.quoi:hover b,.av-l:hover .nom{color:var(--accent)}
+}
+@media (prefers-reduced-motion:reduce){ .barre-tb i{transition:none} }
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+ z-index:90;background:#262320;color:#F4F1EA;padding:10px 16px;border-radius:var(--r-field);font-size:13.5px;
+ max-width:calc(100% - 32px);text-align:center;box-shadow:0 12px 30px -14px rgba(0,0,0,.7)}
+.toast[hidden]{display:none}
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Tableau de bord</h1>
+  <div class="portee" id="portee" hidden>
+    <button type="button" data-p="mes" aria-pressed="true">Mes dossiers</button>
+    <button type="button" data-p="tout" aria-pressed="false">Tout le bureau</button>
+  </div>
+</header>
+<main>
+  <div class="entete-tb"><span class="jour" id="jour"></span><span class="resume" id="resume">Chargement…</span></div>
+  <div class="cases" id="cases">
+    <button type="button" class="case-tb" data-f="tout" aria-pressed="true"><span class="lib">Chantiers en cours</span><span class="val" id="nEnCours">–</span><span class="sous" id="sEnCours"></span></button>
+    <button type="button" class="case-tb" data-f="ts" aria-pressed="false"><span class="lib">TS à chiffrer</span><span class="val" id="nTs">–</span><span class="sous" id="sTs"></span></button>
+    <button type="button" class="case-tb" data-f="commande" aria-pressed="false"><span class="lib">Commandes à saisir</span><span class="val" id="nCmd">–</span><span class="sous" id="sCmd"></span></button>
+    <button type="button" class="case-tb" data-f="point" aria-pressed="false"><span class="lib">Points bloquants</span><span class="val" id="nPt">–</span><span class="sous" id="sPt"></span></button>
+    <button type="button" class="case-tb" data-f="relance" aria-pressed="false"><span class="lib">À relancer</span><span class="val" id="nRel">–</span><span class="sous" id="sRel"></span></button>
+  </div>
+  <div class="grille-tb">
+    <section class="carte-tb" aria-labelledby="tAT">
+      <div class="ct"><h2 id="tAT">À traiter</h2><span class="n" id="filtreTxt"></span>
+        <button type="button" class="bt-export export" id="btnExport" hidden>Exporter pour le devis</button></div>
+      <div id="liste"></div>
+    </section>
+    <div>
+      <section class="carte-tb" aria-labelledby="tAV">
+        <div class="ct"><h2 id="tAV">Avancement des chantiers</h2><span class="n">du moins avancé au plus avancé</span></div>
+        <div id="avancement"></div>
+      </section>
+      <section class="carte-tb" aria-labelledby="tAC">
+        <div class="ct"><h2 id="tAC">Ce qui s'est passé</h2></div>
+        <div id="activite"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+<script>
+(function(){
+"use strict";
+var $=function(i){ return document.getElementById(i); };
+var API="/api/rapports";
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+var S=session();
+if(!S || !S.jeton){ location.replace("./index.html"); return; }
+if(S.role!=="bureau" && S.role!=="admin"){ location.replace("./index.html"); return; }
+
+var toastT;
+function toast(t){
+  var e=$("toast"); if(!e) return;
+  e.textContent=t; e.hidden=false;
+  clearTimeout(toastT); toastT=setTimeout(function(){ e.hidden=true; }, 2600);
+}
+function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]; }
+function pluriel(n, mot, pl){ return n+" "+(n>1 ? (pl||mot+"s") : mot); }
+function lienChantier(ref){ return "./chantier.html?ref="+encodeURIComponent(ref); }
+var ICO_RETARD='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.3v.2"/></svg>';
+function appel(action, corps, query){
+  return fetch(API+"?action="+action+(query||""), {method: corps ? "POST" : "GET",
+    headers: corps ? {"content-type":"application/json","x-auth":S.jeton} : {"x-auth":S.jeton},
+    body: corps ? JSON.stringify(corps) : undefined})
+    .then(function(r){
+      if(r.status===401){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace("./index.html"); throw new Error("session"); }
+      return r.json().then(function(d){ if(!r.ok) throw new Error(d.erreur||"Refusé."); return d; });
+    });
+}
+
+/* ---------- ce qu'on regarde : filtre et portée, retenus pour la visite ---------- */
+var FILTRES={tout:1, ts:1, commande:1, point:1, relance:1};
+var F=(function(){
+  var q=""; try{ q=new URLSearchParams(location.search).get("f")||""; }catch(e){}
+  if(FILTRES[q]) return q;
+  try{ var m=sessionStorage.getItem("tableau:filtre"); if(FILTRES[m]) return m; }catch(e){}
+  return "tout";
+})();
+var PORTEE="mes";
+try{ if(sessionStorage.getItem("tableau:portee")==="tout") PORTEE="tout"; }catch(e){}
+var D=null, TOUT_VOIR=false;
+
+function jourLisible(){
+  var s=new Date().toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"});
+  return s.charAt(0).toUpperCase()+s.slice(1);
+}
+$("jour").textContent=jourLisible();
+
+/* ---------- les cinq cases ---------- */
+function peindreCases(){
+  var n=D.compteurs;
+  $("nEnCours").textContent=n.enCours;
+  $("sEnCours").textContent = n.finisMois ? pluriel(n.finisMois, "terminé")+" ce mois" : (n.attente ? n.attente+" en attente de réponse" : "tout voir ci-dessous");
+  $("nTs").textContent=n.ts;
+  $("sTs").textContent = n.ts ? "sur "+pluriel(n.tsChantiers, "chantier") : "rien à chiffrer";
+  $("nCmd").textContent=n.commandes;
+  $("sCmd").textContent = n.commandes ? "la plus ancienne : "+(n.commandeJours ? pluriel(n.commandeJours, "jour") : "aujourd'hui") : "tout est saisi";
+  $("nPt").textContent=n.points;
+  var sp=$("sPt"); sp.textContent=""; sp.className="sous";
+  if(n.pointsRetard){ sp.className="retard"; sp.innerHTML=ICO_RETARD; sp.appendChild(document.createTextNode(n.pointsRetard+" en retard")); }
+  else sp.textContent = n.points ? "aucun en retard" : "aucun en cours";
+  $("nRel").textContent=n.relances;
+  $("sRel").textContent = n.relances ? "sans réponse depuis un mois" : (n.attente ? n.attente+" en attente, rien à relancer" : "aucun dossier en attente");
+  var total=D.aTraiter.length, retards=D.aTraiter.filter(function(x){ return x.retard; }).length;
+  $("resume").textContent = total ? pluriel(total, "chose")+" à traiter"+(retards ? " · "+retards+" en retard" : "") : "Rien n'attend : tout est à jour.";
+  [].forEach.call(document.querySelectorAll(".case-tb"), function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-f")===F ? "true" : "false"); });
+}
+[].forEach.call(document.querySelectorAll(".case-tb"), function(b){
+  b.addEventListener("click", function(){
+    var f=b.getAttribute("data-f");
+    F = (F===f && f!=="tout") ? "tout" : f;
+    TOUT_VOIR=false;
+    try{ sessionStorage.setItem("tableau:filtre", F); }catch(e){}
+    try{ history.replaceState(null, "", location.pathname+(F==="tout" ? "" : "?f="+F)); }catch(e){}
+    if(D){ peindreCases(); peindreListe(); }
+    if(window.matchMedia("(max-width:979px)").matches) $("tAT").scrollIntoView({behavior:"smooth", block:"start"});
+  });
+});
+
+/* ---------- À traiter ---------- */
+var ETIQ={ts:"TS À CHIFFRER", commande:"COMMANDE", point:"POINT BLOQUANT", relance:"À RELANCER"};
+var MOT_FILTRE={tout:"le plus urgent en haut", ts:"TS à chiffrer seulement", commande:"commandes à saisir seulement",
+  point:"points bloquants seulement", relance:"dossiers à relancer seulement"};
+function sousTitre(x){
+  if(x.genre==="ts") return x.client+(x.qui ? " · demandé par "+x.qui.toLowerCase() : "")+(x.depuis ? " le "+frDate(x.depuis) : "");
+  if(x.genre==="commande") return x.client+" · déposée par "+(x.qui||"?")+(x.date ? " le "+frDate(x.date) : "");
+  if(x.genre==="point") return x.client+" · rappel du "+frDate(x.quand)+" à "+x.heure+(x.qui ? " · "+x.qui : "");
+  return x.client+" · en attente depuis "+pluriel(x.jours, "jour");
+}
+function bouton(txt, fn, cls){
+  var b=el("button", cls||"", txt); b.type="button";
+  b.addEventListener("click", function(){ fn(b); });
+  return b;
+}
+function occupe(b, oui){ b.disabled=oui; }
+function ligneFaite(ligne, message){
+  ligne.classList.add("fait");
+  [].forEach.call(ligne.querySelectorAll("button"), function(b){ b.disabled=true; });
+  toast(message);
+  setTimeout(charger, 900);
+}
+function actionsDe(x, ligne){
+  var acts=el("div","acts");
+  if(x.genre==="ts"){
+    acts.appendChild(bouton("Chiffré", function(b){
+      occupe(b, true);
+      appel("ts-chiffre", {cle:x.cle, id:x.id}).then(function(){ ligneFaite(ligne, "TS marqué chiffré : il ne passera plus au suivi suivant."); })
+        .catch(function(e){ occupe(b, false); toast(e.message); });
+    }));
+  } else if(x.genre==="commande"){
+    acts.appendChild(bouton("OK saisie", function(b){
+      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      if(note===null) return;
+      occupe(b, true);
+      appel("commande-saisie", {cle:x.cle, note:note}).then(function(){ ligneFaite(ligne, "Commande marquée saisie."); })
+        .catch(function(e){ occupe(b, false); toast(e.message); });
+    }));
+  } else if(x.genre==="point"){
+    acts.appendChild(bouton("Point levé", function(b){
+      occupe(b, true);
+      appel("tache-faite", null, "&cle="+encodeURIComponent(x.cle)).then(function(){ ligneFaite(ligne, "Point levé."); })
+        .catch(function(e){ occupe(b, false); toast(e.message); });
+    }));
+  } else if(x.genre==="relance"){
+    acts.appendChild(bouton("Toujours en attente", function(b){
+      occupe(b, true);
+      appel("chantier-etat", {ref:x.ref, etat:"attente"}).then(function(){ ligneFaite(ligne, "Noté : la question reviendra dans un mois."); })
+        .catch(function(e){ occupe(b, false); toast(e.message); });
+    }, "disc"));
+    acts.appendChild(bouton("Reprendre", function(b){
+      occupe(b, true);
+      appel("chantier-etat", {ref:x.ref, etat:"actif"}).then(function(){ ligneFaite(ligne, "Dossier repris : il revient dans Mes chantiers."); })
+        .catch(function(e){ occupe(b, false); toast(e.message); });
+    }));
+  }
+  return acts;
+}
+function ligneATraiter(x){
+  var l=el("div","lg");
+  l.appendChild(el("span","tag t-"+x.genre, ETIQ[x.genre]));
+  var q=el("a","quoi"); q.href=lienChantier(x.ref);
+  q.appendChild(el("b", null, x.titre));
+  q.appendChild(el("span", null, sousTitre(x)));
+  l.appendChild(q);
+  if(x.retard){
+    var r=el("span","retard"); r.innerHTML=ICO_RETARD;
+    r.appendChild(document.createTextNode(x.jours ? x.jours+" j de retard" : "en retard"));
+    l.appendChild(r);
+  } else if(x.genre!=="point" && x.jours){
+    l.appendChild(el("span","age", x.jours+" j"));
+  } else if(x.genre==="point"){
+    l.appendChild(el("span","age", "le "+frDate(x.quand)));
+  }
+  /* le dossier d'un collègue, vu dans « Tout le bureau » : on dit qui s'en occupe */
+  if(x.mien) l.appendChild(actionsDe(x, l));
+  else l.appendChild(el("span","autre", x.equipe && x.equipe.length ? "Suivi par "+x.equipe.slice(0,2).join(", ") : "Pas d'équipe"));
+  return l;
+}
+var MAX_LIGNES=12;
+function peindreListe(){
+  var hote=$("liste"); hote.textContent="";
+  var liste=D.aTraiter.filter(function(x){ return F==="tout" || x.genre===F; });
+  $("filtreTxt").textContent=MOT_FILTRE[F];
+  $("btnExport").hidden = !(F==="ts" && liste.length);
+  if(!liste.length){
+    hote.appendChild(el("div","vide-tb", F==="tout" ? "Rien n'attend : tout est à jour." : "Rien dans cette case pour le moment."));
+    return;
+  }
+  var montrees = TOUT_VOIR ? liste : liste.slice(0, MAX_LIGNES);
+  montrees.forEach(function(x){ hote.appendChild(ligneATraiter(x)); });
+  if(liste.length > montrees.length){
+    hote.appendChild(bouton("Voir les "+(liste.length-montrees.length)+" autres", function(){ TOUT_VOIR=true; peindreListe(); }, "plus"));
+  }
+}
+
+/* ---------- l'export des TS, pour le devis ----------
+   Un fichier que tableur et logiciel de devis ouvrent tels quels :
+   séparateur « ; » et accents compris (comme l'attend Excel en France). */
+$("btnExport").addEventListener("click", function(){
+  var lignes=[["Chantier","Référence","Travaux supplémentaire","Demandé par","Depuis le"]];
+  D.aTraiter.filter(function(x){ return x.genre==="ts"; }).forEach(function(x){
+    lignes.push([x.client, x.ref, x.titre, x.qui||"", x.depuis ? String(x.depuis).slice(0,10).split("-").reverse().join("/") : ""]);
+  });
+  var csv=lignes.map(function(l){
+    return l.map(function(v){ v=String(v==null?"":v); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(";");
+  }).join("\r\n");
+  var blob=new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
+  var a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download="TS-a-chiffrer-"+new Date().toISOString().slice(0,10)+".csv";
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  toast(pluriel(lignes.length-1, "TS exporté", "TS exportés")+".");
+});
+
+/* ---------- l'avancement ---------- */
+var SANS_SUIVI=14;
+function peindreAvancement(){
+  var hote=$("avancement"); hote.textContent="";
+  if(!D.avancement.length){ hote.appendChild(el("div","vide-tb","Aucun chantier en cours.")); return; }
+  var vieux=[];
+  D.avancement.forEach(function(c){
+    var a=el("a","av-l"); a.href=lienChantier(c.ref);
+    var nom=el("div","nom", c.client);
+    var retard = c.joursSansSuivi!=null && c.joursSansSuivi>=SANS_SUIVI;
+    var sm=el("small", retard ? "vieux" : "",
+      c.dernierSuivi==="" ? "pas encore de suivi"
+      : c.joursSansSuivi===0 ? "dernier suivi aujourd'hui"
+      : c.joursSansSuivi===1 ? "dernier suivi hier"
+      : "dernier suivi il y a "+c.joursSansSuivi+" j");
+    nom.appendChild(sm);
+    var b=el("div","barre-tb"); var i=el("i"); i.style.width=c.avancement+"%"; b.appendChild(i);
+    b.setAttribute("role","img"); b.setAttribute("aria-label", c.avancement+" % d'avancement");
+    a.appendChild(nom); a.appendChild(b); a.appendChild(el("div","pct", c.avancement+" %"));
+    a.title=c.client+" — "+c.avancement+" %"+(c.dernierSuivi ? " · dernier suivi le "+frDate(c.dernierSuivi) : "");
+    hote.appendChild(a);
+    if(retard) vieux.push(c);
+  });
+  if(vieux.length){
+    var al=el("div","alerte"); al.innerHTML=ICO_RETARD;
+    var t=el("span");
+    t.innerHTML = vieux.map(function(c){ return "<b></b>"; }).join(", ");
+    [].forEach.call(t.querySelectorAll("b"), function(b, k){ b.textContent=vieux[k].client; });
+    t.appendChild(document.createTextNode(vieux.length>1 ? " : aucun suivi depuis plus de "+SANS_SUIVI+" jours" : " : aucun suivi depuis "+vieux[0].joursSansSuivi+" jours"));
+    al.appendChild(t);
+    hote.appendChild(al);
+  }
+}
+
+/* ---------- ce qui s'est passé ---------- */
+function heureLisible(iso){
+  if(!iso) return "";
+  var d=new Date(iso), auj=new Date();
+  if(isNaN(d)) return frDate(iso);
+  var j=Math.round((new Date(auj.getFullYear(),auj.getMonth(),auj.getDate()) - new Date(d.getFullYear(),d.getMonth(),d.getDate()))/864e5);
+  if(j<=0) return d.toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"});
+  if(j===1) return "Hier";
+  return frDate(d.toISOString());
+}
+function peindreActivite(){
+  var hote=$("activite"); hote.textContent="";
+  if(!D.activite.length){ hote.appendChild(el("div","vide-tb","Rien pour le moment.")); return; }
+  D.activite.slice(0, 8).forEach(function(x){
+    var a=el("a","fil"); a.href = x.genre==="message" ? "./rapports.html?discussion="+encodeURIComponent(x.ref) : lienChantier(x.ref);
+    a.appendChild(el("span","h", heureLisible(x.quand)));
+    var t=el("span");
+    var qui=el("b", null, x.qui||"?");
+    t.appendChild(qui);
+    t.appendChild(document.createTextNode(
+      x.genre==="message" ? " a écrit dans la discussion de "+x.client
+      : x.genre==="avancement" ? " a passé "+x.client+" à "+x.valeur+" %"
+      : " a déposé « "+(x.titre||"un document")+" » sur "+x.client));
+    a.appendChild(t);
+    hote.appendChild(a);
+  });
+}
+
+/* ---------- mes dossiers / tout le bureau (administrateur) ---------- */
+[].forEach.call(document.querySelectorAll("#portee button"), function(b){
+  b.addEventListener("click", function(){
+    PORTEE=b.getAttribute("data-p");
+    try{ sessionStorage.setItem("tableau:portee", PORTEE); }catch(e){}
+    charger();
+  });
+});
+
+function charger(){
+  return appel("tableau-bord", null, PORTEE==="tout" ? "&portee=tout" : "").then(function(d){
+    D=d;
+    $("portee").hidden=!d.peutTout;
+    [].forEach.call(document.querySelectorAll("#portee button"), function(b){
+      b.setAttribute("aria-pressed", b.getAttribute("data-p")===d.portee ? "true" : "false");
+    });
+    peindreCases(); peindreListe(); peindreAvancement(); peindreActivite();
+  }).catch(function(e){
+    if(e && e.message==="session") return;
+    if(!D) $("resume").textContent = "Tableau indisponible : "+(e && e.message ? e.message : "pas de réseau.");
+    else toast("Pas de réseau : le tableau n'est pas à jour.");
+  });
+}
+charger();
+document.addEventListener("visibilitychange", function(){ if(!document.hidden) charger(); });
+window.addEventListener("pageshow", function(e){ if(e.persisted) charger(); });
+})();
+</script>
+</body>
+</html>

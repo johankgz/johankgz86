@@ -2,7 +2,7 @@ import { getStore } from "./magasin.mjs";
 import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis } from "./notifications.mjs";
 
 const INDEX = "_index";
 
@@ -48,6 +48,11 @@ function contactPush(origine) {
    serveur, et à chaque appel du site (au plus une fois par minute),
    au cas où l'hébergeur aurait endormi le serveur entre-temps. */
 let DERNIER_TIC = 0;
+/* Les TS pas encore chiffrés du dernier suivi de chaque chantier, pour
+   le tableau de bord : relire toutes les fiches (photos comprises) à
+   chaque ouverture serait lourd ; on les garde tant que la fiche ne
+   change pas. */
+const CACHE_TS = new Map();
 async function tic(force) {
   if (!force && Date.now() - DERNIER_TIC < 50000) return 0;
   DERNIER_TIC = Date.now();
@@ -568,7 +573,7 @@ function rang(f) {
    lectures, elles, ne s'attendent pas. */
 const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat"]);
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1142,7 +1147,7 @@ async function traiter(req) {
       try { JSON.parse(donnees); } catch { return json({ erreur: "Fiche illisible une fois reconstituée." }, 400); }
     }
     await store.set(cleFiche, donnees, { metadata: { type: "application/json" } });
-    if (f) { f.donnees = true; await store.setJSON(INDEX, idx); }
+    if (f) { f.donnees = true; f.ficheMaj = new Date().toISOString(); await store.setJSON(INDEX, idx); }
     return json({ ok: true });
   }
 
@@ -1726,6 +1731,149 @@ async function traiter(req) {
     });
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
+  }
+
+
+  /* =====================================================================
+     LE TABLEAU DE BORD DU BUREAU
+     ---------------------------------------------------------------------
+     Tout ce qui attend, sur une page : TS pas encore chiffrés (repris du
+     dernier suivi de chaque chantier), commandes pas saisies, points
+     bloquants, dossiers à relancer ; l'avancement des chantiers en cours
+     et ce qui s'est passé dernièrement. « Mes dossiers » par défaut ;
+     « Tout le bureau » pour l'administrateur, en vue d'ensemble.
+     ===================================================================== */
+  async function tsDuSuivi(f) {
+    const k = personne.societe + "/" + f.cle;
+    const v = f.ficheMaj || f.publie || "";
+    const vu = CACHE_TS.get(k);
+    if (vu && vu.v === v) return vu.ts;
+    let fiche = null;
+    try { fiche = JSON.parse(await store.get(f.cle.replace(/\.pdf$/, ".json"), { type: "text" })); } catch { fiche = null; }
+    const date = (fiche && fiche.visite && fiche.visite.date) || f.date || "";
+    const ts = (fiche && fiche.version === 2 && Array.isArray(fiche.ts))
+      ? fiche.ts.filter((t) => !t.fait && String(t.texte || "").trim())
+          .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }))
+      : [];
+    CACHE_TS.set(k, { v, ts });
+    return ts;
+  }
+
+  if (action === "tableau-bord") {
+    if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
+    const tout = !!admin && url.searchParams.get("portee") === "tout";
+    const idx = await lireIndex();
+    const maintenant = maintenantParis();
+    const mois = maintenant.slice(0, 7);
+    const chantiers = Object.values(idx.chantiers)
+      .filter((c) => (c.fichiers || []).some((f) => !f.brouillon) && (tout || membreDe(c)));
+    const aTraiter = [], avancement = [], activite = [];
+    const n = { enCours: 0, finisMois: 0, ts: 0, tsChantiers: 0, commandes: 0, commandeJours: 0,
+      points: 0, pointsRetard: 0, relances: 0, attente: 0 };
+    const parRef = {};
+    for (const c of chantiers) {
+      const chez = { ref: c.ref, client: c.client || c.ref, equipe: c.equipe || [], mien: membreDe(c) };
+      parRef[c.ref] = chez;
+      const visibles = c.fichiers.filter((f) => !f.brouillon);
+      const etat = etatDossier(c);
+      for (const f of visibles) {
+        activite.push({ genre: "document", quand: f.publie || f.date || "", qui: f.auteur || "", titre: f.titre || "",
+          type: f.type || "", ref: c.ref, client: chez.client });
+      }
+      try {
+        const m = await lireMessages(c.ref);
+        const der = m.messages[m.messages.length - 1];
+        if (der) activite.push({ genre: "message", quand: der.quand, qui: der.auteur, ref: c.ref, client: chez.client });
+      } catch { /* pas de discussion */ }
+      if (etat.etat === "attente") {
+        n.attente++;
+        if (etat.relanceDue) {
+          n.relances++;
+          aTraiter.push({ genre: "relance", ...chez, titre: etat.attenteNote || "En attente de réponse",
+            jours: etat.joursAttente || 0, depuis: etat.attenteDepuis || "" });
+        }
+        continue;                       /* un devis qui attend : ni commande ni TS à suivre */
+      }
+      const a = avancementDe(c);
+      if (c.avancementLe && c.avancementPar) {
+        activite.push({ genre: "avancement", quand: c.avancementLe, qui: c.avancementPar, valeur: a, ref: c.ref, client: chez.client });
+      }
+      const suivis = visibles.filter((f) => f.type === "suivi").sort((x, y) =>
+        String(y.date || "").localeCompare(String(x.date || "")) || String(y.publie || "").localeCompare(String(x.publie || "")));
+      if (a >= 100) {
+        if (String(c.avancementLe || "").slice(0, 7) === mois) n.finisMois++;
+      } else {
+        n.enCours++;
+        const dernier = suivis[0] ? (suivis[0].date || String(suivis[0].publie || "").slice(0, 10)) : "";
+        avancement.push({ ...chez, avancement: a, dernierSuivi: dernier, joursSansSuivi: dernier ? joursDepuis(dernier) : null });
+      }
+      for (const f of visibles) {
+        if (f.type !== "commande" || f.saisie) continue;
+        const j = joursDepuis(f.publie || f.date);
+        n.commandes++; n.commandeJours = Math.max(n.commandeJours, j);
+        aTraiter.push({ genre: "commande", ...chez, cle: f.cle, titre: f.titre || "Commande", qui: f.auteur || "",
+          date: f.date || "", jours: j });
+      }
+      const suiviFiche = suivis.find((f) => f.donnees);
+      if (suiviFiche) {
+        const ts = await tsDuSuivi(suiviFiche);
+        if (ts.length) n.tsChantiers++;
+        for (const t of ts) {
+          n.ts++;
+          aTraiter.push({ genre: "ts", ...chez, cle: suiviFiche.cle, id: t.id, titre: t.texte, qui: t.qui,
+            depuis: t.depuis, jours: joursDepuis(t.depuis) });
+        }
+      }
+    }
+    /* les points bloquants des suivis, avec leur rappel */
+    try {
+      const res = await store.list({ prefix: "taches/" });
+      for (const b of (res.blobs || [])) {
+        let t = null;
+        try { t = await store.get(b.key, { type: "json" }); } catch { t = null; }
+        if (!t || !t.rappel || t.faite) continue;
+        const chez = parRef[t.chantier];
+        if (!chez && t.qui !== personne.nom) continue;
+        const heure = /^\d{2}:\d{2}$/.test(t.heure || "") ? t.heure : "08:00";
+        const retard = (t.quand + " " + heure) < maintenant;
+        n.points++; if (retard) n.pointsRetard++;
+        aTraiter.push({ genre: "point", ref: t.chantier || "", client: (chez && chez.client) || t.client || t.chantier || "",
+          equipe: (chez && chez.equipe) || [], mien: t.qui === personne.nom || !!(chez && chez.mien),
+          cle: b.key, titre: String(t.texte || ""), qui: t.qui || "", quand: t.quand, heure, retard,
+          jours: retard ? joursDepuis(t.quand) : 0 });
+      }
+    } catch { /* aucun point */ }
+    const prio = (x) => (x.genre === "point" && x.retard ? 0 : x.genre === "relance" ? 1 : x.genre === "point" ? 3 : 2);
+    aTraiter.sort((x, y) => prio(x) - prio(y) || (y.jours || 0) - (x.jours || 0));
+    avancement.sort((x, y) => x.avancement - y.avancement || String(x.client).localeCompare(String(y.client)));
+    activite.sort((x, y) => String(y.quand || "").localeCompare(String(x.quand || "")));
+    return json({ portee: tout ? "tout" : "mes", peutTout: !!admin, maintenant, compteurs: n,
+      aTraiter, avancement, activite: activite.slice(0, 10) });
+  }
+
+  /* Un TS chiffré depuis le tableau de bord : coché dans la fiche du
+     suivi où il figure, il ne passera plus au suivi suivant. */
+  if (action === "ts-chiffre") {
+    if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const cle = String(d.cle || "");
+    const idx = await lireIndex();
+    const f = trouver(idx, cle);
+    if (!f || f.type !== "suivi") return json({ erreur: "Suivi introuvable." }, 404);
+    if (!membreDe(chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const cleFiche = cle.replace(/\.pdf$/, ".json");
+    let fiche = null;
+    try { fiche = JSON.parse(await store.get(cleFiche, { type: "text" })); } catch { fiche = null; }
+    const t = fiche && Array.isArray(fiche.ts) ? fiche.ts.find((x) => String(x.id) === String(d.id)) : null;
+    if (!t) return json({ erreur: "Travaux supplémentaire introuvable." }, 404);
+    t.fait = d.fait !== false;
+    if (t.fait) { t.chiffrePar = personne.nom; t.chiffreLe = new Date().toISOString(); }
+    else { delete t.chiffrePar; delete t.chiffreLe; }
+    await store.set(cleFiche, JSON.stringify(fiche), { metadata: { type: "application/json" } });
+    f.ficheMaj = new Date().toISOString();
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, fait: t.fait });
   }
 
   /* ---------- l'avancement du chantier ----------

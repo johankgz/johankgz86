@@ -959,6 +959,11 @@ body.connexion .ciel{display:none}
   .ciel *{animation:none!important}
   .ciel-pluie{display:none}
 }
+/* ---------- le tableau de bord, pour le bureau ---------- */
+.raccourci.rc-tableau{margin-bottom:10px;border-left-color:var(--data,#0E7490)}
+.raccourci.rc-tableau .r-ic{color:var(--data,#0E7490)}
+.raccourci[hidden]{display:none}
+.rc-tableau .r-retard{color:var(--rouge,#A03A33);font-weight:700}
 /* ---------- l'invitation aux notifications ---------- */
 .invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
   padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
@@ -1076,6 +1081,11 @@ body.connexion .ciel{display:none}
     <div class="notifs" id="notifs" hidden></div>
     <div class="invite-notif" id="inviteNotif" hidden></div>
 
+    <a class="raccourci rc-tableau" id="rcTableau" href="./tableau.html" hidden>
+      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>
+      <span class="r-txt"><b>Tableau de bord</b><span id="rcTableauTxt">Tout ce qui attend, sur une page</span></span>
+      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
+    </a>
     <a class="raccourci" href="./notes.html">
       <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
       <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
@@ -1583,8 +1593,36 @@ function bandeauPublic(){
 
 /* ---------- tâches du jour ---------- */
 var TACHES=[];
-var NOTIF_INVITEE=false;
+var NOTIF_INVITEE=false, TABLEAU_DEMANDE=false;
+/* Le bureau a son tableau de bord : une ligne sur l'accueil, qui dit
+   combien de choses attendent. Sur ordinateur, s'il l'a choisi dans
+   Mon compte, il s'ouvre directement (une fois par session : le bouton
+   Menu ramène ensuite ici sans renvoyer là-bas). */
+function peindreEntreeTableau(s){
+  var a=$("rcTableau"); if(!a) return;
+  var bureau = s && (s.role==="bureau" || s.role==="admin");
+  a.hidden=!bureau;
+  if(!bureau || TABLEAU_DEMANDE) return;
+  TABLEAU_DEMANDE=true;
+  try{
+    var grand = window.matchMedia("(min-width:900px) and (hover:hover)").matches;
+    if(grand && localStorage.getItem("tableau:demarrage")==="1" && !sessionStorage.getItem("tableau:ouvert")){
+      sessionStorage.setItem("tableau:ouvert","1");
+      location.href="./tableau.html";
+      return;
+    }
+  }catch(e){}
+  fetch(apiUrl("tableau-bord"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      var t=$("rcTableauTxt"), n=d.aTraiter.length, ret=d.aTraiter.filter(function(x){ return x.retard; }).length;
+      t.textContent = n ? n+" chose"+(n>1?"s":"")+" à traiter" : "Rien n'attend : tout est à jour";
+      if(ret){ var r=document.createElement("span"); r.className="r-retard"; r.style.display="inline"; r.textContent=" · "+ret+" en retard"; t.appendChild(r); }
+    }).catch(function(){});
+}
 function chargerTaches(s){
+  peindreEntreeTableau(s);
   /* une fois par visite : proposer les notifications sur ce téléphone */
   if(!NOTIF_INVITEE && window.Notif){ NOTIF_INVITEE=true; Notif.inviter($("inviteNotif"), s); }
   fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
