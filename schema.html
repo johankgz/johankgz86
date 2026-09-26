@@ -1621,7 +1621,7 @@ function dessinerPV(S, f){
   var xDer=xs[xs.length-1];
   /* ---------- générateur ---------- */
   T.t(60,64,"Générateur PV",13,{bold:true,c:R});
-  T.t(60,80,r.nbPanneaux+" panneaux · "+fr(r.pcTot/1000,2)+" kWc"+(pv.panneau.modele?" · "+pv.panneau.modele:""),11,{c:R});
+  T.t(60,80,r.nbPanneaux+" panneaux · "+fr(r.pcTot/1000,2)+" kWc"+(pv.panneau.modele?" · "+pv.panneau.modele:"")+(pas<120?" · chaînes : panneaux 1 à N en série, ×n chaînes en parallèle":""),11,{c:R});
   ms.forEach(function(m, i){
     var x=xs[i];
     T.t(x,104,"MPPT "+(m.i+1),10.5,{anchor:"middle",bold:true});
@@ -1629,8 +1629,10 @@ function dessinerPV(S, f){
     T.l(x,160,x,196,1.2,"4 3");
     T.l(x-5,182,x+5,174,1.1); T.l(x-5,187,x+5,179,1.1);
     panneauPV(T, x, 196, String(m.serie||"X"));
-    T.t(x+24,174,(m.serie||"X")+" en série",9.5,{});
-    if(m.chaines>1) T.t(x+24,186,"× "+m.chaines+" chaînes",9.5,{bold:true});
+    if(pas>=120){
+      T.t(x+24,174,(m.serie||"X")+" en série",9.5,{});
+      if(m.chaines>1) T.t(x+24,186,"× "+m.chaines+" chaînes",9.5,{bold:true});
+    } else if(m.chaines>1) T.t(x+21,184,"×"+m.chaines,8.5,{bold:true});
   });
   /* Les options du chantier. Par défaut, ce qu'on pose le plus souvent :
      protections DC intégrées à l'onduleur, pas de coffret AC — le départ
@@ -1653,7 +1655,7 @@ function dessinerPV(S, f){
       if(fus && m.chaines>=3) SYMBOLES.fus.dessin(T,x,300,352); else T.l(x,300,x,318);
       var ys = fus && m.chaines>=3 ? 352 : 318;
       SYMBOLES.sect.dessin(T,x,ys,ys+62);
-      if(i===0){ decouper(sect,18).slice(0,2).forEach(function(l,j){ T.t(x+12,ys+16+j*12,l,9.5); }); if(fus && m.chaines>=3) T.t(x+12,312,fus,9); }
+      if(i===0 && pas>=120){ decouper(sect,18).slice(0,2).forEach(function(l,j){ T.t(x+12,ys+16+j*12,l,9.5); }); if(fus && m.chaines>=3) T.t(x+12,312,fus,9); }
       T.l(x,ys+62,x,560);
       if(opt("parafoudreDC")){
         var yb=ys+76;
@@ -1662,6 +1664,7 @@ function dessinerPV(S, f){
       }
     });
     if(opt("parafoudreDC")) T.t(cdG+8,yDC1-7,choixPV(pv,r,"pfDC"),9);
+    if(pas<120) T.t(cdG+8,yDC1-(opt("parafoudreDC")?19:7),sect+(fus&&ms.some(function(m){ return m.chaines>=3; })?" · "+fus:"")+" (par MPPT)",9);
     terres.push([cdD-20,yDC1]);
   } else {
     /* les chaînes vont droit aux entrées MPPT de l'onduleur */
@@ -1675,8 +1678,9 @@ function dessinerPV(S, f){
   T.t(oG+16,oB-16,"=",16,{bold:true}); T.t(oD-18,oB-12,"~",18,{bold:true});
   ms.forEach(function(m,i){ T.t(xs[i],oH+13,"MPPT"+(m.i+1),8.5,{anchor:"middle",bold:true}); });
   if(!avecDC) T.t(oG+6,oH+28,"Protections DC intégrées",8.5,{gris:true});
-  T.t(oD+10,632,"Onduleur"+(O.modele?" "+O.modele:""),12,{bold:true,c:R});
-  T.t(oD+10,646,fr(nb(O.pac),1)+" kVA · "+(O.phases==="tri"?"triphasé":"monophasé")+" · "+(parseInt(O.nMppt,10)||1)+" MPPT",10.5,{c:R});
+  var large=oD>600, tX=large?oG+34:oD+10, tY=large?oB+18:632;
+  T.t(tX,tY,"Onduleur"+(O.modele?" "+O.modele:""),12,{bold:true,c:R});
+  T.t(tX,tY+14,fr(nb(O.pac),1)+" kVA · "+(O.phases==="tri"?"triphasé":"monophasé")+" · "+(parseInt(O.nMppt,10)||1)+" MPPT",10.5,{c:R});
   terres.push([oG+20,oB]);
   var yAC=605, finTerre;
   /* ---------- côté alternatif ---------- */
