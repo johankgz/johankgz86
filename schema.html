@@ -1542,8 +1542,10 @@ function pvVierge(){
     panneau:{modele:"", pc:425, voc:38.3, vmp:32.1, isc:13.9, imp:13.25, coefVoc:-0.26, coefVmp:""},
     onduleur:{modele:"", pac:6, phases:"mono", nMppt:2, mpptMin:90, mpptMax:560, vmax:600, imax:16, iscMax:""},
     mppt:[{serie:7, chaines:1},{serie:7, chaines:1}],
-    choix:{cableDC:"", sectDC:"", parafoudreDC:true, parafoudreAC:true, arretUrgence:true, cableAC:"", disjAC:"", idAC:"", departTGBT:"", abonne:"15/45 A · 500 mA S", typeID:"A"}};
+    choix:{cableDC:"", sectDC:"", cableAC:"", disjAC:"", idAC:"", departTGBT:"", abonne:"15/45 A · 500 mA S", typeID:"A"}};
 }
+/* ce qu'on pose le plus souvent, quand rien n'est coché ni décoché */
+var OPTIONS_PV_DEFAUT={coffretDC:false, coffretAC:false, arretUrgence:true, idOnduleur:false, parafoudreDC:false, parafoudreAC:true};
 function nb(v){ var n=parseFloat(String(v==null?"":v).replace(",",".")); return isNaN(n) ? null : n; }
 function arr(n, d){ var p=Math.pow(10,d||0); return Math.round(n*p)/p; }
 function fr(n, d){ return n==null||isNaN(n) ? "—" : String(arr(n,d==null?1:d)).replace(".",","); }
@@ -1595,7 +1597,7 @@ function calculPV(pv){
   var cal = r.propose.iAC ? normalise([10,16,20,25,32,40,50,63,80,100], r.propose.iAC) : 32;
   var sec = sectionPour(cal+" A") || "6²";
   var tri = pv.onduleur.phases==="tri";
-  r.propose.disjAC = "Disj. "+(tri?"4P":"2P")+" "+cal+" A";
+  r.propose.disjAC = "Disj. onduleur "+(tri?"4P":"2P")+" "+cal+" A";
   r.propose.idAC = "ID "+(tri?"4P":"2P")+" "+normalise([25,40,63,80,100], cal)+" A · 30 mA · type "+(pv.choix.typeID||"A");
   r.propose.cableAC = (tri?"5G":"3G")+sec.replace("²","")+" mm²";
   r.propose.departTGBT = "Disj. "+cal+" A";
@@ -1630,92 +1632,154 @@ function dessinerPV(S, f){
     T.t(x+24,174,(m.serie||"X")+" en série",9.5,{});
     if(m.chaines>1) T.t(x+24,186,"× "+m.chaines+" chaînes",9.5,{bold:true});
   });
-  /* ---------- coffret DC ---------- */
+  /* Les options du chantier. Par défaut, ce qu'on pose le plus souvent :
+     protections DC intégrées à l'onduleur, pas de coffret AC — le départ
+     part du disjoncteur abonné, sur un disjoncteur onduleur à bobine MX
+     commandée par le bouton d'arrêt d'urgence. */
+  function opt(k){ var v=(pv.choix||{})[k]; return v===undefined ? !!OPTIONS_PV_DEFAUT[k] : v===true; }
+  var avecDC=opt("coffretDC"), avecAC=opt("coffretAC");
+  var tri=O.phases==="tri", nf=tri?4:2;
+  function traitsFils(x, y){ for(var q=0;q<nf;q++){ var xx=x-6+q*4; T.l(xx-3,y+6,xx+3,y-6,1.1); } }
   var cdG=Math.min(xs[0]-95, 60), cdD=xDer+70, yDC0=268, yDC1=494;
-  T.r(cdG,yDC0,cdD-cdG,yDC1-yDC0,{sw:1.3,dash:"6 4",c:B});
-  T.t(cdG+8,yDC0+15,"Coffret de protection DC",10.5,{bold:true,c:B});
-  var sect=choixPV(pv,r,"sectDC"), fus=r.propose.fusibles;
-  ms.forEach(function(m, i){
-    var x=xs[i];
-    T.l(x,244,x,300);
-    /* fusibles de chaîne au-delà de deux chaînes en parallèle */
-    var y=300;
-    if(fus && m.chaines>=3){ SYMBOLES.fus.dessin(T,x,300,352); y=352; }
-    else T.l(x,300,x,318);
-    var ys = fus && m.chaines>=3 ? 352 : 318;
-    SYMBOLES.sect.dessin(T,x,ys,ys+62);
-    if(i===0){ decouper(sect,18).slice(0,2).forEach(function(l,j){ T.t(x+12,ys+16+j*12,l,9.5); }); if(fus && m.chaines>=3) T.t(x+12,312,fus,9); }
-    T.l(x,ys+62,x,560);
-    /* parafoudre DC, en dérivation */
-    if(pv.choix.parafoudreDC!==false){
-      var yb=ys+76;
-      T.e(x,yb,2.4,2.4,1,"#111"); T.l(x,yb,x-40,yb,1.3);
-      SYMBOLES.parafoudre.dessin(T,x-40,yb,yb+58);
-    }
-  });
-  if(pv.choix.parafoudreDC!==false) T.t(cdG+8,yDC1-7,choixPV(pv,r,"pfDC"),9);
+  var terres=[[cdG+10,150]];
+  /* ---------- côté continu ---------- */
+  if(avecDC){
+    T.r(cdG,yDC0,cdD-cdG,yDC1-yDC0,{sw:1.3,dash:"6 4",c:B});
+    T.t(cdG+8,yDC0+15,"Coffret de protection DC",10.5,{bold:true,c:B});
+    var sect=choixPV(pv,r,"sectDC"), fus=r.propose.fusibles;
+    ms.forEach(function(m, i){
+      var x=xs[i];
+      T.l(x,244,x,300);
+      if(fus && m.chaines>=3) SYMBOLES.fus.dessin(T,x,300,352); else T.l(x,300,x,318);
+      var ys = fus && m.chaines>=3 ? 352 : 318;
+      SYMBOLES.sect.dessin(T,x,ys,ys+62);
+      if(i===0){ decouper(sect,18).slice(0,2).forEach(function(l,j){ T.t(x+12,ys+16+j*12,l,9.5); }); if(fus && m.chaines>=3) T.t(x+12,312,fus,9); }
+      T.l(x,ys+62,x,560);
+      if(opt("parafoudreDC")){
+        var yb=ys+76;
+        T.e(x,yb,2.4,2.4,1,"#111"); T.l(x,yb,x-40,yb,1.3);
+        SYMBOLES.parafoudre.dessin(T,x-40,yb,yb+58);
+      }
+    });
+    if(opt("parafoudreDC")) T.t(cdG+8,yDC1-7,choixPV(pv,r,"pfDC"),9);
+    terres.push([cdD-20,yDC1]);
+  } else {
+    /* les chaînes vont droit aux entrées MPPT de l'onduleur */
+    ms.forEach(function(m, i){ var x=xs[i]; T.l(x,244,x,560); T.l(x-5,404,x+5,396,1.1); T.l(x-5,409,x+5,401,1.1); });
+  }
   T.t(xDer+8,530,choixPV(pv,r,"cableDC"),9.5,{bold:true});
   /* ---------- onduleur ---------- */
-  var oG=Math.min(xs[0]-40, xs[0]-40), oD=Math.max(xDer+40, xs[0]+100), oH=560, oB=650;
+  var oG=xs[0]-40, oD=Math.max(xDer+40, xs[0]+100), oH=560, oB=650;
   T.r(oG,oH,oD-oG,oB-oH,{sw:1.5,fill:"#fff"});
   T.l(oG,oB,oD,oH,1.1);
   T.t(oG+16,oB-16,"=",16,{bold:true}); T.t(oD-18,oB-12,"~",18,{bold:true});
   ms.forEach(function(m,i){ T.t(xs[i],oH+13,"MPPT"+(m.i+1),8.5,{anchor:"middle",bold:true}); });
+  if(!avecDC) T.t(oG+6,oH+28,"Protections DC intégrées",8.5,{gris:true});
   T.t(oD+10,632,"Onduleur"+(O.modele?" "+O.modele:""),12,{bold:true,c:R});
   T.t(oD+10,646,fr(nb(O.pac),1)+" kVA · "+(O.phases==="tri"?"triphasé":"monophasé")+" · "+(parseInt(O.nMppt,10)||1)+" MPPT",10.5,{c:R});
-  /* ---------- sortie AC vers le coffret AC ---------- */
-  var xAC=Math.max(oD+160, 880), yAC=605;
-  T.l(oD,yAC,xAC,yAC,1.5);
-  T.t((oD+xAC)/2,yAC-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
-  var tri=O.phases==="tri", nf=tri?4:2;
-  for(var q=0;q<nf;q++){ var xx=(oD+xAC)/2-6+q*4; T.l(xx-3,yAC+6,xx+3,yAC-6,1.1); }
-  /* ---------- coffret AC : de bas en haut ---------- */
-  T.r(xAC-95,392,190,238,{sw:1.3,dash:"6 4",c:B});
-  T.t(xAC-88,622,"Coffret de protection AC",10.5,{bold:true,c:B});
-  var y=yAC;
-  if(pv.choix.arretUrgence!==false){ SYMBOLES.inter.dessin(T,xAC,y-60,y); T.t(xAC+12,y-40,"Arrêt d'urgence",9.5,{bold:true}); y-=60; }
-  SYMBOLES.disj.dessin(T,xAC,y-60,y); T.t(xAC+12,y-44,choixPV(pv,r,"disjAC"),9.5);
-  y-=60;
-  SYMBOLES.id.dessin(T,xAC,y-66,y);
-  decouper(choixPV(pv,r,"idAC"),16).slice(0,3).forEach(function(l,j){ T.t(xAC+12,y-54+j*11,l,9.5); });
-  y-=66;
-  if(pv.choix.parafoudreAC!==false){
-    T.e(xAC,y+2,2.4,2.4,1,"#111"); T.l(xAC,y+2,xAC-50,y+2,1.3);
-    SYMBOLES.parafoudre.dessin(T,xAC-50,y+2,y+60);
-    T.t(xAC-64,y+72,"Parafoudre AC",9,{anchor:"end"});
+  terres.push([oG+20,oB]);
+  var yAC=605, finTerre;
+  /* ---------- côté alternatif ---------- */
+  if(avecAC){
+    var xAC=Math.max(oD+160, 880);
+    T.l(oD,yAC,xAC,yAC,1.5);
+    T.t((oD+xAC)/2,yAC-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
+    traitsFils((oD+xAC)/2,yAC);
+    T.r(xAC-95,392,190,238,{sw:1.3,dash:"6 4",c:B});
+    T.t(xAC-88,622,"Coffret de protection AC",10.5,{bold:true,c:B});
+    var y=yAC;
+    if(opt("arretUrgence")){ SYMBOLES.inter.dessin(T,xAC,y-60,y); T.t(xAC+12,y-40,"Arrêt d'urgence",9.5,{bold:true}); y-=60; }
+    SYMBOLES.disj.dessin(T,xAC,y-60,y); T.t(xAC+12,y-44,choixPV(pv,r,"disjAC"),9.5);
+    y-=60;
+    SYMBOLES.id.dessin(T,xAC,y-66,y);
+    decouper(choixPV(pv,r,"idAC"),16).slice(0,3).forEach(function(l,j){ T.t(xAC+12,y-54+j*11,l,9.5); });
+    y-=66;
+    if(opt("parafoudreAC")){
+      T.e(xAC,y+2,2.4,2.4,1,"#111"); T.l(xAC,y+2,xAC-50,y+2,1.3);
+      SYMBOLES.parafoudre.dessin(T,xAC-50,y+2,y+60);
+      T.t(xAC-64,y+72,"Parafoudre AC",9,{anchor:"end"});
+    }
+    var xT=1200, yT=y-14;
+    T.l(xAC,y,xAC,yT,1.5); T.l(xAC,yT,xT,yT,1.5);
+    T.t((xAC+xT)/2,yT-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
+    traitsFils((xAC+xT)/2,yT);
+    T.t(xT-40,64,"Disjoncteur abonné",13,{bold:true,c:R});
+    SYMBOLES.agcp.dessin(T,xT,78,150);
+    T.t(xT+22,100,pv.choix.abonne||"",9.5);
+    T.l(xT-80,168,xT+120,168,1,"5 4");
+    T.t(xT-84,162,"NF C 14-100",9,{anchor:"end",gris:true}); T.t(xT-84,180,"NF C 15-100",9,{anchor:"end",gris:true});
+    T.l(xT,150,xT,202);
+    T.r(xT-70,190,250,Math.max(yT+18,300)-190,{sw:1.3,dash:"6 4",c:B});
+    T.t(xT+100,206,"TGBT",11,{bold:true,c:B});
+    SYMBOLES.id.dessin(T,xT,202,262); T.t(xT+12,214,"30 mA",9.5);
+    T.l(xT,262,xT,270); T.l(xT,270,xT+90,270,1.8); T.e(xT,270,2.4,2.4,1,"#111");
+    SYMBOLES.disj.dessin(T,xT,270,330); T.t(xT+12,288,choixPV(pv,r,"departTGBT"),9.5);
+    T.l(xT,330,xT,yT);
+    SYMBOLES.disj.dessin(T,xT+90,270,330); SYMBOLES.disj.dessin(T,xT+130,270,330); T.l(xT+90,270,xT+130,270,1.8);
+    T.t(xT+110,346,"Usages",9.5,{anchor:"middle"});
+    terres.push([xAC-80,630],[xT+150,Math.max(yT+18,300)]);
+    finTerre=xT+150;
+  } else {
+    /* du disjoncteur abonné au disjoncteur onduleur, puis le câble jusqu'à l'onduleur */
+    var xO=1010, xA=1130, xP=1185, xU=1270, yB=236;
+    T.t(xA-60,64,"Disjoncteur abonné",13,{bold:true,c:R});
+    SYMBOLES.agcp.dessin(T,xA,78,150);
+    T.t(xA+22,100,pv.choix.abonne||"",9.5);
+    T.l(xO-80,168,xU+100,168,1,"5 4");
+    T.t(xO-84,162,"NF C 14-100",9,{anchor:"end",gris:true}); T.t(xO-84,180,"NF C 15-100",9,{anchor:"end",gris:true});
+    T.l(xA,150,xA,yB); T.l(xO,yB,xU,yB,2); T.e(xA,yB,2.4,2.4,1,"#111");
+    /* le départ onduleur */
+    T.l(xO,yB,xO,yB+10);
+    SYMBOLES.disj.dessin(T,xO,yB+10,yB+80);
+    decouper(choixPV(pv,r,"disjAC"),14).slice(0,2).forEach(function(l,j){ T.t(xO+12,yB+26+j*12,l,9.5,{bold:j===0}); });
+    if(opt("arretUrgence")){
+      /* bobine MX accolée au disjoncteur, commandée par le bouton d'arrêt d'urgence */
+      var yM=yB+45, xB=xO-120;
+      T.r(xO-46,yM-9,18,18,{sw:1.3,fill:"#fff"}); T.t(xO-37,yM+3.5,"MX",8,{anchor:"middle",bold:true});
+      T.l(xO-28,yM,xO-8,yM,1,"2 2");
+      T.l(xO-37,yM+9,xO-37,yM+48,1,"3 2"); T.l(xO-37,yM+48,xB+16,yM+48,1,"3 2");
+      T.e(xB,yM+30,12,6,1.3,"#fff");
+      T.r(xB-14,yM+34,28,24,{sw:1.3,fill:"#fff"}); T.t(xB,yM+50,"AU",9,{anchor:"middle",bold:true});
+      T.t(xB,yM+74,"Arrêt d'urgence",10,{anchor:"middle",bold:true,c:R});
+      T.t(xB,yM+87,"coupure par bobine MX",9,{anchor:"middle"});
+    }
+    var y2=yB+80;
+    if(opt("idOnduleur")){
+      SYMBOLES.id.dessin(T,xO,y2,y2+66);
+      decouper(choixPV(pv,r,"idAC"),16).slice(0,3).forEach(function(l,j){ T.t(xO+12,y2+12+j*11,l,9.5); });
+      y2+=66;
+    }
+    /* le câble jusqu'à l'onduleur */
+    T.l(xO,y2,xO,yAC,1.5); T.l(xO,yAC,oD,yAC,1.5);
+    T.t((oD+xO)/2,yAC-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
+    traitsFils((oD+xO)/2,yAC);
+    /* parafoudre AC sur la barre */
+    if(opt("parafoudreAC")){
+      T.l(xP,yB,xP,yB+10); T.e(xP,yB,2.4,2.4,1,"#111");
+      SYMBOLES.parafoudre.dessin(T,xP,yB+10,yB+68);
+      T.t(xP-14,yB+62,"Parafoudre AC",9,{anchor:"end"});
+    }
+    /* le reste de l'installation */
+    T.r(xU-40,yB+12,120,180,{sw:1.3,dash:"6 4",c:B});
+    T.t(xU+74,yB+28,"TGBT",11,{anchor:"end",bold:true,c:B});
+    T.l(xU,yB,xU,yB+30);
+    SYMBOLES.id.dessin(T,xU,yB+30,yB+92); T.t(xU+12,yB+44,"30 mA",9.5);
+    T.l(xU,yB+92,xU,yB+100); T.l(xU,yB+100,xU+50,yB+100,1.8); T.e(xU,yB+100,2.4,2.4,1,"#111");
+    SYMBOLES.disj.dessin(T,xU,yB+100,yB+160); SYMBOLES.disj.dessin(T,xU+50,yB+100,yB+160);
+    T.t(xU+25,yB+178,"Usages",9.5,{anchor:"middle"});
+    terres.push([xU+60,yB+192]);
+    finTerre=xU+60;
   }
-  /* ---------- vers le TGBT ---------- */
-  var xT=1200, yT=y-14;
-  T.l(xAC,y,xAC,yT,1.5); T.l(xAC,yT,xT,yT,1.5);
-  T.t((xAC+xT)/2,yT-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
-  for(var q2=0;q2<nf;q2++){ var x2=(xAC+xT)/2-6+q2*4; T.l(x2-3,yT+6,x2+3,yT-6,1.1); }
-  /* TGBT */
-  T.t(xT-40,64,"Disjoncteur abonné",13,{bold:true,c:R});
-  SYMBOLES.agcp.dessin(T,xT,78,150);
-  T.t(xT+22,100,pv.choix.abonne||"",9.5);
-  T.l(xT-80,168,xT+120,168,1,"5 4");
-  T.t(xT-84,162,"NF C 14-100",9,{anchor:"end",gris:true}); T.t(xT-84,180,"NF C 15-100",9,{anchor:"end",gris:true});
-  T.l(xT,150,xT,202);
-  T.r(xT-70,190,250,Math.max(yT+18,300)-190,{sw:1.3,dash:"6 4",c:B});
-  T.t(xT+100,206,"TGBT",11,{bold:true,c:B});
-  SYMBOLES.id.dessin(T,xT,202,262); T.t(xT+12,214,"30 mA",9.5);
-  T.l(xT,262,xT,270); T.l(xT,270,xT+90,270,1.8); T.e(xT,270,2.4,2.4,1,"#111");
-  SYMBOLES.disj.dessin(T,xT,270,yT-2 > 330 ? 330 : yT-2); T.t(xT+12,288,choixPV(pv,r,"departTGBT"),9.5);
-  if(yT-2>330) T.l(xT,330,xT,yT);
-  SYMBOLES.disj.dessin(T,xT+90,270,330); SYMBOLES.disj.dessin(T,xT+130,270,330); T.l(xT+90,270,xT+130,270,1.8);
-  T.t(xT+110,346,"Usages",9.5,{anchor:"middle"});
   /* ---------- la terre ---------- */
   var yTerre=700;
-  T.l(70,yTerre,xT+150,yTerre,1.2,"7 4",V);
-  T.t(xT-120,yTerre-6,"Terre 16²",9.5,{c:V});
-  T.l(xT+60,yTerre,xT+60,yTerre+18,1.3,null,V);
-  T.l(xT+48,yTerre+18,xT+72,yTerre+18,1.6,null,V); T.l(xT+52,yTerre+22,xT+68,yTerre+22,1.4,null,V); T.l(xT+57,yTerre+26,xT+63,yTerre+26,1.2,null,V);
+  T.l(70,yTerre,finTerre,yTerre,1.2,"7 4",V);
+  var xe=finTerre-90;
+  T.t(xe-40,yTerre-6,"Terre 16²",9.5,{c:V});
+  T.l(xe,yTerre,xe,yTerre+18,1.3,null,V);
+  T.l(xe-12,yTerre+18,xe+12,yTerre+18,1.6,null,V); T.l(xe-8,yTerre+22,xe+8,yTerre+22,1.4,null,V); T.l(xe-3,yTerre+26,xe+3,yTerre+26,1.2,null,V);
   /* masses des panneaux : reliées à la terre en 6² */
   T.l(xs[0]-18,150,cdG+10,150,1.1,"5 4",V); T.t(cdG+14,144,"Masses 6²",9,{c:V});
-  [[cdG+10,150],[cdD-20,yDC1],[oG+20,oB],[xAC-80,630],[xT+150,Math.max(yT+18,300)]].forEach(function(t){
-    T.l(t[0],t[1],t[0],yTerre,1.1,"5 4",V);
-    if(t[2]) T.t(t[0]-6,(t[1]+yTerre)/2,t[2],9,{anchor:"end",c:V});
-  });
+  terres.forEach(function(t){ T.l(t[0],t[1],t[0],yTerre,1.1,"5 4",V); });
   /* ---------- le dimensionnement, en tableau ---------- */
   var y0=730, xg=40, cols=[["MPPT",60],["Panneaux",120],["Puissance",90],["Voc froid",90],["Vmp chaud",90],["Vmp froid",90],["Courant",80],["Contrôles",360]];
   var xd=xg+cols.reduce(function(a,c){ return a+c[1]; },0);
@@ -1751,8 +1815,8 @@ var CHAMPS_PV=[
   ["onduleur","mpptMin","Plage MPPT mini (V)"],["onduleur","mpptMax","Plage MPPT maxi (V)"],["onduleur","vmax","Tension max d'entrée (V)"],
   ["onduleur","imax","Courant max par MPPT (A)"],["onduleur","iscMax","Isc max par MPPT (A, si connu)"]
 ];
-var CHOIX_PV=[["cableDC","Câble DC"],["sectDC","Interrupteur-sectionneur DC"],["pfDC","Parafoudre DC"],["cableAC","Câble AC"],
-  ["disjAC","Disjoncteur AC (coffret)"],["idAC","Différentiel AC"],["departTGBT","Départ au TGBT"],["abonne","Disjoncteur abonné"]];
+var CHOIX_PV=[["cableDC","Câble DC"],["cableAC","Câble AC (vers l'onduleur)"],["disjAC","Disjoncteur onduleur"],["abonne","Disjoncteur abonné"],
+  ["idAC","Différentiel (si coché)"],["sectDC","Inter-sectionneur DC (coffret DC)"],["pfDC","Parafoudre DC (coffret DC)"],["departTGBT","Départ au TGBT (coffret AC)"]];
 function ouvrirPV(){
   if(!S.pv) S.pv=pvVierge();
   peindrePV(); ouvrirFenetre("fPV");
@@ -1828,9 +1892,12 @@ function peindreResultatsPV(){
     CHOIX_PV.forEach(function(c){
       h2.appendChild(champPV(c[1], pv.choix[c[0]]===true||pv.choix[c[0]]===false ? "" : (pv.choix[c[0]]||""), function(v){ pv.choix[c[0]]=v; }, true));
     });
-    [["parafoudreDC","Parafoudre DC"],["parafoudreAC","Parafoudre AC"],["arretUrgence","Arrêt d'urgence"]].forEach(function(c){
-      var l=el("label","coche"); var i=el("input"); i.type="checkbox"; i.checked=pv.choix[c[0]]!==false;
-      i.addEventListener("change", function(){ avant(); pv.choix[c[0]]=i.checked; sauver(); if(pv.actif) peindre(); });
+    [["arretUrgence","Arrêt d'urgence : bobine MX sur le disjoncteur onduleur"],["idOnduleur","Différentiel 30 mA sur le départ onduleur"],
+     ["parafoudreAC","Parafoudre AC"],["coffretDC","Coffret de protection DC (sinon : protections DC intégrées à l'onduleur)"],
+     ["parafoudreDC","Parafoudre DC, dans le coffret DC"],["coffretAC","Coffret de protection AC (sinon : départ depuis le disjoncteur abonné)"]].forEach(function(c){
+      var l=el("label","coche large"); var i=el("input"); i.type="checkbox";
+      i.checked = pv.choix[c[0]]===undefined ? !!OPTIONS_PV_DEFAUT[c[0]] : pv.choix[c[0]]===true;
+      i.addEventListener("change", function(){ avant(); pv.choix[c[0]]=i.checked; S.modifie=true; sauver(); if(pv.actif) peindre(); });
       l.appendChild(i); l.appendChild(el("span",null,c[1])); h2.appendChild(l);
     });
     h2.__fait=true;
