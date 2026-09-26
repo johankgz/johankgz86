@@ -950,13 +950,30 @@ body.connexion .ciel{display:none}
   .ciel *{animation:none!important}
   .ciel-pluie{display:none}
 }
-/* ---------- le dossier Outils : les petits outils et le tableau de bord, repliés ---------- */
-button.raccourci{width:100%;font:inherit;text-align:left;cursor:pointer}
+/* ---------- Outils : un petit bouton, les outils dans une fenêtre ---------- */
 .raccourci .r-txt span{color:var(--ink-3)}
-.rc-outils .r-fleche svg{transition:transform .2s var(--sortie,ease)}
-.rc-outils[aria-expanded="true"] .r-fleche svg{transform:rotate(180deg)}
-.petits-outils[hidden],.petits-outils a[hidden]{display:none}
+.btn-outils{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 18px 0 14px;margin:-6px 0 18px;
+  border:1px solid var(--rule);border-radius:999px;background:var(--card);color:var(--ink);box-shadow:var(--ombre-1);
+  font:inherit;font-size:14.5px;font-weight:700;letter-spacing:-.01em;cursor:pointer}
+.btn-outils svg{width:19px;height:19px;stroke:var(--accent);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+@media (hover:hover){ .btn-outils:hover{box-shadow:var(--ombre-2)} }
+.fen-outils{position:fixed;inset:0;z-index:1000;display:flex;align-items:flex-end;justify-content:center}
+.fen-outils[hidden]{display:none}
+.fo-fond{position:absolute;inset:0;background:rgba(10,14,20,.55)}
+.fo-boite{position:relative;width:100%;max-width:560px;box-sizing:border-box;background:var(--card);color:var(--ink);
+  border-radius:18px 18px 0 0;padding:14px 14px calc(16px + env(safe-area-inset-bottom,0px));
+  box-shadow:0 -8px 30px rgba(10,14,20,.25);animation:monteDoux .22s var(--sortie,ease) both}
+.fo-tete{display:flex;align-items:center;justify-content:space-between;margin:0 2px 12px}
+.fo-tete b{font-size:16.5px;font-weight:700;letter-spacing:-.02em}
+.fo-x{width:38px;height:38px;border:0;border-radius:50%;background:var(--field,#F1F3F5);color:var(--ink-2);
+  display:inline-flex;align-items:center;justify-content:center;padding:0;cursor:pointer}
+.fo-x svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.fo-boite .petits-outils{grid-template-columns:repeat(3,minmax(0,1fr));margin:0}
+.fo-boite .petits-outils a{box-shadow:none;background:var(--field,#F4F5F7)}
+.petits-outils a[hidden]{display:none}
 .petits-outils a.o-large{grid-column:1/-1;flex-direction:row;min-height:48px}
+@media (min-width:720px){ .fen-outils{align-items:center} .fo-boite{border-radius:18px} }
+@media (prefers-reduced-motion:reduce){ .fo-boite{animation:none} }
 /* ---------- l'invitation aux notifications ---------- */
 .invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
   padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
@@ -1078,20 +1095,27 @@ button.raccourci{width:100%;font:inherit;text-align:left;cursor:pointer}
       <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
       <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
     </a>
-    <button type="button" class="raccourci rc-outils" id="btnOutils" aria-expanded="false" aria-controls="petitsOutils">
-      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg></span>
-      <span class="r-txt"><b>Outils</b><span id="outilsTxt">Boussole, niveau, calculatrice, kW · A, câble, surface</span></span>
-      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>
+    <button type="button" class="btn-outils" id="btnOutils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
+      <span>Outils</span>
     </button>
-    <nav class="petits-outils" id="petitsOutils" aria-label="Outils" hidden>
-      <a href="./utilitaires.html#boussole"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg><span>Boussole</span></a>
-      <a href="./utilitaires.html#niveau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M8.5 8v8M15.5 8v8"/></svg><span>Niveau</span></a>
-      <a href="./utilitaires.html#calcul"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg><span>Calculatrice</span></a>
-      <a href="./utilitaires.html#conversion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg><span>kW · A</span></a>
-      <a href="./utilitaires.html#cable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg><span>Câble</span></a>
-      <a href="./utilitaires.html#surface"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/></svg><span>Surface</span></a>
-      <a class="o-large" id="rcTableau" href="./tableau.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Tableau de bord du bureau</span></a>
-    </nav>
+    <div class="fen-outils" id="fenOutils" role="dialog" aria-modal="true" aria-labelledby="fenOutilsT" hidden>
+      <div class="fo-fond" data-fermer></div>
+      <div class="fo-boite">
+        <div class="fo-tete"><b id="fenOutilsT">Outils</b>
+          <button type="button" class="fo-x" data-fermer aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+        <nav class="petits-outils" id="petitsOutils" aria-label="Outils">
+          <a href="./utilitaires.html#boussole"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg><span>Boussole</span></a>
+          <a href="./utilitaires.html#niveau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M8.5 8v8M15.5 8v8"/></svg><span>Niveau</span></a>
+          <a href="./utilitaires.html#calcul"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg><span>Calculatrice</span></a>
+          <a href="./utilitaires.html#conversion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg><span>kW · A</span></a>
+          <a href="./utilitaires.html#cable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg><span>Câble</span></a>
+          <a href="./utilitaires.html#surface"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/></svg><span>Surface</span></a>
+          <a class="o-large" id="rcTableau" href="./tableau.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Tableau de bord du bureau</span></a>
+        </nav>
+      </div>
+    </div>
 
 
     <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
@@ -1607,18 +1631,28 @@ function peindreEntreeTableau(s){
     }
   }catch(e){}
 }
-/* le dossier Outils se replie ; l'appareil se souvient s'il était ouvert */
+/* Outils : une fenêtre qui s'ouvre au bouton et se referme dès qu'on
+   choisit un outil (ou au fond, à la croix, avec Échap) */
 (function(){
-  var b=$("btnOutils"), n=$("petitsOutils"); if(!b || !n) return;
-  function poser(ouvert){
-    n.hidden=!ouvert; b.setAttribute("aria-expanded", ouvert ? "true" : "false");
+  var b=$("btnOutils"), f=$("fenOutils"); if(!b || !f) return;
+  document.body.appendChild(f);
+  function fermer(){
+    if(f.hidden) return;
+    f.hidden=true; b.setAttribute("aria-expanded","false");
   }
-  try{ poser(localStorage.getItem("accueil:outils")==="1"); }catch(e){}
   b.addEventListener("click", function(){
-    var ouvert=n.hidden;
-    poser(ouvert);
-    try{ localStorage.setItem("accueil:outils", ouvert ? "1" : "0"); }catch(e){}
+    f.hidden=false; b.setAttribute("aria-expanded","true");
+    var x=f.querySelector(".fo-x"); if(x) x.focus();
   });
+  f.addEventListener("click", function(e){
+    var t=e.target.closest ? e.target.closest("[data-fermer], a") : null;
+    if(!t) return;
+    fermer();
+    if(t.hasAttribute("data-fermer")) b.focus();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !f.hidden){ fermer(); b.focus(); } });
+  /* retour arrière depuis un outil : la page revient fermée */
+  window.addEventListener("pageshow", fermer);
 })();
 function chargerTaches(s){
   peindreEntreeTableau(s);
