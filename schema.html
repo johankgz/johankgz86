@@ -442,6 +442,28 @@ header .titres{min-width:0;flex:1}
 .ligne-pub{display:block;width:100%;margin:0 0 6px;text-align:left}
 .grille-c{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .grille-c .large{grid-column:1 / -1}
+/* la fiche PV */
+.fenetre.large-f{width:min(820px,calc(100% - 24px))}
+.pv-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:4px 10px}
+.pv-grille .large{grid-column:1 / -1}
+.pv-t{font-size:14px;margin:14px 0 6px;grid-column:1 / -1}
+.pv-vocc{margin:8px 0 0;padding:8px 10px;border-radius:8px;background:#EEF6F8;color:#0E5566;font-weight:700;font-size:13.5px}
+.mppt-l{display:flex;flex-wrap:wrap;align-items:center;gap:6px 8px;padding:8px 0;border-bottom:1px solid var(--rule)}
+.mppt-l b{min-width:62px}
+.mppt-l input{width:72px;min-height:38px;padding:6px 8px;font-size:15px;border-radius:8px;font-family:inherit}
+.mppt-l span{font-size:13px;color:var(--ink-2)}
+.mppt-r{flex:1 1 100%;display:flex;flex-direction:column;gap:2px;font-size:12.5px}
+.pv-ok{color:#2E7D32;font-weight:600}
+.pv-ko{color:#B42318;font-weight:700}
+.pv-av{color:#B45309;font-weight:600}
+.pv-gris{color:var(--ink-3)}
+.pv-total{display:flex;flex-direction:column;gap:3px;margin-top:10px;padding:10px 12px;border-radius:10px;background:var(--field);font-size:13px}
+.coche{display:flex;align-items:center;gap:8px;font-size:14px;min-height:36px}
+.coche input{width:20px;height:20px;min-height:0}
+.cadre-l{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0;border-bottom:1px solid #EEF1F4}
+.cadre-l span{flex:1}
+.ajout-cadre{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:8px}
+.ajout-cadre select,.ajout-cadre input{min-height:38px;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
  z-index:90;background:#262320;color:#F4F1EA;padding:10px 16px;border-radius:var(--r-field);font-size:13.5px;
  max-width:calc(100% - 32px);text-align:center;box-shadow:0 12px 30px -14px rgba(0,0,0,.7)}
@@ -465,6 +487,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
     <button type="button" id="btnLignes">Lignes du tableau</button>
     <button type="button" id="btnCartouche">Cartouche</button>
     <button type="button" id="btnModeles">Modèles</button>
+    <button type="button" id="btnPV">Dimensionner un PV</button>
     <button type="button" id="btnOuvrir">Ouvrir</button>
     <span class="groupe"><button type="button" id="zoomMoins" aria-label="Réduire">−</button><span id="zoomVal">100 %</span><button type="button" id="zoomPlus" aria-label="Agrandir">+</button><button type="button" id="zoomAjuste">Ajuster</button></span>
     <span class="groupe" id="folios" hidden><button type="button" id="folioPrec" aria-label="Folio précédent">◀</button><span id="folio"></span><button type="button" id="folioSuiv" aria-label="Folio suivant">▶</button></span>
@@ -517,6 +540,18 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
   <p class="hint" id="pubEtat" style="min-height:18px"></p>
   <div class="pied"><button type="button" class="fermer">Annuler</button><button type="button" class="or" id="pubRevision" hidden></button><button type="button" class="or" id="pubRemplacer"></button></div>
 </section>
+<section class="fenetre large-f" id="fPV" hidden aria-label="Dimensionnement photovoltaïque">
+  <h2>Dimensionner une installation photovoltaïque</h2>
+  <p class="hint" style="margin:-4px 0 8px">Les valeurs des fiches techniques du panneau et de l'onduleur. Les contrôles se font en direct ; le folio PV se dessine de ces valeurs.</p>
+  <div class="pv-grille" id="pvChamps"></div>
+  <p class="pv-vocc" id="pvVocC"></p>
+  <h3 class="pv-t">Répartition par MPPT</h3>
+  <div id="pvMppt"></div>
+  <div class="pv-total" id="pvTotal"></div>
+  <h3 class="pv-t">Protections et câbles <span class="hint">— proposés d'après le calcul, à remplacer si besoin</span></h3>
+  <div class="pv-grille" id="pvChoix"></div>
+  <div class="pied"><button type="button" class="fermer">Fermer</button><button type="button" class="fermer" id="pvRetirer" hidden>Retirer le folio PV</button><button type="button" class="or" id="pvPlacer">Ajouter le folio PV au schéma</button></div>
+</section>
 <section class="fenetre" id="fOuvrir" hidden aria-label="Ouvrir un schéma publié">
   <h2>Rouvrir un schéma publié</h2>
   <div id="listePublies"></div>
@@ -560,11 +595,14 @@ function niveau(n){ for(var i=0;i<NIVEAUX.length;i++) if(NIVEAUX[i].n===n) retur
 
 /* ---------- les ordres de dessin ---------- */
 function Trace(){ this.o=[]; }
-Trace.prototype.l=function(x1,y1,x2,y2,w,dash){ this.o.push({t:"l",x1:x1,y1:y1,x2:x2,y2:y2,w:w||1.5,dash:dash||null}); };
-Trace.prototype.r=function(x,y,w,h,opt){ opt=opt||{}; this.o.push({t:"r",x:x,y:y,w:w,h:h,sw:opt.sw||1.4,dash:opt.dash||null,fill:opt.fill||null}); };
-Trace.prototype.e=function(cx,cy,rx,ry,w,fill){ this.o.push({t:"e",cx:cx,cy:cy,rx:rx,ry:ry,w:w||1.4,fill:fill||null}); };
+/* les couleurs du schéma : noir pour l'électrique, bleu pour les coffrets,
+   vert pour la terre, rouge pour les titres des grands éléments */
+var COULEURS={noir:"#111111", bleu:"#1E6FD9", vert:"#2E7D32", rouge:"#B42318", gris:"#666666"};
+Trace.prototype.l=function(x1,y1,x2,y2,w,dash,c){ this.o.push({t:"l",x1:x1,y1:y1,x2:x2,y2:y2,w:w||1.5,dash:dash||null,c:c||null}); };
+Trace.prototype.r=function(x,y,w,h,opt){ opt=opt||{}; this.o.push({t:"r",x:x,y:y,w:w,h:h,sw:opt.sw||1.4,dash:opt.dash||null,fill:opt.fill||null,c:opt.c||null}); };
+Trace.prototype.e=function(cx,cy,rx,ry,w,fill,c){ this.o.push({t:"e",cx:cx,cy:cy,rx:rx,ry:ry,w:w||1.4,fill:fill||null,c:c||null}); };
 Trace.prototype.t=function(x,y,s,size,opt){ opt=opt||{}; if(s==null||s==="") return;
-  this.o.push({t:"t",x:x,y:y,s:String(s),size:size||11,anchor:opt.anchor||"start",bold:!!opt.bold,gris:!!opt.gris}); };
+  this.o.push({t:"t",x:x,y:y,s:String(s),size:size||11,anchor:opt.anchor||"start",bold:!!opt.bold,gris:!!opt.gris,c:opt.c||null}); };
 
 function croix(T,x,y){ T.l(x-4,y-4,x+4,y+4,1.5); T.l(x-4,y+4,x+4,y-4,1.5); }
 function lame(T,x,yh,yb){ T.l(x,yb,x-12,yh,1.7); }
@@ -663,6 +701,30 @@ function colonneA(col){ /* la colonne descend-elle jusqu'au tableau du bas ? */
   var ligne=false; for(var k in (col.table||{})) if(String(col.table[k]||"").trim()) ligne=true;
   return !!c4 || ligne;
 }
+/* combien de folios : ceux des colonnes, puis le folio PV s'il y en a un
+   (seul, quand aucune colonne ne porte de symbole) */
+var EDITION=true;
+function avecColonnes(S){ return EDITION || !(S.pv && S.pv.actif) || S.colonnes.some(function(c){ return Object.keys(c.cases||{}).length; }); }
+function nbFolios(S){ return (avecColonnes(S) ? folios(S).length : 0) + (S.pv && S.pv.actif ? 1 : 0); }
+function estFolioPV(S, f){ return !!(S.pv && S.pv.actif) && f===nbFolios(S)-1; }
+/* le cadre : bord, quadrillage de repérage (0 à 16, A à H), comme sur les folios d'étude */
+function cadre(T){
+  var g=16, d=LARGEUR-16, h=16, b=HAUTEUR-16, bande=20;
+  T.r(g,h,d-g,b-h,{sw:1.2});
+  T.l(g+bande,h,g+bande,b,0.9); T.l(g,h+bande,d,h+bande,0.9);
+  var nc=17, pas=(d-g-bande)/nc;
+  for(var i=0;i<nc;i++){
+    var x=g+bande+i*pas;
+    if(i) T.l(x,h,x,h+bande,0.8);
+    T.t(x+pas/2,h+14,String(i),10,{anchor:"middle",gris:true});
+  }
+  var nl=8, pasy=(b-h-bande)/nl;
+  for(var j=0;j<nl;j++){
+    var y=h+bande+j*pasy;
+    if(j) T.l(g,y,g+bande,y,0.8);
+    T.t(g+bande/2,y+pasy/2+4,String.fromCharCode(65+j),10,{anchor:"middle",gris:true});
+  }
+}
 function folios(S){
   var n=Math.max(1, Math.ceil(S.colonnes.length/COLS_PAR_FOLIO));
   var out=[]; for(var i=0;i<n;i++) out.push(S.colonnes.slice(i*COLS_PAR_FOLIO, (i+1)*COLS_PAR_FOLIO));
@@ -676,10 +738,23 @@ function hauteurLignes(S){
 /* ---------- le dessin d'un folio ---------- */
 function dessinerFolio(S, f, opts){
   opts=opts||{};
-  var T=new Trace(), tous=folios(S), cols=tous[f]||[], debut=f*COLS_PAR_FOLIO;
+  if(estFolioPV(S, f)) return dessinerPV(S, f);
+  if(!avecColonnes(S)) f=0;
+  var T=new Trace(), tous=folios(S), cols=tous[f]||[], debut=f*COLS_PAR_FOLIO, total=nbFolios(S);
   var index={}; S.colonnes.forEach(function(c,i){ index[c.id]=i; });
   /* cadre */
-  T.r(16,16,LARGEUR-32,HAUTEUR-32,{sw:1.2});
+  cadre(T);
+  /* les coffrets : cadres en pointillés bleus autour de colonnes et de niveaux */
+  var indexC={}; S.colonnes.forEach(function(c,i){ indexC[c.id]=i; });
+  (S.cadres||[]).forEach(function(k){
+    var i1=indexC[k.de], i2=indexC[k.a]; if(i1==null||i2==null) return;
+    if(i1>i2){ var z=i1; i1=i2; i2=z; }
+    var g=Math.max(i1,debut), dd=Math.min(i2,debut+cols.length-1); if(g>dd) return;
+    var n1=niveau(Math.min(k.n1,k.n2)), n2=niveau(Math.max(k.n1,k.n2)); if(!n1||!n2) return;
+    var x1=xDe(g-debut)-COL/2+3, x2=xDe(dd-debut)+COL/2-3;
+    T.r(x1,n1.y0-6,x2-x1,n2.y1-n1.y0+12,{sw:1.3,dash:"6 4",c:COULEURS.bleu});
+    T.t(x1+6,n1.y0+4,k.nom||"Coffret",10,{bold:true,c:COULEURS.bleu});
+  });
   /* barres : leurs bouts sur ce folio */
   var parCol={};   /* id colonne -> y des barres qui la touchent */
   (S.barres||[]).forEach(function(b){
@@ -770,17 +845,19 @@ function dessinerFolio(S, f, opts){
   /* remarques */
   var yR=Math.max(yFin+22, 880);
   decouper(S.remarques||"", 120).slice(0,3).forEach(function(m,i){ T.t(40,yR+i*14,m,10); });
-  /* cartouche */
+  cartouche(T, S, f, total);
+  return {trace:T, colonnes:cols, debut:debut, yFin:yFin};
+}
+function cartouche(T, S, f, total, titre){
   var cx=1030, cy=872, cw=354, ch=102;
   T.r(cx,cy,cw,ch,{sw:1.2,fill:"#fff"});
   T.l(cx,cy+26,cx+cw,cy+26,1); T.l(cx,cy+51,cx+cw,cy+51,1); T.l(cx,cy+76,cx+cw,cy+76,1); T.l(cx+190,cy+51,cx+190,cy+ch,1);
-  T.t(cx+10,cy+18,(S.societe?S.societe.toUpperCase()+" — ":"")+"Schéma unifilaire",12,{bold:true});
+  T.t(cx+10,cy+18,(S.societe?S.societe.toUpperCase()+" — ":"")+(titre||"Schéma unifilaire"),12,{bold:true});
   T.t(cx+10,cy+43,"Client : "+(S.chantier.client||"")+(S.chantier.ref?"   ·   Réf. "+S.chantier.ref:""),10.5);
   T.t(cx+10,cy+68,"Tableau : "+(S.tableau||""),10.5);
   T.t(cx+200,cy+68,"Dessiné par : "+(S.auteur||""),10.5);
   T.t(cx+10,cy+93,"Date : "+frDateS(S.date),10.5);
-  T.t(cx+200,cy+93,"Indice "+(S.indice||"A")+" · Folio "+(f+1)+"/"+tous.length,10.5);
-  return {trace:T, colonnes:cols, debut:debut, yFin:yFin};
+  T.t(cx+200,cy+93,"Indice "+(S.indice||"A")+" · Folio "+(f+1)+"/"+total,10.5);
 }
 function frDateS(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 /* un texte en lignes d'une longueur donnée, sur les mots (et sur les retours à la ligne) */
@@ -802,19 +879,22 @@ function decouper(s, n){
 function echapper(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
 function versSVG(T){
   return T.o.map(function(o){
-    if(o.t==="l") return '<line x1="'+o.x1+'" y1="'+o.y1+'" x2="'+o.x2+'" y2="'+o.y2+'" stroke="#111" stroke-width="'+o.w+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
-    if(o.t==="r") return '<rect x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+'" fill="'+(o.fill||"none")+'" stroke="'+(o.sw?"#111":"none")+'" stroke-width="'+o.sw+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
-    if(o.t==="e") return '<ellipse cx="'+o.cx+'" cy="'+o.cy+'" rx="'+o.rx+'" ry="'+o.ry+'" fill="'+(o.fill||"none")+'" stroke="#111" stroke-width="'+o.w+'"/>';
-    if(o.t==="t") return '<text x="'+o.x+'" y="'+o.y+'" font-size="'+o.size+'" text-anchor="'+o.anchor+'"'+(o.bold?' font-weight="700"':'')+' fill="'+(o.gris?"#666":"#111")+'">'+echapper(o.s)+'</text>';
+    if(o.t==="l") return '<line x1="'+o.x1+'" y1="'+o.y1+'" x2="'+o.x2+'" y2="'+o.y2+'" stroke="'+(o.c||"#111")+'" stroke-width="'+o.w+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
+    if(o.t==="r") return '<rect x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+'" fill="'+(o.fill||"none")+'" stroke="'+(o.sw?(o.c||"#111"):"none")+'" stroke-width="'+o.sw+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
+    if(o.t==="e") return '<ellipse cx="'+o.cx+'" cy="'+o.cy+'" rx="'+o.rx+'" ry="'+o.ry+'" fill="'+(o.fill||"none")+'" stroke="'+(o.c||"#111")+'" stroke-width="'+o.w+'"/>';
+    if(o.t==="t") return '<text x="'+o.x+'" y="'+o.y+'" font-size="'+o.size+'" text-anchor="'+o.anchor+'"'+(o.bold?' font-weight="700"':'')+' fill="'+(o.c||(o.gris?"#666":"#111"))+'">'+echapper(o.s)+'</text>';
     return "";
   }).join("");
 }
 
 /* ---------- vers PDF (jsPDF, A3 paysage : 420 × 297 mm) ---------- */
+function rvb(h){ h=String(h||"#111111").replace("#",""); if(h.length===3) h=h.replace(/(.)/g,"$1$1");
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)]; }
 function versPDF(doc, T){
   var k=420/LARGEUR;
   doc.setDrawColor(17,17,17); doc.setTextColor(17,17,17);
   T.o.forEach(function(o){
+    var cc=rvb(o.c); doc.setDrawColor(cc[0],cc[1],cc[2]);
     if(o.t==="l"){
       doc.setLineWidth(o.w*k);
       if(o.dash) doc.setLineDashPattern(o.dash.split(" ").map(function(v){ return v*k; }),0); else doc.setLineDashPattern([],0);
@@ -833,8 +913,9 @@ function versPDF(doc, T){
     } else if(o.t==="t"){
       doc.setFont("helvetica", o.bold?"bold":"normal");
       doc.setFontSize(o.size*k/0.3528);
-      if(o.gris) doc.setTextColor(102,102,102); else doc.setTextColor(17,17,17);
-      doc.text(o.s, o.x*k, o.y*k, {align: o.anchor==="middle"?"center":o.anchor==="end"?"right":"left"});
+      var ct=rvb(o.c||(o.gris?"#666666":"#111111")); doc.setTextColor(ct[0],ct[1],ct[2]);
+      /* la police standard du PDF n'a ni ≥ ni ≤ ni ✓ : on les écrit autrement */
+      doc.text(String(o.s).replace(/≥/g,">=").replace(/≤/g,"<=").replace(/[✓✗]/g,"").replace(/−/g,"-"), o.x*k, o.y*k, {align: o.anchor==="middle"?"center":o.anchor==="end"?"right":"left"});
     }
   });
   doc.setLineDashPattern([],0);
@@ -881,7 +962,7 @@ function colonneVide(){ return {id:uid(), cases:{}, table:{}, auto:{}, fils:0}; 
 function vierge(ch){
   return {version:1, chantier:ch||{ref:"",client:"",adresse:""}, tableau:"TGBT", indice:"A", date:aujourdhui(),
     auteur:(SESSION&&SESSION.nom)||"", societe:(SESSION&&SESSION.societeNom)||"", remarques:"",
-    colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
+    colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], cadres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
 }
 var S=null, F=0, SEL=null, ZOOM=1, HISTO=[], REDO=[];
 
@@ -947,17 +1028,17 @@ function remplirTable(col){
 /* ---------- le dessin à l'écran ---------- */
 var NS="http://www.w3.org/2000/svg";
 function peindre(){
-  var tous=folios(S);
-  if(F>=tous.length) F=tous.length-1;
+  var nF=nbFolios(S);
+  if(F>=nF) F=nF-1;
   var r=dessinerFolio(S, F);
   var svg=$("dessin");
   svg.setAttribute("width", Math.round(LARGEUR*ZOOM)); svg.setAttribute("height", Math.round(HAUTEUR*ZOOM));
   var aide='';
   /* la grille d'édition : niveaux nommés à gauche, cases en pointillés */
-  NIVEAUX.forEach(function(nv){
+  if(!r.pv) NIVEAUX.forEach(function(nv){
     aide+='<text x="44" y="'+((nv.y0+nv.y1)/2+4)+'" font-size="10.5" fill="#9AA4B0" font-weight="600">'+echapper(nv.nom)+'</text>';
   });
-  for(var b in BARRES) aide+='<text x="44" y="'+(BARRES[b].y+4)+'" font-size="9" fill="#C0C7D0">ligne '+b+'</text>';
+  if(!r.pv) for(var b in BARRES) aide+='<text x="44" y="'+(BARRES[b].y+4)+'" font-size="9" fill="#C0C7D0">ligne '+b+'</text>';
   r.colonnes.forEach(function(col,k){
     var x=xDe(k)-COL/2;
     NIVEAUX.forEach(function(nv){
@@ -987,8 +1068,10 @@ function peindre(){
     });
     cible(cibles, x, Y_TABLE, COL, Math.max(r.yFin-Y_TABLE, 30), "Colonne "+(r.debut+k+1)+", tableau du bas", function(){ choisir(col.id, 0); });
   });
+  /* le folio PV : on touche le dessin, la fiche de dimensionnement s'ouvre */
+  if(r.pv) cible(cibles, 30, 30, LARGEUR-60, HAUTEUR-60, "Folio PV : ouvrir le dimensionnement", ouvrirPV);
   /* « + » : une colonne de plus, au bout */
-  if(r.debut+r.colonnes.length===S.colonnes.length && r.colonnes.length<COLS_PAR_FOLIO){
+  if(!r.pv && r.debut+r.colonnes.length===S.colonnes.length && r.colonnes.length<COLS_PAR_FOLIO){
     var xa=xDe(r.colonnes.length)-COL/2;
     var g=document.createElementNS(NS,"g");
     g.innerHTML='<rect x="'+(xa+6)+'" y="'+(NIVEAUX[0].y0+4)+'" width="'+(COL-12)+'" height="'+(NIVEAUX[6].y1-NIVEAUX[0].y0-8)+'" rx="10" fill="#FBFCFD" stroke="#D5DBE2" stroke-dasharray="5 5"/>'
@@ -997,9 +1080,9 @@ function peindre(){
     cible(cibles, xa, NIVEAUX[0].y0, COL, NIVEAUX[6].y1-NIVEAUX[0].y0, "Ajouter une colonne", function(){ ajouterColonne(); });
   }
   /* folios */
-  $("folio").textContent="Folio "+(F+1)+" / "+tous.length;
-  $("folioPrec").disabled=F<=0; $("folioSuiv").disabled=F>=tous.length-1;
-  $("folios").hidden=tous.length<2;
+  $("folio").textContent="Folio "+(F+1)+" / "+nF+(r.pv?" · PV":"");
+  $("folioPrec").disabled=F<=0; $("folioSuiv").disabled=F>=nF-1;
+  $("folios").hidden=nF<2;
   $("zoomVal").textContent=Math.round(ZOOM*100)+" %";
   $("titreChantier").textContent=(S.chantier.client||"Chantier non choisi")+(S.chantier.ref?" · "+S.chantier.ref:"")+" · "+(S.tableau||"")+" · indice "+(S.indice||"A");
   $("etatPub").textContent = S.publie ? ("Indice "+S.publie.indice+" publié le "+frDateS(S.publie.le)+(S.modifie?" · modifié depuis":"")) : "Pas encore publié";
@@ -1095,6 +1178,30 @@ function ouvrirPanneau(){
   aj.appendChild(sn); aj.appendChild(sa); aj.appendChild(bajout);
   br.appendChild(aj);
   p.appendChild(br);
+  /* les coffrets (cadres en pointillés bleus) qui prennent cette colonne */
+  S.cadres=S.cadres||[];
+  var cf=el("div","section-p");
+  cf.appendChild(el("h3",null,"Coffret (cadre en pointillés)"));
+  S.cadres.filter(function(k){ var a=indexCol(k.de), z=indexCol(k.a); return Math.min(a,z)<=i && i<=Math.max(a,z); }).forEach(function(k){
+    var ln=el("div","cadre-l");
+    ln.appendChild(el("span",null,(k.nom||"Coffret")+" : colonnes "+(Math.min(indexCol(k.de),indexCol(k.a))+1)+" à "+(Math.max(indexCol(k.de),indexCol(k.a))+1)+", "+niveau(Math.min(k.n1,k.n2)).nom.toLowerCase()+" → "+niveau(Math.max(k.n1,k.n2)).nom.toLowerCase()));
+    var x=el("button","act danger petit","Retirer"); x.type="button";
+    x.addEventListener("click", function(){ changer(function(){ S.cadres=S.cadres.filter(function(y){ return y!==k; }); }); ouvrirPanneau(); });
+    ln.appendChild(x); cf.appendChild(ln);
+  });
+  var ac=el("div","ajout-cadre");
+  var cn=el("input"); cn.type="text"; cn.placeholder="Nom : Coffret AC, TGBT…"; cn.setAttribute("aria-label","Nom du coffret"); cn.style.gridColumn="1 / -1";
+  var ca=el("select"); S.colonnes.forEach(function(cc2, j){ var o=el("option",null,"jusqu'à la colonne "+(j+1)); o.value=cc2.id; if(j===i) o.selected=true; ca.appendChild(o); });
+  var n1=el("select"), n2=el("select");
+  NIVEAUX.forEach(function(nv){ var o1=el("option",null,"du niveau "+nv.nom.toLowerCase()); o1.value=nv.n; var o2=el("option",null,"au niveau "+nv.nom.toLowerCase()); o2.value=nv.n; n1.appendChild(o1); n2.appendChild(o2); });
+  n1.value=String(SEL.n||3); n2.value=String(Math.min(7,(SEL.n||3)+2));
+  var bc=el("button","act petit","Encadrer"); bc.type="button";
+  bc.addEventListener("click", function(){
+    changer(function(){ S.cadres.push({id:uid(), de:col.id, a:ca.value, n1:parseInt(n1.value,10), n2:parseInt(n2.value,10), nom:cn.value.trim()||"Coffret"}); });
+    ouvrirPanneau(); toast("Coffret ajouté.");
+  });
+  ac.appendChild(cn); ac.appendChild(ca); ac.appendChild(n1); ac.appendChild(n2); ac.appendChild(bc);
+  cf.appendChild(ac); p.appendChild(cf);
   /* la colonne elle-même */
   var cl=el("div","section-p");
   cl.appendChild(el("h3",null,"Colonne"));
@@ -1170,7 +1277,7 @@ $("zoomPlus").addEventListener("click", function(){ ZOOM=Math.min(1.8, Math.roun
 $("zoomAjuste").addEventListener("click", function(){ ajuster(); peindre(); });
 function ajuster(){ var w=$("zone").clientWidth-8; ZOOM=Math.max(0.35, Math.min(1.2, w/LARGEUR)); }
 $("folioPrec").addEventListener("click", function(){ if(F>0){ F--; peindre(); } });
-$("folioSuiv").addEventListener("click", function(){ if(F<folios(S).length-1){ F++; peindre(); } });
+$("folioSuiv").addEventListener("click", function(){ if(F<nbFolios(S)-1){ F++; peindre(); } });
 
 /* ---------- les fenêtres : lignes du tableau, cartouche, modèles, publier ---------- */
 function ouvrirFenetre(id){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=f.id!==id; }); $("voile").hidden=false; }
@@ -1355,7 +1462,9 @@ $("btnEtiquettes").addEventListener("click", function(){
 function fabriquerPDF(){
   if(!window.jspdf) throw new Error("Le module PDF n'est pas chargé : vérifiez la connexion.");
   var doc=new window.jspdf.jsPDF({unit:"mm", format:"a3", orientation:"landscape"});
-  folios(S).forEach(function(_, f){ if(f) doc.addPage("a3","landscape"); versPDF(doc, dessinerFolio(S,f).trace); });
+  EDITION=false;
+  try{ for(var f=0; f<nbFolios(S); f++){ if(f) doc.addPage("a3","landscape"); versPDF(doc, dessinerFolio(S,f).trace); } }
+  finally{ EDITION=true; }
   doc.setProperties({title:"Schéma unifilaire — "+(S.chantier.client||"")+" — "+(S.tableau||""), author:S.auteur||"", creator:"Suivi travaux 360"});
   return doc;
 }
@@ -1407,6 +1516,341 @@ function publier(revision){
 }
 $("pubRemplacer").addEventListener("click", function(){ publier(false); });
 $("pubRevision").addEventListener("click", function(){ publier(true); });
+
+
+/* =====================================================================
+   DIMENSIONNEMENT PHOTOVOLTAÏQUE
+   ---------------------------------------------------------------------
+   Les données des fiches techniques (panneau, onduleur) et la
+   répartition des panneaux par MPPT donnent :
+     - le Voc corrigé à la température mini du site :
+         Voc × (1 + coef Voc × (Tmin − 25)) ;
+       sans coefficient, le guide UTE C15-712-1 admet Voc × 1,15 ;
+     - pour chaque MPPT : la tension de chaîne à froid (≤ tension max
+       d'entrée), la tension de fonctionnement à chaud (≥ bas de plage
+       MPPT) et à froid (≤ haut de plage), le courant (≤ courant max) ;
+     - le rapport de puissance DC/AC ;
+     - les protections proposées (sectionneur DC, parafoudres,
+       fusibles de chaîne au-delà de deux chaînes, disjoncteur,
+       différentiel, câbles), chacune modifiable.
+   Le folio PV se dessine de ces valeurs, à la manière d'un folio
+   d'étude : générateur, coffret DC, onduleur, coffret AC, TGBT, terre.
+   ===================================================================== */
+function pvVierge(){
+  return {actif:false,
+    site:{tmin:-10, tmax:70},
+    panneau:{modele:"", pc:425, voc:38.3, vmp:32.1, isc:13.9, imp:13.25, coefVoc:-0.26, coefVmp:""},
+    onduleur:{modele:"", pac:6, phases:"mono", nMppt:2, mpptMin:90, mpptMax:560, vmax:600, imax:16, iscMax:""},
+    mppt:[{serie:7, chaines:1},{serie:7, chaines:1}],
+    choix:{cableDC:"", sectDC:"", parafoudreDC:true, parafoudreAC:true, arretUrgence:true, cableAC:"", disjAC:"", idAC:"", departTGBT:"", abonne:"15/45 A · 500 mA S", typeID:"A"}};
+}
+function nb(v){ var n=parseFloat(String(v==null?"":v).replace(",",".")); return isNaN(n) ? null : n; }
+function arr(n, d){ var p=Math.pow(10,d||0); return Math.round(n*p)/p; }
+function fr(n, d){ return n==null||isNaN(n) ? "—" : String(arr(n,d==null?1:d)).replace(".",","); }
+function normalise(liste, v){ for(var i=0;i<liste.length;i++) if(liste[i]>=v) return liste[i]; return liste[liste.length-1]; }
+function calculPV(pv){
+  var P=pv.panneau, O=pv.onduleur, Si=pv.site;
+  var voc=nb(P.voc), vmp=nb(P.vmp), isc=nb(P.isc), imp=nb(P.imp), pc=nb(P.pc);
+  var cv=nb(P.coefVoc), cm=nb(P.coefVmp); if(cm==null) cm=cv;
+  var tmin=nb(Si.tmin), tmax=nb(Si.tmax); if(tmin==null) tmin=-10; if(tmax==null) tmax=70;
+  var vocC = voc==null ? null : (cv==null ? voc*1.15 : voc*(1+cv/100*(tmin-25)));
+  var kChaud = cm==null ? 0.85 : 1+cm/100*(tmax-25), kFroid = cm==null ? 1.1 : 1+cm/100*(tmin-25);
+  var r={vocC:vocC, sansCoef:cv==null, tmin:tmin, tmax:tmax, mppt:[], nbPanneaux:0, pcTot:0, erreurs:0, alertes:0};
+  var nM=Math.max(1, Math.min(12, parseInt(O.nMppt,10)||1));
+  for(var i=0;i<nM;i++){
+    var m=pv.mppt[i]||{serie:0, chaines:1}, s=parseInt(m.serie,10)||0, p=Math.max(1, parseInt(m.chaines,10)||1);
+    var x={i:i, serie:s, chaines:p, vide:!s};
+    if(s){
+      x.vocFroid = vocC==null ? null : s*vocC;
+      x.vmpChaud = vmp==null ? null : s*vmp*kChaud;
+      x.vmpFroid = vmp==null ? null : s*vmp*kFroid;
+      x.isc = isc==null ? null : p*isc;
+      x.imp = imp==null ? null : p*imp;
+      x.pc = pc==null ? 0 : s*p*pc;
+      x.controles=[];
+      var ctl=function(ok, texte, grave){ x.controles.push({ok:ok, texte:texte, grave:grave}); if(!ok){ if(grave) r.erreurs++; else r.alertes++; } };
+      if(x.vocFroid!=null && nb(O.vmax)!=null) ctl(x.vocFroid<=nb(O.vmax), "Voc à "+fr(tmin,0)+" °C : "+fr(x.vocFroid,0)+" V "+(x.vocFroid<=nb(O.vmax)?"≤":">")+" "+fr(nb(O.vmax),0)+" V max", true);
+      if(x.vmpChaud!=null && nb(O.mpptMin)!=null) ctl(x.vmpChaud>=nb(O.mpptMin), "Vmp à "+fr(tmax,0)+" °C : "+fr(x.vmpChaud,0)+" V "+(x.vmpChaud>=nb(O.mpptMin)?"≥":"<")+" "+fr(nb(O.mpptMin),0)+" V (bas de plage)", false);
+      if(x.vmpFroid!=null && nb(O.mpptMax)!=null) ctl(x.vmpFroid<=nb(O.mpptMax), "Vmp à "+fr(tmin,0)+" °C : "+fr(x.vmpFroid,0)+" V "+(x.vmpFroid<=nb(O.mpptMax)?"≤":">")+" "+fr(nb(O.mpptMax),0)+" V (haut de plage)", false);
+      if(nb(O.iscMax)!=null && x.isc!=null) ctl(x.isc<=nb(O.iscMax), "Isc : "+fr(x.isc,1)+" A "+(x.isc<=nb(O.iscMax)?"≤":">")+" "+fr(nb(O.iscMax),1)+" A (Isc max)", true);
+      else if(nb(O.imax)!=null && x.imp!=null) ctl(x.imp<=nb(O.imax), "Courant : "+fr(x.imp,1)+" A "+(x.imp<=nb(O.imax)?"≤":">")+" "+fr(nb(O.imax),1)+" A (max MPPT)", true);
+      r.nbPanneaux+=s*p; r.pcTot+=x.pc;
+    }
+    r.mppt.push(x);
+  }
+  var pac=nb(O.pac);
+  r.ratio = pac ? r.pcTot/(pac*1000) : null;
+  if(r.ratio!=null && (r.ratio<0.8 || r.ratio>1.35)) r.alertes++;
+  /* protections proposées */
+  var iscMax=0, vocMax=0, chainesMax=1;
+  r.mppt.forEach(function(x){ if(x.isc) iscMax=Math.max(iscMax,x.isc); if(x.vocFroid) vocMax=Math.max(vocMax,x.vocFroid); chainesMax=Math.max(chainesMax,x.chaines); });
+  var iSect=normalise([16,20,25,32,40,50,63], 1.25*(iscMax||0)), uSect=normalise([600,800,1000,1100,1500], vocMax||0);
+  r.propose={
+    cableDC:"PV1-F "+(iscMax*1.25>30 ? "6" : "4")+" mm²",
+    sectDC:"Inter-sect. DC "+iSect+" A "+uSect+" V",
+    pfDC:"Parafoudre DC type 2 · Ucpv ≥ "+normalise([600,800,1000,1200,1500], (vocMax||0)*1.2)+" V",
+    fusibles: chainesMax>=3 ? "Fusibles gPV "+normalise([10,12,15,16,20,25,32], 1.5*(isc||0))+" A par chaîne" : "",
+    iAC: pac ? (pv.onduleur.phases==="tri" ? pac*1000/(400*Math.sqrt(3)) : pac*1000/230) : null
+  };
+  var cal = r.propose.iAC ? normalise([10,16,20,25,32,40,50,63,80,100], r.propose.iAC) : 32;
+  var sec = sectionPour(cal+" A") || "6²";
+  var tri = pv.onduleur.phases==="tri";
+  r.propose.disjAC = "Disj. "+(tri?"4P":"2P")+" "+cal+" A";
+  r.propose.idAC = "ID "+(tri?"4P":"2P")+" "+normalise([25,40,63,80,100], cal)+" A · 30 mA · type "+(pv.choix.typeID||"A");
+  r.propose.cableAC = (tri?"5G":"3G")+sec.replace("²","")+" mm²";
+  r.propose.departTGBT = "Disj. "+cal+" A";
+  return r;
+}
+function choixPV(pv, r, k){ var v=String((pv.choix||{})[k]||"").trim(); return v || r.propose[k] || ""; }
+
+/* ---------- le folio PV ---------- */
+function panneauPV(T, x, y, lib){
+  T.r(x-18, y, 36, 48, {sw:1.4, fill:"#fff"});
+  T.l(x-18, y, x, y+20, 1.1); T.l(x+18, y, x, y+20, 1.1);
+  T.t(x, y+40, lib, 10.5, {anchor:"middle", bold:true});
+}
+function dessinerPV(S, f){
+  var pv=S.pv, r=calculPV(pv), T=new Trace(), total=nbFolios(S), O=pv.onduleur;
+  var V=COULEURS.vert, B=COULEURS.bleu, R=COULEURS.rouge;
+  cadre(T);
+  var ms=r.mppt.filter(function(x){ return !x.vide; });
+  if(!ms.length) ms=[r.mppt[0]];
+  var n=ms.length, pas=Math.min(150, 520/Math.max(n,1)), x0=150, xs=ms.map(function(_,i){ return x0+i*pas; });
+  var xDer=xs[xs.length-1];
+  /* ---------- générateur ---------- */
+  T.t(60,64,"Générateur PV",13,{bold:true,c:R});
+  T.t(60,80,r.nbPanneaux+" panneaux · "+fr(r.pcTot/1000,2)+" kWc"+(pv.panneau.modele?" · "+pv.panneau.modele:""),11,{c:R});
+  ms.forEach(function(m, i){
+    var x=xs[i];
+    T.t(x,104,"MPPT "+(m.i+1),10.5,{anchor:"middle",bold:true});
+    panneauPV(T, x, 112, "1");
+    T.l(x,160,x,196,1.2,"4 3");
+    T.l(x-5,182,x+5,174,1.1); T.l(x-5,187,x+5,179,1.1);
+    panneauPV(T, x, 196, String(m.serie||"X"));
+    T.t(x+24,174,(m.serie||"X")+" en série",9.5,{});
+    if(m.chaines>1) T.t(x+24,186,"× "+m.chaines+" chaînes",9.5,{bold:true});
+  });
+  /* ---------- coffret DC ---------- */
+  var cdG=Math.min(xs[0]-95, 60), cdD=xDer+70, yDC0=268, yDC1=494;
+  T.r(cdG,yDC0,cdD-cdG,yDC1-yDC0,{sw:1.3,dash:"6 4",c:B});
+  T.t(cdG+8,yDC0+15,"Coffret de protection DC",10.5,{bold:true,c:B});
+  var sect=choixPV(pv,r,"sectDC"), fus=r.propose.fusibles;
+  ms.forEach(function(m, i){
+    var x=xs[i];
+    T.l(x,244,x,300);
+    /* fusibles de chaîne au-delà de deux chaînes en parallèle */
+    var y=300;
+    if(fus && m.chaines>=3){ SYMBOLES.fus.dessin(T,x,300,352); y=352; }
+    else T.l(x,300,x,318);
+    var ys = fus && m.chaines>=3 ? 352 : 318;
+    SYMBOLES.sect.dessin(T,x,ys,ys+62);
+    if(i===0){ decouper(sect,18).slice(0,2).forEach(function(l,j){ T.t(x+12,ys+16+j*12,l,9.5); }); if(fus && m.chaines>=3) T.t(x+12,312,fus,9); }
+    T.l(x,ys+62,x,560);
+    /* parafoudre DC, en dérivation */
+    if(pv.choix.parafoudreDC!==false){
+      var yb=ys+76;
+      T.e(x,yb,2.4,2.4,1,"#111"); T.l(x,yb,x-40,yb,1.3);
+      SYMBOLES.parafoudre.dessin(T,x-40,yb,yb+58);
+    }
+  });
+  if(pv.choix.parafoudreDC!==false) T.t(cdG+8,yDC1-7,choixPV(pv,r,"pfDC"),9);
+  T.t(xDer+8,530,choixPV(pv,r,"cableDC"),9.5,{bold:true});
+  /* ---------- onduleur ---------- */
+  var oG=Math.min(xs[0]-40, xs[0]-40), oD=Math.max(xDer+40, xs[0]+100), oH=560, oB=650;
+  T.r(oG,oH,oD-oG,oB-oH,{sw:1.5,fill:"#fff"});
+  T.l(oG,oB,oD,oH,1.1);
+  T.t(oG+16,oB-16,"=",16,{bold:true}); T.t(oD-18,oB-12,"~",18,{bold:true});
+  ms.forEach(function(m,i){ T.t(xs[i],oH+13,"MPPT"+(m.i+1),8.5,{anchor:"middle",bold:true}); });
+  T.t(oD+10,632,"Onduleur"+(O.modele?" "+O.modele:""),12,{bold:true,c:R});
+  T.t(oD+10,646,fr(nb(O.pac),1)+" kVA · "+(O.phases==="tri"?"triphasé":"monophasé")+" · "+(parseInt(O.nMppt,10)||1)+" MPPT",10.5,{c:R});
+  /* ---------- sortie AC vers le coffret AC ---------- */
+  var xAC=Math.max(oD+160, 880), yAC=605;
+  T.l(oD,yAC,xAC,yAC,1.5);
+  T.t((oD+xAC)/2,yAC-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
+  var tri=O.phases==="tri", nf=tri?4:2;
+  for(var q=0;q<nf;q++){ var xx=(oD+xAC)/2-6+q*4; T.l(xx-3,yAC+6,xx+3,yAC-6,1.1); }
+  /* ---------- coffret AC : de bas en haut ---------- */
+  T.r(xAC-95,392,190,238,{sw:1.3,dash:"6 4",c:B});
+  T.t(xAC-88,622,"Coffret de protection AC",10.5,{bold:true,c:B});
+  var y=yAC;
+  if(pv.choix.arretUrgence!==false){ SYMBOLES.inter.dessin(T,xAC,y-60,y); T.t(xAC+12,y-40,"Arrêt d'urgence",9.5,{bold:true}); y-=60; }
+  SYMBOLES.disj.dessin(T,xAC,y-60,y); T.t(xAC+12,y-44,choixPV(pv,r,"disjAC"),9.5);
+  y-=60;
+  SYMBOLES.id.dessin(T,xAC,y-66,y);
+  decouper(choixPV(pv,r,"idAC"),16).slice(0,3).forEach(function(l,j){ T.t(xAC+12,y-54+j*11,l,9.5); });
+  y-=66;
+  if(pv.choix.parafoudreAC!==false){
+    T.e(xAC,y+2,2.4,2.4,1,"#111"); T.l(xAC,y+2,xAC-50,y+2,1.3);
+    SYMBOLES.parafoudre.dessin(T,xAC-50,y+2,y+60);
+    T.t(xAC-64,y+72,"Parafoudre AC",9,{anchor:"end"});
+  }
+  /* ---------- vers le TGBT ---------- */
+  var xT=1200, yT=y-14;
+  T.l(xAC,y,xAC,yT,1.5); T.l(xAC,yT,xT,yT,1.5);
+  T.t((xAC+xT)/2,yT-6,choixPV(pv,r,"cableAC"),9.5,{anchor:"middle",bold:true});
+  for(var q2=0;q2<nf;q2++){ var x2=(xAC+xT)/2-6+q2*4; T.l(x2-3,yT+6,x2+3,yT-6,1.1); }
+  /* TGBT */
+  T.t(xT-40,64,"Disjoncteur abonné",13,{bold:true,c:R});
+  SYMBOLES.agcp.dessin(T,xT,78,150);
+  T.t(xT+22,100,pv.choix.abonne||"",9.5);
+  T.l(xT-80,168,xT+120,168,1,"5 4");
+  T.t(xT-84,162,"NF C 14-100",9,{anchor:"end",gris:true}); T.t(xT-84,180,"NF C 15-100",9,{anchor:"end",gris:true});
+  T.l(xT,150,xT,202);
+  T.r(xT-70,190,250,Math.max(yT+18,300)-190,{sw:1.3,dash:"6 4",c:B});
+  T.t(xT+100,206,"TGBT",11,{bold:true,c:B});
+  SYMBOLES.id.dessin(T,xT,202,262); T.t(xT+12,214,"30 mA",9.5);
+  T.l(xT,262,xT,270); T.l(xT,270,xT+90,270,1.8); T.e(xT,270,2.4,2.4,1,"#111");
+  SYMBOLES.disj.dessin(T,xT,270,yT-2 > 330 ? 330 : yT-2); T.t(xT+12,288,choixPV(pv,r,"departTGBT"),9.5);
+  if(yT-2>330) T.l(xT,330,xT,yT);
+  SYMBOLES.disj.dessin(T,xT+90,270,330); SYMBOLES.disj.dessin(T,xT+130,270,330); T.l(xT+90,270,xT+130,270,1.8);
+  T.t(xT+110,346,"Usages",9.5,{anchor:"middle"});
+  /* ---------- la terre ---------- */
+  var yTerre=700;
+  T.l(70,yTerre,xT+150,yTerre,1.2,"7 4",V);
+  T.t(xT-120,yTerre-6,"Terre 16²",9.5,{c:V});
+  T.l(xT+60,yTerre,xT+60,yTerre+18,1.3,null,V);
+  T.l(xT+48,yTerre+18,xT+72,yTerre+18,1.6,null,V); T.l(xT+52,yTerre+22,xT+68,yTerre+22,1.4,null,V); T.l(xT+57,yTerre+26,xT+63,yTerre+26,1.2,null,V);
+  /* masses des panneaux : reliées à la terre en 6² */
+  T.l(xs[0]-18,150,cdG+10,150,1.1,"5 4",V); T.t(cdG+14,144,"Masses 6²",9,{c:V});
+  [[cdG+10,150],[cdD-20,yDC1],[oG+20,oB],[xAC-80,630],[xT+150,Math.max(yT+18,300)]].forEach(function(t){
+    T.l(t[0],t[1],t[0],yTerre,1.1,"5 4",V);
+    if(t[2]) T.t(t[0]-6,(t[1]+yTerre)/2,t[2],9,{anchor:"end",c:V});
+  });
+  /* ---------- le dimensionnement, en tableau ---------- */
+  var y0=730, xg=40, cols=[["MPPT",60],["Panneaux",120],["Puissance",90],["Voc froid",90],["Vmp chaud",90],["Vmp froid",90],["Courant",80],["Contrôles",360]];
+  var xd=xg+cols.reduce(function(a,c){ return a+c[1]; },0);
+  T.t(xg,y0-8,"Dimensionnement — panneau "+fr(nb(pv.panneau.pc),0)+" Wc · Voc "+fr(nb(pv.panneau.voc),1)+" V · Voc corrigé à "+fr(r.tmin,0)+" °C : "+fr(r.vocC,1)+" V"+(r.sansCoef?" (× 1,15)":"")+" · Isc "+fr(nb(pv.panneau.isc),2)+" A",10,{bold:true});
+  var lignes=ms.length+1, hl=17;
+  T.l(xg,y0,xd,y0,1.1);
+  var x=xg;
+  cols.forEach(function(c){ T.t(x+5,y0+12,c[0],9.5,{bold:true}); x+=c[1]; });
+  for(var k=0;k<=lignes;k++) T.l(xg,y0+hl*(k+1)-(k===0?0:0),xd,y0+hl*(k+1),k===0?1.1:0.7);
+  x=xg; T.l(x,y0,x,y0+hl*(lignes+1),1.1); cols.forEach(function(c){ x+=c[1]; T.l(x,y0,x,y0+hl*(lignes+1),0.7); });
+  ms.forEach(function(m, i){
+    var yy=y0+hl*(i+1)+12, xx=xg;
+    var ok=(m.controles||[]).every(function(c){ return c.ok; });
+    var val=[String(m.i+1), m.serie+" × "+m.chaines, fr(m.pc/1000,2)+" kWc", fr(m.vocFroid,0)+" V", fr(m.vmpChaud,0)+" V", fr(m.vmpFroid,0)+" V", fr(m.isc,1)+" A",
+      ok ? "Conforme" : (m.controles||[]).filter(function(c){ return !c.ok; }).map(function(c){ return c.texte; }).join(" · ")];
+    val.forEach(function(v,j){ T.t(xx+5,yy,v.length>70?v.slice(0,69)+"…":v,9.5,{bold:j===7, c:j===7?(ok?COULEURS.vert:COULEURS.rouge):null}); xx+=cols[j][1]; });
+  });
+  var yt=y0+hl*(ms.length+1)+12;
+  T.t(xg+5,yt,"Total",9.5,{bold:true});
+  T.t(xg+cols[0][1]+5,yt,r.nbPanneaux+" panneaux",9.5,{bold:true});
+  T.t(xg+cols[0][1]+cols[1][1]+5,yt,fr(r.pcTot/1000,2)+" kWc",9.5,{bold:true});
+  T.t(xg,yt+22,"Onduleur "+fr(nb(O.pac),1)+" kVA · plage MPPT "+fr(nb(O.mpptMin),0)+"–"+fr(nb(O.mpptMax),0)+" V · max "+fr(nb(O.vmax),0)+" V · DC/AC "+(r.ratio==null?"—":fr(r.ratio,2)),9.5,{bold:true});
+  cartouche(T, S, f, total, "Installation photovoltaïque");
+  return {trace:T, colonnes:[], debut:0, yFin:0, pv:true};
+}
+
+/* ---------- la fiche de dimensionnement ---------- */
+var CHAMPS_PV=[
+  ["site","tmin","Température mini du site (°C)"],["site","tmax","Température cellule maxi (°C)"],
+  ["panneau","modele","Modèle du panneau",1],["panneau","pc","Puissance (Wc)"],["panneau","voc","Voc (V)"],["panneau","vmp","Vmp (V)"],
+  ["panneau","isc","Isc — ampérage (A)"],["panneau","imp","Imp (A)"],["panneau","coefVoc","Coefficient Voc (%/°C)"],["panneau","coefVmp","Coefficient Vmp (%/°C, vide = Voc)"],
+  ["onduleur","modele","Modèle de l'onduleur",1],["onduleur","pac","Puissance onduleur (kVA)"],["onduleur","nMppt","Nombre de MPPT"],
+  ["onduleur","mpptMin","Plage MPPT mini (V)"],["onduleur","mpptMax","Plage MPPT maxi (V)"],["onduleur","vmax","Tension max d'entrée (V)"],
+  ["onduleur","imax","Courant max par MPPT (A)"],["onduleur","iscMax","Isc max par MPPT (A, si connu)"]
+];
+var CHOIX_PV=[["cableDC","Câble DC"],["sectDC","Interrupteur-sectionneur DC"],["pfDC","Parafoudre DC"],["cableAC","Câble AC"],
+  ["disjAC","Disjoncteur AC (coffret)"],["idAC","Différentiel AC"],["departTGBT","Départ au TGBT"],["abonne","Disjoncteur abonné"]];
+function ouvrirPV(){
+  if(!S.pv) S.pv=pvVierge();
+  peindrePV(); ouvrirFenetre("fPV");
+}
+function champPV(lib, val, fn, large, type){
+  var l=el("label","champ-p"+(large?" large":"")); l.appendChild(el("span",null,lib));
+  var i=el("input"); i.type=type||"text"; if(type==="text"||!type) i.inputMode = large ? "text" : "decimal"; i.value=val==null?"":val;
+  var note=false;
+  i.addEventListener("focus", function(){ note=false; });
+  i.addEventListener("input", function(){ if(!note){ avant(); note=true; } fn(i.value); S.modifie=true; sauver(); peindreResultatsPV(); if(S.pv.actif) peindre(); });
+  l.appendChild(i); return l;
+}
+function peindrePV(){
+  var pv=S.pv, h=$("pvChamps"); h.textContent="";
+  $("pvChoix").__fait=false;
+  var titres={site:"Le site", panneau:"Les panneaux", onduleur:"L'onduleur"}, derniere="";
+  CHAMPS_PV.forEach(function(c){
+    if(c[0]!==derniere){ h.appendChild(el("h3","pv-t",titres[c[0]])); derniere=c[0]; }
+    h.appendChild(champPV(c[2], pv[c[0]][c[1]], function(v){
+      pv[c[0]][c[1]]=v;
+      if(c[1]==="nMppt"){ var n=Math.max(1,Math.min(12,parseInt(v,10)||1)); while(pv.mppt.length<n) pv.mppt.push({serie:pv.mppt[0]?pv.mppt[0].serie:0, chaines:1}); peindreMPPT(); }
+    }, c[3]));
+  });
+  var ph=el("label","champ-p"); ph.appendChild(el("span",null,"Raccordement"));
+  var sp=el("select"); [["mono","Monophasé"],["tri","Triphasé"]].forEach(function(o){ var op=el("option",null,o[1]); op.value=o[0]; if(pv.onduleur.phases===o[0]) op.selected=true; sp.appendChild(op); });
+  sp.addEventListener("change", function(){ avant(); pv.onduleur.phases=sp.value; sauver(); peindreResultatsPV(); if(pv.actif) peindre(); });
+  ph.appendChild(sp); h.appendChild(ph);
+  peindreMPPT(); peindreResultatsPV();
+  $("pvPlacer").textContent = pv.actif ? "Mettre à jour le folio PV" : "Ajouter le folio PV au schéma";
+  $("pvRetirer").hidden=!pv.actif;
+}
+function peindreMPPT(){
+  var pv=S.pv, h=$("pvMppt"); h.textContent="";
+  var n=Math.max(1,Math.min(12,parseInt(pv.onduleur.nMppt,10)||1));
+  for(var i=0;i<n;i++) (function(i){
+    var m=pv.mppt[i]=pv.mppt[i]||{serie:0,chaines:1};
+    var l=el("div","mppt-l");
+    l.appendChild(el("b",null,"MPPT "+(i+1)));
+    var a=el("input"); a.type="number"; a.min="0"; a.value=m.serie; a.setAttribute("aria-label","MPPT "+(i+1)+" : panneaux en série");
+    var b=el("input"); b.type="number"; b.min="1"; b.value=m.chaines; b.setAttribute("aria-label","MPPT "+(i+1)+" : chaînes en parallèle");
+    [a,b].forEach(function(inp, k){
+      inp.addEventListener("input", function(){ avant(); if(k===0) m.serie=inp.value; else m.chaines=inp.value; S.modifie=true; sauver(); peindreResultatsPV(); if(pv.actif) peindre(); });
+    });
+    l.appendChild(a); l.appendChild(el("span",null,"panneaux ×")); l.appendChild(b); l.appendChild(el("span",null,"chaîne(s)"));
+    var res=el("div","mppt-r"); res.id="pvRes"+i; l.appendChild(res);
+    h.appendChild(l);
+  })(i);
+}
+function peindreResultatsPV(){
+  var pv=S.pv, r=calculPV(pv);
+  $("pvVocC").textContent = r.vocC==null ? "Renseignez le Voc du panneau." :
+    "Voc corrigé à "+fr(r.tmin,0)+" °C : "+fr(r.vocC,2)+" V"+(r.sansCoef?" (Voc × 1,15, sans coefficient)":"");
+  r.mppt.forEach(function(x){
+    var h=$("pvRes"+x.i); if(!h) return; h.textContent="";
+    if(x.vide){ h.appendChild(el("span","pv-gris","MPPT non utilisé")); return; }
+    h.appendChild(el("span","pv-gris",fr(x.pc/1000,2)+" kWc · Voc "+fr(x.vocFroid,0)+" V · Vmp "+fr(x.vmpChaud,0)+"–"+fr(x.vmpFroid,0)+" V · "+fr(x.isc,1)+" A"));
+    x.controles.forEach(function(c){ h.appendChild(el("span", c.ok ? "pv-ok" : (c.grave ? "pv-ko" : "pv-av"), (c.ok ? "✓ " : "✗ ")+c.texte)); });
+  });
+  var t=$("pvTotal"); t.textContent="";
+  t.appendChild(el("b",null,r.nbPanneaux+" panneaux · "+fr(r.pcTot/1000,2)+" kWc"));
+  if(r.ratio!=null){
+    var ok=r.ratio>=0.8 && r.ratio<=1.35;
+    t.appendChild(el("span", ok?"pv-ok":"pv-av", (ok?"✓ ":"✗ ")+"Rapport DC/AC "+fr(r.ratio,2)+(ok?"":" (conseillé entre 0,8 et 1,35)")));
+  }
+  if(r.propose.fusibles) t.appendChild(el("span","pv-av","Trois chaînes ou plus sur un MPPT : "+r.propose.fusibles+"."));
+  t.appendChild(el("span", r.erreurs ? "pv-ko" : r.alertes ? "pv-av" : "pv-ok",
+    r.erreurs ? r.erreurs+" contrôle"+(r.erreurs>1?"s":"")+" bloquant"+(r.erreurs>1?"s":"")+" : à corriger avant de câbler." :
+    r.alertes ? r.alertes+" point"+(r.alertes>1?"s":"")+" à vérifier." : "Tout est conforme."));
+  /* les protections : proposées, modifiables */
+  var h2=$("pvChoix");
+  if(!h2.__fait){
+    h2.textContent="";
+    CHOIX_PV.forEach(function(c){
+      h2.appendChild(champPV(c[1], pv.choix[c[0]]===true||pv.choix[c[0]]===false ? "" : (pv.choix[c[0]]||""), function(v){ pv.choix[c[0]]=v; }, true));
+    });
+    [["parafoudreDC","Parafoudre DC"],["parafoudreAC","Parafoudre AC"],["arretUrgence","Arrêt d'urgence"]].forEach(function(c){
+      var l=el("label","coche"); var i=el("input"); i.type="checkbox"; i.checked=pv.choix[c[0]]!==false;
+      i.addEventListener("change", function(){ avant(); pv.choix[c[0]]=i.checked; sauver(); if(pv.actif) peindre(); });
+      l.appendChild(i); l.appendChild(el("span",null,c[1])); h2.appendChild(l);
+    });
+    h2.__fait=true;
+  }
+  /* les valeurs proposées, en indication dans les champs vides */
+  [].forEach.call(h2.querySelectorAll("input[type=text]"), function(inp, k){
+    var cle=CHOIX_PV[k] && CHOIX_PV[k][0]; if(!cle) return;
+    inp.placeholder = r.propose[cle] || (cle==="abonne" ? "15/45 A · 500 mA S" : "");
+  });
+}
+$("btnPV").addEventListener("click", ouvrirPV);
+$("pvPlacer").addEventListener("click", function(){
+  changer(function(){ S.pv.actif=true; });
+  F=nbFolios(S)-1; peindre(); peindrePV(); fermerFenetres();
+  toast("Folio PV ajouté au schéma : folio "+(F+1)+".");
+});
+$("pvRetirer").addEventListener("click", function(){
+  changer(function(){ S.pv.actif=false; });
+  F=0; peindre(); peindrePV(); fermerFenetres(); toast("Folio PV retiré (la fiche est gardée).");
+});
 
 /* ---------- ouvrir : le chantier, un brouillon, ou un schéma publié ---------- */
 function schemasPublies(ref){
