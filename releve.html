@@ -1400,30 +1400,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 </div>
 
-<div id="sketch" hidden>
-  <div class="sk-bar">
-    <span class="title" id="sk_title">Croquis</span>
-    <button type="button" id="sk_thin">Fin</button>
-    <button type="button" id="sk_med" class="on">Moyen</button>
-    <button type="button" id="sk_thick">Épais</button>
-    <button type="button" id="sk_text">Texte</button>
-    <button type="button" id="sk_move">Déplacer</button>
-    <button type="button" id="sk_eraser">Gomme</button>
-    <button type="button" id="sk_grid">Quadrillage</button>
-    <button type="button" id="sk_zoomP">Loupe +</button>
-    <button type="button" id="sk_zoomM">Loupe −</button>
-    <button type="button" id="sk_zoomR">Vue entière</button>
-  </div>
-  <div class="sk-bar" id="sk_colors"></div>
-  <div class="sk-wrap"><canvas id="sk_canvas" width="1400" height="1000"></canvas></div>
-  <div class="sk-bar bottom">
-    <button type="button" id="sk_undo">Annuler le trait</button>
-    <button type="button" id="sk_clear">Tout effacer</button>
-    <button type="button" id="sk_cancel">Fermer</button>
-    <button type="button" id="sk_save" class="go">Ajouter au relevé</button>
-  </div>
-</div>
-
+<script src="./annotation.js?v=20260926a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -3765,266 +3742,30 @@ function paintPvgis(){
   out.hidden = false;
 }
 
-/* ---------- croquis à main levée ---------- */
-var SK = {
-  target:null, index:null, bg:null, strokes:[], cur:null,
-  size:5, color:"#111111", erase:false, grid:false, drawing:false, textMode:false, pending:"", moveMode:false, drag:null,
-  vue:{k:1,dx:0,dy:0}
-};
-var SK_COLORS = [
-  ["#111111","Noir"], ["#D32F2F","Rouge"], ["#1565C0","Bleu"],
-  ["#2E7D32","Vert"], ["#F9A825","Jaune"], ["#FFFDF8","Blanc"]
-];
-function skCtx(){ return $("sk_canvas").getContext("2d"); }
-function skVue(){ if(!SK.vue) SK.vue={k:1,dx:0,dy:0}; return SK.vue; }
-function skBornerVue(){
-  var cv=$("sk_canvas"), v=skVue();
-  v.k=Math.max(1, Math.min(8, v.k));
-  var minX = cv.width - cv.width*v.k, minY = cv.height - cv.height*v.k;
-  v.dx=Math.max(minX, Math.min(0, v.dx));
-  v.dy=Math.max(minY, Math.min(0, v.dy));
-}
-function skZoom(f, cx, cy){
-  var cv=$("sk_canvas"), v=skVue();
-  if(cx===undefined){ cx=cv.width/2; cy=cv.height/2; }
-  var avant=v.k;
-  v.k=Math.max(1, Math.min(8, v.k*f));
-  var r=v.k/avant;
-  v.dx=cx-(cx-v.dx)*r; v.dy=cy-(cy-v.dy)*r;
-  skBornerVue(); skPaint();
-}
-function skPaint(){
-  var cv=$("sk_canvas"), c=skCtx(), v=skVue();
-  c.setTransform(1,0,0,1,0,0);
-  c.fillStyle="#fff"; c.fillRect(0,0,cv.width,cv.height);
-  c.setTransform(v.k,0,0,v.k,v.dx,v.dy);
-  if(SK.bg){ try{ c.drawImage(SK.bg,0,0,cv.width,cv.height); }catch(e){} }
-  if(SK.grid && !SK.bg){
-    c.strokeStyle="#DDE1E5"; c.lineWidth=1;
-    for(var x=50;x<cv.width;x+=50){ c.beginPath(); c.moveTo(x,0); c.lineTo(x,cv.height); c.stroke(); }
-    for(var yy=50;yy<cv.height;yy+=50){ c.beginPath(); c.moveTo(0,yy); c.lineTo(cv.width,yy); c.stroke(); }
-  }
-  c.lineCap="round"; c.lineJoin="round";
-  SK.strokes.forEach(function(st){
-    if(st.type==="text"){
-      c.font = "bold "+st.px+"px Helvetica, Arial, sans-serif";
-      c.textBaseline = "top";
-      st.w = c.measureText(st.text).width;
-      c.fillStyle = st.color||"#111111";
-      c.fillText(st.text, st.x, st.y);
-      if(SK.moveMode){
-        c.save();
-        c.strokeStyle = "#1565C0"; c.lineWidth = 2; c.setLineDash([8,6]);
-        c.strokeRect(st.x-5, st.y-4, st.w+10, st.px+8);
-        c.restore();
-      }
-      return;
-    }
-    c.strokeStyle = st.erase ? "#fff" : (st.color||"#111111");
-    c.lineWidth = st.erase ? st.size*4 : st.size;
-    c.beginPath();
-    st.pts.forEach(function(pt,i){ i ? c.lineTo(pt[0],pt[1]) : c.moveTo(pt[0],pt[1]); });
-    if(st.pts.length===1) c.lineTo(st.pts[0][0]+0.4, st.pts[0][1]+0.4);
-    c.stroke();
-  });
-}
-function skPosEcran(e){
-  var cv=$("sk_canvas"), r=cv.getBoundingClientRect();
-  return [ (e.clientX-r.left)*(cv.width/r.width), (e.clientY-r.top)*(cv.height/r.height) ];
-}
-function skPos(e){
-  var p=skPosEcran(e), v=skVue();
-  return [ (p[0]-v.dx)/v.k, (p[1]-v.dy)/v.k ];
-}
-(function skBind(){
-  var cv=$("sk_canvas");
-  var doigts=new Map(), pince=null;
-  function centreSk(){
-    var t=Array.from(doigts.values());
-    return [(t[0][0]+t[1][0])/2, (t[0][1]+t[1][1])/2];
-  }
-  function ecartSk(){
-    var t=Array.from(doigts.values());
-    return Math.hypot(t[0][0]-t[1][0], t[0][1]-t[1][1]) || 1;
-  }
-  cv.addEventListener("pointerdown", function(e){
-    doigts.set(e.pointerId, skPosEcran(e));
-    if(doigts.size===2){
-      /* deux doigts : on annule le trait en cours et on zoome */
-      if(SK.drawing && SK.cur){ SK.strokes.pop(); }
-      SK.drawing=false; SK.cur=null; SK.drag=null;
-      var v=skVue();
-      pince={d:ecartSk(), c:centreSk(), k:v.k, dx:v.dx, dy:v.dy};
-      skPaint();
-      return;
-    }
-    if(doigts.size>2) return;
-    if(SK.moveMode){
-      var pt=skPos(e), hit=null;
-      for(var i=SK.strokes.length-1;i>=0;i--){
-        var st=SK.strokes[i];
-        if(st.type!=="text") continue;
-        var w=st.w||(st.text.length*st.px*0.55);
-        if(pt[0]>=st.x-10 && pt[0]<=st.x+w+10 && pt[1]>=st.y-10 && pt[1]<=st.y+st.px+10){ hit=st; break; }
-      }
-      if(hit){
-        cv.setPointerCapture(e.pointerId);
-        SK.drag={st:hit, dx:pt[0]-hit.x, dy:pt[1]-hit.y};
-      } else { toast("Touchez un texte pour le déplacer."); }
-      return;
-    }
-    if(SK.textMode){
-      var pos=skPos(e);
-      var px = Math.max(26, Math.round(SK.size*7) + 18);
-      SK.strokes.push({type:"text", text:SK.pending, x:pos[0], y:pos[1]-px/2, px:px, color:SK.color});
-      SK.textMode=false; SK.pending="";
-      $("sk_text").classList.remove("on");
-      SK.moveMode=true; $("sk_move").classList.add("on");
-      $("sk_title").textContent = "Glissez le texte pour l'ajuster";
-      skPaint();
-      return;
-    }
-    cv.setPointerCapture(e.pointerId);
-    SK.drawing=true;
-    SK.cur={pts:[skPos(e)], size:SK.size, erase:SK.erase, color:SK.color};
-    SK.strokes.push(SK.cur); skPaint();
-  });
-  cv.addEventListener("pointermove", function(e){
-    if(doigts.has(e.pointerId)) doigts.set(e.pointerId, skPosEcran(e));
-    if(doigts.size>=2 && pince){
-      var v=skVue(), fz=ecartSk()/pince.d, c=centreSk();
-      v.k=Math.max(1, Math.min(8, pince.k*fz));
-      var r=v.k/pince.k;
-      v.dx=c[0]-(pince.c[0]-pince.dx)*r;
-      v.dy=c[1]-(pince.c[1]-pince.dy)*r;
-      skBornerVue(); skPaint();
-      return;
-    }
-    if(SK.drag){
-      var pt=skPos(e);
-      SK.drag.st.x = pt[0]-SK.drag.dx;
-      SK.drag.st.y = pt[1]-SK.drag.dy;
-      skPaint();
-      return;
-    }
-    if(!SK.drawing) return;
-    SK.cur.pts.push(skPos(e)); skPaint();
-  });
-  ["pointerup","pointercancel","pointerleave"].forEach(function(ev){
-    cv.addEventListener(ev, function(e){
-      doigts.delete(e.pointerId);
-      if(doigts.size<2) pince=null;
-      SK.drawing=false; SK.drag=null;
-    });
-  });
-  function quitMove(){
-    if(!SK.moveMode) return;
-    SK.moveMode=false; $("sk_move").classList.remove("on");
-    $("sk_title").textContent = SK.titleBase; skPaint();
-  }
-  function setSize(px, btn){
-    SK.size=px; SK.erase=false; quitMove();
-    ["sk_thin","sk_med","sk_thick","sk_eraser"].forEach(function(i){ $(i).classList.remove("on"); });
-    $(btn).classList.add("on");
-  }
-  $("sk_thin").addEventListener("click", function(){ setSize(2.5,"sk_thin"); });
-  $("sk_med").addEventListener("click", function(){ setSize(5,"sk_med"); });
-  $("sk_thick").addEventListener("click", function(){ setSize(11,"sk_thick"); });
-  $("sk_eraser").addEventListener("click", function(){
-    SK.erase=true; quitMove();
-    ["sk_thin","sk_med","sk_thick"].forEach(function(i){ $(i).classList.remove("on"); });
-    $("sk_eraser").classList.add("on");
-  });
-  var bar=$("sk_colors");
-  SK_COLORS.forEach(function(c,i){
-    var b=document.createElement("button");
-    b.type="button"; b.className="sk-dot"+(i===0?" on":"");
-    b.style.background=c[0]; b.title=c[1]; b.setAttribute("aria-label","Trait "+c[1]);
-    b.addEventListener("click", function(){
-      SK.color=c[0]; SK.erase=false;
-      bar.querySelectorAll(".sk-dot").forEach(function(d){ d.classList.remove("on"); });
-      b.classList.add("on");
-      $("sk_eraser").classList.remove("on");
-      if(!$("sk_thin").classList.contains("on") && !$("sk_med").classList.contains("on") && !$("sk_thick").classList.contains("on")) $("sk_med").classList.add("on");
-    });
-    bar.appendChild(b);
-  });
-  $("sk_text").addEventListener("click", function(){
-    if(SK.textMode){ SK.textMode=false; SK.pending=""; $("sk_text").classList.remove("on"); $("sk_title").textContent=SK.titleBase; return; }
-    var t = window.prompt("Texte à placer sur l'image :", "");
-    if(!t || !t.trim()) return;
-    SK.pending = t.trim(); SK.textMode = true; SK.erase=false;
-    $("sk_eraser").classList.remove("on");
-    $("sk_text").classList.add("on");
-    $("sk_title").textContent = "Touchez l'endroit où placer le texte";
-  });
-  $("sk_move").addEventListener("click", function(){
-    SK.moveMode = !SK.moveMode;
-    $("sk_move").classList.toggle("on", SK.moveMode);
-    if(SK.moveMode){
-      SK.textMode=false; SK.pending=""; SK.erase=false;
-      $("sk_text").classList.remove("on"); $("sk_eraser").classList.remove("on");
-      $("sk_title").textContent = "Glissez un texte pour le repositionner";
-    } else {
-      $("sk_title").textContent = SK.titleBase;
-    }
-    skPaint();
-  });
-  $("sk_grid").addEventListener("click", function(){
-    SK.grid=!SK.grid; $("sk_grid").classList.toggle("on", SK.grid); skPaint();
-  });
-  $("sk_undo").addEventListener("click", function(){ SK.strokes.pop(); skPaint(); });
-  $("sk_clear").addEventListener("click", function(){ SK.strokes=[]; skPaint(); });
-  cv.addEventListener("wheel", function(e){
-    e.preventDefault();
-    var p=skPosEcran(e);
-    skZoom(e.deltaY<0 ? 1.15 : 1/1.15, p[0], p[1]);
-  }, {passive:false});
-  $("sk_zoomP").addEventListener("click", function(){ skZoom(1.4); });
-  $("sk_zoomM").addEventListener("click", function(){ skZoom(1/1.4); });
-  $("sk_zoomR").addEventListener("click", function(){ SK.vue={k:1,dx:0,dy:0}; skPaint(); });
-  $("sk_cancel").addEventListener("click", function(){ $("sketch").hidden=true; });
-  $("sk_save").addEventListener("click", function(){
-    if(!SK.strokes.length){ toast("Rien n'a été dessiné."); return; }
-    SK.moveMode=false; $("sk_move").classList.remove("on"); skPaint();
-    var cv=$("sk_canvas"), p=SK.target;
-    var data = cv.toDataURL("image/jpeg", SK.index===null ? 0.85 : 0.78);
-    if(SK.index===null){
-      p.photos.push({data:data, w:cv.width, h:cv.height, legende:"Croquis", croquis:true});
-      toast("Croquis ajouté à « "+p.nom+" »");
-    } else {
-      var ph=p.photos[SK.index];
-      ph.data=data; ph.w=cv.width; ph.h=cv.height;
-      toast("Photo annotée.");
-    }
-    $("sketch").hidden=true;
-    save(); renderRooms(); refreshHeader();
-  });
-})();
+/* ---------- annotation : l'outil commun (annotation.js) ----------
+   Photos et croquis gardent leurs annotations comme des objets : on les
+   retouche plus tard, la photo d'origine restant intacte à côté. */
 function openSketch(p, index){
-  SK.vue={k:1,dx:0,dy:0};
   if(!p){ toast("Ajoutez d'abord une pièce."); return; }
-  var cv=$("sk_canvas");
-  SK.target=p; SK.strokes=[]; SK.drawing=false; SK.bg=null;
-  SK.textMode=false; SK.pending=""; SK.moveMode=false; SK.drag=null;
-  $("sk_text").classList.remove("on"); $("sk_move").classList.remove("on");
-  SK.index = (index===undefined || index===null) ? null : index;
-  if(SK.index===null){
-    cv.width=1400; cv.height=1000;
-    SK.titleBase = "Croquis — "+p.nom; $("sk_title").textContent = SK.titleBase;
-    $("sketch").hidden=false; skPaint();
-  } else {
-    var ph=p.photos[SK.index];
-    var img=new Image();
-    img.onload=function(){
-      cv.width=ph.w; cv.height=ph.h;
-      SK.bg=img;
-      SK.titleBase = "Annoter — "+p.nom; $("sk_title").textContent = SK.titleBase;
-      $("sketch").hidden=false; skPaint();
-    };
-    img.onerror=function(){ toast("Image illisible."); };
-    img.src=ph.data;
+  if(!p.photos) p.photos=[];
+  var suite = function(){ renderRooms(); };
+  var nom = (p.nom||"").trim();
+  if(index===undefined || index===null){
+    Annotation.croquis({titre:"Croquis" + (nom ? " - "+nom : "")}).then(function(ph){
+      if(!ph) return;
+      p.photos.push(ph);
+      toast("Croquis ajouté à « "+p.nom+" »");
+      save(); suite(); refreshHeader();
+    });
+    return;
   }
+  var ph=p.photos[index];
+  if(!ph) return;
+  Annotation.photo(ph, {titre:"Annoter" + (nom ? " - "+nom : "")}).then(function(r){
+    if(!r) return;
+    toast("Photo annotée.");
+    save(); suite(); refreshHeader();
+  }).catch(function(){ toast("Image illisible."); });
 }
 
 /* ---------- parties activables : IRVE et photovoltaïque ---------- */
