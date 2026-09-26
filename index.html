@@ -255,8 +255,9 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
   main{max-width:1120px}
 }
 @media (hover:hover){
-  .notif:hover,.bref a:hover,a.tuile:hover,.raccourci:hover{
+  .notif:hover,.bref a:hover,a.tuile:hover{
     background:rgba(180,98,26,.06)}
+  .raccourci:hover{box-shadow:var(--ombre-2)}
   button.p:hover,button.act:hover{filter:brightness(.97)}
 }
 
@@ -881,16 +882,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .tuile-t.anneau-t > span{display:flex;flex-direction:column;min-width:0}
 .tuile-t:focus-visible{outline:2px solid var(--data-vif);outline-offset:2px}
 @media (hover:hover){ .tuile-t:hover{box-shadow:var(--ombre-2)} }
-.a-publier{margin:-4px 0 14px;background:var(--card);border:1px solid var(--rule);border-radius:14px;overflow:hidden;
-  box-shadow:var(--ombre-1);animation:monteDoux .3s var(--sortie) both}
-.a-publier[hidden]{display:none}
-.a-publier a.d{display:flex;align-items:center;gap:10px;min-height:52px;padding:10px 14px;text-decoration:none;color:var(--ink);
-  border-bottom:1px solid var(--rule)}
-.a-publier a.d:last-child{border-bottom:0}
-.a-publier a.d::before{content:"";width:9px;height:9px;border-radius:50%;background:var(--accent-vif);flex:0 0 auto}
-.a-publier a.d::after{content:"Tout publier ›";margin-left:auto;font-size:12.5px;font-weight:700;color:var(--accent);white-space:nowrap}
-.a-publier a.d b{font-size:14.5px;font-weight:700}
-.a-publier a.d span{font-size:12.5px;color:var(--ink-3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 /* ---------- la connexion : le logo se dessine, tout monte en cascade ---------- */
 .logo-trace{display:block;margin:0 0 12px}
@@ -959,11 +950,13 @@ body.connexion .ciel{display:none}
   .ciel *{animation:none!important}
   .ciel-pluie{display:none}
 }
-/* ---------- le tableau de bord, pour le bureau ---------- */
-.raccourci.rc-tableau{margin-bottom:10px;border-left-color:var(--data,#0E7490)}
-.raccourci.rc-tableau .r-ic{color:var(--data,#0E7490)}
-.raccourci[hidden]{display:none}
-.rc-tableau .r-retard{color:var(--rouge,#A03A33);font-weight:700}
+/* ---------- le dossier Outils : les petits outils et le tableau de bord, repliés ---------- */
+button.raccourci{width:100%;font:inherit;text-align:left;cursor:pointer}
+.raccourci .r-txt span{color:var(--ink-3)}
+.rc-outils .r-fleche svg{transition:transform .2s var(--sortie,ease)}
+.rc-outils[aria-expanded="true"] .r-fleche svg{transform:rotate(180deg)}
+.petits-outils[hidden],.petits-outils a[hidden]{display:none}
+.petits-outils a.o-large{grid-column:1/-1;flex-direction:row;min-height:48px}
 /* ---------- l'invitation aux notifications ---------- */
 .invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
   padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
@@ -1074,30 +1067,30 @@ body.connexion .ciel{display:none}
     </div>
 
     <div class="tableau" id="tableau" hidden></div>
-    <div class="demandes a-publier" id="listeAPublier" hidden></div>
 
     <p class="demo-ban" id="banniere" hidden></p>
     <p class="acces-ban" id="banniereAcces" hidden></p>
     <div class="notifs" id="notifs" hidden></div>
     <div class="invite-notif" id="inviteNotif" hidden></div>
 
-    <a class="raccourci rc-tableau" id="rcTableau" href="./tableau.html" hidden>
-      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg></span>
-      <span class="r-txt"><b>Tableau de bord</b><span id="rcTableauTxt">Tout ce qui attend, sur une page</span></span>
-      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
-    </a>
     <a class="raccourci" href="./notes.html">
       <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
       <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
       <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
     </a>
-    <nav class="petits-outils" aria-label="Petits outils">
+    <button type="button" class="raccourci rc-outils" id="btnOutils" aria-expanded="false" aria-controls="petitsOutils">
+      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg></span>
+      <span class="r-txt"><b>Outils</b><span id="outilsTxt">Boussole, niveau, calculatrice, kW · A, câble, surface</span></span>
+      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>
+    </button>
+    <nav class="petits-outils" id="petitsOutils" aria-label="Outils" hidden>
       <a href="./utilitaires.html#boussole"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg><span>Boussole</span></a>
       <a href="./utilitaires.html#niveau"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="8" width="19" height="8" rx="2"/><circle cx="12" cy="12" r="2"/><path d="M8.5 8v8M15.5 8v8"/></svg><span>Niveau</span></a>
       <a href="./utilitaires.html#calcul"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8.5 12h.01M12 12h.01M15.5 12h.01M8.5 15.5h.01M12 15.5h.01M15.5 15.5h.01M8.5 18.5h.01M12 18.5h.01M15.5 18.5h.01"/></svg><span>Calculatrice</span></a>
       <a href="./utilitaires.html#conversion"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg><span>kW · A</span></a>
       <a href="./utilitaires.html#cable"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg><span>Câble</span></a>
       <a href="./utilitaires.html#surface"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/></svg><span>Surface</span></a>
+      <a class="o-large" id="rcTableau" href="./tableau.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Tableau de bord du bureau</span></a>
     </nav>
 
 
@@ -1596,10 +1589,10 @@ function bandeauPublic(){
 /* ---------- tâches du jour ---------- */
 var TACHES=[];
 var NOTIF_INVITEE=false, TABLEAU_DEMANDE=false;
-/* Le bureau a son tableau de bord : une ligne sur l'accueil, qui dit
-   combien de choses attendent. Sur ordinateur, s'il l'a choisi dans
-   Mon compte, il s'ouvre directement (une fois par session : le bouton
-   Menu ramène ensuite ici sans renvoyer là-bas). */
+/* Le bureau a son tableau de bord, rangé dans le dossier Outils : on n'y
+   va pas tous les jours. Sur ordinateur, s'il l'a choisi dans Mon compte,
+   il s'ouvre directement (une fois par session : le bouton Menu ramène
+   ensuite ici sans renvoyer là-bas). */
 function peindreEntreeTableau(s){
   var a=$("rcTableau"); if(!a) return;
   var bureau = s && (s.role==="bureau" || s.role==="admin");
@@ -1611,18 +1604,22 @@ function peindreEntreeTableau(s){
     if(grand && localStorage.getItem("tableau:demarrage")==="1" && !sessionStorage.getItem("tableau:ouvert")){
       sessionStorage.setItem("tableau:ouvert","1");
       location.href="./tableau.html";
-      return;
     }
   }catch(e){}
-  fetch(apiUrl("tableau-bord"), {headers:{"x-auth":s.jeton}})
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if(!d) return;
-      var t=$("rcTableauTxt"), n=d.aTraiter.length, ret=d.aTraiter.filter(function(x){ return x.retard; }).length;
-      t.textContent = n ? n+" chose"+(n>1?"s":"")+" à traiter" : "Rien n'attend : tout est à jour";
-      if(ret){ var r=document.createElement("span"); r.className="r-retard"; r.style.display="inline"; r.textContent=" · "+ret+" en retard"; t.appendChild(r); }
-    }).catch(function(){});
 }
+/* le dossier Outils se replie ; l'appareil se souvient s'il était ouvert */
+(function(){
+  var b=$("btnOutils"), n=$("petitsOutils"); if(!b || !n) return;
+  function poser(ouvert){
+    n.hidden=!ouvert; b.setAttribute("aria-expanded", ouvert ? "true" : "false");
+  }
+  try{ poser(localStorage.getItem("accueil:outils")==="1"); }catch(e){}
+  b.addEventListener("click", function(){
+    var ouvert=n.hidden;
+    poser(ouvert);
+    try{ localStorage.setItem("accueil:outils", ouvert ? "1" : "0"); }catch(e){}
+  });
+})();
 function chargerTaches(s){
   peindreEntreeTableau(s);
   /* une fois par visite : proposer les notifications sur ce téléphone */
@@ -1915,7 +1912,7 @@ function majIdentite(s){
 }
 
 /* ---------- statistiques et travaux en bref ---------- */
-var SESSION_COURANTE=null, DERNIERS_CHANTIERS_VUS=false;
+var SESSION_COURANTE=null;
 function rafraichir(){
   if(SESSION_COURANTE && !document.hidden){
     charger(SESSION_COURANTE);
@@ -1998,10 +1995,7 @@ function charger(s){
       var ch=(d.chantiers)||[];
       DERNIERS_CHANTIERS=ch;
       SESSION_COURANTE=s;
-      var premiereFois = DERNIERS_CHANTIERS_VUS !== true;
-      DERNIERS_CHANTIERS_VUS = true;
       var enCours=repeindreChantiers(ch, s);
-      if(premiereFois) chercherAPublier();
       peindreNotifs(s, enCours, ch.filter(function(c){ return c.etat === "attente" && c.relanceDue; }));
       peindreBref(enCours);
     })
@@ -2225,79 +2219,12 @@ function peindreCloche(){
 /* ---------- la liste des chantiers du technicien ---------- */
 var NON_LUS_PAR_REF={}, DERNIERS_CHANTIERS=null;
 
-/* ---------- le tableau de bord : quatre tuiles sous le bulletin ----------
-   Chantiers actifs, avancement moyen, fiches modifiées pas encore
-   publiées (lues dans la mémoire du téléphone, comme la pastille orange
-   des applis) et messages non lus. Les chiffres montent depuis zéro à la
-   première apparition, puis changent sans bruit. */
-var TABLEAU_VU=false, A_PUBLIER=[];
-var FICHES_APPLIS=[
-  ["releve","Relevé","./releve.html","releve:courant"],
-  ["suivi","Suivi","./suivi.html","suivi:courant"],
-  ["commande","Commande","./commande.html","commande:courante"],
-  ["point","Le point","./point.html","point:courant"],
-  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes:courant"],
-  ["photos","Photos","./photos.html","photos:courant"],
-  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole:courant"],
-  ["reception","Réception","./reception.html","reception:courante"],
-  ["sav","SAV","./sav.html","sav:courant"]
-];
-/* le magasin des applis (IndexedDB), en lecture seule ici */
-function lireMagasin(cle){
-  return new Promise(function(ok){
-    if(!window.indexedDB){ ok(null); return; }
-    var r;
-    try{ r=indexedDB.open("outils-chantier", 1); }catch(e){ ok(null); return; }
-    r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains("cles")) r.result.createObjectStore("cles"); };
-    r.onerror=function(){ ok(null); };
-    r.onblocked=function(){ ok(null); };
-    r.onsuccess=function(){
-      var d=r.result, q;
-      try{ q=d.transaction("cles","readonly").objectStore("cles").get(cle); }catch(e){ d.close(); ok(null); return; }
-      q.onsuccess=function(){
-        var v=q.result; d.close();
-        if(v==null){ try{ v=localStorage.getItem(cle); }catch(e){ v=null; } }
-        ok(v==null ? null : (typeof v==="string" ? v : (v.value!=null ? v.value : v)));
-      };
-      q.onerror=function(){ d.close(); ok(null); };
-    };
-  });
-}
-function netRef(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g,""); }
-function refDeFiche(id, f){
-  function code(t){ return String(t||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8); }
-  if(id==="suivi"){ var af=f.affaire||{}, cl=f.client||{}; return netRef(af.chantier)||netRef(af.devis)||code(cl.nom); }
-  if(id==="releve") return netRef((f.affaire||{}).chantier);
-  var c=f.chantier||{};
-  return netRef(c.ref) || (id==="reception" ? netRef(c.devis) : "") || code(c.client);
-}
-function clientDeFiche(id, f){
-  if(id==="suivi" || id==="releve") return ((f.client||{}).nom||"").trim();
-  return ((f.chantier||{}).client||"").trim();
-}
-function modifiee(f){ return !!(f && f._modifs && typeof f._modifs==="object" && Object.keys(f._modifs).length); }
-function chercherAPublier(){
-  var trouves=[];
-  function lire(brut){ if(!brut || String(brut).indexOf('"_modifs":{"')<0) return null; try{ return JSON.parse(brut); }catch(e){ return null; } }
-  return Promise.all(FICHES_APPLIS.map(function(a){
-    return lireMagasin(a[3]).then(function(brut){
-      var f=lire(brut);
-      if(modifiee(f)) trouves.push({id:a[0], nom:a[1], page:a[2], ref:refDeFiche(a[0], f), client:clientDeFiche(a[0], f)});
-      return lireMagasin(a[3]+"#brouillons");
-    }).then(function(ix){
-      var refs={}; try{ refs=ix ? JSON.parse(ix) : {}; }catch(e){ refs={}; }
-      return Promise.all(Object.keys(refs).map(function(r){
-        return lireMagasin(a[3]+"@"+r).then(function(brut){
-          var f=lire(brut);
-          if(modifiee(f)) trouves.push({id:a[0], nom:a[1], page:a[2], ref:refDeFiche(a[0], f) || r, client:clientDeFiche(a[0], f) || (refs[r]||{}).client || ""});
-        });
-      }));
-    }).catch(function(){});
-  })).then(function(){
-    A_PUBLIER=trouves;
-    peindreTableau();
-  });
-}
+/* ---------- deux tuiles sous le bulletin ----------
+   Chantiers actifs et avancement moyen. Les fiches à publier et les
+   messages non lus arrivent en notification : pas besoin de les répéter
+   ici. Les chiffres montent depuis zéro à la première apparition, puis
+   changent sans bruit. */
+var TABLEAU_VU=false;
 function compterJusqua(el, vers, suffixe, anime){
   suffixe=suffixe||"";
   /* un nouveau chiffre annule le comptage en cours : sinon celui-ci,
@@ -2322,26 +2249,10 @@ function peindreTableau(){
   if(!host.firstChild){
     host.innerHTML=
       '<a class="tuile-t clair" id="tActifs" href="./rapports.html"><span class="t-lab">Chantiers actifs</span><b class="t-nb" id="tActifsNb">0</b><span class="t-sous" id="tActifsSous"></span></a>'
-     +'<a class="tuile-t clair anneau-t" id="tMoy" href="#mesChantiers"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" class="fond"/><circle cx="32" cy="32" r="27" class="plein" id="tMoyAnneau"/></svg><span><b class="t-nb petit" id="tMoyNb">0 %</b><span class="t-sous">avancement moyen</span></span></a>'
-     +'<button type="button" class="tuile-t sombre" id="tPub" aria-expanded="false" aria-controls="listeAPublier"><span class="t-lab orange"><i class="t-point" id="tPubPoint"></i>À publier</span><b class="t-nb" id="tPubNb">0</b><span class="t-sous" id="tPubSous"></span></button>'
-     +'<button type="button" class="tuile-t sombre" id="tMsg"><span class="t-lab cyan"><svg class="t-cloche" id="tCloche" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9a6 6 0 0 1 12 0c0 6 2.5 7.5 2.5 7.5h-17S6 15 6 9z"/><path d="M10 20a2 2 0 0 0 4 0"/></svg>Messages</span><b class="t-nb" id="tMsgNb">0</b><span class="t-sous" id="tMsgSous"></span></button>';
+     +'<a class="tuile-t clair anneau-t" id="tMoy" href="#mesChantiers"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" class="fond"/><circle cx="32" cy="32" r="27" class="plein" id="tMoyAnneau"/></svg><span><b class="t-nb petit" id="tMoyNb">0 %</b><span class="t-sous">avancement moyen</span></span></a>';
     $("tMoy").addEventListener("click", function(e){
       var m=$("mesChantiers"); if(!m) return;
       e.preventDefault(); m.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-    $("tPub").addEventListener("click", function(){
-      var l=$("listeAPublier");
-      if(!A_PUBLIER.length){ l.hidden=true; return; }
-      l.hidden=!l.hidden;
-      this.setAttribute("aria-expanded", l.hidden ? "false" : "true");
-    });
-    $("tMsg").addEventListener("click", function(){
-      var c=$("cloche");
-      if(c && c.offsetParent){
-        var p=$("panneauCloche");
-        if(p && p.hidden) c.click();
-        c.scrollIntoView({behavior:"smooth", block:"center"});
-      } else location.href="./rapports.html";
     });
   }
   var ch=DERNIERS_CHANTIERS||[];
@@ -2356,39 +2267,9 @@ function peindreTableau(){
   if(anime){ anneau.style.strokeDashoffset=tour; void anneau.getBoundingClientRect(); }
   anneau.style.strokeDashoffset=tour*(1-moy/100);
   $("tMoy").classList.toggle("fini", moy>=100);
-  var n=A_PUBLIER.length;
-  compterJusqua($("tPubNb"), n, n>1 ? " fiches" : (n ? " fiche" : ""), anime);
-  var noms=[]; A_PUBLIER.forEach(function(x){ if(noms.indexOf(x.nom)<0) noms.push(x.nom); });
-  $("tPubSous").textContent = n ? noms.join(", ") : "tout est publié";
-  $("tPub").classList.toggle("attend", n>0);
-  var total=0, premier=null;
-  Object.keys(NON_LUS_PAR_REF).forEach(function(r){
-    total+=NON_LUS_PAR_REF[r]||0;
-    if(!premier && NON_LUS_PAR_REF[r]) premier=r;
-  });
-  compterJusqua($("tMsgNb"), total, "", anime);
-  var chP=premier ? ch.filter(function(c){ return c.ref===premier; })[0] : null;
-  $("tMsgSous").textContent = total ? ((chP && (chP.client||chP.ref)) || "dans la discussion")+(Object.keys(NON_LUS_PAR_REF).filter(function(r){ return NON_LUS_PAR_REF[r]; }).length>1 ? " et d'autres" : "") : "rien de nouveau";
-  var cl=$("tCloche");
-  $("tMsg").classList.toggle("attend", total>0);
-  if(total>0 && (anime || total>(peindreTableau.msgAvant||0))){ cl.classList.remove("sonne"); void cl.getBoundingClientRect(); cl.classList.add("sonne"); }
-  peindreTableau.msgAvant=total;
-  /* la liste des fiches à publier, sous les tuiles */
-  var l=$("listeAPublier"); l.textContent="";
-  A_PUBLIER.forEach(function(x){
-    var a=document.createElement("a"); a.className="d";
-    a.href = x.ref ? "./chantier.html?ref="+encodeURIComponent(x.ref)+"&toutPublier=1" : x.page;
-    var b=document.createElement("b"); b.textContent=x.nom; a.appendChild(b);
-    var sp=document.createElement("span"); sp.textContent=(x.client || x.ref || "Fiche en cours")+(x.ref ? "  ·  "+x.ref : "");
-    a.appendChild(sp);
-    l.appendChild(a);
-  });
-  if(!n){ l.hidden=true; $("tPub").setAttribute("aria-expanded","false"); }
   host.hidden=false;
   TABLEAU_VU=true;
 }
-document.addEventListener("visibilitychange", function(){ if(!document.hidden && SESSION_COURANTE) chercherAPublier(); });
-window.addEventListener("pageshow", function(e){ if(e.persisted && SESSION_COURANTE) chercherAPublier(); });
 /* Un document « nouveau » est un document que je n'ai pas ouvert et que
    je n'ai pas écrit moi-même : c'est ce qui m'attend sur ce chantier. */
 function docsNonLus(c){
