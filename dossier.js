@@ -710,7 +710,7 @@ function boutonSaisie(f, repeindre){
   return b;
 }
 
-var ORDRE={releve:1, technique:2, carnet:3, memoire:4, suivi:5, commande:6, point:7, photos:8, reportage:9, etiquettes:10, autocontrole:11, reception:12, doe:13, sav:14};
+var ORDRE={releve:1, technique:2, schema:2.5, carnet:3, memoire:4, suivi:5, commande:6, point:7, photos:8, reportage:9, etiquettes:10, autocontrole:11, reception:12, doe:13, sav:14};
 function rangDoc(f){
   var base=(ORDRE[f.type]||9)*1000;
   if(f.type==="suivi"){
@@ -1028,8 +1028,9 @@ function carteDossier(c, i, opts){
     t.appendChild(tl);
 
     var tag=document.createElement("span");
-    tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reportage"?" reportage":(f.type==="carnet"?" carnet":(f.type==="memoire"?" memoire":(f.type==="doe"?" doe":(f.type==="autocontrole"?" autoc":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":(f.type==="technique"?" technique":(f.type==="point"?" point":"")))))))))))));
-    tag.textContent = f.type==="point" ? "Le point"
+    tag.className="tag"+(f.type==="suivi"?" suivi":(f.type==="commande"?" commande":(f.type==="photos"?" photos":(f.type==="reportage"?" reportage":(f.type==="carnet"?" carnet":(f.type==="memoire"?" memoire":(f.type==="doe"?" doe":(f.type==="autocontrole"?" autoc":(f.type==="reception"?" reception":(f.type==="etiquettes"?" etiq":(f.type==="sav"?" sav":(f.type==="technique"?" technique":(f.type==="point"?" point":(f.type==="schema"?" schema":""))))))))))))));
+    tag.textContent = f.type==="schema" ? "Schéma"
+                    : f.type==="point" ? "Le point"
                     : f.type==="technique" ? "Technique"
                     : f.type==="suivi" ? (f.visite ? "Visite "+f.visite : "Suivi")
                     : f.type==="commande" ? "Commande"

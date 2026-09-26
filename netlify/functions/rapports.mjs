@@ -20,7 +20,8 @@ function frDate(d) {
 }
 function libelleDocument(entree) {
   return (
-    entree.type === "commande" ? "Commande et reste à faire"
+    entree.type === "schema" ? "Schéma unifilaire" + (entree.etape ? " — " + entree.etape : "")
+    : entree.type === "commande" ? "Commande et reste à faire"
     : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
     : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
@@ -295,12 +296,12 @@ function jetonPour(code, id, compte, date) {
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
    propriétaire gardent tout, quoi qu'on leur attribue. */
-const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet", "technique"];
+const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet", "technique", "schema"];
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
   autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
   carnet: "carnet", memoire: "carnet", doe: "carnet", technique: "technique",
-  point: "commande"
+  point: "commande", schema: "schema"
 };
 function applisValides(liste) {
   if (!Array.isArray(liste)) return [];
@@ -555,6 +556,7 @@ function rang(f) {
   if (f.type === "photos") return 2000 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "schema") return 450 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "technique") return 500 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "carnet") return 800 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "memoire") return 900 + Number(new Date(f.publie || 0)) / 1e10;
@@ -901,6 +903,7 @@ async function traiter(req) {
     const doe = d.type === "doe";
     const technique = d.type === "technique";
     const point = d.type === "point";
+    const schema = d.type === "schema";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
     const appliVisee = APPLI_DU_TYPE[d.type] || "";
@@ -911,7 +914,7 @@ async function traiter(req) {
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -934,7 +937,10 @@ async function traiter(req) {
       ? String(d.ext).toLowerCase() : "pdf";
     if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);
 
-    const nomFichier = technique
+    const nomFichier = schema
+      /* un fichier par tableau et par indice : l'indice A reste quand le B arrive */
+      ? "schema-" + slug(d.etape || "tableau") + "-indice-" + slug(d.visite || "A") + ".pdf"
+      : technique
       ? "technique-" + slug(d.titre) + "-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "." + ext
       : (carnet || memoire || doe)
       ? (carnet ? "carnet-echantillons-" : doe ? "doe-" : "memoire-technique-")
@@ -981,8 +987,8 @@ async function traiter(req) {
     }
     const entree = {
       cle,
-      titre: d.titre || (point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (schema ? "Schéma unifilaire" : point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: schema ? "schema" : point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || new Date().toISOString().slice(0, 10),

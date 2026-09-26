@@ -1,0 +1,1472 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>Schéma unifilaire — Suivi travaux 360</title>
+
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:620px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
+.block h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 10px}
+.block p{margin:0 0 10px;font-size:15px}
+.block p:last-child{margin-bottom:0}
+ol,ul{margin:0;padding-left:20px;font-size:15px}
+li{margin-bottom:9px}
+li:last-child{margin-bottom:0}
+b.step{color:var(--accent)}
+.tag{display:inline-block;padding:4px 11px;border-radius:var(--r-field);font-size:12.5px;font-weight:600;
+ background:var(--accent-soft);color:var(--accent);margin-bottom:10px}
+.tag.v{background:#EDF0E4;color:#0B7A45}
+.note{font-size:13.5px;color:var(--ink-3);margin-top:12px;padding-top:12px;border-top:1px solid var(--rule)}
+
+html{-webkit-text-size-adjust:100%}
+body{touch-action:manipulation}          /* le double appui ne zoome plus */
+button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  body{padding:28px 24px 40px}
+  main{max-width:1000px}
+  .salut,.tete .salut{font-size:30px}
+  .etapes{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:22px}
+  a.etape{border-bottom:1px solid var(--rule)}
+  .colonnes{display:grid;grid-template-columns:1.25fr 1fr;gap:26px;align-items:start}
+  .bulletin{padding:18px 22px}
+  .bul-gauche .heure{font-size:34px}
+}
+@media (min-width:1180px){
+  main{max-width:1120px}
+}
+@media (hover:hover){
+  .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
+    background:rgba(180,98,26,.06)}
+  button.p:hover,button.act:hover{filter:brightness(.97)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#B45309;
+  --accent-fonce:#92400E;
+  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#FDF4EA;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(146,64,14,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+
+/* =====================================================================
+   SCHÉMA UNIFILAIRE
+   Le dessin blanc au centre, la barre d'outils au-dessus, la
+   bibliothèque dans un panneau : à droite sur ordinateur, en bas sur
+   téléphone.
+   ===================================================================== */
+[hidden]{display:none!important}
+main.sch{max-width:none;padding:10px 12px 20px}
+.sous-titre{font-size:12.5px;color:#8A97A6;margin:2px 0 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+header .titres{min-width:0;flex:1}
+.outils-sch{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 8px}
+.outils-sch button,.outils-sch .groupe{min-height:38px}
+.outils-sch button{padding:7px 12px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.outils-sch button:disabled{opacity:.45;cursor:default}
+.outils-sch button.or{background:#B45309;border-color:#B45309;color:#fff}
+.outils-sch .groupe{display:inline-flex;align-items:center;gap:4px;background:rgba(255,255,255,.08);border-radius:10px;padding:0 4px}
+.outils-sch .groupe span{font-size:12px;color:var(--sur-fond);min-width:52px;text-align:center;font-variant-numeric:tabular-nums}
+.outils-sch .groupe button{min-height:32px;padding:4px 10px}
+.outils-sch .espace{flex:1 1 auto}
+.etats{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--sur-fond-2);margin:0 2px 8px}
+.zone{overflow:auto;border-radius:12px;background:#2E3337;padding:4px;-webkit-overflow-scrolling:touch;max-height:calc(100vh - 190px)}
+.zone svg{display:block;background:#fff;border-radius:6px;box-shadow:0 4px 18px -8px rgba(0,0,0,.5)}
+.zone .cible{cursor:pointer;outline:none}
+.zone .cible:hover{fill:rgba(234,122,30,.07)}
+.zone .cible:focus-visible{stroke:#0E7490;stroke-width:2}
+.bandeau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--card);color:var(--ink);margin:0 0 8px;font-size:13.5px}
+.bandeau[hidden]{display:none}
+.bandeau span{flex:1 1 200px}
+.bandeau button{min-height:34px;padding:6px 12px;border-radius:999px;border:1px solid var(--rule);background:#fff;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.bandeau button.or{background:#B45309;border-color:#B45309;color:#fff}
+
+/* le panneau d'une case */
+.panneau{position:fixed;z-index:40;background:var(--card);color:var(--ink);box-shadow:0 18px 50px -12px rgba(0,0,0,.55);display:flex;flex-direction:column}
+.panneau[hidden]{display:none}
+.panneau .tete-p{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--rule)}
+.panneau .tete-p b{flex:1;font-size:15px}
+.panneau .tete-p button{min-height:34px;padding:5px 12px;border-radius:999px;border:1px solid var(--rule);background:#fff;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
+.panneau .corps-p{overflow:auto;padding:10px 14px 18px;flex:1}
+@media (min-width:1000px){
+  .panneau{top:12px;right:12px;bottom:12px;width:380px;border-radius:14px}
+  body.panneau-ouvert main.sch{margin-right:400px}
+}
+@media (max-width:999px){
+  .panneau{left:0;right:0;bottom:0;max-height:56vh;border-radius:16px 16px 0 0;padding-bottom:env(safe-area-inset-bottom,0px)}
+  body.panneau-ouvert main.sch{padding-bottom:56vh}
+  body.panneau-ouvert .zone{max-height:calc(44vh - 150px);min-height:150px}
+  body.panneau-ouvert #astuce,body.panneau-ouvert #reprise{display:none}
+}
+@media (max-width:760px){
+  .outils-sch{flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;padding-bottom:2px}
+  .outils-sch::-webkit-scrollbar{display:none}
+  .outils-sch > *{flex:0 0 auto}
+  .outils-sch .espace{display:none}
+  .zone{max-height:calc(100vh - 170px)}
+}
+.bib .fam{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-3);margin:12px 0 6px}
+.grille-sym{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px}
+.sym{display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 4px;border-radius:10px;border:1px solid var(--rule);background:#fff;color:var(--ink);font-family:inherit;cursor:pointer;box-shadow:none;min-height:0}
+.sym svg{width:46px;height:46px}
+.sym span{font-size:10.5px;line-height:1.2;text-align:center}
+.sym.on{border-color:#EA7A1E;background:#FDF4EA}
+.textes,.section-p{border-top:1px solid var(--rule);padding-top:10px;margin-top:12px}
+.textes{border-top:0;margin-top:4px;padding-top:0}
+.section-p h3{margin:0 0 8px;font-size:13.5px}
+.champ-p{display:block;margin:0 0 8px}
+.champ-p span{display:block;font-size:12px;color:var(--ink-2);margin-bottom:3px}
+.champ-p input,.champ-p textarea,.champ-p select{width:100%;min-height:40px;padding:8px 10px;font-size:15px;font-family:inherit;border-radius:8px}
+.champ-p textarea{resize:vertical}
+.act.petit{min-height:34px;padding:6px 11px;font-size:12.5px;width:auto}
+.barre-l{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:6px 0;border-bottom:1px solid #EEF1F4}
+.barre-l span{flex:1}
+.ajout-barre{display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-top:8px}
+.ajout-barre select{min-height:38px;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit}
+.boutons-col{display:flex;flex-wrap:wrap;gap:6px}
+.hint{font-size:12.5px;color:var(--ink-3)}
+
+/* les fenêtres */
+.voile{position:fixed;inset:0;z-index:60;background:rgba(10,14,20,.5)}
+.voile[hidden],.fenetre[hidden]{display:none}
+.fenetre{position:fixed;z-index:61;left:50%;top:50%;transform:translate(-50%,-50%);width:min(520px,calc(100% - 24px));max-height:calc(100vh - 40px);overflow:auto;
+  background:var(--card);color:var(--ink);border-radius:16px;padding:16px;box-shadow:0 24px 60px -18px rgba(0,0,0,.6)}
+.fenetre h2{margin:0 0 10px;font-size:17px}
+.fenetre .pied{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+.fenetre .pied button,.fenetre .modele{min-height:42px;padding:8px 14px;border-radius:10px;font-weight:700;font-family:inherit;cursor:pointer}
+.fenetre .fermer{background:#fff;border:1px solid var(--rule);color:var(--ink-2);box-shadow:none}
+.fenetre .or{background:#B45309;border:0;color:#fff}
+.ligne-t{display:grid;grid-template-columns:1fr auto auto auto;gap:6px;margin-bottom:6px}
+.ligne-t input,#nomLigne{min-height:40px;padding:8px 10px;font-size:15px;border-radius:8px;font-family:inherit}
+.ajout-l{display:grid;grid-template-columns:1fr auto;gap:6px;margin-top:10px}
+.modele{display:block;width:100%;text-align:left;margin:0 0 8px;background:#fff;border:1px solid var(--rule);color:var(--ink);box-shadow:none}
+.modele small{display:block;font-weight:500;color:var(--ink-3);font-size:12px}
+.ligne-pub{display:block;width:100%;margin:0 0 6px;text-align:left}
+.grille-c{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.grille-c .large{grid-column:1 / -1}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(18px + env(safe-area-inset-bottom,0px));
+ z-index:90;background:#262320;color:#F4F1EA;padding:10px 16px;border-radius:var(--r-field);font-size:13.5px;
+ max-width:calc(100% - 32px);text-align:center;box-shadow:0 12px 30px -14px rgba(0,0,0,.7)}
+.toast[hidden]{display:none}
+body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
+@media (min-width:1000px){ body.panneau-ouvert .toast{bottom:18px} }
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html" id="lienMenu">Menu</a>
+  <div class="titres"><h1>Schéma unifilaire</h1><p class="sous-titre" id="titreChantier"></p></div>
+</header>
+<main class="sch">
+  <div class="bandeau" id="reprise" hidden><span id="repriseTxt"></span><button type="button" class="or" id="repriseOui">Le rouvrir</button><button type="button" id="repriseNon">Partir d'un schéma vide</button></div>
+  <div class="bandeau" id="astuce" hidden><span>Touchez une case du dessin pour y poser un symbole. Reliez ensuite les colonnes par des lignes, et remplissez le tableau du bas. Ou partez d'un modèle.</span><button type="button" id="astuceOk">Compris</button></div>
+  <div class="outils-sch">
+    <button type="button" id="btnAnnuler" disabled>Annuler</button>
+    <button type="button" id="btnColonne">+ Colonne</button>
+    <button type="button" id="btnLignes">Lignes du tableau</button>
+    <button type="button" id="btnCartouche">Cartouche</button>
+    <button type="button" id="btnModeles">Modèles</button>
+    <button type="button" id="btnOuvrir">Ouvrir</button>
+    <span class="groupe"><button type="button" id="zoomMoins" aria-label="Réduire">−</button><span id="zoomVal">100 %</span><button type="button" id="zoomPlus" aria-label="Agrandir">+</button><button type="button" id="zoomAjuste">Ajuster</button></span>
+    <span class="groupe" id="folios" hidden><button type="button" id="folioPrec" aria-label="Folio précédent">◀</button><span id="folio"></span><button type="button" id="folioSuiv" aria-label="Folio suivant">▶</button></span>
+    <span class="espace"></span>
+    <button type="button" id="btnPdf">PDF</button>
+    <button type="button" class="or" id="btnPublier">Publier</button>
+  </div>
+  <div class="etats"><span id="etatSauve"></span><span id="etatPub"></span></div>
+  <div class="zone" id="zone"><svg id="dessin" viewBox="0 0 1400 990" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Schéma unifilaire"></svg></div>
+</main>
+
+<aside class="panneau" id="panneau" hidden aria-label="Case choisie">
+  <div class="tete-p"><b id="titrePanneau"></b><button type="button" id="fermerPanneau">Fermer</button></div>
+  <div class="corps-p" id="contenuPanneau"></div>
+</aside>
+
+<div class="voile" id="voile" hidden></div>
+<section class="fenetre" id="fLignes" hidden aria-label="Lignes du tableau">
+  <h2>Les lignes du tableau du bas</h2>
+  <p class="hint" style="margin:-4px 0 10px">Renommez, déplacez, retirez ; ajoutez les vôtres (longueur, local, repère de câble…). Huit au plus.</p>
+  <div id="listeLignes"></div>
+  <div class="ajout-l"><input type="text" id="nomLigne" placeholder="Nouvelle ligne, ex. Longueur" aria-label="Nom de la nouvelle ligne"><button type="button" class="act petit" id="ajoutLigne">Ajouter</button></div>
+  <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<section class="fenetre" id="fCartouche" hidden aria-label="Cartouche">
+  <h2>Le cartouche</h2>
+  <div class="grille-c">
+    <label class="champ-p large"><span>Client</span><input type="text" id="cClient"></label>
+    <label class="champ-p"><span>Référence du chantier</span><input type="text" id="cRef"></label>
+    <label class="champ-p"><span>Tableau</span><input type="text" id="cTableau"></label>
+    <label class="champ-p"><span>Indice</span><input type="text" id="cIndice"></label>
+    <label class="champ-p"><span>Date</span><input type="date" id="cDate"></label>
+    <label class="champ-p"><span>Dessiné par</span><input type="text" id="cAuteur"></label>
+    <label class="champ-p"><span>Société</span><input type="text" id="cSociete"></label>
+    <label class="champ-p large"><span>Remarques (sous le tableau, 3 lignes)</span><textarea id="cRemarques" rows="3"></textarea></label>
+  </div>
+  <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<section class="fenetre" id="fModeles" hidden aria-label="Modèles">
+  <h2>Partir d'un modèle</h2>
+  <button type="button" class="modele" data-modele="mono">Maison monophasée<small>Arrivée, parafoudre, 2 différentiels, 7 circuits</small></button>
+  <button type="button" class="modele" data-modele="triPV">Triphasé avec photovoltaïque<small>3 différentiels, PAC, borne de recharge, départ PV avec onduleur</small></button>
+  <button type="button" class="modele" data-modele="vierge">Schéma vide<small>Quatre colonnes vides</small></button>
+  <button type="button" class="modele" id="btnEtiquettes">Reprendre les étiquettes du tableau<small>Les circuits de la fiche Étiquettes de ce chantier, rangés sous leurs différentiels</small></button>
+  <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<section class="fenetre" id="fPublier" hidden aria-label="Publier">
+  <h2>Publier le schéma</h2>
+  <p id="pubTexte" style="margin:0 0 6px;font-size:14.5px"></p>
+  <p class="hint" id="pubEtat" style="min-height:18px"></p>
+  <div class="pied"><button type="button" class="fermer">Annuler</button><button type="button" class="or" id="pubRevision" hidden></button><button type="button" class="or" id="pubRemplacer"></button></div>
+</section>
+<section class="fenetre" id="fOuvrir" hidden aria-label="Ouvrir un schéma publié">
+  <h2>Rouvrir un schéma publié</h2>
+  <div id="listePublies"></div>
+  <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<div class="toast" id="toast" hidden></div>
+<script>
+(function(){
+"use strict";
+/* =====================================================================
+   LE MOTEUR DU SCHÉMA
+   ---------------------------------------------------------------------
+   Un schéma, c'est :
+     - des colonnes (une par départ, ou pour l'arrivée, le parafoudre…) ;
+     - dans chaque colonne, sept niveaux, du réseau aux récepteurs :
+       un symbole au plus par niveau, avec son repère et trois lignes
+       de texte ;
+     - des lignes horizontales (barres) qui relient des colonnes à un
+       niveau donné : la barre générale sous la tête, la barre de chaque
+       différentiel, celle d'une commande ;
+     - le tableau du bas : des lignes nommées (Repère, Désignation…),
+       une case par colonne ;
+     - le cartouche.
+   Le dessin est une liste d'ordres simples (trait, rectangle, ellipse,
+   cercle, texte) : la même liste sert à l'écran (SVG) et au PDF.
+   ===================================================================== */
+var LARGEUR=1400, HAUTEUR=990, COL=84, X_COLS=150, COLS_PAR_FOLIO=14;
+var NIVEAUX=[
+  {n:1, nom:"Arrivée",        y0:60,  y1:128},
+  {n:2, nom:"Tête",           y0:134, y1:208},
+  {n:3, nom:"Différentiels",  y0:232, y1:304},
+  {n:4, nom:"Protections",    y0:324, y1:396},
+  {n:5, nom:"Commande",       y0:414, y1:474},
+  {n:6, nom:"Hors tableau",   y0:498, y1:560},
+  {n:7, nom:"Récepteurs",     y0:566, y1:628}
+];
+/* les barres : sous la tête, sous les différentiels, sous les protections */
+var BARRES={A:{y:220, nom:"Sous la tête (barre générale)"}, B:{y:314, nom:"Sous les différentiels"}, C:{y:405, nom:"Sous les protections"}};
+var Y_BORNIER=486, Y_TABLE=642;
+function niveau(n){ for(var i=0;i<NIVEAUX.length;i++) if(NIVEAUX[i].n===n) return NIVEAUX[i]; return null; }
+
+/* ---------- les ordres de dessin ---------- */
+function Trace(){ this.o=[]; }
+Trace.prototype.l=function(x1,y1,x2,y2,w,dash){ this.o.push({t:"l",x1:x1,y1:y1,x2:x2,y2:y2,w:w||1.5,dash:dash||null}); };
+Trace.prototype.r=function(x,y,w,h,opt){ opt=opt||{}; this.o.push({t:"r",x:x,y:y,w:w,h:h,sw:opt.sw||1.4,dash:opt.dash||null,fill:opt.fill||null}); };
+Trace.prototype.e=function(cx,cy,rx,ry,w,fill){ this.o.push({t:"e",cx:cx,cy:cy,rx:rx,ry:ry,w:w||1.4,fill:fill||null}); };
+Trace.prototype.t=function(x,y,s,size,opt){ opt=opt||{}; if(s==null||s==="") return;
+  this.o.push({t:"t",x:x,y:y,s:String(s),size:size||11,anchor:opt.anchor||"start",bold:!!opt.bold,gris:!!opt.gris}); };
+
+function croix(T,x,y){ T.l(x-4,y-4,x+4,y+4,1.5); T.l(x-4,y+4,x+4,y-4,1.5); }
+function lame(T,x,yh,yb){ T.l(x,yb,x-12,yh,1.7); }
+function tore(T,x,y){
+  T.e(x,y,10,4,1.5);
+  T.r(x-34,y-30,12,24,{sw:1.3});
+  T.l(x-10,y,x-28,y,1.2); T.l(x-28,y,x-28,y-6,1.2);
+}
+function terre(T,x,y){ T.l(x,y,x,y+8); T.l(x-10,y+8,x+10,y+8,1.6); T.l(x-6,y+12,x+6,y+12,1.4); T.l(x-2,y+16,x+2,y+16,1.2); }
+function bobine(T,x,y,lettre){
+  T.r(x-40,y-9,18,18,{sw:1.3});
+  T.t(x-31,y+4,lettre,8.5,{anchor:"middle",bold:true});
+  T.l(x-22,y,x-8,y,1,"2 2");
+}
+
+/* ---------- la bibliothèque ----------
+   dessin(T, x, a, b) : a = haut de la case, b = bas ; le symbole trace
+   aussi son bout de conducteur, du haut jusqu'en bas (sauf un symbole
+   « terminal », qui clôt la colonne : récepteur, terre, champ PV…). */
+var SYMBOLES={
+  disj:{nom:"Disjoncteur", famille:"Protection", rep:"D", t:["1P+N","16 A",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); croix(T,x,m-16); lame(T,x,m-14,m+14); T.l(x,m+14,x,b); }},
+  disjdiff:{nom:"Disjoncteur différentiel", famille:"Protection", rep:"DD", t:["1P+N · 20 A","30 mA","Type A"], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-22); croix(T,x,m-22); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
+  id:{nom:"Interrupteur différentiel", famille:"Protection", rep:"ID", t:["2P · 40 A","30 mA","Type AC"], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-22); T.l(x-5,m-22,x+5,m-22,1.7); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
+  agcp:{nom:"Disjoncteur de branchement", famille:"Protection", rep:"AGCP", t:["2P 15/45 A","500 mA","Sélectif"], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.r(x-40,a+3,56,b-a-6,{sw:1.1,dash:"4 3"});
+    T.l(x,a,x,m-22); croix(T,x,m-22); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
+  inter:{nom:"Interrupteur", famille:"Protection", rep:"I", t:["2P","40 A",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); T.l(x-5,m-16,x+5,m-16,1.7); lame(T,x,m-14,m+14); T.l(x,m+14,x,b); }},
+  sect:{nom:"Sectionneur", famille:"Protection", rep:"Q", t:["2P","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); T.l(x-5,m-16,x+5,m-16,1.7); lame(T,x,m-14,m+14); T.l(x-14,m-8,x-9,m-11,1.5); T.l(x,m+14,x,b); }},
+  fus:{nom:"Fusible", famille:"Protection", rep:"F", t:["10×38","16 A",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,b); T.r(x-6,m-14,12,28,{sw:1.4,fill:"#fff"}); T.l(x,m-14,x,m+14,1.2); }},
+  parafoudre:{nom:"Parafoudre", famille:"Protection", rep:"PF", t:["Type 2","2P",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); T.r(x-10,m-16,20,28,{sw:1.4});
+    T.l(x-5,m-9,x+5,m-2,1.2); T.l(x+5,m-2,x-5,m+5,1.2); T.l(x,m+12,x,m+16); terre(T,x,m+16); }},
+  telerupteur:{nom:"Télérupteur", famille:"Commande", rep:"TL", t:["16 A","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); lame(T,x,m-10,m+12); T.l(x,m+12,x,b); bobine(T,x,m,"TL"); }},
+  contacteur:{nom:"Contacteur", famille:"Commande", rep:"KM", t:["Jour / nuit","25 A",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); lame(T,x,m-10,m+12); T.l(x,m+12,x,b); bobine(T,x,m,"KM"); }},
+  minuterie:{nom:"Minuterie", famille:"Commande", rep:"MN", t:["","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); lame(T,x,m-10,m+12); T.l(x,m+12,x,b); bobine(T,x,m,"MN"); }},
+  horloge:{nom:"Interrupteur horaire", famille:"Commande", rep:"H", t:["Horloge","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); lame(T,x,m-10,m+12); T.l(x,m+12,x,b);
+    T.e(x-31,m,9,9,1.3); T.l(x-31,m,x-31,m-6,1.2); T.l(x-31,m,x-27,m+2,1.2); T.l(x-22,m,x-8,m,1,"2 2"); }},
+  delesteur:{nom:"Délesteur", famille:"Commande", rep:"DL", t:["Délesteur","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); lame(T,x,m-10,m+12); T.l(x,m+12,x,b); bobine(T,x,m,"DL"); }},
+  compteur:{nom:"Compteur", famille:"Énergie", rep:"", t:["Compteur","de production",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); T.e(x,m,16,16,1.4,"#fff"); T.t(x,m+3.5,"kWh",9,{anchor:"middle",bold:true}); T.l(x,m+16,x,b); }},
+  onduleur:{nom:"Onduleur", famille:"Énergie", rep:"", t:["Onduleur","6 kVA",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-22); T.r(x-22,m-22,44,44,{sw:1.4,fill:"#fff"}); T.l(x-22,m+22,x+22,m-22,1.1);
+    T.t(x-11,m-6,"=",13,{anchor:"middle",bold:true}); T.t(x+11,m+16,"~",14,{anchor:"middle",bold:true}); T.l(x,m+22,x,b); }},
+  pv:{nom:"Champ photovoltaïque", famille:"Énergie", rep:"", t:["Champ PV","14 × 425 Wc",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-18); T.r(x-28,m-18,56,38,{sw:1.4,fill:"#fff"});
+    for(var k=1;k<4;k++) T.l(x-28+k*14,m-18,x-28+k*14,m+20,0.8); T.l(x-28,m+1,x+28,m+1,0.8); }},
+  batterie:{nom:"Batterie", famille:"Énergie", rep:"", t:["Batterie","10 kWh",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-6); T.l(x-14,m-6,x+14,m-6,2); T.l(x-7,m,x+7,m,3); T.l(x-14,m+6,x+14,m+6,2); T.l(x-7,m+12,x+7,m+12,3); }},
+  transfo:{nom:"Transformateur", famille:"Énergie", rep:"T", t:["230 / 24 V","",""], dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-18); T.e(x,m-8,10,10,1.4); T.e(x,m+8,10,10,1.4); T.l(x,m+18,x,b); }},
+  arrivee:{nom:"Arrivée réseau", famille:"Énergie", rep:"", t:["Réseau Enedis","230 V · 12 kVA","Régime TT"], debut:true, dessin:function(T,x,a,b){
+    T.l(x-8,a+8,x,a+18,1.6); T.l(x+8,a+8,x,a+18,1.6); T.l(x,a+4,x,b); }},
+  lampe:{nom:"Éclairage", famille:"Récepteur", rep:"", t:["Éclairage","",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); T.e(x,m,12,12,1.4); T.l(x-8.5,m-8.5,x+8.5,m+8.5,1.3); T.l(x-8.5,m+8.5,x+8.5,m-8.5,1.3); }},
+  prise:{nom:"Prise", famille:"Récepteur", rep:"", t:["Prises","",""], terminal:true, dessin:function(T,x,a,b){
+    /* demi-cercle ouvert vers le haut, sa tige au milieu */
+    var m=(a+b)/2, r=13, cy=m-6, px=x-r, py=cy;
+    T.l(x,a,x,cy+r);
+    for(var d=15; d<=180; d+=15){ var ang=Math.PI*d/180, nx=x-r*Math.cos(ang), ny=cy+r*Math.sin(ang); T.l(px,py,nx,ny,1.5); px=nx; py=ny; } }},
+  moteur:{nom:"Moteur", famille:"Récepteur", rep:"", t:["Moteur","",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-14); T.e(x,m,14,14,1.4); T.t(x,m+4.5,"M",12,{anchor:"middle",bold:true}); }},
+  chauffage:{nom:"Chauffage", famille:"Récepteur", rep:"", t:["Radiateurs","",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-12); T.r(x-16,m-12,32,24,{sw:1.4});
+    T.l(x-10,m+4,x-5,m-4,1.2); T.l(x-5,m-4,x,m+4,1.2); T.l(x,m+4,x+5,m-4,1.2); T.l(x+5,m-4,x+10,m+4,1.2); }},
+  irve:{nom:"Borne de recharge", famille:"Récepteur", rep:"", t:["Borne IRVE","7,4 kW",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-16); T.r(x-16,m-16,32,32,{sw:1.4}); T.t(x,m+3.5,"IRVE",8.5,{anchor:"middle",bold:true}); }},
+  terre:{nom:"Terre", famille:"Récepteur", rep:"", t:["","",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m-6); terre(T,x,m-6); }},
+  depart:{nom:"Départ vers…", famille:"Récepteur", rep:"", t:["Vers tableau","divisionnaire",""], terminal:true, dessin:function(T,x,a,b){
+    var m=(a+b)/2; T.l(x,a,x,m+8); T.l(x-7,m,x,m+10,1.6); T.l(x+7,m,x,m+10,1.6); }}
+};
+var FAMILLES=["Protection","Commande","Énergie","Récepteur"];
+
+/* ---------- les colonnes ---------- */
+function filsDe(col){
+  if(col.fils) return col.fils;
+  var s="";
+  for(var n in col.cases){ var c=col.cases[n]; if(c) s+=" "+(c.t||[]).join(" "); }
+  if(/3P\s*\+\s*N|4P/i.test(s)) return 4;
+  if(/3P/i.test(s)) return 3;
+  return 2;
+}
+function colonneA(col){ /* la colonne descend-elle jusqu'au tableau du bas ? */
+  var c4=col.cases[4]||col.cases[5]||col.cases[6]||col.cases[7];
+  var ligne=false; for(var k in (col.table||{})) if(String(col.table[k]||"").trim()) ligne=true;
+  return !!c4 || ligne;
+}
+function folios(S){
+  var n=Math.max(1, Math.ceil(S.colonnes.length/COLS_PAR_FOLIO));
+  var out=[]; for(var i=0;i<n;i++) out.push(S.colonnes.slice(i*COLS_PAR_FOLIO, (i+1)*COLS_PAR_FOLIO));
+  return out;
+}
+function xDe(i){ return X_COLS + i*COL + COL/2; }
+function hauteurLignes(S){
+  return S.lignes.map(function(l){ return l.id==="designation" ? 58 : 24; });
+}
+
+/* ---------- le dessin d'un folio ---------- */
+function dessinerFolio(S, f, opts){
+  opts=opts||{};
+  var T=new Trace(), tous=folios(S), cols=tous[f]||[], debut=f*COLS_PAR_FOLIO;
+  var index={}; S.colonnes.forEach(function(c,i){ index[c.id]=i; });
+  /* cadre */
+  T.r(16,16,LARGEUR-32,HAUTEUR-32,{sw:1.2});
+  /* barres : leurs bouts sur ce folio */
+  var parCol={};   /* id colonne -> y des barres qui la touchent */
+  (S.barres||[]).forEach(function(b){
+    var i1=index[b.de], i2=index[b.a]; if(i1==null||i2==null) return;
+    if(i1>i2){ var z=i1; i1=i2; i2=z; }
+    for(var i=i1;i<=i2;i++){ var id=S.colonnes[i].id; (parCol[id]=parCol[id]||[]).push(BARRES[b.niveau].y); }
+    var g=Math.max(i1,debut), d=Math.min(i2,debut+cols.length-1);
+    if(g>d) return;
+    var y=BARRES[b.niveau].y, xg=xDe(g-debut), xd=xDe(d-debut);
+    if(i1<debut){ xg=X_COLS-10; T.t(X_COLS-14,y-4,"F"+f,9,{anchor:"end",gris:true}); }
+    if(i2>debut+cols.length-1){ xd=X_COLS+cols.length*COL; T.t(xd+4,y-4,"F"+(f+2),9,{gris:true}); }
+    T.l(xg,y,xd,y,b.niveau==="A"?2.2:1.8);
+  });
+  /* bornier */
+  T.l(40,Y_BORNIER,LARGEUR-40,Y_BORNIER,1.1,"8 6");
+  T.t(44,Y_BORNIER-5,"Bornier",9.5,{gris:true});
+  /* les colonnes */
+  cols.forEach(function(col, k){
+    var x=xDe(k), occ=[], haut=null, bas=null, terminalBas=false;
+    var ys=(parCol[col.id]||[]).slice();
+    for(var n=1;n<=7;n++){
+      var c=col.cases[n]; if(!c || !SYMBOLES[c.sym]) continue;
+      var nv=niveau(n); occ.push([nv.y0,nv.y1]);
+      if(haut==null || nv.y0<haut) haut=nv.y0;
+      if(bas==null || nv.y1>bas){ bas=nv.y1; terminalBas=!!SYMBOLES[c.sym].terminal; }
+    }
+    ys.forEach(function(y){ if(haut==null||y<haut) haut=y; if(bas==null||y>bas){ bas=y; terminalBas=false; } });
+    if(haut==null) return;
+    var auTableau=colonneA(col) && !terminalBas && bas<Y_TABLE;
+    var fin = auTableau ? Y_TABLE : bas;
+    /* le conducteur, entre les symboles */
+    occ.sort(function(p,q){ return p[0]-q[0]; });
+    var y=haut;
+    occ.forEach(function(p){ if(p[0]>y) T.l(x,y,x,p[0]); y=Math.max(y,p[1]); });
+    if(fin>y) T.l(x,y,x,fin);
+    /* un point de jonction sur une barre qui ne commence pas la colonne */
+    ys.forEach(function(yb){ if(yb>haut && yb<fin) T.e(x,yb,2.4,2.4,1,"#111"); });
+    /* bornier et nombre de conducteurs */
+    if(haut<Y_BORNIER && fin>Y_BORNIER){
+      T.l(x-6,Y_BORNIER-6,x+6,Y_BORNIER+6,1.3);
+      var nf=filsDe(col), yt=Y_BORNIER-20;
+      for(var q=0;q<nf;q++){ var yy=yt+q*4-(nf-1)*2; T.l(x-5,yy+3,x+5,yy-3,1.1); }
+    }
+    /* les symboles et leurs textes */
+    for(var n2=1;n2<=7;n2++){
+      var c2=col.cases[n2]; if(!c2 || !SYMBOLES[c2.sym]) continue;
+      var nv2=niveau(n2), def=SYMBOLES[c2.sym];
+      /* un récepteur en bas du schéma : le symbole en haut de sa case, ses
+         textes centrés dessous — deux récepteurs voisins ne se chevauchent pas */
+      if(def.terminal && n2>=6){
+        def.dessin(T,x,nv2.y0,nv2.y0+44);
+        var yb=nv2.y0+(c2.sym==="pv"?54:50);
+        [c2.rep].concat(c2.t||[]).filter(Boolean).slice(0,2).forEach(function(s2,j){
+          T.t(x, yb+j*11.5, s2.length>17 ? s2.slice(0,16)+"…" : s2, 9.5, {anchor:"middle", bold:!!c2.rep && j===0});
+        });
+        continue;
+      }
+      def.dessin(T,x,nv2.y0,nv2.y1);
+      var DX={agcp:22, onduleur:28, pv:34, compteur:22, irve:22, lampe:18, moteur:20, chauffage:22, prise:18, batterie:20, transfo:16, parafoudre:14};
+      var tx=x+(DX[c2.sym]||12), ty=nv2.y0+12;
+      if(c2.rep){ T.t(tx,ty,c2.rep,10.5,{bold:true}); ty+=13; }
+      (c2.t||[]).forEach(function(s){ if(s){ T.t(tx,ty,s,10); ty+=12.5; } });
+    }
+  });
+  /* le tableau du bas */
+  var hs=hauteurLignes(S), yT=Y_TABLE, xg=40, xd=X_COLS+Math.max(cols.length,1)*COL;
+  var yFin=yT+hs.reduce(function(a,h){ return a+h; },0);
+  if(S.lignes.length){
+    T.l(xg,yT,xd,yT,1.2);
+    S.lignes.forEach(function(l, i){
+      T.t(48,yT+hs[i]/2+4,l.nom,10.5,{bold:true});
+      yT+=hs[i]; T.l(xg,yT,xd,yT,1.2);
+    });
+    T.l(xg,Y_TABLE,xg,yFin,1.2); T.l(X_COLS,Y_TABLE,X_COLS,yFin,1.2);
+    cols.forEach(function(col,k){
+      var x=xDe(k); T.l(x+COL/2,Y_TABLE,x+COL/2,yFin,0.9);
+      var yy=Y_TABLE;
+      S.lignes.forEach(function(l,i){
+        var v=String((col.table||{})[l.id]||"");
+        if(l.id==="designation"){
+          var mots=decouper(v, 14).slice(0,4), y0=yy+hs[i]/2+4-(mots.length-1)*6.5;
+          mots.forEach(function(m,j){ T.t(x,y0+j*13,m,10,{anchor:"middle"}); });
+        } else T.t(x,yy+hs[i]/2+4,v,l.id==="repere"||l.id==="section"?10.5:10,{anchor:"middle",bold:l.id==="repere"||l.id==="section"});
+        yy+=hs[i];
+      });
+    });
+  }
+  /* remarques */
+  var yR=Math.max(yFin+22, 880);
+  decouper(S.remarques||"", 120).slice(0,3).forEach(function(m,i){ T.t(40,yR+i*14,m,10); });
+  /* cartouche */
+  var cx=1030, cy=872, cw=354, ch=102;
+  T.r(cx,cy,cw,ch,{sw:1.2,fill:"#fff"});
+  T.l(cx,cy+26,cx+cw,cy+26,1); T.l(cx,cy+51,cx+cw,cy+51,1); T.l(cx,cy+76,cx+cw,cy+76,1); T.l(cx+190,cy+51,cx+190,cy+ch,1);
+  T.t(cx+10,cy+18,(S.societe?S.societe.toUpperCase()+" — ":"")+"Schéma unifilaire",12,{bold:true});
+  T.t(cx+10,cy+43,"Client : "+(S.chantier.client||"")+(S.chantier.ref?"   ·   Réf. "+S.chantier.ref:""),10.5);
+  T.t(cx+10,cy+68,"Tableau : "+(S.tableau||""),10.5);
+  T.t(cx+200,cy+68,"Dessiné par : "+(S.auteur||""),10.5);
+  T.t(cx+10,cy+93,"Date : "+frDateS(S.date),10.5);
+  T.t(cx+200,cy+93,"Indice "+(S.indice||"A")+" · Folio "+(f+1)+"/"+tous.length,10.5);
+  return {trace:T, colonnes:cols, debut:debut, yFin:yFin};
+}
+function frDateS(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+/* un texte en lignes d'une longueur donnée, sur les mots (et sur les retours à la ligne) */
+function decouper(s, n){
+  var out=[];
+  String(s||"").split(/\n|\|/).forEach(function(par){
+    var ligne="";
+    par.split(/\s+/).forEach(function(m){
+      if(!m) return;
+      if((ligne+" "+m).trim().length>n && ligne){ out.push(ligne); ligne=m; }
+      else ligne=(ligne+" "+m).trim();
+    });
+    if(ligne) out.push(ligne);
+  });
+  return out;
+}
+
+/* ---------- vers SVG ---------- */
+function echapper(s){ return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function versSVG(T){
+  return T.o.map(function(o){
+    if(o.t==="l") return '<line x1="'+o.x1+'" y1="'+o.y1+'" x2="'+o.x2+'" y2="'+o.y2+'" stroke="#111" stroke-width="'+o.w+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
+    if(o.t==="r") return '<rect x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+'" fill="'+(o.fill||"none")+'" stroke="'+(o.sw?"#111":"none")+'" stroke-width="'+o.sw+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
+    if(o.t==="e") return '<ellipse cx="'+o.cx+'" cy="'+o.cy+'" rx="'+o.rx+'" ry="'+o.ry+'" fill="'+(o.fill||"none")+'" stroke="#111" stroke-width="'+o.w+'"/>';
+    if(o.t==="t") return '<text x="'+o.x+'" y="'+o.y+'" font-size="'+o.size+'" text-anchor="'+o.anchor+'"'+(o.bold?' font-weight="700"':'')+' fill="'+(o.gris?"#666":"#111")+'">'+echapper(o.s)+'</text>';
+    return "";
+  }).join("");
+}
+
+/* ---------- vers PDF (jsPDF, A3 paysage : 420 × 297 mm) ---------- */
+function versPDF(doc, T){
+  var k=420/LARGEUR;
+  doc.setDrawColor(17,17,17); doc.setTextColor(17,17,17);
+  T.o.forEach(function(o){
+    if(o.t==="l"){
+      doc.setLineWidth(o.w*k);
+      if(o.dash) doc.setLineDashPattern(o.dash.split(" ").map(function(v){ return v*k; }),0); else doc.setLineDashPattern([],0);
+      doc.line(o.x1*k,o.y1*k,o.x2*k,o.y2*k);
+    } else if(o.t==="r"){
+      if(!o.sw && !o.fill) return;
+      doc.setLineWidth((o.sw||0.01)*k);
+      if(o.dash) doc.setLineDashPattern(o.dash.split(" ").map(function(v){ return v*k; }),0); else doc.setLineDashPattern([],0);
+      if(o.fill){ doc.setFillColor(255,255,255); doc.rect(o.x*k,o.y*k,o.w*k,o.h*k, o.sw?"FD":"F"); }
+      else doc.rect(o.x*k,o.y*k,o.w*k,o.h*k,"S");
+    } else if(o.t==="e"){
+      doc.setLineDashPattern([],0); doc.setLineWidth(o.w*k);
+      if(o.fill==="#111"){ doc.setFillColor(17,17,17); doc.ellipse(o.cx*k,o.cy*k,o.rx*k,o.ry*k,"F"); }
+      else if(o.fill){ doc.setFillColor(255,255,255); doc.ellipse(o.cx*k,o.cy*k,o.rx*k,o.ry*k,"FD"); }
+      else doc.ellipse(o.cx*k,o.cy*k,o.rx*k,o.ry*k,"S");
+    } else if(o.t==="t"){
+      doc.setFont("helvetica", o.bold?"bold":"normal");
+      doc.setFontSize(o.size*k/0.3528);
+      if(o.gris) doc.setTextColor(102,102,102); else doc.setTextColor(17,17,17);
+      doc.text(o.s, o.x*k, o.y*k, {align: o.anchor==="middle"?"center":o.anchor==="end"?"right":"left"});
+    }
+  });
+  doc.setLineDashPattern([],0);
+}
+
+/* =====================================================================
+   L'ÉDITEUR
+   ---------------------------------------------------------------------
+   Le dessin est la surface de travail : on touche une case (une
+   colonne à un niveau), la bibliothèque s'ouvre, on pose le symbole et
+   on écrit ses textes. On relie les colonnes par des lignes (barres),
+   on remplit les lignes du tableau du bas, on publie le PDF A3 dans le
+   dossier du chantier. Tout est gardé sur l'appareil au fil de l'eau.
+   ===================================================================== */
+var $=function(i){ return document.getElementById(i); };
+var API="/api/rapports";
+function session(){ try{ return JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){ return null; } }
+var SESSION=session();
+if(!SESSION || !SESSION.jeton) location.replace("./index.html");
+/* l'appli est attribuée compte par compte, comme les autres */
+(function(){
+  var siennes=SESSION && SESSION.applis, tout=SESSION && (SESSION.role==="admin" || SESSION.proprietaire);
+  if(SESSION && !tout && Array.isArray(siennes) && siennes.length && siennes.indexOf("schema")<0){
+    try{ sessionStorage.setItem("acces:refuse","schema"); }catch(e){}
+    location.replace("./index.html");
+  }
+})();
+function uid(){ return "c"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function aujourdhui(){ return new Date().toISOString().slice(0,10); }
+var toastT;
+function toast(t){ var e=$("toast"); e.textContent=t; e.hidden=false; clearTimeout(toastT); toastT=setTimeout(function(){ e.hidden=true; }, 2800); }
+function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+function appel(action, corps, query){
+  return fetch(API+"?action="+action+(query||""), {method: corps ? "POST" : "GET",
+    headers: corps ? {"content-type":"application/json","x-auth":SESSION.jeton} : {"x-auth":SESSION.jeton},
+    body: corps ? JSON.stringify(corps) : undefined})
+    .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.erreur||"Refusé."); return d; }); });
+}
+
+/* ---------- le schéma ---------- */
+var LIGNES_DEFAUT=[{id:"repere",nom:"Repère"},{id:"designation",nom:"Désignation"},{id:"protection",nom:"Protection"},
+  {id:"cable",nom:"Câble"},{id:"section",nom:"Section"}];
+function colonneVide(){ return {id:uid(), cases:{}, table:{}, auto:{}, fils:0}; }
+function vierge(ch){
+  return {version:1, chantier:ch||{ref:"",client:"",adresse:""}, tableau:"TGBT", indice:"A", date:aujourdhui(),
+    auteur:(SESSION&&SESSION.nom)||"", societe:(SESSION&&SESSION.societeNom)||"", remarques:"",
+    colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
+}
+var S=null, F=0, SEL=null, ZOOM=1, HISTO=[], REDO=[];
+
+/* ---------- le chantier : d'où l'on vient ---------- */
+var PARAMS=(function(){ try{ return new URLSearchParams(location.search); }catch(e){ return {get:function(){ return null; }}; } })();
+function refNette(r){ return String(r||"").trim().toUpperCase().replace(/\s+/g,""); }
+function cleLocale(ref){ return "schema:brouillon@"+(refNette(ref)||"SANS-REF"); }
+
+/* ---------- sauvegarde locale, au fil de l'eau ---------- */
+var saveT=null;
+function sauver(){
+  clearTimeout(saveT);
+  saveT=setTimeout(function(){
+    try{ localStorage.setItem(cleLocale(S.chantier.ref), JSON.stringify(S)); $("etatSauve").textContent="Enregistré sur cet appareil"; }
+    catch(e){ $("etatSauve").textContent="Mémoire de l'appareil pleine : publiez le schéma."; }
+  }, 350);
+}
+function avant(){ /* à appeler avant chaque changement : de quoi l'annuler */
+  HISTO.push(JSON.stringify(S)); if(HISTO.length>60) HISTO.shift(); REDO=[];
+  $("btnAnnuler").disabled=false;
+}
+function changer(fn){ avant(); fn(); S.modifie=true; sauver(); peindre(); }
+$("btnAnnuler").addEventListener("click", function(){
+  if(!HISTO.length) return;
+  REDO.push(JSON.stringify(S)); S=JSON.parse(HISTO.pop());
+  $("btnAnnuler").disabled=!HISTO.length;
+  sauver(); if(SEL && !colonneParId(SEL.col)) SEL=null; peindre(); if(SEL) ouvrirPanneau(); else fermerPanneau();
+});
+
+/* ---------- colonnes ---------- */
+function colonneParId(id){ for(var i=0;i<S.colonnes.length;i++) if(S.colonnes[i].id===id) return S.colonnes[i]; return null; }
+function indexCol(id){ for(var i=0;i<S.colonnes.length;i++) if(S.colonnes[i].id===id) return i; return -1; }
+function numeroter(base){
+  if(!base || /^(AGCP|PF)$/.test(base)) return base;
+  var n=0, re=new RegExp("^"+base+"(\\d+)$");
+  S.colonnes.forEach(function(c){ for(var k in c.cases){ var x=c.cases[k]; var m=x && re.exec(x.rep||""); if(m) n=Math.max(n, parseInt(m[1],10)); } });
+  return base+(n+1);
+}
+/* une section proposée d'après le calibre, quand la case du tableau est encore vide */
+function sectionPour(calibre){
+  var a=parseInt(String(calibre).replace(/[^\d]/g,""),10);
+  if(!a) return "";
+  return a<=16 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : "";
+}
+function cablePour(section, fils){
+  if(!section) return "";
+  return (fils>=4 ? "5G" : fils===3 ? "4G" : "3G")+section.replace("²","");
+}
+/* le tableau du bas suit le symbole de protection, tant qu'on n'y a pas écrit soi-même */
+function remplirTable(col){
+  var c=col.cases[4]; if(!c || ["disj","disjdiff","fus"].indexOf(c.sym)<0) return;
+  col.auto=col.auto||{};
+  var calibre=(c.t||[]).filter(function(s){ return /\d+\s*A\b/.test(s); })[0]||"";
+  var poles=(c.t||[]).filter(function(s){ return /P\b|P\+N/i.test(s); })[0]||"";
+  var sec=sectionPour(calibre), fils=filsDe(col);
+  var auto={repere:c.rep||"", protection:[calibre,poles].filter(Boolean).join(" · "), section:sec, cable:cablePour(sec, fils)};
+  for(var k in auto){
+    if(!S.lignes.some(function(l){ return l.id===k; })) continue;
+    if(col.auto[k]!==false){ col.table[k]=auto[k]; col.auto[k]=true; }
+  }
+}
+
+/* ---------- le dessin à l'écran ---------- */
+var NS="http://www.w3.org/2000/svg";
+function peindre(){
+  var tous=folios(S);
+  if(F>=tous.length) F=tous.length-1;
+  var r=dessinerFolio(S, F);
+  var svg=$("dessin");
+  svg.setAttribute("width", Math.round(LARGEUR*ZOOM)); svg.setAttribute("height", Math.round(HAUTEUR*ZOOM));
+  var aide='';
+  /* la grille d'édition : niveaux nommés à gauche, cases en pointillés */
+  NIVEAUX.forEach(function(nv){
+    aide+='<text x="44" y="'+((nv.y0+nv.y1)/2+4)+'" font-size="10.5" fill="#9AA4B0" font-weight="600">'+echapper(nv.nom)+'</text>';
+  });
+  for(var b in BARRES) aide+='<text x="44" y="'+(BARRES[b].y+4)+'" font-size="9" fill="#C0C7D0">ligne '+b+'</text>';
+  r.colonnes.forEach(function(col,k){
+    var x=xDe(k)-COL/2;
+    NIVEAUX.forEach(function(nv){
+      aide+='<rect x="'+(x+3)+'" y="'+(nv.y0+2)+'" width="'+(COL-6)+'" height="'+(nv.y1-nv.y0-4)+'" rx="6" fill="none" stroke="#E3E7EC" stroke-dasharray="3 4"/>';
+    });
+    aide+='<text x="'+(x+COL/2)+'" y="40" font-size="10" text-anchor="middle" fill="#9AA4B0">'+(r.debut+k+1)+'</text>';
+  });
+  var sel='';
+  if(SEL){
+    var k2=indexCol(SEL.col)-r.debut;
+    if(k2>=0 && k2<r.colonnes.length){
+      var xs=xDe(k2)-COL/2;
+      if(SEL.n){ var nv=niveau(SEL.n); sel='<rect x="'+(xs+1)+'" y="'+nv.y0+'" width="'+(COL-2)+'" height="'+(nv.y1-nv.y0)+'" rx="7" fill="rgba(234,122,30,.12)" stroke="#EA7A1E" stroke-width="2"/>'; }
+      else sel='<rect x="'+(xs+1)+'" y="'+Y_TABLE+'" width="'+(COL-2)+'" height="'+(r.yFin-Y_TABLE)+'" fill="rgba(234,122,30,.12)" stroke="#EA7A1E" stroke-width="2"/>';
+    }
+  }
+  svg.innerHTML='<rect x="0" y="0" width="'+LARGEUR+'" height="'+HAUTEUR+'" fill="#fff"/>'
+    +'<g class="aide">'+aide+'</g>'+'<g font-family="Helvetica, Arial, sans-serif">'+versSVG(r.trace)+'</g>'+sel+'<g id="cibles"></g>';
+  /* les cases à toucher */
+  var cibles=svg.querySelector("#cibles");
+  r.colonnes.forEach(function(col,k){
+    var x=xDe(k)-COL/2;
+    NIVEAUX.forEach(function(nv){
+      var c=col.cases[nv.n];
+      cible(cibles, x, nv.y0, COL, nv.y1-nv.y0, "Colonne "+(r.debut+k+1)+", "+nv.nom+(c&&SYMBOLES[c.sym]?" : "+SYMBOLES[c.sym].nom:" : vide"),
+        function(){ choisir(col.id, nv.n); });
+    });
+    cible(cibles, x, Y_TABLE, COL, Math.max(r.yFin-Y_TABLE, 30), "Colonne "+(r.debut+k+1)+", tableau du bas", function(){ choisir(col.id, 0); });
+  });
+  /* « + » : une colonne de plus, au bout */
+  if(r.debut+r.colonnes.length===S.colonnes.length && r.colonnes.length<COLS_PAR_FOLIO){
+    var xa=xDe(r.colonnes.length)-COL/2;
+    var g=document.createElementNS(NS,"g");
+    g.innerHTML='<rect x="'+(xa+6)+'" y="'+(NIVEAUX[0].y0+4)+'" width="'+(COL-12)+'" height="'+(NIVEAUX[6].y1-NIVEAUX[0].y0-8)+'" rx="10" fill="#FBFCFD" stroke="#D5DBE2" stroke-dasharray="5 5"/>'
+      +'<text x="'+(xa+COL/2)+'" y="'+((NIVEAUX[0].y0+NIVEAUX[6].y1)/2)+'" font-size="30" text-anchor="middle" fill="#B0B8C2">+</text>';
+    cibles.appendChild(g);
+    cible(cibles, xa, NIVEAUX[0].y0, COL, NIVEAUX[6].y1-NIVEAUX[0].y0, "Ajouter une colonne", function(){ ajouterColonne(); });
+  }
+  /* folios */
+  $("folio").textContent="Folio "+(F+1)+" / "+tous.length;
+  $("folioPrec").disabled=F<=0; $("folioSuiv").disabled=F>=tous.length-1;
+  $("folios").hidden=tous.length<2;
+  $("zoomVal").textContent=Math.round(ZOOM*100)+" %";
+  $("titreChantier").textContent=(S.chantier.client||"Chantier non choisi")+(S.chantier.ref?" · "+S.chantier.ref:"")+" · "+(S.tableau||"")+" · indice "+(S.indice||"A");
+  $("etatPub").textContent = S.publie ? ("Indice "+S.publie.indice+" publié le "+frDateS(S.publie.le)+(S.modifie?" · modifié depuis":"")) : "Pas encore publié";
+}
+function cible(hote, x, y, w, h, nom, fn){
+  var r=document.createElementNS(NS,"rect");
+  r.setAttribute("x",x); r.setAttribute("y",y); r.setAttribute("width",w); r.setAttribute("height",h);
+  r.setAttribute("fill","transparent"); r.setAttribute("class","cible");
+  r.setAttribute("tabindex","0"); r.setAttribute("role","button"); r.setAttribute("aria-label",nom);
+  r.addEventListener("click", fn);
+  r.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); fn(); } });
+  hote.appendChild(r);
+}
+function choisir(col, n){ SEL={col:col, n:n}; peindre(); ouvrirPanneau(); }
+
+/* ---------- le panneau d'une case ---------- */
+function miniSymbole(sym){
+  var T=new Trace(); SYMBOLES[sym].dessin(T, 46, 6, 74);
+  return '<svg viewBox="0 0 80 80" aria-hidden="true"><g font-family="Helvetica, Arial, sans-serif">'+versSVG(T)+'</g></svg>';
+}
+function ouvrirPanneau(){
+  var col=colonneParId(SEL.col); if(!col){ fermerPanneau(); return; }
+  var i=indexCol(col.id), p=$("contenuPanneau"); p.textContent="";
+  var nv=SEL.n ? niveau(SEL.n) : null, c=SEL.n ? col.cases[SEL.n] : null;
+  $("titrePanneau").textContent="Colonne "+(i+1)+(nv ? " · "+nv.nom : " · tableau du bas");
+  if(nv){
+    /* la bibliothèque */
+    var bib=el("div","bib");
+    FAMILLES.forEach(function(fam){
+      bib.appendChild(el("div","fam", fam));
+      var g=el("div","grille-sym");
+      Object.keys(SYMBOLES).forEach(function(k){
+        if(SYMBOLES[k].famille!==fam) return;
+        var b=el("button","sym"+(c&&c.sym===k?" on":"")); b.type="button";
+        b.innerHTML=miniSymbole(k)+'<span>'+echapper(SYMBOLES[k].nom)+'</span>';
+        b.setAttribute("aria-pressed", c&&c.sym===k ? "true" : "false");
+        b.addEventListener("click", function(){ poser(col, SEL.n, k); });
+        g.appendChild(b);
+      });
+      bib.appendChild(g);
+    });
+    if(c){
+      var tx=el("div","textes");
+      tx.appendChild(champ("Repère", c.rep||"", function(v){ c.rep=v; remplirTable(col); }));
+      for(var q=0;q<3;q++) (function(q){
+        tx.appendChild(champ("Ligne "+(q+1), (c.t||[])[q]||"", function(v){ c.t=c.t||["","",""]; c.t[q]=v; remplirTable(col); }));
+      })(q);
+      var ret=el("button","act danger petit","Retirer le symbole"); ret.type="button";
+      ret.addEventListener("click", function(){ changer(function(){ delete col.cases[SEL.n]; }); ouvrirPanneau(); });
+      tx.appendChild(ret);
+      p.appendChild(tx);
+    } else {
+      p.appendChild(el("p","hint","Choisissez le symbole à poser dans cette case."));
+    }
+    p.appendChild(bib);
+  }
+  /* le tableau du bas, pour cette colonne */
+  var tb=el("div","section-p");
+  tb.appendChild(el("h3",null,"Tableau du bas"));
+  S.lignes.forEach(function(l){
+    tb.appendChild(champ(l.nom, (col.table||{})[l.id]||"", function(v){ col.table[l.id]=v; col.auto=col.auto||{}; col.auto[l.id]=false; }, l.id==="designation"));
+  });
+  var fl=el("label","champ-p"); fl.appendChild(el("span",null,"Nombre de conducteurs (traits sur le schéma)"));
+  var sel=el("select");
+  [["0","Automatique ("+filsDe({cases:col.cases})+")"],["2","2"],["3","3"],["4","4"],["5","5"]].forEach(function(o){
+    var op=el("option",null,o[1]); op.value=o[0]; if(String(col.fils||0)===o[0]) op.selected=true; sel.appendChild(op);
+  });
+  sel.addEventListener("change", function(){ var v=parseInt(sel.value,10); changer(function(){ col.fils=v; remplirTable(col); }); });
+  fl.appendChild(sel); tb.appendChild(fl);
+  p.appendChild(tb);
+  /* les lignes (barres) qui touchent cette colonne */
+  var br=el("div","section-p");
+  br.appendChild(el("h3",null,"Lignes entre colonnes"));
+  var touchent=(S.barres||[]).filter(function(b){ var a=indexCol(b.de), z=indexCol(b.a); return Math.min(a,z)<=i && i<=Math.max(a,z); });
+  if(!touchent.length) br.appendChild(el("p","hint","Aucune ligne ne passe par cette colonne."));
+  touchent.forEach(function(b){
+    var ln=el("div","barre-l");
+    ln.appendChild(el("span",null,BARRES[b.niveau].nom+" : colonnes "+(Math.min(indexCol(b.de),indexCol(b.a))+1)+" à "+(Math.max(indexCol(b.de),indexCol(b.a))+1)));
+    var x=el("button","act danger petit","Retirer"); x.type="button";
+    x.addEventListener("click", function(){ changer(function(){ S.barres=S.barres.filter(function(y){ return y!==b; }); }); ouvrirPanneau(); });
+    ln.appendChild(x); br.appendChild(ln);
+  });
+  var aj=el("div","ajout-barre");
+  var sn=el("select"); for(var k in BARRES){ var o=el("option",null,BARRES[k].nom); o.value=k; sn.appendChild(o); }
+  var sa=el("select");
+  S.colonnes.forEach(function(cc, j){ if(j===i) return; var o=el("option",null,"jusqu'à la colonne "+(j+1)); o.value=cc.id; if(j===i+1) o.selected=true; sa.appendChild(o); });
+  var bajout=el("button","act petit","Relier"); bajout.type="button";
+  bajout.addEventListener("click", function(){
+    if(!sa.value) return;
+    changer(function(){ S.barres.push({id:uid(), niveau:sn.value, de:col.id, a:sa.value}); });
+    ouvrirPanneau(); toast("Ligne ajoutée.");
+  });
+  aj.appendChild(sn); aj.appendChild(sa); aj.appendChild(bajout);
+  br.appendChild(aj);
+  p.appendChild(br);
+  /* la colonne elle-même */
+  var cl=el("div","section-p");
+  cl.appendChild(el("h3",null,"Colonne"));
+  var bts=el("div","boutons-col");
+  [["◀ Déplacer",function(){ deplacer(i,-1); }, i===0],["Déplacer ▶",function(){ deplacer(i,1); }, i===S.colonnes.length-1],
+   ["Insérer avant",function(){ inserer(i); }],["Insérer après",function(){ inserer(i+1); }],
+   ["Dupliquer",function(){ dupliquer(i); }],["Supprimer",function(){ supprimer(i); }, false, true]].forEach(function(a){
+    var b=el("button","act petit"+(a[3]?" danger":""),a[0]); b.type="button"; b.disabled=!!a[2];
+    b.addEventListener("click", a[1]); bts.appendChild(b);
+  });
+  cl.appendChild(bts); p.appendChild(cl);
+  $("panneau").hidden=false; document.body.classList.add("panneau-ouvert");
+}
+function fermerPanneau(){ $("panneau").hidden=true; document.body.classList.remove("panneau-ouvert"); SEL=null; peindre(); }
+$("fermerPanneau").addEventListener("click", fermerPanneau);
+function champ(nom, val, fn, long){
+  var l=el("label","champ-p"); l.appendChild(el("span",null,nom));
+  var i=el(long?"textarea":"input"); if(!long) i.type="text"; i.value=val; if(long) i.rows=2;
+  var note=false;
+  i.addEventListener("focus", function(){ note=false; });
+  i.addEventListener("input", function(){ if(!note){ avant(); note=true; } fn(i.value); S.modifie=true; sauver(); peindre(); });
+  l.appendChild(i); return l;
+}
+function poser(col, n, sym){
+  changer(function(){
+    var ancien=col.cases[n], d=SYMBOLES[sym];
+    /* on garde les textes quand on change seulement de symbole dans la même famille */
+    var garde = ancien && SYMBOLES[ancien.sym] && SYMBOLES[ancien.sym].famille===d.famille;
+    col.cases[n] = garde ? {sym:sym, rep:ancien.rep, t:ancien.t} : {sym:sym, rep:numeroter(d.rep), t:d.t.slice()};
+    remplirTable(col);
+  });
+  ouvrirPanneau();
+}
+function ajouterColonne(){
+  changer(function(){ S.colonnes.push(colonneVide()); });
+  F=folios(S).length-1; peindre();
+  choisir(S.colonnes[S.colonnes.length-1].id, 4);
+}
+function deplacer(i, d){ changer(function(){ var c=S.colonnes.splice(i,1)[0]; S.colonnes.splice(i+d,0,c); }); ouvrirPanneau(); }
+function inserer(i){ var c=colonneVide(); changer(function(){ S.colonnes.splice(i,0,c); }); choisir(c.id, SEL&&SEL.n||4); }
+function dupliquer(i){
+  var c=JSON.parse(JSON.stringify(S.colonnes[i])); c.id=uid();
+  for(var k in c.cases){ var x=c.cases[k]; var m=/^([A-Z]+)\d+$/.exec(x.rep||""); if(m) x.rep=null; }
+  changer(function(){
+    for(var k in c.cases){ var x=c.cases[k]; if(x.rep===null) x.rep=numeroter(SYMBOLES[x.sym].rep); }
+    remplirTable(c);
+    S.colonnes.splice(i+1,0,c);
+    /* la copie rejoint les lignes qui passent par l'original et continuent après lui */
+    S.barres.forEach(function(b){ var a=indexCol(b.de), z=indexCol(b.a); if(Math.max(a,z)===i) { if(z>=a) b.a=c.id; else b.de=c.id; } });
+  });
+  choisir(c.id, SEL&&SEL.n||4);
+}
+function supprimer(i){
+  var col=S.colonnes[i];
+  if(Object.keys(col.cases).length && !window.confirm("Supprimer la colonne "+(i+1)+" et ses symboles ?")) return;
+  changer(function(){
+    /* une ligne qui s'arrêtait sur cette colonne s'arrête sur sa voisine, côté ligne */
+    S.barres.forEach(function(b){
+      var ia=indexCol(b.de), iz=indexCol(b.a);
+      if(b.de===col.id){ var v=S.colonnes[iz>ia ? i+1 : i-1]; b.de=v ? v.id : null; }
+      if(b.a===col.id){ var w=S.colonnes[ia>iz ? i+1 : i-1]; b.a=w ? w.id : null; }
+    });
+    S.colonnes.splice(i,1);
+    S.barres=S.barres.filter(function(b){ return b.de && b.a && b.de!==b.a; });
+  });
+  fermerPanneau();
+}
+
+/* ---------- barre d'outils ---------- */
+$("btnColonne").addEventListener("click", ajouterColonne);
+$("zoomMoins").addEventListener("click", function(){ ZOOM=Math.max(0.35, Math.round((ZOOM-0.1)*100)/100); peindre(); });
+$("zoomPlus").addEventListener("click", function(){ ZOOM=Math.min(1.8, Math.round((ZOOM+0.1)*100)/100); peindre(); });
+$("zoomAjuste").addEventListener("click", function(){ ajuster(); peindre(); });
+function ajuster(){ var w=$("zone").clientWidth-8; ZOOM=Math.max(0.35, Math.min(1.2, w/LARGEUR)); }
+$("folioPrec").addEventListener("click", function(){ if(F>0){ F--; peindre(); } });
+$("folioSuiv").addEventListener("click", function(){ if(F<folios(S).length-1){ F++; peindre(); } });
+
+/* ---------- les fenêtres : lignes du tableau, cartouche, modèles, publier ---------- */
+function ouvrirFenetre(id){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=f.id!==id; }); $("voile").hidden=false; }
+function fermerFenetres(){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=true; }); $("voile").hidden=true; }
+$("voile").addEventListener("click", fermerFenetres);
+[].forEach.call(document.querySelectorAll(".fenetre .fermer"), function(b){ b.addEventListener("click", fermerFenetres); });
+
+/* lignes du tableau du bas */
+$("btnLignes").addEventListener("click", function(){ peindreLignes(); ouvrirFenetre("fLignes"); });
+function peindreLignes(){
+  var h=$("listeLignes"); h.textContent="";
+  S.lignes.forEach(function(l, i){
+    var r=el("div","ligne-t");
+    var inp=el("input"); inp.type="text"; inp.value=l.nom; inp.setAttribute("aria-label","Nom de la ligne "+(i+1));
+    var note=false;
+    inp.addEventListener("input", function(){ if(!note){ avant(); note=true; } l.nom=inp.value; sauver(); peindre(); });
+    r.appendChild(inp);
+    var hs=el("button","act petit","▲"); hs.type="button"; hs.disabled=i===0; hs.setAttribute("aria-label","Monter");
+    hs.addEventListener("click", function(){ changer(function(){ S.lignes.splice(i-1,0,S.lignes.splice(i,1)[0]); }); peindreLignes(); });
+    var bs=el("button","act petit","▼"); bs.type="button"; bs.disabled=i===S.lignes.length-1; bs.setAttribute("aria-label","Descendre");
+    bs.addEventListener("click", function(){ changer(function(){ S.lignes.splice(i+1,0,S.lignes.splice(i,1)[0]); }); peindreLignes(); });
+    var x=el("button","act petit danger","Retirer"); x.type="button";
+    x.addEventListener("click", function(){ changer(function(){ S.lignes.splice(i,1); }); peindreLignes(); });
+    r.appendChild(hs); r.appendChild(bs); r.appendChild(x);
+    h.appendChild(r);
+  });
+  $("ajoutLigne").disabled=S.lignes.length>=8;
+}
+$("ajoutLigne").addEventListener("click", function(){
+  var nom=($("nomLigne").value||"").trim(); if(!nom){ $("nomLigne").focus(); return; }
+  changer(function(){ S.lignes.push({id:"l"+uid(), nom:nom}); });
+  $("nomLigne").value=""; peindreLignes();
+});
+
+/* cartouche */
+var CHAMPS_C=[["cClient","chantier.client"],["cRef","chantier.ref"],["cTableau","tableau"],["cIndice","indice"],["cDate","date"],["cAuteur","auteur"],["cSociete","societe"],["cRemarques","remarques"]];
+function lire(p){ var a=p.split("."); return a.length>1 ? S[a[0]][a[1]] : S[a[0]]; }
+function ecrire(p,v){ var a=p.split("."); if(a.length>1) S[a[0]][a[1]]=v; else S[a[0]]=v; }
+$("btnCartouche").addEventListener("click", function(){
+  CHAMPS_C.forEach(function(c){ $(c[0]).value=lire(c[1])||""; });
+  ouvrirFenetre("fCartouche");
+});
+CHAMPS_C.forEach(function(c){
+  var note=false;
+  $(c[0]).addEventListener("focus", function(){ note=false; });
+  $(c[0]).addEventListener("input", function(){
+    if(!note){ avant(); note=true; }
+    var v=$(c[0]).value;
+    if(c[1]==="chantier.ref"){
+      /* changer de référence, c'est changer de brouillon : l'ancien reste sous sa référence */
+      try{ localStorage.removeItem(cleLocale(S.chantier.ref)); }catch(e){}
+    }
+    ecrire(c[1], c[1]==="indice" ? v.toUpperCase().slice(0,3) : v);
+    S.modifie=true; sauver(); peindre();
+  });
+});
+
+/* ---------- modèles et étiquettes ---------- */
+$("btnModeles").addEventListener("click", function(){ ouvrirFenetre("fModeles"); });
+function remplacer(nouveau, message){
+  var plein=S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
+  if(plein && !window.confirm("Remplacer le schéma en cours ? (« Annuler » en haut le fait revenir)")) return false;
+  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; });
+  F=0; fermerFenetres(); fermerPanneau(); toast(message); return true;
+}
+function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=table||{}; for(var k in c.table) c.auto[k]=false; return c; }
+function s(sym, rep, t){ return {sym:sym, rep:rep||"", t:(t||SYMBOLES[sym].t).slice()}; }
+function circuit(rep, cal, poles, desig, section, cable){
+  return cc({4:s("disj",rep,[poles,cal,""])}, {repere:rep, designation:desig, protection:cal+" · "+poles, cable:cable, section:section});
+}
+var MODELES={
+  mono:function(){
+    var a=cc({1:s("arrivee","",["Réseau Enedis","230 V · 12 kVA","Régime TT"]),2:s("agcp","AGCP",["2P 30/60 A","500 mA","Sélectif"])});
+    var pf=cc({3:s("parafoudre","PF",["Type 2","2P",""])});
+    var i1=circuit("D1","16 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 40 A","30 mA","Type AC"]);
+    var c2=circuit("D2","16 A","1P+N","Prises séjour","1,5²","3G1,5"), c3=circuit("D3","20 A","1P+N","Four","2,5²","3G2,5"), c4=circuit("D4","20 A","1P+N","Lave-vaisselle","2,5²","3G2,5");
+    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 40 A","30 mA","Type A"]);
+    var c6=circuit("D6","20 A","1P+N","Lave-linge","2,5²","3G2,5"), c7=circuit("D7","16 A","1P+N","Éclairage chambres","1,5²","3G1,5");
+    var cols=[a,pf,i1,c2,c3,c4,i2,c6,c7];
+    return {colonnes:cols, barres:[{id:uid(),niveau:"A",de:a.id,a:i2.id},{id:uid(),niveau:"B",de:i1.id,a:c4.id},{id:uid(),niveau:"B",de:i2.id,a:c7.id}]};
+  },
+  triPV:function(){
+    var a=cc({1:s("arrivee","",["Réseau Enedis","230/400 V · 36 kVA","Régime TT"]),2:s("agcp","AGCP",["4P 30/60 A","500 mA","Sélectif"])});
+    var pf=cc({3:s("parafoudre","PF",["Type 2","4P",""])});
+    var i1=circuit("D2","16 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 40 A","30 mA","Type AC"]);
+    var c3=circuit("D3","16 A","1P+N","Prises séjour","1,5²","3G1,5"), c4=circuit("D4","20 A","1P+N","Four","2,5²","3G2,5");
+    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 40 A","30 mA","Type A"]);
+    var c6=circuit("D6","20 A","1P+N","Lave-linge","2,5²","3G2,5");
+    var i3=circuit("D7","20 A","3P+N","Pompe à chaleur","2,5²","5G2,5"); i3.cases[3]=s("id","ID3",["4P · 40 A","30 mA","Type A"]);
+    var c8=circuit("D8","32 A","1P+N","Borne de recharge","6²","3G6"); c8.cases[7]=s("irve","",["Borne IRVE","7,4 kW",""]);
+    var pv=circuit("D9","32 A","1P+N","Production photovoltaïque","6²","3G6");
+    pv.cases[3]=s("id","ID4",["2P · 40 A","30 mA","Type A"]);
+    pv.cases[5]=s("compteur","",["Compteur","de production",""]);
+    pv.cases[6]=s("onduleur","",["Onduleur","6 kVA",""]);
+    pv.cases[7]=s("pv","",["Champ PV","14 × 425 Wc",""]);
+    var cols=[a,pf,i1,c3,c4,i2,c6,i3,c8,pv];
+    return {colonnes:cols, barres:[{id:uid(),niveau:"A",de:a.id,a:pv.id},{id:uid(),niveau:"B",de:i1.id,a:c4.id},
+      {id:uid(),niveau:"B",de:i2.id,a:c6.id},{id:uid(),niveau:"B",de:i3.id,a:c8.id}]};
+  },
+  vierge:function(){ return {colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], lignes:LIGNES_DEFAUT.slice()}; }
+};
+[].forEach.call(document.querySelectorAll("[data-modele]"), function(b){
+  b.addEventListener("click", function(){ remplacer(MODELES[b.getAttribute("data-modele")](), "Modèle posé : modifiez-le à votre guise."); });
+});
+
+/* Reprendre les circuits de la fiche Étiquettes de ce chantier : un
+   différentiel ouvre un groupe, les circuits qui le suivent passent
+   dessous. Les calibres sont proposés d'après le nom, à vérifier. */
+function lireIDB(k){
+  return new Promise(function(ok){
+    if(!window.indexedDB) return ok(null);
+    var r; try{ r=indexedDB.open("outils-chantier",1); }catch(e){ return ok(null); }
+    r.onupgradeneeded=function(){ if(!r.result.objectStoreNames.contains("cles")) r.result.createObjectStore("cles"); };
+    r.onerror=function(){ ok(null); };
+    r.onsuccess=function(){
+      try{ var q=r.result.transaction("cles","readonly").objectStore("cles").get(k); q.onsuccess=function(){ ok(q.result||null); }; q.onerror=function(){ ok(null); }; }
+      catch(e){ ok(null); }
+    };
+  });
+}
+function etiquettesDuChantier(){
+  var ref=refNette(S.chantier.ref);
+  function essai(v){ var e=null; try{ e=JSON.parse(v); }catch(x){} return e && e.chantier && refNette(e.chantier.ref)===ref && (e.rangees||[]).some(function(r){ return (r.cases||[]).length; }) ? e : null; }
+  return lireIDB("etiquettes:courant@"+ref).then(function(v){ return (v && essai(v)) || lireIDB("etiquettes:courant").then(function(w){ return w && essai(w); }); })
+    .then(function(e){
+      if(e) return e;
+      return appel("liste").then(function(d){
+        var c=(d.chantiers||[]).filter(function(x){ return refNette(x.ref)===ref; })[0];
+        var f=c && (c.fichiers||[]).filter(function(x){ return x.type==="etiquettes" && x.donnees; }).sort(function(a,b){ return String(b.publie).localeCompare(String(a.publie)); })[0];
+        if(!f) return null;
+        return appel("fiche", null, "&cle="+encodeURIComponent(f.cle)).catch(function(){ return null; });
+      });
+    });
+}
+var CALIBRES=[[/plaque|cuisson|borne|irve|recharge|photovolta/i,"32 A","6²","3G6"],[/four|lave|s[eè]che|chauffe|pompe|clim|pac\b|piscine|cong|r[ée]frig/i,"20 A","2,5²","3G2,5"],
+  [/radiateur|chauffage|plancher/i,"20 A","2,5²","3G2,5"],[/.*/,"16 A","1,5²","3G1,5"]];
+function depuisEtiquettes(e){
+  var cols=[], barres=[], idCol=null, dernier=null, tete=null, n=0, nId=0;
+  function fermerGroupe(){ if(idCol && dernier && dernier!==idCol) barres.push({id:uid(),niveau:"B",de:idCol.id,a:dernier.id}); }
+  (e.rangees||[]).forEach(function(r){ (r.cases||[]).forEach(function(k){
+    var t=String(k.texte||"").trim(); if(!t || /^r[ée]serve/i.test(t)) return;
+    if(/branchement|agcp/i.test(t)){ tete=cc({2:s("agcp","AGCP",SYMBOLES.agcp.t)}); cols.push(tete); return; }
+    if(/parafoudre/i.test(t)){ cols.push(cc({3:s("parafoudre","PF",SYMBOLES.parafoudre.t)})); return; }
+    if(/diff/i.test(t)){
+      fermerGroupe(); nId++;
+      idCol=cc({3:s("id","ID"+nId,["2P · 40 A","30 mA",/\bA\b\s*$/.test(t)||/type\s*A\b/i.test(t) ? "Type A" : "Type AC"])});
+      cols.push(idCol); dernier=idCol; return;
+    }
+    if(/t[ée]l[ée]rupteur|contacteur|minuterie/i.test(t) && dernier && !dernier.cases[5]){
+      dernier.cases[5]=s(/contacteur/i.test(t)?"contacteur":/minuterie/i.test(t)?"minuterie":"telerupteur"); return;
+    }
+    n++;
+    var cal=CALIBRES.filter(function(x){ return x[0].test(t); })[0], rep="D"+n;
+    if(dernier===idCol && idCol && !idCol.cases[4]){ /* le premier circuit partage la colonne de son différentiel */
+      idCol.cases[4]=s("disj",rep,["1P+N",cal[1],""]);
+      idCol.table={repere:rep, designation:t, protection:cal[1]+" · 1P+N", cable:cal[3], section:cal[2]};
+      return;
+    }
+    var c=circuit(rep, cal[1], "1P+N", t, cal[2], cal[3]); cols.push(c); dernier=c;
+  }); });
+  fermerGroupe();
+  var ids=cols.filter(function(c){ return c.cases[3] && c.cases[3].sym==="id"; });
+  if(ids.length){
+    var de=tete || cols[0], a=ids[ids.length-1];
+    if(de.id!==a.id) barres.unshift({id:uid(),niveau:"A",de:de.id,a:a.id});
+  }
+  return {colonnes:cols, barres:barres};
+}
+$("btnEtiquettes").addEventListener("click", function(){
+  if(!S.chantier.ref){ toast("Choisissez d'abord le chantier (cartouche)."); return; }
+  var b=this; b.disabled=true; b.textContent="Recherche…";
+  etiquettesDuChantier().then(function(e){
+    b.disabled=false; b.textContent="Reprendre les étiquettes du tableau";
+    if(!e){ toast("Aucune fiche Étiquettes pour ce chantier."); return; }
+    var m=depuisEtiquettes(e);
+    if(!m.colonnes.length){ toast("La fiche Étiquettes est vide."); return; }
+    remplacer(m, m.colonnes.length+" colonnes reprises des étiquettes : vérifiez calibres et sections.");
+  }).catch(function(){ b.disabled=false; b.textContent="Reprendre les étiquettes du tableau"; toast("Pas de réseau."); });
+});
+
+/* ---------- le PDF ---------- */
+function fabriquerPDF(){
+  if(!window.jspdf) throw new Error("Le module PDF n'est pas chargé : vérifiez la connexion.");
+  var doc=new window.jspdf.jsPDF({unit:"mm", format:"a3", orientation:"landscape"});
+  folios(S).forEach(function(_, f){ if(f) doc.addPage("a3","landscape"); versPDF(doc, dessinerFolio(S,f).trace); });
+  doc.setProperties({title:"Schéma unifilaire — "+(S.chantier.client||"")+" — "+(S.tableau||""), author:S.auteur||"", creator:"Suivi travaux 360"});
+  return doc;
+}
+function nomPDF(){ return ("Schema-"+(S.chantier.ref||"chantier")+"-"+(S.tableau||"tableau")+"-ind"+(S.indice||"A")).replace(/[^A-Za-z0-9._-]+/g,"-")+".pdf"; }
+$("btnPdf").addEventListener("click", function(){
+  try{
+    var blob=fabriquerPDF().output("blob"), a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=nomPDF(); document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
+  }catch(e){ toast(e.message); }
+});
+
+/* ---------- publier dans le dossier du chantier ---------- */
+function lettreSuivante(l){ l=String(l||"A").toUpperCase(); var c=l.charCodeAt(l.length-1); return c>=90 ? l+"A" : l.slice(0,-1)+String.fromCharCode(c+1); }
+$("btnPublier").addEventListener("click", function(){
+  if(!S.chantier.ref || !S.chantier.client){ toast("Renseignez le client et la référence dans le cartouche."); $("btnCartouche").click(); return; }
+  var dejaPub = S.publie && S.publie.indice===S.indice;
+  $("pubTexte").textContent = dejaPub
+    ? "L'indice "+S.indice+" est déjà dans le dossier. Publier une révision garde l'indice "+S.indice+" et ajoute l'indice "+lettreSuivante(S.indice)+"."
+    : "Le schéma part dans le dossier du chantier "+S.chantier.client+" (indice "+S.indice+"), en PDF A3.";
+  $("pubRevision").hidden=!dejaPub;
+  $("pubRemplacer").textContent = dejaPub ? "Corriger l'indice "+S.indice : "Publier l'indice "+S.indice;
+  $("pubRevision").textContent = "Publier l'indice "+lettreSuivante(S.indice);
+  $("pubEtat").textContent="";
+  ouvrirFenetre("fPublier");
+});
+function publier(revision){
+  var etat=$("pubEtat");
+  if(revision){ avant(); S.indice=lettreSuivante(S.indice); peindre(); }
+  var doc; try{ doc=fabriquerPDF(); }catch(e){ etat.textContent=e.message; return; }
+  var b64=doc.output("datauristring").split(",")[1];
+  etat.textContent="Publication…";
+  [$("pubRemplacer"),$("pubRevision")].forEach(function(b){ b.disabled=true; });
+  appel("publier", {pdf:b64, type:"schema", chantier:S.chantier.ref, client:S.chantier.client, adresse:S.chantier.adresse||"",
+    date:S.date||aujourdhui(), etape:S.tableau||"Tableau", visite:S.indice, dossier:true,
+    titre:"Schéma unifilaire — "+(S.tableau||"tableau")+" (indice "+S.indice+")"})
+    .then(function(r){
+      S.publie={cle:r.cle, indice:S.indice, le:new Date().toISOString()}; S.modifie=false;
+      return appel("deposer-fiche", {cle:r.cle, donnees:JSON.stringify(S)}).catch(function(){ return null; }).then(function(){ return r; });
+    })
+    .then(function(){
+      sauver(); peindre();
+      etat.textContent="Publié dans le dossier du chantier.";
+      toast("Schéma publié : indice "+S.indice+".");
+      setTimeout(fermerFenetres, 1200);
+    })
+    .catch(function(e){ etat.textContent=e.message||"Pas de réseau."; })
+    .then(function(){ [$("pubRemplacer"),$("pubRevision")].forEach(function(b){ b.disabled=false; }); });
+}
+$("pubRemplacer").addEventListener("click", function(){ publier(false); });
+$("pubRevision").addEventListener("click", function(){ publier(true); });
+
+/* ---------- ouvrir : le chantier, un brouillon, ou un schéma publié ---------- */
+function schemasPublies(ref){
+  return appel("liste").then(function(d){
+    var c=(d.chantiers||[]).filter(function(x){ return refNette(x.ref)===refNette(ref); })[0];
+    return c ? (c.fichiers||[]).filter(function(f){ return f.type==="schema" && f.donnees; })
+      .sort(function(a,b){ return String(b.publie).localeCompare(String(a.publie)); }) : [];
+  }).catch(function(){ return []; });
+}
+function rouvrir(f){
+  return appel("fiche", null, "&cle="+encodeURIComponent(f.cle)).then(function(d){
+    if(!d || !Array.isArray(d.colonnes)) throw new Error("Schéma illisible.");
+    S=d; S.modifie=false; HISTO=[]; $("btnAnnuler").disabled=true; F=0; sauver(); peindre(); fermerFenetres();
+    toast("Schéma rouvert : indice "+S.indice+".");
+  }).catch(function(e){ toast(e.message||"Pas de réseau."); });
+}
+$("btnOuvrir").addEventListener("click", function(){
+  var h=$("listePublies"); h.textContent="Recherche…";
+  ouvrirFenetre("fOuvrir");
+  schemasPublies(S.chantier.ref).then(function(l){
+    h.textContent="";
+    if(!l.length){ h.appendChild(el("p","hint","Aucun schéma publié pour ce chantier.")); return; }
+    l.forEach(function(f){
+      var b=el("button","act ligne-pub"); b.type="button";
+      b.textContent=(f.titre||"Schéma")+" — "+frDateS(f.date);
+      b.addEventListener("click", function(){ rouvrir(f); });
+      h.appendChild(b);
+    });
+  });
+});
+function demarrer(){
+  var ref=PARAMS.get("ref")||"", client=PARAMS.get("client")||"", adresse=PARAMS.get("adresse")||"";
+  var brut=null; try{ brut=localStorage.getItem(cleLocale(ref)); }catch(e){}
+  if(brut){ try{ S=JSON.parse(brut); }catch(e){ S=null; } }
+  if(!S) S=vierge({ref:ref, client:client, adresse:adresse});
+  if(client && !S.chantier.client) S.chantier.client=client;
+  if(adresse && !S.chantier.adresse) S.chantier.adresse=adresse;
+  if(!S.societe && SESSION.societeNom) S.societe=SESSION.societeNom;
+  if(window.matchMedia("(max-width:760px)").matches) ZOOM=0.62; else ajuster();
+  peindre();
+  var vide=!S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
+  /* rien sur l'appareil : un schéma déjà publié pour ce chantier se propose */
+  if(!brut && ref){
+    schemasPublies(ref).then(function(l){
+      if(l.length && vide){
+        $("reprise").hidden=false;
+        $("repriseTxt").textContent=(l[0].titre||"Un schéma")+" est dans le dossier.";
+        $("repriseOui").onclick=function(){ $("reprise").hidden=true; rouvrir(l[0]); };
+      }
+    });
+  }
+  if(vide) $("astuce").hidden=false;
+  if(!ref && !S.chantier.ref) setTimeout(function(){ $("btnCartouche").click(); }, 300);
+}
+$("repriseNon").addEventListener("click", function(){ $("reprise").hidden=true; });
+$("astuceOk").addEventListener("click", function(){ $("astuce").hidden=true; });
+window.addEventListener("resize", function(){ if(!window.matchMedia("(max-width:760px)").matches) { /* on garde le zoom choisi */ } });
+demarrer();
+
+})();
+</script>
+</body>
+</html>
