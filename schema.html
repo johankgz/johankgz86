@@ -546,7 +546,9 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
     <label class="champ-p"><span>Date</span><input type="date" id="cDate"></label>
     <label class="champ-p"><span>Dessiné par</span><input type="text" id="cAuteur"></label>
     <label class="champ-p"><span>Société</span><input type="text" id="cSociete"></label>
-    <label class="champ-p large"><span>Remarques (sous le tableau, 3 lignes)</span><textarea id="cRemarques" rows="3"></textarea></label>
+    <label class="champ-p"><span>Mail</span><input type="email" id="cMail"></label>
+    <label class="champ-p large"><span>Remarques (dans le cartouche, 4 lignes)</span><textarea id="cRemarques" rows="3"></textarea></label>
+    <label class="champ-p large"><span>Mention au-dessus du cartouche (vide : aucune)</span><textarea id="cMention" rows="2"></textarea></label>
   </div>
   <div class="pied"><button type="button" class="fermer">Fermer</button></div>
 </section>
@@ -633,7 +635,13 @@ Trace.prototype.l=function(x1,y1,x2,y2,w,dash,c){ this.o.push({t:"l",x1:x1,y1:y1
 Trace.prototype.r=function(x,y,w,h,opt){ opt=opt||{}; this.o.push({t:"r",x:x,y:y,w:w,h:h,sw:opt.sw||1.4,dash:opt.dash||null,fill:opt.fill||null,c:opt.c||null}); };
 Trace.prototype.e=function(cx,cy,rx,ry,w,fill,c){ this.o.push({t:"e",cx:cx,cy:cy,rx:rx,ry:ry,w:w||1.4,fill:fill||null,c:c||null}); };
 Trace.prototype.t=function(x,y,s,size,opt){ opt=opt||{}; if(s==null||s==="") return;
-  this.o.push({t:"t",x:x,y:y,s:String(s),size:size||11,anchor:opt.anchor||"start",bold:!!opt.bold,gris:!!opt.gris,c:opt.c||null}); };
+  this.o.push({t:"t",x:x,y:y,s:String(s),size:size||11,anchor:opt.anchor||"start",bold:!!opt.bold,gris:!!opt.gris,c:opt.c||null,u:!!opt.u}); };
+/* une image (le logo), ajustée dans son cadre sans être déformée */
+Trace.prototype.img=function(data,x,y,w,h,iw,ih){
+  if(!data) return;
+  var r=Math.min(w/(iw||w), h/(ih||h)), ww=(iw||w)*r, hh=(ih||h)*r;
+  this.o.push({t:"i",data:data,x:x+(w-ww)/2,y:y+(h-hh)/2,w:ww,h:hh});
+};
 
 function croix(T,x,y){ T.l(x-4,y-4,x+4,y+4,1.5); T.l(x-4,y+4,x+4,y-4,1.5); }
 function lame(T,x,yh,yb){ T.l(x,yb,x-12,yh,1.7); }
@@ -1031,22 +1039,56 @@ function dessinerFolio(S, f, opts){
       });
     });
   }
-  /* remarques */
-  var yR=Math.max(yFin+22, 880);
-  decouper(S.remarques||"", 120).slice(0,3).forEach(function(m,i){ T.t(40,yR+i*14,m,10); });
   cartouche(T, S, f, total);
   return {trace:T, colonnes:cols, debut:debut, yFin:yFin};
 }
+/* le cartouche : un bandeau sur toute la largeur, en bas du folio — logo,
+   dessinateur, affaire, objet, folio, remarques — et la mention au-dessus */
+var MENTION_DEFAUT="Synoptique donné à titre indicatif, à des fins d'usage interne, pour évaluation approximative, ne pouvant servir à d'autres fins";
+var LOGO_TLE=null, LOGO_FICHE=null;
+function logoCartouche(S){
+  var soc=String(S.societe||(SESSION&&SESSION.societeNom)||"");
+  if(LOGO_TLE && /trichet/i.test(soc)) return {img:LOGO_TLE, noir:true};
+  if(LOGO_FICHE) return {img:LOGO_FICHE, noir:false};
+  if(LOGO_TLE && !soc) return {img:LOGO_TLE, noir:true};
+  return null;
+}
 function cartouche(T, S, f, total, titre){
-  var cx=1030, cy=872, cw=354, ch=102;
-  T.r(cx,cy,cw,ch,{sw:1.2,fill:"#fff"});
-  T.l(cx,cy+26,cx+cw,cy+26,1); T.l(cx,cy+51,cx+cw,cy+51,1); T.l(cx,cy+76,cx+cw,cy+76,1); T.l(cx+190,cy+51,cx+190,cy+ch,1);
-  T.t(cx+10,cy+18,(S.societe?S.societe.toUpperCase()+" — ":"")+(titre||"Schéma unifilaire"),12,{bold:true});
-  T.t(cx+10,cy+43,"Client : "+(S.chantier.client||"")+(S.chantier.ref?"   ·   Réf. "+S.chantier.ref:""),10.5);
-  T.t(cx+10,cy+68,"Tableau : "+(S.tableau||""),10.5);
-  T.t(cx+200,cy+68,"Dessiné par : "+(S.auteur||""),10.5);
-  T.t(cx+10,cy+93,"Date : "+frDateS(S.date),10.5);
-  T.t(cx+200,cy+93,"Indice "+(S.indice||"A")+" · Folio "+(f+1)+"/"+total,10.5);
+  var x0=36, x1=LARGEUR-16, y0=888, y1=HAUTEUR-16, h=y1-y0;
+  var L=[232, 250, 226, 246, 128], xs=[x0];
+  L.forEach(function(w){ xs.push(xs[xs.length-1]+w); });
+  var mention = S.mention==null ? MENTION_DEFAUT : String(S.mention);
+  if(mention.trim()) T.t(x1-4, y0-8, mention.trim(), 10.5, {anchor:"end", u:true});
+  T.r(x0,y0,x1-x0,h,{sw:1.2,fill:"#fff"});
+  xs.slice(1).forEach(function(x){ T.l(x,y0,x,y1,1); });
+  /* le logo */
+  var lg=logoCartouche(S);
+  if(lg && lg.noir){ T.r(xs[0]+5,y0+5,L[0]-10,h-10,{sw:1,fill:"#000000",c:"#000000"}); T.img(lg.img.data, xs[0]+10,y0+9,L[0]-20,h-18, lg.img.w, lg.img.h); }
+  else if(lg) T.img(lg.img.data, xs[0]+8,y0+8,L[0]-16,h-16, lg.img.w, lg.img.h);
+  else decouper(String(S.societe||"").toUpperCase(), 22).slice(0,3).forEach(function(m,i){ T.t(xs[0]+L[0]/2, y0+h/2+4+(i-0.5)*15, m, 12, {anchor:"middle", bold:true}); });
+  /* le dessinateur */
+  var xd=xs[1]+8;
+  T.t(xd,y0+19,"Dess :",10.5,{bold:true}); T.t(xd+38,y0+19,S.auteur||"",10.5);
+  T.t(xd,y0+38,"Mail :",10.5,{bold:true}); T.t(xd,y0+53,S.mail||"",10);
+  T.t(xd,y0+75,"Date :",10.5,{bold:true}); T.t(xd+38,y0+75,frDateS(S.date),10.5);
+  T.t(xd+118,y0+75,"Indice :",10.5,{bold:true}); T.t(xd+164,y0+75,S.indice||"A",10.5);
+  /* affaire, objet */
+  function case2(k, etiquette, lignes){
+    var x=xs[k], w=L[k]; T.t(x+8,y0+19,etiquette,10.5,{bold:true});
+    var tout=[]; lignes.forEach(function(l){ decouper(l.s, Math.floor(w/7)).forEach(function(m){ tout.push({s:m, b:l.b}); }); });
+    tout=tout.slice(0,3);
+    var yc=y0+(h+22)/2-(tout.length-1)*7.5+4;
+    tout.forEach(function(m,i){ T.t(x+w/2, yc+i*15, m.s, 11, {anchor:"middle", bold:m.b}); });
+  }
+  case2(2, "AFFAIRE", [{s:String(S.chantier.client||"").toUpperCase()}, {s:S.chantier.ref ? "Réf. "+S.chantier.ref : ""}].filter(function(l){ return l.s; }));
+  case2(3, "OBJET", [{s:(titre||"Schéma unifilaire").toUpperCase()}, {s:S.tableau||""}].filter(function(l){ return l.s; }));
+  /* folio */
+  T.t(xs[4]+8,y0+19,"FOLIO",10.5,{bold:true});
+  T.t(xs[4]+L[4]/2,y0+h/2+12,(f+1)+"/"+total,14,{anchor:"middle", bold:true, c:COULEURS.rouge});
+  /* remarques */
+  var xr=xs[5]+8, wr=x1-xs[5]-16;
+  T.t(xr,y0+19,"REMARQUES",10.5,{bold:true});
+  decouper(S.remarques||"", Math.floor(wr/5.6)).slice(0,4).forEach(function(m,i){ T.t(xr,y0+36+i*13,m,9.5); });
 }
 function frDateS(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 /* un texte en lignes d'une longueur donnée, sur les mots (et sur les retours à la ligne) */
@@ -1071,7 +1113,8 @@ function versSVG(T){
     if(o.t==="l") return '<line x1="'+o.x1+'" y1="'+o.y1+'" x2="'+o.x2+'" y2="'+o.y2+'" stroke="'+(o.c||"#111")+'" stroke-width="'+o.w+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
     if(o.t==="r") return '<rect x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+'" fill="'+(o.fill||"none")+'" stroke="'+(o.sw?(o.c||"#111"):"none")+'" stroke-width="'+o.sw+'"'+(o.dash?' stroke-dasharray="'+o.dash+'"':'')+'/>';
     if(o.t==="e") return '<ellipse cx="'+o.cx+'" cy="'+o.cy+'" rx="'+o.rx+'" ry="'+o.ry+'" fill="'+(o.fill||"none")+'" stroke="'+(o.c||"#111")+'" stroke-width="'+o.w+'"/>';
-    if(o.t==="t") return '<text x="'+o.x+'" y="'+o.y+'" font-size="'+o.size+'" text-anchor="'+o.anchor+'"'+(o.bold?' font-weight="700"':'')+' fill="'+(o.c||(o.gris?"#666":"#111"))+'">'+echapper(o.s)+'</text>';
+    if(o.t==="t") return '<text x="'+o.x+'" y="'+o.y+'" font-size="'+o.size+'" text-anchor="'+o.anchor+'"'+(o.bold?' font-weight="700"':'')+(o.u?' text-decoration="underline"':'')+' fill="'+(o.c||(o.gris?"#666":"#111"))+'">'+echapper(o.s)+'</text>';
+    if(o.t==="i") return '<image href="'+o.data+'" x="'+o.x+'" y="'+o.y+'" width="'+o.w+'" height="'+o.h+'" preserveAspectRatio="xMidYMid meet"/>';
     return "";
   }).join("");
 }
@@ -1092,7 +1135,7 @@ function versPDF(doc, T){
       if(!o.sw && !o.fill) return;
       doc.setLineWidth((o.sw||0.01)*k);
       if(o.dash) doc.setLineDashPattern(o.dash.split(" ").map(function(v){ return v*k; }),0); else doc.setLineDashPattern([],0);
-      if(o.fill){ doc.setFillColor(255,255,255); doc.rect(o.x*k,o.y*k,o.w*k,o.h*k, o.sw?"FD":"F"); }
+      if(o.fill){ var cf=rvb(o.fill); doc.setFillColor(cf[0],cf[1],cf[2]); doc.rect(o.x*k,o.y*k,o.w*k,o.h*k, o.sw?"FD":"F"); }
       else doc.rect(o.x*k,o.y*k,o.w*k,o.h*k,"S");
     } else if(o.t==="e"){
       doc.setLineDashPattern([],0); doc.setLineWidth(o.w*k);
@@ -1104,7 +1147,14 @@ function versPDF(doc, T){
       doc.setFontSize(o.size*k/0.3528);
       var ct=rvb(o.c||(o.gris?"#666666":"#111111")); doc.setTextColor(ct[0],ct[1],ct[2]);
       /* la police standard du PDF n'a ni ≥ ni ≤ ni ✓ : on les écrit autrement */
-      doc.text(String(o.s).replace(/≥/g,">=").replace(/≤/g,"<=").replace(/[✓✗]/g,"").replace(/−/g,"-"), o.x*k, o.y*k, {align: o.anchor==="middle"?"center":o.anchor==="end"?"right":"left"});
+      var txt=String(o.s).replace(/≥/g,">=").replace(/≤/g,"<=").replace(/[✓✗]/g,"").replace(/−/g,"-");
+      doc.text(txt, o.x*k, o.y*k, {align: o.anchor==="middle"?"center":o.anchor==="end"?"right":"left"});
+      if(o.u){
+        var lg=doc.getTextWidth(txt), xs=o.anchor==="middle" ? o.x*k-lg/2 : o.anchor==="end" ? o.x*k-lg : o.x*k;
+        doc.setDrawColor(ct[0],ct[1],ct[2]); doc.setLineDashPattern([],0); doc.setLineWidth(0.25); doc.line(xs, o.y*k+0.6, xs+lg, o.y*k+0.6);
+      }
+    } else if(o.t==="i"){
+      try{ doc.addImage(o.data, /^data:image\/jpe?g/i.test(o.data) ? "JPEG" : "PNG", o.x*k, o.y*k, o.w*k, o.h*k); }catch(e){}
     }
   });
   doc.setLineDashPattern([],0);
@@ -1150,7 +1200,7 @@ var LIGNES_DEFAUT=[{id:"repere",nom:"Repère"},{id:"designation",nom:"Désignati
 function colonneVide(){ return {id:uid(), cases:{}, table:{}, auto:{}, fils:0}; }
 function vierge(ch){
   return {version:1, chantier:ch||{ref:"",client:"",adresse:""}, tableau:"TGBT", indice:"A", date:aujourdhui(),
-    auteur:(SESSION&&SESSION.nom)||"", societe:(SESSION&&SESSION.societeNom)||"", remarques:"",
+    auteur:(SESSION&&SESSION.nom)||"", societe:(SESSION&&SESSION.societeNom)||"", mail:(SESSION&&SESSION.email)||"", remarques:"",
     colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], cadres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
 }
 var S=null, F=0, SEL=null, ZOOM=1, HISTO=[], REDO=[];
@@ -1571,6 +1621,18 @@ $("folioPrec").addEventListener("click", function(){ if(F>0){ F--; peindre(); } 
 $("folioSuiv").addEventListener("click", function(){ if(F<nbFolios(S)-1){ F++; peindre(); } });
 
 /* ---------- les fenêtres : lignes du tableau, cartouche, modèles, publier ---------- */
+/* les logos du cartouche : celui de la maison (fond noir), ou celui de la
+   fiche de la société réglée dans « Comptes et sociétés » */
+function dataUrlEnImage(data, fn){ var im=new Image(); im.onload=function(){ fn({data:data, w:im.naturalWidth, h:im.naturalHeight}); }; im.onerror=function(){}; im.src=data; }
+function repeindreSiPret(){ try{ if(S) peindre(); }catch(e){} }
+fetch("./logo-tle-noir.png").then(function(r){ return r.ok ? r.blob() : null; }).then(function(b){
+  if(!b) return;
+  var fr=new FileReader(); fr.onload=function(){ dataUrlEnImage(fr.result, function(x){ LOGO_TLE=x; repeindreSiPret(); }); }; fr.readAsDataURL(b);
+}).catch(function(){});
+if(SESSION && SESSION.jeton) fetch(API+"?action=societe-fiche", {headers:{"x-auth":SESSION.jeton}})
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){ var lg=d && d.fiche && d.fiche.logo; if(lg && lg.data) dataUrlEnImage(lg.data, function(x){ LOGO_FICHE=x; repeindreSiPret(); }); })
+  .catch(function(){});
 $("btnMateriel").addEventListener("click", ouvrirMateriel);
 $("versCommande").addEventListener("click", versCommande);
 function ouvrirFenetre(id){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=f.id!==id; }); $("voile").hidden=false; }
@@ -1606,11 +1668,11 @@ $("ajoutLigne").addEventListener("click", function(){
 });
 
 /* cartouche */
-var CHAMPS_C=[["cClient","chantier.client"],["cRef","chantier.ref"],["cTableau","tableau"],["cIndice","indice"],["cDate","date"],["cAuteur","auteur"],["cSociete","societe"],["cRemarques","remarques"]];
+var CHAMPS_C=[["cClient","chantier.client"],["cRef","chantier.ref"],["cTableau","tableau"],["cIndice","indice"],["cDate","date"],["cAuteur","auteur"],["cSociete","societe"],["cMail","mail"],["cRemarques","remarques"],["cMention","mention"]];
 function lire(p){ var a=p.split("."); return a.length>1 ? S[a[0]][a[1]] : S[a[0]]; }
 function ecrire(p,v){ var a=p.split("."); if(a.length>1) S[a[0]][a[1]]=v; else S[a[0]]=v; }
 $("btnCartouche").addEventListener("click", function(){
-  CHAMPS_C.forEach(function(c){ $(c[0]).value=lire(c[1])||""; });
+  CHAMPS_C.forEach(function(c){ var v=lire(c[1]); $(c[0]).value = c[1]==="mention" && v==null ? MENTION_DEFAUT : (v||""); });
   ouvrirFenetre("fCartouche");
 });
 CHAMPS_C.forEach(function(c){
@@ -2254,6 +2316,7 @@ function demarrer(){
   if(client && !S.chantier.client) S.chantier.client=client;
   if(adresse && !S.chantier.adresse) S.chantier.adresse=adresse;
   if(!S.societe && SESSION.societeNom) S.societe=SESSION.societeNom;
+  if(S.mail==null) S.mail=SESSION.email||"";
   if(window.matchMedia("(max-width:760px)").matches) ZOOM=0.62; else ajuster();
   peindre();
   var vide=!S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
