@@ -1197,7 +1197,17 @@ function ajuster(cat, nom, unite, delta){
 }
 function renderCatalogue(){
   var host=$("catalogue"); host.textContent="";
-  var rub=CATALOGUE[S.metier]||{};
+  var cata=CATALOGUE[S.metier]||{}, rub={};
+  /* les articles hors catalogue (repris d'un schéma, ou « Divers ») ont
+     leur rubrique aussi, en tête, pour qu'on les voie et les ajuste */
+  S.lignes.forEach(function(l){
+    if(!(l.qte>0)) return;
+    var dans = cata[l.cat] && cata[l.cat].some(function(a){ return a[0]===l.nom; });
+    if(dans) return;
+    rub[l.cat]=rub[l.cat]||[];
+    if(!rub[l.cat].some(function(a){ return a[0]===l.nom; })) rub[l.cat].push([l.nom, l.unite||"u"]);
+  });
+  Object.keys(cata).forEach(function(cat){ rub[cat]=(rub[cat]||[]).concat(cata[cat]); });
   var filtre=($("recherche").value||"").trim().toLowerCase();
   Object.keys(rub).forEach(function(cat){
     var articles=rub[cat].filter(function(a){
@@ -2573,6 +2583,41 @@ function ecrireFiche(){
   var charge; try{ charge=JSON.stringify(S); }catch(e){ return Promise.resolve(); }
   return window.storage.set(CLE_FICHE, charge).catch(function(){});
 }
+
+/* ---------- depuis un schéma unifilaire ----------
+   Le schéma a déposé sa liste de matériel sur l'appareil : on la reprend
+   dans la commande de ce chantier, une fois le chantier ouvert. Un second
+   envoi du même schéma remplace le premier au lieu de s'y ajouter. */
+(function depuisSchema(){
+  var p;
+  try{ p = new URLSearchParams(location.search); }catch(e){ return; }
+  if(p.get("depuisSchema") !== "1") return;
+  var avecRef = !!(p.get("ref")||"").trim();
+  var essais = 0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S || (avecRef && !window.__dossierRepris)){
+      if(++essais > 150) return;
+      setTimeout(attendre, 100);
+      return;
+    }
+    var e=null;
+    try{ e=JSON.parse(localStorage.getItem("commande:depuis-schema")||"null"); }catch(x){}
+    try{ localStorage.removeItem("commande:depuis-schema"); }catch(x){}
+    if(!e || !e.lignes || !e.lignes.length) return;
+    var CAT_SCHEMA="Tableau — d'après le schéma";
+    S.metier="Électricité";
+    S.lignes=S.lignes.filter(function(l){ return l.cat!==CAT_SCHEMA; });
+    e.lignes.forEach(function(n){
+      var l=S.lignes.filter(function(x){ return x.cat===n.cat && x.nom===n.nom; })[0];
+      if(l) l.qte=n.qte; else S.lignes.push({cat:n.cat, nom:n.nom, unite:n.unite||"u", qte:n.qte});
+    });
+    if(!S.chantier.ref && e.ref){ S.chantier.ref=e.ref; S.chantier.client=e.client||S.chantier.client; S.chantier.adresse=e.adresse||S.chantier.adresse; }
+    save();
+    try{ paintForm(); }catch(x){}
+    try{ showTab("commande"); }catch(x){}
+    toast(e.lignes.length+" articles repris du schéma"+(e.tableau ? " « "+e.tableau+" »" : "")+". Ajoutez les câbles et vérifiez les quantités.");
+  })();
+})();
 
 (function dossierDepuisAdresse(){
   var p;

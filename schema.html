@@ -378,6 +378,12 @@ body.glisse,body.glisse .zone .cible{cursor:grabbing}
 body.mode-deplacer .zone .cible{cursor:copy}
 body.mode-deplacer .zone .cible:hover{fill:rgba(8,145,178,.12)}
 .boutons-sym{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+#listeMateriel{max-height:52vh;overflow:auto}
+.mat-l{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule,#E3E7EC)}
+.mat-d{flex:1;min-width:0}
+.mat-d b{display:block;font-size:14px;font-weight:600}
+.mat-d span{display:block;font-size:12px;color:var(--ink-3,#6B7480)}
+.mat-l input{width:64px;min-height:38px;text-align:center;font-size:15px;border:1px solid var(--rule,#D5DBE2);border-radius:8px;font-family:inherit}
 .seg-p{display:block;margin:0 0 10px}
 .seg-p > span{display:block;font-size:12.5px;font-weight:600;color:var(--ink-3,#6B7480);margin-bottom:5px}
 .seg{display:flex;border:1px solid var(--rule,#D5DBE2);border-radius:9px;overflow:hidden}
@@ -505,6 +511,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
     <button type="button" id="btnCartouche">Cartouche</button>
     <button type="button" id="btnModeles">Modèles</button>
     <button type="button" id="btnPV">Dimensionner un PV</button>
+    <button type="button" id="btnMateriel">Matériel à commander</button>
     <button type="button" id="btnOuvrir">Ouvrir</button>
     <span class="groupe"><button type="button" id="zoomMoins" aria-label="Réduire">−</button><span id="zoomVal">100 %</span><button type="button" id="zoomPlus" aria-label="Agrandir">+</button><button type="button" id="zoomAjuste">Ajuster</button></span>
     <span class="groupe" id="folios" hidden><button type="button" id="folioPrec" aria-label="Folio précédent">◀</button><span id="folio"></span><button type="button" id="folioSuiv" aria-label="Folio suivant">▶</button></span>
@@ -550,6 +557,13 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
   <button type="button" class="modele" data-modele="vierge">Schéma vide<small>Quatre colonnes vides</small></button>
   <button type="button" class="modele" id="btnEtiquettes">Reprendre les étiquettes du tableau<small>Les circuits de la fiche Étiquettes de ce chantier, rangés sous leurs différentiels</small></button>
   <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<section class="fenetre" id="fMateriel" hidden aria-label="Matériel à commander">
+  <h2>Matériel à commander</h2>
+  <p class="hint" style="margin:0 0 10px">D'après le schéma : les appareils du tableau, et le coffret avec 20 % de réserve. Ajustez les quantités, puis envoyez la liste dans une commande de ce chantier.</p>
+  <div id="listeMateriel"></div>
+  <p class="hint" id="modulesMateriel" style="margin:8px 0 0"></p>
+  <div class="pied"><button type="button" class="fermer">Fermer</button><button type="button" class="or" id="versCommande">Envoyer vers une commande</button></div>
 </section>
 <section class="fenetre" id="fPublier" hidden aria-label="Publier">
   <h2>Publier le schéma</h2>
@@ -778,6 +792,90 @@ function bascule(libelle, choix, actif, fn){
     g.appendChild(b);
   });
   w.appendChild(g); return w;
+}
+/* ---------- du schéma à la commande ----------
+   Chaque appareil du tableau devient une ligne de commande, regroupée par
+   désignation exacte (pôles, calibre, sensibilité, type) ; les récepteurs,
+   l'arrivée et le compteur ne s'achètent pas ici. Le coffret se compte en
+   modules, avec les 20 % de réserve de la NF C 15-100, par rangées de 13. */
+var CAT_SCHEMA="Tableau — d'après le schéma";
+var A_ACHETER={disj:"Disjoncteur", disjdiff:"Disjoncteur différentiel", id:"Interrupteur différentiel",
+  agcp:"Disjoncteur de branchement", inter:"Interrupteur", sect:"Sectionneur", fus:"Porte-fusible", parafoudre:"Parafoudre",
+  telerupteur:"Télérupteur", contacteur:"Contacteur", minuterie:"Minuterie", horloge:"Interrupteur horaire",
+  delesteur:"Délesteur", transfo:"Transformateur"};
+function modulesDe(c){
+  var tri=estTri(c);
+  switch(c.sym){
+    case "disj": return tri ? 4 : 1;
+    case "disjdiff": case "id": case "inter": case "sect": case "parafoudre": return tri ? 4 : 2;
+    case "fus": return tri ? 3 : 1;
+    case "delesteur": case "transfo": return 2;
+    case "agcp": return 0;                 /* dans la GTL, pas dans le coffret */
+    default: return 1;
+  }
+}
+function designationAchat(c){
+  var nom=A_ACHETER[c.sym];
+  var t=(c.t||[]).map(function(x){ return String(x||"").trim(); }).filter(Boolean);
+  if(c.sym==="contacteur") t=t.filter(function(x){ return !/^jour\s*\/\s*nuit$/i.test(x); }).concat(/jour\s*\/\s*nuit/i.test((c.t||[]).join(" ")) ? ["jour/nuit"] : []);
+  if(c.sym==="horloge") t=t.filter(function(x){ return !/^horloge$/i.test(x); });
+  if(c.sym==="delesteur") t=t.filter(function(x){ return !/^d[ée]lesteur$/i.test(x); });
+  return (nom+" "+t.join(" ").replace(/\s*·\s*/g," ")).replace(/\s+/g," ").trim();
+}
+function nomenclature(S){
+  var par={}, ordre=[], modules=0;
+  S.colonnes.forEach(function(col){
+    for(var n in col.cases){
+      var c=col.cases[n]; if(!c || !A_ACHETER[c.sym]) continue;
+      var nom=designationAchat(c);
+      if(!par[nom]){ par[nom]={cat:CAT_SCHEMA, nom:nom, unite:"u", qte:0, reperes:[]}; ordre.push(nom); }
+      par[nom].qte++; if(c.rep) par[nom].reperes.push(c.rep);
+      modules+=modulesDe(c);
+    }
+  });
+  var lignes=ordre.map(function(k){ return par[k]; });
+  var rangees=0;
+  if(modules){
+    rangees=Math.max(1, Math.ceil(modules*1.2/13));
+    lignes.push({cat:"Tableau électrique", nom:"Coffret "+rangees+" rangée"+(rangees>1?"s":""), unite:"u", qte:1, reperes:[]});
+    lignes.push({cat:"Tableau électrique", nom:"Peigne d'alimentation", unite:"u", qte:rangees, reperes:[]});
+    lignes.push({cat:"Tableau électrique", nom:"Bornier de terre", unite:"u", qte:1, reperes:[]});
+    lignes.push({cat:"Tableau électrique", nom:"Étiquettes de repérage", unite:"u", qte:1, reperes:[]});
+  }
+  return {lignes:lignes, modules:modules, rangees:rangees};
+}
+var MATERIEL=null;
+function ouvrirMateriel(){
+  MATERIEL=nomenclature(S);
+  var h=$("listeMateriel"); h.textContent="";
+  if(!MATERIEL.lignes.length){
+    h.appendChild(el("p","hint","Aucun appareil de tableau sur le schéma pour l'instant."));
+  }
+  MATERIEL.lignes.forEach(function(l){
+    var r=el("div","mat-l");
+    var d=el("div","mat-d"); d.appendChild(el("b",null,l.nom));
+    if(l.reperes.length) d.appendChild(el("span",null,l.reperes.slice(0,8).join(", ")+(l.reperes.length>8?"…":"")));
+    var q=el("input"); q.type="number"; q.min="0"; q.inputMode="numeric"; q.value=String(l.qte); q.setAttribute("aria-label","Quantité : "+l.nom);
+    q.addEventListener("input", function(){ l.qte=Math.max(0, parseInt(q.value,10)||0); });
+    r.appendChild(d); r.appendChild(q); h.appendChild(r);
+  });
+  $("modulesMateriel").textContent = MATERIEL.modules
+    ? MATERIEL.modules+" modules d'appareils, "+Math.ceil(MATERIEL.modules*1.2)+" avec la réserve : "+MATERIEL.rangees+" rangée"+(MATERIEL.rangees>1?"s":"")+" de 13. Le disjoncteur de branchement va dans la GTL. Les câbles restent à ajouter dans la commande (longueurs)."
+    : "";
+  $("versCommande").disabled=!MATERIEL.lignes.length;
+  ouvrirFenetre("fMateriel");
+}
+function versCommande(){
+  if(!MATERIEL) return;
+  var lignes=MATERIEL.lignes.filter(function(l){ return l.qte>0; }).map(function(l){ return {cat:l.cat, nom:l.nom, unite:l.unite, qte:l.qte}; });
+  if(!lignes.length){ toast("Aucune quantité à commander."); return; }
+  var envoi={le:Date.now(), ref:S.chantier.ref||"", client:S.chantier.client||"", adresse:S.chantier.adresse||"",
+    tableau:S.tableau||"", lignes:lignes};
+  try{ localStorage.setItem("commande:depuis-schema", JSON.stringify(envoi)); }
+  catch(e){ toast("Mémoire de l'appareil pleine."); return; }
+  var q=["depuisSchema=1","onglet=commande"];
+  if(envoi.ref) q.push("ref="+encodeURIComponent(envoi.ref), "client="+encodeURIComponent(envoi.client), "adresse="+encodeURIComponent(envoi.adresse));
+  location.href="./commande.html?"+q.join("&");
 }
 function filsDe(col){
   if(col.fils) return col.fils;
@@ -1473,6 +1571,8 @@ $("folioPrec").addEventListener("click", function(){ if(F>0){ F--; peindre(); } 
 $("folioSuiv").addEventListener("click", function(){ if(F<nbFolios(S)-1){ F++; peindre(); } });
 
 /* ---------- les fenêtres : lignes du tableau, cartouche, modèles, publier ---------- */
+$("btnMateriel").addEventListener("click", ouvrirMateriel);
+$("versCommande").addEventListener("click", versCommande);
 function ouvrirFenetre(id){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=f.id!==id; }); $("voile").hidden=false; }
 function fermerFenetres(){ [].forEach.call(document.querySelectorAll(".fenetre"), function(f){ f.hidden=true; }); $("voile").hidden=true; }
 $("voile").addEventListener("click", fermerFenetres);
