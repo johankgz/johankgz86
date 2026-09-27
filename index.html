@@ -950,6 +950,38 @@ body.connexion .ciel{display:none}
   .ciel *{animation:none!important}
   .ciel-pluie{display:none}
 }
+
+/* ---------- l'accueil vivant : les trois phases et le sol quadrillé ----------
+   Sur le ciel du moment : deux lueurs aux couleurs de l'heure, les trois
+   phases L1, L2, L3 qui défilent en haut comme sur un oscilloscope, et un
+   sol quadrillé en perspective qui avance vers soi en bas de l'écran. */
+.ciel-lueur{position:absolute;border-radius:50%;filter:blur(70px);will-change:transform;opacity:.5}
+.ciel-lueur.c-l1{width:60vmax;height:60vmax;left:-24vmax;top:-28vmax;background:radial-gradient(circle,#EA7A1E,rgba(234,122,30,0) 66%);animation:cielDerive1 30s ease-in-out infinite alternate}
+.ciel-lueur.c-l2{width:62vmax;height:62vmax;right:-26vmax;bottom:-30vmax;background:radial-gradient(circle,#0891B2,rgba(8,145,178,0) 66%);animation:cielDerive2 36s ease-in-out infinite alternate}
+.ciel.aube .c-l1{background:radial-gradient(circle,#F97316,rgba(249,115,22,0) 66%)}
+.ciel.aube .c-l2{background:radial-gradient(circle,#DB2777,rgba(219,39,119,0) 66%);opacity:.35}
+.ciel.jour .c-l1{background:radial-gradient(circle,#F59E0B,rgba(245,158,11,0) 66%);opacity:.35}
+.ciel.soir .c-l2{background:radial-gradient(circle,#7C3AED,rgba(124,58,237,0) 66%)}
+.ciel.nuit .c-l1{opacity:.28}
+.ciel.nuit .c-l2{background:radial-gradient(circle,#4338CA,rgba(67,56,202,0) 66%);opacity:.45}
+@keyframes cielDerive1{to{transform:translate(16vmax,10vmax) scale(1.15)}}
+@keyframes cielDerive2{to{transform:translate(-14vmax,-12vmax) scale(.9)}}
+.ciel-ondes{position:absolute;left:0;bottom:calc(46vh - 70px);width:200%;height:150px;opacity:.85;
+  -webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);
+  animation:cielOndes 14s linear infinite;will-change:transform}
+.ciel-ondes path{fill:none;stroke-width:2.2;stroke-linecap:round;vector-effect:non-scaling-stroke}
+.ciel-ondes .p1{stroke:#FB923C;filter:drop-shadow(0 0 6px rgba(251,146,60,.8))}
+.ciel-ondes .p2{stroke:#22D3EE;filter:drop-shadow(0 0 6px rgba(34,211,238,.8))}
+.ciel-ondes .p3{stroke:#A78BFA;filter:drop-shadow(0 0 6px rgba(167,139,250,.8))}
+@keyframes cielOndes{to{transform:translateX(-50%)}}
+.ciel-sol{position:absolute;left:-50%;right:-50%;bottom:0;height:46vh;perspective:320px;perspective-origin:50% 0;
+  -webkit-mask-image:linear-gradient(180deg,transparent 0%,#000 55%);mask-image:linear-gradient(180deg,transparent 0%,#000 55%)}
+.ciel-sol-grille{position:absolute;inset:0 0 -60%;transform:rotateX(62deg);transform-origin:50% 0;
+  background-image:linear-gradient(rgba(34,211,238,.22) 1.5px,transparent 1.5px),linear-gradient(90deg,rgba(251,146,60,.18) 1.5px,transparent 1.5px);
+  background-size:64px 64px;animation:cielSol 4s linear infinite}
+@keyframes cielSol{to{background-position:0 64px}}
+.ciel.jour .ciel-sol-grille{opacity:.7}
+@media (prefers-reduced-motion:reduce){ .ciel-ondes,.ciel-sol-grille,.ciel-lueur{animation:none!important} }
 /* ---------- Outils : un petit bouton, les outils dans une fenêtre ---------- */
 .raccourci .r-txt span{color:var(--ink-3)}
 .btn-outils{display:inline-flex;align-items:center;gap:8px;min-height:42px;padding:0 18px 0 14px;margin:-6px 0 18px;
@@ -990,7 +1022,12 @@ body.connexion .ciel{display:none}
 </style>
 </head>
 <body>
-<div class="ciel" id="ciel" aria-hidden="true" hidden><div class="ciel-halo"></div></div>
+<div class="ciel" id="ciel" aria-hidden="true" hidden>
+  <div class="ciel-halo"></div>
+  <div class="ciel-lueur c-l1"></div><div class="ciel-lueur c-l2"></div>
+  <div class="ciel-sol"><div class="ciel-sol-grille"></div></div>
+  <svg class="ciel-ondes" viewBox="0 0 2400 160" preserveAspectRatio="none" id="cielOndes"></svg>
+</div>
 <main>
 
   <div id="vueConnexion" hidden>
@@ -1334,6 +1371,20 @@ function peindreCiel(){
   });
 }
 setInterval(function(){ if(!document.hidden) peindreCiel(); }, 5*60*1000);
+(function tracerPhases(){
+  var svg=$("cielOndes"); if(!svg || svg.firstChild) return;
+  var L=2400, periode=300, A=44, y0=80, ns="http://www.w3.org/2000/svg";
+  [0, 1, 2].forEach(function(k){
+    var d="", dec=k*periode/3;
+    for(var x=0;x<=L;x+=6){
+      var y=y0 + A*Math.sin(2*Math.PI*(x+dec)/periode);
+      d += (x ? "L" : "M") + x + " " + y.toFixed(1);
+    }
+    var p=document.createElementNS(ns, "path");
+    p.setAttribute("d", d); p.setAttribute("class", "p" + (k+1));
+    svg.appendChild(p);
+  });
+})();
 
 var BULLETIN_HORLOGE=false;
 function bulletin(lieu){
