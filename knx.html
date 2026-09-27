@@ -96,6 +96,9 @@ button{font:inherit;cursor:pointer}
 .alerte ul{margin:6px 0 0;padding-left:18px}
 .alerte li{margin:2px 0}
 .bon{padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:600;margin:8px 0}
+.verrou{max-width:440px;margin:40px auto;padding:0 16px}
+.verrou[hidden],main[hidden]{display:none}
+#v_code{font-family:var(--mono);font-size:17px;letter-spacing:.06em;text-transform:uppercase}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#22201C;color:#fff;
  padding:10px 16px;border-radius:10px;font-size:14px;z-index:50;max-width:90vw}
 .toast[hidden]{display:none}
@@ -108,7 +111,18 @@ button{font:inherit;cursor:pointer}
   <h1>Adresses de groupe KNX</h1>
   <span class="compte" id="total"></span>
 </header>
-<main>
+<div class="verrou" id="verrou" hidden>
+  <div class="block">
+    <h2>Outil réservé</h2>
+    <p class="hint" id="v_msg">Vérification de l'accès…</p>
+    <div id="v_saisie" hidden>
+      <label class="l" for="v_code">Code d'accès</label>
+      <input type="text" id="v_code" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="KNX-XXXX-XXXX">
+      <div class="boutons"><button type="button" class="act plein" id="v_ok">Ouvrir l'outil</button></div>
+    </div>
+  </div>
+</div>
+<main id="outil" hidden>
   <div class="block">
     <h2>Le projet</h2>
     <p class="hint">Vous décrivez les pièces et ce qu'elles pilotent ; l'outil numérote les adresses de groupe comme dans vos projets ETS
@@ -181,738 +195,56 @@ button{font:inherit;cursor:pointer}
   </div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./knx-liaisons.js?v=20260927c"></script>
 
 <script>
+/* L'outil est réservé : son code n'est pas dans cette page, le serveur ne
+   le donne qu'avec le code d'accès que l'administrateur a remis à la
+   personne (ou à l'administrateur lui-même). Un appareil qui a ouvert
+   l'outil une fois s'en souvient jusqu'à ce que le code change. */
 (function(){
-"use strict";
-function $(i){ return document.getElementById(i); }
-function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!==undefined) e.textContent=txt; return e; }
-var TEMPO=null;
-function toast(t){ var e=$("toast"); e.textContent=t; e.hidden=false; clearTimeout(TEMPO); TEMPO=setTimeout(function(){ e.hidden=true; }, 2600); }
-function uid(){ return Math.random().toString(36).slice(2, 9); }
-
-/* ---------- les types de données (DPT) ---------- */
-var DPT = {
-  bool:"DPST-1-1", montee:"DPST-1-8", stop:"DPST-1-7", alarme:"DPST-1-5",
-  pct:"DPST-5-1", relatif:"DPST-3-7", rvb:"DPST-232-600",
-  temp:"DPST-9-1", lux:"DPST-9-4", heure:"DPST-10-1", date:"DPST-11-1",
-  scene:"DPST-18-1", modeCvc:"DPST-20-105"
-};
-function dptCourt(d){ var m=/^DPST-(\d+)-(\d+)$/.exec(d||""); return m ? m[1]+"."+("00"+m[2]).slice(-3) : "—"; }
-
-var TYPES_ECL = [["tor","Tout ou rien"],["var","Variateur"],["rvb","Couleur RVB"]];
-var TYPES_OUV = [["volet","Volet roulant"],["store","BSO (inclinaison des lames)"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
-var CLIM = [["non","Pas de chauffage"],["chaud","Chauffage"],["chaudfroid","Chaud + froid"]];
-var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bureau","Chambre 1","Chambre 2","Chambre 3","Salle de bain",
-  "Salle d'eau","WC","Dégagement","Escalier","Buanderie","Cellier","Garage","Dressing","Terrasse","Jardin","Local technique"];
-
-/* ---------- le projet ---------- */
-var P = null;
-function vierge(){
-  return {nom:"", niveaux:"RDC, R+1", maj:true, exterieur:false, vmc:false,
-    airzone:false, systemes:{}, adressesAz:{}, pieces:[], scenarios:["Repas","TV","Départ","Coucher"]};
-}
-function nouvellePiece(nom, niveau){
-  return {id:uid(), nom:nom||"", niveau:niveau||niveaux()[0]||"", eclairage:[], ouvrants:[], prises:[], clim:"non", systeme:1, zoneAz:0, thermostat:true, sonde:false, detecteur:false};
-}
-function niveaux(){
-  return String(P.niveaux||"").split(/[,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
-}
-function sauverLocal(){ try{ localStorage.setItem("knx:projet", JSON.stringify(P)); }catch(e){} }
-function charger(){
-  try{ var v=JSON.parse(localStorage.getItem("knx:projet")||"null"); if(v && Array.isArray(v.pieces)) return v; }catch(e){}
-  return null;
-}
-var TEMPO_APERCU=null;
-function change(sansRendu){
-  sauverLocal();
-  clearTimeout(TEMPO_APERCU);
-  TEMPO_APERCU=setTimeout(peindreApercu, 150);
-  if(!sansRendu) peindrePieces();
-}
-
-/* ---------- la numérotation, sur le modèle des projets ETS existants ----------
-   Un groupe principal par fonction, un sous-groupe par type d'objet
-   (commande, état, variation…), et le même numéro pour un circuit dans
-   chacun de ses sous-groupes : 1/1/7 commande la buanderie, 1/2/7 en
-   renvoie l'état, 1/3/7 la variation, etc. */
-function nomPropre(t){
-  t = String(t||"").replace(/\s+/g," ").trim();
-  return P.maj ? t.toLocaleUpperCase("fr-FR") : t;
-}
-function nomsCircuits(piece, liste){
-  var sansNom = liste.filter(function(c){ return !String(c.nom||"").trim(); }).length;
-  var k=0;
-  return liste.map(function(c){
-    if(String(c.nom||"").trim()) return nomPropre(c.nom);
-    k++;
-    return nomPropre(piece.nom + (sansNom>1 ? " " + k : ""));
-  });
-}
-function piecesOrdonnees(){
-  var nv=niveaux();
-  return P.pieces.slice().map(function(p, i){ return {p:p, i:i}; }).sort(function(a, b){
-    var na=nv.indexOf(a.p.niveau), nb=nv.indexOf(b.p.niveau);
-    if(na<0) na=99; if(nb<0) nb=99;
-    return na-nb || a.i-b.i;
-  }).map(function(x){ return x.p; });
-}
-function generer(){
-  var G=[];      /* [{m, nom, mids:[{y, nom, gas:[{n, nom, dpt}]}]}] */
-  function principal(m, nom){ var g={m:m, nom:nom, mids:[]}; G.push(g); return g; }
-  function milieu(g, y, nom){ var s={y:y, nom:nom, gas:[]}; g.mids.push(s); return s; }
-  function ga(s, n, nom, dpt){ s.gas.push({n:n, nom:nom, dpt:dpt}); }
-  var pcs=piecesOrdonnees(), nv=niveaux();
-
-  var ecl=[], ouv=[], pri=[], zones=[], sondes=[], dets=[], nz=numerosZones();
-  pcs.forEach(function(p){
-    nomsCircuits(p, p.eclairage).forEach(function(nom, i){ ecl.push({nom:nom, type:p.eclairage[i].type, niveau:p.niveau}); });
-    nomsCircuits(p, p.ouvrants).forEach(function(nom, i){ ouv.push({nom:nom, type:p.ouvrants[i].type, niveau:p.niveau}); });
-    nomsCircuits(p, p.prises).forEach(function(nom){ pri.push({nom:"PCC "+nom}); });
-    if(p.clim!=="non") zones.push({nom:nomPropre(p.nom), froid:p.clim==="chaudfroid", systeme:p.systeme||1,
-      zoneAz:nz[p.id], thermostat:p.thermostat!==false});
-    /* avec Airzone, le thermostat de zone donne déjà la température */
-    if(p.sonde || (p.clim!=="non" && !P.airzone)) sondes.push(nomPropre(p.nom));
-    if(p.detecteur) dets.push(nomPropre(p.nom));
-  });
-  var aVar = ecl.some(function(c){ return c.type==="var" || c.type==="rvb"; });
-  var aFroid = zones.some(function(z){ return z.froid; });
-  var niveauxOuv = nv.filter(function(n){ return ouv.some(function(o){ return o.niveau===n && o.type!=="gache"; }); });
-  var niveauxEcl = nv.filter(function(n){ return ecl.some(function(o){ return o.niveau===n; }); });
-
-  /* 0 : les fonctions générales */
-  var g0=principal(0, "Fonctions General");
-  var s=milieu(g0, 0, "Time");
-  ga(s, 1, "DATE", DPT.date); ga(s, 2, "HEURE", DPT.heure);
-  if(ecl.length){
-    s=milieu(g0, 1, "Eclairage");
-    ga(s, 0, "ON-OFF GENERAL", DPT.bool); ga(s, 1, "I/E ON OFF", DPT.bool);
-    var k=2;
-    if(aVar){ ga(s, k++, "VAR ABSOLU GENERAL", DPT.pct); ga(s, k++, "VAR RELATIVE GENERAL", DPT.relatif); }
-    if(niveauxEcl.length>1) niveauxEcl.forEach(function(n){ ga(s, k++, "ON-OFF " + nomPropre(n), DPT.bool); });
+  function $(i){ return document.getElementById(i); }
+  var S=null;
+  try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+  if(!S || !S.jeton){ location.replace("./index.html"); return; }
+  var CLE="knx:cle:" + (S.societe||"") + ":" + (S.nom||"");
+  function montrer(msg, avecChamp){
+    $("verrou").hidden=false; $("outil").hidden=true;
+    $("v_msg").textContent=msg;
+    $("v_saisie").hidden=!avecChamp;
+    if(avecChamp) try{ $("v_code").focus(); }catch(e){}
   }
-  var ouvMobiles = ouv.filter(function(o){ return o.type!=="gache"; });
-  if(ouvMobiles.length){
-    s=milieu(g0, 2, "Ouvrants");
-    ga(s, 0, "M/D GENERAL", DPT.montee); ga(s, 1, "STOP GENERAL", DPT.stop);
-    var k2=2;
-    if(niveauxOuv.length>1){
-      niveauxOuv.forEach(function(n){ ga(s, k2++, "M/D " + nomPropre(n), DPT.montee); });
-      niveauxOuv.forEach(function(n){ ga(s, k2++, "STOP " + nomPropre(n), DPT.stop); });
-    }
+  function lancer(script){
+    $("verrou").hidden=true; $("outil").hidden=false;
+    var s=document.createElement("script"); s.textContent=script; document.body.appendChild(s);
   }
-  if(pri.length){ s=milieu(g0, 3, "Prises Commandees"); ga(s, 0, "ON-OFF GENERAL", DPT.bool); }
-  if(zones.length){
-    s=milieu(g0, 4, "Chauffage");
-    ga(s, 0, "ON-OFF GENERAL", DPT.bool);
-    if(aFroid){ ga(s, 1, "CHAUD", DPT.bool); ga(s, 2, "FROID", DPT.bool); ga(s, 3, "STOP", DPT.bool); ga(s, 4, "CONSIGNE GENERAL", DPT.temp); }
-    else ga(s, 1, "CONSIGNE GENERAL", DPT.temp);
+  function demander(corps, manuel){
+    $("v_ok").disabled=true;
+    return fetch("/api/rapports?action=knx-outil", {method:"POST",
+      headers:{"content-type":"application/json", "x-auth":S.jeton}, body:JSON.stringify(corps)})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, status:r.status, d:d}; }); })
+      .then(function(x){
+        $("v_ok").disabled=false;
+        if(x.status===401 && /Session/.test(x.d.erreur||"")){
+          try{ localStorage.removeItem("outils:session"); }catch(e){}
+          location.replace("./index.html"); return;
+        }
+        if(x.ok && x.d.script){
+          try{ if(x.d.cle) localStorage.setItem(CLE, x.d.cle); }catch(e){}
+          lancer(x.d.script); return;
+        }
+        if(x.d.sansCode){ montrer("Cet outil est réservé. Demandez votre code d'accès à l'administrateur.", false); return; }
+        montrer(manuel ? (x.d.erreur || "Code refusé.") : "Entrez le code d'accès que l'administrateur vous a donné.", true);
+      })
+      .catch(function(){ $("v_ok").disabled=false; montrer("Pas de réseau : l'outil s'ouvre en ligne.", true); });
   }
-  if(dets.length){ s=milieu(g0, 5, "Detection"); dets.forEach(function(d, i){ ga(s, i, "TRIGGER M/S " + d, DPT.bool); }); }
-  s=milieu(g0, 6, "Mixte"); ga(s, 0, "JOUR/NUIT", DPT.bool); ga(s, 1, "I/E MODE NUIT", DPT.bool);
-
-  /* 1 : l'éclairage, un numéro par circuit */
-  if(ecl.length){
-    var g1=principal(1, "Eclairage");
-    var c1=milieu(g1, 1, "CMD On-Off"), e1=milieu(g1, 2, "I/E On-off");
-    var va=milieu(g1, 3, "CMD % Variation ABSOLUE 1bY"), vr=milieu(g1, 4, "CMD Variation RELATIVE 4b"), ev=milieu(g1, 5, "I/E % Variation");
-    var cr=milieu(g1, 6, "Commande RVB"), er=milieu(g1, 7, "I/E Commande RVB");
-    ecl.forEach(function(c, n){
-      ga(c1, n, c.nom, DPT.bool); ga(e1, n, c.nom, DPT.bool);
-      if(c.type==="var" || c.type==="rvb"){ ga(va, n, c.nom, DPT.pct); ga(vr, n, c.nom, DPT.relatif); ga(ev, n, c.nom, DPT.pct); }
-      if(c.type==="rvb"){ ga(cr, n, c.nom, DPT.rvb); ga(er, n, c.nom, DPT.rvb); }
-    });
-  }
-  /* 2 : les ouvrants */
-  if(ouv.length){
-    var g2=principal(2, "Ouvrants");
-    var md=milieu(g2, 1, "CMD Montee-Descente"), st=milieu(g2, 2, "Stop-Inclinaison"),
-        ph=milieu(g2, 3, "CMD % Hauteur"), eh=milieu(g2, 4, "I/E  Hauteur"), ed=milieu(g2, 5, "I/E Direction de mouvement"),
-        pl=milieu(g2, 6, "CMD % Inclinaison lames"), el2=milieu(g2, 7, "I/E Inclinaison lames");
-    ouv.forEach(function(o, n){
-      if(o.type==="gache"){ ga(md, n, o.nom, DPT.bool); return; }
-      ga(md, n, o.nom, DPT.montee); ga(st, n, o.nom, DPT.stop);
-      if(o.type==="garage"){ ga(ed, n, o.nom, DPT.montee); return; }
-      ga(ph, n, o.nom, DPT.pct); ga(eh, n, o.nom, DPT.pct); ga(ed, n, o.nom, DPT.montee);
-      /* BSO : le Stop (2/2) sert aussi au pas à pas des lames, 2/6 et 2/7 à leur inclinaison en % */
-      if(o.type==="store"){ ga(pl, n, o.nom, DPT.pct); ga(el2, n, o.nom, DPT.pct); }
-    });
-  }
-  /* 3 : les prises commandées */
-  if(pri.length){
-    var g3=principal(3, "Prises Commandees");
-    var pc=milieu(g3, 1, "CMD On-Off"), pe=milieu(g3, 2, "I/E CMD on-off");
-    pri.forEach(function(p, n){ ga(pc, n, p.nom, DPT.bool); ga(pe, n, p.nom, DPT.bool); });
-  }
-  /* 4 : les températures mesurées */
-  if(sondes.length || P.exterieur){
-    var g4=principal(4, "Temperatures");
-    if(sondes.length){ var ti=milieu(g4, 0, "Temperatures interieur"); sondes.forEach(function(t, n){ ga(ti, n, t, DPT.temp); }); }
-    if(P.exterieur){ var te=milieu(g4, 1, "Temperatures Exterieur"); ga(te, 0, "EXTERIEUR", DPT.temp); }
-  }
-  /* 5 : la ventilation */
-  if(P.vmc){
-    var g5=principal(5, "Ventilation"), vm=milieu(g5, 0, "VMC");
-    ga(vm, 0, "VMC ON-OFF", DPT.bool); ga(vm, 1, "I/E VMC ON-OFF", DPT.bool);
-    ga(vm, 2, "VMC GRANDE VITESSE", DPT.bool); ga(vm, 3, "I/E VMC GRANDE VITESSE", DPT.bool);
-  }
-  /* 6 : la détection */
-  if(dets.length){
-    var g6=principal(6, "Detection");
-    var mv=milieu(g6, 0, "Mouvement"), lx=milieu(g6, 1, "Luminosite");
-    dets.forEach(function(d, n){ ga(mv, n, d, DPT.bool); ga(lx, n, d, DPT.lux); });
-  }
-  /* 8 à 16 : Airzone, un groupe principal par système, puis les modes généraux */
-  if(zones.length && P.airzone) airzone(zones, principal, milieu, ga, nv);
-  /* 8 : chauffage et climatisation, une zone = un numéro */
-  if(zones.length && !P.airzone){
-    var g8=principal(8, "Chauffage Climatisation");
-    var zc=milieu(g8, 0, "CMD On-Off"), ze=milieu(g8, 1, "I/E On-Off"),
-        cc=milieu(g8, 2, "CMD Consigne"), ce=milieu(g8, 3, "I/E Consigne"), ta=milieu(g8, 4, "Temperature ambiante"),
-        mc=milieu(g8, 5, "CMD Mode chaud-froid"), me=milieu(g8, 6, "I/E Mode chaud-froid"), de=milieu(g8, 7, "I/E Defaut");
-    zones.forEach(function(z, n){
-      ga(zc, n, z.nom, DPT.bool); ga(ze, n, z.nom, DPT.bool);
-      ga(cc, n, z.nom, DPT.temp); ga(ce, n, z.nom, DPT.temp); ga(ta, n, z.nom, DPT.temp);
-      if(z.froid){ ga(mc, n, z.nom, DPT.modeCvc); ga(me, n, z.nom, DPT.modeCvc); }
-      ga(de, n, z.nom, DPT.alarme);
-    });
-  }
-  /* 17 : les scénarios */
-  var sc=(P.scenarios||[]).map(nomPropre).filter(Boolean);
-  if(sc.length){
-    var g17=principal(17, "Scenarios"), am=milieu(g17, 1, "Ambiance");
-    sc.forEach(function(t, n){ ga(am, n, t, DPT.scene); });
-  }
-  /* on ne garde que ce qui porte des adresses */
-  G.forEach(function(g){ g.mids=g.mids.filter(function(m){ return m.gas.length; }); });
-  return G.filter(function(g){ return g.mids.length; });
-}
-/* Airzone, tel que dans nos projets :
-   - multizone (gainable) : System (demandes, défaut, date, heure), Zones
-     (6 adresses par zone : défaut, état, commande, consigne état et
-     commande, température), étages chaud et froid en commande et en état ;
-   - monozone : System (défaut, texte, heures, filtre, ventilation), Zones
-     (5 adresses : état, commande, consignes, température) ;
-   - groupe 16 « VRV » : modes, date et heure, étages, marche générale,
-     consignes générales. */
-function systemesUtilises(){
-  var v={};
-  P.pieces.forEach(function(p){ if(p.clim!=="non") v[p.systeme||1]=1; });
-  return Object.keys(v).map(Number).sort(function(a, b){ return a-b; });
-}
-/* le numéro de zone Airzone de chaque pièce : choisi, ou le suivant libre
-   dans son système, dans l'ordre des pièces */
-function numerosZones(){
-  var pris={}, out={};
-  P.pieces.forEach(function(p){
-    if(p.clim==="non" || !p.zoneAz) return;
-    var s=p.systeme||1; pris[s]=pris[s]||{}; pris[s][p.zoneAz]=1; out[p.id]=p.zoneAz;
+  $("v_ok").addEventListener("click", function(){
+    var c=$("v_code").value.trim();
+    if(!c){ $("v_code").focus(); return; }
+    demander({code:c}, true);
   });
-  piecesOrdonnees().forEach(function(p){
-    if(p.clim==="non" || p.zoneAz) return;
-    var s=p.systeme||1, n=1; pris[s]=pris[s]||{};
-    while(pris[s][n]) n++;
-    pris[s][n]=1; out[p.id]=n;
-  });
-  return out;
-}
-function typeSysteme(n){ return (P.systemes||{})[n] || "multi"; }
-function airzone(zones, principal, milieu, ga, nv){
-  var parSys={};
-  zones.forEach(function(z){ (parSys[z.systeme]=parSys[z.systeme]||[]).push(z); });
-  systemesUtilises().forEach(function(num){
-    var zs=parSys[num]; if(!zs) return;
-    var m=7+num, S="System"+("0"+num).slice(-2), mono=typeSysteme(num)==="mono";
-    var g=principal(m, "Airzone System "+("0"+num).slice(-2));
-    var sy=milieu(g, 0, "System"), zo=milieu(g, 1, "Zones");
-    if(mono){
-      ga(sy, 0, S+" - Error Status", DPT.alarme); ga(sy, 1, S+" - Error Texte", "DPST-16-1");
-      ga(sy, 2, S+" - Heure de fonctionnement Status", "DPST-7-7");
-      ga(sy, 3, S+" - Filtre Status", "DPST-1-2"); ga(sy, 4, S+" - Filtre control", "DPST-1-15");
-      ga(sy, 5, S+" - Ventilation control", DPT.pct); ga(sy, 6, S+" - Ventilation Status", DPT.pct);
-      zs.forEach(function(z, k){
-        var b=k*5, Z=S+" - Zone "+z.nom;
-        ga(zo, b, Z+" - On/off Status", DPT.bool); ga(zo, b+1, Z+" - On/off Control", DPT.bool);
-        ga(zo, b+2, Z+" - Temperature Setpoint Status", DPT.temp); ga(zo, b+3, Z+" - Temperature Setpoint Control", DPT.temp);
-        ga(zo, b+4, Z+" - Local Temperature Status", DPT.temp);
-      });
-      return;
-    }
-    ga(sy, 0, S+" - Air Demand Status", "DPST-1-3"); ga(sy, 1, S+" - Error status", DPT.alarme);
-    ga(sy, 12, S+" - Date Status", DPT.date); ga(sy, 13, S+" - Date Control", DPT.date);
-    ga(sy, 14, S+" - Time Status", DPT.heure); ga(sy, 15, S+" - Time Control", DPT.heure);
-    ga(sy, 16, S+" - Cool Demand Status", "DPST-1-3"); ga(sy, 17, S+" - Heat Demand Status", "DPST-1-3");
-    ga(sy, 18, S+" - Ground Demand Status", "DPST-1-3");
-    /* ZoneKK = le numéro de zone de la passerelle Airzone : c'est lui qui
-       permet ensuite de relier chaque adresse au bon objet */
-    zs.slice().sort(function(a, b){ return a.zoneAz-b.zoneAz; }).forEach(function(z, k){
-      var b=k*7, Z=S+" - Zone"+("0"+z.zoneAz).slice(-2)+" - "+z.nom;
-      ga(zo, b, Z+" - Error Status", DPT.alarme);
-      ga(zo, b+1, Z+" - On/off Status", DPT.bool); ga(zo, b+2, Z+" - On/off Control", DPT.bool);
-      ga(zo, b+3, Z+" - Temperature Setpoint Status", DPT.temp); ga(zo, b+4, Z+" - Temperature Setpoint Control", DPT.temp);
-      ga(zo, b+5, Z+" - Local Temperature Status", DPT.temp);
-      /* avec un thermostat Airzone, la zone mesure elle-même et donne l'humidité ;
-         sans, c'est une sonde KNX qui lui envoie la température */
-      if(z.thermostat) ga(zo, b+6, Z+" - Relative Moisture Status", "DPST-9-7");
-      else ga(zo, b+6, Z+" - Local Temperature Control", DPT.temp);
-    });
-    var sc=milieu(g, 2, "Heat & cool Stages Control"), ss=milieu(g, 3, "Heat & cool Stages Status");
-    ga(sc, 0, S+" - Heat Stages Control", "DPST-20-108"); ga(sc, 1, S+" - Cool Stages Control", "DPST-20-108");
-    ga(ss, 0, S+" - Heat Stages Status", "DPST-20-108"); ga(ss, 1, S+" - Cool Stages Status", "DPST-20-108");
-  });
-  var v=principal(16, "VRV");
-  var mo=milieu(v, 0, "MODES");
-  ga(mo, 2, "Operation Mode Status", DPT.modeCvc); ga(mo, 3, "Operation Mode Control", DPT.modeCvc);
-  [["Stop",4],["Cool",6],["Heat",8],["Fan",10],["Dry",12]].forEach(function(x){
-    ga(mo, x[1], x[0]+" Mode Status", DPT.bool); ga(mo, x[1]+1, x[0]+" Mode Control", DPT.bool);
-  });
-  var sy2=milieu(v, 1, "SYSTEM");
-  ga(sy2, 0, "DATE STATUS", DPT.date); ga(sy2, 1, "HEURE STATUS", DPT.heure);
-  ga(sy2, 2, "HEAT STAGES CONTROL", "DPST-20-108"); ga(sy2, 3, "COOL STAGES CONTROL", "DPST-20-108");
-  ga(sy2, 4, "HEAT STAGES STATUT", "DPST-20-108"); ga(sy2, 5, "COOL STAGES STATUT", "DPST-20-108");
-  var cg=milieu(v, 3, "Consigne global");
-  ga(cg, 0, "TEMPERATURE GENERAL", DPT.temp);
-  var k=1;
-  var nvZ=nv.filter(function(n){ return P.pieces.some(function(p){ return p.clim!=="non" && p.niveau===n; }); });
-  if(nvZ.length>1) nvZ.forEach(function(n){ ga(cg, k++, "TEMPERATURE " + nomPropre(n), DPT.temp); });
-  ga(cg, k, "I/E CONSIGNE", DPT.temp);
-  var co=milieu(v, 4, "COMMANDE"); ga(co, 0, "ON/OFF GENERAL", DPT.bool);
-}
-function compter(G){ var n=0; G.forEach(function(g){ g.mids.forEach(function(m){ n+=m.gas.length; }); }); return n; }
-function erreursNumerotation(G){
-  var e=[];
-  G.forEach(function(g){ g.mids.forEach(function(m){
-    if(m.gas.length && m.gas[m.gas.length-1].n>255) e.push(g.m+"/"+m.y+" dépasse 255 adresses");
-  }); });
-  if(P.airzone && systemesUtilises().some(function(n){ return n>8; })) e.push("Airzone : 8 systèmes au plus (groupes 8 à 15)");
-  if(P.airzone){
-    var vus={};
-    P.pieces.forEach(function(p){
-      if(p.clim==="non" || !p.zoneAz) return;
-      var k=(p.systeme||1)+"-"+p.zoneAz;
-      if(vus[k]) e.push("Système " + (p.systeme||1) + " : la zone " + p.zoneAz + " est donnée à deux pièces");
-      vus[k]=1;
-    });
-  }
-  return e;
-}
-
-/* ---------- le XML, au format d'export ETS ---------- */
-function attr(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
-function versXml(G){
-  var L=['<?xml version="1.0" encoding="utf-8" standalone="yes"?>', '<GroupAddress-Export xmlns="http://knx.org/xml/ga-export/01">'];
-  G.forEach(function(g){
-    var d=g.m*2048;
-    L.push('  <GroupRange Name="'+attr(g.nom)+'" RangeStart="'+Math.max(1,d)+'" RangeEnd="'+(d+2047)+'">');
-    g.mids.forEach(function(m){
-      var dm=d+m.y*256;
-      L.push('    <GroupRange Name="'+attr(m.nom)+'" RangeStart="'+Math.max(1,dm)+'" RangeEnd="'+(dm+255)+'">');
-      m.gas.forEach(function(a){
-        L.push('      <GroupAddress Name="'+attr(a.nom)+'" Address="'+g.m+"/"+m.y+"/"+a.n+'"'+(a.dpt ? ' DPTs="'+a.dpt+'"' : "")+' />');
-      });
-      L.push('    </GroupRange>');
-    });
-    L.push('  </GroupRange>');
-  });
-  L.push('</GroupAddress-Export>');
-  return "﻿" + L.join("\r\n") + "\r\n";
-}
-function telecharger(nom, contenu, type){
-  var b=new Blob([contenu], {type:type}), u=URL.createObjectURL(b), a=document.createElement("a");
-  a.href=u; a.download=nom; document.body.appendChild(a); a.click();
-  setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 800);
-}
-function nomFichier(ext){
-  var n=String(P.nom||"projet").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"") || "projet";
-  return "adresses-de-groupe-" + n + "." + ext;
-}
-
-/* ---------- les pièces ---------- */
-function champ(val, ph, fn){
-  var i=el("input"); i.type="text"; i.value=val||""; i.placeholder=ph||"";
-  i.addEventListener("input", function(){ fn(i.value); change(true); });
-  return i;
-}
-function choix(liste, val, fn){
-  var s=el("select");
-  liste.forEach(function(o){ var op=el("option", null, o[1]); op.value=o[0]; s.appendChild(op); });
-  s.value=val; s.addEventListener("change", function(){ fn(s.value); change(true); });
-  return s;
-}
-function bascule(txt, on, fn){
-  var b=el("button", "chip", txt); b.type="button"; b.setAttribute("aria-pressed", on ? "true" : "false");
-  b.addEventListener("click", function(){ var v=b.getAttribute("aria-pressed")!=="true"; b.setAttribute("aria-pressed", v ? "true" : "false"); fn(v); change(true); });
-  return b;
-}
-function fonction(titre, liste, types, defaut, ph){
-  var f=el("div", "fonction");
-  var t=el("div", "f-titre"); t.appendChild(el("span", null, titre));
-  var plus=el("button", "act petit", "+ Ajouter"); plus.type="button";
-  plus.setAttribute("aria-label", "Ajouter : " + titre.toLowerCase());
-  plus.addEventListener("click", function(){ liste.push(types ? {nom:"", type:defaut} : {nom:""}); change(); });
-  t.appendChild(plus); f.appendChild(t);
-  if(!liste.length) f.appendChild(el("p", "vide", "Aucun."));
-  liste.forEach(function(c, i){
-    var r=el("div", "circuit");
-    r.appendChild(champ(c.nom, ph, function(v){ c.nom=v; }));
-    if(types) r.appendChild(choix(types, c.type, function(v){ c.type=v; }));
-    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer");
-    x.addEventListener("click", function(){ liste.splice(i, 1); change(); });
-    r.appendChild(x); f.appendChild(r);
-  });
-  return f;
-}
-function peindrePieces(){
-  var host=$("pieces"); host.textContent="";
-  var nv=niveaux();
-  if(!P.pieces.length) host.appendChild(el("p", "vide", "Aucune pièce pour l'instant."));
-  P.pieces.forEach(function(p, i){
-    var c=el("div", "piece");
-    var tete=el("div", "p-tete");
-    var nom=champ(p.nom, "Nom de la pièce", function(v){ p.nom=v; });
-    nom.setAttribute("list", "dl_pieces"); nom.setAttribute("aria-label", "Nom de la pièce");
-    tete.appendChild(nom);
-    var ns=nv.slice(); if(p.niveau && ns.indexOf(p.niveau)<0) ns.push(p.niveau);
-    var sel=choix(ns.map(function(n){ return [n, n]; }), p.niveau, function(v){ p.niveau=v; });
-    sel.setAttribute("aria-label", "Niveau"); tete.appendChild(sel);
-    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer la pièce");
-    x.addEventListener("click", function(){ if(!window.confirm("Retirer « " + (p.nom||"cette pièce") + " » ?")) return; P.pieces.splice(i, 1); change(); });
-    tete.appendChild(x);
-    c.appendChild(tete);
-    c.appendChild(fonction("Éclairage", p.eclairage, TYPES_ECL, "tor", "Circuit (ex. Plafonnier, Spots)"));
-    c.appendChild(fonction("Volets et ouvrants", p.ouvrants, TYPES_OUV, "volet", "Ouvrant (ex. Baie, Fenêtre)"));
-    c.appendChild(fonction("Prises commandées", p.prises, null, null, "Prise (ex. TV, Lampe de chevet)"));
-    var o=el("div", "options");
-    var cl=el("span", "chip"); cl.setAttribute("aria-pressed", p.clim!=="non" ? "true" : "false");
-    var cs=choix(CLIM, p.clim, function(v){ p.clim=v; cl.setAttribute("aria-pressed", v!=="non" ? "true" : "false"); if(P.airzone) setTimeout(function(){ change(); }, 0); });
-    cs.setAttribute("aria-label", "Chauffage et climatisation"); cl.appendChild(cs);
-    o.appendChild(cl);
-    if(P.airzone && p.clim!=="non"){
-      var sz=el("span", "chip"); sz.setAttribute("aria-pressed", "true");
-      var ss=el("select");
-      for(var k=1;k<=8;k++){ var op=el("option", null, "Système " + k); op.value=k; ss.appendChild(op); }
-      ss.value=String(p.systeme||1); ss.setAttribute("aria-label", "Système Airzone");
-      ss.addEventListener("change", function(){ p.systeme=parseInt(ss.value, 10); change(); });
-      sz.appendChild(ss); o.appendChild(sz);
-      if(typeSysteme(p.systeme||1)!=="mono"){
-        var zc=el("span", "chip"); zc.setAttribute("aria-pressed", "true");
-        var zsel=el("select"), auto=numerosZones()[p.id];
-        var o0=el("option", null, "Zone " + auto + " (auto)"); o0.value="0"; zsel.appendChild(o0);
-        for(var z=1;z<=14;z++){ var oz=el("option", null, "Zone " + z); oz.value=z; zsel.appendChild(oz); }
-        zsel.value=String(p.zoneAz||0); zsel.setAttribute("aria-label", "Numéro de zone Airzone");
-        zsel.addEventListener("change", function(){ p.zoneAz=parseInt(zsel.value, 10); change(); });
-        zc.appendChild(zsel); o.appendChild(zc);
-        o.appendChild(bascule("Thermostat Airzone", p.thermostat!==false, function(v){ p.thermostat=v; }));
-      }
-    }
-    o.appendChild(bascule("Sonde de température", p.sonde, function(v){ p.sonde=v; }));
-    o.appendChild(bascule("Détecteur", p.detecteur, function(v){ p.detecteur=v; }));
-    c.appendChild(o);
-    host.appendChild(c);
-  });
-  peindreScenarios();
-  peindreSystemes();
-}
-function peindreSystemes(){
-  var bloc=$("blocAirzone"), host=$("systemes");
-  bloc.hidden=!P.airzone; host.textContent="";
-  if(!P.airzone) return;
-  var sys=systemesUtilises();
-  if(!sys.length){ host.appendChild(el("p", "vide", "Aucune pièce chauffée pour l'instant.")); return; }
-  sys.forEach(function(n){
-    var r=el("div", "systeme");
-    r.appendChild(el("b", null, String(7+n)));
-    var noms=P.pieces.filter(function(p){ return p.clim!=="non" && (p.systeme||1)===n; }).map(function(p){ return p.nom || "sans nom"; });
-    var t=el("span"); t.textContent="Système " + n + " : " + noms.join(", "); r.appendChild(t);
-    var s=choix([["multi","Multizone"],["mono","Monozone"]], typeSysteme(n), function(v){ P.systemes=P.systemes||{}; P.systemes[n]=v; setTimeout(function(){ change(); }, 0); });
-    s.setAttribute("aria-label", "Type du système " + n); r.appendChild(s);
-    if(typeSysteme(n)!=="mono"){
-      var ad=el("input"); ad.type="text"; ad.inputMode="decimal"; ad.placeholder="Adresse (1.1.60)";
-      ad.value=(P.adressesAz||{})[n]||""; ad.className="adr-phys";
-      ad.setAttribute("aria-label", "Adresse physique de la passerelle du système " + n);
-      ad.addEventListener("input", function(){
-        P.adressesAz=P.adressesAz||{}; P.adressesAz[n]=ad.value.trim();
-        ad.classList.toggle("faux", !!ad.value.trim() && !ADRESSE_PHYS.test(ad.value.trim()));
-        sauverLocal(); peindreFiche();
-      });
-      r.appendChild(ad);
-    }
-    host.appendChild(r);
-  });
-  peindreFiche();
-}
-function peindreScenarios(){
-  var host=$("scenarios"); host.textContent="";
-  P.scenarios.forEach(function(t, i){
-    var r=el("div", "circuit");
-    r.appendChild(champ(t, "Scénario", function(v){ P.scenarios[i]=v; }));
-    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer le scénario");
-    x.addEventListener("click", function(){ P.scenarios.splice(i, 1); change(); });
-    r.appendChild(x); host.appendChild(r);
-  });
-}
-
-/* ---------- l'aperçu ---------- */
-var OUVERTS={};
-function peindreApercu(){
-  var G=generer(), host=$("arbre"); host.textContent="";
-  peindreFiche();
-  var n=compter(G);
-  $("total").textContent = n + " adresse" + (n>1 ? "s" : "");
-  $("b_xml").disabled = !P.pieces.length;
-  erreursNumerotation(G).forEach(function(t){ host.appendChild(el("div", "alerte", t)); });
-  G.forEach(function(g){
-    var d=el("details"); if(OUVERTS[g.m]) d.open=true;
-    d.addEventListener("toggle", function(){ OUVERTS[g.m]=d.open; });
-    var s=el("summary"); s.appendChild(el("span", "adr", String(g.m))); s.appendChild(el("span", null, g.nom));
-    var nb=0; g.mids.forEach(function(m){ nb+=m.gas.length; });
-    s.appendChild(el("span", "n", nb + " adr.")); d.appendChild(s);
-    g.mids.forEach(function(m){
-      var b=el("div", "mid"); b.appendChild(el("h3", null, g.m + "/" + m.y + "  " + m.nom));
-      m.gas.forEach(function(a){
-        var r=el("div", "ga");
-        r.appendChild(el("span", "a", g.m + "/" + m.y + "/" + a.n)); r.appendChild(el("span", null, a.nom)); r.appendChild(el("span", "d", dptCourt(a.dpt)));
-        b.appendChild(r);
-      });
-      d.appendChild(b);
-    });
-    host.appendChild(d);
-  });
-  if(!G.length) host.appendChild(el("p", "vide", "Ajoutez des pièces pour voir les adresses."));
-}
-
-/* ---------- analyser un export ETS ---------- */
-var NS="http://knx.org/xml/ga-export/01";
-function lireXml(texte){
-  var doc=new DOMParser().parseFromString(texte.replace(/^﻿/, ""), "application/xml");
-  if(doc.getElementsByTagName("parsererror").length) throw new Error("Ce fichier n'est pas un XML lisible.");
-  var racine=doc.documentElement;
-  if(!racine || racine.localName!=="GroupAddress-Export") throw new Error("Ce n'est pas un export d'adresses de groupe ETS.");
-  var G=[];
-  Array.prototype.forEach.call(racine.children, function(g){
-    if(g.localName!=="GroupRange") return;
-    var gp={nom:g.getAttribute("Name")||"", mids:[], seules:[]};
-    Array.prototype.forEach.call(g.children, function(m){
-      if(m.localName==="GroupAddress"){ gp.seules.push(adresse(m)); return; }
-      if(m.localName!=="GroupRange") return;
-      var md={nom:m.getAttribute("Name")||"", gas:[]};
-      Array.prototype.forEach.call(m.getElementsByTagNameNS(NS, "GroupAddress"), function(a){ md.gas.push(adresse(a)); });
-      gp.mids.push(md);
-    });
-    G.push(gp);
-  });
-  return G;
-}
-function adresse(a){
-  var ad=a.getAttribute("Address")||"", p=ad.split("/").map(function(x){ return parseInt(x, 10); });
-  return {nom:(a.getAttribute("Name")||"").trim(), adr:ad, m:p[0], y:p[1], n:p[2], dpt:a.getAttribute("DPTs")||""};
-}
-function analyser(G){
-  var tout=[], sansDpt=[], ecarts=[], dptsBizarres=[], doublons=[], vus={};
-  G.forEach(function(g){
-    g.mids.forEach(function(m){
-      m.gas.forEach(function(a){
-        tout.push(a);
-        if(!a.dpt) sansDpt.push(a);
-        if(vus[a.adr]) doublons.push(a.adr); vus[a.adr]=1;
-      });
-    });
-    /* les sous-groupes « listes de circuits » : même numéro, même circuit
-       (la date, les centrales ou un système de clim n'en sont pas) */
-    var listes=[];
-    if(g.mids.length>1){
-      var ref={}; g.mids[0].gas.forEach(function(a){ ref[a.n]=a.nom; });
-      g.mids.slice(1).forEach(function(m){
-        var memes=m.gas.filter(function(a){ return ref[a.n]!==undefined && norm(ref[a.n])===norm(a.nom); }).length;
-        if(!m.gas.length || memes*2 < m.gas.length) return;
-        listes.push(m);
-        m.gas.forEach(function(a){
-          var r=ref[a.n];
-          if(r!==undefined && norm(r)!==norm(a.nom)) ecarts.push(a.adr + " « " + a.nom + " » ≠ " + g.mids[0].gas.filter(function(x){ return x.n===a.n; })[0].adr + " « " + r + " »");
-        });
-      });
-      if(listes.length) listes.unshift(g.mids[0]);
-    }
-    /* dans une liste de circuits, un type de donnée qui tranche sur les autres */
-    listes.forEach(function(m){
-      var cpt={}, avec=0;
-      m.gas.forEach(function(a){ if(a.dpt){ cpt[a.dpt]=(cpt[a.dpt]||0)+1; avec++; } });
-      var maj=null, best=0; Object.keys(cpt).forEach(function(d){ if(cpt[d]>best){ best=cpt[d]; maj=d; } });
-      if(maj && best>=3 && best >= avec*0.7) m.gas.forEach(function(a){ if(a.dpt && a.dpt!==maj) dptsBizarres.push(a.adr + " " + a.nom + " : " + dptCourt(a.dpt) + " au lieu de " + dptCourt(maj)); });
-    });
-  });
-  return {tout:tout, sansDpt:sansDpt, ecarts:ecarts, dptsBizarres:dptsBizarres, doublons:doublons};
-}
-function norm(t){ return String(t||"").toUpperCase().replace(/\s+/g," ").trim(); }
-function liste(titre, items, max){
-  var d=el("div", "alerte"); var b=el("b", null, titre); d.appendChild(b);
-  var ul=el("ul"); items.slice(0, max||12).forEach(function(t){ ul.appendChild(el("li", null, t)); });
-  if(items.length>(max||12)) ul.appendChild(el("li", null, "… et " + (items.length-(max||12)) + " autres"));
-  d.appendChild(ul); return d;
-}
-var DERNIER_XML=null;
-function peindreAnalyse(G, nomFichierXml){
-  DERNIER_XML=G;
-  var A=analyser(G), host=$("analyse"); host.textContent="";
-  host.appendChild(el("p", "hint", nomFichierXml + " : " + G.length + " groupes principaux, " + A.tout.length + " adresses."));
-  var st=el("div", "stat");
-  G.forEach(function(g){
-    var n=0; g.mids.forEach(function(m){ n+=m.gas.length; });
-    if(n) st.appendChild(el("span", null, (g.mids[0] && g.mids[0].gas[0] ? g.mids[0].gas[0].m + " · " : "") + g.nom + " — " + n));
-  });
-  host.appendChild(st);
-  if(A.doublons.length) host.appendChild(liste("Adresses en double (" + A.doublons.length + ")", A.doublons));
-  if(A.ecarts.length) host.appendChild(liste("Même numéro, noms différents (" + A.ecarts.length + ") — à vérifier : la commande et l'état d'un circuit doivent porter le même numéro", A.ecarts, 40));
-  if(A.dptsBizarres.length) host.appendChild(liste("Type de donnée différent du reste du sous-groupe (" + A.dptsBizarres.length + ")", A.dptsBizarres));
-  if(A.sansDpt.length) host.appendChild(liste(A.sansDpt.length + " adresses sans type de donnée (DPT)", A.sansDpt.map(function(a){ return a.adr + " " + a.nom; }), 8));
-  if(!A.doublons.length && !A.ecarts.length && !A.dptsBizarres.length && !A.sansDpt.length) host.appendChild(el("div", "bon", "Rien à signaler."));
-  var b=el("button", "act", "Reprendre les pièces de ce fichier"); b.type="button";
-  b.addEventListener("click", reprendre);
-  var bx=el("div", "boutons"); bx.appendChild(b); host.appendChild(bx);
-}
-/* reconstruit un projet à partir d'un export : éclairage, ouvrants et
-   prises, circuit par circuit (une pièce par circuit, à regrouper ensuite) */
-function reprendre(){
-  var G=DERNIER_XML; if(!G) return;
-  if(P.pieces.length && !window.confirm("Remplacer les pièces du projet en cours par celles du fichier ?")) return;
-  var pieces={}, ordre=[];
-  function piece(nom){
-    var k=norm(nom);
-    if(!pieces[k]){ pieces[k]=nouvellePiece(titre(nom), niveaux()[0]); ordre.push(k); }
-    return pieces[k];
-  }
-  function titre(t){ t=String(t||"").trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); }
-  function mid(g, re){ return g.mids.filter(function(m){ return re.test(m.nom); })[0]; }
-  G.forEach(function(g){
-    var nom=norm(g.nom);
-    if(/^ECLAIRAGE$/.test(nom)){
-      var cmd=mid(g, /CMD\s*ON/i) || g.mids[0]; if(!cmd) return;
-      var varia=mid(g, /VARIATION|%/i), rvb=mid(g, /RVB|RGB/i);
-      cmd.gas.forEach(function(a){
-        var type="tor";
-        if(varia && varia.gas.some(function(x){ return x.n===a.n; })) type="var";
-        if(rvb && rvb.gas.some(function(x){ return norm(x.nom)===norm(a.nom); })) type="rvb";
-        piece(a.nom).eclairage.push({nom:"", type:type});
-      });
-    } else if(/^OUVRANTS$/.test(nom)){
-      var md=mid(g, /MONT|M\/D/i) || g.mids[0]; if(!md) return;
-      var lam=mid(g, /LAMELLE|LAMES|INCLINAISON/i);
-      md.gas.forEach(function(a){
-        if(/OFF\s*-\s*NC/i.test(a.nom)) return;
-        var type = /GARAGE/i.test(a.nom) ? "garage" : (/GACHE/i.test(a.nom) || a.dpt==="DPST-1-1") ? "gache" : (lam && lam.gas.some(function(x){ return x.n===a.n; })) ? "store" : "volet";
-        piece(a.nom).ouvrants.push({nom:"", type:type});
-      });
-    } else if(/^PRISES/.test(nom)){
-      var pc=g.mids[0]; if(!pc) return;
-      pc.gas.forEach(function(a){ piece(a.nom.replace(/^PCC\s+/i, "")).prises.push({nom:""}); });
-    }
-  });
-  P.pieces=ordre.map(function(k){ return pieces[k]; });
-  change();
-  toast(P.pieces.length + " pièces reprises : regroupez-les et donnez leurs niveaux.");
-}
-
-/* ---------- démarrage ---------- */
-function initProjet(){
-  $("p_nom").value=P.nom||""; $("p_niveaux").value=P.niveaux||"";
-  $("o_maj").setAttribute("aria-pressed", P.maj ? "true" : "false");
-  $("o_ext").setAttribute("aria-pressed", P.exterieur ? "true" : "false");
-  $("o_vmc").setAttribute("aria-pressed", P.vmc ? "true" : "false");
-  $("o_airzone").setAttribute("aria-pressed", P.airzone ? "true" : "false");
-  change();
-}
-P = charger() || vierge();
-var dl=el("datalist"); dl.id="dl_pieces";
-PIECES_TYPES.forEach(function(t){ var o=el("option"); o.value=t; dl.appendChild(o); });
-document.body.appendChild(dl);
-$("p_nom").addEventListener("input", function(){ P.nom=this.value; change(true); });
-$("p_niveaux").addEventListener("change", function(){ P.niveaux=this.value; change(); });
-[["o_maj","maj"],["o_ext","exterieur"],["o_vmc","vmc"]].forEach(function(o){
-  $(o[0]).addEventListener("click", function(){ P[o[1]]=!P[o[1]]; this.setAttribute("aria-pressed", P[o[1]] ? "true" : "false"); change(true); });
-});
-$("o_airzone").addEventListener("click", function(){
-  P.airzone=!P.airzone; this.setAttribute("aria-pressed", P.airzone ? "true" : "false"); change();
-});
-$("b_piece").addEventListener("click", function(){
-  P.pieces.push(nouvellePiece("", niveaux()[0])); change();
-  var ins=$("pieces").querySelectorAll(".p-tete input"); if(ins.length) ins[ins.length-1].focus();
-});
-$("b_scenario").addEventListener("click", function(){ P.scenarios.push(""); change(); });
-$("b_xml").addEventListener("click", function(){
-  var G=generer(), err=erreursNumerotation(G);
-  if(err.length){ toast(err[0]); return; }
-  telecharger(nomFichier("xml"), versXml(G), "application/xml");
-  toast(compter(G) + " adresses exportées.");
-});
-$("b_sauver").addEventListener("click", function(){ telecharger(nomFichier("json"), JSON.stringify(P, null, 1), "application/json"); });
-$("b_ouvrir").addEventListener("click", function(){ $("f_projet").click(); });
-$("f_projet").addEventListener("change", function(){
-  var f=this.files[0]; this.value=""; if(!f) return;
-  f.text().then(function(t){
-    var v=JSON.parse(t);
-    if(!v || !Array.isArray(v.pieces)) throw new Error();
-    P=Object.assign(vierge(), v); initProjet(); toast("Projet ouvert.");
-  }).catch(function(){ toast("Ce fichier n'est pas un projet KNX de l'outil."); });
-});
-$("b_analyser").addEventListener("click", function(){ $("f_xml").click(); });
-$("f_xml").addEventListener("change", function(){
-  var f=this.files[0]; this.value=""; if(!f) return;
-  f.text().then(function(t){ peindreAnalyse(lireXml(t), f.name); })
-    .catch(function(e){ $("analyse").textContent=""; $("analyse").appendChild(el("div", "alerte", e.message || "Fichier illisible.")); });
-});
-/* ---------- la fiche de liaisons Airzone ----------
-   Les objets de la passerelle ne bougent jamais : son adresse physique et
-   les zones saisies suffisent. */
-function adressesPourLiaisons(){
-  var out=[];
-  generer().forEach(function(g){ g.mids.forEach(function(m){ m.gas.forEach(function(a){
-    out.push({adr:g.m + "/" + m.y + "/" + a.n, brut:(g.m<<11)|(m.y<<8)|a.n, nom:a.nom});
-  }); }); });
-  return out;
-}
-function passerelles(){
-  var nz=numerosZones();
-  return systemesUtilises().filter(function(n){
-    return typeSysteme(n)!=="mono" && ADRESSE_PHYS.test((P.adressesAz||{})[n]||"");
-  }).map(function(n){
-    var zones={};
-    P.pieces.forEach(function(p){
-      if(p.clim==="non" || (p.systeme||1)!==n) return;
-      zones[nz[p.id]]={thermostat:p.thermostat!==false};
-    });
-    return {adresse:P.adressesAz[n], nom:"Airzone System " + ("0"+n).slice(-2), systeme:n, zones:zones};
-  });
-}
-var ADRESSE_PHYS=/^\d{1,2}\.\d{1,2}\.\d{1,3}$/;
-function peindreFiche(){
-  var host=$("ficheAz"); if(!host) return;
-  host.textContent="";
-  if(!P.airzone) return;
-  var apps=passerelles();
-  var bx=el("div", "boutons");
-  var b1=el("button", "act plein", "Fiche de liaisons à imprimer"); b1.type="button"; b1.disabled=!apps.length;
-  b1.addEventListener("click", function(){
-    var w=window.open("", "_blank");
-    if(!w){ toast("Autorisez l'ouverture de fenêtres pour la fiche."); return; }
-    w.document.open(); w.document.write(KnxLiaisons.fiche(adressesPourLiaisons(), passerelles(), P.nom)); w.document.close();
-    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
-  });
-  var b2=el("button", "act", "Tableau des liaisons (CSV)"); b2.type="button"; b2.disabled=!apps.length;
-  b2.addEventListener("click", function(){ telecharger(nomFichier("csv").replace("adresses-de-groupe-", "liaisons-airzone-"), KnxLiaisons.csv(adressesPourLiaisons(), passerelles()), "text/csv"); });
-  bx.appendChild(b1); bx.appendChild(b2); host.appendChild(bx);
-  if(!apps.length){ host.appendChild(el("p", "vide", "Donnez l'adresse physique de la passerelle (ex. 1.1.60) pour sortir la fiche.")); return; }
-  var r=KnxLiaisons.calculer(adressesPourLiaisons(), apps);
-  host.appendChild(el("p", "vide", r.liens.length + " liaisons sur " + apps.map(function(a){ return a.adresse; }).join(", ") + "."));
-  if(r.alertes.length){
-    var al=el("div", "alerte"), ul=el("ul");
-    al.appendChild(el("b", null, "À vérifier"));
-    r.alertes.forEach(function(t){ ul.appendChild(el("li", null, t)); });
-    al.appendChild(ul); host.appendChild(al);
-  }
-}
-initProjet();
-window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser};
+  $("v_code").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); $("v_ok").click(); } });
+  var cle=""; try{ cle=localStorage.getItem(CLE)||""; }catch(e){}
+  demander({cle:cle}, false);
 })();
 </script>
 </body>

@@ -2,6 +2,7 @@ import { getStore } from "./magasin.mjs";
 import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
+import { readFile } from "node:fs/promises";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis } from "./notifications.mjs";
 
 const INDEX = "_index";
@@ -293,6 +294,29 @@ function jetonPour(code, id, compte, date) {
   return Buffer.from(code + "|" + id + "|" + t + "|" + signer(code, id, t, compte), "utf8")
     .toString("base64");
 }
+/* ---------- l'outil KNX, réservé ----------
+   Son code est dans prive/, que le serveur ne sert jamais tel quel. Il ne
+   le livre qu'à l'administrateur, ou à une personne qui a son code
+   d'accès : un code par personne, tiré au sort par l'administrateur, dont
+   la base ne garde que l'empreinte. L'appareil qui l'a ouvert reçoit une
+   clé qui lui évite de retaper le code, et qui cesse de valoir dès que
+   l'administrateur en tire un nouveau ou le retire. */
+const ESSAIS_KNX = new Map();
+function codeKnx() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";          /* ni 0/O ni 1/I */
+  const b = randomBytes(8);
+  let t = "";
+  for (let i = 0; i < 8; i++) t += alphabet[b[i] % alphabet.length];
+  return "KNX-" + t.slice(0, 4) + "-" + t.slice(4);
+}
+function cleKnx(societe, id, compte) {
+  return createHmac("sha256", compte.knx.empreinte).update("knx|" + societe + "|" + id).digest("hex").slice(0, 32);
+}
+async function scriptKnx() {
+  const lire = (f) => readFile(new URL("../../prive/" + f, import.meta.url), "utf8");
+  return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js"));
+}
+
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
    propriétaire gardent tout, quoi qu'on leur attribue. */
@@ -575,7 +599,7 @@ function rang(f) {
    lectures, elles, ne s'attendent pas. */
 const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat", "tableau-bord"]);
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -766,6 +790,7 @@ async function traiter(req) {
       etatMdp: c.empreinte ? (c.aChanger ? "provisoire" : "personnel")
              : (c.motdepasse ? "ancien" : "aucun"),
       mdpMaj: c.mdpMaj || "",
+      knx: c.knx ? (c.knx.cree || "oui") : "",
       applis: applisValides(c.applis) })) });
   }
 
@@ -830,6 +855,54 @@ async function traiter(req) {
     }
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true, comptes: rendus, saufMoi: personne.identifiant });
+  }
+
+  /* l'outil KNX : l'administrateur tire au sort le code d'une personne,
+     montré une seule fois, ou le retire */
+  if (action === "knx-code" || action === "knx-retirer") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    const id = String(url.searchParams.get("identifiant") || "").trim().toLowerCase();
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
+    if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
+    if (action === "knx-retirer") {
+      delete comptes[i].knx;
+      await ecrireComptes(personne.societe, comptes);
+      return json({ ok: true });
+    }
+    const code = codeKnx();
+    comptes[i] = { ...comptes[i], knx: { empreinte: empreinteDe(code), cree: new Date().toISOString(), par: personne.nom } };
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, identifiant: id, nom: comptes[i].nom, code });
+  }
+  if (action === "knx-outil") {
+    let d = {};
+    try { d = await req.json(); } catch { d = {}; }
+    if (admin) return json({ script: await scriptKnx() });
+    const comptes = await lireComptes(personne.societe);
+    const compte = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === personne.identifiant);
+    if (!compte || !compte.knx || !compte.knx.empreinte) {
+      return json({ erreur: "Outil réservé : demandez votre code d'accès à l'administrateur.", sansCode: true }, 403);
+    }
+    const attendue = cleKnx(personne.societe, personne.identifiant, compte);
+    const cle = String(d.cle || "");
+    if (cle && cle.length === attendue.length && timingSafeEqual(Buffer.from(cle), Buffer.from(attendue))) {
+      return json({ script: await scriptKnx() });
+    }
+    if (!d.code) return json({ erreur: "Code d'accès nécessaire.", code: true }, 403);
+    /* cinq essais, puis un quart d'heure d'attente */
+    const k = personne.societe + "|" + personne.identifiant, now = Date.now();
+    const e = ESSAIS_KNX.get(k);
+    if (e && e.n >= 5 && now - e.depuis < 15 * 60 * 1000) {
+      return json({ erreur: "Trop d'essais : réessayez dans un quart d'heure." }, 429);
+    }
+    const code = String(d.code).trim().toUpperCase().replace(/\s+/g, "");
+    if (!empreinteJuste(code, compte.knx.empreinte)) {
+      ESSAIS_KNX.set(k, e && now - e.depuis < 15 * 60 * 1000 ? { n: e.n + 1, depuis: e.depuis } : { n: 1, depuis: now });
+      return json({ erreur: "Code d'accès incorrect." }, 403);
+    }
+    ESSAIS_KNX.delete(k);
+    return json({ script: await scriptKnx(), cle: attendue });
   }
 
   if (action === "compte-supprimer") {

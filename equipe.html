@@ -44,6 +44,8 @@ button.act.danger{background:#F8E4E0;color:var(--danger)}
 .hint{font-size:13px;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
 .err{font-size:13.5px;color:var(--danger);margin:8px 0 0;min-height:18px}
 .ligne{display:flex;align-items:center;gap:11px;padding:12px 0;border-bottom:1px solid var(--rule)}
+.ligne{flex-wrap:wrap}
+.ligne button[hidden]{display:none}
 .ligne:last-child{border-bottom:0}
 .ligne b{display:block;font-size:15px}
 .ligne span{display:block;font-size:12.5px;color:var(--ink-3)}
@@ -565,13 +567,13 @@ function jourCourt(iso){
 }
 /* les codes provisoires ne s'affichent qu'une fois : ils ne sont nulle
    part ailleurs, et le site lui-même ne sait pas les relire. */
-function montrerProvisoires(liste){
+function montrerProvisoires(liste, titre){
   var host=$("provisoires"); host.textContent="";
   if(!liste || !liste.length) return;
   var b=document.createElement("div"); b.className="block";
   b.style.cssText="margin:14px 0 0;border:1px solid var(--accent)";
   var h=document.createElement("p"); h.className="legend";
-  h.textContent="À transmettre maintenant — ces codes ne seront plus affichés.";
+  h.textContent=titre || "À transmettre maintenant — ces codes ne seront plus affichés.";
   b.appendChild(h);
   liste.forEach(function(x){
     var l=document.createElement("p");
@@ -647,6 +649,35 @@ function peindre(comptes){
         })
         .catch(function(){ $("err").textContent="Pas de réseau."; });
     });
+    /* l'outil Adresses KNX est réservé : un code d'accès par personne */
+    if(c.role!=="admin"){
+      var kx=document.createElement("span"); kx.className="acces";
+      kx.textContent = c.knx ? "Outil KNX : code donné" + (c.knx.length>4 ? " le " + new Date(c.knx).toLocaleDateString("fr-FR") : "") : "Outil KNX : pas d'accès";
+      t.appendChild(kx);
+    }
+    var knx=document.createElement("button"); knx.className="act ghost"; knx.textContent = c.knx ? "Nouveau code KNX" : "Code KNX";
+    knx.title="Donner l'accès à l'outil Adresses de groupe KNX";
+    if(c.role==="admin") knx.hidden=true;
+    knx.addEventListener("click", function(){
+      if(c.knx && !window.confirm("Donner un nouveau code KNX à "+c.nom+" ?\n\nL'ancien cessera de fonctionner, sur tous ses appareils.")) return;
+      fetch(api("knx-code")+"&identifiant="+encodeURIComponent(c.identifiant), {headers:{"x-auth":S.jeton}})
+        .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+        .then(function(res){
+          if(!res.ok){ $("err").textContent=res.d.erreur||"Code refusé."; return; }
+          montrerProvisoires([{nom:res.d.nom, provisoire:res.d.code}], "Code d'accès à l'outil KNX, à transmettre maintenant — il ne sera plus affiché.");
+          chargerComptes();
+        })
+        .catch(function(){ $("err").textContent="Pas de réseau."; });
+    });
+    var knxOff=document.createElement("button"); knxOff.className="act ghost"; knxOff.textContent="Retirer KNX";
+    knxOff.hidden=!c.knx || c.role==="admin";
+    knxOff.addEventListener("click", function(){
+      if(!window.confirm("Retirer l'accès à l'outil KNX à "+c.nom+" ?")) return;
+      fetch(api("knx-retirer")+"&identifiant="+encodeURIComponent(c.identifiant), {headers:{"x-auth":S.jeton}})
+        .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+        .then(function(res){ if(!res.ok){ $("err").textContent=res.d.erreur||"Retrait refusé."; return; } chargerComptes(); })
+        .catch(function(){ $("err").textContent="Pas de réseau."; });
+    });
     var sup=document.createElement("button"); sup.className="act danger"; sup.textContent="×";
     sup.setAttribute("aria-label","Supprimer "+c.nom);
     sup.addEventListener("click", function(){
@@ -656,7 +687,7 @@ function peindre(comptes){
         .then(function(res){ if(!res.ok){ $("err").textContent=res.d.erreur||"Suppression refusée."; return; } chargerComptes(); })
         .catch(function(){ $("err").textContent="Pas de réseau."; });
     });
-    r.appendChild(t); r.appendChild(rl); r.appendChild(mod); r.appendChild(raz); r.appendChild(sup);
+    r.appendChild(t); r.appendChild(rl); r.appendChild(mod); r.appendChild(raz); r.appendChild(knx); r.appendChild(knxOff); r.appendChild(sup);
     host.appendChild(r);
   });
 }

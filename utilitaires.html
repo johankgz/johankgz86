@@ -481,9 +481,73 @@ main{max-width:520px}
 @media (hover:hover){
   .touches button:hover{filter:brightness(1.15)}
 }
+
+/* ---------- le fond des outils : aurore, grille et courant ----------
+   Une couche fixe sous tout le contenu : trois lueurs qui dérivent
+   lentement, la grille du papier technique, et des pistes de circuit où
+   passent des impulsions. Rien ne bouge si l'appareil le demande. */
+body{background:#0B1017}
+.fond-outils{position:fixed;inset:0;z-index:0;overflow:hidden;pointer-events:none;
+  background:radial-gradient(120% 90% at 50% 0%,#18212E 0%,#0E141C 55%,#0A0E14 100%)}
+.fond-outils .lueur{position:absolute;border-radius:50%;filter:blur(70px);opacity:.55;will-change:transform}
+.fond-outils .l1{width:56vmax;height:56vmax;left:-18vmax;top:-20vmax;background:radial-gradient(circle,#EA7A1E 0%,rgba(234,122,30,0) 68%);animation:derive1 26s ease-in-out infinite alternate}
+.fond-outils .l2{width:60vmax;height:60vmax;right:-22vmax;top:8vmax;background:radial-gradient(circle,#0891B2 0%,rgba(8,145,178,0) 66%);animation:derive2 32s ease-in-out infinite alternate}
+.fond-outils .l3{width:46vmax;height:46vmax;left:18vmax;bottom:-26vmax;background:radial-gradient(circle,#6D5BD0 0%,rgba(109,91,208,0) 66%);opacity:.35;animation:derive3 38s ease-in-out infinite alternate}
+@keyframes derive1{to{transform:translate(14vmax,10vmax) scale(1.15)}}
+@keyframes derive2{to{transform:translate(-16vmax,12vmax) scale(.9)}}
+@keyframes derive3{to{transform:translate(10vmax,-14vmax) scale(1.2)}}
+.fond-outils .grille{position:absolute;inset:0;opacity:.5;
+  background-image:linear-gradient(rgba(255,255,255,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,.045) 1px,transparent 1px);
+  background-size:32px 32px;
+  -webkit-mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 30%,transparent 100%);
+  mask-image:radial-gradient(ellipse 80% 70% at 50% 40%,#000 30%,transparent 100%)}
+.fond-outils svg{position:absolute;inset:0;width:100%;height:100%}
+.fond-outils .piste{fill:none;stroke:rgba(148,196,214,.13);stroke-width:1.6;stroke-linejoin:round}
+.fond-outils .noeud{fill:#0E141C;stroke:rgba(148,196,214,.28);stroke-width:1.6}
+.fond-outils .courant{fill:none;stroke-width:2.4;stroke-linecap:round;stroke-dasharray:70 1900;stroke-dashoffset:1970;
+  animation:courant 7s linear infinite;filter:drop-shadow(0 0 5px currentColor)}
+.fond-outils .courant.c{stroke:#22D3EE;color:#22D3EE}
+.fond-outils .courant.o{stroke:#FB923C;color:#FB923C}
+@keyframes courant{to{stroke-dashoffset:0}}
+header,main{position:relative;z-index:1}
+header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(160%) blur(16px);backdrop-filter:saturate(160%) blur(16px)}
+.carte-outil,.onglets{box-shadow:0 18px 40px -22px rgba(0,0,0,.7)}
+@media (prefers-reduced-motion:reduce){ .fond-outils *{animation:none!important} .fond-outils .courant{display:none} }
 </style>
 </head>
 <body>
+<div class="fond-outils" aria-hidden="true">
+  <div class="lueur l1"></div><div class="lueur l2"></div><div class="lueur l3"></div>
+  <div class="grille"></div>
+  <svg viewBox="0 0 1600 1000" preserveAspectRatio="xMidYMid slice">
+    <g class="pistes">
+      <path class="piste" d="M-20 180H220L300 260H520L560 220H760"/>
+      <path class="piste" d="M1620 140H1380L1300 220H1120L1080 180H900"/>
+      <path class="piste" d="M-20 620H160L240 540H420L480 600H640"/>
+      <path class="piste" d="M1620 700H1440L1360 780H1180L1120 720H980"/>
+      <path class="piste" d="M180 1020V880L260 800V700"/>
+      <path class="piste" d="M1420 -20V120L1340 200V320"/>
+      <path class="piste" d="M1620 460H1480L1420 400H1260"/>
+      <path class="piste" d="M-20 400H100L150 450H300"/>
+    </g>
+    <g>
+      <circle class="noeud" cx="760" cy="220" r="5"/><circle class="noeud" cx="900" cy="180" r="5"/>
+      <circle class="noeud" cx="640" cy="600" r="5"/><circle class="noeud" cx="980" cy="720" r="5"/>
+      <circle class="noeud" cx="260" cy="700" r="5"/><circle class="noeud" cx="1340" cy="320" r="5"/>
+      <circle class="noeud" cx="1260" cy="400" r="5"/><circle class="noeud" cx="300" cy="450" r="5"/>
+    </g>
+    <g>
+      <path class="courant c" d="M-20 180H220L300 260H520L560 220H760"/>
+      <path class="courant o" style="animation-delay:-2.5s;animation-duration:8s" d="M1620 140H1380L1300 220H1120L1080 180H900"/>
+      <path class="courant o" style="animation-delay:-4s;animation-duration:9s" d="M-20 620H160L240 540H420L480 600H640"/>
+      <path class="courant c" style="animation-delay:-1s;animation-duration:7.5s" d="M1620 700H1440L1360 780H1180L1120 720H980"/>
+      <path class="courant c" style="animation-delay:-5s;animation-duration:10s" d="M180 1020V880L260 800V700"/>
+      <path class="courant o" style="animation-delay:-3s;animation-duration:8.5s" d="M1420 -20V120L1340 200V320"/>
+      <path class="courant c" style="animation-delay:-6s;animation-duration:9.5s" d="M1620 460H1480L1420 400H1260"/>
+      <path class="courant o" style="animation-delay:-2s;animation-duration:6.5s" d="M-20 400H100L150 450H300"/>
+    </g>
+  </svg>
+</div>
 <header>
   <a class="menu" href="./index.html">Menu</a>
   <h1>Outils</h1>
