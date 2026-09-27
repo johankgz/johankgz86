@@ -2293,6 +2293,12 @@ function reprendreBrouillon(ref){
       .then(function(){ return s; });
   }).catch(function(){ return null; });
 }
+/* jeter une fiche mise de côté : elle ne revient plus */
+function jeterBrouillon(ref){
+  return window.storage.delete(cleBrouillon(ref)).catch(function(){})
+    .then(function(){ return lireIndexBrouillons(); })
+    .then(function(ix){ delete ix[refNette(ref)]; return ecrireIndexBrouillons(ix); });
+}
 /* ouverte sans chantier, l'appli propose de reprendre les fiches mises de côté */
 function proposerBrouillons(){
   lireIndexBrouillons().then(function(ix){
@@ -2305,13 +2311,16 @@ function proposerBrouillons(){
       +"border-radius:var(--r-field,8px);padding:12px 14px;margin:0 0 14px";
     var t=document.createElement("p");
     t.style.cssText="margin:0 0 8px;font-size:13px;color:var(--ink-3,#777)";
-    t.textContent="Fiches en cours sur d'autres chantiers — touchez pour reprendre :";
+    t.textContent="Mises de côté sur d'autres chantiers : touchez pour reprendre, ou jetez-les.";
     box.appendChild(t);
     refs.forEach(function(k){
       var it=ix[k];
-      var b=document.createElement("button"); b.type="button";
+      var ligne=document.createElement("span");
+      ligne.style.cssText="display:inline-flex;align-items:stretch;margin:0 8px 8px 0";
+      var b=document.createElement("button"); b.type="button"; b.className="br-reprendre";
       b.style.cssText="display:inline-block;margin:0 8px 8px 0;padding:8px 12px;border:1px solid var(--rule,#ddd);"
-        +"border-radius:var(--r-field,8px);background:var(--field,#f4f4f4);color:inherit;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer";
+        +"border-radius:var(--r-field,8px) 0 0 var(--r-field,8px);background:var(--field,#f4f4f4);color:inherit;font:inherit;font-size:13.5px;font-weight:600;cursor:pointer";
+      b.style.margin="0";
       b.textContent=(it.client ? it.client+"  ·  " : "")+it.ref;
       b.addEventListener("click", function(){
         b.disabled=true;
@@ -2327,7 +2336,18 @@ function proposerBrouillons(){
           });
         });
       });
-      box.appendChild(b);
+      var j=document.createElement("button"); j.type="button"; j.className="br-jeter";
+      j.title="Jeter cette fiche"; j.setAttribute("aria-label", "Jeter la fiche "+(it.client || it.ref));
+      j.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>';
+      j.style.cssText="display:inline-flex;align-items:center;justify-content:center;width:40px;padding:0;border:1px solid var(--rule,#ddd);border-left:0;"
+        +"border-radius:0 var(--r-field,8px) var(--r-field,8px) 0;background:var(--field,#f4f4f4);color:#B3261E;cursor:pointer";
+      j.addEventListener("click", function(){
+        if(!window.confirm("Jeter la fiche en cours de « "+(it.client || it.ref)+" » ?\n\nCe qui n'a pas été publié sera perdu.")) return;
+        j.disabled=true;
+        jeterBrouillon(it.ref).then(function(){ toast("Fiche jetée."); proposerBrouillons(); });
+      });
+      ligne.appendChild(b); ligne.appendChild(j);
+      box.appendChild(ligne);
     });
     main.insertBefore(box, main.firstChild);
   });
