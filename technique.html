@@ -622,6 +622,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .stepnav .dots button{color:var(--sur-fond-2);border-color:var(--trait-fond)}
 .stepnav .dots button[aria-current="true"]{background:var(--sur-fond);color:var(--g-900)}
 </style>
+<link rel="stylesheet" href="./sobre.css?v=20260927a">
 </head>
 <body>
 <header>
@@ -638,21 +639,17 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <main>
 
 <section id="tab-dossier">
-  <div class="block" style="padding:14px 18px">
-    <div class="row">
-      <button class="act danger" id="btnNew">Nouveau dépôt</button>
-      <span class="hint" style="flex:1;margin:0">Repartir de zéro efface les documents en attente sur cet appareil. Ceux déjà déposés restent sur le site.</span>
-    </div>
+  <div class="barre-fiche">
+    <button class="act ghost mini" id="btnDossierSite" title="Reprendre un dossier du site"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/><path d="M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>Reprendre</button>
+    <button class="act ghost mini" id="btnNew" title="Nouveau dépôt : Repartir de zéro efface les documents en attente sur cet appareil. Ceux déjà déposés restent sur le site."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg>Nouveau</button>
+    <span class="par-qui" id="parQui"></span>
   </div>
 
   <div class="block">
     <h2>Dossier</h2>
-    <div class="row" style="margin-bottom:14px">
-      <button class="act ghost" id="btnDossierSite">Reprendre un dossier</button>
-    </div>
     <label class="f"><span>Client</span><input type="text" id="c_client"></label>
     <div class="grid2">
-      <label class="f"><span>Référence travaux ou client</span><input type="text" id="c_ref"></label>
+      <label class="f"><span title="Référence travaux ou client">Référence</span><input type="text" id="c_ref"></label>
       <label class="f"><span>Date</span><input type="date" id="m_date"></label>
     </div>
     <label class="f"><span>Adresse</span><textarea id="c_adresse" rows="2" style="min-height:0"></textarea></label>
@@ -679,9 +676,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   <div class="block">
     <h2>Ajouter des documents</h2>
     <p class="legend">Les plans, les fiches techniques, les schémas, les notices : tout ce qui doit rester attaché au chantier. PDF, photo ou capture d'écran.</p>
-    <div class="row">
-      <button class="act solid" id="btnFichier">Choisir des fichiers</button>
-      <button class="act blue" id="btnPhoto">Photographier un document</button>
+    <div class="tuiles-act">
+      <button class="act solid" id="btnFichier" title="Choisir des fichiers"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/><path d="M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>Fichiers</button>
+      <button class="act blue" id="btnPhoto" title="Photographier un document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>Photo</button>
       <input type="file" id="fileDoc" accept="application/pdf,image/*" multiple hidden>
       <input type="file" id="filePhoto" accept="image/*" capture="environment" hidden>
     </div>
@@ -721,6 +718,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <nav id="nav" aria-label="Les onglets de cette fiche"></nav>
 <div class="toast" id="toast" hidden></div>
 
+<script src="./sobre.js?v=20260927a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1689,6 +1687,7 @@ function start(){
   var pending=2, sBrut=null, pBrut=null;
   function go(){
     P = pBrut ? Object.assign(blankPrefs(), pBrut) : blankPrefs();
+    if(window.Sobre) Sobre.ficheSociete(P).then(function(ch){ if(ch) try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} });
     S = sBrut ? Object.assign(blank(), sBrut) : blank();
     if(!S.meta) S.meta={date:aujourdhui(), objet:""};
     if(!Array.isArray(S.docs)) S.docs=[];
