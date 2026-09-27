@@ -1,19 +1,99 @@
-// Analyse de plan électrique — relais vers l'application Python « Plan- ».
+// Analyse de plan électrique — le comptage des symboles d'un plan PDF.
 //
-// Le navigateur n'envoie jamais le plan directement à l'analyseur : il le
-// dépose ici, avec son jeton de session. On vérifie que la personne est
-// connectée, puis on transmet le PDF à l'analyseur avec la clé partagée.
-// Personne d'autre ne peut ainsi faire tourner l'analyseur.
+// L'analyseur (le code Python du dépôt « Plan- ») est rangé dans le site,
+// dossier analyseur-plans/ : le serveur le lance lui-même, sur la même
+// machine, sans sous-domaine ni seconde application. Le navigateur dépose
+// le plan ici avec son jeton de session ; on vérifie que la personne est
+// connectée, puis on fait tourner l'analyse et on renvoie son résultat.
 //
-// Réglages (variables d'environnement de l'application du site) :
-//   PLAN_ANALYSE_URL   adresse de l'analyseur, ex. https://plan.votre-domaine.fr
-//   PLAN_ANALYSE_CLE   la même clé que PLAN_ANALYZER_KEY côté analyseur
+// Réglages facultatifs (variables d'environnement de l'application) :
+//   PLAN_PYTHON        le Python à utiliser ; par défaut celui de
+//                      analyseur-plans/.venv s'il existe, sinon python3
+//   PLAN_ANALYSE_URL   seulement pour garder un analyseur séparé : son
+//   PLAN_ANALYSE_CLE   adresse et sa clé (PLAN_ANALYZER_KEY côté analyseur)
 //
 // GET  /api/plan?etat=1   dit si l'analyseur est branché et joignable
 // POST /api/plan          multipart, champ « file » (PDF) ; options en
 //                         paramètres : page, zoom, images, variants
 
 import { sessionValide } from "./rapports.mjs";
+import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+/* l'analyseur rangé dans le site */
+const DOSSIER = fileURLToPath(new URL("../../analyseur-plans/", import.meta.url));
+const LANCEUR = join(DOSSIER, "analyser.py");
+function python() {
+  if (process.env.PLAN_PYTHON) return process.env.PLAN_PYTHON;
+  const venv = join(DOSSIER, ".venv", "bin", "python");
+  return existsSync(venv) ? venv : "python3";
+}
+/* lance le Python ; rend {code, sortie, erreurs} */
+function lancer(args, ms) {
+  return new Promise((resolve) => {
+    let sortie = "", erreurs = "", fini = false;
+    let p;
+    try { p = spawn(python(), [LANCEUR, ...args], { cwd: DOSSIER, env: { ...process.env, PYTHONIOENCODING: "utf-8" } }); }
+    catch (e) { resolve({ code: -1, sortie: "", erreurs: String((e && e.message) || e) }); return; }
+    const minuteur = setTimeout(() => { if (!fini) { fini = true; p.kill("SIGKILL"); resolve({ code: -2, sortie, erreurs: "délai dépassé" }); } }, ms);
+    p.stdout.setEncoding("utf8"); p.stderr.setEncoding("utf8");
+    p.stdout.on("data", (d) => { sortie += d; });
+    p.stderr.on("data", (d) => { if (erreurs.length < 20000) erreurs += d; });
+    p.on("error", (e) => { if (!fini) { fini = true; clearTimeout(minuteur); resolve({ code: -1, sortie, erreurs: String((e && e.message) || e) }); } });
+    p.on("close", (code) => { if (!fini) { fini = true; clearTimeout(minuteur); resolve({ code, sortie, erreurs }); } });
+  });
+}
+/* l'état de l'installation, gardé une minute */
+let ETAT = null, ETAT_LE = 0;
+async function etatLocal() {
+  if (ETAT && Date.now() - ETAT_LE < 60000) return ETAT;
+  const r = await lancer(["--verifier"], 30000);
+  let d = null;
+  try { d = JSON.parse(r.sortie); } catch { /* rien */ }
+  ETAT = d && d.pret
+    ? { branche: true, joignable: true, local: true, version: d.version || "" }
+    : { branche: true, joignable: false, local: true,
+        erreur: (d && d.erreur) || (r.code === -1 ? "Python introuvable (" + python() + ")" : (r.erreurs || "").trim().split("\n").pop() || "bibliothèques absentes") };
+  ETAT_LE = Date.now();
+  return ETAT;
+}
+/* deux analyses à la fois au plus : la machine est partagée */
+let EN_COURS = 0;
+const EN_COURS_MAX = 2;
+async function analyserIci(fichier, url) {
+  if (EN_COURS >= EN_COURS_MAX) return json({ erreur: "Deux plans sont déjà en cours d'analyse. Réessayez dans un instant." }, 503);
+  EN_COURS++;
+  const dossier = await mkdtemp(join(tmpdir(), "plan-"));
+  try {
+    const octets = Buffer.from(await fichier.arrayBuffer());
+    if (octets.subarray(0, 4).toString("latin1") !== "%PDF") return json({ erreur: "Le fichier n'est pas un PDF." }, 415);
+    const chemin = join(dossier, "plan.pdf");
+    await writeFile(chemin, octets);
+    const args = [chemin, "--nom", String(fichier.name || "plan.pdf").slice(0, 200)];
+    const page = url.searchParams.get("page"), zoom = url.searchParams.get("zoom");
+    if (page && /^\d{1,4}$/.test(page)) args.push("--page", page);
+    if (zoom && /^\d{1,2}(\.\d{1,2})?$/.test(zoom)) args.push("--zoom", zoom);
+    if (/^(0|false|non)$/i.test(url.searchParams.get("images") || "")) args.push("--sans-images");
+    if (/^(0|false|non)$/i.test(url.searchParams.get("variants") || "")) args.push("--sans-variantes");
+    const r = await lancer(args, DELAI);
+    if (r.code === -2) return json({ erreur: "L'analyse a pris trop de temps." }, 504);
+    if (r.code === -1) return json({ erreur: "Analyse de plan pas encore installée : Python introuvable." }, 503);
+    let d = null;
+    try { d = JSON.parse(r.sortie); } catch { /* rien */ }
+    if (r.code !== 0 || !d) {
+      const raison = (d && d.erreur) || (r.erreurs || "").trim().split("\n").pop() || "Analyse impossible.";
+      return json({ erreur: /No module named/.test(raison) ? "Analyse de plan pas encore installée : " + raison : raison }, r.code === 2 ? 422 : 500);
+    }
+    return new Response(r.sortie, { status: 200, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" } });
+  } finally {
+    EN_COURS--;
+    rm(dossier, { recursive: true, force: true }).catch(() => {});
+  }
+}
 
 const MAX_MO = 30;
 const DELAI = 170000;          /* un gros plan peut prendre du temps */
@@ -44,7 +124,7 @@ export default async (req) => {
   const { base, cle } = reglages();
 
   if (req.method === "GET") {
-    if (!base) return json({ branche: false, joignable: false });
+    if (!base) return json(await etatLocal());
     try {
       const r = await avecDelai(base + "/health", { headers: { Accept: "application/json" } }, 15000);
       const d = await r.json().catch(() => ({}));
@@ -56,7 +136,6 @@ export default async (req) => {
   }
 
   if (req.method !== "POST") return json({ erreur: "Méthode non prise en charge." }, 405);
-  if (!base) return json({ erreur: "L'analyse de plan n'est pas encore installée sur ce site." }, 503);
   const taille = Number(req.headers.get("content-length") || 0);
   if (taille > MAX_MO * 1024 * 1024) return json({ erreur: "Plan trop lourd (" + MAX_MO + " Mo au plus)." }, 413);
 
@@ -64,6 +143,7 @@ export default async (req) => {
   try { formulaire = await req.formData(); } catch { return json({ erreur: "Envoi illisible." }, 400); }
   const fichier = formulaire.get("file");
   if (!fichier || typeof fichier === "string") return json({ erreur: "Aucun plan reçu." }, 400);
+  if (!base) return analyserIci(fichier, url);
 
   const envoi = new FormData();
   envoi.append("file", fichier, fichier.name || "plan.pdf");

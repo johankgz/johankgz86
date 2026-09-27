@@ -345,20 +345,34 @@ Dites-moi ce que vous trouvez dans votre cPanel, et je fais le reste.
 
 ## Analyse de plan (essai)
 
-La page « Analyse de plan » compte les symboles d'un plan électrique PDF. Le
-calcul tourne à part, dans l'application Python du dépôt **Plan-**, installée
-sur un sous-domaine (par exemple `plan.votre-domaine.fr`). Le site lui
-transmet les plans des personnes connectées, avec une clé partagée : personne
-d'autre ne peut s'en servir.
+La page « Analyse de plan » compte les symboles d'un plan électrique PDF.
+L'analyseur (le code Python du dépôt **Plan-**) est **rangé dans le site**,
+dossier `analyseur-plans/` : le serveur du site le lance lui-même. Plus de
+sous-domaine, plus de seconde application, plus de clé à partager — il
+arrive avec chaque « Update from Remote ».
 
-1. Installez l'analyseur en suivant le README du dépôt **Plan-** (section
-   « Sur o2switch, branché sur Suivi travaux 360 ») : sous-domaine, Git™
-   Version Control, Setup Python App, `PLAN_ANALYZER_KEY`.
-2. Ici, dans **Setup Node.js App** › l'application du site › variables
-   d'environnement :
-   - `PLAN_ANALYSE_URL` = `https://plan.votre-domaine.fr`
-   - `PLAN_ANALYSE_CLE` = la même phrase secrète que `PLAN_ANALYZER_KEY`
-3. **Restart** de l'application du site.
+Il lui faut seulement ses deux bibliothèques Python (PyMuPDF et Pillow),
+installées **une seule fois** dans le Terminal de cPanel :
 
-La page « Analyse de plan » dit elle-même si l'analyseur est branché,
-injoignable, ou si la clé ne correspond pas.
+```bash
+cd ~/VOTREDOSSIER/analyseur-plans
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+```
+
+(`VOTREDOSSIER` : le dossier de l'application du site, le même que plus haut.)
+Le site trouve tout seul `analyseur-plans/.venv` ; pas besoin de redémarrer.
+Le dossier `.venv` n'est pas dans le dépôt : les mises à jour Git ne le
+touchent pas.
+
+La page « Analyse de plan » dit elle-même si l'installation est prête ; sinon
+elle rappelle ces trois lignes.
+
+- Si Python se trouve ailleurs (par exemple un environnement créé par
+  « Setup Python App »), indiquez son chemin dans la variable
+  d'environnement `PLAN_PYTHON` de l'application du site, puis **Restart**.
+- L'ancienne installation sur sous-domaine reste possible : si
+  `PLAN_ANALYSE_URL` et `PLAN_ANALYSE_CLE` sont réglées, le site continue de
+  lui envoyer les plans. Pour passer à l'analyseur intégré, **supprimez ces
+  deux variables** puis **Restart** ; le sous-domaine et son application
+  Python peuvent ensuite être retirés de cPanel.
