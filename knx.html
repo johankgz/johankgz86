@@ -1,0 +1,692 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<title>Adresses KNX — Suivi travaux 360</title>
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;--field:#F3F0E9;
+ --accent:#B4621A;--accent-soft:#FBEDE0;--ok:#3F6B52;--ok-soft:#EAF2ED;--rouge:#A03A33;--rouge-soft:#F8E4E0;
+ --r:10px;--mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;--shadow:0 1px 2px rgba(34,32,28,.06)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:15px;line-height:1.45;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(244,241,234,.9);backdrop-filter:saturate(180%) blur(18px);
+ -webkit-backdrop-filter:saturate(180%) blur(18px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:8px;
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+h1{font-size:20px;font-weight:700;letter-spacing:-.03em;margin:0;flex:1}
+.compte{font-size:12.5px;color:var(--ink-3);font-weight:600;font-variant-numeric:tabular-nums}
+main{max-width:1100px;margin:0 auto;padding:16px}
+.block{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);border:1px solid var(--rule);padding:16px;margin-bottom:14px}
+.block h2{font-size:16.5px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px}
+.hint{font-size:13px;color:var(--ink-3);margin:0 0 12px}
+label.l{display:block;font-size:12.5px;font-weight:600;color:var(--ink-2);margin:0 0 4px}
+input[type=text],select{font:inherit;font-size:15px;min-height:40px;padding:7px 10px;border:1px solid var(--rule);border-radius:8px;
+ background:#fff;color:var(--ink);width:100%}
+input[type=text]:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px;border-color:transparent}
+.ligne{display:flex;gap:10px;flex-wrap:wrap}
+.ligne > div{flex:1 1 200px;min-width:0}
+button{font:inherit;cursor:pointer}
+.act{min-height:40px;padding:0 14px;border-radius:8px;border:1px solid var(--rule);background:#fff;color:var(--ink);font-size:14px;font-weight:600}
+.act.plein{background:var(--accent);border-color:var(--accent);color:#fff}
+.act.petit{min-height:32px;padding:0 10px;font-size:13px}
+.act:active{transform:translateY(1px)}
+.act[disabled]{opacity:.45;cursor:default}
+.boutons{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.x{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:0;background:var(--field);color:var(--ink-2);font-size:18px;line-height:1;padding:0}
+.x:hover{background:var(--rouge-soft);color:var(--rouge)}
+
+/* pièces */
+.pieces{display:grid;gap:12px}
+@media (min-width:1500px){ .pieces{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.piece{border:1px solid var(--rule);border-radius:var(--r);background:#FCFBF8;padding:12px}
+.p-tete{display:flex;gap:8px;align-items:center;margin-bottom:10px}
+.p-tete input{font-weight:700}
+.p-tete select{width:auto;flex:0 0 96px}
+.fonction{border-top:1px dashed var(--rule);padding:8px 0 6px}
+.f-titre{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;font-weight:700;color:var(--ink-2);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px}
+.circuit{display:flex;gap:6px;align-items:center;margin-bottom:6px}
+.circuit input{flex:1 1 auto;min-height:36px;font-size:14px}
+.circuit select{flex:0 0 132px;min-height:36px;font-size:13.5px;width:auto}
+.circuit .x{width:30px;height:30px;font-size:16px}
+.options{display:flex;gap:6px;flex-wrap:wrap;padding-top:8px;border-top:1px dashed var(--rule)}
+.chip{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);
+ background:#fff;font-size:13px;font-weight:600;color:var(--ink-2)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:#EBC9A6;color:var(--accent)}
+.chip select{border:0;min-height:30px;padding:0 2px;width:auto;background:transparent;font-size:13px;font-weight:600;color:inherit}
+.vide{font-size:13px;color:var(--ink-3);margin:0 0 6px}
+
+/* aperçu */
+.arbre details{border-top:1px solid var(--rule)}
+.arbre details:first-child{border-top:0}
+.arbre summary{cursor:pointer;padding:8px 2px;font-weight:700;display:flex;gap:10px;align-items:baseline;list-style:none}
+.arbre summary::-webkit-details-marker{display:none}
+.arbre summary::before{content:"›";color:var(--ink-3);transition:transform .15s;display:inline-block;width:10px}
+.arbre details[open] > summary::before{transform:rotate(90deg)}
+.arbre summary .n{margin-left:auto;font-size:12px;color:var(--ink-3);font-weight:600}
+.arbre .adr{font-family:var(--mono);font-size:12.5px;color:var(--accent);flex:0 0 auto}
+.mid{margin:0 0 8px 18px}
+.mid h3{font-size:13px;margin:6px 0 4px;color:var(--ink-2);font-weight:700}
+.ga{display:grid;grid-template-columns:72px 1fr auto;gap:8px;font-size:13px;padding:3px 0;border-bottom:1px solid #F1EDE4}
+.ga:last-child{border-bottom:0}
+.ga .a{font-family:var(--mono);color:var(--ink-2)}
+.ga .d{font-family:var(--mono);font-size:12px;color:var(--ink-3)}
+
+/* analyse */
+.stat{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+.stat span{padding:6px 10px;border-radius:8px;background:var(--field);font-size:13px;font-weight:600}
+.alerte{padding:10px 12px;border-radius:8px;background:var(--rouge-soft);color:#6E2A24;font-size:13.5px;margin:8px 0}
+.alerte b{color:var(--rouge)}
+.alerte ul{margin:6px 0 0;padding-left:18px}
+.alerte li{margin:2px 0}
+.bon{padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:600;margin:8px 0}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#22201C;color:#fff;
+ padding:10px 16px;border-radius:10px;font-size:14px;z-index:50;max-width:90vw}
+.toast[hidden]{display:none}
+@media (min-width:980px){ .deux{display:grid;grid-template-columns:1.25fr 1fr;gap:14px;align-items:start} .deux .colle{position:sticky;top:76px} }
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Adresses de groupe KNX</h1>
+  <span class="compte" id="total"></span>
+</header>
+<main>
+  <div class="block">
+    <h2>Le projet</h2>
+    <p class="hint">Vous décrivez les pièces et ce qu'elles pilotent ; l'outil numérote les adresses de groupe comme dans vos projets ETS
+      (même rangement, même numéro pour un circuit dans chaque sous-groupe) et produit le fichier XML à importer dans ETS.</p>
+    <div class="ligne">
+      <div><label class="l" for="p_nom">Nom du projet</label><input type="text" id="p_nom" placeholder="ex. Maison DUPONT"></div>
+      <div><label class="l" for="p_niveaux">Niveaux, du bas vers le haut</label><input type="text" id="p_niveaux" placeholder="R-1, RDC, R+1"></div>
+    </div>
+    <div class="options" style="border-top:0;padding-top:12px">
+      <button type="button" class="chip" id="o_maj" aria-pressed="true">Noms en MAJUSCULES</button>
+      <button type="button" class="chip" id="o_ext" aria-pressed="false">Sonde extérieure</button>
+      <button type="button" class="chip" id="o_vmc" aria-pressed="false">VMC pilotée</button>
+    </div>
+  </div>
+
+  <div class="deux">
+    <div>
+      <div class="block">
+        <h2>Pièces</h2>
+        <p class="hint">Un circuit sans nom prend le nom de la pièce. L'ordre des pièces donne l'ordre des numéros.</p>
+        <div class="pieces" id="pieces"></div>
+        <div class="boutons">
+          <button type="button" class="act plein" id="b_piece">+ Ajouter une pièce</button>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Scénarios</h2>
+        <p class="hint">Un par ligne : repas, TV, départ, coucher…</p>
+        <div id="scenarios"></div>
+        <div class="boutons"><button type="button" class="act petit" id="b_scenario">+ Scénario</button></div>
+      </div>
+    </div>
+    <div class="colle">
+      <div class="block">
+        <h2>Le fichier pour ETS</h2>
+        <p class="hint">Dans ETS : Adresses de groupe › Importer › choisir le fichier XML.</p>
+        <div class="boutons" style="margin-top:0">
+          <button type="button" class="act plein" id="b_xml">Télécharger le XML</button>
+          <button type="button" class="act" id="b_sauver">Enregistrer le projet</button>
+          <button type="button" class="act" id="b_ouvrir">Ouvrir un projet</button>
+          <input type="file" id="f_projet" accept=".json,application/json" hidden>
+        </div>
+      </div>
+      <div class="block">
+        <h2>Aperçu</h2>
+        <div class="arbre" id="arbre"></div>
+      </div>
+      <div class="block">
+        <h2>Analyser un fichier ETS</h2>
+        <p class="hint">Un export XML des adresses de groupe : l'outil le résume et signale ce qui cloche (type de donnée manquant,
+          commande et état qui ne portent pas le même nom au même numéro…). « Reprendre » en tire les pièces pour un nouveau projet.</p>
+        <div class="boutons" style="margin-top:0">
+          <button type="button" class="act" id="b_analyser">Choisir un fichier XML</button>
+          <input type="file" id="f_xml" accept=".xml,text/xml,application/xml" hidden>
+        </div>
+        <div id="analyse"></div>
+      </div>
+    </div>
+  </div>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+function $(i){ return document.getElementById(i); }
+function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!==undefined) e.textContent=txt; return e; }
+var TEMPO=null;
+function toast(t){ var e=$("toast"); e.textContent=t; e.hidden=false; clearTimeout(TEMPO); TEMPO=setTimeout(function(){ e.hidden=true; }, 2600); }
+function uid(){ return Math.random().toString(36).slice(2, 9); }
+
+/* ---------- les types de données (DPT) ---------- */
+var DPT = {
+  bool:"DPST-1-1", montee:"DPST-1-8", stop:"DPST-1-7", alarme:"DPST-1-5",
+  pct:"DPST-5-1", relatif:"DPST-3-7", rvb:"DPST-232-600",
+  temp:"DPST-9-1", lux:"DPST-9-4", heure:"DPST-10-1", date:"DPST-11-1",
+  scene:"DPST-18-1", modeCvc:"DPST-20-105"
+};
+function dptCourt(d){ var m=/^DPST-(\d+)-(\d+)$/.exec(d||""); return m ? m[1]+"."+("00"+m[2]).slice(-3) : "—"; }
+
+var TYPES_ECL = [["tor","Tout ou rien"],["var","Variateur"],["rvb","Couleur RVB"]];
+var TYPES_OUV = [["volet","Volet roulant"],["store","Store à lamelles"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
+var CLIM = [["non","Pas de chauffage"],["chaud","Chauffage"],["chaudfroid","Chaud + froid"]];
+var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bureau","Chambre 1","Chambre 2","Chambre 3","Salle de bain",
+  "Salle d'eau","WC","Dégagement","Escalier","Buanderie","Cellier","Garage","Dressing","Terrasse","Jardin","Local technique"];
+
+/* ---------- le projet ---------- */
+var P = null;
+function vierge(){
+  return {nom:"", niveaux:"RDC, R+1", maj:true, exterieur:false, vmc:false,
+    pieces:[], scenarios:["Repas","TV","Départ","Coucher"]};
+}
+function nouvellePiece(nom, niveau){
+  return {id:uid(), nom:nom||"", niveau:niveau||niveaux()[0]||"", eclairage:[], ouvrants:[], prises:[], clim:"non", sonde:false, detecteur:false};
+}
+function niveaux(){
+  return String(P.niveaux||"").split(/[,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
+}
+function sauverLocal(){ try{ localStorage.setItem("knx:projet", JSON.stringify(P)); }catch(e){} }
+function charger(){
+  try{ var v=JSON.parse(localStorage.getItem("knx:projet")||"null"); if(v && Array.isArray(v.pieces)) return v; }catch(e){}
+  return null;
+}
+var TEMPO_APERCU=null;
+function change(sansRendu){
+  sauverLocal();
+  clearTimeout(TEMPO_APERCU);
+  TEMPO_APERCU=setTimeout(peindreApercu, 150);
+  if(!sansRendu) peindrePieces();
+}
+
+/* ---------- la numérotation, sur le modèle des projets ETS existants ----------
+   Un groupe principal par fonction, un sous-groupe par type d'objet
+   (commande, état, variation…), et le même numéro pour un circuit dans
+   chacun de ses sous-groupes : 1/1/7 commande la buanderie, 1/2/7 en
+   renvoie l'état, 1/3/7 la variation, etc. */
+function nomPropre(t){
+  t = String(t||"").replace(/\s+/g," ").trim();
+  return P.maj ? t.toLocaleUpperCase("fr-FR") : t;
+}
+function nomsCircuits(piece, liste){
+  var sansNom = liste.filter(function(c){ return !String(c.nom||"").trim(); }).length;
+  var k=0;
+  return liste.map(function(c){
+    if(String(c.nom||"").trim()) return nomPropre(c.nom);
+    k++;
+    return nomPropre(piece.nom + (sansNom>1 ? " " + k : ""));
+  });
+}
+function piecesOrdonnees(){
+  var nv=niveaux();
+  return P.pieces.slice().map(function(p, i){ return {p:p, i:i}; }).sort(function(a, b){
+    var na=nv.indexOf(a.p.niveau), nb=nv.indexOf(b.p.niveau);
+    if(na<0) na=99; if(nb<0) nb=99;
+    return na-nb || a.i-b.i;
+  }).map(function(x){ return x.p; });
+}
+function generer(){
+  var G=[];      /* [{m, nom, mids:[{y, nom, gas:[{n, nom, dpt}]}]}] */
+  function principal(m, nom){ var g={m:m, nom:nom, mids:[]}; G.push(g); return g; }
+  function milieu(g, y, nom){ var s={y:y, nom:nom, gas:[]}; g.mids.push(s); return s; }
+  function ga(s, n, nom, dpt){ s.gas.push({n:n, nom:nom, dpt:dpt}); }
+  var pcs=piecesOrdonnees(), nv=niveaux();
+
+  var ecl=[], ouv=[], pri=[], zones=[], sondes=[], dets=[];
+  pcs.forEach(function(p){
+    nomsCircuits(p, p.eclairage).forEach(function(nom, i){ ecl.push({nom:nom, type:p.eclairage[i].type, niveau:p.niveau}); });
+    nomsCircuits(p, p.ouvrants).forEach(function(nom, i){ ouv.push({nom:nom, type:p.ouvrants[i].type, niveau:p.niveau}); });
+    nomsCircuits(p, p.prises).forEach(function(nom){ pri.push({nom:"PCC "+nom}); });
+    if(p.clim!=="non") zones.push({nom:nomPropre(p.nom), froid:p.clim==="chaudfroid"});
+    if(p.sonde || p.clim!=="non") sondes.push(nomPropre(p.nom));
+    if(p.detecteur) dets.push(nomPropre(p.nom));
+  });
+  var aVar = ecl.some(function(c){ return c.type==="var" || c.type==="rvb"; });
+  var aFroid = zones.some(function(z){ return z.froid; });
+  var niveauxOuv = nv.filter(function(n){ return ouv.some(function(o){ return o.niveau===n && o.type!=="gache"; }); });
+  var niveauxEcl = nv.filter(function(n){ return ecl.some(function(o){ return o.niveau===n; }); });
+
+  /* 0 : les fonctions générales */
+  var g0=principal(0, "Fonctions General");
+  var s=milieu(g0, 0, "Time");
+  ga(s, 1, "DATE", DPT.date); ga(s, 2, "HEURE", DPT.heure);
+  if(ecl.length){
+    s=milieu(g0, 1, "Eclairage");
+    ga(s, 0, "ON-OFF GENERAL", DPT.bool); ga(s, 1, "I/E ON OFF", DPT.bool);
+    var k=2;
+    if(aVar){ ga(s, k++, "VAR ABSOLU GENERAL", DPT.pct); ga(s, k++, "VAR RELATIVE GENERAL", DPT.relatif); }
+    if(niveauxEcl.length>1) niveauxEcl.forEach(function(n){ ga(s, k++, "ON-OFF " + nomPropre(n), DPT.bool); });
+  }
+  var ouvMobiles = ouv.filter(function(o){ return o.type!=="gache"; });
+  if(ouvMobiles.length){
+    s=milieu(g0, 2, "Ouvrants");
+    ga(s, 0, "M/D GENERAL", DPT.montee); ga(s, 1, "STOP GENERAL", DPT.stop);
+    var k2=2;
+    if(niveauxOuv.length>1){
+      niveauxOuv.forEach(function(n){ ga(s, k2++, "M/D " + nomPropre(n), DPT.montee); });
+      niveauxOuv.forEach(function(n){ ga(s, k2++, "STOP " + nomPropre(n), DPT.stop); });
+    }
+  }
+  if(pri.length){ s=milieu(g0, 3, "Prises Commandees"); ga(s, 0, "ON-OFF GENERAL", DPT.bool); }
+  if(zones.length){
+    s=milieu(g0, 4, "Chauffage");
+    ga(s, 0, "ON-OFF GENERAL", DPT.bool);
+    if(aFroid){ ga(s, 1, "CHAUD", DPT.bool); ga(s, 2, "FROID", DPT.bool); ga(s, 3, "STOP", DPT.bool); ga(s, 4, "CONSIGNE GENERAL", DPT.temp); }
+    else ga(s, 1, "CONSIGNE GENERAL", DPT.temp);
+  }
+  if(dets.length){ s=milieu(g0, 5, "Detection"); dets.forEach(function(d, i){ ga(s, i, "TRIGGER M/S " + d, DPT.bool); }); }
+  s=milieu(g0, 6, "Mixte"); ga(s, 0, "JOUR/NUIT", DPT.bool); ga(s, 1, "I/E MODE NUIT", DPT.bool);
+
+  /* 1 : l'éclairage, un numéro par circuit */
+  if(ecl.length){
+    var g1=principal(1, "Eclairage");
+    var c1=milieu(g1, 1, "CMD On-Off"), e1=milieu(g1, 2, "I/E On-off");
+    var va=milieu(g1, 3, "CMD % Variation ABSOLUE 1bY"), vr=milieu(g1, 4, "CMD Variation RELATIVE 4b"), ev=milieu(g1, 5, "I/E % Variation");
+    var cr=milieu(g1, 6, "Commande RVB"), er=milieu(g1, 7, "I/E Commande RVB");
+    ecl.forEach(function(c, n){
+      ga(c1, n, c.nom, DPT.bool); ga(e1, n, c.nom, DPT.bool);
+      if(c.type==="var" || c.type==="rvb"){ ga(va, n, c.nom, DPT.pct); ga(vr, n, c.nom, DPT.relatif); ga(ev, n, c.nom, DPT.pct); }
+      if(c.type==="rvb"){ ga(cr, n, c.nom, DPT.rvb); ga(er, n, c.nom, DPT.rvb); }
+    });
+  }
+  /* 2 : les ouvrants */
+  if(ouv.length){
+    var g2=principal(2, "Ouvrants");
+    var md=milieu(g2, 1, "CMD Montee-Descente"), st=milieu(g2, 2, "Stop-Inclinaison"),
+        ph=milieu(g2, 3, "CMD % Hauteur"), eh=milieu(g2, 4, "I/E  Hauteur"), ed=milieu(g2, 5, "I/E Direction de mouvement"),
+        pl=milieu(g2, 6, "CMD % Lamelles"), el2=milieu(g2, 7, "I/E Lamelles");
+    ouv.forEach(function(o, n){
+      if(o.type==="gache"){ ga(md, n, o.nom, DPT.bool); return; }
+      ga(md, n, o.nom, DPT.montee); ga(st, n, o.nom, DPT.stop);
+      if(o.type==="garage"){ ga(ed, n, o.nom, DPT.montee); return; }
+      ga(ph, n, o.nom, DPT.pct); ga(eh, n, o.nom, DPT.pct); ga(ed, n, o.nom, DPT.montee);
+      if(o.type==="store"){ ga(pl, n, o.nom, DPT.pct); ga(el2, n, o.nom, DPT.pct); }
+    });
+  }
+  /* 3 : les prises commandées */
+  if(pri.length){
+    var g3=principal(3, "Prises Commandees");
+    var pc=milieu(g3, 1, "CMD On-Off"), pe=milieu(g3, 2, "I/E CMD on-off");
+    pri.forEach(function(p, n){ ga(pc, n, p.nom, DPT.bool); ga(pe, n, p.nom, DPT.bool); });
+  }
+  /* 4 : les températures mesurées */
+  if(sondes.length || P.exterieur){
+    var g4=principal(4, "Temperatures");
+    if(sondes.length){ var ti=milieu(g4, 0, "Temperatures interieur"); sondes.forEach(function(t, n){ ga(ti, n, t, DPT.temp); }); }
+    if(P.exterieur){ var te=milieu(g4, 1, "Temperatures Exterieur"); ga(te, 0, "EXTERIEUR", DPT.temp); }
+  }
+  /* 5 : la ventilation */
+  if(P.vmc){
+    var g5=principal(5, "Ventilation"), vm=milieu(g5, 0, "VMC");
+    ga(vm, 0, "VMC ON-OFF", DPT.bool); ga(vm, 1, "I/E VMC ON-OFF", DPT.bool);
+    ga(vm, 2, "VMC GRANDE VITESSE", DPT.bool); ga(vm, 3, "I/E VMC GRANDE VITESSE", DPT.bool);
+  }
+  /* 6 : la détection */
+  if(dets.length){
+    var g6=principal(6, "Detection");
+    var mv=milieu(g6, 0, "Mouvement"), lx=milieu(g6, 1, "Luminosite");
+    dets.forEach(function(d, n){ ga(mv, n, d, DPT.bool); ga(lx, n, d, DPT.lux); });
+  }
+  /* 8 : chauffage et climatisation, une zone = un numéro */
+  if(zones.length){
+    var g8=principal(8, "Chauffage Climatisation");
+    var zc=milieu(g8, 0, "CMD On-Off"), ze=milieu(g8, 1, "I/E On-Off"),
+        cc=milieu(g8, 2, "CMD Consigne"), ce=milieu(g8, 3, "I/E Consigne"), ta=milieu(g8, 4, "Temperature ambiante"),
+        mc=milieu(g8, 5, "CMD Mode chaud-froid"), me=milieu(g8, 6, "I/E Mode chaud-froid"), de=milieu(g8, 7, "I/E Defaut");
+    zones.forEach(function(z, n){
+      ga(zc, n, z.nom, DPT.bool); ga(ze, n, z.nom, DPT.bool);
+      ga(cc, n, z.nom, DPT.temp); ga(ce, n, z.nom, DPT.temp); ga(ta, n, z.nom, DPT.temp);
+      if(z.froid){ ga(mc, n, z.nom, DPT.modeCvc); ga(me, n, z.nom, DPT.modeCvc); }
+      ga(de, n, z.nom, DPT.alarme);
+    });
+  }
+  /* 17 : les scénarios */
+  var sc=(P.scenarios||[]).map(nomPropre).filter(Boolean);
+  if(sc.length){
+    var g17=principal(17, "Scenarios"), am=milieu(g17, 1, "Ambiance");
+    sc.forEach(function(t, n){ ga(am, n, t, DPT.scene); });
+  }
+  /* on ne garde que ce qui porte des adresses */
+  G.forEach(function(g){ g.mids=g.mids.filter(function(m){ return m.gas.length; }); });
+  return G.filter(function(g){ return g.mids.length; });
+}
+function compter(G){ var n=0; G.forEach(function(g){ g.mids.forEach(function(m){ n+=m.gas.length; }); }); return n; }
+function erreursNumerotation(G){
+  var e=[];
+  G.forEach(function(g){ g.mids.forEach(function(m){
+    if(m.gas.length && m.gas[m.gas.length-1].n>255) e.push(g.m+"/"+m.y+" dépasse 255 adresses");
+  }); });
+  return e;
+}
+
+/* ---------- le XML, au format d'export ETS ---------- */
+function attr(v){ return String(v).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function versXml(G){
+  var L=['<?xml version="1.0" encoding="utf-8" standalone="yes"?>', '<GroupAddress-Export xmlns="http://knx.org/xml/ga-export/01">'];
+  G.forEach(function(g){
+    var d=g.m*2048;
+    L.push('  <GroupRange Name="'+attr(g.nom)+'" RangeStart="'+Math.max(1,d)+'" RangeEnd="'+(d+2047)+'">');
+    g.mids.forEach(function(m){
+      var dm=d+m.y*256;
+      L.push('    <GroupRange Name="'+attr(m.nom)+'" RangeStart="'+Math.max(1,dm)+'" RangeEnd="'+(dm+255)+'">');
+      m.gas.forEach(function(a){
+        L.push('      <GroupAddress Name="'+attr(a.nom)+'" Address="'+g.m+"/"+m.y+"/"+a.n+'"'+(a.dpt ? ' DPTs="'+a.dpt+'"' : "")+' />');
+      });
+      L.push('    </GroupRange>');
+    });
+    L.push('  </GroupRange>');
+  });
+  L.push('</GroupAddress-Export>');
+  return "﻿" + L.join("\r\n") + "\r\n";
+}
+function telecharger(nom, contenu, type){
+  var b=new Blob([contenu], {type:type}), u=URL.createObjectURL(b), a=document.createElement("a");
+  a.href=u; a.download=nom; document.body.appendChild(a); a.click();
+  setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 800);
+}
+function nomFichier(ext){
+  var n=String(P.nom||"projet").normalize("NFD").replace(/[̀-ͯ]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"") || "projet";
+  return "adresses-de-groupe-" + n + "." + ext;
+}
+
+/* ---------- les pièces ---------- */
+function champ(val, ph, fn){
+  var i=el("input"); i.type="text"; i.value=val||""; i.placeholder=ph||"";
+  i.addEventListener("input", function(){ fn(i.value); change(true); });
+  return i;
+}
+function choix(liste, val, fn){
+  var s=el("select");
+  liste.forEach(function(o){ var op=el("option", null, o[1]); op.value=o[0]; s.appendChild(op); });
+  s.value=val; s.addEventListener("change", function(){ fn(s.value); change(true); });
+  return s;
+}
+function bascule(txt, on, fn){
+  var b=el("button", "chip", txt); b.type="button"; b.setAttribute("aria-pressed", on ? "true" : "false");
+  b.addEventListener("click", function(){ var v=b.getAttribute("aria-pressed")!=="true"; b.setAttribute("aria-pressed", v ? "true" : "false"); fn(v); change(true); });
+  return b;
+}
+function fonction(titre, liste, types, defaut, ph){
+  var f=el("div", "fonction");
+  var t=el("div", "f-titre"); t.appendChild(el("span", null, titre));
+  var plus=el("button", "act petit", "+ Ajouter"); plus.type="button";
+  plus.setAttribute("aria-label", "Ajouter : " + titre.toLowerCase());
+  plus.addEventListener("click", function(){ liste.push(types ? {nom:"", type:defaut} : {nom:""}); change(); });
+  t.appendChild(plus); f.appendChild(t);
+  if(!liste.length) f.appendChild(el("p", "vide", "Aucun."));
+  liste.forEach(function(c, i){
+    var r=el("div", "circuit");
+    r.appendChild(champ(c.nom, ph, function(v){ c.nom=v; }));
+    if(types) r.appendChild(choix(types, c.type, function(v){ c.type=v; }));
+    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer");
+    x.addEventListener("click", function(){ liste.splice(i, 1); change(); });
+    r.appendChild(x); f.appendChild(r);
+  });
+  return f;
+}
+function peindrePieces(){
+  var host=$("pieces"); host.textContent="";
+  var nv=niveaux();
+  if(!P.pieces.length) host.appendChild(el("p", "vide", "Aucune pièce pour l'instant."));
+  P.pieces.forEach(function(p, i){
+    var c=el("div", "piece");
+    var tete=el("div", "p-tete");
+    var nom=champ(p.nom, "Nom de la pièce", function(v){ p.nom=v; });
+    nom.setAttribute("list", "dl_pieces"); nom.setAttribute("aria-label", "Nom de la pièce");
+    tete.appendChild(nom);
+    var ns=nv.slice(); if(p.niveau && ns.indexOf(p.niveau)<0) ns.push(p.niveau);
+    var sel=choix(ns.map(function(n){ return [n, n]; }), p.niveau, function(v){ p.niveau=v; });
+    sel.setAttribute("aria-label", "Niveau"); tete.appendChild(sel);
+    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer la pièce");
+    x.addEventListener("click", function(){ if(!window.confirm("Retirer « " + (p.nom||"cette pièce") + " » ?")) return; P.pieces.splice(i, 1); change(); });
+    tete.appendChild(x);
+    c.appendChild(tete);
+    c.appendChild(fonction("Éclairage", p.eclairage, TYPES_ECL, "tor", "Circuit (ex. Plafonnier, Spots)"));
+    c.appendChild(fonction("Volets et ouvrants", p.ouvrants, TYPES_OUV, "volet", "Ouvrant (ex. Baie, Fenêtre)"));
+    c.appendChild(fonction("Prises commandées", p.prises, null, null, "Prise (ex. TV, Lampe de chevet)"));
+    var o=el("div", "options");
+    var cl=el("span", "chip"); cl.setAttribute("aria-pressed", p.clim!=="non" ? "true" : "false");
+    var cs=choix(CLIM, p.clim, function(v){ p.clim=v; cl.setAttribute("aria-pressed", v!=="non" ? "true" : "false"); });
+    cs.setAttribute("aria-label", "Chauffage et climatisation"); cl.appendChild(cs);
+    o.appendChild(cl);
+    o.appendChild(bascule("Sonde de température", p.sonde, function(v){ p.sonde=v; }));
+    o.appendChild(bascule("Détecteur", p.detecteur, function(v){ p.detecteur=v; }));
+    c.appendChild(o);
+    host.appendChild(c);
+  });
+  peindreScenarios();
+}
+function peindreScenarios(){
+  var host=$("scenarios"); host.textContent="";
+  P.scenarios.forEach(function(t, i){
+    var r=el("div", "circuit");
+    r.appendChild(champ(t, "Scénario", function(v){ P.scenarios[i]=v; }));
+    var x=el("button", "x", "×"); x.type="button"; x.setAttribute("aria-label", "Retirer le scénario");
+    x.addEventListener("click", function(){ P.scenarios.splice(i, 1); change(); });
+    r.appendChild(x); host.appendChild(r);
+  });
+}
+
+/* ---------- l'aperçu ---------- */
+var OUVERTS={};
+function peindreApercu(){
+  var G=generer(), host=$("arbre"); host.textContent="";
+  var n=compter(G);
+  $("total").textContent = n + " adresse" + (n>1 ? "s" : "");
+  $("b_xml").disabled = !P.pieces.length;
+  erreursNumerotation(G).forEach(function(t){ host.appendChild(el("div", "alerte", t)); });
+  G.forEach(function(g){
+    var d=el("details"); if(OUVERTS[g.m]) d.open=true;
+    d.addEventListener("toggle", function(){ OUVERTS[g.m]=d.open; });
+    var s=el("summary"); s.appendChild(el("span", "adr", String(g.m))); s.appendChild(el("span", null, g.nom));
+    var nb=0; g.mids.forEach(function(m){ nb+=m.gas.length; });
+    s.appendChild(el("span", "n", nb + " adr.")); d.appendChild(s);
+    g.mids.forEach(function(m){
+      var b=el("div", "mid"); b.appendChild(el("h3", null, g.m + "/" + m.y + "  " + m.nom));
+      m.gas.forEach(function(a){
+        var r=el("div", "ga");
+        r.appendChild(el("span", "a", g.m + "/" + m.y + "/" + a.n)); r.appendChild(el("span", null, a.nom)); r.appendChild(el("span", "d", dptCourt(a.dpt)));
+        b.appendChild(r);
+      });
+      d.appendChild(b);
+    });
+    host.appendChild(d);
+  });
+  if(!G.length) host.appendChild(el("p", "vide", "Ajoutez des pièces pour voir les adresses."));
+}
+
+/* ---------- analyser un export ETS ---------- */
+var NS="http://knx.org/xml/ga-export/01";
+function lireXml(texte){
+  var doc=new DOMParser().parseFromString(texte.replace(/^﻿/, ""), "application/xml");
+  if(doc.getElementsByTagName("parsererror").length) throw new Error("Ce fichier n'est pas un XML lisible.");
+  var racine=doc.documentElement;
+  if(!racine || racine.localName!=="GroupAddress-Export") throw new Error("Ce n'est pas un export d'adresses de groupe ETS.");
+  var G=[];
+  Array.prototype.forEach.call(racine.children, function(g){
+    if(g.localName!=="GroupRange") return;
+    var gp={nom:g.getAttribute("Name")||"", mids:[], seules:[]};
+    Array.prototype.forEach.call(g.children, function(m){
+      if(m.localName==="GroupAddress"){ gp.seules.push(adresse(m)); return; }
+      if(m.localName!=="GroupRange") return;
+      var md={nom:m.getAttribute("Name")||"", gas:[]};
+      Array.prototype.forEach.call(m.getElementsByTagNameNS(NS, "GroupAddress"), function(a){ md.gas.push(adresse(a)); });
+      gp.mids.push(md);
+    });
+    G.push(gp);
+  });
+  return G;
+}
+function adresse(a){
+  var ad=a.getAttribute("Address")||"", p=ad.split("/").map(function(x){ return parseInt(x, 10); });
+  return {nom:(a.getAttribute("Name")||"").trim(), adr:ad, m:p[0], y:p[1], n:p[2], dpt:a.getAttribute("DPTs")||""};
+}
+function analyser(G){
+  var tout=[], sansDpt=[], ecarts=[], dptsBizarres=[], doublons=[], vus={};
+  G.forEach(function(g){
+    g.mids.forEach(function(m){
+      m.gas.forEach(function(a){
+        tout.push(a);
+        if(!a.dpt) sansDpt.push(a);
+        if(vus[a.adr]) doublons.push(a.adr); vus[a.adr]=1;
+      });
+    });
+    /* les sous-groupes « listes de circuits » : même numéro, même circuit
+       (la date, les centrales ou un système de clim n'en sont pas) */
+    var listes=[];
+    if(g.mids.length>1){
+      var ref={}; g.mids[0].gas.forEach(function(a){ ref[a.n]=a.nom; });
+      g.mids.slice(1).forEach(function(m){
+        var memes=m.gas.filter(function(a){ return ref[a.n]!==undefined && norm(ref[a.n])===norm(a.nom); }).length;
+        if(!m.gas.length || memes*2 < m.gas.length) return;
+        listes.push(m);
+        m.gas.forEach(function(a){
+          var r=ref[a.n];
+          if(r!==undefined && norm(r)!==norm(a.nom)) ecarts.push(a.adr + " « " + a.nom + " » ≠ " + g.mids[0].gas.filter(function(x){ return x.n===a.n; })[0].adr + " « " + r + " »");
+        });
+      });
+      if(listes.length) listes.unshift(g.mids[0]);
+    }
+    /* dans une liste de circuits, un type de donnée qui tranche sur les autres */
+    listes.forEach(function(m){
+      var cpt={}, avec=0;
+      m.gas.forEach(function(a){ if(a.dpt){ cpt[a.dpt]=(cpt[a.dpt]||0)+1; avec++; } });
+      var maj=null, best=0; Object.keys(cpt).forEach(function(d){ if(cpt[d]>best){ best=cpt[d]; maj=d; } });
+      if(maj && best>=3 && best >= avec*0.7) m.gas.forEach(function(a){ if(a.dpt && a.dpt!==maj) dptsBizarres.push(a.adr + " " + a.nom + " : " + dptCourt(a.dpt) + " au lieu de " + dptCourt(maj)); });
+    });
+  });
+  return {tout:tout, sansDpt:sansDpt, ecarts:ecarts, dptsBizarres:dptsBizarres, doublons:doublons};
+}
+function norm(t){ return String(t||"").toUpperCase().replace(/\s+/g," ").trim(); }
+function liste(titre, items, max){
+  var d=el("div", "alerte"); var b=el("b", null, titre); d.appendChild(b);
+  var ul=el("ul"); items.slice(0, max||12).forEach(function(t){ ul.appendChild(el("li", null, t)); });
+  if(items.length>(max||12)) ul.appendChild(el("li", null, "… et " + (items.length-(max||12)) + " autres"));
+  d.appendChild(ul); return d;
+}
+var DERNIER_XML=null;
+function peindreAnalyse(G, nomFichierXml){
+  DERNIER_XML=G;
+  var A=analyser(G), host=$("analyse"); host.textContent="";
+  host.appendChild(el("p", "hint", nomFichierXml + " : " + G.length + " groupes principaux, " + A.tout.length + " adresses."));
+  var st=el("div", "stat");
+  G.forEach(function(g){
+    var n=0; g.mids.forEach(function(m){ n+=m.gas.length; });
+    if(n) st.appendChild(el("span", null, (g.mids[0] && g.mids[0].gas[0] ? g.mids[0].gas[0].m + " · " : "") + g.nom + " — " + n));
+  });
+  host.appendChild(st);
+  if(A.doublons.length) host.appendChild(liste("Adresses en double (" + A.doublons.length + ")", A.doublons));
+  if(A.ecarts.length) host.appendChild(liste("Même numéro, noms différents (" + A.ecarts.length + ") — à vérifier : la commande et l'état d'un circuit doivent porter le même numéro", A.ecarts, 40));
+  if(A.dptsBizarres.length) host.appendChild(liste("Type de donnée différent du reste du sous-groupe (" + A.dptsBizarres.length + ")", A.dptsBizarres));
+  if(A.sansDpt.length) host.appendChild(liste(A.sansDpt.length + " adresses sans type de donnée (DPT)", A.sansDpt.map(function(a){ return a.adr + " " + a.nom; }), 8));
+  if(!A.doublons.length && !A.ecarts.length && !A.dptsBizarres.length && !A.sansDpt.length) host.appendChild(el("div", "bon", "Rien à signaler."));
+  var b=el("button", "act", "Reprendre les pièces de ce fichier"); b.type="button";
+  b.addEventListener("click", reprendre);
+  var bx=el("div", "boutons"); bx.appendChild(b); host.appendChild(bx);
+}
+/* reconstruit un projet à partir d'un export : éclairage, ouvrants et
+   prises, circuit par circuit (une pièce par circuit, à regrouper ensuite) */
+function reprendre(){
+  var G=DERNIER_XML; if(!G) return;
+  if(P.pieces.length && !window.confirm("Remplacer les pièces du projet en cours par celles du fichier ?")) return;
+  var pieces={}, ordre=[];
+  function piece(nom){
+    var k=norm(nom);
+    if(!pieces[k]){ pieces[k]=nouvellePiece(titre(nom), niveaux()[0]); ordre.push(k); }
+    return pieces[k];
+  }
+  function titre(t){ t=String(t||"").trim().toLowerCase(); return t.charAt(0).toUpperCase() + t.slice(1); }
+  function mid(g, re){ return g.mids.filter(function(m){ return re.test(m.nom); })[0]; }
+  G.forEach(function(g){
+    var nom=norm(g.nom);
+    if(/^ECLAIRAGE$/.test(nom)){
+      var cmd=mid(g, /CMD\s*ON/i) || g.mids[0]; if(!cmd) return;
+      var varia=mid(g, /VARIATION|%/i), rvb=mid(g, /RVB|RGB/i);
+      cmd.gas.forEach(function(a){
+        var type="tor";
+        if(varia && varia.gas.some(function(x){ return x.n===a.n; })) type="var";
+        if(rvb && rvb.gas.some(function(x){ return norm(x.nom)===norm(a.nom); })) type="rvb";
+        piece(a.nom).eclairage.push({nom:"", type:type});
+      });
+    } else if(/^OUVRANTS$/.test(nom)){
+      var md=mid(g, /MONT|M\/D/i) || g.mids[0]; if(!md) return;
+      var lam=mid(g, /LAMELLE/i);
+      md.gas.forEach(function(a){
+        if(/OFF\s*-\s*NC/i.test(a.nom)) return;
+        var type = /GARAGE/i.test(a.nom) ? "garage" : (/GACHE/i.test(a.nom) || a.dpt==="DPST-1-1") ? "gache" : (lam && lam.gas.some(function(x){ return x.n===a.n; })) ? "store" : "volet";
+        piece(a.nom).ouvrants.push({nom:"", type:type});
+      });
+    } else if(/^PRISES/.test(nom)){
+      var pc=g.mids[0]; if(!pc) return;
+      pc.gas.forEach(function(a){ piece(a.nom.replace(/^PCC\s+/i, "")).prises.push({nom:""}); });
+    }
+  });
+  P.pieces=ordre.map(function(k){ return pieces[k]; });
+  change();
+  toast(P.pieces.length + " pièces reprises : regroupez-les et donnez leurs niveaux.");
+}
+
+/* ---------- démarrage ---------- */
+function initProjet(){
+  $("p_nom").value=P.nom||""; $("p_niveaux").value=P.niveaux||"";
+  $("o_maj").setAttribute("aria-pressed", P.maj ? "true" : "false");
+  $("o_ext").setAttribute("aria-pressed", P.exterieur ? "true" : "false");
+  $("o_vmc").setAttribute("aria-pressed", P.vmc ? "true" : "false");
+  change();
+}
+P = charger() || vierge();
+var dl=el("datalist"); dl.id="dl_pieces";
+PIECES_TYPES.forEach(function(t){ var o=el("option"); o.value=t; dl.appendChild(o); });
+document.body.appendChild(dl);
+$("p_nom").addEventListener("input", function(){ P.nom=this.value; change(true); });
+$("p_niveaux").addEventListener("change", function(){ P.niveaux=this.value; change(); });
+[["o_maj","maj"],["o_ext","exterieur"],["o_vmc","vmc"]].forEach(function(o){
+  $(o[0]).addEventListener("click", function(){ P[o[1]]=!P[o[1]]; this.setAttribute("aria-pressed", P[o[1]] ? "true" : "false"); change(true); });
+});
+$("b_piece").addEventListener("click", function(){
+  P.pieces.push(nouvellePiece("", niveaux()[0])); change();
+  var ins=$("pieces").querySelectorAll(".p-tete input"); if(ins.length) ins[ins.length-1].focus();
+});
+$("b_scenario").addEventListener("click", function(){ P.scenarios.push(""); change(); });
+$("b_xml").addEventListener("click", function(){
+  var G=generer(), err=erreursNumerotation(G);
+  if(err.length){ toast(err[0]); return; }
+  telecharger(nomFichier("xml"), versXml(G), "application/xml");
+  toast(compter(G) + " adresses exportées.");
+});
+$("b_sauver").addEventListener("click", function(){ telecharger(nomFichier("json"), JSON.stringify(P, null, 1), "application/json"); });
+$("b_ouvrir").addEventListener("click", function(){ $("f_projet").click(); });
+$("f_projet").addEventListener("change", function(){
+  var f=this.files[0]; this.value=""; if(!f) return;
+  f.text().then(function(t){
+    var v=JSON.parse(t);
+    if(!v || !Array.isArray(v.pieces)) throw new Error();
+    P=Object.assign(vierge(), v); initProjet(); toast("Projet ouvert.");
+  }).catch(function(){ toast("Ce fichier n'est pas un projet KNX de l'outil."); });
+});
+$("b_analyser").addEventListener("click", function(){ $("f_xml").click(); });
+$("f_xml").addEventListener("change", function(){
+  var f=this.files[0]; this.value=""; if(!f) return;
+  f.text().then(function(t){ peindreAnalyse(lireXml(t), f.name); })
+    .catch(function(e){ $("analyse").textContent=""; $("analyse").appendChild(el("div", "alerte", e.message || "Fichier illisible.")); });
+});
+initProjet();
+window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser};
+})();
+</script>
+</body>
+</html>
