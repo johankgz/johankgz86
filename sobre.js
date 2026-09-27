@@ -222,7 +222,7 @@ function replierAides(racine){
     if(!longues.length) return;
     longues.forEach(function(p){ p.classList.add("aide-repliee"); });
     var bt = document.createElement("button");
-    bt.type = "button"; bt.className = "aide-i"; bt.textContent = "i";
+    bt.type = "button"; bt.className = "aide-i";
     bt.setAttribute("aria-label", "Aide"); bt.setAttribute("aria-expanded", "false");
     bt.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation();
