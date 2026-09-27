@@ -373,6 +373,13 @@ header .titres{min-width:0;flex:1}
 .zone .cible{cursor:pointer;outline:none}
 .zone .cible:hover{fill:rgba(234,122,30,.07)}
 .zone .cible:focus-visible{stroke:#0E7490;stroke-width:2}
+.zone .cible.vise{fill:rgba(8,145,178,.14);stroke:#0891B2;stroke-width:2}
+body.glisse,body.glisse .zone .cible{cursor:grabbing}
+body.mode-deplacer .zone .cible{cursor:copy}
+body.mode-deplacer .zone .cible:hover{fill:rgba(8,145,178,.12)}
+.boutons-sym{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.raccourcis{font-size:12px;margin:8px 0 0}
+@media (hover:none){ .raccourcis{display:none} }
 .bandeau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--card);color:var(--ink);margin:0 0 8px;font-size:13.5px}
 .bandeau[hidden]{display:none}
 .bandeau span{flex:1 1 200px}
@@ -627,9 +634,9 @@ var SYMBOLES={
     var m=(a+b)/2; T.l(x,a,x,m-16); croix(T,x,m-16); lame(T,x,m-14,m+14); T.l(x,m+14,x,b); }},
   disjdiff:{nom:"Disjoncteur différentiel", famille:"Protection", rep:"DD", t:["1P+N · 20 A","30 mA","Type A"], dessin:function(T,x,a,b){
     var m=(a+b)/2; T.l(x,a,x,m-22); croix(T,x,m-22); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
-  id:{nom:"Interrupteur différentiel", famille:"Protection", rep:"ID", t:["2P · 40 A","30 mA","Type AC"], dessin:function(T,x,a,b){
+  id:{nom:"Interrupteur différentiel", famille:"Protection", rep:"ID", t:["2P · 63 A","30 mA","Type AC"], dessin:function(T,x,a,b){
     var m=(a+b)/2; T.l(x,a,x,m-22); T.l(x-5,m-22,x+5,m-22,1.7); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
-  agcp:{nom:"Disjoncteur de branchement", famille:"Protection", rep:"AGCP", t:["2P 15/45 A","500 mA","Sélectif"], dessin:function(T,x,a,b){
+  agcp:{nom:"Disjoncteur de branchement", famille:"Protection", rep:"AGCP", t:["2P 30/60 A","500 mA","Sélectif"], dessin:function(T,x,a,b){
     var m=(a+b)/2; T.r(x-40,a+3,56,b-a-6,{sw:1.1,dash:"4 3"});
     T.l(x,a,x,m-22); croix(T,x,m-22); lame(T,x,m-20,m+6); T.l(x,m+6,x,b); tore(T,x,m+18); }},
   inter:{nom:"Interrupteur", famille:"Protection", rep:"I", t:["2P","40 A",""], dessin:function(T,x,a,b){
@@ -1005,7 +1012,8 @@ function numeroter(base){
 function sectionPour(calibre){
   var a=parseInt(String(calibre).replace(/[^\d]/g,""),10);
   if(!a) return "";
-  return a<=16 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : "";
+  /* 10 A : 1,5² ; 16 et 20 A : 2,5² */
+  return a<=10 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : "";
 }
 function cablePour(section, fils){
   if(!section) return "";
@@ -1064,7 +1072,7 @@ function peindre(){
     NIVEAUX.forEach(function(nv){
       var c=col.cases[nv.n];
       cible(cibles, x, nv.y0, COL, nv.y1-nv.y0, "Colonne "+(r.debut+k+1)+", "+nv.nom+(c&&SYMBOLES[c.sym]?" : "+SYMBOLES[c.sym].nom:" : vide"),
-        function(){ choisir(col.id, nv.n); });
+        function(){ choisir(col.id, nv.n); }, {col:col.id, n:nv.n});
     });
     cible(cibles, x, Y_TABLE, COL, Math.max(r.yFin-Y_TABLE, 30), "Colonne "+(r.debut+k+1)+", tableau du bas", function(){ choisir(col.id, 0); });
   });
@@ -1087,8 +1095,9 @@ function peindre(){
   $("titreChantier").textContent=(S.chantier.client||"Chantier non choisi")+(S.chantier.ref?" · "+S.chantier.ref:"")+" · "+(S.tableau||"")+" · indice "+(S.indice||"A");
   $("etatPub").textContent = S.publie ? ("Indice "+S.publie.indice+" publié le "+frDateS(S.publie.le)+(S.modifie?" · modifié depuis":"")) : "Pas encore publié";
 }
-function cible(hote, x, y, w, h, nom, fn){
+function cible(hote, x, y, w, h, nom, fn, casee){
   var r=document.createElementNS(NS,"rect");
+  if(casee){ r.setAttribute("data-col", casee.col); r.setAttribute("data-n", casee.n); r.addEventListener("pointerdown", function(e){ debutGlisse(e, casee); }); }
   r.setAttribute("x",x); r.setAttribute("y",y); r.setAttribute("width",w); r.setAttribute("height",h);
   r.setAttribute("fill","transparent"); r.setAttribute("class","cible");
   r.setAttribute("tabindex","0"); r.setAttribute("role","button"); r.setAttribute("aria-label",nom);
@@ -1096,7 +1105,87 @@ function cible(hote, x, y, w, h, nom, fn){
   r.addEventListener("keydown", function(e){ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); fn(); } });
   hote.appendChild(r);
 }
-function choisir(col, n){ SEL={col:col, n:n}; peindre(); ouvrirPanneau(); }
+function choisir(col, n){
+  if(A_DEPLACER && n){ var de=A_DEPLACER; A_DEPLACER=null; document.body.classList.remove("mode-deplacer"); deplacerSymbole(de, {col:col, n:n}); return; }
+  SEL={col:col, n:n}; peindre(); ouvrirPanneau();
+}
+
+/* ---------- déplacer ou retirer le symbole choisi ----------
+   Au doigt : « Déplacer », puis toucher la case d'arrivée. À la souris :
+   glisser le symbole d'une case à l'autre. Au clavier : les flèches le
+   déplacent d'une case, Suppr le retire. Une case d'arrivée occupée
+   échange les deux symboles. */
+var A_DEPLACER=null, GLISSE=null;
+function deplacerSymbole(de, vers){
+  var a=colonneParId(de.col), b=colonneParId(vers.col);
+  if(!a || !b || !a.cases[de.n] || !vers.n) return false;
+  if(a===b && de.n===vers.n){ SEL={col:vers.col, n:vers.n}; peindre(); ouvrirPanneau(); return false; }
+  var echange=!!b.cases[vers.n];
+  changer(function(){
+    var x=a.cases[de.n], y=b.cases[vers.n];
+    b.cases[vers.n]=x;
+    if(y) a.cases[de.n]=y; else delete a.cases[de.n];
+    remplirTable(a); if(b!==a) remplirTable(b);
+  });
+  SEL={col:vers.col, n:vers.n};
+  var i=indexCol(vers.col); if(i>=0) F=Math.floor(i/COLS_PAR_FOLIO);
+  peindre(); ouvrirPanneau();
+  toast(echange ? "Symboles échangés." : "Symbole déplacé.");
+  return true;
+}
+function retirerSymbole(){
+  if(!SEL || !SEL.n) return false;
+  var col=colonneParId(SEL.col); if(!col || !col.cases[SEL.n]) return false;
+  changer(function(){ delete col.cases[SEL.n]; remplirTable(col); });
+  ouvrirPanneau(); toast("Symbole retiré.");
+  return true;
+}
+function debutGlisse(e, casee){
+  if(e.pointerType==="touch" || e.button!==0) return;
+  var col=colonneParId(casee.col); if(!col || !col.cases[casee.n]) return;
+  GLISSE={de:casee, x:e.clientX, y:e.clientY, actif:false, vise:null};
+}
+function caseSous(x, y){
+  var t=document.elementFromPoint(x, y);
+  return t && t.classList && t.classList.contains("cible") && t.getAttribute("data-n") ? t : null;
+}
+document.addEventListener("pointermove", function(e){
+  if(!GLISSE) return;
+  if(!GLISSE.actif){
+    if(Math.abs(e.clientX-GLISSE.x)+Math.abs(e.clientY-GLISSE.y) < 8) return;
+    GLISSE.actif=true; document.body.classList.add("glisse");
+  }
+  var t=caseSous(e.clientX, e.clientY);
+  if(GLISSE.vise && GLISSE.vise!==t) GLISSE.vise.classList.remove("vise");
+  if(t) t.classList.add("vise");
+  GLISSE.vise=t;
+  e.preventDefault();
+});
+document.addEventListener("pointerup", function(e){
+  if(!GLISSE) return;
+  var g=GLISSE; GLISSE=null;
+  document.body.classList.remove("glisse");
+  if(g.vise) g.vise.classList.remove("vise");
+  if(!g.actif) return;
+  var t=caseSous(e.clientX, e.clientY);
+  if(t) deplacerSymbole(g.de, {col:t.getAttribute("data-col"), n:parseInt(t.getAttribute("data-n"),10)});
+});
+document.addEventListener("keydown", function(e){
+  var cible=e.target, saisie=cible && (/^(INPUT|TEXTAREA|SELECT)$/.test(cible.tagName) || cible.isContentEditable);
+  if(e.key==="Escape" && A_DEPLACER){ A_DEPLACER=null; document.body.classList.remove("mode-deplacer"); toast("Déplacement annulé."); return; }
+  if(saisie || !SEL || !SEL.n || e.ctrlKey || e.metaKey || e.altKey) return;
+  if(e.key==="Delete" || e.key==="Backspace"){
+    if(retirerSymbole()) e.preventDefault();
+    return;
+  }
+  var d={ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1]}[e.key];
+  if(!d) return;
+  var col=colonneParId(SEL.col); if(!col || !col.cases[SEL.n]) return;
+  var i=indexCol(SEL.col)+d[0], n=SEL.n+d[1];
+  e.preventDefault();
+  if(i<0 || i>=S.colonnes.length || n<1 || n>NIVEAUX.length) return;
+  deplacerSymbole({col:SEL.col, n:SEL.n}, {col:S.colonnes[i].id, n:n});
+});
 
 /* ---------- le panneau d'une case ---------- */
 function miniSymbole(sym){
@@ -1130,9 +1219,17 @@ function ouvrirPanneau(){
       for(var q=0;q<3;q++) (function(q){
         tx.appendChild(champ("Ligne "+(q+1), (c.t||[])[q]||"", function(v){ c.t=c.t||["","",""]; c.t[q]=v; remplirTable(col); }));
       })(q);
+      var bts2=el("div","boutons-sym");
+      var dep=el("button","act petit","Déplacer"); dep.type="button";
+      dep.addEventListener("click", function(){
+        A_DEPLACER={col:SEL.col, n:SEL.n}; document.body.classList.add("mode-deplacer");
+        toast("Touchez la case où poser le symbole (Échap pour annuler).");
+      });
       var ret=el("button","act danger petit","Retirer le symbole"); ret.type="button";
-      ret.addEventListener("click", function(){ changer(function(){ delete col.cases[SEL.n]; }); ouvrirPanneau(); });
-      tx.appendChild(ret);
+      ret.addEventListener("click", function(){ retirerSymbole(); });
+      bts2.appendChild(dep); bts2.appendChild(ret);
+      tx.appendChild(bts2);
+      tx.appendChild(el("p","hint raccourcis","Clavier : Suppr retire le symbole, les flèches le déplacent d'une case. Souris : glissez-le sur une autre case."));
       p.appendChild(tx);
     } else {
       p.appendChild(el("p","hint","Choisissez le symbole à poser dans cette case."));
@@ -1352,24 +1449,24 @@ var MODELES={
   mono:function(){
     var a=cc({1:s("arrivee","",["Réseau Enedis","230 V · 12 kVA","Régime TT"]),2:s("agcp","AGCP",["2P 30/60 A","500 mA","Sélectif"])});
     var pf=cc({3:s("parafoudre","PF",["Type 2","2P",""])});
-    var i1=circuit("D1","16 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 40 A","30 mA","Type AC"]);
-    var c2=circuit("D2","16 A","1P+N","Prises séjour","1,5²","3G1,5"), c3=circuit("D3","20 A","1P+N","Four","2,5²","3G2,5"), c4=circuit("D4","20 A","1P+N","Lave-vaisselle","2,5²","3G2,5");
-    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 40 A","30 mA","Type A"]);
-    var c6=circuit("D6","20 A","1P+N","Lave-linge","2,5²","3G2,5"), c7=circuit("D7","16 A","1P+N","Éclairage chambres","1,5²","3G1,5");
+    var i1=circuit("D1","10 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 63 A","30 mA","Type AC"]);
+    var c2=circuit("D2","16 A","1P+N","Prises séjour","2,5²","3G2,5"), c3=circuit("D3","20 A","1P+N","Four","2,5²","3G2,5"), c4=circuit("D4","20 A","1P+N","Lave-vaisselle","2,5²","3G2,5");
+    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 63 A","30 mA","Type A"]);
+    var c6=circuit("D6","20 A","1P+N","Lave-linge","2,5²","3G2,5"), c7=circuit("D7","10 A","1P+N","Éclairage chambres","1,5²","3G1,5");
     var cols=[a,pf,i1,c2,c3,c4,i2,c6,c7];
     return {colonnes:cols, barres:[{id:uid(),niveau:"A",de:a.id,a:i2.id},{id:uid(),niveau:"B",de:i1.id,a:c4.id},{id:uid(),niveau:"B",de:i2.id,a:c7.id}]};
   },
   triPV:function(){
     var a=cc({1:s("arrivee","",["Réseau Enedis","230/400 V · 36 kVA","Régime TT"]),2:s("agcp","AGCP",["4P 30/60 A","500 mA","Sélectif"])});
     var pf=cc({3:s("parafoudre","PF",["Type 2","4P",""])});
-    var i1=circuit("D2","16 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 40 A","30 mA","Type AC"]);
-    var c3=circuit("D3","16 A","1P+N","Prises séjour","1,5²","3G1,5"), c4=circuit("D4","20 A","1P+N","Four","2,5²","3G2,5");
-    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 40 A","30 mA","Type A"]);
+    var i1=circuit("D2","10 A","1P+N","Éclairage séjour, WC, SDB","1,5²","3G1,5"); i1.cases[3]=s("id","ID1",["2P · 63 A","30 mA","Type AC"]);
+    var c3=circuit("D3","16 A","1P+N","Prises séjour","2,5²","3G2,5"), c4=circuit("D4","20 A","1P+N","Four","2,5²","3G2,5");
+    var i2=circuit("D5","32 A","1P+N","Plaques de cuisson","6²","3G6"); i2.cases[3]=s("id","ID2",["2P · 63 A","30 mA","Type A"]);
     var c6=circuit("D6","20 A","1P+N","Lave-linge","2,5²","3G2,5");
-    var i3=circuit("D7","20 A","3P+N","Pompe à chaleur","2,5²","5G2,5"); i3.cases[3]=s("id","ID3",["4P · 40 A","30 mA","Type A"]);
+    var i3=circuit("D7","20 A","3P+N","Pompe à chaleur","2,5²","5G2,5"); i3.cases[3]=s("id","ID3",["4P · 63 A","30 mA","Type A"]);
     var c8=circuit("D8","32 A","1P+N","Borne de recharge","6²","3G6"); c8.cases[7]=s("irve","",["Borne IRVE","7,4 kW",""]);
     var pv=circuit("D9","32 A","1P+N","Production photovoltaïque","6²","3G6");
-    pv.cases[3]=s("id","ID4",["2P · 40 A","30 mA","Type A"]);
+    pv.cases[3]=s("id","ID4",["2P · 63 A","30 mA","Type A"]);
     pv.cases[5]=s("compteur","",["Compteur","de production",""]);
     pv.cases[6]=s("onduleur","",["Onduleur","6 kVA",""]);
     pv.cases[7]=s("pv","",["Champ PV","14 × 425 Wc",""]);
@@ -1413,7 +1510,8 @@ function etiquettesDuChantier(){
     });
 }
 var CALIBRES=[[/plaque|cuisson|borne|irve|recharge|photovolta/i,"32 A","6²","3G6"],[/four|lave|s[eè]che|chauffe|pompe|clim|pac\b|piscine|cong|r[ée]frig/i,"20 A","2,5²","3G2,5"],
-  [/radiateur|chauffage|plancher/i,"20 A","2,5²","3G2,5"],[/.*/,"16 A","1,5²","3G1,5"]];
+  [/radiateur|chauffage|plancher/i,"20 A","2,5²","3G2,5"],[/[ée]clairage|lumi[eè]re|spot|lustre|applique|va.et.vient/i,"10 A","1,5²","3G1,5"],
+  [/.*/,"16 A","2,5²","3G2,5"]];
 function depuisEtiquettes(e){
   var cols=[], barres=[], idCol=null, dernier=null, tete=null, n=0, nId=0;
   function fermerGroupe(){ if(idCol && dernier && dernier!==idCol) barres.push({id:uid(),niveau:"B",de:idCol.id,a:dernier.id}); }
@@ -1423,7 +1521,7 @@ function depuisEtiquettes(e){
     if(/parafoudre/i.test(t)){ cols.push(cc({3:s("parafoudre","PF",SYMBOLES.parafoudre.t)})); return; }
     if(/diff/i.test(t)){
       fermerGroupe(); nId++;
-      idCol=cc({3:s("id","ID"+nId,["2P · 40 A","30 mA",/\bA\b\s*$/.test(t)||/type\s*A\b/i.test(t) ? "Type A" : "Type AC"])});
+      idCol=cc({3:s("id","ID"+nId,["2P · 63 A","30 mA",/\bA\b\s*$/.test(t)||/type\s*A\b/i.test(t) ? "Type A" : "Type AC"])});
       cols.push(idCol); dernier=idCol; return;
     }
     if(/t[ée]l[ée]rupteur|contacteur|minuterie/i.test(t) && dernier && !dernier.cases[5]){
