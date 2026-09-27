@@ -383,6 +383,24 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   <div class="block" id="blocSociete" hidden>
     <h2>Société</h2>
     <div id="infoSociete"></div>
+    <div id="ficheSoc" hidden>
+      <p class="legend" style="margin-top:14px">En-tête des documents</p>
+      <p class="hint" style="margin:-4px 0 12px">Repris tout seul par le relevé et les autres applis de chaque personne de la société.</p>
+      <div class="row" style="margin-bottom:12px;align-items:center">
+        <img id="fs_logoVue" alt="Logo de la société" hidden style="height:46px;max-width:160px;object-fit:contain;background:#fff;border:1px solid var(--rule);border-radius:8px;padding:4px">
+        <button class="act ghost" id="fs_logoBtn">Charger le logo</button>
+        <button class="act ghost" id="fs_logoDel" hidden>Retirer</button>
+        <input type="file" id="fs_logo" accept="image/png,image/jpeg" hidden>
+      </div>
+      <label class="f"><span>Nom sur les documents</span><input type="text" id="fs_nom"></label>
+      <div class="grid2">
+        <label class="f"><span>Téléphone</span><input type="tel" id="fs_tel"></label>
+        <label class="f"><span>Site / e-mail</span><input type="text" id="fs_web" autocapitalize="off" spellcheck="false"></label>
+      </div>
+      <label class="f"><span>Adresse</span><input type="text" id="fs_adresse"></label>
+      <label class="f"><span>Mentions de pied de page</span><input type="text" id="fs_mentions" placeholder="SIRET, qualifications, RGE…"></label>
+      <div class="row"><button class="act" id="fs_enr">Enregistrer l'en-tête</button><span class="hint" id="fs_etat" style="margin:0"></span></div>
+    </div>
   </div>
 
   <div class="block">
@@ -541,9 +559,59 @@ function charger(){
         chargerSocietes();
       }
       chargerComptes();
+      chargerFiche(d.nom||d.societe);
     })
     .catch(function(){ $("err").textContent="Pas de réseau."; });
 }
+/* ---------- l'en-tête des documents de la société ---------- */
+var FICHE_LOGO=null;
+function peindreLogoFiche(){
+  var v=$("fs_logoVue");
+  v.hidden=!FICHE_LOGO; if(FICHE_LOGO) v.src=FICHE_LOGO.data;
+  $("fs_logoDel").hidden=!FICHE_LOGO;
+  $("fs_logoBtn").textContent = FICHE_LOGO ? "Changer le logo" : "Charger le logo";
+}
+function chargerFiche(nomSoc){
+  fetch(api("societe-fiche"), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var f=d.fiche||{};
+      $("fs_nom").value=f.nom||d.nom||nomSoc||""; $("fs_tel").value=f.tel||""; $("fs_web").value=f.web||"";
+      $("fs_adresse").value=f.adresse||""; $("fs_mentions").value=f.mentions||"";
+      FICHE_LOGO=f.logo||null; peindreLogoFiche();
+      $("fs_etat").textContent = f.maj ? "Réglé le " + new Date(f.maj).toLocaleDateString("fr-FR") + (f.par ? " par " + f.par : "") : "Pas encore réglé.";
+      $("ficheSoc").hidden=false;
+    })
+    .catch(function(){});
+}
+(function lierFiche(){
+  $("fs_logoBtn").addEventListener("click", function(){ $("fs_logo").click(); });
+  $("fs_logoDel").addEventListener("click", function(){ FICHE_LOGO=null; peindreLogoFiche(); });
+  $("fs_logo").addEventListener("change", function(){
+    var f=this.files[0]; this.value=""; if(!f) return;
+    var im=new Image(), u=URL.createObjectURL(f);
+    im.onload=function(){
+      /* assez net pour l'en-tête d'un PDF, assez léger pour chaque appareil */
+      var k=Math.min(1, 600/im.width, 300/im.height), c=document.createElement("canvas");
+      c.width=Math.round(im.width*k); c.height=Math.round(im.height*k);
+      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+      var data=c.toDataURL(f.type==="image/jpeg" ? "image/jpeg" : "image/png", 0.9);
+      URL.revokeObjectURL(u);
+      FICHE_LOGO={data:data, w:c.width, h:c.height}; peindreLogoFiche();
+    };
+    im.onerror=function(){ $("fs_etat").textContent="Image illisible."; };
+    im.src=u;
+  });
+  $("fs_enr").addEventListener("click", function(){
+    var corps={nom:$("fs_nom").value, tel:$("fs_tel").value, web:$("fs_web").value, adresse:$("fs_adresse").value,
+      mentions:$("fs_mentions").value, logo:FICHE_LOGO};
+    $("fs_etat").textContent="Enregistrement…";
+    fetch(api("societe-fiche-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+      .then(function(res){ $("fs_etat").textContent = res.ok ? "En-tête enregistré : les relevés le reprennent à leur prochaine ouverture." : (res.d.erreur||"Refusé."); })
+      .catch(function(){ $("fs_etat").textContent="Pas de réseau."; });
+  });
+})();
 function chargerComptes(){
   fetch(api("comptes"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })

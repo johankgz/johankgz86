@@ -599,7 +599,7 @@ function rang(f) {
    lectures, elles, ne s'attendent pas. */
 const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil"]);
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -916,6 +916,32 @@ async function traiter(req) {
     comptes = comptes.filter((c) => String(c.identifiant).toLowerCase() !== id);
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true });
+  }
+
+  /* ---------- la fiche de la société : l'en-tête des documents ----------
+     Nom, téléphone, site, adresse, mentions et logo : réglés une fois par
+     l'administrateur, repris tout seuls par le relevé (et, à travers lui,
+     par les autres applis) de chaque personne de la société. */
+  if (action === "societe-fiche") {
+    const a = magasinAnnuaire();
+    let f = null;
+    try { f = await a.get("fiches/" + personne.societe + ".json", { type: "json" }); } catch { f = null; }
+    const soc = (await lireSocietes()).find((x) => x.code === personne.societe) || {};
+    return json({ fiche: f, nom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "" });
+  }
+  if (action === "societe-fiche-enregistrer") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const txt = (v, n) => String(v || "").trim().slice(0, n);
+    const fiche = { nom: txt(d.nom, 120), tel: txt(d.tel, 60), web: txt(d.web, 160), adresse: txt(d.adresse, 200),
+      mentions: txt(d.mentions, 300), maj: new Date().toISOString(), par: personne.nom, logo: null };
+    if (d.logo && typeof d.logo.data === "string" && /^data:image\/(png|jpeg);base64,/.test(d.logo.data)) {
+      if (d.logo.data.length > 400000) return json({ erreur: "Logo trop lourd." }, 400);
+      fiche.logo = { data: d.logo.data, w: Number(d.logo.w) || 0, h: Number(d.logo.h) || 0 };
+    }
+    await magasinAnnuaire().setJSON("fiches/" + personne.societe + ".json", fiche);
+    return json({ ok: true, fiche });
   }
 
   /* ---------- sociétés (réservé au propriétaire) ---------- */
