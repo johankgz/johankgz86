@@ -378,6 +378,12 @@ body.glisse,body.glisse .zone .cible{cursor:grabbing}
 body.mode-deplacer .zone .cible{cursor:copy}
 body.mode-deplacer .zone .cible:hover{fill:rgba(8,145,178,.12)}
 .boutons-sym{display:flex;gap:8px;flex-wrap:wrap;margin-top:4px}
+.seg-p{display:block;margin:0 0 10px}
+.seg-p > span{display:block;font-size:12.5px;font-weight:600;color:var(--ink-3,#6B7480);margin-bottom:5px}
+.seg{display:flex;border:1px solid var(--rule,#D5DBE2);border-radius:9px;overflow:hidden}
+.seg button{flex:1;min-height:38px;padding:6px 8px;border:0;background:var(--card,#fff);color:var(--ink-2,#3B4450);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.seg button + button{border-left:1px solid var(--rule,#D5DBE2)}
+.seg button.on{background:#FDF0E3;color:#92400E}
 .raccourcis{font-size:12px;margin:8px 0 0}
 @media (hover:none){ .raccourcis{display:none} }
 .bandeau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 12px;border-radius:12px;background:var(--card);color:var(--ink);margin:0 0 8px;font-size:13.5px}
@@ -695,6 +701,80 @@ var SYMBOLES={
 var FAMILLES=["Protection","Commande","Énergie","Récepteur"];
 
 /* ---------- les colonnes ---------- */
+/* ---------- mono ou tri : le réseau et les pôles des appareils ----------
+   Le choix se lit dans les textes du symbole (1P+N, 2P, 3P+N, 4P…) : on
+   les réécrit, rien d'autre à retenir. Les appareils à « nP » (différentiel,
+   interrupteur, sectionneur, parafoudre, branchement) passent de 2P à 4P ;
+   les disjoncteurs de 1P+N à 3P+N. */
+var POLES_SYM={disj:"pn", disjdiff:"pn", id:"p", agcp:"p", inter:"p", sect:"p", parafoudre:"p"};
+function estTri(c){ return /3P\s*\+\s*N|\b[34]P\b/i.test((c.t||[]).join(" ")); }
+function poserPoles(c, tri){
+  var mode=POLES_SYM[c.sym]; if(!mode) return;
+  c.t=(c.t||["","",""]).slice();
+  var vu=false;
+  c.t=c.t.map(function(x){
+    var y=String(x||"");
+    if(tri) y=y.replace(/\b1P\s*\+\s*N\b/gi, function(){ vu=true; return "3P+N"; }).replace(/\b2P\b/g, function(){ vu=true; return "4P"; });
+    else y=y.replace(/\b3P\s*\+\s*N\b/gi, function(){ vu=true; return "1P+N"; }).replace(/\b4P\b/g, function(){ vu=true; return "2P"; }).replace(/\b3P\b/g, function(){ vu=true; return mode==="pn" ? "1P+N" : "2P"; });
+    if(/\b(1P\s*\+\s*N|3P\s*\+\s*N|[234]P)\b/i.test(y)) vu=true;
+    return y;
+  });
+  if(!vu){
+    var pole = mode==="pn" ? (tri?"3P+N":"1P+N") : (tri?"4P":"2P");
+    var k = c.sym==="parafoudre" ? 1 : 0;
+    c.t[k] = c.t[k] ? pole+" · "+c.t[k] : pole;
+  }
+}
+/* le tableau du bas écrit à la main suit quand même le changement de pôles
+   du disjoncteur : « 1P+N » ↔ « 3P+N » dans la protection, 3G ↔ 5G dans
+   le câble (sauf nombre de conducteurs imposé) */
+function polesDuTableau(col, n, tri){
+  if(n!==4 || !col.table) return;
+  var t=col.table;
+  if(t.protection) t.protection = tri ? t.protection.replace(/\b1P\s*\+\s*N\b/i, "3P+N") : t.protection.replace(/\b3P\s*\+\s*N\b/i, "1P+N");
+  if(t.cable && !col.fils) t.cable = tri ? t.cable.replace(/^3G/i, "5G") : t.cable.replace(/^5G/i, "3G");
+}
+function reseauDe(S){
+  if(S.reseau==="mono" || S.reseau==="tri") return S.reseau;
+  var tri=false;
+  S.colonnes.forEach(function(col){ for(var n in col.cases){ var c=col.cases[n]; if(c && c.sym==="arrivee" && /400\s*V/i.test((c.t||[]).join(" "))) tri=true; } });
+  return tri ? "tri" : "mono";
+}
+/* un seul choix règle l'arrivée, le branchement, le parafoudre et l'onduleur du folio PV */
+function choisirReseau(tri){
+  changer(function(){
+    S.reseau = tri ? "tri" : "mono";
+    S.colonnes.forEach(function(col){
+      for(var n in col.cases){
+        var c=col.cases[n]; if(!c) continue;
+        if(c.sym==="arrivee"){
+          c.t=(c.t||["","",""]).slice();
+          var l=String(c.t[1]||"");
+          if(!/\d+(\/\d+)?\s*V/i.test(l)) l=(tri?"230/400 V":"230 V")+(l?" · "+l:"");
+          else l=l.replace(/\d+(\/\d+)?\s*V\b/i, tri?"230/400 V":"230 V");
+          if(tri) l=l.replace(/\b12\s*kVA/i, "36 kVA"); else l=l.replace(/\b36\s*kVA/i, "12 kVA");
+          c.t[1]=l;
+        }
+        if(c.sym==="agcp" || c.sym==="parafoudre") poserPoles(c, tri);
+      }
+      remplirTable(col);
+    });
+    if(S.pv && S.pv.onduleur) S.pv.onduleur.phases = tri ? "tri" : "mono";
+  });
+  ouvrirPanneau();
+  toast(tri ? "Réseau triphasé 230/400 V : branchement et parafoudre en 4P." : "Réseau monophasé 230 V : branchement et parafoudre en 2P.");
+}
+function bascule(libelle, choix, actif, fn){
+  var w=el("div","seg-p"); w.appendChild(el("span",null,libelle));
+  var g=el("div","seg"); g.setAttribute("role","group"); g.setAttribute("aria-label",libelle);
+  choix.forEach(function(o, k){
+    var b=el("button", k===actif ? "on" : null, o); b.type="button";
+    b.setAttribute("aria-pressed", k===actif ? "true" : "false");
+    b.addEventListener("click", function(){ if(k!==actif) fn(k); });
+    g.appendChild(b);
+  });
+  w.appendChild(g); return w;
+}
 function filsDe(col){
   if(col.fils) return col.fils;
   var s="";
@@ -1215,6 +1295,16 @@ function ouvrirPanneau(){
     });
     if(c){
       var tx=el("div","textes");
+      if(c.sym==="arrivee"){
+        tx.appendChild(bascule("Réseau", ["Monophasé 230 V","Triphasé 230/400 V"], reseauDe(S)==="tri" ? 1 : 0, function(k){ choisirReseau(k===1); }));
+      }
+      if(POLES_SYM[c.sym]){
+        var pn=POLES_SYM[c.sym]==="pn";
+        tx.appendChild(bascule("Pôles", pn ? ["1P+N","3P+N"] : ["2P (1P+N)","4P (3P+N)"], estTri(c) ? 1 : 0, function(k){
+          changer(function(){ poserPoles(c, k===1); remplirTable(col); polesDuTableau(col, SEL.n, k===1); });
+          ouvrirPanneau();
+        }));
+      }
       tx.appendChild(champ("Repère", c.rep||"", function(v){ c.rep=v; remplirTable(col); }));
       for(var q=0;q<3;q++) (function(q){
         tx.appendChild(champ("Ligne "+(q+1), (c.t||[])[q]||"", function(v){ c.t=c.t||["","",""]; c.t[q]=v; remplirTable(col); }));
@@ -1328,6 +1418,8 @@ function poser(col, n, sym){
     /* on garde les textes quand on change seulement de symbole dans la même famille */
     var garde = ancien && SYMBOLES[ancien.sym] && SYMBOLES[ancien.sym].famille===d.famille;
     col.cases[n] = garde ? {sym:sym, rep:ancien.rep, t:ancien.t} : {sym:sym, rep:numeroter(d.rep), t:d.t.slice()};
+    if(!garde && (sym==="agcp" || sym==="parafoudre") && reseauDe(S)==="tri") poserPoles(col.cases[n], true);
+    if(!garde && sym==="arrivee" && reseauDe(S)==="tri") col.cases[n].t[1]="230/400 V · 36 kVA";
     remplirTable(col);
   });
   ouvrirPanneau();
@@ -1437,7 +1529,7 @@ $("btnModeles").addEventListener("click", function(){ ouvrirFenetre("fModeles");
 function remplacer(nouveau, message){
   var plein=S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
   if(plein && !window.confirm("Remplacer le schéma en cours ? (« Annuler » en haut le fait revenir)")) return false;
-  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; });
+  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; });
   F=0; fermerFenetres(); fermerPanneau(); toast(message); return true;
 }
 function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=table||{}; for(var k in c.table) c.auto[k]=false; return c; }
@@ -1640,7 +1732,7 @@ function pvVierge(){
     panneau:{modele:"", pc:425, voc:38.3, vmp:32.1, isc:13.9, imp:13.25, coefVoc:-0.26, coefVmp:""},
     onduleur:{modele:"", pac:6, phases:"mono", nMppt:2, mpptMin:90, mpptMax:560, vmax:600, imax:16, iscMax:""},
     mppt:[{serie:7, chaines:1},{serie:7, chaines:1}],
-    choix:{cableDC:"", sectDC:"", cableAC:"", disjAC:"", idAC:"", departTGBT:"", abonne:"15/45 A · 500 mA S", typeID:"A"}};
+    choix:{cableDC:"", sectDC:"", cableAC:"", disjAC:"", idAC:"", departTGBT:"", abonne:"30/60 A · 500 mA S", typeID:"A"}};
 }
 /* ce qu'on pose le plus souvent, quand rien n'est coché ni décoché */
 var OPTIONS_PV_DEFAUT={coffretDC:false, coffretAC:false, arretUrgence:true, idOnduleur:false, parafoudreDC:false, parafoudreAC:true};
@@ -1920,7 +2012,7 @@ var CHAMPS_PV=[
 var CHOIX_PV=[["cableDC","Câble DC"],["cableAC","Câble AC (vers l'onduleur)"],["disjAC","Disjoncteur onduleur"],["abonne","Disjoncteur abonné"],
   ["idAC","Différentiel (si coché)"],["sectDC","Inter-sectionneur DC (coffret DC)"],["pfDC","Parafoudre DC (coffret DC)"],["departTGBT","Départ au TGBT (coffret AC)"]];
 function ouvrirPV(){
-  if(!S.pv) S.pv=pvVierge();
+  if(!S.pv){ S.pv=pvVierge(); S.pv.onduleur.phases = reseauDe(S)==="tri" ? "tri" : "mono"; }
   peindrePV(); ouvrirFenetre("fPV");
 }
 function champPV(lib, val, fn, large, type){
