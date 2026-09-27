@@ -167,10 +167,11 @@ button{font:inherit;cursor:pointer}
         </div>
       </div>
       <div class="block">
-        <h2>Relier dans un projet ETS</h2>
+        <h2>Liaisons avec un projet ETS</h2>
         <p class="hint">Une fois les adresses importées dans ETS et la passerelle Airzone insérée et paramétrée, exportez le projet
-          (.knxproj, sans mot de passe) et déposez-le ici : l'outil relie chaque adresse à l'objet de la passerelle
-          (Zone02 - Consigne → objet 43…) et rend le projet relié. Essayez-le d'abord sur une copie.</p>
+          (.knxproj, sans mot de passe) et déposez-le ici : l'outil trouve à quel objet va chaque adresse
+          (Zone02 - Consigne → objet 43…) et donne la fiche des liaisons, objet par objet, à suivre dans ETS.
+          ETS 6 n'accepte pas un projet modifié hors d'ETS : les liaisons se font donc dans ETS.</p>
         <div class="boutons" style="margin-top:0">
           <button type="button" class="act" id="b_projet">Choisir le projet ETS</button>
           <input type="file" id="f_knxproj" accept=".knxproj" hidden>
@@ -195,7 +196,7 @@ button{font:inherit;cursor:pointer}
   </div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./knx-liaisons.js?v=20260927a"></script>
+<script src="./knx-liaisons.js?v=20260927b"></script>
 
 <script>
 (function(){
@@ -879,7 +880,7 @@ function peindreLiaisons(){
     var zs=Object.keys(a.zones);
     d.appendChild(el("div", "z", zs.length ? "Zones actives : " + zs.map(function(z){ return z + (a.zones[z].thermostat ? " (thermostat)" : ""); }).join(", ") : "Aucune zone active"));
     var nb=r.liens.filter(function(l){ return l.app===a; }).length;
-    d.appendChild(el("div", "z", nb + " liaison" + (nb>1 ? "s" : "") + " à écrire"));
+    d.appendChild(el("div", "z", nb + " liaison" + (nb>1 ? "s" : "") + " à faire"));
     host.appendChild(d);
   });
   if(r.alertes.length){
@@ -898,24 +899,16 @@ function peindreLiaisons(){
     host.appendChild(lst);
   }
   var bx=el("div", "boutons");
-  var b1=el("button", "act plein", "Télécharger le projet relié"); b1.type="button"; b1.disabled=!r.liens.length;
-  b1.addEventListener("click", function(){ exporterProjet(false); });
-  var b2=el("button", "act", "Version sans signature"); b2.type="button"; b2.disabled=!r.liens.length;
-  b2.title="Si ETS refuse la première version"; b2.addEventListener("click", function(){ exporterProjet(true); });
+  var b1=el("button", "act plein", "Fiche de liaisons à imprimer"); b1.type="button"; b1.disabled=!r.liens.length;
+  b1.addEventListener("click", function(){
+    var w=window.open("", "_blank");
+    if(!w){ toast("Autorisez l'ouverture de fenêtres pour la fiche."); return; }
+    w.document.open(); w.document.write(PROJET_ETS.fiche()); w.document.close();
+    setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
+  });
   var b3=el("button", "act", "Tableau des liaisons (CSV)"); b3.type="button"; b3.disabled=!r.liens.length;
   b3.addEventListener("click", function(){ telecharger(NOM_ETS.replace(/\.knxproj$/i, "") + "-liaisons.csv", PROJET_ETS.csv(), "text/csv"); });
-  bx.appendChild(b1); bx.appendChild(b2); bx.appendChild(b3); host.appendChild(bx);
-}
-function exporterProjet(sansSignature){
-  toast("Écriture du projet…");
-  PROJET_ETS.ecrire({sansSignature:sansSignature}).then(function(blob){
-    var base=NOM_ETS.replace(/\.knxproj$/i, "");
-    var u=URL.createObjectURL(blob), a=document.createElement("a");
-    a.href=u; a.download=base + (sansSignature ? "-relie-sans-signature" : "-relie") + ".knxproj";
-    document.body.appendChild(a); a.click();
-    setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 1000);
-    toast("Projet relié téléchargé : ouvrez-le dans ETS (Importer).");
-  }).catch(function(e){ toast(e.message || "Écriture impossible."); });
+  bx.appendChild(b1); bx.appendChild(b3); host.appendChild(bx);
 }
 $("b_projet").addEventListener("click", function(){ $("f_knxproj").click(); });
 $("f_knxproj").addEventListener("change", function(){

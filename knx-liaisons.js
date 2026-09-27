@@ -1,10 +1,11 @@
-/* Relier les adresses de groupe aux objets des participants, directement
-   dans un projet ETS (.knxproj), sans passer par ETS.
+/* Quelle adresse de groupe va sur quel objet de quel participant, lu dans
+   un projet ETS (.knxproj).
 
    Le .knxproj est un ZIP : le projet est dans P-xxxx/0.xml, la description
-   de chaque produit dans M-xxxx/…. ETS 6 range les liaisons dans l'attribut
-   Links des ComObjectInstanceRef du participant : « GA-21 GA-35 », la
-   première adresse étant celle sur laquelle l'objet émet.
+   de chaque produit dans M-xxxx/…. On ne réécrit pas le projet : ETS 6
+   refuse tout projet dont la signature (faite avec la licence ETS) ne
+   correspond plus. L'outil rend donc la fiche des liaisons, objet par
+   objet, à suivre dans ETS.
 
    Participants reconnus : passerelle Airzone (AZX6KNXGTWAY, application
    DI6Flexa). Les adresses sont celles de l'outil Adresses KNX : on lit leur
@@ -14,8 +15,8 @@
    KnxLiaisons.lire(ArrayBuffer) → Promise<Projet>
      Projet.appareils   [{id, adresse, nom, systeme, zones:{n:{thermostat}}}]
      Projet.calculer()  → {liens:[…], alertes:[…]}
-     Projet.ecrire({sansSignature}) → Promise<Blob>
-     Projet.csv()       → texte du tableau des liaisons */
+     Projet.csv()       → texte du tableau des liaisons
+     Projet.fiche()     → page HTML de la fiche, à imprimer */
 (function(){
 "use strict";
 var JSZIP_URL = "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js";
@@ -100,7 +101,7 @@ function lire(buffer){
         a.systeme = m ? parseInt(m[1], 10) : i+1;
       });
       P.calculer = function(){ return calculer(P); };
-      P.ecrire = function(o){ return ecrire(P, o||{}); };
+      P.fiche = function(){ return fiche(P); };
       P.csv = function(){ return csv(P); };
       return P;
     });
@@ -225,53 +226,55 @@ function calculer(P){
   return {liens:liens, alertes:alertes};
 }
 
-/* ---------- écrire les liaisons dans le projet ---------- */
-function ecrire(P, o){
-  var r=calculer(P), doc=P.doc.cloneNode(true), ns=P.ns;
-  var parApp={};
-  r.liens.forEach(function(l){ ((parApp[l.app.id]=parApp[l.app.id]||{})[l.inst]=parApp[l.app.id][l.inst]||[]).push(l.ga.court); });
-  tous(doc, "DeviceInstance").forEach(function(d){
-    var aLier=parApp[d.getAttribute("Id")]; if(!aLier) return;
-    var boite=enfants(d, "ComObjectInstanceRefs")[0];
-    if(!boite){
-      boite=doc.createElementNS(ns, "ComObjectInstanceRefs");
-      var apres=enfants(d, "ParameterInstanceRefs")[0];
-      if(apres && apres.nextSibling) d.insertBefore(boite, apres.nextSibling);
-      else if(apres) d.appendChild(boite);
-      else d.insertBefore(boite, d.firstChild);
-    }
-    Object.keys(aLier).forEach(function(inst){
-      var ref=enfants(boite, "ComObjectInstanceRef").filter(function(c){ return c.getAttribute("RefId")===inst; })[0];
-      if(!ref){ ref=doc.createElementNS(ns, "ComObjectInstanceRef"); ref.setAttribute("RefId", inst); boite.appendChild(ref); }
-      /* les liaisons déjà faites dans ETS restent en tête */
-      var liste=(ref.getAttribute("Links")||"").split(/\s+/).filter(Boolean);
-      aLier[inst].forEach(function(g){ if(liste.indexOf(g)<0) liste.push(g); });
-      ref.setAttribute("Links", liste.join(" "));
+/* ---------- la fiche : objet par objet, dans l'ordre d'ETS ---------- */
+function parObjet(P){
+  var r=calculer(P), out=[];
+  P.appareils.forEach(function(a){
+    var objs={};
+    r.liens.forEach(function(l){
+      if(l.app!==a) return;
+      (objs[l.num]=objs[l.num]||{num:l.num, objet:l.objet, gas:[]}).gas.push(l.ga);
     });
+    out.push({app:a, objets:Object.keys(objs).map(function(k){ return objs[k]; }).sort(function(x, y){ return x.num-y.num; })});
   });
-  var texte=(P.bom ? "﻿" : "") + P.entete + "\r\n" + new XMLSerializer().serializeToString(doc.documentElement);
-  var zip=P.zip;
-  return jszip().then(function(JSZip){
-    var sortie=new JSZip();
-    var noms=Object.keys(zip.files);
-    return Promise.all(noms.map(function(n){
-      var f=zip.files[n];
-      if(f.dir){ sortie.folder(n); return null; }
-      if(n===P.fichier){ sortie.file(n, texte); return null; }
-      if(o.sansSignature && (n===P.id + ".signature" || n===P.id + ".certificate" || n===".validation")) return null;
-      return f.async("uint8array").then(function(b){ sortie.file(n, b, {date:f.date}); });
-    })).then(function(){
-      return sortie.generateAsync({type:"blob", compression:"DEFLATE", mimeType:"application/octet-stream"});
+  return out;
+}
+function esc(t){ return String(t).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+function fiche(P){
+  var h=['<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Fiche de liaisons KNX</title><style>',
+    'body{font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#22201C;margin:24px;font-size:12.5px}',
+    'h1{font-size:18px;margin:0 0 4px}h2{font-size:14.5px;margin:22px 0 6px}p{margin:0 0 10px;color:#6E675C}',
+    'table{border-collapse:collapse;width:100%}th,td{border-bottom:1px solid #E2DCCE;padding:5px 6px;text-align:left;vertical-align:top}',
+    'th{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:#6E675C}td.n{font-weight:700;width:36px}',
+    'td.a{font-family:Menlo,Consolas,monospace;white-space:nowrap}.e{font-weight:700}.c{color:#8C8475}',
+    'td.v{width:22px}td.v span{display:inline-block;width:14px;height:14px;border:1.5px solid #8C8475;border-radius:3px}',
+    '@media print{body{margin:10mm}h2{break-after:avoid}tr{break-inside:avoid}}</style></head><body>',
+    '<h1>Fiche de liaisons KNX</h1>',
+    '<p>Dans ETS, pour chaque objet : clic droit › Lier à… (ou glisser l\'adresse sur l\'objet). La première adresse, en gras, est celle sur laquelle l\'objet émet : liez-la en premier.</p>'];
+  parObjet(P).forEach(function(b){
+    h.push('<h2>' + esc(b.app.adresse) + ' — ' + esc(b.app.nom) + '</h2>');
+    if(!b.objets.length){ h.push('<p>Aucune liaison.</p>'); return; }
+    h.push('<table><tr><th></th><th>Objet</th><th>Nom de l\'objet</th><th>Adresses</th><th>Nom des adresses</th></tr>');
+    b.objets.forEach(function(o){
+      h.push('<tr><td class="v"><span></span></td><td class="n">' + o.num + '</td><td>' + esc(o.objet) + '</td><td class="a">'
+        + o.gas.map(function(g, i){ return '<div class="' + (i ? "c" : "e") + '">' + esc(g.adr) + '</div>'; }).join("")
+        + '</td><td>' + o.gas.map(function(g){ return '<div>' + esc(g.nom) + '</div>'; }).join("") + '</td></tr>');
     });
+    h.push('</table>');
   });
+  h.push('</body></html>');
+  return h.join("");
 }
 function csv(P){
-  var r=calculer(P);
-  var L=["Adresse de groupe;Nom de l'adresse;Participant;Nom du participant;Objet;Nom de l'objet"];
-  r.liens.forEach(function(l){
-    L.push([l.ga.adr, l.ga.nom, l.app.adresse, l.app.nom, l.num, l.objet].map(function(v){
-      v=String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
-    }).join(";"));
+  var L=["Participant;Nom du participant;Objet;Nom de l'objet;Adresse de groupe;Nom de l'adresse;Rôle"];
+  parObjet(P).forEach(function(b){
+    b.objets.forEach(function(o){
+      o.gas.forEach(function(g, i){
+        L.push([b.app.adresse, b.app.nom, o.num, o.objet, g.adr, g.nom, i ? "écoute" : "émet"].map(function(v){
+          v=String(v); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g,'""') + '"' : v;
+        }).join(";"));
+      });
+    });
   });
   return "﻿" + L.join("\r\n") + "\r\n";
 }
