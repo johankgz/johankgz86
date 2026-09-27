@@ -94,6 +94,14 @@ button{font:inherit;cursor:pointer}
 .alerte ul{margin:6px 0 0;padding-left:18px}
 .alerte li{margin:2px 0}
 .bon{padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:600;margin:8px 0}
+.appareil{padding:10px 0;border-top:1px dashed var(--rule)}
+.appareil:first-child{border-top:0}
+.appareil .t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.appareil b{font-family:var(--mono);color:var(--accent)}
+.appareil select{width:auto;min-height:34px;font-size:13.5px}
+.appareil .z{font-size:12.5px;color:var(--ink-3);margin-top:4px}
+.liens{max-height:320px;overflow:auto;margin-top:8px;border:1px solid var(--rule);border-radius:8px}
+.liens .ga{grid-template-columns:72px 1fr 64px;padding:4px 8px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#22201C;color:#fff;
  padding:10px 16px;border-radius:10px;font-size:14px;z-index:50;max-width:90vw}
 .toast[hidden]{display:none}
@@ -159,6 +167,17 @@ button{font:inherit;cursor:pointer}
         </div>
       </div>
       <div class="block">
+        <h2>Relier dans un projet ETS</h2>
+        <p class="hint">Une fois les adresses importées dans ETS et la passerelle Airzone insérée et paramétrée, exportez le projet
+          (.knxproj, sans mot de passe) et déposez-le ici : l'outil relie chaque adresse à l'objet de la passerelle
+          (Zone02 - Consigne → objet 43…) et rend le projet relié. Essayez-le d'abord sur une copie.</p>
+        <div class="boutons" style="margin-top:0">
+          <button type="button" class="act" id="b_projet">Choisir le projet ETS</button>
+          <input type="file" id="f_knxproj" accept=".knxproj" hidden>
+        </div>
+        <div id="liaisons"></div>
+      </div>
+      <div class="block">
         <h2>Aperçu</h2>
         <div class="arbre" id="arbre"></div>
       </div>
@@ -176,6 +195,7 @@ button{font:inherit;cursor:pointer}
   </div>
 </main>
 <div class="toast" id="toast" hidden></div>
+<script src="./knx-liaisons.js?v=20260927a"></script>
 
 <script>
 (function(){
@@ -208,7 +228,7 @@ function vierge(){
     airzone:false, systemes:{}, pieces:[], scenarios:["Repas","TV","Départ","Coucher"]};
 }
 function nouvellePiece(nom, niveau){
-  return {id:uid(), nom:nom||"", niveau:niveau||niveaux()[0]||"", eclairage:[], ouvrants:[], prises:[], clim:"non", systeme:1, sonde:false, detecteur:false};
+  return {id:uid(), nom:nom||"", niveau:niveau||niveaux()[0]||"", eclairage:[], ouvrants:[], prises:[], clim:"non", systeme:1, zoneAz:0, thermostat:true, sonde:false, detecteur:false};
 }
 function niveaux(){
   return String(P.niveaux||"").split(/[,;]+/).map(function(s){ return s.trim(); }).filter(Boolean);
@@ -259,12 +279,13 @@ function generer(){
   function ga(s, n, nom, dpt){ s.gas.push({n:n, nom:nom, dpt:dpt}); }
   var pcs=piecesOrdonnees(), nv=niveaux();
 
-  var ecl=[], ouv=[], pri=[], zones=[], sondes=[], dets=[];
+  var ecl=[], ouv=[], pri=[], zones=[], sondes=[], dets=[], nz=numerosZones();
   pcs.forEach(function(p){
     nomsCircuits(p, p.eclairage).forEach(function(nom, i){ ecl.push({nom:nom, type:p.eclairage[i].type, niveau:p.niveau}); });
     nomsCircuits(p, p.ouvrants).forEach(function(nom, i){ ouv.push({nom:nom, type:p.ouvrants[i].type, niveau:p.niveau}); });
     nomsCircuits(p, p.prises).forEach(function(nom){ pri.push({nom:"PCC "+nom}); });
-    if(p.clim!=="non") zones.push({nom:nomPropre(p.nom), froid:p.clim==="chaudfroid", systeme:p.systeme||1});
+    if(p.clim!=="non") zones.push({nom:nomPropre(p.nom), froid:p.clim==="chaudfroid", systeme:p.systeme||1,
+      zoneAz:nz[p.id], thermostat:p.thermostat!==false});
     /* avec Airzone, le thermostat de zone donne déjà la température */
     if(p.sonde || (p.clim!=="non" && !P.airzone)) sondes.push(nomPropre(p.nom));
     if(p.detecteur) dets.push(nomPropre(p.nom));
@@ -393,6 +414,22 @@ function systemesUtilises(){
   P.pieces.forEach(function(p){ if(p.clim!=="non") v[p.systeme||1]=1; });
   return Object.keys(v).map(Number).sort(function(a, b){ return a-b; });
 }
+/* le numéro de zone Airzone de chaque pièce : choisi, ou le suivant libre
+   dans son système, dans l'ordre des pièces */
+function numerosZones(){
+  var pris={}, out={};
+  P.pieces.forEach(function(p){
+    if(p.clim==="non" || !p.zoneAz) return;
+    var s=p.systeme||1; pris[s]=pris[s]||{}; pris[s][p.zoneAz]=1; out[p.id]=p.zoneAz;
+  });
+  piecesOrdonnees().forEach(function(p){
+    if(p.clim==="non" || p.zoneAz) return;
+    var s=p.systeme||1, n=1; pris[s]=pris[s]||{};
+    while(pris[s][n]) n++;
+    pris[s][n]=1; out[p.id]=n;
+  });
+  return out;
+}
 function typeSysteme(n){ return (P.systemes||{})[n] || "multi"; }
 function airzone(zones, principal, milieu, ga, nv){
   var parSys={};
@@ -420,12 +457,18 @@ function airzone(zones, principal, milieu, ga, nv){
     ga(sy, 14, S+" - Time Status", DPT.heure); ga(sy, 15, S+" - Time Control", DPT.heure);
     ga(sy, 16, S+" - Cool Demand Status", "DPST-1-3"); ga(sy, 17, S+" - Heat Demand Status", "DPST-1-3");
     ga(sy, 18, S+" - Ground Demand Status", "DPST-1-3");
-    zs.forEach(function(z, k){
-      var b=k*6, Z=S+" - Zone"+("0"+(k+1)).slice(-2)+" - "+z.nom;
+    /* ZoneKK = le numéro de zone de la passerelle Airzone : c'est lui qui
+       permet ensuite de relier chaque adresse au bon objet */
+    zs.slice().sort(function(a, b){ return a.zoneAz-b.zoneAz; }).forEach(function(z, k){
+      var b=k*7, Z=S+" - Zone"+("0"+z.zoneAz).slice(-2)+" - "+z.nom;
       ga(zo, b, Z+" - Error Status", DPT.alarme);
       ga(zo, b+1, Z+" - On/off Status", DPT.bool); ga(zo, b+2, Z+" - On/off Control", DPT.bool);
       ga(zo, b+3, Z+" - Temperature Setpoint Status", DPT.temp); ga(zo, b+4, Z+" - Temperature Setpoint Control", DPT.temp);
       ga(zo, b+5, Z+" - Local Temperature Status", DPT.temp);
+      /* avec un thermostat Airzone, la zone mesure elle-même et donne l'humidité ;
+         sans, c'est une sonde KNX qui lui envoie la température */
+      if(z.thermostat) ga(zo, b+6, Z+" - Relative Moisture Status", "DPST-9-7");
+      else ga(zo, b+6, Z+" - Local Temperature Control", DPT.temp);
     });
     var sc=milieu(g, 2, "Heat & cool Stages Control"), ss=milieu(g, 3, "Heat & cool Stages Status");
     ga(sc, 0, S+" - Heat Stages Control", "DPST-20-108"); ga(sc, 1, S+" - Cool Stages Control", "DPST-20-108");
@@ -434,7 +477,7 @@ function airzone(zones, principal, milieu, ga, nv){
   var v=principal(16, "VRV");
   var mo=milieu(v, 0, "MODES");
   ga(mo, 2, "Operation Mode Status", DPT.modeCvc); ga(mo, 3, "Operation Mode Control", DPT.modeCvc);
-  [["Stop",4],["Cool",6],["Heat",8],["Fan",10]].forEach(function(x){
+  [["Stop",4],["Cool",6],["Heat",8],["Fan",10],["Dry",12]].forEach(function(x){
     ga(mo, x[1], x[0]+" Mode Status", DPT.bool); ga(mo, x[1]+1, x[0]+" Mode Control", DPT.bool);
   });
   var sy2=milieu(v, 1, "SYSTEM");
@@ -456,6 +499,15 @@ function erreursNumerotation(G){
     if(m.gas.length && m.gas[m.gas.length-1].n>255) e.push(g.m+"/"+m.y+" dépasse 255 adresses");
   }); });
   if(P.airzone && systemesUtilises().some(function(n){ return n>8; })) e.push("Airzone : 8 systèmes au plus (groupes 8 à 15)");
+  if(P.airzone){
+    var vus={};
+    P.pieces.forEach(function(p){
+      if(p.clim==="non" || !p.zoneAz) return;
+      var k=(p.systeme||1)+"-"+p.zoneAz;
+      if(vus[k]) e.push("Système " + (p.systeme||1) + " : la zone " + p.zoneAz + " est donnée à deux pièces");
+      vus[k]=1;
+    });
+  }
   return e;
 }
 
@@ -556,6 +608,16 @@ function peindrePieces(){
       ss.value=String(p.systeme||1); ss.setAttribute("aria-label", "Système Airzone");
       ss.addEventListener("change", function(){ p.systeme=parseInt(ss.value, 10); change(); });
       sz.appendChild(ss); o.appendChild(sz);
+      if(typeSysteme(p.systeme||1)!=="mono"){
+        var zc=el("span", "chip"); zc.setAttribute("aria-pressed", "true");
+        var zsel=el("select"), auto=numerosZones()[p.id];
+        var o0=el("option", null, "Zone " + auto + " (auto)"); o0.value="0"; zsel.appendChild(o0);
+        for(var z=1;z<=14;z++){ var oz=el("option", null, "Zone " + z); oz.value=z; zsel.appendChild(oz); }
+        zsel.value=String(p.zoneAz||0); zsel.setAttribute("aria-label", "Numéro de zone Airzone");
+        zsel.addEventListener("change", function(){ p.zoneAz=parseInt(zsel.value, 10); change(); });
+        zc.appendChild(zsel); o.appendChild(zc);
+        o.appendChild(bascule("Thermostat Airzone", p.thermostat!==false, function(v){ p.thermostat=v; }));
+      }
     }
     o.appendChild(bascule("Sonde de température", p.sonde, function(v){ p.sonde=v; }));
     o.appendChild(bascule("Détecteur", p.detecteur, function(v){ p.detecteur=v; }));
@@ -798,6 +860,70 @@ $("f_xml").addEventListener("change", function(){
   var f=this.files[0]; this.value=""; if(!f) return;
   f.text().then(function(t){ peindreAnalyse(lireXml(t), f.name); })
     .catch(function(e){ $("analyse").textContent=""; $("analyse").appendChild(el("div", "alerte", e.message || "Fichier illisible.")); });
+});
+/* ---------- relier dans un projet ETS ---------- */
+var PROJET_ETS=null, NOM_ETS="";
+function peindreLiaisons(){
+  var host=$("liaisons"); host.textContent="";
+  var P=PROJET_ETS; if(!P) return;
+  if(!P.appareils.length){ host.appendChild(el("div", "alerte", "Aucune passerelle Airzone reconnue dans ce projet.")); return; }
+  var r=P.calculer();
+  P.appareils.forEach(function(a){
+    var d=el("div", "appareil"), t=el("div", "t");
+    t.appendChild(el("b", null, a.adresse)); t.appendChild(el("span", null, a.nom));
+    var s=el("select"); s.setAttribute("aria-label", "Système de " + a.adresse);
+    for(var n=1;n<=8;n++){ var o=el("option", null, "Système " + n); o.value=n; s.appendChild(o); }
+    s.value=String(a.systeme);
+    s.addEventListener("change", function(){ a.systeme=parseInt(s.value, 10); peindreLiaisons(); });
+    t.appendChild(s); d.appendChild(t);
+    var zs=Object.keys(a.zones);
+    d.appendChild(el("div", "z", zs.length ? "Zones actives : " + zs.map(function(z){ return z + (a.zones[z].thermostat ? " (thermostat)" : ""); }).join(", ") : "Aucune zone active"));
+    var nb=r.liens.filter(function(l){ return l.app===a; }).length;
+    d.appendChild(el("div", "z", nb + " liaison" + (nb>1 ? "s" : "") + " à écrire"));
+    host.appendChild(d);
+  });
+  if(r.alertes.length){
+    var al=el("div", "alerte"); al.appendChild(el("b", null, r.alertes.length + " point" + (r.alertes.length>1 ? "s" : "") + " à vérifier"));
+    var ul=el("ul"); r.alertes.slice(0, 30).forEach(function(t){ ul.appendChild(el("li", null, t)); });
+    if(r.alertes.length>30) ul.appendChild(el("li", null, "… et " + (r.alertes.length-30) + " autres"));
+    al.appendChild(ul); host.appendChild(al);
+  }
+  if(r.liens.length){
+    var lst=el("div", "liens");
+    r.liens.forEach(function(l){
+      var row=el("div", "ga");
+      row.appendChild(el("span", "a", l.ga.adr)); row.appendChild(el("span", null, l.ga.nom + " → " + l.objet)); row.appendChild(el("span", "d", l.app.adresse + " #" + l.num));
+      lst.appendChild(row);
+    });
+    host.appendChild(lst);
+  }
+  var bx=el("div", "boutons");
+  var b1=el("button", "act plein", "Télécharger le projet relié"); b1.type="button"; b1.disabled=!r.liens.length;
+  b1.addEventListener("click", function(){ exporterProjet(false); });
+  var b2=el("button", "act", "Version sans signature"); b2.type="button"; b2.disabled=!r.liens.length;
+  b2.title="Si ETS refuse la première version"; b2.addEventListener("click", function(){ exporterProjet(true); });
+  var b3=el("button", "act", "Tableau des liaisons (CSV)"); b3.type="button"; b3.disabled=!r.liens.length;
+  b3.addEventListener("click", function(){ telecharger(NOM_ETS.replace(/\.knxproj$/i, "") + "-liaisons.csv", PROJET_ETS.csv(), "text/csv"); });
+  bx.appendChild(b1); bx.appendChild(b2); bx.appendChild(b3); host.appendChild(bx);
+}
+function exporterProjet(sansSignature){
+  toast("Écriture du projet…");
+  PROJET_ETS.ecrire({sansSignature:sansSignature}).then(function(blob){
+    var base=NOM_ETS.replace(/\.knxproj$/i, "");
+    var u=URL.createObjectURL(blob), a=document.createElement("a");
+    a.href=u; a.download=base + (sansSignature ? "-relie-sans-signature" : "-relie") + ".knxproj";
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(u); a.remove(); }, 1000);
+    toast("Projet relié téléchargé : ouvrez-le dans ETS (Importer).");
+  }).catch(function(e){ toast(e.message || "Écriture impossible."); });
+}
+$("b_projet").addEventListener("click", function(){ $("f_knxproj").click(); });
+$("f_knxproj").addEventListener("change", function(){
+  var f=this.files[0]; this.value=""; if(!f) return;
+  NOM_ETS=f.name; $("liaisons").textContent=""; $("liaisons").appendChild(el("p", "hint", "Lecture du projet…"));
+  f.arrayBuffer().then(function(b){ return KnxLiaisons.lire(b); })
+    .then(function(P){ PROJET_ETS=P; peindreLiaisons(); })
+    .catch(function(e){ PROJET_ETS=null; $("liaisons").textContent=""; $("liaisons").appendChild(el("div", "alerte", e.message || "Projet illisible.")); });
 });
 initProjet();
 window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser};
