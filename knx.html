@@ -68,7 +68,9 @@ button{font:inherit;cursor:pointer}
 .systeme:first-child{border-top:0}
 .systeme b{flex:0 0 auto;font-family:var(--mono);color:var(--accent)}
 .systeme span{flex:1 1 auto;min-width:0;color:var(--ink-2);font-size:13px}
-.systeme select{flex:0 0 150px;width:auto;min-height:36px;font-size:13.5px}
+.systeme select{flex:0 0 130px;width:auto;min-height:36px;font-size:13.5px}
+.systeme input.adr-phys{flex:0 0 130px;width:130px;min-height:36px;font-size:14px;font-family:var(--mono)}
+.systeme input.faux{border-color:var(--rouge);background:var(--rouge-soft)}
 
 /* aperçu */
 .arbre details{border-top:1px solid var(--rule)}
@@ -94,14 +96,6 @@ button{font:inherit;cursor:pointer}
 .alerte ul{margin:6px 0 0;padding-left:18px}
 .alerte li{margin:2px 0}
 .bon{padding:10px 12px;border-radius:8px;background:var(--ok-soft);color:var(--ok);font-size:13.5px;font-weight:600;margin:8px 0}
-.appareil{padding:10px 0;border-top:1px dashed var(--rule)}
-.appareil:first-child{border-top:0}
-.appareil .t{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.appareil b{font-family:var(--mono);color:var(--accent)}
-.appareil select{width:auto;min-height:34px;font-size:13.5px}
-.appareil .z{font-size:12.5px;color:var(--ink-3);margin-top:4px}
-.liens{max-height:320px;overflow:auto;margin-top:8px;border:1px solid var(--rule);border-radius:8px}
-.liens .ga{grid-template-columns:72px 1fr 64px;padding:4px 8px}
 .toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:#22201C;color:#fff;
  padding:10px 16px;border-radius:10px;font-size:14px;z-index:50;max-width:90vw}
 .toast[hidden]{display:none}
@@ -147,6 +141,9 @@ button{font:inherit;cursor:pointer}
           comme dans nos projets : « Multizone » pour un gainable à plusieurs zones (demandes, étages chaud et froid),
           « Monozone » pour une unité seule (filtre, ventilation, heures de fonctionnement). Le groupe 16 porte les modes généraux.</p>
         <div id="systemes"></div>
+        <p class="hint" style="margin:12px 0 0">Avec l'adresse physique de chaque passerelle, l'outil sort la fiche de liaisons :
+          les objets Airzone sont fixes (zone N : consigne = objet 23 + 16 × (N−1) + 4…), il ne reste qu'à les lier dans ETS.</p>
+        <div id="ficheAz"></div>
       </div>
       <div class="block">
         <h2>Scénarios</h2>
@@ -167,18 +164,6 @@ button{font:inherit;cursor:pointer}
         </div>
       </div>
       <div class="block">
-        <h2>Liaisons avec un projet ETS</h2>
-        <p class="hint">Une fois les adresses importées dans ETS et la passerelle Airzone insérée et paramétrée, exportez le projet
-          (.knxproj, sans mot de passe) et déposez-le ici : l'outil trouve à quel objet va chaque adresse
-          (Zone02 - Consigne → objet 43…) et donne la fiche des liaisons, objet par objet, à suivre dans ETS.
-          ETS 6 n'accepte pas un projet modifié hors d'ETS : les liaisons se font donc dans ETS.</p>
-        <div class="boutons" style="margin-top:0">
-          <button type="button" class="act" id="b_projet">Choisir le projet ETS</button>
-          <input type="file" id="f_knxproj" accept=".knxproj" hidden>
-        </div>
-        <div id="liaisons"></div>
-      </div>
-      <div class="block">
         <h2>Aperçu</h2>
         <div class="arbre" id="arbre"></div>
       </div>
@@ -196,7 +181,7 @@ button{font:inherit;cursor:pointer}
   </div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./knx-liaisons.js?v=20260927b"></script>
+<script src="./knx-liaisons.js?v=20260927c"></script>
 
 <script>
 (function(){
@@ -226,7 +211,7 @@ var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bur
 var P = null;
 function vierge(){
   return {nom:"", niveaux:"RDC, R+1", maj:true, exterieur:false, vmc:false,
-    airzone:false, systemes:{}, pieces:[], scenarios:["Repas","TV","Départ","Coucher"]};
+    airzone:false, systemes:{}, adressesAz:{}, pieces:[], scenarios:["Repas","TV","Départ","Coucher"]};
 }
 function nouvellePiece(nom, niveau){
   return {id:uid(), nom:nom||"", niveau:niveau||niveaux()[0]||"", eclairage:[], ouvrants:[], prises:[], clim:"non", systeme:1, zoneAz:0, thermostat:true, sonde:false, detecteur:false};
@@ -639,10 +624,22 @@ function peindreSystemes(){
     r.appendChild(el("b", null, String(7+n)));
     var noms=P.pieces.filter(function(p){ return p.clim!=="non" && (p.systeme||1)===n; }).map(function(p){ return p.nom || "sans nom"; });
     var t=el("span"); t.textContent="Système " + n + " : " + noms.join(", "); r.appendChild(t);
-    var s=choix([["multi","Multizone"],["mono","Monozone"]], typeSysteme(n), function(v){ P.systemes=P.systemes||{}; P.systemes[n]=v; });
+    var s=choix([["multi","Multizone"],["mono","Monozone"]], typeSysteme(n), function(v){ P.systemes=P.systemes||{}; P.systemes[n]=v; setTimeout(function(){ change(); }, 0); });
     s.setAttribute("aria-label", "Type du système " + n); r.appendChild(s);
+    if(typeSysteme(n)!=="mono"){
+      var ad=el("input"); ad.type="text"; ad.inputMode="decimal"; ad.placeholder="Adresse (1.1.60)";
+      ad.value=(P.adressesAz||{})[n]||""; ad.className="adr-phys";
+      ad.setAttribute("aria-label", "Adresse physique de la passerelle du système " + n);
+      ad.addEventListener("input", function(){
+        P.adressesAz=P.adressesAz||{}; P.adressesAz[n]=ad.value.trim();
+        ad.classList.toggle("faux", !!ad.value.trim() && !ADRESSE_PHYS.test(ad.value.trim()));
+        sauverLocal(); peindreFiche();
+      });
+      r.appendChild(ad);
+    }
     host.appendChild(r);
   });
+  peindreFiche();
 }
 function peindreScenarios(){
   var host=$("scenarios"); host.textContent="";
@@ -659,6 +656,7 @@ function peindreScenarios(){
 var OUVERTS={};
 function peindreApercu(){
   var G=generer(), host=$("arbre"); host.textContent="";
+  peindreFiche();
   var n=compter(G);
   $("total").textContent = n + " adresse" + (n>1 ? "s" : "");
   $("b_xml").disabled = !P.pieces.length;
@@ -862,62 +860,56 @@ $("f_xml").addEventListener("change", function(){
   f.text().then(function(t){ peindreAnalyse(lireXml(t), f.name); })
     .catch(function(e){ $("analyse").textContent=""; $("analyse").appendChild(el("div", "alerte", e.message || "Fichier illisible.")); });
 });
-/* ---------- relier dans un projet ETS ---------- */
-var PROJET_ETS=null, NOM_ETS="";
-function peindreLiaisons(){
-  var host=$("liaisons"); host.textContent="";
-  var P=PROJET_ETS; if(!P) return;
-  if(!P.appareils.length){ host.appendChild(el("div", "alerte", "Aucune passerelle Airzone reconnue dans ce projet.")); return; }
-  var r=P.calculer();
-  P.appareils.forEach(function(a){
-    var d=el("div", "appareil"), t=el("div", "t");
-    t.appendChild(el("b", null, a.adresse)); t.appendChild(el("span", null, a.nom));
-    var s=el("select"); s.setAttribute("aria-label", "Système de " + a.adresse);
-    for(var n=1;n<=8;n++){ var o=el("option", null, "Système " + n); o.value=n; s.appendChild(o); }
-    s.value=String(a.systeme);
-    s.addEventListener("change", function(){ a.systeme=parseInt(s.value, 10); peindreLiaisons(); });
-    t.appendChild(s); d.appendChild(t);
-    var zs=Object.keys(a.zones);
-    d.appendChild(el("div", "z", zs.length ? "Zones actives : " + zs.map(function(z){ return z + (a.zones[z].thermostat ? " (thermostat)" : ""); }).join(", ") : "Aucune zone active"));
-    var nb=r.liens.filter(function(l){ return l.app===a; }).length;
-    d.appendChild(el("div", "z", nb + " liaison" + (nb>1 ? "s" : "") + " à faire"));
-    host.appendChild(d);
-  });
-  if(r.alertes.length){
-    var al=el("div", "alerte"); al.appendChild(el("b", null, r.alertes.length + " point" + (r.alertes.length>1 ? "s" : "") + " à vérifier"));
-    var ul=el("ul"); r.alertes.slice(0, 30).forEach(function(t){ ul.appendChild(el("li", null, t)); });
-    if(r.alertes.length>30) ul.appendChild(el("li", null, "… et " + (r.alertes.length-30) + " autres"));
-    al.appendChild(ul); host.appendChild(al);
-  }
-  if(r.liens.length){
-    var lst=el("div", "liens");
-    r.liens.forEach(function(l){
-      var row=el("div", "ga");
-      row.appendChild(el("span", "a", l.ga.adr)); row.appendChild(el("span", null, l.ga.nom + " → " + l.objet)); row.appendChild(el("span", "d", l.app.adresse + " #" + l.num));
-      lst.appendChild(row);
+/* ---------- la fiche de liaisons Airzone ----------
+   Les objets de la passerelle ne bougent jamais : son adresse physique et
+   les zones saisies suffisent. */
+function adressesPourLiaisons(){
+  var out=[];
+  generer().forEach(function(g){ g.mids.forEach(function(m){ m.gas.forEach(function(a){
+    out.push({adr:g.m + "/" + m.y + "/" + a.n, brut:(g.m<<11)|(m.y<<8)|a.n, nom:a.nom});
+  }); }); });
+  return out;
+}
+function passerelles(){
+  var nz=numerosZones();
+  return systemesUtilises().filter(function(n){
+    return typeSysteme(n)!=="mono" && ADRESSE_PHYS.test((P.adressesAz||{})[n]||"");
+  }).map(function(n){
+    var zones={};
+    P.pieces.forEach(function(p){
+      if(p.clim==="non" || (p.systeme||1)!==n) return;
+      zones[nz[p.id]]={thermostat:p.thermostat!==false};
     });
-    host.appendChild(lst);
-  }
+    return {adresse:P.adressesAz[n], nom:"Airzone System " + ("0"+n).slice(-2), systeme:n, zones:zones};
+  });
+}
+var ADRESSE_PHYS=/^\d{1,2}\.\d{1,2}\.\d{1,3}$/;
+function peindreFiche(){
+  var host=$("ficheAz"); if(!host) return;
+  host.textContent="";
+  if(!P.airzone) return;
+  var apps=passerelles();
   var bx=el("div", "boutons");
-  var b1=el("button", "act plein", "Fiche de liaisons à imprimer"); b1.type="button"; b1.disabled=!r.liens.length;
+  var b1=el("button", "act plein", "Fiche de liaisons à imprimer"); b1.type="button"; b1.disabled=!apps.length;
   b1.addEventListener("click", function(){
     var w=window.open("", "_blank");
     if(!w){ toast("Autorisez l'ouverture de fenêtres pour la fiche."); return; }
-    w.document.open(); w.document.write(PROJET_ETS.fiche()); w.document.close();
+    w.document.open(); w.document.write(KnxLiaisons.fiche(adressesPourLiaisons(), passerelles(), P.nom)); w.document.close();
     setTimeout(function(){ try{ w.focus(); w.print(); }catch(e){} }, 300);
   });
-  var b3=el("button", "act", "Tableau des liaisons (CSV)"); b3.type="button"; b3.disabled=!r.liens.length;
-  b3.addEventListener("click", function(){ telecharger(NOM_ETS.replace(/\.knxproj$/i, "") + "-liaisons.csv", PROJET_ETS.csv(), "text/csv"); });
-  bx.appendChild(b1); bx.appendChild(b3); host.appendChild(bx);
+  var b2=el("button", "act", "Tableau des liaisons (CSV)"); b2.type="button"; b2.disabled=!apps.length;
+  b2.addEventListener("click", function(){ telecharger(nomFichier("csv").replace("adresses-de-groupe-", "liaisons-airzone-"), KnxLiaisons.csv(adressesPourLiaisons(), passerelles()), "text/csv"); });
+  bx.appendChild(b1); bx.appendChild(b2); host.appendChild(bx);
+  if(!apps.length){ host.appendChild(el("p", "vide", "Donnez l'adresse physique de la passerelle (ex. 1.1.60) pour sortir la fiche.")); return; }
+  var r=KnxLiaisons.calculer(adressesPourLiaisons(), apps);
+  host.appendChild(el("p", "vide", r.liens.length + " liaisons sur " + apps.map(function(a){ return a.adresse; }).join(", ") + "."));
+  if(r.alertes.length){
+    var al=el("div", "alerte"), ul=el("ul");
+    al.appendChild(el("b", null, "À vérifier"));
+    r.alertes.forEach(function(t){ ul.appendChild(el("li", null, t)); });
+    al.appendChild(ul); host.appendChild(al);
+  }
 }
-$("b_projet").addEventListener("click", function(){ $("f_knxproj").click(); });
-$("f_knxproj").addEventListener("change", function(){
-  var f=this.files[0]; this.value=""; if(!f) return;
-  NOM_ETS=f.name; $("liaisons").textContent=""; $("liaisons").appendChild(el("p", "hint", "Lecture du projet…"));
-  f.arrayBuffer().then(function(b){ return KnxLiaisons.lire(b); })
-    .then(function(P){ PROJET_ETS=P; peindreLiaisons(); })
-    .catch(function(e){ PROJET_ETS=null; $("liaisons").textContent=""; $("liaisons").appendChild(el("div", "alerte", e.message || "Projet illisible.")); });
-});
 initProjet();
 window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser};
 })();
