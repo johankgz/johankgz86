@@ -202,7 +202,7 @@ var DPT = {
 function dptCourt(d){ var m=/^DPST-(\d+)-(\d+)$/.exec(d||""); return m ? m[1]+"."+("00"+m[2]).slice(-3) : "—"; }
 
 var TYPES_ECL = [["tor","Tout ou rien"],["var","Variateur"],["rvb","Couleur RVB"]];
-var TYPES_OUV = [["volet","Volet roulant"],["store","Store à lamelles"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
+var TYPES_OUV = [["volet","Volet roulant"],["store","BSO (inclinaison des lames)"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
 var CLIM = [["non","Pas de chauffage"],["chaud","Chauffage"],["chaudfroid","Chaud + froid"]];
 var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bureau","Chambre 1","Chambre 2","Chambre 3","Salle de bain",
   "Salle d'eau","WC","Dégagement","Escalier","Buanderie","Cellier","Garage","Dressing","Terrasse","Jardin","Local technique"];
@@ -329,12 +329,13 @@ function generer(){
     var g2=principal(2, "Ouvrants");
     var md=milieu(g2, 1, "CMD Montee-Descente"), st=milieu(g2, 2, "Stop-Inclinaison"),
         ph=milieu(g2, 3, "CMD % Hauteur"), eh=milieu(g2, 4, "I/E  Hauteur"), ed=milieu(g2, 5, "I/E Direction de mouvement"),
-        pl=milieu(g2, 6, "CMD % Lamelles"), el2=milieu(g2, 7, "I/E Lamelles");
+        pl=milieu(g2, 6, "CMD % Inclinaison lames"), el2=milieu(g2, 7, "I/E Inclinaison lames");
     ouv.forEach(function(o, n){
       if(o.type==="gache"){ ga(md, n, o.nom, DPT.bool); return; }
       ga(md, n, o.nom, DPT.montee); ga(st, n, o.nom, DPT.stop);
       if(o.type==="garage"){ ga(ed, n, o.nom, DPT.montee); return; }
       ga(ph, n, o.nom, DPT.pct); ga(eh, n, o.nom, DPT.pct); ga(ed, n, o.nom, DPT.montee);
+      /* BSO : le Stop (2/2) sert aussi au pas à pas des lames, 2/6 et 2/7 à leur inclinaison en % */
       if(o.type==="store"){ ga(pl, n, o.nom, DPT.pct); ga(el2, n, o.nom, DPT.pct); }
     });
   }
@@ -796,7 +797,7 @@ function reprendre(){
       });
     } else if(/^OUVRANTS$/.test(nom)){
       var md=mid(g, /MONT|M\/D/i) || g.mids[0]; if(!md) return;
-      var lam=mid(g, /LAMELLE/i);
+      var lam=mid(g, /LAMELLE|LAMES|INCLINAISON/i);
       md.gas.forEach(function(a){
         if(/OFF\s*-\s*NC/i.test(a.nom)) return;
         var type = /GARAGE/i.test(a.nom) ? "garage" : (/GACHE/i.test(a.nom) || a.dpt==="DPST-1-1") ? "gache" : (lam && lam.gas.some(function(x){ return x.n===a.n; })) ? "store" : "volet";
