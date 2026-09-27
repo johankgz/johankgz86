@@ -707,6 +707,26 @@ nav#navParcours a .num{
 @media (prefers-reduced-motion:reduce){ .bul-j.entre{animation:none} }
 @media (max-width:360px){ .bj-temps b{font-size:15px} .bj-icone svg{width:26px;height:26px} }
 
+/* ---------- la météo en verre : on voit la ville au travers, et elle se plie ---------- */
+.bulletin,.bulletin.nuit,.bulletin.gris,.bulletin.pluie{background:rgba(10,14,20,.38);
+  -webkit-backdrop-filter:blur(3px) saturate(1.1);backdrop-filter:blur(3px) saturate(1.1);
+  border-color:rgba(255,255,255,.12);box-shadow:0 10px 30px -18px rgba(0,0,0,.8)}
+.bulletin::before{opacity:.5}
+.bul-j,.bul-j:first-child{background:rgba(255,255,255,.04)}
+.bul-pli{position:relative;z-index:1;flex:0 0 auto;align-self:center;width:34px;height:34px;margin-left:2px;padding:0;
+  border:1px solid rgba(255,255,255,.16);border-radius:50%;background:rgba(255,255,255,.06);color:#C9D2DA;
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.bul-pli svg{width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .25s ease}
+.bulletin.plie{padding-top:10px;padding-bottom:10px}
+.bulletin.plie .bul-pli svg{transform:rotate(180deg)}
+.bulletin.plie .bul-jours,.bulletin.plie .bul-logo,.bulletin.plie .bul-gauche .lieu,.bulletin.plie .bul-temp span{display:none}
+.bulletin.plie .bul-gauche{display:flex;align-items:baseline;gap:10px}
+.bulletin.plie .bul-gauche .heure{font-size:22px;margin:0}
+.bulletin.plie .bul-gauche .jour{margin:0}
+.bulletin.plie .bul-icone svg{width:28px;height:28px}
+.bulletin.plie .bul-temp b{font-size:18px}
+@media (max-width:380px){ .bulletin.plie .bul-gauche .jour{display:none} }
+
 /* ---------- les relevés du jour ---------- */
 .notifs{overflow:hidden}
 /* seul le compteur passe en chasse fixe, pas le titre */
@@ -1136,6 +1156,7 @@ body.connexion .ciel{display:none}
             <span id="bulCiel"></span>
           </div>
         </div>
+        <button type="button" class="bul-pli" id="bulPli" aria-expanded="true" aria-controls="bulJours" title="Replier la météo" aria-label="Replier la météo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
       </div>
       <div class="bul-jours" id="bulJours" hidden></div>
     </div>
@@ -1494,6 +1515,24 @@ setInterval(function(){ if(!document.hidden) peindreCiel(); }, 5*60*1000);
     /* une copie de plus à gauche : ce qui déborde d'un motif (la flèche de
        la grue) se retrouve aussi au début, la boucle ne saute pas */
     [-M, 0, M].forEach(function(d){ motif(g, c[1], d, hasard(c[2]), c[3], TAILLES[c[1]]); });
+  });
+})();
+
+/* la météo se plie d'un appui ; l'appareil s'en souvient */
+(function pliMeteo(){
+  var carte=$("bulletin"), bt=$("bulPli"); if(!carte || !bt) return;
+  function peindre(plie){
+    carte.classList.toggle("plie", plie);
+    bt.setAttribute("aria-expanded", plie ? "false" : "true");
+    bt.title = plie ? "Déplier la météo" : "Replier la météo";
+    bt.setAttribute("aria-label", bt.title);
+  }
+  var plie=false;
+  try{ plie = localStorage.getItem("accueil:meteoPliee")==="1"; }catch(e){}
+  peindre(plie);
+  bt.addEventListener("click", function(){
+    plie=!plie; peindre(plie);
+    try{ localStorage.setItem("accueil:meteoPliee", plie ? "1" : "0"); }catch(e){}
   });
 })();
 
