@@ -145,10 +145,19 @@ body.connexion button.lien{color:var(--accent)}
   font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--card);
 }
 .notif .cloche .nb[hidden]{display:none}
-/* la to-do list : une icône à côté de la cloche, avec ses tâches en cours */
-.notif .cloche.todo{margin-left:auto;color:var(--accent)}
-.notif .cloche.todo + .cloche{margin-left:8px}
-.notif .cloche.todo .nb{background:var(--accent)}
+/* la barre sous les tuiles : Outils, puis la to-do list et la cloche */
+.barre-actions{display:flex;align-items:center;gap:8px;margin:0 0 18px}
+.barre-actions .btn-outils{margin:0}
+.ba-droite{display:flex;gap:8px;margin-left:auto}
+.ba-droite .cloche{position:relative;width:44px;height:44px;display:inline-flex;align-items:center;justify-content:center;
+  border-radius:50%;cursor:pointer;font:inherit;padding:0}
+.ba-droite .cloche svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.ba-droite .cloche .nb{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;
+  display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--rouge);color:#fff;
+  font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
+.ba-droite .cloche .nb[hidden]{display:none}
+.ba-droite .cloche.todo .nb{background:var(--accent-vif,#EA7A1E)}
+.ba-droite .cloche.sonne svg{transform-origin:50% 12%;animation:sonne 1.1s ease-in-out 2}
 /* les notifications dans une fenêtre */
 .fo-cloche{max-height:82vh;display:flex;flex-direction:column}
 .fc-corps{overflow:auto;margin:0 -14px -4px;-webkit-overflow-scrolling:touch}
@@ -1052,6 +1061,23 @@ body.connexion .ciel{display:none}
 .petits-outils a.o-large{grid-column:1/-1;flex-direction:row;min-height:48px}
 @media (min-width:720px){ .fen-outils{align-items:center} .fo-boite{border-radius:18px} }
 @media (prefers-reduced-motion:reduce){ .fo-boite{animation:none} }
+/* ---------- du verre plutôt que du blanc ----------
+   Les tuiles du haut et la barre d'Outils laissent voir la ville au
+   travers, comme la météo : plus doux que des cartes blanches. */
+.tuile-t.clair,.btn-outils,.ba-droite .cloche{background:rgba(10,14,20,.36);
+  -webkit-backdrop-filter:blur(3px) saturate(1.1);backdrop-filter:blur(3px) saturate(1.1);
+  border:1px solid rgba(255,255,255,.14);color:#F2F5F9;box-shadow:0 10px 26px -18px rgba(0,0,0,.8)}
+.tuile-t.clair .t-lab{color:#AEB7BF}
+.tuile-t.clair .t-sous{color:#AEB7BF}
+.tuile-t.clair .t-nb{color:#F2F5F9}
+.tuile-t.anneau-t .fond{stroke:rgba(255,255,255,.12)}
+.tuile-t.anneau-t .plein{stroke:var(--accent-vif,#EA7A1E)}
+.btn-outils svg{stroke:var(--accent-vif,#EA7A1E)}
+.ba-droite .cloche{color:#C9D2DA}
+.ba-droite .cloche.vive{color:#F2F5F9}
+.ba-droite .cloche.todo{color:#FDBA74}
+.ba-droite .cloche[aria-expanded="true"]{background:rgba(255,255,255,.14)}
+@media (hover:hover){ .tuile-t.clair:hover,.btn-outils:hover,.ba-droite .cloche:hover{background:rgba(10,14,20,.5)} }
 /* ---------- l'invitation aux notifications ---------- */
 .invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
   padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
@@ -1185,10 +1211,13 @@ body.connexion .ciel{display:none}
         <div class="fc-corps" id="fcCorps"></div>
       </div>
     </div>
+    <div class="barre-actions" id="barreActions">
     <button type="button" class="btn-outils" id="btnOutils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
       <span>Outils</span>
     </button>
+      <span class="ba-droite" id="baDroite"></span>
+    </div>
     <div class="fen-outils" id="fenOutils" role="dialog" aria-modal="true" aria-labelledby="fenOutilsT" hidden>
       <div class="fo-fond" data-fermer></div>
       <div class="fo-boite">
@@ -2321,9 +2350,8 @@ function peindreNotifs(s, ch, relances){
     host.appendChild(notif("vrt", String(saisies.length), quoi, dit,
       "./chantier.html?ref="+encodeURIComponent(d0.ref)));
   }
-  var suivis=notif("", String(ch.length), ch.length+(ch.length>1?" chantiers suivis":" chantier suivi"),
-    docs+(docs>1?" documents déposés":" document déposé"), "./rapports.html");
-  suivis.id="notifChantiers";
+  /* plus de ligne « chantiers suivis » : la tuile « Chantiers actifs » et
+     « Mes chantiers » le disent déjà ; ses deux boutons vont à côté d'Outils */
   /* la cloche : toutes les nouveautés des chantiers au même endroit */
   var cloche=document.createElement("button");
   cloche.type="button"; cloche.className="cloche"; cloche.id="cloche";
@@ -2342,9 +2370,8 @@ function peindreNotifs(s, ch, relances){
   todo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/>'
     +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span class="nb" hidden></span>';
   todo.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); location.href="./notes.html"; });
-  suivis.appendChild(todo);
-  suivis.appendChild(cloche);
-  host.appendChild(suivis);
+  var droite=$("baDroite");
+  if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(cloche); }
   var corps=$("fcCorps"); if(corps){ corps.textContent=""; corps.appendChild(panneau); }
   peindreTodo();
   peindreCloche();
