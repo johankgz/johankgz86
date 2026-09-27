@@ -56,9 +56,11 @@ async function etatLocal() {
   try { d = JSON.parse(r.sortie); } catch { /* rien */ }
   ETAT = d && d.pret
     ? { branche: true, joignable: true, local: true, version: d.version || "" }
-    : { branche: true, joignable: false, local: true,
+    : { branche: true, joignable: false, local: true, dossier: DOSSIER.replace(/\/$/, ""),
         erreur: (d && d.erreur) || (r.code === -1 ? "Python introuvable (" + python() + ")" : (r.erreurs || "").trim().split("\n").pop() || "bibliothèques absentes") };
-  ETAT_LE = Date.now();
+  /* une installation prête est gardée une minute ; sinon on revérifie à
+     chaque fois, pour voir tout de suite le résultat de installer.sh */
+  ETAT_LE = ETAT.joignable ? Date.now() : 0;
   return ETAT;
 }
 /* deux analyses à la fois au plus : la machine est partagée */

@@ -7,8 +7,10 @@ sans sa partie API web : ici, c'est le serveur du site qui l'appelle.
 - `analyser.py` : le lanceur appelé par `netlify/functions/plan.mjs`. Il
   écrit sur la sortie standard le même JSON que l'ancienne API (résultat,
   tableau Markdown, images annotées en data URL).
-- `requirements.txt` : PyMuPDF et Pillow, à installer une fois sur le
-  serveur dans `analyseur-plans/.venv` (voir `DEPLOIEMENT-O2SWITCH.md`).
+- `installer.sh` : à lancer une fois sur le serveur. Il choisit un Python
+  3.9 ou plus (le python3 de base d'o2switch est un 3.6), crée
+  `analyseur-plans/.venv` et y installe `requirements.txt` (PyMuPDF,
+  Pillow). Voir `DEPLOIEMENT-O2SWITCH.md`.
 
 Ce dossier n'est jamais servi aux visiteurs (liste `INTERDITS` de
 `serveur.mjs`). Pour reprendre une nouvelle version de l'analyseur :

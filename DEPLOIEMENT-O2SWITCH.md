@@ -351,22 +351,25 @@ dossier `analyseur-plans/` : le serveur du site le lance lui-même. Plus de
 sous-domaine, plus de seconde application, plus de clé à partager — il
 arrive avec chaque « Update from Remote ».
 
-Il lui faut seulement ses deux bibliothèques Python (PyMuPDF et Pillow),
-installées **une seule fois** dans le Terminal de cPanel :
+Il lui faut un Python récent (3.9 ou plus) et ses deux bibliothèques
+(PyMuPDF et Pillow). Attention : le `python3` de base d'o2switch est un
+**3.6, trop ancien** (erreur « future feature annotations is not
+defined »). Un script s'occupe de tout, **une seule fois**, dans le
+Terminal de cPanel :
 
 ```bash
-cd ~/VOTREDOSSIER/analyseur-plans
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+bash ~/VOTREDOSSIER/analyseur-plans/installer.sh
 ```
 
-(`VOTREDOSSIER` : le dossier de l'application du site, le même que plus haut.)
-Le site trouve tout seul `analyseur-plans/.venv` ; pas besoin de redémarrer.
-Le dossier `.venv` n'est pas dans le dépôt : les mises à jour Git ne le
-touchent pas.
-
-La page « Analyse de plan » dit elle-même si l'installation est prête ; sinon
-elle rappelle ces trois lignes.
+(`VOTREDOSSIER` : le dossier de l'application du site ; la page « Analyse de
+plan » affiche la commande exacte, avec le bon chemin.) Le script choisit
+le Python le plus récent du serveur (ceux d'o2switch sont rangés dans
+`/opt/alt/python3XX`), recrée `analyseur-plans/.venv` avec lui, installe les
+deux bibliothèques et finit par « Prêt ». Pas besoin de redémarrer. Le
+dossier `.venv` n'est pas dans le dépôt : les mises à jour Git ne le touchent
+pas. S'il ne trouve aucun Python récent, il le dit : créez alors une
+application dans **Setup Python App** avec la version 3.11 ou 3.12, et
+relancez-le.
 
 - Si Python se trouve ailleurs (par exemple un environnement créé par
   « Setup Python App »), indiquez son chemin dans la variable

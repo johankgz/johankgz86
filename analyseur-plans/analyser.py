@@ -15,8 +15,6 @@ un code de sortie non nul.
 (PyMuPDF, Pillow) sont installées.
 """
 
-from __future__ import annotations
-
 import argparse
 import base64
 import json
@@ -26,8 +24,17 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+# Ce fichier doit rester lisible par un vieux Python : c'est lui qui dit,
+# clairement, qu'il en faut un plus récent (le python3 de base d'o2switch
+# est un 3.6).
+if sys.version_info < (3, 9):
+    print(json.dumps({"pret": False, "erreur": "Python " + ".".join(map(str, sys.version_info[:3]))
+                      + " trop ancien : il faut 3.9 ou plus. Lancez installer.sh.",
+                      "ancien": True}, ensure_ascii=False))
+    raise SystemExit(3)
 
-def _images(chemins: dict) -> dict:
+
+def _images(chemins):
     sortie = {}
     for niveau, chemin in chemins.items():
         with open(chemin, "rb") as f:
@@ -35,7 +42,7 @@ def _images(chemins: dict) -> dict:
     return sortie
 
 
-def main() -> int:
+def main():
     p = argparse.ArgumentParser()
     p.add_argument("pdf", nargs="?")
     p.add_argument("--nom", default=None)
