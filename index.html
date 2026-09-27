@@ -145,6 +145,14 @@ body.connexion button.lien{color:var(--accent)}
   font-variant-numeric:tabular-nums;box-shadow:0 0 0 2px var(--card);
 }
 .notif .cloche .nb[hidden]{display:none}
+/* la to-do list : une icône à côté de la cloche, avec ses tâches en cours */
+.notif .cloche.todo{margin-left:auto;color:var(--accent)}
+.notif .cloche.todo + .cloche{margin-left:8px}
+.notif .cloche.todo .nb{background:var(--accent)}
+/* les notifications dans une fenêtre */
+.fo-cloche{max-height:82vh;display:flex;flex-direction:column}
+.fc-corps{overflow:auto;margin:0 -14px -4px;-webkit-overflow-scrolling:touch}
+.fc-corps .demandes{border-top:1px solid var(--rule)}
 .cloche-liste .d{display:block;text-decoration:none;color:inherit}
 .cloche-liste a.d:active{background:var(--field)}
 .cloche-liste .d span{margin-top:3px}
@@ -1168,11 +1176,15 @@ body.connexion .ciel{display:none}
     <div class="notifs" id="notifs" hidden></div>
     <div class="invite-notif" id="inviteNotif" hidden></div>
 
-    <a class="raccourci" href="./notes.html">
-      <span class="r-ic"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg></span>
-      <span class="r-txt"><b>To-do list</b><span id="rListes">Tâches du jour, achats, rappels</span></span>
-      <span class="r-fleche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>
-    </a>
+    <div class="fen-outils" id="fenCloche" role="dialog" aria-modal="true" aria-labelledby="fenClocheT" hidden>
+      <div class="fo-fond" data-fermer></div>
+      <div class="fo-boite fo-cloche">
+        <div class="fo-tete"><b id="fenClocheT">Notifications</b>
+          <button type="button" class="fo-x" data-fermer aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+        <div class="fc-corps" id="fcCorps"></div>
+      </div>
+    </div>
     <button type="button" class="btn-outils" id="btnOutils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
       <span>Outils</span>
@@ -1979,10 +1991,7 @@ function chargerListes(s){
     .then(function(d){
       LISTES=d.listes||[];
       var reste=LISTES.reduce(function(a,l){ return a+(l.items||[]).filter(function(i){ return !i.fait; }).length; }, 0);
-      var r=$("rListes");
-      if(r) r.textContent = reste
-        ? reste+" tâche"+(reste>1?"s":"")+" en cours sur "+LISTES.length+" liste"+(LISTES.length>1?"s":"")
-        : "Tâches du jour, achats, rappels";
+      TODO_RESTE=reste; TODO_LISTES=LISTES.length; peindreTodo();
       peindreListes(s);
     })
     .catch(function(){});
@@ -2322,17 +2331,24 @@ function peindreNotifs(s, ch, relances){
   cloche.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/>'
     +'<path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span class="nb" hidden></span>';
   var panneau=document.createElement("div"); panneau.className="demandes cloche-liste";
-  panneau.id="panneauCloche"; panneau.hidden=!CLOCHE_OUVERTE;
+  panneau.id="panneauCloche";
+  cloche.setAttribute("aria-haspopup","dialog");
   cloche.addEventListener("click", function(e){
     e.preventDefault(); e.stopPropagation();
-    CLOCHE_OUVERTE=panneau.hidden;
-    panneau.hidden=!CLOCHE_OUVERTE;
-    cloche.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
+    ouvrirCloche(true);
   });
-  cloche.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
+  var todo=document.createElement("button");
+  todo.type="button"; todo.className="cloche todo"; todo.id="btnTodo";
+  todo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/>'
+    +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span class="nb" hidden></span>';
+  todo.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); location.href="./notes.html"; });
+  suivis.appendChild(todo);
   suivis.appendChild(cloche);
-  host.appendChild(suivis); host.appendChild(panneau);
+  host.appendChild(suivis);
+  var corps=$("fcCorps"); if(corps){ corps.textContent=""; corps.appendChild(panneau); }
+  peindreTodo();
   peindreCloche();
+  ouvrirCloche(CLOCHE_OUVERTE);
   if(nonLus) host.appendChild(notif("amb", String(nonLus), nonLus+(nonLus>1?" documents pas encore ouverts":" document pas encore ouvert"),
     "Vos envois que personne n'a consultés", "./rapports.html"));
   if(reserves) host.appendChild(notif("rge", String(reserves), reserves+(reserves>1?" réceptions avec réserves":" réception avec réserves"),
@@ -2383,6 +2399,37 @@ function peindreNotifs(s, ch, relances){
    n'ai pas encore ouverts, les messages de discussion non lus. Une
    ligne par chantier, qui mène à sa page. */
 var CLOCHE_OUVERTE=false;
+/* la fenêtre des notifications : au fond, à la croix, avec Échap, elle se ferme */
+function ouvrirCloche(ouvrir){
+  var f=$("fenCloche"), c=$("cloche"); if(!f) return;
+  if(f.parentNode!==document.body) document.body.appendChild(f);
+  CLOCHE_OUVERTE=!!ouvrir;
+  f.hidden=!CLOCHE_OUVERTE;
+  if(c) c.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
+}
+(function(){
+  var f=$("fenCloche"); if(!f) return;
+  f.addEventListener("click", function(e){
+    var t=e.target.closest ? e.target.closest("[data-fermer], a") : null;
+    if(!t) return;
+    ouvrirCloche(false);
+    if(t.hasAttribute("data-fermer")){ var c=$("cloche"); if(c) c.focus(); }
+  });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && CLOCHE_OUVERTE) ouvrirCloche(false); });
+  window.addEventListener("pageshow", function(){ ouvrirCloche(false); });
+})();
+/* l'icône de la to-do list porte le nombre de tâches en cours */
+var TODO_RESTE=0, TODO_LISTES=0;
+function peindreTodo(){
+  var b=$("btnTodo"); if(!b) return;
+  var nb=b.querySelector(".nb");
+  nb.hidden=!TODO_RESTE;
+  nb.textContent=TODO_RESTE>99 ? "99+" : String(TODO_RESTE);
+  b.title = TODO_RESTE
+    ? "To-do list : "+TODO_RESTE+" tâche"+(TODO_RESTE>1?"s":"")+" en cours sur "+TODO_LISTES+" liste"+(TODO_LISTES>1?"s":"")
+    : "To-do list : tâches du jour, achats, rappels";
+  b.setAttribute("aria-label", b.title);
+}
 var CLOCHE_AVANT=0;
 function peindreCloche(){
   var cloche=$("cloche"), pan=$("panneauCloche");
