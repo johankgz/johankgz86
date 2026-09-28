@@ -77,6 +77,15 @@ body.clair #scene{background:#FFFFFF}
 .toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;background:#F2F5F9;color:#0B0E12;
   padding:9px 14px;border-radius:999px;font-size:13.5px;font-weight:600;width:max-content;max-width:90vw;text-align:center}
 .toast[hidden]{display:none}
+.etalon{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:min(340px,calc(100vw - 32px));padding:16px;
+  background:rgba(20,25,32,.98);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -10px rgba(0,0,0,.8);color:var(--ink)}
+.etalon[hidden]{display:none}
+.etalon b{font-size:15px}
+.etalon p{margin:8px 0 12px;font-size:13.5px;color:var(--ink2);line-height:1.4}
+.etalon strong{color:var(--or)}
+.et-ligne{display:flex;gap:8px;align-items:center;margin-top:10px}
+.et-ligne input{flex:1;min-width:0;min-height:40px;padding:8px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:#0B0E12;color:var(--ink);font-size:16px}
+.et-ligne .bt{flex:1;justify-content:center}
 </style>
 </head>
 <body>
@@ -117,11 +126,22 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btDefaire" type="button" disabled>Annuler</button>
     <button class="bt" id="btEffacer" type="button" disabled>Effacer</button>
     <button class="bt" id="btEntier" type="button">Vue entière</button>
-    <span class="groupe"><span class="lab">Dessin en</span>
-    <span class="seg" id="segDessin" role="group" aria-label="Unité du dessin"><button type="button" data-d="1">mm</button><button type="button" data-d="10">cm</button><button type="button" data-d="1000">m</button></span></span>
+    <span class="groupe"><span class="lab" id="labDessin">Dessin en</span>
+    <span class="seg" id="segDessin" role="group" aria-label="Unité du dessin"><button type="button" data-d="1">mm</button><button type="button" data-d="10">cm</button><button type="button" data-d="1000">m</button></span>
+    <button class="bt" id="btEtalon" type="button">Étalonner</button></span>
   </div>
 </div>
 <div class="toast" id="toast" hidden></div>
+
+<form class="etalon" id="etalon" hidden>
+  <b>Étalonner l'échelle</b>
+  <p>La dernière cote mesure <strong id="etLu">—</strong> à l'échelle actuelle. Quelle est sa vraie longueur ?</p>
+  <div class="et-ligne">
+    <input id="etValeur" type="text" inputmode="decimal" autocomplete="off" placeholder="ex. 3,45" aria-label="Vraie longueur">
+    <span class="seg" id="etUnite" role="group" aria-label="Unité"><button type="button" data-u="mm">mm</button><button type="button" data-u="cm">cm</button><button type="button" data-u="m">m</button></span>
+  </div>
+  <div class="et-ligne"><button class="bt" id="etAnnuler" type="button">Annuler</button><button class="bt or" type="submit">Valider</button></div>
+</form>
 
 <script>
 (function(){
@@ -131,7 +151,12 @@ var $=function(i){ return document.getElementById(i); };
    fois (9 Mo), puis gardé en cache par le navigateur */
 var LIB_URL="https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.14/dist/libredwg-web.js";
 var LIB=null;
-function toast(t){ var e=$("toast"); e.textContent=t; e.style.bottom=(basH()+16)+"px"; e.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){ e.hidden=true; }, 3200); }
+function toast(t, duree){ var e=$("toast"); e.textContent=t; e.style.bottom=(basH()+16)+"px"; e.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){ e.hidden=true; }, duree||3200); }
+var SOURCES={"etalon":"étalonné", "fichier-cotes":"fichier et cotes du plan", "fichier":"d'après le fichier", "cotes":"d'après les cotes du plan", "taille":"d'après la taille du plan", "suppose":"supposé", "choisi":"choisi"};
+function majTitre(){
+  if(!PLAN) return;
+  $("sousTitre").textContent=PLAN.nom+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")";
+}
 function charge(t){ $("chargementTxt").textContent=t; $("chargement").hidden=!t; }
 function lire(k, d){ try{ var v=localStorage.getItem(k); return v==null ? d : v; }catch(e){ return d; } }
 function garder(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
@@ -147,8 +172,49 @@ function aci(i){
 }
 
 /* ---------- du DWG au dessin : des polylignes et des textes, en coordonnées du plan ---------- */
+/* le premier nombre d'un texte de cote : « 3,45 », « 345 », « 1 250 » */
+function nombre(t){
+  var m=String(t||"").replace(/(\d)[\s\u00a0](?=\d{3}(?!\d))/g,"$1").match(/\d+(?:[.,]\d+)?/);
+  return m ? parseFloat(m[0].replace(",", ".")) : 0;
+}
+function mediane(t){ t=t.slice().sort(function(a,b){ return a-b; }); return t.length ? t[t.length>>1] : 0; }
+/* combien de millimètres vaut une unité du dessin ?
+   u : ce que le fichier annonce (ou rien) ; cp : les cotes du plan ; L : la taille du plan en unités.
+   Beaucoup de plans sont dessinés en cm ou en m sur un gabarit qui annonce le mm :
+   on recoupe donc avec les cotes du plan et avec la taille du bâtiment. */
+var USUELS=[1, 10, 100, 1000, 25.4, 304.8];
+function arrondirUsuel(mm){ for(var i=0;i<USUELS.length;i++) if(Math.abs(Math.log(mm/USUELS[i]))<0.02) return USUELS[i]; return mm; }
+function plausible(mm, L){ var m=L*mm/1000; return m>=2 && m<=2000; }
+function deduireEchelle(u, cp, L){
+  var ok=(cp||[]).filter(function(c){ return c.v>0 && c.l>0; });
+  if(ok.length>=2){
+    var r=mediane(ok.map(function(c){ return c.v/c.l; })), vm=mediane(ok.map(function(c){ return c.v; }));
+    /* les cotes affichées sont en mm, en cm ou en m : trois lectures possibles */
+    var cands=[r, r*10, r*1000].map(arrondirUsuel);
+    if(u){ for(var i=0;i<3;i++) if(Math.abs(Math.log(u/cands[i]))<0.03 && plausible(u, L)) return {mm:u, source:"fichier-cotes"}; }
+    /* l'ordre de grandeur des cotes : 3,45 (m) ; 345 (cm) ; 3450 (mm) */
+    var parTaille = vm<30 ? cands[2] : vm<800 ? cands[1] : cands[0];
+    if(!plausible(parTaille, L)){ var alt=cands.filter(function(c){ return plausible(c, L); }); if(alt.length) parTaille=alt[0]; }
+    return {mm:parTaille, source:"cotes", annonce:u||0};
+  }
+  if(u){
+    if(plausible(u, L)) return {mm:u, source:"fichier"};
+    var a2=[1, 10, 1000].filter(function(c){ return plausible(c, L); });
+    return a2.length ? {mm:a2[0], source:"taille", annonce:u} : {mm:u, source:"fichier"};
+  }
+  if(L>0 && L<400) return {mm:1000, source:"taille"};
+  return {mm:1, source:"suppose"};
+}
+function nomUnite(mm){
+  var n={1:"1 mm", 10:"1 cm", 100:"1 dm", 1000:"1 m", 25.4:"1 pouce", 304.8:"1 pied"}[mm];
+  return n || (mm>=1 ? mm.toLocaleString("fr-FR",{maximumFractionDigits:3})+" mm" : (mm).toLocaleString("fr-FR",{maximumSignificantDigits:4})+" mm");
+}
+
 function construire(db){
-  var P={groupes:{}, textes:[], calques:{}, pts:[], minx:Infinity, miny:Infinity, maxx:-Infinity, maxy:-Infinity, xs:[], ys:[]};
+  var P={groupes:{}, textes:[], calques:{}, pts:[], minx:Infinity, miny:Infinity, maxx:-Infinity, maxy:-Infinity, xs:[], ys:[], cotesPlan:[]};
+  var styles={};
+  ((db.tables && db.tables.DIMSTYLE && db.tables.DIMSTYLE.entries)||[]).forEach(function(d){ styles[d.name]=d; });
+  function lfac(nom){ var d=styles[nom], f=d && d.DIMLFAC; if(!f) f=(db.header||{}).DIMLFAC; return Math.abs(f||1); }
   var couleurCalque={}, blocs={};
   ((db.tables && db.tables.LAYER && db.tables.LAYER.entries)||[]).forEach(function(l){ couleurCalque[l.name]=Math.abs(l.colorIndex||7); P.calques[l.name]={nom:l.name, couleur:aci(Math.abs(l.colorIndex||7)), visible:!(l.off||l.frozen), n:0}; });
   var modele=null;
@@ -327,6 +393,17 @@ function construire(db){
       case "DIMENSION":
         var bd=blocs[e.name];
         if(bd && bd.entities && prof<=8) bd.entities.forEach(function(x){ dessiner(x, m, ctx, prof+1); });
+        /* les cotes linéaires du plan : ce qu'elles affichent, pour quelle longueur dessinée */
+        if(((e.dimensionType||0)&7)<=1 && e.measurement>0){
+          var lu=null;
+          ((bd && bd.entities)||[]).some(function(x){
+            if(x.type==="MTEXT"){ lu=texteMtext(x.text); return true; }
+            if(x.type==="TEXT"){ lu=x.text; return true; }
+          });
+          if(lu==null) lu = e.text && e.text.indexOf("<>")<0 ? e.text : String(e.measurement*lfac(e.styleName));
+          var vu=nombre(lu), ech=Math.sqrt(Math.abs(m[0]*m[3]-m[1]*m[2]));
+          if(vu>0 && P.cotesPlan.length<5000) P.cotesPlan.push({v:vu, l:e.measurement*ech});
+        }
         break;
       case "HATCH":
         (e.boundaryPaths||[]).forEach(function(bp2){
@@ -378,7 +455,7 @@ var cv=$("scene"), c2=cv.getContext("2d");
 var PLAN=null, V={k:1, x:0, y:0}, DPR=1, W=0, H=0;
 var COTES=[], A_PT=null, SURVOL=null, VISEE=null;
 var UNITE=lire("dwg:unite","m"), ACCROCHE=lire("dwg:accroche","1")==="1", ORTHO=false, CLAIR=lire("dwg:fond","sombre")==="clair";
-var DESSIN_MM=1, DESSIN_SUR=false;
+var DESSIN_MM=1, ECHELLE_SRC="", FICHIER_CLE="";
 document.body.classList.toggle("clair", CLAIR);
 function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
 function basH(){ var b=$("bas"); return b.hidden ? 0 : b.offsetHeight; }
@@ -528,6 +605,7 @@ function majBas(){
   $("btEffacer").disabled=!COTES.length && !A_PT;
   Array.prototype.forEach.call($("segUnite").children, function(b){ b.classList.toggle("on", b.dataset.u===UNITE); });
   Array.prototype.forEach.call($("segDessin").children, function(b){ b.classList.toggle("on", Number(b.dataset.d)===DESSIN_MM); });
+  $("labDessin").textContent = ECHELLE_SRC==="etalon" ? "Étalonné · 1 u = "+nomUnite(DESSIN_MM) : "Dessin en";
   $("btAccroche").classList.toggle("on", ACCROCHE); $("btAccroche").setAttribute("aria-pressed", ACCROCHE?"true":"false");
   $("btOrtho").classList.toggle("on", ORTHO); $("btOrtho").setAttribute("aria-pressed", ORTHO?"true":"false");
 }
@@ -618,13 +696,24 @@ function ouvrirFichier(f){
         var P=construire(db);
         if(!P.nb && !P.textes.length) throw new Error("vide");
         PLAN=P; COTES=[]; A_PT=null;
-        /* l'unité du dessin : celle du fichier, sinon le millimètre (à corriger en bas) */
+        /* l'unité du dessin : un étalonnage déjà fait sur ce fichier, sinon ce que
+           disent le fichier et les cotes du plan */
         var u={1:25.4, 2:304.8, 4:1, 5:10, 6:1000, 14:100}[(db.header||{}).INSUNITS];
-        DESSIN_MM = u || 1; DESSIN_SUR=!!u;
-        $("sousTitre").textContent=f.name+" · "+P.nb.toLocaleString("fr-FR")+" tracés"+(DESSIN_SUR ? "" : " · unité non précisée : mm supposés");
+        var d=deduireEchelle(u, P.cotesPlan, Math.max(P.maxx-P.minx, P.maxy-P.miny));
+        FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
+        var garde=Number(lire(FICHIER_CLE, "0"));
+        if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
+        else { DESSIN_MM=d.mm; ECHELLE_SRC=d.source; }
+        PLAN.nom=f.name;
         $("accueil").hidden=true; $("bas").hidden=false; $("btCalques").disabled=false; $("btImage").disabled=false;
-        remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
-        toast(DESSIN_SUR ? "Plan ouvert. Touchez deux points pour coter." : "Plan ouvert. Unité du dessin inconnue : vérifiez « Dessin en » en bas.");
+        majTitre(); remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
+        var msg;
+        if(ECHELLE_SRC==="etalon") msg="Plan ouvert, avec l'étalonnage fait la dernière fois (1 unité = "+nomUnite(DESSIN_MM)+").";
+        else if(d.annonce) msg="Échelle corrigée "+(d.source==="cotes" ? "d'après les cotes du plan" : "d'après la taille du plan")+" : 1 unité = "+nomUnite(d.mm)+" (le fichier annonçait "+nomUnite(d.annonce)+"). Vérifiez sur une cote connue.";
+        else if(d.source==="fichier-cotes") msg="Plan ouvert : 1 unité = "+nomUnite(d.mm)+", confirmé par les cotes du plan.";
+        else if(d.source==="fichier") msg="Plan ouvert : 1 unité = "+nomUnite(d.mm)+" d'après le fichier. Vérifiez sur une cote connue.";
+        else msg="Unité du dessin inconnue, "+nomUnite(d.mm)+" supposé : vérifiez sur une cote connue, puis Étalonner.";
+        toast(msg, 6500);
       });
     });
   }).catch(function(e){
@@ -644,7 +733,28 @@ document.addEventListener("drop", function(e){ var f=e.dataTransfer && e.dataTra
 
 /* ---------- les réglages ---------- */
 $("segUnite").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; UNITE=b.dataset.u; garder("dwg:unite", UNITE); majBas(); demander(); });
-$("segDessin").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; DESSIN_MM=Number(b.dataset.d); majBas(); demander(); });
+$("segDessin").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; DESSIN_MM=Number(b.dataset.d); ECHELLE_SRC="choisi"; garder(FICHIER_CLE, String(DESSIN_MM)); majTitre(); majBas(); demander(); });
+/* étalonner : on a coté une longueur connue (une cote du plan, une porte), on donne sa vraie valeur */
+$("btEtalon").addEventListener("click", function(){
+  var dern=COTES[COTES.length-1];
+  if(!dern){ toast("Cotez d'abord une longueur connue (une cote écrite sur le plan, une porte…), puis touchez Étalonner.", 5000); return; }
+  $("etLu").textContent=formater(distance(dern.a, dern.b));
+  ET_U=UNITE; majEtalon(); $("toast").hidden=true; $("etalon").hidden=false;
+  var v=$("etValeur"); v.value=""; setTimeout(function(){ v.focus(); }, 30);
+});
+var ET_U="cm";
+function majEtalon(){ Array.prototype.forEach.call($("etUnite").children, function(b){ b.classList.toggle("on", b.dataset.u===ET_U); }); }
+$("etUnite").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; ET_U=b.dataset.u; majEtalon(); });
+$("etAnnuler").addEventListener("click", function(){ $("etalon").hidden=true; });
+$("etalon").addEventListener("submit", function(e){
+  e.preventDefault();
+  var dern=COTES[COTES.length-1], v=nombre($("etValeur").value);
+  if(!dern || !(v>0)){ $("etValeur").focus(); return; }
+  var reel=v*{mm:1, cm:10, m:1000}[ET_U], d=distance(dern.a, dern.b);
+  DESSIN_MM=arrondirUsuel(reel/d); ECHELLE_SRC="etalon"; garder(FICHIER_CLE, String(DESSIN_MM));
+  $("etalon").hidden=true; majTitre(); majBas(); demander();
+  toast("Échelle étalonnée : 1 unité = "+nomUnite(DESSIN_MM)+". Gardée pour ce fichier.", 4500);
+});
 $("btAccroche").addEventListener("click", function(){ ACCROCHE=!ACCROCHE; garder("dwg:accroche", ACCROCHE?"1":"0"); majBas(); });
 $("btOrtho").addEventListener("click", function(){ ORTHO=!ORTHO; majBas(); demander(); });
 $("btDefaire").addEventListener("click", defaire);
@@ -682,7 +792,7 @@ $("btImage").addEventListener("click", function(){
 window.addEventListener("resize", redim);
 redim(); majBas();
 /* pour les essais */
-window.__dwg={plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
+window.__dwg={deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
 </script>
 </body>
