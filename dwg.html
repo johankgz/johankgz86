@@ -1,0 +1,689 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B0E12">
+<title>Plan DWG — coter</title>
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="apple-touch-icon" href="/icone-180.png">
+<style>
+/* =====================================================================
+   PLAN DWG — ouvrir un plan AutoCAD et y prendre des cotes
+   ---------------------------------------------------------------------
+   Le fichier est lu dans le navigateur (LibreDWG, en WebAssembly) : il
+   ne part jamais sur le site. Le plan est redessiné ici, calques et
+   blocs compris ; on cote en deux touches, avec accrochage sur les
+   extrémités, milieux et centres, et une loupe sous le doigt.
+   ===================================================================== */
+:root{--fond:#0B0E12;--barre:#141920;--trait:rgba(255,255,255,.1);--ink:#F2F5F9;--ink2:#AEB7BF;--ink3:#7A8796;--or:#FB923C;--or2:#EA7A1E;--cy:#22D3EE}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--fond);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
+  -webkit-tap-highlight-color:transparent}
+button,select{font:inherit}
+.haut{position:fixed;left:0;right:0;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:8px 10px;padding-top:calc(8px + env(safe-area-inset-top,0px));
+  background:rgba(11,14,18,.9);border-bottom:1px solid var(--trait);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.haut a,.bt{flex:0 0 auto;min-height:38px;padding:6px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);
+  font-size:13.5px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
+.bt svg,.haut a svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.bt.or{background:var(--or2);border-color:var(--or2);color:#0B0E12}
+.bt.on{background:var(--ink);color:#0B0E12}
+.bt[disabled]{opacity:.4;cursor:default}
+.titre{flex:1 1 auto;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.titre small{display:block;font-size:11.5px;font-weight:500;color:var(--ink3)}
+@media (max-width:520px){ .bt .lib{display:none} .bt{padding:6px 10px} }
+#scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
+body.clair #scene{background:#FFFFFF}
+.accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 20px 20px;text-align:center}
+.accueil[hidden]{display:none}
+.depot{max-width:440px;width:100%;padding:28px 22px;border:2px dashed rgba(255,255,255,.2);border-radius:18px;background:rgba(255,255,255,.03)}
+.depot.survol{border-color:var(--or);background:rgba(251,146,60,.08)}
+.depot svg{width:48px;height:48px;stroke:var(--or);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.depot h1{font-size:19px;margin:10px 0 6px}
+.depot p{font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 16px}
+.depot .bt{min-height:46px;padding:10px 20px;font-size:15px}
+.chargement{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:8;padding:16px 20px;border-radius:14px;background:rgba(20,25,32,.95);
+  border:1px solid var(--trait);font-size:14px;text-align:center;max-width:86vw}
+.chargement[hidden]{display:none}
+.chargement i{display:block;width:26px;height:26px;margin:0 auto 10px;border-radius:50%;border:3px solid rgba(255,255,255,.15);border-top-color:var(--or);animation:tourne 1s linear infinite}
+@keyframes tourne{to{transform:rotate(360deg)}}
+/* le bas : la cote, les unités, les réglages */
+.bas{position:fixed;left:0;right:0;bottom:0;z-index:5;padding:8px 10px;padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));
+  background:rgba(20,25,32,.94);border-top:1px solid var(--trait);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.bas[hidden]{display:none}
+.mesure{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.mesure b{font:700 26px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--or);letter-spacing:-.02em}
+.mesure span{font-size:12.5px;color:var(--ink2)}
+.reglages{display:flex;align-items:center;gap:6px;overflow-x:auto;scrollbar-width:none}
+.reglages::-webkit-scrollbar{display:none}
+.seg{display:inline-flex;flex:0 0 auto;border:1px solid rgba(255,255,255,.18);border-radius:999px;overflow:hidden}
+.seg button{border:0;background:transparent;color:var(--ink2);padding:6px 11px;font-size:13px;font-weight:600;cursor:pointer;min-height:34px}
+.seg button.on{background:var(--ink);color:#0B0E12}
+.groupe{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px}
+.lab{flex:0 0 auto;font-size:11.5px;color:var(--ink3);font-weight:600;margin-left:4px}
+.reglages .bt{min-height:34px;font-size:13px}
+@media (max-width:600px){ .reglages{flex-wrap:wrap;overflow:visible} .reglages .bt{padding:6px 10px} .seg button{padding:6px 10px} }
+/* les calques */
+.calques{position:fixed;right:10px;top:calc(62px + env(safe-area-inset-top,0px));bottom:150px;z-index:6;width:min(300px,86vw);display:flex;flex-direction:column;
+  background:rgba(20,25,32,.97);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8)}
+.calques[hidden]{display:none}
+.calques header{display:flex;align-items:center;gap:6px;padding:10px 12px;border-bottom:1px solid var(--trait)}
+.calques header b{flex:1;font-size:14.5px}
+.calques ul{list-style:none;margin:0;padding:4px 0;overflow:auto;flex:1}
+.calques li label{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:13.5px;cursor:pointer}
+.calques li i{flex:0 0 auto;width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.3)}
+.calques li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.calques li small{color:var(--ink3)}
+.toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;background:#F2F5F9;color:#0B0E12;
+  padding:9px 14px;border-radius:999px;font-size:13.5px;font-weight:600;width:max-content;max-width:90vw;text-align:center}
+.toast[hidden]{display:none}
+</style>
+</head>
+<body>
+<canvas id="scene" aria-label="Plan"></canvas>
+
+<div class="haut">
+  <a href="./index.html" aria-label="Menu">Menu</a>
+  <div class="titre" id="titre">Plan DWG<small id="sousTitre">Ouvrir un plan et prendre des cotes</small></div>
+  <button class="bt" id="btOuvrir" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/></svg><span class="lib">Ouvrir</span></button>
+  <button class="bt" id="btCalques" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 21 8l-9 4.5L3 8zM3 12l9 4.5 9-4.5M3 16l9 4.5 9-4.5"/></svg><span class="lib">Calques</span></button>
+  <button class="bt" id="btFond" type="button" aria-label="Fond clair ou sombre" title="Fond clair ou sombre"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17z"/><circle cx="12" cy="12" r="8.5"/></svg></button>
+  <button class="bt" id="btImage" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5M4.5 17v3.5h15V17"/></svg><span class="lib">Image</span></button>
+  <input type="file" id="fichier" accept=".dwg,.dxf,application/acad,image/vnd.dwg" hidden>
+</div>
+
+<div class="accueil" id="accueil">
+  <div class="depot" id="depot">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M7.5 16.5h9M7.5 16.5v-2M16.5 16.5v-2M9 12.5h6"/></svg>
+    <h1>Ouvrir un plan DWG</h1>
+    <p>Choisissez un fichier .dwg (AutoCAD R14 à 2018) ou glissez-le ici. Il est lu sur cet appareil, rien n'est envoyé sur le site. Touchez ensuite deux points du plan pour prendre une cote.</p>
+    <button class="bt or" id="btOuvrir2" type="button">Choisir un fichier</button>
+  </div>
+</div>
+
+<div class="chargement" id="chargement" hidden><i></i><span id="chargementTxt">Chargement…</span></div>
+
+<aside class="calques" id="calques" hidden aria-label="Calques">
+  <header><b>Calques</b><button class="bt" id="cqTout" type="button">Tout</button><button class="bt" id="cqRien" type="button">Rien</button><button class="bt" id="cqFermer" type="button" aria-label="Fermer">✕</button></header>
+  <ul id="listeCalques"></ul>
+</aside>
+
+<div class="bas" id="bas" hidden>
+  <div class="mesure"><b id="valeur">—</b><span id="detail">Touchez un premier point du plan.</span></div>
+  <div class="reglages">
+    <span class="seg" id="segUnite" role="group" aria-label="Unité de la cote"><button type="button" data-u="mm">mm</button><button type="button" data-u="cm">cm</button><button type="button" data-u="m">m</button></span>
+    <button class="bt" id="btAccroche" type="button" aria-pressed="true">Accrochage</button>
+    <button class="bt" id="btOrtho" type="button" aria-pressed="false">Ortho</button>
+    <button class="bt" id="btDefaire" type="button" disabled>Annuler</button>
+    <button class="bt" id="btEffacer" type="button" disabled>Effacer</button>
+    <button class="bt" id="btEntier" type="button">Vue entière</button>
+    <span class="groupe"><span class="lab">Dessin en</span>
+    <span class="seg" id="segDessin" role="group" aria-label="Unité du dessin"><button type="button" data-d="1">mm</button><button type="button" data-d="10">cm</button><button type="button" data-d="1000">m</button></span></span>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(function(){
+"use strict";
+var $=function(i){ return document.getElementById(i); };
+/* LibreDWG compilé en WebAssembly, servi par jsDelivr : chargé une seule
+   fois (9 Mo), puis gardé en cache par le navigateur */
+var LIB_URL="https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.14/dist/libredwg-web.js";
+var LIB=null;
+function toast(t){ var e=$("toast"); e.textContent=t; e.style.bottom=(basH()+16)+"px"; e.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){ e.hidden=true; }, 3200); }
+function charge(t){ $("chargementTxt").textContent=t; $("chargement").hidden=!t; }
+function lire(k, d){ try{ var v=localStorage.getItem(k); return v==null ? d : v; }catch(e){ return d; } }
+function garder(k, v){ try{ localStorage.setItem(k, v); }catch(e){} }
+
+/* ---------- les couleurs AutoCAD (index ACI) ---------- */
+var ACI_BASE={1:"#FF0000",2:"#FFFF00",3:"#00FF00",4:"#00FFFF",5:"#0000FF",6:"#FF00FF",7:"#FFFFFF",8:"#808080",9:"#C0C0C0"};
+function aci(i){
+  if(ACI_BASE[i]) return ACI_BASE[i];
+  if(i>=250 && i<=255){ var g=Math.round(51+ (i-250)*40.8); return "rgb("+g+","+g+","+g+")"; }
+  if(i<10 || i>249) return "#FFFFFF";
+  var h=Math.floor((i-10)/10)*15, v=(i%10), l=[0.5,0.5,0.4,0.4,0.3,0.3,0.2,0.2,0.1,0.1][v], s=(v%2)?0.5:1;
+  return "hsl("+h+","+Math.round(s*100)+"%,"+Math.round((l+0.15)*100)+"%)";
+}
+
+/* ---------- du DWG au dessin : des polylignes et des textes, en coordonnées du plan ---------- */
+function construire(db){
+  var P={groupes:{}, textes:[], calques:{}, pts:[], minx:Infinity, miny:Infinity, maxx:-Infinity, maxy:-Infinity, xs:[], ys:[]};
+  var couleurCalque={}, blocs={};
+  ((db.tables && db.tables.LAYER && db.tables.LAYER.entries)||[]).forEach(function(l){ couleurCalque[l.name]=Math.abs(l.colorIndex||7); P.calques[l.name]={nom:l.name, couleur:aci(Math.abs(l.colorIndex||7)), visible:!(l.off||l.frozen), n:0}; });
+  var modele=null;
+  ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries)||[]).forEach(function(b){ blocs[b.name]=b; if(/^\*model_space$/i.test(b.name)) modele=b; });
+  var ents = modele && modele.entities && modele.entities.length ? modele.entities
+    : (db.entities||[]).filter(function(e){ return !modele || e.ownerBlockRecordSoftId===modele.handle; });
+
+  function calque(nom){ if(!P.calques[nom]) P.calques[nom]={nom:nom, couleur:aci(couleurCalque[nom]||7), visible:true, n:0}; return P.calques[nom]; }
+  function groupe(cq, coul){
+    var k=cq+"|"+coul, g=P.groupes[k];
+    if(!g){ g=P.groupes[k]={calque:cq, couleur:coul, chemin:new Path2D(), pleins:null, n:0}; }
+    return g;
+  }
+  function T(m, x, y){ return [m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; }
+  function mul(a, b){ return [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1], a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3], a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]]; }
+  function borne(x, y){
+    if(!isFinite(x) || !isFinite(y)) return;
+    if(P.xs.length<200000){ P.xs.push(x); P.ys.push(y); }
+  }
+  function acc(x, y, genre){ P.pts.push(x, y, genre); }
+  /* une polyligne (points déjà transformés) */
+  function poly(ctx, pts, ferme, plein){
+    if(pts.length<2) return;
+    var g=groupe(ctx.calque, ctx.couleur);
+    g.chemin.moveTo(pts[0][0], pts[0][1]);
+    for(var i=1;i<pts.length;i++) g.chemin.lineTo(pts[i][0], pts[i][1]);
+    if(ferme) g.chemin.closePath();
+    if(plein){ if(!g.pleins) g.pleins=new Path2D(); g.pleins.moveTo(pts[0][0], pts[0][1]); for(var j=1;j<pts.length;j++) g.pleins.lineTo(pts[j][0], pts[j][1]); g.pleins.closePath(); }
+    g.n++; P.calques[ctx.calque] && P.calques[ctx.calque].n++;
+    pts.forEach(function(p){ borne(p[0], p[1]); });
+  }
+  function arcPts(m, cx, cy, r, a0, a1, ccw){
+    if(ccw===false){ var t=a0; a0=a1; a1=t; }
+    while(a1<=a0) a1+=Math.PI*2;
+    var n=Math.max(8, Math.min(180, Math.ceil((a1-a0)/(Math.PI/36)))), out=[];
+    for(var i=0;i<=n;i++){ var a=a0+(a1-a0)*i/n; out.push(T(m, cx+r*Math.cos(a), cy+r*Math.sin(a))); }
+    return out;
+  }
+  function bulge(m, p1, p2, b, out){
+    if(!b){ out.push(T(m, p2.x, p2.y)); return; }
+    var th=4*Math.atan(b), dx=p2.x-p1.x, dy=p2.y-p1.y, c=Math.hypot(dx,dy); if(!c){ return; }
+    var r=c/(2*Math.sin(th/2)), mx=(p1.x+p2.x)/2, my=(p1.y+p2.y)/2, h=r*Math.cos(th/2);
+    var cx=mx - h*dy/c, cy=my + h*dx/c;
+    var a0=Math.atan2(p1.y-cy, p1.x-cx), n=Math.max(4, Math.ceil(Math.abs(th)/(Math.PI/36)));
+    for(var i=1;i<=n;i++){ var a=a0+th*i/n; out.push(T(m, cx+Math.abs(r)*Math.cos(a)*Math.sign(r||1), cy+Math.abs(r)*Math.sin(a)*Math.sign(r||1))); }
+  }
+  function catmull(pts){
+    if(pts.length<3) return pts;
+    var out=[];
+    for(var i=0;i<pts.length-1;i++){
+      var p0=pts[Math.max(0,i-1)], p1=pts[i], p2=pts[i+1], p3=pts[Math.min(pts.length-1,i+2)];
+      for(var t=0;t<1;t+=1/12){
+        var t2=t*t, t3=t2*t;
+        out.push([0.5*((2*p1[0])+(-p0[0]+p2[0])*t+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*t2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*t3),
+                  0.5*((2*p1[1])+(-p0[1]+p2[1])*t+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*t2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*t3)]);
+      }
+    }
+    out.push(pts[pts.length-1]);
+    return out;
+  }
+  function deBoor(cp, k, deg){
+    var n=cp.length; if(!k || k.length!==n+deg+1) return cp;
+    var out=[], a=k[deg], b=k[n], N=Math.max(24, n*8);
+    for(var s=0;s<=N;s++){
+      var u=a+(b-a)*s/N; if(s===N) u=b-1e-9;
+      var i=deg; while(i<n-1 && u>=k[i+1]) i++;
+      var d=[]; for(var j=0;j<=deg;j++) d.push(cp[i-deg+j].slice());
+      for(var r=1;r<=deg;r++) for(var j2=deg;j2>=r;j2--){
+        var ii=i-deg+j2, al=(u-k[ii])/((k[ii+deg-r+1]-k[ii])||1);
+        d[j2]=[(1-al)*d[j2-1][0]+al*d[j2][0], (1-al)*d[j2-1][1]+al*d[j2][1]];
+      }
+      out.push(d[deg]);
+    }
+    return out;
+  }
+  function texteMtext(s){
+    return String(s||"").replace(/\\P/g,"\n").replace(/\\~/g," ").replace(/\\[A-Za-z][^;\\{}]*;/g,"").replace(/\\[LlOoKk]/g,"").replace(/[{}]/g,"").replace(/\\\\/g,"\\");
+  }
+  function texte(ctx, m, x, y, h, rot, s, align, base){
+    if(!s || !h) return;
+    var p=T(m, x, y), q=T(m, x+Math.cos(rot), y+Math.sin(rot));
+    var echelle=Math.hypot(m[0], m[1]) || 1;
+    P.textes.push({calque:ctx.calque, couleur:ctx.couleur, x:p[0], y:p[1], h:h*echelle, rot:Math.atan2(q[1]-p[1], q[0]-p[0]), s:String(s), align:align||"left", base:base||"alphabetic"});
+    borne(p[0], p[1]);
+  }
+
+  function dessiner(e, m, parent, prof){
+    if(!e || e.isVisible===false) return;
+    var nomCalque = (e.layer==="0" && parent) ? parent.calque : (e.layer||"0");
+    calque(nomCalque);
+    var ci=e.colorIndex, coul;
+    if(ci===256 || ci==null) coul=aci(couleurCalque[nomCalque]||couleurCalque[e.layer]||7);
+    else if(ci===0) coul=parent ? parent.couleur : aci(7);
+    else coul=aci(Math.abs(ci));
+    var ctx={calque:nomCalque, couleur:coul};
+    var t=e.type, i, pts;
+    switch(t){
+      case "LINE":
+        var a=T(m, e.startPoint.x, e.startPoint.y), b=T(m, e.endPoint.x, e.endPoint.y);
+        poly(ctx, [a,b]); acc(a[0],a[1],1); acc(b[0],b[1],1); acc((a[0]+b[0])/2,(a[1]+b[1])/2,2); break;
+      case "LWPOLYLINE":
+        var v=e.vertices||[]; if(v.length<2) break;
+        var ferme=!!(e.flag&1) || !!(e.flag&512);
+        pts=[T(m, v[0].x, v[0].y)];
+        for(i=0;i<v.length-1;i++) bulge(m, v[i], v[i+1], v[i].bulge, pts);
+        if(ferme) bulge(m, v[v.length-1], v[0], v[v.length-1].bulge, pts);
+        poly(ctx, pts);
+        v.forEach(function(q, j){ var p=T(m, q.x, q.y); acc(p[0],p[1],1);
+          var nx=v[j+1] || (ferme ? v[0] : null); if(nx && !q.bulge){ var r=T(m,(q.x+nx.x)/2,(q.y+nx.y)/2); acc(r[0],r[1],2); } });
+        break;
+      case "POLYLINE2D": case "POLYLINE3D":
+        var vv=(e.vertices||[]).filter(function(q){ return !(q.flag&16); }); if(vv.length<2) break;
+        pts=[T(m, vv[0].x, vv[0].y)];
+        for(i=0;i<vv.length-1;i++) bulge(m, vv[i], vv[i+1], vv[i].bulge, pts);
+        if(e.flag&1) bulge(m, vv[vv.length-1], vv[0], vv[vv.length-1].bulge, pts);
+        poly(ctx, pts); vv.forEach(function(q){ var p=T(m,q.x,q.y); acc(p[0],p[1],1); });
+        break;
+      case "ARC":
+        pts=arcPts(m, e.center.x, e.center.y, e.radius, e.startAngle, e.endAngle);
+        poly(ctx, pts); var c1=T(m, e.center.x, e.center.y); acc(c1[0],c1[1],3); acc(pts[0][0],pts[0][1],1); acc(pts[pts.length-1][0],pts[pts.length-1][1],1); break;
+      case "CIRCLE":
+        pts=arcPts(m, e.center.x, e.center.y, e.radius, 0, Math.PI*2); poly(ctx, pts, true);
+        var c2=T(m, e.center.x, e.center.y); acc(c2[0],c2[1],3); break;
+      case "ELLIPSE":
+        var mx=e.majorAxisEndPoint.x, my=e.majorAxisEndPoint.y, r=e.axisRatio||1, a0=e.startAngle||0, a1=e.endAngle||Math.PI*2;
+        while(a1<=a0) a1+=Math.PI*2;
+        pts=[]; var n=Math.max(16, Math.ceil((a1-a0)/(Math.PI/36)));
+        for(i=0;i<=n;i++){ var u=a0+(a1-a0)*i/n; pts.push(T(m, e.center.x+mx*Math.cos(u)-my*r*Math.sin(u), e.center.y+my*Math.cos(u)+mx*r*Math.sin(u))); }
+        poly(ctx, pts); var c3=T(m, e.center.x, e.center.y); acc(c3[0],c3[1],3); break;
+      case "SPLINE":
+        var fp=(e.fitPoints||[]).map(function(q){ return [q.x,q.y]; }), cp=(e.controlPoints||[]).map(function(q){ return [q.x,q.y]; });
+        var crb = fp.length>=2 ? catmull(fp) : deBoor(cp, e.knots, e.degree||3);
+        pts=crb.map(function(q){ return T(m, q[0], q[1]); }); poly(ctx, pts);
+        if(pts.length){ acc(pts[0][0],pts[0][1],1); acc(pts[pts.length-1][0],pts[pts.length-1][1],1); }
+        break;
+      case "SOLID": case "3DFACE": case "TRACE":
+        var cs=[e.corner1,e.corner2,e.corner4||e.corner3,e.corner3].filter(Boolean);
+        if(t==="SOLID" || t==="TRACE") cs=[e.corner1,e.corner2,e.corner4||e.corner3,e.corner3].filter(Boolean);
+        else cs=[e.corner1,e.corner2,e.corner3,e.corner4].filter(Boolean);
+        pts=cs.map(function(q){ return T(m, q.x, q.y); }); poly(ctx, pts, true, t!=="3DFACE"); break;
+      case "POINT":
+        var pp=T(m, e.position.x, e.position.y); acc(pp[0],pp[1],1); borne(pp[0],pp[1]); break;
+      case "TEXT":
+        var h=e.textHeight, al=e.halign||0, pos=e.startPoint, align="left";
+        if((al===1||al===2||al===4) && e.endPoint && (e.endPoint.x||e.endPoint.y)){ pos=e.endPoint; align= al===2 ? "right" : "center"; }
+        texte(ctx, m, pos.x, pos.y, h, e.rotation||0, e.text, align, al===4 ? "middle" : "alphabetic"); break;
+      case "ATTRIB":
+        if(e.text && e.text.text) texte(ctx, m, e.text.startPoint.x, e.text.startPoint.y, e.text.textHeight, e.text.rotation||0, e.text.text); break;
+      case "MTEXT":
+        var ro = e.direction && (e.direction.x || e.direction.y) ? Math.atan2(e.direction.y, e.direction.x) : (e.rotation||0);
+        var lignes=texteMtext(e.text).split("\n"), hh=e.textHeight||1, ap=e.attachmentPoint||1;
+        var ha=["left","center","right"][(ap-1)%3], va=Math.floor((ap-1)/3), off= va===0 ? hh : va===1 ? hh*(1-(lignes.length-1)*1.67/2)/1 : -(lignes.length-1)*hh*1.67;
+        lignes.forEach(function(l, j){
+          var dy=-(j*hh*1.67) - (va===0 ? hh : va===1 ? -(lignes.length-1)*hh*1.67/2 - hh/2 : -(lignes.length-1)*hh*1.67);
+          var x0=e.insertionPoint.x - Math.sin(ro)*dy, y0=e.insertionPoint.y + Math.cos(ro)*dy;
+          texte(ctx, m, x0, y0, hh, ro, l, ha);
+        });
+        break;
+      case "INSERT":
+        if(prof>8) break;
+        var bl=blocs[e.name]; if(!bl || !bl.entities) break;
+        var nc=Math.max(1, e.columnCount||1), nr=Math.max(1, e.rowCount||1);
+        for(var ic=0; ic<nc; ic++) for(var ir=0; ir<nr; ir++){
+          var rot=e.rotation||0, cr=Math.cos(rot), sr=Math.sin(rot), sx=e.xScale||1, sy=e.yScale||1;
+          var ox=e.insertionPoint.x + ic*(e.columnSpacing||0)*cr - ir*(e.rowSpacing||0)*sr;
+          var oy=e.insertionPoint.y + ic*(e.columnSpacing||0)*sr + ir*(e.rowSpacing||0)*cr;
+          var bp=bl.basePoint||{x:0,y:0};
+          var mi=[cr*sx, sr*sx, -sr*sy, cr*sy, 0, 0];
+          mi[4]=ox-(mi[0]*bp.x+mi[2]*bp.y); mi[5]=oy-(mi[1]*bp.x+mi[3]*bp.y);
+          var mm=mul(m, mi);
+          bl.entities.forEach(function(x){ if(x.type!=="ATTDEF") dessiner(x, mm, ctx, prof+1); });
+        }
+        (e.attribs||[]).forEach(function(x){ dessiner(x, m, ctx, prof+1); });
+        var ip=T(m, e.insertionPoint.x, e.insertionPoint.y); acc(ip[0],ip[1],4);
+        break;
+      case "DIMENSION":
+        var bd=blocs[e.name];
+        if(bd && bd.entities && prof<=8) bd.entities.forEach(function(x){ dessiner(x, m, ctx, prof+1); });
+        break;
+      case "HATCH":
+        (e.boundaryPaths||[]).forEach(function(bp2){
+          var lignesH=[];
+          if(bp2.vertices && bp2.vertices.length){
+            var pv=bp2.vertices; var q=[T(m,pv[0].x,pv[0].y)];
+            for(var k=0;k<pv.length-1;k++) bulge(m, pv[k], pv[k+1], pv[k].bulge, q);
+            if(bp2.isClosed!==false) bulge(m, pv[pv.length-1], pv[0], pv[pv.length-1].bulge, q);
+            lignesH.push(q);
+          }
+          (bp2.edges||[]).forEach(function(ed){
+            if(ed.type===1 && ed.start && ed.end) lignesH.push([T(m,ed.start.x,ed.start.y), T(m,ed.end.x,ed.end.y)]);
+            else if(ed.type===2 && ed.center) lignesH.push(arcPts(m, ed.center.x, ed.center.y, ed.radius, ed.startAngle, ed.endAngle, ed.isCCW!==false));
+          });
+          lignesH.forEach(function(q2){ poly(ctx, q2, false, !!e.solidFill); });
+        });
+        break;
+      default: break;   /* XLINE, RAY, VIEWPORT, 3DSOLID, WIPEOUT… : rien à coter */
+    }
+  }
+  ents.forEach(function(e){ dessiner(e, [1,0,0,1,0,0], null, 0); });
+
+  /* l'étendue : on écarte les objets égarés très loin du plan */
+  if(P.xs.length){
+    var xs=P.xs.slice().sort(function(a,b){ return a-b; }), ys=P.ys.slice().sort(function(a,b){ return a-b; });
+    var q0=Math.floor(xs.length*0.005), q1=Math.max(q0, Math.ceil(xs.length*0.995)-1);
+    /* le gros du plan, puis tout ce qui n'en est pas trop loin (le cadre,
+       les cartouches) : seuls les égarés restent dehors */
+    var lx=xs[q1]-xs[q0], ly=ys[q1]-ys[q0], m=Math.max(lx, ly)*2;
+    function borne(t, a, b){ var i=0, j=t.length-1; while(i<j && t[i]<a) i++; while(j>i && t[j]>b) j--; return [t[i], t[j]]; }
+    var bx=borne(xs, xs[q0]-m, xs[q1]+m), by=borne(ys, ys[q0]-m, ys[q1]+m);
+    P.minx=bx[0]; P.maxx=bx[1]; P.miny=by[0]; P.maxy=by[1];
+    if(P.maxx-P.minx<1e-9){ P.minx-=1; P.maxx+=1; } if(P.maxy-P.miny<1e-9){ P.miny-=1; P.maxy+=1; }
+  }
+  P.xs=null; P.ys=null;
+  /* une grille pour retrouver vite le point d'accrochage le plus proche */
+  var L=Math.max(P.maxx-P.minx, P.maxy-P.miny), cel=L/160 || 1, grille={};
+  for(var z=0; z<P.pts.length; z+=3){
+    var key=Math.floor(P.pts[z]/cel)+","+Math.floor(P.pts[z+1]/cel);
+    (grille[key]=grille[key]||[]).push(z);
+  }
+  P.grille=grille; P.cel=cel;
+  P.nb=Object.keys(P.groupes).reduce(function(s,k){ return s+P.groupes[k].n; },0);
+  return P;
+}
+
+/* ---------- la vue ---------- */
+var cv=$("scene"), c2=cv.getContext("2d");
+var PLAN=null, V={k:1, x:0, y:0}, DPR=1, W=0, H=0;
+var COTES=[], A_PT=null, SURVOL=null, VISEE=null;
+var UNITE=lire("dwg:unite","m"), ACCROCHE=lire("dwg:accroche","1")==="1", ORTHO=false, CLAIR=lire("dwg:fond","sombre")==="clair";
+var DESSIN_MM=1, DESSIN_SUR=false;
+document.body.classList.toggle("clair", CLAIR);
+function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
+function basH(){ var b=$("bas"); return b.hidden ? 0 : b.offsetHeight; }
+function redim(){
+  DPR=Math.min(2.5, window.devicePixelRatio||1); W=window.innerWidth; H=window.innerHeight;
+  cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); cv.style.width=W+"px"; cv.style.height=H+"px";
+  demander();
+}
+function vueEntiere(){
+  if(!PLAN) return;
+  var h0=haut()+10, h1=H-basH()-10, w=Math.max(50, W-20), hh=Math.max(50, h1-h0);
+  V.k=Math.min(w/(PLAN.maxx-PLAN.minx), hh/(PLAN.maxy-PLAN.miny));
+  V.x=W/2 - V.k*(PLAN.minx+PLAN.maxx)/2;
+  V.y=(h0+h1)/2 + V.k*(PLAN.miny+PLAN.maxy)/2;
+  demander();
+}
+function versEcran(x, y){ return [V.x+x*V.k, V.y-y*V.k]; }
+function versPlan(sx, sy){ return [(sx-V.x)/V.k, (V.y-sy)/V.k]; }
+var DEMANDE=false;
+function demander(){ if(DEMANDE) return; DEMANDE=true; requestAnimationFrame(function(){ DEMANDE=false; peindre(); }); }
+
+function couleurTrait(c){
+  if(!CLAIR) return c;
+  var u=String(c).toUpperCase();
+  if(u==="#FFFFFF") return "#111111";
+  if(u==="#FFFF00") return "#B08900";
+  if(u==="#00FFFF") return "#0891B2";
+  if(u==="#00FF00") return "#15803D";
+  return c;
+}
+function peindre(){
+  c2.setTransform(1,0,0,1,0,0);
+  c2.fillStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c2.fillRect(0,0,cv.width,cv.height);
+  if(!PLAN) return;
+  c2.setTransform(DPR*V.k,0,0,-DPR*V.k,DPR*V.x,DPR*V.y);
+  c2.lineWidth=1/V.k; c2.lineJoin="round"; c2.lineCap="round";
+  for(var k in PLAN.groupes){
+    var g=PLAN.groupes[k]; if(PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible) continue;
+    var col=couleurTrait(g.couleur);
+    if(g.pleins){ c2.globalAlpha=0.35; c2.fillStyle=col; c2.fill(g.pleins); c2.globalAlpha=1; }
+    c2.strokeStyle=col; c2.stroke(g.chemin);
+  }
+  /* les textes, lisibles à partir de 3 px */
+  c2.setTransform(DPR,0,0,DPR,0,0);
+  var n=0;
+  for(var i=0;i<PLAN.textes.length && n<6000;i++){
+    var t=PLAN.textes[i], hp=t.h*V.k; if(hp<3) continue;
+    if(PLAN.calques[t.calque] && !PLAN.calques[t.calque].visible) continue;
+    var p=versEcran(t.x, t.y); if(p[0]<-2000||p[0]>W+2000||p[1]<-2000||p[1]>H+2000) continue;
+    c2.save(); c2.translate(p[0],p[1]); c2.rotate(-t.rot);
+    c2.font=Math.min(hp,400).toFixed(1)+"px Helvetica, Arial, sans-serif"; c2.textAlign=t.align; c2.textBaseline=t.base;
+    c2.fillStyle=couleurTrait(t.couleur); t.s.split("\n").forEach(function(l,j){ c2.fillText(l, 0, j*hp*1.2); });
+    c2.restore(); n++;
+  }
+  /* les cotes */
+  COTES.forEach(function(ct){ dessinerCote(ct.a, ct.b); });
+  if(A_PT){
+    var fin = VISEE ? VISEE.pt : (SURVOL ? SURVOL.pt : null);
+    if(fin) dessinerCote(A_PT, contraindre(A_PT, fin), true);
+    repere(A_PT);
+  }
+  var cible = VISEE ? VISEE : SURVOL;
+  if(cible && cible.acc) accroche(cible.pt, cible.genre);
+  if(VISEE) loupe(VISEE.ecran);
+}
+function repere(pt){
+  var p=versEcran(pt[0],pt[1]);
+  c2.strokeStyle="#FB923C"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
+}
+function accroche(pt, genre){
+  var p=versEcran(pt[0],pt[1]); c2.strokeStyle="#22D3EE"; c2.lineWidth=2; c2.beginPath();
+  if(genre===2){ c2.moveTo(p[0],p[1]-8); c2.lineTo(p[0]+8,p[1]+6); c2.lineTo(p[0]-8,p[1]+6); c2.closePath(); }
+  else if(genre===3){ c2.arc(p[0],p[1],8,0,Math.PI*2); }
+  else c2.rect(p[0]-7,p[1]-7,14,14);
+  c2.stroke();
+}
+function distance(a, b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
+function formater(dPlan){
+  var mm=dPlan*DESSIN_MM;
+  if(UNITE==="mm") return Math.round(mm).toLocaleString("fr-FR")+" mm";
+  if(UNITE==="cm") return (mm/10).toLocaleString("fr-FR",{minimumFractionDigits:1, maximumFractionDigits:1})+" cm";
+  return (mm/1000).toLocaleString("fr-FR",{minimumFractionDigits:2, maximumFractionDigits:2})+" m";
+}
+function dessinerCote(a, b, provisoire){
+  var p=versEcran(a[0],a[1]), q=versEcran(b[0],b[1]), L=Math.hypot(q[0]-p[0], q[1]-p[1]);
+  c2.strokeStyle="#FB923C"; c2.fillStyle="#FB923C"; c2.lineWidth=2; c2.setLineDash(provisoire ? [6,5] : []);
+  c2.beginPath(); c2.moveTo(p[0],p[1]); c2.lineTo(q[0],q[1]); c2.stroke(); c2.setLineDash([]);
+  if(L<2) return;
+  var ux=(q[0]-p[0])/L, uy=(q[1]-p[1])/L, nx=-uy*7, ny=ux*7;
+  [p,q].forEach(function(r){ c2.beginPath(); c2.moveTo(r[0]-nx,r[1]-ny); c2.lineTo(r[0]+nx,r[1]+ny); c2.stroke(); });
+  var ang=Math.atan2(q[1]-p[1], q[0]-p[0]); if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
+  var txt=formater(distance(a,b));
+  c2.save(); c2.translate((p[0]+q[0])/2,(p[1]+q[1])/2); c2.rotate(ang);
+  c2.font="bold 13px system-ui, sans-serif"; var tw=c2.measureText(txt).width;
+  c2.fillStyle="rgba(11,14,18,.88)"; c2.beginPath(); if(c2.roundRect) c2.roundRect(-tw/2-7,-24,tw+14,20,10); else c2.rect(-tw/2-7,-24,tw+14,20); c2.fill();
+  c2.fillStyle="#FDBA74"; c2.textAlign="center"; c2.textBaseline="middle"; c2.fillText(txt,0,-14);
+  c2.restore();
+}
+/* la loupe : sous le doigt, on ne voit rien ; on montre donc la zone visée plus haut, agrandie */
+function loupe(s){
+  var R=62, cx=s[0], cy=s[1]-110; if(cy<haut()+R+6) cy=s[1]+110;
+  var f=2.5, sw=(2*R/f)*DPR;
+  c2.save(); c2.setTransform(1,0,0,1,0,0);
+  c2.beginPath(); c2.arc(cx*DPR, cy*DPR, R*DPR, 0, Math.PI*2); c2.closePath(); c2.save(); c2.clip();
+  c2.fillStyle=CLAIR ? "#fff" : "#0B0E12"; c2.fillRect((cx-R)*DPR,(cy-R)*DPR,2*R*DPR,2*R*DPR);
+  try{ c2.drawImage(cv, s[0]*DPR-sw/2, s[1]*DPR-sw/2, sw, sw, (cx-R)*DPR, (cy-R)*DPR, 2*R*DPR, 2*R*DPR); }catch(e){}
+  c2.restore();
+  c2.lineWidth=2*DPR; c2.strokeStyle="#FB923C"; c2.stroke();
+  c2.beginPath(); c2.moveTo((cx-10)*DPR,cy*DPR); c2.lineTo((cx+10)*DPR,cy*DPR); c2.moveTo(cx*DPR,(cy-10)*DPR); c2.lineTo(cx*DPR,(cy+10)*DPR); c2.lineWidth=1.5*DPR; c2.stroke();
+  c2.restore();
+}
+
+/* ---------- l'accrochage ---------- */
+function chercher(sx, sy){
+  var pt=versPlan(sx, sy);
+  if(!PLAN || !ACCROCHE) return {pt:pt, acc:false};
+  var tol=16/V.k, best=null, bd=tol, cel=PLAN.cel;
+  var gx=Math.floor(pt[0]/cel), gy=Math.floor(pt[1]/cel), r=Math.ceil(tol/cel);
+  if(r>6) r=6;
+  for(var i=gx-r;i<=gx+r;i++) for(var j=gy-r;j<=gy+r;j++){
+    var l=PLAN.grille[i+","+j]; if(!l) continue;
+    for(var z=0;z<l.length;z++){ var o=l[z], d=Math.hypot(PLAN.pts[o]-pt[0], PLAN.pts[o+1]-pt[1]);
+      if(d<bd || (Math.abs(d-bd)<1e-9 && best && PLAN.pts[o+2]<best.genre)){ bd=d; best={pt:[PLAN.pts[o],PLAN.pts[o+1]], genre:PLAN.pts[o+2], acc:true}; } }
+  }
+  return best || {pt:pt, acc:false};
+}
+function contraindre(a, b){
+  if(!ORTHO) return b;
+  return Math.abs(b[0]-a[0]) >= Math.abs(b[1]-a[1]) ? [b[0], a[1]] : [a[0], b[1]];
+}
+function poserPoint(c){
+  var pt=c.pt;
+  if(!A_PT){ A_PT=pt; majBas(); demander(); return; }
+  var b=contraindre(A_PT, pt);
+  if(distance(A_PT, b) < 1e-9){ return; }
+  COTES.push({a:A_PT, b:b}); A_PT=null; majBas(); demander();
+}
+function majBas(){
+  var dern=COTES[COTES.length-1];
+  if(A_PT){ $("valeur").textContent="…"; $("detail").textContent="Touchez le second point."; }
+  else if(dern){
+    var dx=Math.abs(dern.b[0]-dern.a[0]), dy=Math.abs(dern.b[1]-dern.a[1]);
+    $("valeur").textContent=formater(distance(dern.a, dern.b));
+    $("detail").textContent="Δx "+formater(dx)+" · Δy "+formater(dy)+(COTES.length>1 ? " · "+COTES.length+" cotes" : "");
+  } else { $("valeur").textContent="—"; $("detail").textContent="Touchez un premier point du plan."; }
+  $("btDefaire").disabled=!COTES.length && !A_PT;
+  $("btEffacer").disabled=!COTES.length && !A_PT;
+  Array.prototype.forEach.call($("segUnite").children, function(b){ b.classList.toggle("on", b.dataset.u===UNITE); });
+  Array.prototype.forEach.call($("segDessin").children, function(b){ b.classList.toggle("on", Number(b.dataset.d)===DESSIN_MM); });
+  $("btAccroche").classList.toggle("on", ACCROCHE); $("btAccroche").setAttribute("aria-pressed", ACCROCHE?"true":"false");
+  $("btOrtho").classList.toggle("on", ORTHO); $("btOrtho").setAttribute("aria-pressed", ORTHO?"true":"false");
+}
+
+/* ---------- les gestes : un doigt glisse le plan, deux doigts zooment, une touche cote ---------- */
+var DOIGTS={}, G=null;
+function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+cv.addEventListener("pointerdown", function(e){
+  if(!PLAN) return;
+  try{ cv.setPointerCapture(e.pointerId); }catch(er){}
+  DOIGTS[e.pointerId]=pos(e);
+  var ids=Object.keys(DOIGTS);
+  if(ids.length===2){
+    clearTimeout(G && G.minuteur); VISEE=null;
+    var a=DOIGTS[ids[0]], b=DOIGTS[ids[1]];
+    G={pince:true, d0:Math.hypot(a[0]-b[0],a[1]-b[1]), k0:V.k, m0:[(a[0]+b[0])/2,(a[1]+b[1])/2], vx:V.x, vy:V.y};
+    return;
+  }
+  var p=pos(e);
+  G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
+  /* au doigt : un appui tenu fait apparaître la loupe, on vise puis on lâche */
+  if(e.pointerType!=="mouse"){
+    G.minuteur=setTimeout(function(){ if(G && !G.bouge && !G.pince){ G.visee=true; var c=chercher(p[0],p[1]); VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); } }, 260);
+  }
+});
+cv.addEventListener("pointermove", function(e){
+  if(!PLAN) return;
+  var p=pos(e);
+  if(!G){ if(e.pointerType==="mouse"){ SURVOL=chercher(p[0],p[1]); demander(); } return; }
+  if(DOIGTS[e.pointerId]) DOIGTS[e.pointerId]=p;
+  if(G.pince){
+    var ids=Object.keys(DOIGTS); if(ids.length<2) return;
+    var a=DOIGTS[ids[0]], b=DOIGTS[ids[1]], d=Math.hypot(a[0]-b[0],a[1]-b[1]), m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+    var k=Math.max(1e-9, G.k0*d/(G.d0||1)), f=k/G.k0;
+    V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demander(); return;
+  }
+  if(G.visee){ var c=chercher(p[0],p[1]); VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
+  if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
+  if(G.bouge){ V.x=G.vx+(p[0]-G.depart[0]); V.y=G.vy+(p[1]-G.depart[1]); demander(); }
+  if(e.pointerType==="mouse"){ SURVOL=chercher(p[0],p[1]); }
+});
+function lacher(e){
+  if(!PLAN) return;
+  var p=pos(e);
+  delete DOIGTS[e.pointerId];
+  if(!G) return;
+  if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
+  clearTimeout(G.minuteur);
+  if(e.type!=="pointercancel"){
+    if(G.visee && VISEE) poserPoint(VISEE);
+    else if(!G.bouge) poserPoint(chercher(p[0],p[1]));
+  }
+  VISEE=null; G=null; demander();
+}
+cv.addEventListener("pointerup", lacher);
+cv.addEventListener("pointercancel", lacher);
+cv.addEventListener("wheel", function(e){
+  if(!PLAN) return; e.preventDefault();
+  var p=pos(e), f=e.deltaY<0 ? 1.2 : 1/1.2;
+  V.x=p[0]-(p[0]-V.x)*f; V.y=p[1]-(p[1]-V.y)*f; V.k*=f; demander();
+}, {passive:false});
+cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+document.addEventListener("keydown", function(e){
+  if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } }
+  if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); defaire(); }
+});
+function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); }
+
+/* ---------- ouvrir un fichier ---------- */
+function chargerLib(){
+  if(LIB) return Promise.resolve(LIB);
+  charge("Chargement du lecteur DWG… (9 Mo la première fois)");
+  return import(LIB_URL).then(function(m){ return m.LibreDwg.create().then(function(l){ LIB={m:m, l:l}; return LIB; }); });
+}
+function ouvrirFichier(f){
+  if(!f) return;
+  var ext=(f.name.split(".").pop()||"").toLowerCase();
+  if(ext!=="dwg" && ext!=="dxf"){ toast("Choisissez un fichier .dwg ou .dxf."); return; }
+  chargerLib().then(function(L){
+    charge("Lecture de « "+f.name+" »…");
+    return f.arrayBuffer().then(function(buf){
+      return new Promise(function(ok){ setTimeout(ok, 30); }).then(function(){
+        var type = ext==="dxf" ? L.m.Dwg_File_Type.DXF : L.m.Dwg_File_Type.DWG;
+        var brut=L.l.dwg_read_data(buf, type);
+        if(brut==null) throw new Error("illisible");
+        var db=L.l.convert(brut);
+        try{ L.l.dwg_free(brut); }catch(e){}
+        var P=construire(db);
+        if(!P.nb && !P.textes.length) throw new Error("vide");
+        PLAN=P; COTES=[]; A_PT=null;
+        /* l'unité du dessin : celle du fichier, sinon le millimètre (à corriger en bas) */
+        var u={1:25.4, 2:304.8, 4:1, 5:10, 6:1000, 14:100}[(db.header||{}).INSUNITS];
+        DESSIN_MM = u || 1; DESSIN_SUR=!!u;
+        $("sousTitre").textContent=f.name+" · "+P.nb.toLocaleString("fr-FR")+" tracés"+(DESSIN_SUR ? "" : " · unité non précisée : mm supposés");
+        $("accueil").hidden=true; $("bas").hidden=false; $("btCalques").disabled=false; $("btImage").disabled=false;
+        remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
+        toast(DESSIN_SUR ? "Plan ouvert. Touchez deux points pour coter." : "Plan ouvert. Unité du dessin inconnue : vérifiez « Dessin en » en bas.");
+      });
+    });
+  }).catch(function(e){
+    charge("");
+    var msg=String((e && e.message)||e);
+    if(/Failed to fetch|import|dynamically imported|NetworkError/i.test(msg)) toast("Le lecteur DWG n'a pas pu se charger : vérifiez la connexion Internet.");
+    else if(/memory|mémoire/i.test(msg)) toast("Plan trop lourd pour cet appareil.");
+    else toast("Ce fichier n'a pas pu être lu ("+(ext==="dxf" ? "DXF non pris en charge par ce lecteur, préférez le DWG" : "version ou fichier non reconnu")+").");
+  });
+}
+$("btOuvrir").addEventListener("click", function(){ $("fichier").click(); });
+$("btOuvrir2").addEventListener("click", function(){ $("fichier").click(); });
+$("fichier").addEventListener("change", function(){ var f=this.files[0]; this.value=""; ouvrirFichier(f); });
+["dragenter","dragover"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.add("survol"); }); });
+["dragleave","drop"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.remove("survol"); }); });
+document.addEventListener("drop", function(e){ var f=e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]; if(f) ouvrirFichier(f); });
+
+/* ---------- les réglages ---------- */
+$("segUnite").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; UNITE=b.dataset.u; garder("dwg:unite", UNITE); majBas(); demander(); });
+$("segDessin").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; DESSIN_MM=Number(b.dataset.d); majBas(); demander(); });
+$("btAccroche").addEventListener("click", function(){ ACCROCHE=!ACCROCHE; garder("dwg:accroche", ACCROCHE?"1":"0"); majBas(); });
+$("btOrtho").addEventListener("click", function(){ ORTHO=!ORTHO; majBas(); demander(); });
+$("btDefaire").addEventListener("click", defaire);
+$("btEffacer").addEventListener("click", function(){ COTES=[]; A_PT=null; majBas(); demander(); });
+$("btEntier").addEventListener("click", vueEntiere);
+$("btFond").addEventListener("click", function(){ CLAIR=!CLAIR; garder("dwg:fond", CLAIR?"clair":"sombre"); document.body.classList.toggle("clair", CLAIR); demander(); });
+function remplirCalques(){
+  var ul=$("listeCalques"); ul.textContent="";
+  Object.keys(PLAN.calques).sort(function(a,b){ return a.localeCompare(b, "fr"); }).forEach(function(nom){
+    var cq=PLAN.calques[nom]; if(!cq.n && !PLAN.textes.some(function(t){ return t.calque===nom; })) return;
+    var li=document.createElement("li"), lab=document.createElement("label"), cb=document.createElement("input");
+    cb.type="checkbox"; cb.checked=cq.visible; cb.addEventListener("change", function(){ cq.visible=cb.checked; demander(); });
+    var i=document.createElement("i"); i.style.background=cq.couleur;
+    var s=document.createElement("span"); s.textContent=nom;
+    var sm=document.createElement("small"); sm.textContent=cq.n||"";
+    lab.appendChild(cb); lab.appendChild(i); lab.appendChild(s); lab.appendChild(sm); li.appendChild(lab); ul.appendChild(li);
+  });
+}
+function tousCalques(v){ Object.keys(PLAN.calques).forEach(function(k){ PLAN.calques[k].visible=v; }); remplirCalques(); demander(); }
+$("btCalques").addEventListener("click", function(){ $("calques").hidden=!$("calques").hidden; });
+$("cqFermer").addEventListener("click", function(){ $("calques").hidden=true; });
+$("cqTout").addEventListener("click", function(){ tousCalques(true); });
+$("cqRien").addEventListener("click", function(){ tousCalques(false); });
+/* une image de la vue, avec ses cotes, à enregistrer ou partager */
+$("btImage").addEventListener("click", function(){
+  var nom=(($("sousTitre").textContent||"plan").split(" · ")[0]||"plan").replace(/\.[^.]+$/,"")+"-cotes.png";
+  cv.toBlob(function(b){
+    if(!b) return;
+    var f=null; try{ f=new File([b], nom, {type:"image/png"}); }catch(e){}
+    if(f && navigator.canShare && navigator.canShare({files:[f]})){ navigator.share({files:[f], title:nom}).catch(function(){}); return; }
+    var a=document.createElement("a"); a.href=URL.createObjectURL(b); a.download=nom; a.click(); setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+  }, "image/png");
+});
+
+window.addEventListener("resize", redim);
+redim(); majBas();
+/* pour les essais */
+window.__dwg={plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
+})();
+</script>
+</body>
+</html>
