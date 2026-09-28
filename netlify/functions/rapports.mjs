@@ -378,6 +378,27 @@ function dernierReleve(c) {
   }
   return vu;
 }
+/* Le photovoltaïque d'un relevé, en trois chiffres pour la fiche du
+   chantier : nombre de panneaux, puissance crête, batterie ou non. Le
+   nombre de panneaux se déduit de la puissance et de celle d'un panneau,
+   sinon des implantations dessinées sur la toiture. */
+function resumePv(fiche) {
+  const pv = fiche && fiche.pv;
+  if (!pv || pv.actif !== "oui") return null;
+  const num = (v) => { const n = parseFloat(String(v == null ? "" : v).replace(",", ".")); return isFinite(n) && n > 0 ? n : 0; };
+  const wc = num(pv.wc) || 500;
+  let kwc = num(pv.kwc);
+  let panneaux = kwc ? Math.round(kwc * 1000 / wc) : 0;
+  if (!panneaux) {
+    panneaux = (Array.isArray(pv.simuls) ? pv.simuls : []).reduce((t, x) => t + (parseInt(x && x.nb, 10) || 0), 0);
+    if (panneaux && !kwc) kwc = Math.round(panneaux * wc / 10) / 100;
+  }
+  const batteries = parseInt(pv.nbBat, 10) || 0;
+  return { panneaux, kwc, wc, batteries, backup: String(pv.backup || ""),
+           irve: !!(pv.irve && pv.irve.actif) };
+}
+const CACHE_PV = new Map();
+
 /* l'avancement d'un chantier, en pourcentage, posé à la main par son
    chargé d'affaires */
 function avancementDe(c) {
@@ -1255,7 +1276,11 @@ async function traiter(req) {
       try { JSON.parse(donnees); } catch { return json({ erreur: "Fiche illisible une fois reconstituée." }, 400); }
     }
     await store.set(cleFiche, donnees, { metadata: { type: "application/json" } });
-    if (f) { f.donnees = true; f.ficheMaj = new Date().toISOString(); await store.setJSON(INDEX, idx); }
+    if (f) {
+      f.donnees = true; f.ficheMaj = new Date().toISOString();
+      if (f.type === "releve") { try { f.pv = resumePv(JSON.parse(donnees)); } catch { delete f.pv; } }
+      await store.setJSON(INDEX, idx);
+    }
     return json({ ok: true });
   }
 
@@ -1824,10 +1849,28 @@ async function traiter(req) {
   if (action === "liste") {
     const idx = await lireIndex();
     const chantiers = [];
-    Object.values(idx.chantiers).forEach((c) => {
+    /* le PV d'un dossier au devis accepté : lu dans la fiche du relevé,
+       gardé tant qu'elle ne change pas (elle porte les photos, on ne la
+       relit pas à chaque ouverture) */
+    const pvDe = async (c) => {
+      const r = dernierReleve(c);
+      if (!r || statutAttendu(r.etape) !== "actif" || !r.donnees) return null;
+      if (r.pv !== undefined) return r.pv;
+      const k = personne.societe + "/" + r.cle, v = r.ficheMaj || r.publie || "";
+      const vu = CACHE_PV.get(k);
+      if (vu && vu.v === v) return vu.pv;
+      let fiche = null;
+      try { fiche = JSON.parse(await store.get(r.cle.replace(/\.pdf$/, ".json"), { type: "text" })); } catch { fiche = null; }
+      const pv = resumePv(fiche);
+      CACHE_PV.set(k, { v, pv });
+      return pv;
+    };
+    for (const c of Object.values(idx.chantiers)) {
       const fichiers = c.fichiers.filter((f) => voit(personne, f, c));
       const visibles = fichiers.filter((f) => !f.brouillon);
-      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj,
+      let pv = null;
+      if (visibles.length) { try { pv = await pvDe(c); } catch { pv = null; } }
+      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, pv,
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
         ...etatDossier(c),
@@ -1836,7 +1879,7 @@ async function traiter(req) {
         avancementLe: c.avancementLe || "",
         equipe: c.equipe || [],
         fichiers: visibles });
-    });
+    }
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ chantiers, moi: { nom: personne.nom, role: personne.role } });
   }

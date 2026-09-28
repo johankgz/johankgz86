@@ -491,6 +491,17 @@ nav#nav button svg{stroke-width:1.9}
 .entete-chantier .ref-aide{flex:1 1 100%;margin:0;font-size:12.5px;color:var(--ink-3)}
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
+.pv-resume{padding:14px 16px}
+.pv-resume[hidden]{display:none}
+.pv-tete{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.pv-tete svg{width:20px;height:20px;fill:none;stroke:#E8A317;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.pv-tete h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em;flex:1}
+.pv-statut{font-size:11.5px;font-weight:700;color:#1B7F4B;background:#E4F4EA;border-radius:999px;padding:3px 9px}
+.pv-cases{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.pv-case{display:flex;flex-direction:column;align-items:center;text-align:center;gap:2px;padding:10px 4px;border:1px solid var(--rule,#E1E5EA);border-radius:12px}
+.pv-case b{font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1;color:var(--ink)}
+.pv-case span{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
+.pv-case small{font-size:11.5px;color:var(--ink-3);min-height:14px}
 .avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .avancement h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
 .avancement .valeur{font-size:22px;font-weight:750;letter-spacing:-.02em;color:var(--data);font-variant-numeric:tabular-nums}
@@ -889,6 +900,18 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
     <p class="adr" id="c_adresse"></p>
   </div>
 
+  <div class="block pv-resume" id="pvResume" hidden>
+    <div class="pv-tete">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2.2"/><path d="M12 1v1M16.2 2.8l-.7.7M7.8 2.8l.7.7M5 11h14l2 9H3z"/><path d="M4 15.5h16M9.3 11l-1.3 9M14.7 11l1.3 9"/></svg>
+      <h2>Photovoltaïque</h2><span class="pv-statut">Devis accepté</span>
+    </div>
+    <div class="pv-cases">
+      <div class="pv-case"><b id="pv_nb">—</b><span>panneaux</span><small id="pv_wc"></small></div>
+      <div class="pv-case"><b id="pv_kwc">—</b><span>puissance crête</span></div>
+      <div class="pv-case"><b id="pv_bat">—</b><span>batterie</span><small id="pv_batd"></small></div>
+    </div>
+  </div>
+
   <div class="block avancement" id="avancement" hidden>
     <div class="av-corps">
       <div class="av-anneau" id="av_jauge">
@@ -1037,6 +1060,21 @@ function peindreRefModif(){
   var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
   var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
   b.hidden = releve || !(bureau || membre);
+}
+/* le PV du devis accepté, sans ouvrir le relevé */
+function peindrePv(){
+  var pv=CHANTIER && CHANTIER.pv, bloc=$("pvResume");
+  if(!bloc) return;
+  if(!pv || !(pv.panneaux || pv.kwc)){ bloc.hidden=true; return; }
+  var nf=function(n, d){ return Number(n).toLocaleString("fr-FR", {maximumFractionDigits:d||0}); };
+  $("pv_nb").textContent = pv.panneaux ? nf(pv.panneaux) : "—";
+  $("pv_wc").textContent = pv.panneaux && pv.wc ? "de "+nf(pv.wc)+" Wc" : "";
+  $("pv_kwc").textContent = pv.kwc ? nf(pv.kwc, 2)+" kWc" : "—";
+  $("pv_bat").textContent = pv.batteries > 0 ? "Oui" : "Non";
+  $("pv_batd").textContent = pv.batteries > 0
+    ? (pv.batteries+" batterie"+(pv.batteries>1?"s":"")+(/^oui/i.test(pv.backup||"") ? " · backup" : ""))
+    : (/^oui/i.test(pv.backup||"") ? "coffret backup" : "");
+  bloc.hidden=false;
 }
 function refPropre(t){
   return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").toUpperCase().slice(0,40);
@@ -1646,7 +1684,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreRefModif();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreRefModif(); peindrePv();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){
