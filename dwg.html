@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0E12">
-<title>Plan DWG — coter</title>
+<title>Plan DWG — cotes et symboles</title>
+<script src="./symboles-elec.js?v=20260929a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="apple-touch-icon" href="/icone-180.png">
 <style>
@@ -77,6 +78,25 @@ body.clair #scene{background:#FFFFFF}
 .toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:9;background:#F2F5F9;color:#0B0E12;
   padding:9px 14px;border-radius:999px;font-size:13.5px;font-weight:600;width:max-content;max-width:90vw;text-align:center}
 .toast[hidden]{display:none}
+/* la palette des symboles : la légende CFO, en tuiles blanches comme sur le plan */
+.palette{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;margin:0 0 8px;padding-bottom:2px}
+.palette::-webkit-scrollbar{display:none}
+.palette .pgr{flex:0 0 auto;align-self:center;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);margin:0 2px 0 6px}
+.palette button{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:3px;width:74px;padding:5px 3px;border-radius:10px;border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.04);color:var(--ink2);font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;cursor:pointer}
+.palette button i{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:#FFFFFF}
+.palette button i svg{width:28px;height:28px}
+.palette button.on{border-color:var(--or);background:rgba(251,146,60,.16);color:var(--ink)}
+.champ-rep{flex:0 0 auto;width:118px;min-height:34px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px}
+.champ-rep[disabled]{opacity:.4}
+.qt-pied{padding:10px 12px;border-top:1px solid var(--trait)}
+.qt-pied .bt{width:100%;justify-content:center}
+#listeQuantites li{display:flex;align-items:center;gap:10px;padding:7px 12px;font-size:13.5px}
+#listeQuantites li i{flex:0 0 auto;display:flex;width:28px;height:28px;border-radius:6px;background:#FFFFFF;align-items:center;justify-content:center}
+#listeQuantites li i svg{width:24px;height:24px}
+#listeQuantites li span{flex:1;min-width:0}
+#listeQuantites li b{font-variant-numeric:tabular-nums}
+#listeQuantites li.total{border-top:1px solid var(--trait);font-weight:700;margin-top:4px}
 .etalon{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:min(340px,calc(100vw - 32px));padding:16px;
   background:rgba(20,25,32,.98);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -10px rgba(0,0,0,.8);color:var(--ink)}
 .etalon[hidden]{display:none}
@@ -96,6 +116,7 @@ body.clair #scene{background:#FFFFFF}
   <div class="titre" id="titre">Plan DWG<small id="sousTitre">Ouvrir un plan et prendre des cotes</small></div>
   <button class="bt" id="btOuvrir" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/></svg><span class="lib">Ouvrir</span></button>
   <button class="bt" id="btCalques" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5 21 8l-9 4.5L3 8zM3 12l9 4.5 9-4.5M3 16l9 4.5 9-4.5"/></svg><span class="lib">Calques</span></button>
+  <button class="bt" id="btSymb" type="button" disabled aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="15" r="4.5"/><path d="M11 12l6.5-8"/><circle cx="18" cy="16.5" r="3"/></svg><span class="lib">Symboles</span></button>
   <button class="bt" id="btFond" type="button" aria-label="Fond clair ou sombre" title="Fond clair ou sombre"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5a8.5 8.5 0 1 0 0 17z"/><circle cx="12" cy="12" r="8.5"/></svg></button>
   <button class="bt" id="btImage" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5M4.5 17v3.5h15V17"/></svg><span class="lib">Image</span></button>
   <input type="file" id="fichier" accept=".dwg,.dxf,application/acad,image/vnd.dwg" hidden>
@@ -131,6 +152,25 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btEtalon" type="button">Étalonner</button></span>
   </div>
 </div>
+<div class="bas" id="basSymb" hidden>
+  <div class="mesure"><b id="symbNb">0</b><span id="symbDetail">Choisissez un symbole, puis touchez le plan pour le poser.</span></div>
+  <div class="palette" id="palette" role="listbox" aria-label="Symboles de la légende"></div>
+  <div class="reglages">
+    <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
+    <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
+    <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
+    <button class="bt" id="btDefaireS" type="button" disabled>Annuler</button>
+    <span class="groupe"><span class="lab">Taille</span>
+    <span class="seg" id="segTaille" role="group" aria-label="Taille des symboles"><button type="button" data-t="0.7">S</button><button type="button" data-t="1">M</button><button type="button" data-t="1.4">L</button></span></span>
+    <button class="bt" id="btQuantites" type="button">Quantités</button>
+    <button class="bt or" id="btDxf" type="button" disabled>Export DXF</button>
+  </div>
+</div>
+<aside class="calques" id="quantites" hidden aria-label="Quantités">
+  <header><b>CFO · quantités</b><button class="bt" id="qtFermer" type="button" aria-label="Fermer">✕</button></header>
+  <ul id="listeQuantites"></ul>
+  <footer class="qt-pied"><button class="bt" id="btBiblio" type="button">Bibliothèque DXF des 18 symboles</button></footer>
+</aside>
 <div class="toast" id="toast" hidden></div>
 
 <form class="etalon" id="etalon" hidden>
@@ -456,9 +496,12 @@ var PLAN=null, V={k:1, x:0, y:0}, DPR=1, W=0, H=0;
 var COTES=[], A_PT=null, SURVOL=null, VISEE=null;
 var UNITE=lire("dwg:unite","m"), ACCROCHE=lire("dwg:accroche","1")==="1", ORTHO=false, CLAIR=lire("dwg:fond","sombre")==="clair";
 var DESSIN_MM=1, ECHELLE_SRC="", FICHIER_CLE="";
+/* les symboles posés : {cle, x, y (unités du plan), rot (degrés, sens trigo), r (rayon, unités du plan), t (repère)} */
+var MODE="cote", SYMB=[], SEL=-1, CHOIX=lire("dwg:symbole","cfo-prise"), TAILLE=Number(lire("dwg:taille","1"))||1, SYMB_CLE="", HISTO_S=[];
+var R_REEL=125;   /* le rayon du cercle de base, en mm : 2,5 mm sur un plan au 1/50, comme notre légende */
 document.body.classList.toggle("clair", CLAIR);
 function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
-function basH(){ var b=$("bas"); return b.hidden ? 0 : b.offsetHeight; }
+function basH(){ var b=$("bas"), s=$("basSymb"); return !b.hidden ? b.offsetHeight : (s && !s.hidden ? s.offsetHeight : 0); }
 function redim(){
   DPR=Math.min(2.5, window.devicePixelRatio||1); W=window.innerWidth; H=window.innerHeight;
   cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); cv.style.width=W+"px"; cv.style.height=H+"px";
@@ -517,9 +560,33 @@ function peindre(){
     if(fin) dessinerCote(A_PT, contraindre(A_PT, fin), true);
     repere(A_PT);
   }
+  peindreSymboles(c2);
   var cible = VISEE ? VISEE : SURVOL;
-  if(cible && cible.acc) accroche(cible.pt, cible.genre);
+  if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
+}
+function peindreSymboles(c){
+  if(!window.SymbolesElec || !SYMB.length) return;
+  SYMB.forEach(function(o, i){
+    var p=versEcran(o.x, o.y), R=o.r*V.k;
+    if(R<0.8 || p[0]<-R*4 || p[0]>W+R*4 || p[1]<-R*4 || p[1]>H+R*4) return;
+    var def=SymbolesElec.trouver(o.cle); if(!def) return;
+    /* le bleu des prises se perd sur le fond sombre : un liseré clair dessous */
+    var halo = !CLAIR && def.couleur==="#0000FF" ? "rgba(255,255,255,.55)" : false;
+    SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot:-(o.rot||0)*Math.PI/180, halo:halo, epMin:1});
+    if(o.t && R>3){
+      var b=SymbolesElec.boite(o.cle);
+      c.save(); c.font="600 "+Math.max(10, Math.min(28, R*0.9)).toFixed(0)+"px Helvetica, Arial, sans-serif";
+      c.textAlign="left"; c.textBaseline="middle"; c.fillStyle=def.couleur;
+      if(!CLAIR && def.couleur==="#0000FF") c.fillStyle="#6B8BFF";
+      c.fillText(o.t, p[0]+Math.max(b.x1*R, R)+4, p[1]-R*0.6);
+      c.restore();
+    }
+    if(i===SEL){
+      c.save(); c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]);
+      c.beginPath(); c.arc(p[0], p[1], Math.max(14, R*1.6), 0, Math.PI*2); c.stroke(); c.restore();
+    }
+  });
 }
 function repere(pt){
   var p=versEcran(pt[0],pt[1]);
@@ -626,6 +693,11 @@ cv.addEventListener("pointerdown", function(e){
   }
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
+  if(MODE==="symb"){
+    var ti=symboleSous(p);
+    if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y]; }
+    return;
+  }
   /* au doigt : un appui tenu fait apparaître la loupe, on vise puis on lâche */
   if(e.pointerType!=="mouse"){
     G.minuteur=setTimeout(function(){ if(G && !G.bouge && !G.pince){ G.visee=true; var c=chercher(p[0],p[1]); VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); } }, 260);
@@ -644,6 +716,11 @@ cv.addEventListener("pointermove", function(e){
   }
   if(G.visee){ var c=chercher(p[0],p[1]); VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
   if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
+  if(G.bouge && G.symb!=null){
+    if(!G.garde){ garderSymb(); G.garde=true; }
+    SYMB[G.symb].x=G.base[0]+(p[0]-G.depart[0])/V.k; SYMB[G.symb].y=G.base[1]-(p[1]-G.depart[1])/V.k;
+    SEL=G.symb; demander(); return;
+  }
   if(G.bouge){ V.x=G.vx+(p[0]-G.depart[0]); V.y=G.vy+(p[1]-G.depart[1]); demander(); }
   if(e.pointerType==="mouse"){ SURVOL=chercher(p[0],p[1]); }
 });
@@ -654,6 +731,14 @@ function lacher(e){
   if(!G) return;
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
+  if(MODE==="symb"){
+    if(e.type!=="pointercancel"){
+      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); }
+      else if(!G.bouge) poserSymbole(versPlan(p[0], p[1]));
+      majSymb();
+    }
+    G=null; demander(); return;
+  }
   if(e.type!=="pointercancel"){
     if(G.visee && VISEE) poserPoint(VISEE);
     else if(!G.bouge) poserPoint(chercher(p[0],p[1]));
@@ -670,9 +755,91 @@ cv.addEventListener("wheel", function(e){
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } }
-  if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); defaire(); }
+  if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else defaire(); }
+  if(MODE==="symb" && SEL>=0 && document.activeElement!==$("symbRep")){
+    if(e.key==="Delete" || e.key==="Backspace"){ e.preventDefault(); supprimerSymb(); }
+    else if(e.key==="r" || e.key==="R"){ e.preventDefault(); tournerSymb(); }
+  }
 });
 function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); }
+
+/* ---------- les symboles électriques ---------- */
+function symboleSous(p){
+  var best=-1, bd=Infinity;
+  SYMB.forEach(function(o, i){
+    var q=versEcran(o.x, o.y), d=Math.hypot(q[0]-p[0], q[1]-p[1]), lim=Math.max(20, o.r*V.k*1.5);
+    if(d<lim && d<bd){ bd=d; best=i; }
+  });
+  return best;
+}
+function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
+function enregistrerSymb(){ if(SYMB_CLE){ try{ localStorage.setItem(SYMB_CLE, JSON.stringify(SYMB)); }catch(e){} } }
+function poserSymbole(pt){
+  if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
+  garderSymb();
+  SYMB.push({cle:CHOIX, x:pt[0], y:pt[1], rot:0, r:R_REEL*TAILLE/DESSIN_MM, t:""});
+  SEL=SYMB.length-1; enregistrerSymb();
+}
+function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
+function supprimerSymb(){ if(SEL<0) return; garderSymb(); SYMB.splice(SEL,1); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function defaireSymb(){ if(!HISTO_S.length) return; SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function compter(){
+  var n={}; SYMB.forEach(function(o){ n[o.cle]=(n[o.cle]||0)+1; }); return n;
+}
+function majSymb(){
+  if(!window.SymbolesElec) return;
+  var o=SEL>=0 ? SYMB[SEL] : null, def=o ? SymbolesElec.trouver(o.cle) : null, n=compter();
+  $("symbNb").textContent=String(SYMB.length);
+  $("symbDetail").textContent = def
+    ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
+    : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"."
+                   : "Choisissez un symbole, puis touchez le plan pour le poser.");
+  $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
+  if(document.activeElement!==$("symbRep")) $("symbRep").value = o ? (o.t||"") : "";
+  $("btDefaireS").disabled=!HISTO_S.length; $("btDxf").disabled=!SYMB.length;
+  Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
+  Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX; b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
+  peindreQuantites();
+}
+function peindreQuantites(){
+  var ul=$("listeQuantites"); ul.textContent=""; var n=compter(), total=0;
+  SymbolesElec.liste.forEach(function(sy){
+    if(!n[sy.cle]) return; total+=n[sy.cle];
+    var li=document.createElement("li"), i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(sy.cle, 24);
+    var sp=document.createElement("span"); sp.textContent=sy.nom; var b=document.createElement("b"); b.textContent=String(n[sy.cle]);
+    li.appendChild(i); li.appendChild(sp); li.appendChild(b); ul.appendChild(li);
+  });
+  var li=document.createElement("li"); li.className="total";
+  li.innerHTML="<span></span><b></b>"; li.firstChild.textContent = total ? "Total" : "Aucun symbole posé."; li.lastChild.textContent = total ? String(total) : "";
+  ul.appendChild(li);
+}
+function remplirPalette(){
+  var pal=$("palette"); if(!window.SymbolesElec || pal.firstChild) return;
+  SymbolesElec.groupes.forEach(function(gr){
+    var t=document.createElement("span"); t.className="pgr"; t.textContent=gr; pal.appendChild(t);
+    SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){
+      var b=document.createElement("button"); b.type="button"; b.dataset.cle=sy.cle; b.title=sy.nom; b.setAttribute("role","option");
+      var i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(sy.cle, 28);
+      b.appendChild(i); b.appendChild(document.createTextNode(sy.court||sy.nom));
+      b.addEventListener("click", function(){ CHOIX=sy.cle; garder("dwg:symbole", CHOIX); SEL=-1; majSymb(); demander(); });
+      pal.appendChild(b);
+    });
+  });
+}
+function basculerMode(m){
+  MODE=m; SEL=-1; A_PT=null;
+  $("bas").hidden = !PLAN || m!=="cote"; $("basSymb").hidden = !PLAN || m!=="symb";
+  $("btSymb").classList.toggle("on", m==="symb"); $("btSymb").setAttribute("aria-pressed", m==="symb"?"true":"false");
+  if(m!=="symb") $("quantites").hidden=true;
+  if(m==="symb"){ remplirPalette(); majSymb(); if(!SYMB.length) toast("Choisissez un symbole en bas, puis touchez le plan pour le poser."); }
+  else majBas();
+  demander();
+}
+function nomDeBase(){ return ((PLAN && PLAN.nom) || "plan").replace(/\.[^.]+$/,""); }
+function telecharger(blob, nom){
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nom; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+}
 
 /* ---------- ouvrir un fichier ---------- */
 function chargerLib(){
@@ -701,11 +868,14 @@ function ouvrirFichier(f){
         var u={1:25.4, 2:304.8, 4:1, 5:10, 6:1000, 14:100}[(db.header||{}).INSUNITS];
         var d=deduireEchelle(u, P.cotesPlan, Math.max(P.maxx-P.minx, P.maxy-P.miny));
         FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
+        SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
+        try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
         var garde=Number(lire(FICHIER_CLE, "0"));
         if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
         else { DESSIN_MM=d.mm; ECHELLE_SRC=d.source; }
         PLAN.nom=f.name;
-        $("accueil").hidden=true; $("bas").hidden=false; $("btCalques").disabled=false; $("btImage").disabled=false;
+        $("accueil").hidden=true; $("btCalques").disabled=false; $("btImage").disabled=false; $("btSymb").disabled=false;
+        basculerMode(SYMB.length ? "symb" : "cote");
         majTitre(); remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
         var msg;
         if(ECHELLE_SRC==="etalon") msg="Plan ouvert, avec l'étalonnage fait la dernière fois (1 unité = "+nomUnite(DESSIN_MM)+").";
@@ -755,6 +925,32 @@ $("etalon").addEventListener("submit", function(e){
   $("etalon").hidden=true; majTitre(); majBas(); demander();
   toast("Échelle étalonnée : 1 unité = "+nomUnite(DESSIN_MM)+". Gardée pour ce fichier.", 4500);
 });
+$("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
+$("btTourner").addEventListener("click", tournerSymb);
+$("btSuppSymb").addEventListener("click", supprimerSymb);
+$("btDefaireS").addEventListener("click", defaireSymb);
+$("symbRep").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbRep").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].t=this.value.trim(); enregistrerSymb(); demander(); });
+$("symbRep").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+$("segTaille").addEventListener("click", function(e){
+  var b=e.target.closest("button"); if(!b) return;
+  TAILLE=Number(b.dataset.t)||1; garder("dwg:taille", String(TAILLE));
+  /* la taille choisie vaut aussi pour le symbole sélectionné */
+  if(SEL>=0){ garderSymb(); SYMB[SEL].r=R_REEL*TAILLE/DESSIN_MM; enregistrerSymb(); }
+  majSymb(); demander();
+});
+$("btQuantites").addEventListener("click", function(){ peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; });
+$("qtFermer").addEventListener("click", function(){ $("quantites").hidden=true; });
+$("btDxf").addEventListener("click", function(){
+  if(!SYMB.length) return;
+  var txt=SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; }));
+  telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
+  toast("DXF enregistré : un bloc par symbole, aux coordonnées du plan. Dans AutoCAD : insérez-le en référence externe, ou copiez-collez ses objets à l'origine (0,0).", 7000);
+});
+$("btBiblio").addEventListener("click", function(){
+  telecharger(new Blob([SymbolesElec.dxf([], {tous:true})], {type:"application/dxf"}), "Symboles-CFO-TLE.dxf");
+  toast("Bibliothèque enregistrée : les 18 blocs de la légende CFO, au rayon 1 (insérez-les à l'échelle 125 en mm).", 6000);
+});
 $("btAccroche").addEventListener("click", function(){ ACCROCHE=!ACCROCHE; garder("dwg:accroche", ACCROCHE?"1":"0"); majBas(); });
 $("btOrtho").addEventListener("click", function(){ ORTHO=!ORTHO; majBas(); demander(); });
 $("btDefaire").addEventListener("click", defaire);
@@ -780,8 +976,28 @@ $("cqTout").addEventListener("click", function(){ tousCalques(true); });
 $("cqRien").addEventListener("click", function(){ tousCalques(false); });
 /* une image de la vue, avec ses cotes, à enregistrer ou partager */
 $("btImage").addEventListener("click", function(){
-  var nom=(($("sousTitre").textContent||"plan").split(" · ")[0]||"plan").replace(/\.[^.]+$/,"")+"-cotes.png";
-  cv.toBlob(function(b){
+  var nom=(($("sousTitre").textContent||"plan").split(" · ")[0]||"plan").replace(/\.[^.]+$/,"")+(SYMB.length ? "-electricite.png" : "-cotes.png");
+  var source=cv;
+  if(SYMB.length && window.SymbolesElec){
+    /* comme sur nos plans : la légende CFO et le nombre de chaque symbole */
+    var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; });
+    var k=DPR, lh=22*k, lw=300*k, bx=12*k, by=cv.height-(lignes.length*lh+34*k)-12*k;
+    var cp=document.createElement("canvas"); cp.width=cv.width; cp.height=cv.height;
+    var c=cp.getContext("2d"); c.drawImage(cv, 0, 0);
+    c.fillStyle="#FFFFFF"; c.strokeStyle="#000000"; c.lineWidth=1*k;
+    c.fillRect(bx, by, lw, lignes.length*lh+34*k); c.strokeRect(bx, by, lw, lignes.length*lh+34*k);
+    c.fillStyle="#000000"; c.font=(15*k)+"px Helvetica, Arial, sans-serif"; c.textBaseline="middle"; c.fillText("CFO", bx+8*k, by+15*k);
+    c.beginPath(); c.moveTo(bx, by+28*k); c.lineTo(bx+lw, by+28*k); c.moveTo(bx+36*k, by+28*k); c.lineTo(bx+36*k, by+34*k+lignes.length*lh); c.stroke();
+    c.font=(11.5*k)+"px Helvetica, Arial, sans-serif";
+    lignes.forEach(function(sy, i){
+      var y=by+34*k+i*lh;
+      SymbolesElec.dessiner(c, sy.cle, bx+18*k, y+lh/2-2*k, 7*k*(sy.cle==="cfo-dcl-mural" ? 0.55 : sy.cle==="cfo-alim" ? 0.7 : 1), {epMin:1});
+      c.fillStyle="#000000"; c.fillText(sy.nom+" ("+n[sy.cle]+")", bx+42*k, y+lh/2-2*k);
+      c.beginPath(); c.moveTo(bx, y+lh); c.lineTo(bx+lw, y+lh); c.stroke();
+    });
+    source=cp;
+  }
+  source.toBlob(function(b){
     if(!b) return;
     var f=null; try{ f=new File([b], nom, {type:"image/png"}); }catch(e){}
     if(f && navigator.canShare && navigator.canShare({files:[f]})){ navigator.share({files:[f], title:nom}).catch(function(){}); return; }
@@ -792,7 +1008,8 @@ $("btImage").addEventListener("click", function(){
 window.addEventListener("resize", redim);
 redim(); majBas();
 /* pour les essais */
-window.__dwg={deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
+window.__dwg={symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; })); },
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
 </script>
 </body>

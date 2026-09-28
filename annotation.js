@@ -52,6 +52,16 @@ var EPAISSEURS = {fin:2.5, moyen:5, epais:10};
 var SURL_EP = {fin:14, moyen:24, large:38};
 var GOMMES = {petite:8, moyenne:16, grande:32};
 
+/* la bibliothèque des symboles électriques, à côté de ce fichier */
+(function(){
+  if(window.SymbolesElec) return;
+  try{
+    var moi=document.currentScript && document.currentScript.src;
+    var sc=document.createElement("script");
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20260929a";
+    (document.head||document.documentElement).appendChild(sc);
+  }catch(e){}
+})();
 /* ---------- symboles du métier (plans et photos) ---------- */
 var SYMBOLES = [
   ["plafond","Point lumineux"], ["prise","Prise 16 A"], ["prise32","Prise 32 A"], ["prise2","Double prise"],
@@ -61,7 +71,12 @@ var SYMBOLES = [
   ["tableau","Tableau"], ["radiateur","Radiateur"], ["seche","Sèche-serviette"], ["pac","Pompe à chaleur"],
   ["vmc","VMC"], ["borne","Borne de recharge"], ["volet","Volet roulant"], ["interphone","Interphone"]
 ];
-function dessinerSymbole(c, nom, x, y, r, couleur){
+/* La légende CFO de nos plans électriques (symboles-elec.js) : dessinée
+   trait pour trait, dans ses couleurs, quelle que soit la couleur choisie ;
+   un liseré sombre la garde lisible sur une photo. */
+function legendeCfo(nom){ return /^cfo-/.test(nom||"") && window.SymbolesElec && window.SymbolesElec.trouver(nom); }
+function dessinerSymbole(c, nom, x, y, r, couleur, halo){
+  if(legendeCfo(nom)){ window.SymbolesElec.dessiner(c, nom, x, y, r, {halo:!!halo, epMin:1}); return; }
   c.save();
   c.translate(x, y);
   c.strokeStyle=couleur; c.fillStyle=couleur;
@@ -111,6 +126,7 @@ function dessinerSymbole(c, nom, x, y, r, couleur){
   c.restore();
 }
 function nomSymbole(cle){
+  var cfo=legendeCfo(cle); if(cfo) return cfo.nom;
   for(var i=0;i<SYMBOLES.length;i++){ if(SYMBOLES[i][0]===cle) return SYMBOLES[i][1]; }
   return cle;
 }
@@ -168,7 +184,7 @@ function reechantillonner(pts, pas){
 var A = null, D = null, MESURE = null;
 var FLOUS = {};
 var PREFS = {outil:"stylo", couleur:"#E5484D", surCouleur:"#FDE047", ep:"moyen", surEp:"moyen", droit:true,
-  gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"pastille", symbole:"plafond",
+  gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"pastille", symbole:"cfo-dcl-plafond",
   texteStyle:"bulle", texteTaille:40, rail:false, reglages:false};
 try{
   var lu = JSON.parse(localStorage.getItem("annotation:prefs") || "null");
@@ -210,6 +226,8 @@ function boite(o){
     case "pastille":
       return {cx:o.x, cy:o.y, w:o.r*2, h:o.r*2, rot:0};
     case "symbole":
+      var bs=legendeCfo(o.nom) ? window.SymbolesElec.boite(o.nom) : null;
+      if(bs) return {cx:o.x, cy:o.y, w:Math.max(2.4, bs.x1-bs.x0+0.5)*o.r, h:Math.max(2.4, bs.y1-bs.y0+0.5)*o.r, rot:o.rot||0};
       return {cx:o.x, cy:o.y, w:o.r*3.2, h:o.r*3.2, rot:o.rot||0};
   }
   return {cx:0, cy:0, w:10*u, h:10*u, rot:0};
@@ -369,14 +387,16 @@ function dessinerObjet(c, o){
   } else if(o.t==="symbole"){
     c.save();
     c.translate(o.x, o.y); c.rotate(o.rot||0);
-    dessinerSymbole(c, o.nom, 0, 0, o.r, o.c);
+    dessinerSymbole(c, o.nom, 0, 0, o.r, o.c, !!A.img);
     c.restore();
     if(o.label){
       c.save();
       c.font=policeTexte(Math.round(o.r*1.15)); c.textAlign="center"; c.textBaseline="top";
       c.lineWidth=o.r*0.25; c.lineJoin="round"; c.strokeStyle=clair(o.c) ? "#111111" : "#FFFFFF";
-      c.strokeText(o.label, o.x, o.y + o.r*1.6);
-      c.fillStyle=o.c; c.fillText(o.label, o.x, o.y + o.r*1.6);
+      var cfoL=legendeCfo(o.nom), dy=o.r*1.6, colL=o.c;
+      if(cfoL){ var bl=window.SymbolesElec.boite(o.nom); dy=o.r*(bl.y1+0.35); colL=cfoL.couleur; c.strokeStyle="rgba(11,14,18,.75)"; }
+      c.strokeText(o.label, o.x, o.y + dy);
+      c.fillStyle=colL; c.fillText(o.label, o.x, o.y + dy);
       c.restore();
     }
   }
@@ -886,7 +906,7 @@ function surAppui(e){
       o=trouver(p, function(x){ return x.t==="pastille" || x.t==="symbole"; });
       if(!o){
         if(PREFS.repere==="pastille") o=nouveau({t:"pastille", x:p[0], y:p[1], r:22*A.u, n:prochainNumero(), c:PREFS.couleur, texte:""});
-        else o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:22*A.u, c:PREFS.couleur, rot:0, label:""});
+        else o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30 : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
         A.sel=o;
         G={type:"deplacer", o:o, base:clone(o), p0:p, s0:s, avant:avant1, tap:false, pose:true};
         peindre(); majUI();
@@ -1091,6 +1111,9 @@ var CSS = [
   ".an-chip.rouge{color:#FCA5A5;border-color:rgba(252,165,165,.4)}",
   ".an-chip.forme{padding:4px 9px}",
   ".an-chip canvas{display:block}",
+  ".an-cfo{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:7px;background:#FFFFFF;flex:0 0 auto}",
+  ".an-cfo svg{display:block;width:22px;height:22px}",
+  ".an-groupe{text-transform:uppercase;letter-spacing:.07em;font-size:10.5px;margin-left:6px}",
   ".an-lab{flex:0 0 auto;font-size:11.5px;color:#8A97A6;font-weight:600;white-space:nowrap}",
   ".an-sep{flex:0 0 auto;width:1px;height:24px;background:rgba(255,255,255,.14)}",
   ".an-esp{flex:1 1 auto}",
@@ -1500,7 +1523,25 @@ function remplirOptions(op, o){
       });
       if(PREFS.repere==="symbole"){
         op.appendChild(el("span","an-sep"));
-        SYMBOLES.forEach(function(sy){
+        /* d'abord la légende CFO, rangée comme sur nos plans */
+        if(window.SymbolesElec){
+          window.SymbolesElec.groupes.forEach(function(gr){
+            op.appendChild(el("span","an-lab an-groupe", gr));
+            window.SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){
+              var on=PREFS.symbole===sy.cle;
+              var b=chip("", on, function(){ PREFS.symbole=sy.cle; A.sel=null; garderPrefs(); peindre(); majUI(); }, "forme");
+              var ic=el("span","an-cfo"); ic.innerHTML=window.SymbolesElec.svg(sy.cle, 22);
+              b.appendChild(ic); b.appendChild(document.createTextNode(sy.court||sy.nom));
+              b.title=sy.nom; b.setAttribute("aria-label", sy.nom);
+              op.appendChild(b);
+            });
+          });
+          /* les anciens symboles génériques restent, repliés */
+          op.appendChild(el("span","an-sep"));
+          op.appendChild(chip(PREFS.autresSymb ? "Autres ▾" : "Autres ▸", !!PREFS.autresSymb, function(){ PREFS.autresSymb=!PREFS.autresSymb; garderPrefs(); majUI(); }));
+        }
+        if(window.SymbolesElec && !PREFS.autresSymb && !/^cfo-/.test(PREFS.symbole||"")) PREFS.symbole="cfo-dcl-plafond";
+        if(!window.SymbolesElec || PREFS.autresSymb) SYMBOLES.forEach(function(sy){
           var on=PREFS.symbole===sy[0];
           var b=chip("", on, function(){ PREFS.symbole=sy[0]; A.sel=null; garderPrefs(); peindre(); majUI(); }, "forme");
           var cv=document.createElement("canvas"); cv.width=52; cv.height=36; cv.style.width="26px"; cv.style.height="18px";
