@@ -1094,6 +1094,26 @@ body.connexion .ciel{display:none}
 .ba-droite .cloche.todo{color:#FDBA74}
 .ba-droite .cloche[aria-expanded="true"]{background:rgba(255,255,255,.14)}
 @media (hover:hover){ .tuile-t.clair:hover,.btn-outils:hover,.ba-droite .cloche:hover{background:rgba(10,14,20,.5)} }
+/* ---------- ce qui attend au bureau : quatre bulles, sous les tuiles ----------
+   Le tableau de bord en un coup d'œil : du verre comme le reste, un
+   chiffre et un mot ; la bulle ne prend de la couleur que si quelque
+   chose attend. Un appui ouvre le tableau de bord sur cette liste. */
+.bulles-tb{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:-4px 0 14px}
+.bulles-tb[hidden]{display:none}
+.bulle-tb{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-height:52px;padding:6px 4px;
+  border-radius:14px;text-decoration:none;color:#AEB7BF;background:rgba(10,14,20,.30);border:1px solid rgba(255,255,255,.12);
+  -webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);animation:monteDoux .42s var(--sortie) both;transition:transform .12s ease-out}
+.bulle-tb:nth-child(2){animation-delay:40ms}.bulle-tb:nth-child(3){animation-delay:80ms}.bulle-tb:nth-child(4){animation-delay:120ms}
+.bulle-tb:active{transform:scale(.96)}
+.bulle-tb b{font-size:19px;font-weight:700;letter-spacing:-.03em;line-height:1.1;color:#DDE3E9;font-variant-numeric:tabular-nums}
+.bulle-tb span{font-size:10.5px;font-weight:600;line-height:1.2;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.bulle-tb.zero b{color:#7A8796}
+.bulle-tb.attend{border-color:rgba(251,146,60,.45);background:rgba(234,122,30,.14)}
+.bulle-tb.attend b{color:#FDBA74}
+.bulle-tb.retard{border-color:rgba(248,113,113,.55);background:rgba(220,38,38,.16)}
+.bulle-tb.retard b{color:#FCA5A5}
+.bulle-tb:focus-visible{outline:2px solid var(--data-vif);outline-offset:2px}
+@media (hover:hover){ .bulle-tb:hover{background:rgba(10,14,20,.46)} }
 /* ---------- l'invitation aux notifications ---------- */
 .invite-notif{display:flex;align-items:center;gap:12px;flex-wrap:wrap;background:var(--card);border-radius:14px;
   padding:12px 14px;margin:0 0 16px;box-shadow:var(--shadow);border:1px solid rgba(234,122,30,.25)}
@@ -1213,6 +1233,12 @@ body.connexion .ciel{display:none}
     </div>
 
     <div class="tableau" id="tableau" hidden></div>
+    <nav class="bulles-tb" id="bullesTb" aria-label="Ce qui attend au bureau" hidden>
+      <a class="bulle-tb" data-f="ts" href="./tableau.html?f=ts"><b>–</b><span>TS à chiffrer</span></a>
+      <a class="bulle-tb" data-f="commande" href="./tableau.html?f=commande"><b>–</b><span>Commandes</span></a>
+      <a class="bulle-tb" data-f="point" href="./tableau.html?f=point"><b>–</b><span>Bloquants</span></a>
+      <a class="bulle-tb" data-f="relance" href="./tableau.html?f=relance"><b>–</b><span>À relancer</span></a>
+    </nav>
 
     <p class="demo-ban" id="banniere" hidden></p>
     <p class="acces-ban" id="banniereAcces" hidden></p>
@@ -1976,8 +2002,37 @@ function peindreEntreeTableau(s){
   /* retour arrière depuis un outil : la page revient fermée */
   window.addEventListener("pageshow", fermer);
 })();
+/* les quatre bulles du bureau, d'après le tableau de bord */
+function chargerBullesTb(s){
+  var nav=$("bullesTb"); if(!nav) return;
+  var bureau = s && (s.role==="bureau" || s.role==="admin");
+  if(!bureau){ nav.hidden=true; return; }
+  fetch(apiUrl("tableau-bord"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var n=d.compteurs||{};
+      var val={ts:n.ts, commande:n.commandes, point:n.points, relance:n.relances};
+      var titre={
+        ts: n.ts ? n.ts+" TS à chiffrer, sur "+(n.tsChantiers||1)+" chantier"+((n.tsChantiers||1)>1?"s":"") : "Rien à chiffrer",
+        commande: n.commandes ? n.commandes+" commande"+(n.commandes>1?"s":"")+" à saisir" : "Tout est saisi",
+        point: n.points ? n.points+" point"+(n.points>1?"s":"")+" bloquant"+(n.points>1?"s":"")+(n.pointsRetard ? ", dont "+n.pointsRetard+" en retard" : "") : "Aucun point bloquant",
+        relance: n.relances ? n.relances+" dossier"+(n.relances>1?"s":"")+" à relancer" : (n.attente ? n.attente+" en attente, rien à relancer" : "Aucun dossier en attente")
+      };
+      [].forEach.call(nav.querySelectorAll(".bulle-tb"), function(a){
+        var f=a.getAttribute("data-f"), v=parseInt(val[f],10)||0;
+        a.querySelector("b").textContent=String(v);
+        a.classList.toggle("zero", !v);
+        a.classList.toggle("attend", v>0 && !(f==="point" && n.pointsRetard));
+        a.classList.toggle("retard", f==="point" && !!n.pointsRetard);
+        a.title=titre[f]; a.setAttribute("aria-label", titre[f]);
+      });
+      nav.hidden=false;
+    })
+    .catch(function(){});
+}
 function chargerTaches(s){
   peindreEntreeTableau(s);
+  chargerBullesTb(s);
   /* une fois par visite : proposer les notifications sur ce téléphone */
   if(!NOTIF_INVITEE && window.Notif){ NOTIF_INVITEE=true; Notif.inviter($("inviteNotif"), s); }
   fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
