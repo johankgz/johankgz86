@@ -109,6 +109,15 @@ const serveur = http.createServer(async (req, res) => {
   }
 });
 
+/* Sur un réseau mobile lent, envoyer un relevé chargé de photos peut
+   prendre plusieurs minutes : Node coupait au bout de 5 minutes et le
+   téléphone affichait « pas de réseau ». On laisse 20 minutes. Les
+   connexions gardées ouvertes vivent plus longtemps que celles des
+   relais (sinon le serveur ferme au moment où le téléphone renvoie). */
+serveur.requestTimeout = 20 * 60 * 1000;
+serveur.headersTimeout = 70 * 1000;
+serveur.keepAliveTimeout = 65 * 1000;
+
 /* les rappels partent à leur heure : un coup d'œil chaque minute */
 setInterval(() => {
   rapports(new Request("http://localhost/api/rapports?action=tic")).catch(() => {});

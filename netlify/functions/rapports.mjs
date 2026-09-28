@@ -603,6 +603,9 @@ const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "eq
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
+  /* le téléphone réveille le serveur et rouvre une connexion neuve avant
+     de renvoyer une publication qui a échoué : rien à lire, rien à écrire */
+  if (action === "ping") return json({ ok: true });
   if (action !== "tic") tic().catch(() => {});
   if (action === "tic") return json({ ok: true, envoyes: await tic(true) });
   if (LECTURES.has(action)) return traiter(req);
