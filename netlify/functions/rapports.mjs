@@ -2140,6 +2140,77 @@ async function traiter(req) {
     });
   }
 
+  /* ---------- changer la référence d'un dossier ----------
+     La référence est la clé du dossier : ses documents, ses fiches, sa
+     discussion et ses rappels sont rangés dessous. On déplace donc tout
+     d'un bloc. Depuis la page du chantier, seulement tant qu'aucun relevé
+     technique n'est publié (son PDF porte l'ancienne référence) ; depuis
+     le relevé lui-même (avecReleve), qui va être republié avec la
+     nouvelle, c'est permis. */
+  if (action === "renommer-chantier") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ancienne = String(d.ref || "").trim();
+    const brute = String(d.nouvelle || "").trim();
+    if (!brute) return json({ erreur: "Donnez la nouvelle référence." }, 400);
+    const nouvelle = slug(brute);
+    const idx = await lireIndex();
+    const c = idx.chantiers[ancienne];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    if (nouvelle === ancienne) return json({ ok: true, ref: ancienne, inchange: true });
+    if (idx.chantiers[nouvelle]) return json({ erreur: "La référence " + nouvelle + " est déjà celle d'un autre dossier." }, 409);
+    const aUnReleve = c.fichiers.some((f) => f.type === "releve" && !f.brouillon);
+    if (aUnReleve && !(d.avecReleve && bureau)) {
+      return json({ erreur: "Un relevé technique est publié sur ce dossier : changez la référence depuis le relevé (Reprendre, modifier, republier)." }, 409);
+    }
+
+    /* 1. les fichiers du dossier : copier, puis effacer l'ancien */
+    const prefixe = ancienne + "/";
+    let deplaces = 0;
+    const res = await store.list({ prefix: prefixe });
+    for (const b of (res.blobs || [])) {
+      const lu = await store.getWithMetadata(b.key, { type: "arrayBuffer" });
+      if (!lu) continue;
+      await store.set(nouvelle + "/" + b.key.slice(prefixe.length), lu.data, lu.metadata ? { metadata: lu.metadata } : undefined);
+      deplaces++;
+    }
+    /* 2. l'index : on rebaptise le dossier et chaque clé */
+    const renomme = (cle) => (String(cle).startsWith(prefixe) ? nouvelle + "/" + String(cle).slice(prefixe.length) : cle);
+    c.ref = nouvelle;
+    c.fichiers.forEach((f) => { f.cle = renomme(f.cle); });
+    c.ancienneRef = ancienne;
+    c.maj = new Date().toISOString();
+    delete idx.chantiers[ancienne];
+    idx.chantiers[nouvelle] = c;
+    await store.setJSON(INDEX, idx);
+    for (const b of (res.blobs || [])) { try { await store.delete(b.key); } catch { /* déjà parti */ } }
+
+    /* 3. la discussion du dossier */
+    try {
+      const fil = await store.get(cleMessages(ancienne), { type: "json" });
+      if (fil) { await store.setJSON(cleMessages(nouvelle), fil); await store.delete(cleMessages(ancienne)); }
+    } catch { /* pas de discussion */ }
+
+    /* 4. les tâches et les rappels qui pointent vers le dossier */
+    try {
+      const lt = await store.list({ prefix: "taches/" });
+      const avant = "taches/rappel-" + slug(ancienne) + "-";
+      for (const b of (lt.blobs || [])) {
+        let t = null;
+        try { t = await store.get(b.key, { type: "json" }); } catch { t = null; }
+        if (!t || t.chantier !== ancienne) continue;
+        t.chantier = nouvelle;
+        if (t.suivi) t.suivi = renomme(t.suivi);
+        const cleT = b.key.startsWith(avant) ? "taches/rappel-" + slug(nouvelle) + "-" + b.key.slice(avant.length) : b.key;
+        await store.setJSON(cleT, t);
+        if (cleT !== b.key) { try { await store.delete(b.key); } catch { /* tant pis */ } }
+      }
+    } catch { /* pas de tâches */ }
+
+    return json({ ok: true, ref: nouvelle, ancienne, deplaces });
+  }
+
   /* archivage : suppression de tout un chantier après export */
   if (action === "supprimer-chantier") {
     if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);

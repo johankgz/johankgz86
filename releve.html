@@ -4168,12 +4168,15 @@ $("btnEnrSite").addEventListener("click", function(){
     return;
   }
   var moi = (SESSION && SESSION.nom) ? [SESSION.nom] : [];
+  assurerDossier().then(function(ok){ if(!ok){ el.textContent="Enregistrement annulé."; return; }
+  try{ donnees=JSON.stringify(S); }catch(e){}
   fetch(apiUrl("deposer-brouillon"), {method:"POST", headers:apiEnTetes(),
     body:JSON.stringify({chantier:refAffaire(), client:S.client.nom,
       date:S.meta.date, titre:"Relevé en cours", destinataires:moi, fiche:donnees})})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ el.textContent = res.d.erreur || "Enregistrement refusé."; return; }
+      if(res.d.ref){ S.meta.dossier = res.d.ref; save(); }
       var h=new Date();
       el.textContent = "Enregistré à "
         + String(h.getHours()).padStart(2,"0")+":"+String(h.getMinutes()).padStart(2,"0")
@@ -4181,6 +4184,7 @@ $("btnEnrSite").addEventListener("click", function(){
       toast("Relevé enregistré.");
     })
     .catch(function(){ el.textContent="Pas de réseau. Le relevé reste sur cet appareil."; });
+  });
 });
 $("btnExportJson").addEventListener("click", function(){
   var nom = "Releve-" + (refAffaire() || "sans-ref")
@@ -4870,7 +4874,12 @@ var APP_TYPE="releve";
 function destinataires(){ if(!S.meta.destinataires) S.meta.destinataires=[]; return S.meta.destinataires; }
 function ficheCharger(d, f){
   if(d.client && d.pieces){
-    S=d; paintForm(); save(); showTab("client");
+    S=d;
+    /* la fiche vient d'un dossier : si on change sa référence, c'est ce
+       dossier qu'on renomme, pas un nouveau qu'on crée */
+    S.meta = S.meta || {};
+    if(f && f.ref) S.meta.dossier = refServeur(f.ref);
+    paintForm(); save(); showTab("client");
     /* la fiche rouverte a déjà son dossier : on republie dedans, pas
        à une personne — comme le fait « Reprendre un dossier ». */
     try{ equipeDuDossier(); basculePub("dossier"); }catch(e){}
@@ -5184,6 +5193,36 @@ function renderDest(){
 }
 
 /* ---------- publication ---------- */
+/* la référence telle que le serveur la range (clé du dossier) */
+function refServeur(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9]+/g,"-")
+    .replace(/^-|-$/g,"").toUpperCase().slice(0,40);
+}
+/* Un relevé repris d'un dossier dont on a changé la référence : on
+   renomme ce dossier (documents, discussion, rappels suivent) avant de
+   publier, au lieu d'en ouvrir un second. */
+function assurerDossier(){
+  var origine=(S.meta && S.meta.dossier)||"", voulue=refServeur(refAffaire());
+  if(!origine || !voulue || origine===voulue) return Promise.resolve(true);
+  return fetch(apiUrl("renommer-chantier"), {method:"POST", headers:apiEnTetes(),
+      body:JSON.stringify({ref:origine, nouvelle:voulue, avecReleve:true})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, statut:r.status, d:d}; }); })
+    .then(function(res){
+      if(res.ok){
+        S.meta.dossier=res.d.ref; save();
+        try{ var c=chantierCourant(); if(c && refServeur(c.ref)===origine){ c.ref=res.d.ref; poserChantier(c); peindreNavChantier(); } }catch(e){}
+        if(!res.d.inchange) toast("Dossier renommé : "+origine+" → "+res.d.ref+".");
+        return true;
+      }
+      if(res.statut===404){ S.meta.dossier=""; save(); return true; }   /* le dossier n'existe plus : on repart de la nouvelle référence */
+      if(res.statut===409 && /déjà celle/.test(res.d.erreur||"")){
+        return confirm((res.d.erreur||"")+"\n\nPublier quand même dans ce dossier-là ? (le dossier "+origine+" reste tel quel)");
+      }
+      toast(res.d.erreur || "La référence n'a pas pu être changée.");
+      return false;
+    })
+    .catch(function(){ toast("Pas de réseau. Réessayez une fois connecté."); return false; });
+}
 function publierRapport(meta){
   if(!apiPret()) return;
   var sel=destinataires();
@@ -5216,6 +5255,7 @@ function publierRapport(meta){
        ensuite le nom ou le code du client ne doit plus le faire glisser
        vers un autre chantier — seul un relevé neuf, sans référence,
        peut encore en créer un. */
+    if(res.d.ref){ S.meta.dossier = res.d.ref; save(); }
     if(res.d.ref && !(S.affaire.chantier||"").trim()){
       S.affaire.chantier = res.d.ref;
       var champRef=$("a_chantier"); if(champRef) champRef.value = S.affaire.chantier;
@@ -5361,6 +5401,7 @@ function reprendreDossier(d){
   S.client.nom = d.client || S.client.nom;
   S.client.adresse = d.adresse || S.client.adresse;
   S.affaire.chantier = d.ref || S.affaire.chantier;
+  if(d.ref) S.meta.dossier = refServeur(d.ref);
   save(); paintForm(); equipeDuDossier(); showTab("client");
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
@@ -5382,14 +5423,14 @@ function recupererFiche(f){
 $("btnPublier").addEventListener("click", function(){
   if(!ready()) return;
   if(!refAffaire()){ toast("Renseignez le référence travaux ou le nom du client."); return; }
-  publierRapport({
+  assurerDossier().then(function(ok){ if(ok) publierRapport({
     chantier: refAffaire(), client: S.client.nom,
     adresse: (S.client.adresse||"").replace(/\n/g,", "),
     lat: S.client.lat, lon: S.client.lon,
     type: "releve", date: S.meta.date, auteur: S.meta.ca,
     etape: S.meta.statut || "",
     titre: "Relevé technique" + (S.meta.statut ? " - "+S.meta.statut : "")
-  });
+  }); });
 });
 
 $("btnPdf").addEventListener("click", function(){

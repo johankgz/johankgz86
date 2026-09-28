@@ -480,6 +480,14 @@ nav#nav button svg{stroke-width:1.9}
   padding:4px 10px;font-size:11.5px;font-weight:700;letter-spacing:.04em;
   border-radius:var(--r-field);
 }
+.entete-chantier .ref-modif{flex:0 0 auto;width:30px;height:30px;min-height:0;padding:0;margin-left:-4px;border-radius:50%;border:1px solid var(--rule,#D5DBE1);
+  background:transparent;color:var(--ink-3);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.entete-chantier .ref-modif svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.entete-chantier .ref-modif[hidden],.entete-chantier .ref-edit[hidden]{display:none}
+.entete-chantier .ref-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
+.entete-chantier .ref-edit input{flex:1 1 120px;min-width:0;text-transform:uppercase;font-weight:700;letter-spacing:.04em}
+.entete-chantier .ref-edit .act{width:auto;flex:0 0 auto;min-height:44px;padding:8px 14px}
+.entete-chantier .ref-aide{flex:1 1 100%;margin:0;font-size:12.5px;color:var(--ink-3)}
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
 .avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -867,8 +875,16 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   <div class="block entete-chantier">
     <div class="ligne">
       <span class="ref" id="c_ref">—</span>
+      <button type="button" class="ref-modif" id="c_refModif" hidden aria-label="Modifier la référence du chantier" title="Modifier la référence">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
       <h2 id="c_client">Chargement…</h2>
     </div>
+    <form class="ref-edit" id="c_refEdit" hidden>
+      <input id="c_refChamp" type="text" autocomplete="off" autocapitalize="characters" maxlength="40" aria-label="Nouvelle référence du chantier">
+      <button type="submit" class="act primary">Valider</button>
+      <button type="button" class="act ghost" id="c_refAnnuler">Annuler</button>
+      <p class="ref-aide">Possible tant qu'aucun relevé technique n'est publié : tous les documents du dossier suivent.</p>
+    </form>
     <p class="adr" id="c_adresse"></p>
   </div>
 
@@ -1012,6 +1028,46 @@ var TOUT_PUBLIER_DEMANDE=(function(){
   try{ return new URLSearchParams(location.search).get("toutPublier")==="1"; }catch(e){ return false; }
 })();
 var toastT;
+/* la référence se corrige tant qu'aucun relevé technique n'est publié :
+   le PDF du relevé porte la référence, il ne doit pas la contredire */
+function peindreRefModif(){
+  var b=$("c_refModif"); if(!b || !CHANTIER) return;
+  var releve=(CHANTIER.fichiers||[]).some(function(f){ return f.type==="releve" && !f.brouillon; });
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
+  b.hidden = releve || !(bureau || membre);
+}
+function refPropre(t){
+  return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9]+/g,"-").replace(/^-|-$/g,"").toUpperCase().slice(0,40);
+}
+document.addEventListener("click", function(e){
+  if(e.target.closest && e.target.closest("#c_refModif")){
+    $("c_refEdit").hidden=false; $("c_refModif").hidden=true;
+    var c=$("c_refChamp"); c.value=CHANTIER ? CHANTIER.ref : REF; c.focus(); c.select();
+  }
+  if(e.target.closest && e.target.closest("#c_refAnnuler")){ $("c_refEdit").hidden=true; peindreRefModif(); }
+});
+document.addEventListener("submit", function(e){
+  if(e.target.id!=="c_refEdit") return;
+  e.preventDefault();
+  var nouvelle=refPropre($("c_refChamp").value);
+  if(!nouvelle){ toast("Donnez la nouvelle référence."); return; }
+  if(nouvelle===CHANTIER.ref){ $("c_refEdit").hidden=true; peindreRefModif(); return; }
+  var bt=e.target.querySelector("button[type=submit]"); bt.disabled=true;
+  fetch(API+"?action=renommer-chantier", {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, nouvelle:nouvelle})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      bt.disabled=false;
+      if(!res.ok){ toast(res.d.erreur || "Référence non modifiée."); return; }
+      try{
+        var cour=JSON.parse(sessionStorage.getItem("chantier:courant")||"null");
+        if(cour && cour.ref===CHANTIER.ref){ cour.ref=res.d.ref; sessionStorage.setItem("chantier:courant", JSON.stringify(cour)); }
+      }catch(er){}
+      location.replace("./chantier.html?ref="+encodeURIComponent(res.d.ref)+"&renomme=1");
+    })
+    .catch(function(){ bt.disabled=false; toast("Pas de réseau : référence non modifiée."); });
+});
 function toast(t){
   var e=$("toast"); if(!e) return;
   e.textContent=t; e.hidden=false;
@@ -1589,7 +1645,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreRefModif();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){
@@ -1601,6 +1657,7 @@ function charger(){
     .catch(function(){ $("c_client").textContent="Pas de réseau. Réessayez."; });
 }
 charger();
+try{ if(new URLSearchParams(location.search).get("renomme")==="1"){ setTimeout(function(){ toast("Référence modifiée : tout le dossier a suivi."); }, 400); history.replaceState(null, "", location.pathname+"?ref="+encodeURIComponent(REF)); } }catch(e){}
 })();
 </script>
 </body>
