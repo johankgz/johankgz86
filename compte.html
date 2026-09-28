@@ -404,6 +404,11 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .nt-actions button.coupe{color:var(--rouge)}
 [hidden]{display:none!important}
 @media (prefers-reduced-motion:reduce){ .bascule input,.bascule input::after{transition:none} }
+.choix-fond{display:grid;gap:8px}
+.choix-fond label{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--rule,#E3E7EC);border-radius:10px;cursor:pointer}
+.choix-fond input{width:18px;height:18px;margin:0;accent-color:#EA7A1E}
+.choix-fond b{display:block;font-size:14.5px}
+.choix-fond small{display:block;font-size:12.5px;color:var(--ink-3,#6B7480)}
 </style>
 </head>
 <body>
@@ -464,6 +469,15 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
     <div class="nt-prefs" style="margin-top:0">
       <label class="bascule"><span>L'ouvrir au démarrage, sur ordinateur<small>Sur le téléphone, l'accueil reste l'accueil. Réglage propre à cet appareil.</small></span>
         <input type="checkbox" id="tb_demarrage" role="switch"></label>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2>Fond de l'accueil</h2>
+    <p class="legend">L'animation derrière l'accueil. Réglage propre à cet appareil.</p>
+    <div class="choix-fond" role="radiogroup" aria-label="Fond de l'accueil">
+      <label><input type="radio" name="fond" value="reseaux"><span><b>Les réseaux</b><small>Câbles et tuyaux aux couleurs du logo</small></span></label>
+      <label><input type="radio" name="fond" value="ville"><span><b>La ville en chantier</b><small>Immeubles, chantier et grue</small></span></label>
     </div>
   </div>
 
@@ -588,6 +602,19 @@ if(S.role==="bureau" || S.role==="admin"){
     }catch(e){}
   });
 }
+
+/* ---------- le fond de l'accueil ---------- */
+(function(){
+  var v="reseaux";
+  try{ v = localStorage.getItem("accueil:fond")==="ville" ? "ville" : "reseaux"; }catch(e){}
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="fond"]'), function(r){
+    r.checked = r.value===v;
+    r.addEventListener("change", function(){
+      try{ localStorage.setItem("accueil:fond", r.value); }catch(e){}
+      if(typeof toast==="function") toast(r.value==="ville" ? "La ville en chantier revient sur l'accueil." : "Les réseaux sur l'accueil.");
+    });
+  });
+})();
 
 /* ---------- notifications ---------- */
 function ntMessage(t, ok){ var e=$("nt_err"); e.className="err"+(ok?" ok":""); e.textContent=t||""; }
