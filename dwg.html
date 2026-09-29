@@ -165,6 +165,14 @@ body.clair #scene{background:#FFFFFF}
 .mesure .fam-d{margin-left:auto;align-self:center}
 .mesure .fam-d button{font-size:12.5px}
 .outils-d button.hors-fam{display:none}
+.barre-sel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:8px;
+  max-width:calc(100vw - 20px);padding:6px 6px 6px 14px;border-radius:999px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
+.barre-sel[hidden]{display:none}
+.barre-sel span{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.barre-sel button{flex:0 0 auto;min-height:40px;border-radius:999px;border:0;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
+.barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.barre-sel .bs-fermer{width:40px;justify-content:center;background:rgba(255,255,255,.1);color:var(--ink)}
 .coul-g button{padding:6px 8px}
 .coul-g i{display:block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
 .coul-g button.on{background:rgba(255,255,255,.22)}
@@ -233,6 +241,12 @@ body.clair #scene{background:#FFFFFF}
   <div id="v3Aide"></div>
   <div class="v3-zoom" role="group" aria-label="Zoom"><button type="button" id="v3Plus" aria-label="Rapprocher">+</button><button type="button" id="v3Moins" aria-label="Éloigner">−</button></div>
   <details class="v3-alerte" id="v3Alerte" hidden><summary></summary><ul></ul><p>Repères indicatifs d'après la NF C 15-100 (volume 1 au-dessus de la baignoire ou du receveur jusqu'à 2,25 m, volume 2 à 60 cm autour jusqu'à 3 m) : à vérifier sur place.</p></details>
+</div>
+
+<div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
+  <span id="barreSelNom"></span>
+  <button type="button" class="bs-supp" id="bsSupp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>Supprimer</button>
+  <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
 </div>
 
 <div class="chargement" id="chargement" hidden><i></i><span id="chargementTxt">Chargement…</span></div>
@@ -316,6 +330,7 @@ body.clair #scene{background:#FFFFFF}
     </span>
     <button class="bt" id="btDupliquerD" type="button" hidden>Dupliquer</button>
     <button class="bt" id="btTournerD" type="button" hidden>Tourner 90°</button>
+    <span class="groupe" id="grpHautD" hidden><span class="lab" id="labHautD">Hauteur</span><input class="champ-cm" id="dsHaut" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab" id="labAllD" hidden>allège</span><input class="champ-cm" id="dsAllege" type="text" inputmode="decimal" aria-label="Hauteur d'allège en cm" hidden><span class="lab">cm</span></span>
     <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span></span>
     <button class="bt" id="btTerminer" type="button" hidden>Terminer le mur</button>
     <button class="bt" id="btInverser" type="button" hidden>Sens d'ouverture</button>
@@ -1087,6 +1102,7 @@ function majSymb(){
   Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
   Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX; b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
   peindreQuantites();
+  majBarreSel();
 }
 function peindreQuantites(){
   var ul=$("listeQuantites"); ul.textContent=""; var n=compter(), total=0;
@@ -1121,11 +1137,29 @@ function basculerMode(m){
   D_PT=null; if(m!=="dessin") D_SEL=null;
   if(m==="dessin") majDessin();
   if(m!=="symb") $("quantites").hidden=true;
+  majBarreSel();
   if(m==="symb"){ remplirPalette(); majSymb(); if(!SYMB.length) toast("Choisissez un symbole en bas, puis touchez le plan pour le poser."); }
   else majBas();
   demander();
 }
 function nomDeBase(){ return ((PLAN && PLAN.nom) || "plan").replace(/\.[^.]+$/,""); }
+/* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
+function majBarreSel(){
+  var b=$("barreSel"); if(!b) return;
+  var nom="";
+  if(MODE==="dessin" && D_SEL){
+    var o=objetSel();
+    if(o) nom = D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)
+      : D_SEL.t==="ouv" ? NOMS_OUTILS[o.type] : D_SEL.t==="texte" ? "« "+o.s+" »" : D_SEL.t==="mob" ? (o.nom || defMob(o.cle).court) : D_SEL.t==="geo" ? nommerG(o) : "";
+  } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
+    var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
+  }
+  b.hidden=!nom;
+  /* juste au-dessus du panneau du bas, sous le pouce */
+  if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
+}
+$("bsSupp").addEventListener("click", function(){ if(MODE==="symb") supprimerSymb(); else supprimerD(); majBarreSel(); });
+$("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; majDessin(); } majBarreSel(); demander(); });
 function telecharger(blob, nom){
   var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nom; document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
@@ -1139,6 +1173,12 @@ function telecharger(blob, nom){
    sort au 1/50 (ou à l'échelle choisie) dans le PDF, et en DXF. */
 var DESSIN={murs:[], ouv:[], textes:[]}, DESSIN_CLE="", HISTO_D=[], OUTIL_D=lire("dwg:outil","mur"), D_PT=null, D_SEL=null, D_SOURIS=null, ORTHO_D=lire("dwg:orthoD","1")!=="0", IMPRIME=false;
 var EP_MUR=Number(lire("dwg:epMur","200"))||200, EP_CLOISON=70;
+/* la hauteur des prochains murs et cloisons (mm) ; 0 : jusqu'au plafond */
+var H_MUR=Number(lire("dwg:hMur","0"))||0, H_CLOISON=Number(lire("dwg:hCloison","0"))||0;
+/* les hauteurs d'une ouverture : passage (porte), allège et haut (fenêtre), en mm */
+var OUV_H={porte:2040, pf:2150, fenetre:2150}, OUV_ALLEGE={fenetre:900};
+function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
+function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
 var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir",
@@ -1331,6 +1371,7 @@ function toucherD(sx, sy, force){
     if(lng(sub(p, D_PT))*V.k < 18 || lng(sub(fin, D_PT))*DESSIN_MM < 50){ D_PT=null; majDessin(); return; }
     garderD();
     var m={id:idD(), a:D_PT.slice(), b:fin, ep:(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM};
+    var hd = OUTIL_D==="cloison" ? H_CLOISON : H_MUR; if(hd) m.h=hd;
     DESSIN.murs.push(m); D_PT=fin; D_SEL={t:"mur", id:m.id}; enregistrerD(); majDessin(); return;
   }
   if(OUTIL_D==="porte" || OUTIL_D==="pf" || OUTIL_D==="fenetre"){
@@ -1408,8 +1449,8 @@ function majDessin(){
       : (nb ? "Touchez la fin, ou tapez sa longueur." : "Touchez le début.");
   }
   else det="Touchez un mur, du côté où elle s'ouvre.";
-  if(o && t==="mur") det="Mur de "+formater(axes(o).L)+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm.";
-  if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm.";
+  if(o && t==="mur") det=(o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm, "+(o.h ? "hauteur "+cm(o.h)+" cm." : "jusqu'au plafond.");
+  if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm, hauteur "+cm(hautOuv(o))+" cm"+(o.type==="fenetre" ? ", allège "+cm(allegeOuv(o))+" cm." : ".");
   if(o && t==="texte") det="« "+o.s+" »";
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
   if(o && t==="mob") det=(o.nom || defMob(o.cle).nom)+" · "+cm(o.l*DESSIN_MM)+" × "+cm(o.p*DESSIN_MM)+" × "+cm(o.h)+" cm"+((o.z||0) ? ", à "+cm(o.z)+" cm du sol" : "")+". Glissez pour déplacer.";
@@ -1429,6 +1470,20 @@ function majDessin(){
     sel.value=String(val);
   }
   $("grpLong").hidden = t!=="mur";
+  /* la hauteur : du mur choisi, de l'ouverture choisie, ou des prochains murs */
+  var hPour = t==="mur" || t==="ouv" || ((OUTIL_D==="mur" || OUTIL_D==="cloison") && !o);
+  $("grpHautD").hidden = !hPour;
+  if(hPour){
+    var fen = t==="ouv" && o.type==="fenetre", hv;
+    $("labAllD").hidden = $("dsAllege").hidden = !fen;
+    $("labHautD").textContent = t==="ouv" ? (o.type==="porte" ? "Passage" : "Hauteur") : "Hauteur";
+    if(t==="mur") hv = o.h ? cm(o.h) : "";
+    else if(t==="ouv") hv = cm(hautOuv(o));
+    else { var hd=OUTIL_D==="cloison" ? H_CLOISON : H_MUR; hv = hd ? cm(hd) : ""; }
+    $("dsHaut").placeholder = t==="ouv" ? "" : "plafond";
+    if(document.activeElement!==$("dsHaut")) $("dsHaut").value=hv;
+    if(fen && document.activeElement!==$("dsAllege")) $("dsAllege").value=cm(allegeOuv(o));
+  }
   if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=String(Math.round(axes(o).L*DESSIN_MM)/10).replace(".",",");
   $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre");
   $("btMain").hidden = !(t==="ouv" && o.type==="porte");
@@ -1445,6 +1500,7 @@ function majDessin(){
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
   $("btAccrD").classList.toggle("on", ACCR_D); $("btAccrD").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDxfD").disabled = dessinVide() && !SYMB.length;
+  majBarreSel();
   demander();
 }
 function modifierSel(fn){ var o=objetSel(); if(!o) return; garderD(); fn(o); enregistrerD(); majDessin(); }
@@ -1486,6 +1542,19 @@ $("dsLong").addEventListener("change", function(){
   modifierSel(function(o){ var x=axes(o); o.b=[o.a[0]+x.u[0]*cm*10/DESSIN_MM, o.a[1]+x.u[1]*cm*10/DESSIN_MM]; });
 });
 $("dsLong").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+$("dsHaut").addEventListener("change", function(){
+  var v=String(this.value).trim(), c=parseFloat(v.replace(",", ".")), mm = c>0 ? Math.round(c*10) : 0;
+  var ch=D_SEL && D_SEL.t;
+  if(ch==="mur"){ modifierSel(function(o){ if(mm) o.h=mm; else delete o.h; }); return; }
+  if(ch==="ouv"){ if(!mm){ majDessin(); return; } modifierSel(function(o){ o.h=Math.max(mm, allegeOuv(o)+100); }); return; }
+  if(OUTIL_D==="cloison"){ H_CLOISON=mm; garder("dwg:hCloison", String(mm)); } else { H_MUR=mm; garder("dwg:hMur", String(mm)); }
+  majDessin();
+});
+$("dsAllege").addEventListener("change", function(){
+  var c=parseFloat(String(this.value).replace(",", ".")); if(!(c>=0)){ majDessin(); return; }
+  modifierSel(function(o){ o.allege=Math.round(c*10); if(hautOuv(o) < o.allege+100) o.h=o.allege+100; });
+});
+["dsHaut","dsAllege"].forEach(function(id){ $(id).addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); }); });
 $("btInverser").addEventListener("click", function(){ modifierSel(function(o){ o.sens=-(o.sens||1); }); });
 $("btMain").addEventListener("click", function(){ modifierSel(function(o){ o.main=-(o.main||1); }); });
 $("btRenommer").addEventListener("click", function(){
@@ -2575,8 +2644,8 @@ function dessinEnMm(D, k){
   if(k===1) return normD(D);
   function p(q){ return [q[0]*k, q[1]*k]; }
   return {hsp:D.hsp,
-    murs:D.murs.map(function(m){ return {id:m.id, a:p(m.a), b:p(m.b), ep:m.ep*k}; }),
-    ouv:D.ouv.map(function(o){ return {id:o.id, type:o.type, mur:o.mur, t:o.t, l:o.l*k, sens:o.sens, main:o.main}; }),
+    murs:D.murs.map(function(m){ return {id:m.id, a:p(m.a), b:p(m.b), ep:m.ep*k, h:m.h}; }),
+    ouv:D.ouv.map(function(o){ return {id:o.id, type:o.type, mur:o.mur, t:o.t, l:o.l*k, sens:o.sens, main:o.main, h:o.h, allege:o.allege}; }),
     textes:D.textes.map(function(t){ return {id:t.id, x:t.x*k, y:t.y*k, s:t.s, h:t.h*k}; }),
     geo:(D.geo||[]).map(function(o){ var x=JSON.parse(JSON.stringify(o)); x.pts=o.pts.map(p); ["r","rx","ry","off","h","fl"].forEach(function(c){ if(x[c]!=null) x[c]*=k; }); return x; }),
     mob:(D.mob||[]).map(function(o){ return {id:o.id, cle:o.cle, x:o.x*k, y:o.y*k, rot:o.rot, l:o.l*k, p:o.p*k, h:o.h, z:o.z, nom:o.nom}; })};
@@ -2635,14 +2704,16 @@ function construire3Dmm(ed){
     if(mat===matMur){ var ar=new THREE.LineSegments(new THREE.EdgesGeometry(g), matTranche); ar.position.copy(me.position); ar.rotation.copy(me.rotation); sc.add(ar); }
   }
   DESSIN.murs.forEach(function(m){
-    morceaux(m).forEach(function(pc){ bloc(m, pc[0], pc[1], 0, hsp, matMur); });
+    /* chaque mur a sa hauteur (un muret, une cloison à mi-hauteur), sinon il monte au plafond */
+    var hm=Math.min(hsp, m.h || hsp);
+    morceaux(m).forEach(function(pc){ bloc(m, pc[0], pc[1], 0, hm, matMur); });
     trous(m).forEach(function(g){
-      var o=g[2], d=OUV3D[o.type]||OUV3D.porte, haut=Math.min(hsp, d.haut);
-      bloc(m, g[0], g[1], haut, hsp, matMur);                                   /* le linteau */
-      if(d.allege) bloc(m, g[0], g[1], 0, d.allege, matMur);                    /* l'allège */
-      if(o.type!=="porte") bloc(m, g[0]+20, g[1]-20, d.allege||0, haut, matVitre, 12);   /* le vitrage */
+      var o=g[2], al=Math.min(allegeOuv(o), hm), haut=Math.max(al, Math.min(hm, hautOuv(o)));
+      bloc(m, g[0], g[1], haut, hm, matMur);                                    /* le linteau */
+      if(al) bloc(m, g[0], g[1], 0, al, matMur);                                /* l'allège */
+      if(o.type!=="porte") bloc(m, g[0]+20, g[1]-20, al, haut, matVitre, 12);   /* le vitrage */
       /* les montants de menuiserie */
-      bloc(m, g[0], g[0]+45, d.allege||0, haut, matCadre, Math.min(m.ep, 70)); bloc(m, g[1]-45, g[1], d.allege||0, haut, matCadre, Math.min(m.ep, 70));
+      bloc(m, g[0], g[0]+45, al, haut, matCadre, Math.min(m.ep, 70)); bloc(m, g[1]-45, g[1], al, haut, matCadre, Math.min(m.ep, 70));
       if(o.type==="porte"){
         /* le vantail, entrouvert à 30°, du côté où il s'ouvre */
         var x=axes(m), s=o.sens||1, gH=(o.main||1)>0 ? g[0] : g[1], dirU=(o.main||1)>0 ? 1 : -1;
@@ -3397,7 +3468,7 @@ $("plusMenu").addEventListener("click", function(e){
   this.hidden=true; $("btPlus").setAttribute("aria-expanded","false"); $(b.dataset.cible).click();
 });
 document.addEventListener("click", function(e){ if(!$("plusMenu").hidden && !e.target.closest("#plusMenu")){ $("plusMenu").hidden=true; $("btPlus").setAttribute("aria-expanded","false"); } });
-window.addEventListener("resize", redim);
+window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
 window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
