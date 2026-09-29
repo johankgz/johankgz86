@@ -19,12 +19,6 @@ var API="/api/rapports";
 var $=function(i){ return document.getElementById(i); };
 function charger(){ if(CFG.charger) CFG.charger(); }
 function toast(t){ if(CFG.toast) CFG.toast(t); }
-function appInstallee(){
-  try{
-    return !!window.navigator.standalone
-      || window.matchMedia("(display-mode: standalone)").matches;
-  }catch(e){ return false; }
-}
 function octets(n){ return n>1048576 ? (n/1048576).toFixed(1).replace(".",",")+" Mo" : Math.round(n/1024)+" Ko"; }
 function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 
@@ -1007,7 +1001,10 @@ function carteDossier(c, i, opts){
       a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
     } else {
       a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
-      if(!appInstallee()){ a.target="_blank"; a.rel="noopener"; }
+      /* toujours à part, même dans l'appli installée : le téléphone l'ouvre
+         alors dans sa fenêtre avec OK en haut à gauche, qui ramène ici.
+         Dans la même fenêtre, le PDF remplaçait l'appli, sans barre ni retour. */
+      a.target="_blank"; a.rel="noopener";
     }
     a.addEventListener("click", function(){
       /* accusé de lecture immédiat, sans dépendre du chargement du PDF */
