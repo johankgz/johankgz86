@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
 <meta name="theme-color" content="#F4F1EA">
 <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -976,7 +977,7 @@ a.act[hidden]{display:none}
 
 <datalist id="dl_pieces"></datalist>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="./symboles-elec.js?v=20260929a"></script>
 <script src="./annotation.js?v=20260929a"></script>
 <script src="./sobre.js?v=20260927b"></script>
@@ -2009,10 +2010,9 @@ function adresseTravaux(){ return (S.client.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.visite.date; }
 
 /* ---------- dépôt des photos sur le site ----------
-   Les photos du suivi partent dans le dossier du chantier : à la
-   publication, et aussi toutes seules, quelques secondes après chaque
-   photo prise, annotée ou retirée (rien ne se perd si le téléphone
-   s'éteint). Un lot trop lourd pour une requête part en plusieurs
+   Les photos du suivi restent sur l'appareil tant qu'on travaille : elles
+   partent dans le dossier du chantier au moment où l'on publie le suivi,
+   pas avant. Un lot trop lourd pour une requête part en plusieurs
    parties. Les photos ne préviennent personne. */
 var LOT_PHOTOS=4.6*1024*1024;
 function deposerPhotos(auto){
@@ -2065,41 +2065,21 @@ function signaturePhotos(){
   /* le suivi et le chantier en font partie : un nouveau suivi, ou un autre chantier, renvoie tout */
   return S.suiviId+"@"+refAffaire()+"#"+(S.photos||[]).map(function(ph){ return String(ph.data||"").length+":"+(ph.legende||""); }).join("|");
 }
-var PH_SITE_T=null, PH_SITE_EN_COURS=false;
+var PH_SITE_EN_COURS=false;
 function peindrePhotosSite(){
   var el=$("ph_site"); if(!el) return;
   var n=(S.photos||[]).length, st=S.photosSite||{};
   if(!n || !baseSite() || !jetonSession()){ el.hidden=true; return; }
   el.hidden=false;
-  if(PH_SITE_EN_COURS){ el.textContent="Envoi des photos sur le site…"; return; }
+  if(PH_SITE_EN_COURS){ el.textContent="Envoi des photos dans le dossier…"; return; }
   if(st.sig && st.sig===signaturePhotos()){
     var q=new Date(st.le);
-    el.textContent="Photos enregistrées sur le site ("+n+"), à "+String(q.getHours()).padStart(2,"0")+":"+String(q.getMinutes()).padStart(2,"0")+".";
-  } else if(!refAffaire()) el.textContent="Les photos partiront sur le site dès que le chantier sera choisi.";
-  else if(st.erreur) el.textContent="Photos gardées sur l'appareil : "+st.erreur;
-  else el.textContent="Photos gardées sur l'appareil, envoi sur le site dans un instant.";
+    el.textContent="Photos enregistrées dans le dossier ("+n+"), à "+String(q.getHours()).padStart(2,"0")+":"+String(q.getMinutes()).padStart(2,"0")+".";
+  } else if(st.erreur) el.textContent="Photos gardées sur l'appareil : "+st.erreur;
+  else el.textContent="Photos gardées sur l'appareil : elles partiront dans le dossier à la publication.";
 }
-function planifierPhotosSite(){
-  clearTimeout(PH_SITE_T);
-  if(!(S.photos||[]).length || !baseSite() || !jetonSession() || !refAffaire()){ peindrePhotosSite(); return; }
-  if(S.photosSite && S.photosSite.sig===signaturePhotos()){ peindrePhotosSite(); return; }
-  peindrePhotosSite();
-  PH_SITE_T=setTimeout(function(){
-    if(PH_SITE_EN_COURS){ planifierPhotosSite(); return; }
-    var sig=signaturePhotos(), idSuivi=S.suiviId;
-    PH_SITE_EN_COURS=true; peindrePhotosSite();
-    deposerPhotos(true).then(function(ok){
-      PH_SITE_EN_COURS=false;
-      if(S.suiviId!==idSuivi) return;            /* un autre suivi a été ouvert entre-temps */
-      var d=deposerPhotos.derniere;
-      if(ok) S.photosSite={sig:sig, le:new Date().toISOString()};
-      else S.photosSite={sig:"", erreur: d && d.erreur ? d.erreur : "pas de réseau, nouvel essai à la prochaine photo."};
-      enregistrer(); peindrePhotosSite();
-      if(ok && sig!==signaturePhotos()) planifierPhotosSite();
-    });
-  }, 4000);
-}
-window.addEventListener("online", function(){ try{ planifierPhotosSite(); }catch(e){} });
+/* appelé à chaque changement : ne fait que dire où en sont les photos (aucun envoi) */
+function planifierPhotosSite(){ peindrePhotosSite(); }
 
 /* Le dossier de photos porte le nom du client, suivi de « photos » :
    c'est ce qu'on cherche des mois plus tard dans ses téléchargements.
@@ -2286,7 +2266,7 @@ function publierRapport(meta){
     return;
   }
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Rapport impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
   var b64=doc.output("datauristring").split(",")[1];
   if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
   var el=$("pubEtat");
@@ -2444,6 +2424,7 @@ function reprendreDossier(d){
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
+  try{ peindreNavChantier(); }catch(e){}     /* la barre du chantier tout de suite, pas 1,5 s plus tard sous le doigt */
 }
 function recupererFiche(f){
   toast("Ouverture…");
@@ -2772,7 +2753,7 @@ function messagePartage(){
 /* ---------- partage du rapport : feuille de partage du téléphone ---------- */
 function partagerRapport(){
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Document impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Document impossible à générer."); return; }
   var blob=doc.output("blob"), nom=pdfName();
   var texte;
   try{ texte=messagePartage(); }catch(e){ texte=""; }
@@ -2963,7 +2944,7 @@ function bindAll(){
   $("btnPdf").addEventListener("click", function(){
     if(!S.client.nom.trim()){ toast("Renseignez au moins le nom du client."); showTab("client"); return; }
     var doc;
-    try{ doc=buildPdf(); }catch(e){ toast("Rapport impossible à générer."); return; }
+    try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
     dl(doc.output("blob"), pdfName());
     $("pdfInfo").textContent = "PDF enregistré : "+pdfName();
     toast("PDF enregistré.");
@@ -3012,11 +2993,20 @@ function bindAll(){
      suivi s'ouvre d'un appui */
   window.addEventListener("suivi:publie", function(){
     var el=$("pubEtat");
-    var sigPub=signaturePhotos();
-    deposerPhotos(true).then(function(ok){
-      if(ok){ S.photosSite={sig:sigPub, le:new Date().toISOString()}; enregistrer(); peindrePhotosSite(); }
-      if(ok && el) el.textContent += " Photos enregistrées sur le site.";
-    });
+    var sigPub=signaturePhotos(), idSuivi=S.suiviId;
+    if(!(S.photos||[]).length || (S.photosSite && S.photosSite.sig===sigPub)) { peindrePhotosSite(); }
+    else {
+      PH_SITE_EN_COURS=true; peindrePhotosSite();
+      deposerPhotos(true).then(function(ok){
+        PH_SITE_EN_COURS=false;
+        if(S.suiviId!==idSuivi) return;
+        var d=deposerPhotos.derniere;
+        if(ok) S.photosSite={sig:sigPub, le:new Date().toISOString()};
+        else S.photosSite={sig:"", erreur:(d && d.erreur) ? d.erreur : "pas de réseau, elles repartiront à la prochaine publication."};
+        enregistrer(); peindrePhotosSite();
+        if(el) el.textContent += ok ? " Photos enregistrées dans le dossier." : " Photos non envoyées : republiez quand le réseau revient.";
+      });
+    }
     if(!el || document.getElementById("btnSuivant")) return;
     var b=document.createElement("button");
     b.type="button"; b.className="act ghost"; b.id="btnSuivant";
@@ -3544,8 +3534,8 @@ function ecrireFiche(){
   }
   var essais=0;
   (function attendre(){
-    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier") || !window.__dossierRepris){
-      if(++essais > 150){ dire(false, "Chargement trop long."); return; }
+    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier") || !window.__dossierRepris || !window.jspdf){
+      if(++essais > 450){ dire(false, "Chargement trop long."); return; }
       setTimeout(attendre, 100);
       return;
     }
@@ -4022,10 +4012,12 @@ function peindreNavChantier(){
   /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
   var sienne=false;
   try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
-  if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
-  wrap.hidden=false; hote.hidden=false;
+  if(!sienne){ if(!wrap.hidden) wrap.hidden=true; if(!hote.hidden) hote.hidden=true; return; }
+  if(wrap.hidden) wrap.hidden=false; if(hote.hidden) hote.hidden=false;
   if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
-  hote.textContent="";
+  /* construite à côté, puis comparée : rien ne bouge à l'écran si rien n'a changé
+     (elle est revue toutes les 1,5 s, un toucher ne doit pas tomber pendant une reconstruction) */
+  var vraiHote=hote; hote=document.createElement("nav");
 
   var retour=document.createElement("a");
   retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
@@ -4061,6 +4053,8 @@ function peindreNavChantier(){
     ecrireFiche().then(function(){ location.href=tout.href; });
   });
   hote.appendChild(tout);
+  if(hote.innerHTML!==vraiHote.innerHTML){ vraiHote.textContent=""; while(hote.firstChild) vraiHote.appendChild(hote.firstChild); }
+  hote=vraiHote;
   majDebordChantier();
 }
 function majDebordChantier(){

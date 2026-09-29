@@ -1822,10 +1822,12 @@ function peindreNavChantier(){
   /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
   var sienne=false;
   try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
-  if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
-  wrap.hidden=false; hote.hidden=false;
+  if(!sienne){ if(!wrap.hidden) wrap.hidden=true; if(!hote.hidden) hote.hidden=true; return; }
+  if(wrap.hidden) wrap.hidden=false; if(hote.hidden) hote.hidden=false;
   if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
-  hote.textContent="";
+  /* construite à côté, puis comparée : rien ne bouge à l'écran si rien n'a changé
+     (elle est revue toutes les 1,5 s, un toucher ne doit pas tomber pendant une reconstruction) */
+  var vraiHote=hote; hote=document.createElement("nav");
 
   var retour=document.createElement("a");
   retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
@@ -1861,6 +1863,8 @@ function peindreNavChantier(){
     ecrireFiche().then(function(){ location.href=tout.href; });
   });
   hote.appendChild(tout);
+  if(hote.innerHTML!==vraiHote.innerHTML){ vraiHote.textContent=""; while(hote.firstChild) vraiHote.appendChild(hote.firstChild); }
+  hote=vraiHote;
   majDebordChantier();
 }
 function majDebordChantier(){

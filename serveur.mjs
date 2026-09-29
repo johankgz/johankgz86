@@ -24,6 +24,7 @@ import http from "node:http";
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import zlib from "node:zlib";
 import rapports from "./netlify/functions/rapports.mjs";
 import pvgis from "./netlify/functions/pvgis.mjs";
 import plan from "./netlify/functions/plan.mjs";
@@ -74,34 +75,68 @@ function versRequete(req) {
   const corps = (req.method === "GET" || req.method === "HEAD") ? undefined : req;
   return new Request(url, { method: req.method, headers: entetes, body: corps, duplex: "half" });
 }
-async function repondre(res, reponse) {
+/* Compresser le texte : sur un réseau mobile, une page de 300 Ko en
+   pèse 60. Les images, PDF et ZIP sont déjà compressés, on n'y touche pas. */
+const COMPRESSIBLE = /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/;
+function accepteGzip(req) { return /\bgzip\b/.test(String(req.headers["accept-encoding"] || "")); }
+async function repondre(req, res, reponse) {
   const entetes = {};
   reponse.headers.forEach((v, k) => { entetes[k] = v; });
-  res.writeHead(reponse.status, entetes);
   if (reponse.body) {
-    const octets = Buffer.from(await reponse.arrayBuffer());
+    let octets = Buffer.from(await reponse.arrayBuffer());
+    if (octets.length > 1400 && accepteGzip(req) && COMPRESSIBLE.test(entetes["content-type"] || "") && !entetes["content-encoding"]) {
+      octets = zlib.gzipSync(octets, { level: 6 });
+      entetes["content-encoding"] = "gzip"; entetes["vary"] = "Accept-Encoding";
+      delete entetes["content-length"];
+    }
+    res.writeHead(reponse.status, entetes);
     res.end(octets);
-  } else res.end();
+  } else { res.writeHead(reponse.status, entetes); res.end(); }
+}
+/* Les pages du site, gardées en mémoire toutes prêtes (brutes et
+   compressées), relues seulement si le fichier change. L'étiquette (ETag)
+   permet au navigateur de redemander une page sans la retélécharger :
+   « pas changé » tient en quelques octets. */
+const CACHE_FICHIERS = new Map();
+async function fichierPret(fichier) {
+  const st = await fs.stat(fichier);
+  if (!st.isFile()) throw Object.assign(new Error("dossier"), { code: "ENOENT" });
+  const cle = st.size + "-" + Math.round(st.mtimeMs);
+  const c = CACHE_FICHIERS.get(fichier);
+  if (c && c.cle === cle) return c;
+  const brut = await fs.readFile(fichier);
+  const type = TYPES[path.extname(fichier).toLowerCase()] || "application/octet-stream";
+  const pret = { cle, brut, type, etag: 'W/"' + cle + '"', gz: (brut.length > 1400 && COMPRESSIBLE.test(type)) ? zlib.gzipSync(brut, { level: 9 }) : null };
+  if (brut.length < 8 * 1024 * 1024) CACHE_FICHIERS.set(fichier, pret);
+  return pret;
 }
 
 const serveur = http.createServer(async (req, res) => {
   const chemin = (req.url || "/").split("?")[0];
   try {
     const route = ROUTES.find((r) => r.chemins.includes(chemin));
-    if (route) return repondre(res, await route.fonction(versRequete(req)));
+    if (route) return repondre(req, res, await route.fonction(versRequete(req)));
 
     const fichier = fichierDemande(req.url || "/");
     if (!fichier) { res.writeHead(403).end("Interdit"); return; }
-    let contenu;
-    try { contenu = await fs.readFile(fichier); }
+    let f;
+    try { f = await fichierPret(fichier); }
     catch { res.writeHead(404, { "content-type": "text/plain; charset=utf-8" }).end("Page introuvable"); return; }
-    res.writeHead(200, {
-      "content-type": TYPES[path.extname(fichier).toLowerCase()] || "application/octet-stream",
-      /* les pages et le service des notifications sont toujours relus */
+    const entetes = {
+      "content-type": f.type,
+      /* les pages et le service des notifications sont toujours revérifiés (l'ETag évite de les retélécharger) */
       "cache-control": (path.extname(fichier) === ".html" || path.basename(fichier) === "sw.js")
-        ? "no-cache" : "public, max-age=3600"
-    });
-    res.end(contenu);
+        ? "no-cache" : "public, max-age=3600",
+      "etag": f.etag
+    };
+    if (f.gz) entetes["vary"] = "Accept-Encoding";
+    if (String(req.headers["if-none-match"] || "").split(/\s*,\s*/).includes(f.etag)) { res.writeHead(304, entetes); res.end(); return; }
+    const gz = f.gz && accepteGzip(req);
+    if (gz) entetes["content-encoding"] = "gzip";
+    const corps = gz ? f.gz : f.brut;
+    entetes["content-length"] = corps.length;
+    res.writeHead(200, entetes);
+    res.end(req.method === "HEAD" ? undefined : corps);
   } catch (e) {
     console.error("Erreur sur " + chemin + " :", e);
     res.writeHead(500, { "content-type": "application/json; charset=utf-8" })

@@ -108,7 +108,11 @@ export function magasinFichiers(options) {
 
     async list(opts) {
       const prefixe = (opts && opts.prefix) || "";
-      const fichiers = await parcourir(path.join(RACINE, magasin), []);
+      /* on ne parcourt que le sous-dossier du préfixe (« taches/ » ne lit
+         pas les milliers de PDF et de photos des chantiers) */
+      const sousDossier = prefixe.includes("/") ? prefixe.slice(0, prefixe.lastIndexOf("/")) : "";
+      const depart = sousDossier ? chemin(magasin, sousDossier) : path.join(RACINE, magasin);
+      const fichiers = await parcourir(depart, []);
       const blobs = fichiers
         .map((f) => ({ key: cleDepuisChemin(magasin, f), etag: "" }))
         .filter((b) => b.key.startsWith(prefixe))

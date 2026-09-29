@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
 <meta name="theme-color" content="#F4F1EA">
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
@@ -489,11 +490,12 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
   </div>
 
   <div class="block">
-    <h2>Fond de l'accueil</h2>
-    <p class="legend">L'animation derrière l'accueil. Réglage propre à cet appareil.</p>
-    <div class="choix-fond" role="radiogroup" aria-label="Fond de l'accueil">
+    <h2>Fond d'écran</h2>
+    <p class="legend">L'animation derrière l'accueil, ou un fond uni qui ne bouge pas, sur l'accueil et dans les applis. Réglage propre à cet appareil.</p>
+    <div class="choix-fond" role="radiogroup" aria-label="Fond d'écran">
       <label><input type="radio" name="fond" value="reseaux"><span><b>Les réseaux</b><small>Câbles et tuyaux aux couleurs du logo</small></span></label>
       <label><input type="radio" name="fond" value="ville"><span><b>La ville en chantier</b><small>Immeubles, chantier et grue</small></span></label>
+      <label><input type="radio" name="fond" value="anthracite"><span><b>Anthracite, sans animation</b><small>Un fond uni, partout : rien ne bouge</small></span></label>
     </div>
   </div>
 
@@ -622,12 +624,19 @@ if(S.role==="bureau" || S.role==="admin"){
 /* ---------- le fond de l'accueil ---------- */
 (function(){
   var v="reseaux";
-  try{ v = localStorage.getItem("accueil:fond")==="ville" ? "ville" : "reseaux"; }catch(e){}
+  try{
+    v = localStorage.getItem("site:fond")==="anthracite" ? "anthracite"
+      : (localStorage.getItem("accueil:fond")==="ville" ? "ville" : "reseaux");
+  }catch(e){}
   Array.prototype.forEach.call(document.querySelectorAll('input[name="fond"]'), function(r){
     r.checked = r.value===v;
     r.addEventListener("change", function(){
-      try{ localStorage.setItem("accueil:fond", r.value); }catch(e){}
-      if(typeof toast==="function") toast(r.value==="ville" ? "La ville en chantier revient sur l'accueil." : "Les réseaux sur l'accueil.");
+      try{
+        if(r.value==="anthracite") localStorage.setItem("site:fond", "anthracite");
+        else { localStorage.removeItem("site:fond"); localStorage.setItem("accueil:fond", r.value); }
+      }catch(e){}
+      if(typeof toast==="function") toast(r.value==="anthracite" ? "Fond anthracite, sans animation, sur tout le site."
+        : r.value==="ville" ? "La ville en chantier revient sur l'accueil." : "Les réseaux sur l'accueil.");
     });
   });
 })();

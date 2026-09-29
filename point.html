@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
 <meta name="theme-color" content="#F4F1EA">
 <meta name="apple-mobile-web-app-capable" content="yes">
 
@@ -826,7 +827,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <nav id="nav" aria-label="Les onglets de cette fiche"></nav>
 <div class="toast" id="toast" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script>
 (function(){
@@ -1251,7 +1252,7 @@ function buildNav(){
       + (ICONES_ONGLET[t[0]] || ICONES_ONGLET.defaut) + '</svg>';
     var lb=document.createElement("span"); lb.textContent=t[1];
     b.appendChild(ic); b.appendChild(lb);
-    b.addEventListener("click", function(){ showTab(t[0]); });
+    b.addEventListener("click", function(){ window.__ongletChoisi=true; showTab(t[0]); });
     nav.appendChild(b);
   });
 }
@@ -1301,7 +1302,7 @@ function stepNav(name){
   TABS.forEach(function(t,k){
     var d=document.createElement("button"); d.type="button"; d.textContent=String(k+1);
     d.setAttribute("aria-current", k===i?"true":"false");
-    d.addEventListener("click", function(){ showTab(t[0]); });
+    d.addEventListener("click", function(){ window.__ongletChoisi=true; showTab(t[0]); });
     dots.appendChild(d);
   });
   host.appendChild(dots);
@@ -1646,7 +1647,7 @@ function publierRapport(meta){
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
   if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Rapport impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
   var b64=doc.output("datauristring").split(",")[1];
   if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
   var el=$("pubEtat");
@@ -1789,10 +1790,11 @@ function reprendreDossier(d){
   S.chantier.client = d.client || S.chantier.client;
   S.chantier.ref = d.ref || S.chantier.ref;
   S.chantier.adresse = d.adresse || S.chantier.adresse;
-  save(); paintForm(); equipeDuDossier(); showTab("travaux");
+  save(); paintForm(); equipeDuDossier(); if(!window.__ongletChoisi) showTab("travaux");
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
+  try{ peindreNavChantier(); }catch(e){}     /* la barre du chantier tout de suite, pas 1,5 s plus tard sous le doigt */
 }
 function recupererFiche(f){
   toast("Ouverture…");
@@ -2119,7 +2121,7 @@ function messagePartage(){
 /* ---------- partage du rapport : feuille de partage du téléphone ---------- */
 function partagerRapport(){
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Document impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Document impossible à générer."); return; }
   var blob=doc.output("blob"), nom=pdfName();
   var texte;
   try{ texte=messagePartage(); }catch(e){ texte=""; }
@@ -2170,7 +2172,7 @@ function bindAll(){
       toast("Indiquez les travaux."); showTab("travaux"); return;
     }
     var doc;
-    try{ doc=buildPdf(); }catch(e){ toast("PDF impossible à générer."); return; }
+    try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "PDF impossible à générer."); return; }
     dl(doc.output("blob"), pdfName());
     $("pdfInfo").textContent="Enregistré : "+pdfName();
     toast("PDF généré.");
@@ -2639,7 +2641,7 @@ function ecrireFiche(){
       try{ poserChantier(d); }catch(e){}
       try{ reprendreDossier(d); }catch(e){}
       try{ peindreNavChantier(); }catch(e){}
-      if(onglet){ try{ showTab(onglet); }catch(e){} }
+      if(onglet && !window.__ongletChoisi){ try{ showTab(onglet); }catch(e){} }
       /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
       try{ history.replaceState(null, "", location.pathname); }catch(e){}
       window.__dossierRepris = true;
@@ -2696,8 +2698,8 @@ function ecrireFiche(){
   }
   var essais=0;
   (function attendre(){
-    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier") || !window.__dossierRepris){
-      if(++essais > 150){ dire(false, "Chargement trop long."); return; }
+    if(typeof S === "undefined" || !S || !document.getElementById("btnPublier") || !window.__dossierRepris || !window.jspdf){
+      if(++essais > 450){ dire(false, "Chargement trop long."); return; }
       setTimeout(attendre, 100);
       return;
     }
@@ -2954,10 +2956,12 @@ function peindreNavChantier(){
   /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
   var sienne=false;
   try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
-  if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
-  wrap.hidden=false; hote.hidden=false;
+  if(!sienne){ if(!wrap.hidden) wrap.hidden=true; if(!hote.hidden) hote.hidden=true; return; }
+  if(wrap.hidden) wrap.hidden=false; if(hote.hidden) hote.hidden=false;
   if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
-  hote.textContent="";
+  /* construite à côté, puis comparée : rien ne bouge à l'écran si rien n'a changé
+     (elle est revue toutes les 1,5 s, un toucher ne doit pas tomber pendant une reconstruction) */
+  var vraiHote=hote; hote=document.createElement("nav");
 
   var retour=document.createElement("a");
   retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
@@ -2993,6 +2997,8 @@ function peindreNavChantier(){
     ecrireFiche().then(function(){ location.href=tout.href; });
   });
   hote.appendChild(tout);
+  if(hote.innerHTML!==vraiHote.innerHTML){ vraiHote.textContent=""; while(hote.firstChild) vraiHote.appendChild(hote.firstChild); }
+  hote=vraiHote;
   majDebordChantier();
 }
 function majDebordChantier(){

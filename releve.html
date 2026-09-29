@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
 <link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
@@ -15,7 +16,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Relevé technique — Suivi travaux 360</title>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#F4F1EA;
@@ -1909,7 +1910,7 @@ function buildNav(){
       + (ICONES_ONGLET[t[0]] || ICONES_ONGLET.defaut) + '</svg>';
     var lb=document.createElement("span"); lb.textContent=t[1];
     b.appendChild(ic); b.appendChild(lb);
-    b.addEventListener("click", function(){ showTab(t[0]); });
+    b.addEventListener("click", function(){ window.__ongletChoisi=true; showTab(t[0]); });
     nav.appendChild(b);
   });
 }
@@ -1977,7 +1978,7 @@ function stepNav(name){
     d.textContent=String(k+1);
     d.title=t[1]; d.setAttribute("aria-label", t[1]);
     d.setAttribute("aria-current", k===i ? "true":"false");
-    d.addEventListener("click", function(){ showTab(t[0]); });
+    d.addEventListener("click", function(){ window.__ongletChoisi=true; showTab(t[0]); });
     dots.appendChild(d);
   });
 
@@ -5231,7 +5232,7 @@ function publierRapport(meta){
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
   if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Rapport impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
   var b64=doc.output("datauristring").split(",")[1];
   if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
   var el=$("pubEtat");
@@ -5404,10 +5405,11 @@ function reprendreDossier(d){
   S.client.adresse = d.adresse || S.client.adresse;
   S.affaire.chantier = d.ref || S.affaire.chantier;
   if(d.ref) S.meta.dossier = refServeur(d.ref);
-  save(); paintForm(); equipeDuDossier(); showTab("client");
+  save(); paintForm(); equipeDuDossier(); if(!window.__ongletChoisi) showTab("client");
   /* le dossier est connu : on publie dedans, pas à une personne */
   try{ basculePub("dossier"); }catch(e){}
   toast("Dossier repris.");
+  try{ peindreNavChantier(); }catch(e){}     /* la barre du chantier tout de suite, pas 1,5 s plus tard sous le doigt */
 }
 function recupererFiche(f){
   toast("Ouverture…");
@@ -5438,7 +5440,7 @@ $("btnPublier").addEventListener("click", function(){
 $("btnPdf").addEventListener("click", function(){
   if(!ready()) return;
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Échec de la génération : "+e.message); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Échec de la génération : "+e.message); return; }
   dl(doc.output("blob"), pdfName());
   var info=$("pdfInfo"); if(info) info.textContent="Relevé enregistré : "+pdfName();
   toast("PDF généré.");
@@ -5454,7 +5456,7 @@ function messagePartage(){
 function partagerRapport(){
   if(!ready()) return;
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast("Document impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Document impossible à générer."); return; }
   var blob=doc.output("blob"), nom=pdfName();
   var texte;
   try{ texte=messagePartage(); }catch(e){ texte=""; }
@@ -5924,7 +5926,7 @@ function ecrireFiche(){
         try{ recupererFiche({cle:releveCle, ref:d.ref, client:d.client, type:"releve"}); }catch(e){}
       } else { try{ reprendreDossier(d); }catch(e){} }
       try{ peindreNavChantier(); }catch(e){}
-      if(onglet){ try{ showTab(onglet); }catch(e){} }
+      if(onglet && !window.__ongletChoisi){ try{ showTab(onglet); }catch(e){} }
       /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
       try{ history.replaceState(null, "", location.pathname); }catch(e){}
       window.__dossierRepris = true;
@@ -6295,10 +6297,12 @@ function peindreNavChantier(){
   /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
   var sienne=false;
   try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
-  if(!sienne){ wrap.hidden=true; hote.hidden=true; return; }
-  wrap.hidden=false; hote.hidden=false;
+  if(!sienne){ if(!wrap.hidden) wrap.hidden=true; if(!hote.hidden) hote.hidden=true; return; }
+  if(wrap.hidden) wrap.hidden=false; if(hote.hidden) hote.hidden=false;
   if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
-  hote.textContent="";
+  /* construite à côté, puis comparée : rien ne bouge à l'écran si rien n'a changé
+     (elle est revue toutes les 1,5 s, un toucher ne doit pas tomber pendant une reconstruction) */
+  var vraiHote=hote; hote=document.createElement("nav");
 
   var retour=document.createElement("a");
   retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
@@ -6334,6 +6338,8 @@ function peindreNavChantier(){
     ecrireFiche().then(function(){ location.href=tout.href; });
   });
   hote.appendChild(tout);
+  if(hote.innerHTML!==vraiHote.innerHTML){ vraiHote.textContent=""; while(hote.firstChild) vraiHote.appendChild(hote.firstChild); }
+  hote=vraiHote;
   majDebordChantier();
 }
 function majDebordChantier(){
