@@ -58,7 +58,7 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
   try{
     var moi=document.currentScript && document.currentScript.src;
     var sc=document.createElement("script");
-    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20260929a";
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20260929b";
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
@@ -75,6 +75,8 @@ var SYMBOLES = [
    trait pour trait, dans ses couleurs, quelle que soit la couleur choisie ;
    un liseré sombre la garde lisible sur une photo. */
 function legendeCfo(nom){ return /^cfo-/.test(nom||"") && window.SymbolesElec && window.SymbolesElec.trouver(nom); }
+/* un symbole large (une sortie de secours, un tableau) garde la place d'une prise */
+function echelleCfo(nom){ var b=window.SymbolesElec.boite(nom); return b ? Math.min(1.4, 2/Math.max(b.x1-b.x0, b.y1-b.y0, 0.1)) : 1; }
 function dessinerSymbole(c, nom, x, y, r, couleur, halo){
   if(legendeCfo(nom)){ window.SymbolesElec.dessiner(c, nom, x, y, r, {halo:!!halo, epMin:1}); return; }
   c.save();
@@ -906,7 +908,7 @@ function surAppui(e){
       o=trouver(p, function(x){ return x.t==="pastille" || x.t==="symbole"; });
       if(!o){
         if(PREFS.repere==="pastille") o=nouveau({t:"pastille", x:p[0], y:p[1], r:22*A.u, n:prochainNumero(), c:PREFS.couleur, texte:""});
-        else o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30 : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
+        else o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
         A.sel=o;
         G={type:"deplacer", o:o, base:clone(o), p0:p, s0:s, avant:avant1, tap:false, pose:true};
         peindre(); majUI();

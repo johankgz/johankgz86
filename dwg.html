@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20260929a"></script>
+<script src="./symboles-elec.js?v=20260929b"></script>
 <script src="./cartouche.js?v=20260929a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="apple-touch-icon" href="/icone-180.png">
@@ -727,7 +727,7 @@ var COTES=[], A_PT=null, SURVOL=null, VISEE=null;
 var UNITE=lire("dwg:unite","m"), ACCROCHE=lire("dwg:accroche","1")==="1", ORTHO=false, CLAIR=lire("dwg:fond","sombre")==="clair";
 var DESSIN_MM=1, ECHELLE_SRC="", FICHIER_CLE="";
 /* les symboles posés : {cle, x, y (unités du plan), rot (degrés, sens trigo), r (rayon, unités du plan), t (repère)} */
-var MODE="cote", SYMB=[], SEL=-1, CHOIX=lire("dwg:symbole","cfo-prise"), TAILLE=Number(lire("dwg:taille","1"))||1, SYMB_CLE="", HISTO_S=[];
+var MODE="cote", SYMB=[], SEL=-1, CHOIX=canonS(lire("dwg:symbole","cfo-prise")), TAILLE=Number(lire("dwg:taille","1"))||1, SYMB_CLE="", HISTO_S=[];
 var R_REEL=125;   /* le rayon du cercle de base, en mm : 2,5 mm sur un plan au 1/50, comme notre légende */
 document.body.classList.toggle("clair", CLAIR);
 function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
@@ -1070,9 +1070,12 @@ function symboleSous(p){
 }
 function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
 function enregistrerSymb(){ if(SYMB_CLE){ try{ localStorage.setItem(SYMB_CLE, JSON.stringify(SYMB)); }catch(e){} } }
-/* les symboles qu'on pose au mur : ils s'y collent, tournés vers la pièce */
-var MURAUX={"cfo-prise":1, "cfo-prise-etanche":1, "cfo-inter-va":1, "cfo-inter-double-voyant":1, "cfo-inter-voyant":1, "cfo-inter-simple":1,
-  "cfo-bouton-vr":1, "cfo-bp-voyant":1, "cfo-bp":1, "cfo-dcl-mural":1, "cfo-applique-brick":1, "cfo-encastre-mural":1};
+/* une carte {clé:1} des symboles de la bibliothèque qui passent le test */
+function carteS(test){ var o={}; if(window.SymbolesElec) SymbolesElec.liste.forEach(function(s){ if(test(s)) o[s.cle]=1; }); return o; }
+/* une ancienne clé (plans enregistrés avant la bibliothèque DWG) vers son symbole d'aujourd'hui */
+function canonS(cle){ return window.SymbolesElec && SymbolesElec.canon ? SymbolesElec.canon(cle) : cle; }
+/* les symboles qu'on pose au mur : ils s'y collent, tournés vers la pièce (la bibliothèque dit où chacun se pose) */
+var MURAUX=carteS(function(s){ return s.pose==="mur"; });
 var SYMB_ACC=null;
 function accrocherSymbole(cle, p, R, rot){
   var libre={x:p[0], y:p[1], rot:rot||0, acc:null};
@@ -2272,8 +2275,8 @@ function extVol(o, mmParU){
   });
   return out;
 }
-var PRISES_S={"cfo-prise":1, "cfo-prise-etanche":1, "cfo-alim":1};
-var COMMANDES_S={"cfo-inter-va":1, "cfo-inter-double-voyant":1, "cfo-inter-voyant":1, "cfo-inter-simple":1, "cfo-bouton-vr":1, "cfo-bp-voyant":1, "cfo-bp":1};
+var PRISES_S=carteS(function(s){ return s.cat==="prise"; });
+var COMMANDES_S=carteS(function(s){ return s.cat==="commande"; });
 function alertesVolumes(){
   var out={}, liste=[];
   mobs().forEach(function(o){
@@ -2303,7 +2306,7 @@ function hauteurContexte(cle, p){
       if(ly>=o.p/2-400*q && ly<=o.p/2+300*q && Math.abs(lx)<=o.l/2+700*q){
         if(COMMANDES_S[cle]) res={h:900, raison:"interrupteur de tête de lit"};
         else if(PRISES_S[cle]) res={h:700, raison:"prise de tête de lit, au-dessus du chevet"};
-        else if(cle==="cfo-applique-brick" || cle==="cfo-dcl-mural" || cle==="cfo-encastre-mural") res={h:1300, raison:"liseuse de tête de lit"};
+        else if(LUMIERE[cle] && MURAUX[cle]) res={h:1300, raison:"liseuse de tête de lit"};
       }
     } else if(d.genre==="plan" || d.genre==="vasque"){
       if(ly>=o.p/2-300*q && ly<=o.p/2+300*q && Math.abs(lx)<=o.l/2+150*q && (PRISES_S[cle] || COMMANDES_S[cle]))
@@ -2721,6 +2724,7 @@ function ouvrirVierge(id, neuf){
   DESSIN_CLE="dwg:dessin:vierge:"+id; SYMB_CLE="dwg:symboles:vierge:"+id;
   try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
   try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
+  SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
   $("accueil").hidden=true; $("btCalques").disabled=true; $("btImage").disabled=false; $("btSymb").disabled=false; $("btPdf").disabled=false; $("btDessin").disabled=false; $("btVue3d").disabled=false;
   basculerMode("dessin");
   majTitre(); redim(); vueEntiere();
@@ -2752,11 +2756,10 @@ peindreVierges();
    le plan est posé au sol. three.js est chargé à la première ouverture. */
 var THREE_URL="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js", T3=null;
 /* hauteurs de pose par défaut, en mm (axe de l'appareil au-dessus du sol fini) */
-var HAUTEURS={"cfo-prise":300, "cfo-prise-etanche":300, "cfo-inter-va":1100, "cfo-inter-double-voyant":1100, "cfo-inter-voyant":1100,
-  "cfo-inter-simple":1100, "cfo-bouton-vr":1100, "cfo-bp-voyant":1100, "cfo-bp":1100, "cfo-dcl-mural":1800, "cfo-applique-brick":1800,
-  "cfo-encastre-mural":400, "cfo-alim":1100};
-var PLAFOND={"cfo-dcl-plafond":1, "cfo-spot-shot":1, "cfo-spot-orientable":1, "cfo-suspension":1, "cfo-detecteur-360":1};
-var LUMIERE={"cfo-dcl-plafond":1, "cfo-spot-shot":1, "cfo-spot-orientable":1, "cfo-suspension":1, "cfo-dcl-mural":1, "cfo-applique-brick":1, "cfo-encastre-mural":1};
+var HAUTEURS={}; if(window.SymbolesElec) SymbolesElec.liste.forEach(function(s){ if(s.h!=null) HAUTEURS[s.cle]=s.h; });
+var PLAFOND=carteS(function(s){ return s.pose==="plafond"; });
+var LUMIERE=carteS(function(s){ return !!s.lum; });
+function genreLum(cle){ var s=window.SymbolesElec && SymbolesElec.trouver(cle); return s ? s.lum||"" : ""; }
 var OUV3D={porte:{haut:2040}, pf:{haut:2150}, fenetre:{allege:900, haut:2150}};
 function hauteurDe(o){ return o.h!=null ? o.h : (PLAFOND[o.cle] ? hspD() : (HAUTEURS[o.cle]!=null ? HAUTEURS[o.cle] : 1100)); }
 function hspD(){ return (DESSIN && DESSIN.hsp) || 2500; }
@@ -2930,7 +2933,7 @@ function construire3Dmm(ed){
     var lum=LUMIERE[o.cle];
     if(PLAFOND[o.cle]){
       var zc=hsp;
-      if(o.cle==="cfo-suspension"){
+      if(genreLum(o.cle)==="susp"){
         zc=Math.max(1800, hsp-600);
         var fil=new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(x0/1000, hsp/1000, -y0/1000), new THREE.Vector3(x0/1000, zc/1000, -y0/1000)]), new THREE.LineBasicMaterial({color:0x333333}));
         sc.add(fil);
@@ -2939,7 +2942,7 @@ function construire3Dmm(ed){
       }
       var pl=new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), matP);
       pl.rotation.x=Math.PI/2; pl.position.set(x0/1000, zc/1000-0.006, -y0/1000); pl.renderOrder=3; sc.add(pl);
-      if(lum) faisceau3D(sc, x0/1000, zc/1000-0.03, -y0/1000, Math.min(1.3, Math.max(0.5, zc/1000-0.6)), o.cle==="cfo-spot-shot" || o.cle==="cfo-spot-orientable" ? 11 : 16);
+      if(lum) faisceau3D(sc, x0/1000, zc/1000-0.03, -y0/1000, Math.min(1.3, Math.max(0.5, zc/1000-0.6)), genreLum(o.cle)==="spot" ? 11 : 16);
       /* le point au sol, pour le repérer d'en haut */
       var trace=new THREE.Mesh(new THREE.CircleGeometry(0.06, 20), new THREE.MeshBasicMaterial({color:0xFB923C, transparent:true, opacity:0.55}));
       trace.rotation.x=-Math.PI/2; trace.position.set(x0/1000, 0.004, -y0/1000); sc.add(trace);
@@ -3533,6 +3536,7 @@ function ouvrirFichier(f){
         DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; D_PT=null;
         try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
         try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
+  SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
         var garde=Number(lire(FICHIER_CLE, "0"));
         if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
         else { DESSIN_MM=d.mm; ECHELLE_SRC=d.source; }
@@ -3650,7 +3654,8 @@ $("btImage").addEventListener("click", function(){
     c.font=(11.5*k)+"px Helvetica, Arial, sans-serif";
     lignes.forEach(function(sy, i){
       var y=by+34*k+i*lh;
-      SymbolesElec.dessiner(c, sy.cle, bx+18*k, y+lh/2-2*k, 7*k*(sy.cle==="cfo-dcl-mural" ? 0.55 : sy.cle==="cfo-alim" ? 0.7 : 1), {epMin:1});
+      var bs=SymbolesElec.boite(sy.cle), rs=Math.min(24*k/(bs.x1-bs.x0), 16*k/(bs.y1-bs.y0));
+      SymbolesElec.dessiner(c, sy.cle, bx+18*k-(bs.x0+bs.x1)/2*rs, y+lh/2-2*k-(bs.y0+bs.y1)/2*rs, rs, {epMin:1});
       c.fillStyle="#000000"; c.fillText(sy.nom+" ("+n[sy.cle]+")", bx+42*k, y+lh/2-2*k);
       c.beginPath(); c.moveTo(bx, y+lh); c.lineTo(bx+lw, y+lh); c.stroke();
     });
