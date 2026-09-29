@@ -172,6 +172,17 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel button{flex:0 0 auto;min-height:40px;border-radius:999px;border:0;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
+.barre-sel .bs-dist svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.ref-panel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:8;width:min(560px,calc(100vw - 16px));padding:10px 12px;border-radius:16px;
+  background:rgba(20,25,32,.97);border:1px solid rgba(251,146,60,.55);box-shadow:0 14px 34px -12px rgba(0,0,0,.85);color:var(--ink);display:flex;flex-direction:column;gap:8px}
+.ref-panel[hidden]{display:none}
+.rp-titre{display:flex;flex-direction:column;gap:2px}
+.rp-titre b{font-size:14px} .rp-titre span{font-size:12.5px;color:var(--ink2)}
+.rp-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
+.rp-ligne[hidden]{display:none}
+.rp-ligne input{width:88px;min-height:40px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:#0B0E12;color:var(--ink);font-size:17px;font-weight:700;text-align:center}
+.rp-boutons{justify-content:flex-end}
 .barre-sel .bs-fermer{width:40px;justify-content:center;background:rgba(255,255,255,.1);color:var(--ink)}
 .coul-g button{padding:6px 8px}
 .coul-g i{display:block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
@@ -246,7 +257,19 @@ body.clair #scene{background:#FFFFFF}
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-supp" id="bsSupp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>Supprimer</button>
+  <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
+</div>
+
+<div class="ref-panel" id="refPanel" hidden role="dialog" aria-label="À distance d'un point">
+  <div class="rp-titre"><b id="rpTitre">À distance d'un point</b><span id="rpAide">Touchez le point de départ : un angle de mur, un bout de trait…</span></div>
+  <div class="rp-ligne" id="rpValeurs" hidden>
+    <input id="rpDist" type="text" inputmode="decimal" aria-label="Distance en cm"><span class="lab">cm</span>
+    <span class="seg" id="rpAxe" role="group" aria-label="Sens de la mesure"><button type="button" data-a="h">↔ horizontal</button><button type="button" data-a="v">↕ vertical</button><button type="button" data-a="mur">le long du mur</button></span>
+    <span class="seg" id="rpDir" role="group" aria-label="Direction"><button type="button" data-d="e" aria-label="À droite">→</button><button type="button" data-d="w" aria-label="À gauche">←</button><button type="button" data-d="n" aria-label="Vers le haut">↑</button><button type="button" data-d="s" aria-label="Vers le bas">↓</button></span>
+    <span class="seg" id="rpMes" role="group" aria-label="Jusqu'où"><button type="button" data-m="bord">jusqu'au bord</button><button type="button" data-m="centre">jusqu'au centre</button></span>
+  </div>
+  <div class="rp-ligne rp-boutons"><button class="bt" id="rpAnnuler" type="button">Annuler</button><button class="bt or" id="rpOk" type="button" hidden>Placer</button></div>
 </div>
 
 <div class="chargement" id="chargement" hidden><i></i><span id="chargementTxt">Chargement…</span></div>
@@ -284,6 +307,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="groupe"><span class="lab">Taille</span>
     <span class="seg" id="segTaille" role="group" aria-label="Taille des symboles"><button type="button" data-t="0.7">S</button><button type="button" data-t="1">M</button><button type="button" data-t="1.4">L</button></span></span>
     <button class="bt" id="btQuantites" type="button">Quantités</button>
+    <button class="bt" id="btDepuisS" type="button" title="Poser le symbole à une distance exacte d'un point">Depuis un point</button>
     <button class="bt or" id="btDxf" type="button" disabled>Export DXF</button>
   </div>
 </div>
@@ -332,6 +356,7 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btTournerD" type="button" hidden>Tourner 90°</button>
     <span class="groupe" id="grpHautD" hidden><span class="lab" id="labHautD">Hauteur</span><input class="champ-cm" id="dsHaut" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab" id="labAllD" hidden>allège</span><input class="champ-cm" id="dsAllege" type="text" inputmode="decimal" aria-label="Hauteur d'allège en cm" hidden><span class="lab">cm</span></span>
     <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span></span>
+    <button class="bt" id="btDepuisD" type="button" title="Le prochain point à une distance exacte d'un point">Depuis un point</button>
     <button class="bt" id="btTerminer" type="button" hidden>Terminer le mur</button>
     <button class="bt" id="btInverser" type="button" hidden>Sens d'ouverture</button>
     <button class="bt" id="btMain" type="button" hidden>Côté des gonds</button>
@@ -905,13 +930,13 @@ cv.addEventListener("pointerdown", function(e){
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
   if(MODE==="dessin"){
-    if(OUTIL_D==="choisir"){
+    if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel ? poigneeSous(gsel, p[0], p[1]) : null;
       if(hp){ G.geoH={id:gsel.id, h:hp}; return; }
       var gs=geoSous(versPlan(p[0], p[1]));
       if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); return; }
     }
-    if(OUTIL_D==="choisir" || OUTIL_D==="objet"){
+    if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF){
       var sm=mobSous(versPlan(p[0], p[1]));
       if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y]; return; }
     }
@@ -921,7 +946,7 @@ cv.addEventListener("pointerdown", function(e){
     return;
   }
   if(MODE==="symb"){
-    var ti=symboleSous(p);
+    var ti=REF ? -1 : symboleSous(p);
     if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y]; }
     return;
   }
@@ -998,6 +1023,10 @@ function lacher(e){
     VISEE=null; G=null; demander(); return;
   }
   if(MODE==="symb"){
+    if(REF && REF.etape==="point"){
+      if(e.type!=="pointercancel" && !G.bouge) poserRef((G.visee && VISEE ? VISEE : chercherD(p[0], p[1])).pt);
+      VISEE=null; G=null; demander(); return;
+    }
     if(e.type!=="pointercancel"){
       if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
       else if(!G.bouge) poserSymbole(versPlan(p[0], p[1]));
@@ -1020,7 +1049,7 @@ cv.addEventListener("wheel", function(e){
 }, {passive:false});
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
-  if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } }
+  if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
   if(MODE==="symb" && SEL>=0 && document.activeElement!==$("symbRep")){
@@ -1143,6 +1172,163 @@ function basculerMode(m){
   demander();
 }
 function nomDeBase(){ return ((PLAN && PLAN.nom) || "plan").replace(/\.[^.]+$/,""); }
+/* ---------- à distance d'un point ----------
+   « Je touche l'angle du mur, et je veux le lit à 180 cm » : l'élément
+   choisi (meuble, forme, mur, ouverture, texte, symbole) se place à une
+   distance exacte d'un point touché (accroché), mesurée à l'horizontale,
+   à la verticale ou, pour une porte ou une fenêtre, le long de son mur,
+   jusqu'à son bord le plus proche ou jusqu'à son centre. Sans élément
+   choisi, « Depuis un point » donne le prochain point d'un tracé (un mur,
+   une cloison, un coin de rectangle, un symbole) à la distance voulue. */
+var REF=null;
+function elementRef(c){
+  if(c.symb!=null) return SYMB[c.symb] || null;
+  var l = c.t==="mur" ? DESSIN.murs : c.t==="ouv" ? DESSIN.ouv : c.t==="mob" ? mobs() : c.t==="geo" ? geos() : DESSIN.textes;
+  for(var i=0;i<l.length;i++) if(l[i].id===c.id) return l[i];
+  return null;
+}
+function pointsRef(c, o){
+  if(c.symb!=null) return {pts:[[o.x,o.y]], c:[o.x,o.y]};
+  if(c.t==="mob") return {pts:coinsMob(o), c:[o.x,o.y]};
+  if(c.t==="geo") return {pts:contourG(o), c:centreG(o)};
+  if(c.t==="mur"){ var L=axes(o).L; return {pts:[surMur(o,0,-o.ep/2), surMur(o,0,o.ep/2), surMur(o,L,-o.ep/2), surMur(o,L,o.ep/2)], c:[(o.a[0]+o.b[0])/2, (o.a[1]+o.b[1])/2]}; }
+  return {pts:[[o.x,o.y]], c:[o.x,o.y]};
+}
+/* la mesure actuelle, pour l'afficher et pour placer */
+function mesureRef(){
+  var R=REF, o=elementRef(R.cible); if(!o || !R.pt) return null;
+  if(R.cible.t==="ouv"){
+    var m=murDe(o.mur); if(!m) return null;
+    var x=axes(m), sr=(R.pt[0]-m.a[0])*x.u[0]+(R.pt[1]-m.a[1])*x.u[1], cc=o.t*x.L, sens=cc>=sr ? 1 : -1;
+    var bout = R.mesure==="centre" ? cc : (sens>0 ? cc-o.l/2 : cc+o.l/2);
+    return {dist:Math.abs(bout-sr), sens:sens, de:surMur(m, sr, 0), a:surMur(m, bout, 0), mur:m, sr:sr};
+  }
+  var P=pointsRef(R.cible, o), ax = R.axe==="v" ? [0,1] : [1,0];
+  function pr(q){ return q[0]*ax[0]+q[1]*ax[1]; }
+  var r=pr(R.pt), cp=pr(P.c), sens=cp>=r ? 1 : -1, ps=P.pts.map(pr);
+  var bord = R.mesure==="centre" ? cp : (sens>0 ? Math.min.apply(null, ps) : Math.max.apply(null, ps));
+  return {dist:Math.abs(bord-r), sens:sens, bord:bord, r:r, ax:ax, de:R.pt, a:[R.pt[0]+ax[0]*(bord-r), R.pt[1]+ax[1]*(bord-r)]};
+}
+function deplacerRef(c, o, d){
+  if(c.symb!=null){
+    o.x+=d[0]; o.y+=d[1];
+    if(MURAUX[o.cle]){ var a=accrocherSymbole(o.cle, [o.x, o.y], o.r, o.rot||0); o.x=a.x; o.y=a.y; o.rot=a.rot; }
+    return;
+  }
+  if(c.t==="mob" || c.t==="texte"){ o.x+=d[0]; o.y+=d[1]; return; }
+  if(c.t==="geo"){ o.pts=o.pts.map(function(q){ return [q[0]+d[0], q[1]+d[1]]; }); return; }
+  if(c.t==="mur"){ o.a=[o.a[0]+d[0], o.a[1]+d[1]]; o.b=[o.b[0]+d[0], o.b[1]+d[1]]; }
+}
+/* le prochain point d'un tracé, à la distance voulue dans la direction choisie */
+function pointRef(){
+  var D=parseFloat(String($("rpDist").value).replace(",", ".")); if(!(D>=0) || !REF || !REF.pt) return null;
+  var u=D*10/DESSIN_MM, d={e:[1,0], w:[-1,0], n:[0,1], s:[0,-1]}[REF.dir||"e"];
+  return [REF.pt[0]+d[0]*u, REF.pt[1]+d[1]*u];
+}
+function ouvrirRef(mode){
+  var c=null;
+  if(mode==="deplacer"){
+    if(MODE==="symb"){ if(SEL<0) return; c={symb:SEL}; }
+    else { if(!D_SEL) return; c={t:D_SEL.t, id:D_SEL.id}; }
+  }
+  REF={etape:"point", mode:mode, cible:c, pt:null, axe:"h", mesure:"bord", dir:REF && REF.dir || "e"};
+  if(c && (c.t==="ouv")) REF.axe="mur";
+  if(c && (c.symb!=null || c.t==="texte")) REF.mesure="centre";
+  GEO_EC=null; D_PT=null; majRef(); majBarreSel(); demander();
+}
+function fermerRef(){ REF=null; $("refPanel").hidden=true; majBarreSel(); if(MODE==="dessin") majDessin(); else if(MODE==="symb") majSymb(); demander(); }
+function poserRef(pt){
+  REF.pt=pt.slice(); REF.etape="valeur";
+  if(REF.mode==="deplacer" && REF.cible.t!=="ouv"){
+    /* le sens de la mesure : celui où l'élément est le plus loin du point */
+    var o=elementRef(REF.cible), P=o && pointsRef(REF.cible, o);
+    if(P) REF.axe = Math.abs(P.c[0]-pt[0]) >= Math.abs(P.c[1]-pt[1]) ? "h" : "v";
+  }
+  majRef();
+  var M = REF.mode==="deplacer" ? mesureRef() : null;
+  $("rpDist").value = M ? cm(M.dist*DESSIN_MM) : "";
+  setTimeout(function(){ try{ $("rpDist").focus(); $("rpDist").select(); }catch(e){} }, 30);
+  demander();
+}
+function majRef(){
+  var R=REF, pan=$("refPanel");
+  if(!R){ pan.hidden=true; return; }
+  pan.hidden=false; pan.style.bottom=(basH()+10)+"px";
+  var o = R.cible ? elementRef(R.cible) : null, nom="";
+  if(R.cible){
+    if(R.cible.symb!=null){ var dS=SymbolesElec.trouver(o.cle); nom=dS ? dS.court||dS.nom : "le symbole"; }
+    else if(R.cible.t==="mob") nom=o.nom || defMob(o.cle).court;
+    else if(R.cible.t==="geo") nom=GEO_NOMS[o.t];
+    else if(R.cible.t==="ouv") nom=NOMS_OUTILS[o.type];
+    else if(R.cible.t==="mur") nom=o.ep*DESSIN_MM<=90 ? "la cloison" : "le mur";
+    else nom="le texte";
+  }
+  $("rpTitre").textContent = R.mode==="deplacer" ? "Placer « "+nom+" » à distance d'un point" : "Le prochain point, à distance d'un point";
+  var valeur = R.etape==="valeur";
+  $("rpAide").textContent = !valeur ? "Touchez le point de départ : un angle de mur, un bout de trait, un coin de meuble…"
+    : R.mode==="deplacer" ? "Tapez la distance voulue, puis Placer." : "Tapez la distance et choisissez la direction, puis Placer.";
+  $("rpValeurs").hidden=!valeur; $("rpOk").hidden=!valeur;
+  var ouv = R.cible && R.cible.t==="ouv", deplace=R.mode==="deplacer";
+  $("rpAxe").hidden=!deplace;
+  Array.prototype.forEach.call($("rpAxe").children, function(b){ b.hidden = ouv ? b.dataset.a!=="mur" : b.dataset.a==="mur"; b.classList.toggle("on", b.dataset.a===R.axe); });
+  $("rpDir").hidden=deplace;
+  Array.prototype.forEach.call($("rpDir").children, function(b){ b.classList.toggle("on", b.dataset.d===R.dir); });
+  var mesurable = deplace && R.cible && R.cible.symb==null && R.cible.t!=="texte";
+  $("rpMes").hidden=!mesurable;
+  Array.prototype.forEach.call($("rpMes").children, function(b){ b.classList.toggle("on", b.dataset.m===R.mesure); });
+}
+function validerRef(){
+  var R=REF; if(!R || R.etape!=="valeur") return;
+  var D=parseFloat(String($("rpDist").value).replace(",", ".")); if(!(D>=0)){ $("rpDist").focus(); return; }
+  if(R.mode==="point"){
+    var q=pointRef(); fermerRef(); if(!q) return;
+    if(MODE==="symb") { poserSymbole(q); majSymb(); }
+    else toucherD(0, 0, {pt:q, acc:true, genre:1});
+    demander(); return;
+  }
+  var c=R.cible, o=elementRef(c), M=mesureRef(); if(!o || !M) { fermerRef(); return; }
+  var u=D*10/DESSIN_MM;
+  if(c.symb!=null){
+    garderSymb(); var cible=M.r+M.sens*u; deplacerRef(c, o, [M.ax[0]*(cible-M.bord), M.ax[1]*(cible-M.bord)]); enregistrerSymb();
+  } else {
+    garderD();
+    if(c.t==="ouv"){
+      var L=axes(M.mur).L, centre=M.sr+M.sens*(u+(R.mesure==="centre" ? 0 : o.l/2));
+      o.t=Math.max(o.l/2/L, Math.min(1-o.l/2/L, centre/L));
+    } else { var cb=M.r+M.sens*u; deplacerRef(c, o, [M.ax[0]*(cb-M.bord), M.ax[1]*(cb-M.bord)]); }
+    enregistrerD();
+  }
+  var fait=mesureRef();
+  toast(fait ? "Placé à "+cm(fait.dist*DESSIN_MM)+" cm du point." : "Placé.", 3000);
+  fermerRef();
+}
+function peindreRef(c, E){
+  var R=REF; if(!R || !R.pt) return;
+  var P=E(R.pt), or="#FB923C";
+  c.save(); c.strokeStyle=or; c.fillStyle=or; c.lineWidth=2;
+  c.beginPath(); c.arc(P[0], P[1], 7, 0, Math.PI*2); c.stroke(); c.beginPath(); c.arc(P[0], P[1], 2.5, 0, Math.PI*2); c.fill();
+  c.setLineDash([7,5]);
+  if(R.mode==="deplacer"){
+    var M=mesureRef();
+    if(M){ var A=E(M.de), B=E(M.a); c.beginPath(); c.moveTo(A[0],A[1]); c.lineTo(B[0],B[1]); c.stroke(); c.setLineDash([]); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-16, cm(M.dist*DESSIN_MM)+" cm"); }
+  } else {
+    var q=pointRef();
+    if(q){ var Q=E(q); c.beginPath(); c.moveTo(P[0],P[1]); c.lineTo(Q[0],Q[1]); c.stroke(); c.setLineDash([]);
+      c.beginPath(); c.moveTo(Q[0]-8,Q[1]); c.lineTo(Q[0]+8,Q[1]); c.moveTo(Q[0],Q[1]-8); c.lineTo(Q[0],Q[1]+8); c.stroke();
+      etiquette(c, (P[0]+Q[0])/2, (P[1]+Q[1])/2-16, $("rpDist").value+" cm"); }
+  }
+  c.restore();
+}
+$("bsDist").addEventListener("click", function(){ ouvrirRef("deplacer"); });
+$("btDepuisD").addEventListener("click", function(){ ouvrirRef("point"); });
+$("btDepuisS").addEventListener("click", function(){ ouvrirRef("point"); });
+$("rpAnnuler").addEventListener("click", fermerRef);
+$("rpOk").addEventListener("click", validerRef);
+$("rpDist").addEventListener("input", demander);
+$("rpDist").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); validerRef(); } if(e.key==="Escape") fermerRef(); });
+$("rpAxe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.axe=b.dataset.a; var M=mesureRef(); if(M) $("rpDist").value=cm(M.dist*DESSIN_MM); majRef(); demander(); });
+$("rpDir").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.dir=b.dataset.d; majRef(); demander(); });
+$("rpMes").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.mesure=b.dataset.m; var M=mesureRef(); if(M) $("rpDist").value=cm(M.dist*DESSIN_MM); majRef(); demander(); });
 /* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
 function majBarreSel(){
   var b=$("barreSel"); if(!b) return;
@@ -1154,6 +1340,7 @@ function majBarreSel(){
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
+  if(REF) nom="";
   b.hidden=!nom;
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
@@ -1300,6 +1487,7 @@ function peindreDessin(c){
   if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(axes(ms).L)); } }
   if(!IMPRIME && MODE==="dessin" && D_SOURIS && D_SOURIS.acc) accroche(D_SOURIS.pt, D_SOURIS.genre);
   if(!IMPRIME && MODE==="symb" && SYMB_ACC) accroche(SYMB_ACC.pt, SYMB_ACC.genre);
+  if(!IMPRIME) peindreRef(c, E);
   c.restore();
 }
 function etiquette(c, x, y, t){
@@ -1363,6 +1551,7 @@ function contraindreD(a, b){
 /* ---------- les gestes du dessin ---------- */
 function toucherD(sx, sy, force){
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
+  if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(GEO_OUTILS[OUTIL_D]){ toucherGeo(cible, p); return; }
   if(OUTIL_D==="mur" || OUTIL_D==="cloison"){
     if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
@@ -1500,6 +1689,7 @@ function majDessin(){
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
   $("btAccrD").classList.toggle("on", ACCR_D); $("btAccrD").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDxfD").disabled = dessinVide() && !SYMB.length;
+  $("btDepuisD").hidden = OUTIL_D==="choisir";
   majBarreSel();
   demander();
 }
@@ -1978,6 +2168,7 @@ function dxfGeo(g){
 var MOB=[
   {cle:"lit140", nom:"Lit 140 × 190", court:"Lit 140", groupe:"Chambre", l:1400, p:1950, h:1000, genre:"lit"},
   {cle:"lit160", nom:"Lit 160 × 200", court:"Lit 160", groupe:"Chambre", l:1600, p:2050, h:1000, genre:"lit"},
+  {cle:"lit180", nom:"Lit 180 × 200", court:"Lit 180", groupe:"Chambre", l:1800, p:2050, h:1000, genre:"lit"},
   {cle:"lit90", nom:"Lit 90 × 190", court:"Lit 90", groupe:"Chambre", l:900, p:1950, h:900, genre:"lit"},
   {cle:"chevet", nom:"Table de chevet", court:"Chevet", groupe:"Chambre", l:450, p:400, h:550, genre:"meuble"},
   {cle:"commode", nom:"Commode", court:"Commode", groupe:"Chambre", l:1000, p:500, h:850, genre:"meuble"},
@@ -2002,7 +2193,7 @@ var MOB=[
   {cle:"estrade", nom:"Marche, estrade", court:"Estrade", groupe:"Formes", l:1200, p:800, h:180, genre:"pave"}
 ];
 var CHOIX_MOB=lire("dwg:mob","lit140"), VOLS=lire("dwg:volumes","1")!=="0";
-function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; return MOB[20]; }
+function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; for(var j=0;j<MOB.length;j++) if(MOB[j].cle==="pave") return MOB[j]; return MOB[0]; }
 function mobs(){ return (DESSIN && DESSIN.mob) || []; }
 function mobDe(id){ var l=mobs(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
 function normD(D){ D=D||{}; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; D.geo=D.geo||[]; return D; }
