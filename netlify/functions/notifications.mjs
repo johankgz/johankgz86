@@ -224,11 +224,11 @@ export async function repererRappelsDus(store, maintenant = maintenantParis()) {
     /* marqué avant l'envoi : deux passages ne l'enverront jamais deux fois */
     t.notifie = echeance;
     try { await store.setJSON(b.key, t); } catch { continue; }
-    const quoi = t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
+    const quoi = t.cal ? "" : t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
     aEnvoyer.push({ qui: t.qui, charge: {
       titre: (t.rappel ? "Rappel" : "À faire aujourd'hui") + (quoi ? " — " + quoi : ""),
       texte: String(t.texte || "").slice(0, 180),
-      url: t.todo ? "./notes.html" : t.chantier ? "./chantier.html?ref=" + encodeURIComponent(t.chantier) : "./index.html",
+      url: t.cal ? "./index.html?calendrier=" + t.quand : t.todo ? "./notes.html" : t.chantier ? "./chantier.html?ref=" + encodeURIComponent(t.chantier) : "./index.html",
       tag: "rappel-" + b.key, urgent: true
     } });
   }

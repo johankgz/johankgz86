@@ -1799,6 +1799,35 @@ async function traiter(req) {
     return json({ taches: out });
   }
 
+  /* ---------- le calendrier de l'accueil : un rappel à un jour, une heure ----------
+     « Téléphoner à M. Dupont » le 5 octobre à 9 h : une tâche datée, pour
+     soi seul, notifiée à l'heure dite comme les autres rappels. */
+  if (action === "rappel-creer") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const texte = String(d.texte || "").trim().slice(0, 300);
+    const quand = String(d.quand || "").slice(0, 10);
+    if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
+    const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : "09:00";
+    const id = Date.now().toString(36) + randomBytes(3).toString("hex");
+    const cle = "taches/cal-" + slug(personne.nom) + "-" + id + ".json";
+    const t = { texte, prio: "", qui: personne.nom, quand, heure, rappel: true, cal: true,
+      auteur: personne.nom, cree: new Date().toISOString(), faite: false, notifie: "" };
+    await store.setJSON(cle, t);
+    return json({ ok: true, tache: { cle, ...t } });
+  }
+  if (action === "rappel-supprimer") {
+    const cle = url.searchParams.get("cle") || "";
+    if (cle.indexOf("taches/cal-") !== 0) return json({ erreur: "Rappel introuvable." }, 404);
+    let t = null;
+    try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
+    if (!t) return json({ ok: true });
+    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    try { await store.delete(cle); } catch { /* déjà parti */ }
+    return json({ ok: true });
+  }
+
   if (action === "tache-faite") {
     const cle = url.searchParams.get("cle") || "";
     if (cle.indexOf("taches/") !== 0) return json({ erreur: "Tâche introuvable." }, 404);
