@@ -1,9 +1,8 @@
 /* =====================================================================
    symboles-elec.js — la bibliothèque des symboles électriques
    ---------------------------------------------------------------------
-   Les 18 symboles de la légende « CFO » des plans électriques Trichet
-   Loué Énergies (plan ELE03, TESSIER-SAVARY), relevés trait pour trait
-   dans le dessin vectoriel de la légende : mêmes cercles, mêmes angles,
+   Les 18 symboles de la légende « CFO » de nos plans électriques,
+   relevés trait pour trait dans le dessin vectoriel de la légende : mêmes cercles, mêmes angles,
    mêmes pleins, mêmes couleurs (cyan pour l'éclairage et les commandes,
    bleu pour les prises, rouge pour les alimentations).
 

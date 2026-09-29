@@ -8,7 +8,7 @@
    « dossiers » du site apparaissent donc tels quels :
 
        donnees/annuaire/societes.json
-       donnees/rapports/C2451/releve.pdf
+       donnees/rapports/DUPONT-MARTIN/releve.pdf
        donnees/rapports/taches/2026-09-25-brian-....json
 
    Pour sauvegarder, on copie le dossier. Pour repartir de zéro, on le
