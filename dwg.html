@@ -31,7 +31,7 @@ button,select{font:inherit}
 .bt.or{background:var(--or2);border-color:var(--or2);color:#0B0E12}
 .bt.on{background:var(--ink);color:#0B0E12}
 .bt[disabled]{opacity:.4;cursor:default}
-.bt[hidden]{display:none}
+.bt[hidden],.seg[hidden]{display:none}
 .titre{flex:1 1 auto;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .titre small{display:block;font-size:11.5px;font-weight:500;color:var(--ink3)}
 @media (max-width:520px){ .bt .lib{display:none} .bt{padding:6px 10px} }
@@ -159,6 +159,8 @@ body.clair #scene{background:#FFFFFF}
 .v3-barre .esp{flex:1}
 @media (max-width:620px){ .v3-barre{flex-wrap:wrap;overflow:visible;gap:6px} .v3-barre .bt{padding:6px 10px} .v3-barre .esp{display:none} }
 #v3Canvas{flex:1;display:block;width:100%;min-height:0;touch-action:none;cursor:grab}
+.v3-zoom{position:absolute;right:12px;bottom:calc(56px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:8px}
+.v3-zoom button{width:46px;height:46px;border-radius:50%;border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.92);color:#1F2933;font-size:24px;font-weight:600;line-height:1;cursor:pointer;box-shadow:0 6px 18px -8px rgba(0,0,0,.5)}
 #v3Aide{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);padding:6px 12px;border-radius:999px;background:rgba(31,41,51,.78);color:#F2F5F9;font-size:12.5px;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
 .mesure .fam-d{margin-left:auto;align-self:center}
 .mesure .fam-d button{font-size:12.5px}
@@ -218,6 +220,8 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="v3Fermer" type="button" aria-label="Revenir au plan">✕</button>
     <b>3D</b>
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="visite">Visite</button></span>
+    <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button></span>
+    <button class="bt" id="v3Recentrer" type="button" title="Voir tout le dessin">Recentrer</button>
     <button class="bt" id="v3Transp" type="button" aria-pressed="false">Murs transparents</button>
     <button class="bt" id="v3Cotes" type="button" aria-pressed="true">Hauteurs</button>
     <button class="bt" id="v3Vols" type="button" aria-pressed="true" hidden>Volumes SDB</button>
@@ -227,6 +231,7 @@ body.clair #scene{background:#FFFFFF}
   </div>
   <canvas id="v3Canvas" aria-label="Vue 3D"></canvas>
   <div id="v3Aide"></div>
+  <div class="v3-zoom" role="group" aria-label="Zoom"><button type="button" id="v3Plus" aria-label="Rapprocher">+</button><button type="button" id="v3Moins" aria-label="Éloigner">−</button></div>
   <details class="v3-alerte" id="v3Alerte" hidden><summary></summary><ul></ul><p>Repères indicatifs d'après la NF C 15-100 (volume 1 au-dessus de la baignoire ou du receveur jusqu'à 2,25 m, volume 2 à 60 cm autour jusqu'à 3 m) : à vérifier sur place.</p></details>
 </div>
 
@@ -283,6 +288,8 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="poly"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18l5-9 6 5 7-10"/></svg></i>Polyligne</button>
     <button type="button" data-o="rect"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12"/></svg></i>Rectangle</button>
     <button type="button" data-o="rond"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg></i>Rond</button>
+    <button type="button" data-o="ellipse"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="5.5"/></svg></i>Ellipse</button>
+    <button type="button" data-o="arc"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 18a9.5 9.5 0 0 1 16 0"/><circle cx="4" cy="18" r="1.2"/><circle cx="20" cy="18" r="1.2"/></svg></i>Arc</button>
     <button type="button" data-o="triangle"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4 21 20H3z"/></svg></i>Triangle</button>
     <button type="button" data-o="fleche"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 19 5M11 5h8v8"/></svg></i>Flèche</button>
     <button type="button" data-o="hachure"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16"/><path d="M4 12 12 4M4 20 20 4M12 20l8-8"/></svg></i>Hachure</button>
@@ -298,6 +305,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="groupe" id="grpMob" hidden><span class="lab">L</span><input class="champ-cm" id="mobL" type="text" inputmode="decimal" aria-label="Largeur en cm"><span class="lab">P</span><input class="champ-cm" id="mobP" type="text" inputmode="decimal" aria-label="Profondeur en cm"><span class="lab">H</span><input class="champ-cm" id="mobH" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab">du sol</span><input class="champ-cm" id="mobZ" type="text" inputmode="decimal" aria-label="Hauteur du dessous au-dessus du sol en cm"><span class="lab">cm</span></span>
     <span class="groupe" id="grpSaisieG" hidden><span class="lab" id="labGL">Longueur</span><input class="champ-cm" id="gL" type="text" inputmode="decimal" aria-label="Longueur en cm"><span class="lab" id="labGH" hidden>H</span><input class="champ-cm" id="gH" type="text" inputmode="decimal" aria-label="Hauteur en cm" hidden><span class="lab">cm</span><button class="bt" id="btSaisieG" type="button">OK</button></span>
     <span class="groupe" id="grpDimG" hidden><span class="lab" id="labDL">Longueur</span><input class="champ-cm" id="dL" type="text" inputmode="decimal" aria-label="Longueur en cm"><span class="lab" id="labDH" hidden>H</span><input class="champ-cm" id="dH" type="text" inputmode="decimal" aria-label="Hauteur en cm" hidden><span class="lab">cm</span></span>
+    <span class="groupe" id="grpG3D" hidden><span class="lab">3D : hauteur</span><input class="champ-cm" id="g3H" type="text" inputmode="decimal" aria-label="Hauteur en 3D, en cm"><span class="lab">du sol</span><input class="champ-cm" id="g3Z" type="text" inputmode="decimal" aria-label="Hauteur du dessous au-dessus du sol, en cm"><span class="lab">cm</span></span>
     <span class="groupe" id="grpStyleG" hidden>
       <span class="seg" id="segEpG" role="group" aria-label="Épaisseur du trait"><button type="button" data-e="fin">Fin</button><button type="button" data-e="moyen">Moyen</button><button type="button" data-e="epais">Épais</button></span>
       <span class="seg coul-g" id="segCoulG" role="group" aria-label="Couleur"><button type="button" data-c="noir" aria-label="Noir"><i style="background:#1F2933"></i></button><button type="button" data-c="rouge" aria-label="Rouge"><i style="background:#DC2626"></i></button><button type="button" data-c="bleu" aria-label="Bleu"><i style="background:#2563EB"></i></button><button type="button" data-c="vert" aria-label="Vert"><i style="background:#16A34A"></i></button><button type="button" data-c="orange" aria-label="Orange"><i style="background:#EA580C"></i></button></span>
@@ -929,7 +937,7 @@ cv.addEventListener("pointermove", function(e){
   }
   if(G.bouge && (G.geo!=null || G.geoH)){
     if(!G.garde){ garderD(); G.garde=true; }
-    if(G.geoH){ var og=geoDe(G.geoH.id); if(og){ var ci=chercherD(p[0], p[1]); D_SOURIS=ci; tirerPoignee(og, G.geoH.h, ci, versPlan(p[0], p[1])); D_SEL={t:"geo", id:og.id}; } demander(); return; }
+    if(G.geoH){ var og=geoDe(G.geoH.id); if(og){ GEO_EXCLU=og.id; var ci=chercherD(p[0], p[1]); GEO_EXCLU=null; D_SOURIS=ci; tirerPoignee(og, G.geoH.h, ci, versPlan(p[0], p[1])); D_SEL={t:"geo", id:og.id}; } demander(); return; }
     var og2=geoDe(G.geo); if(!og2) return;
     var dx=(p[0]-G.depart[0])/V.k, dy=-(p[1]-G.depart[1])/V.k, pas=10/DESSIN_MM;
     dx=Math.round(dx/pas)*pas; dy=Math.round(dy/pas)*pas;
@@ -1134,7 +1142,7 @@ var EP_MUR=Number(lire("dwg:epMur","200"))||200, EP_CLOISON=70;
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
 var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir",
-  trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
+  trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function garderD(){ HISTO_D.push(JSON.stringify(DESSIN)); if(HISTO_D.length>100) HISTO_D.shift(); }
 function enregistrerD(){
@@ -1290,7 +1298,7 @@ function chercherD(sx, sy){
       var q=[m.a[0]+(m.b[0]-m.a[0])*r.t, m.a[1]+(m.b[1]-m.a[1])*r.t]; best={pt:grille10(q), acc:true, genre:5}; bd=r.d; }
   });
   /* sur le trait d'une forme (sans grille : exactement dessus) */
-  geos().forEach(function(o){ segmentsG(o).forEach(function(sg){
+  geosAccroche().forEach(function(o){ segmentsG(o).forEach(function(sg){
     var r=distSeg(p, sg[0], sg[1]); if(r.d<bd){ bd=r.d; best={pt:[sg[0][0]+(sg[1][0]-sg[0][0])*r.t, sg[0][1]+(sg[1][1]-sg[0][1])*r.t], acc:true, genre:5}; }
   }); });
   if(best) return best;
@@ -1392,6 +1400,8 @@ function majDessin(){
     det = T==="gtexte" ? "Touchez l'endroit du texte, puis tapez-le."
       : T==="rect" ? (nb ? "Touchez le coin opposé, ou tapez L × H." : "Touchez un premier coin.")
       : T==="rond" ? (nb ? "Touchez un point du cercle, ou tapez le diamètre." : "Touchez le centre.")
+      : T==="ellipse" ? (nb ? "Touchez un coin de l'ellipse, ou tapez L × H." : "Touchez le centre.")
+      : T==="arc" ? ["Touchez le début de l'arc.", "Touchez la fin de l'arc.", "Touchez un point de la courbe : il fixe l'arrondi."][nb]
       : T==="triangle" ? ["Touchez le premier sommet.", "Touchez le deuxième sommet.", "Touchez le troisième sommet."][nb]
       : T==="cote" ? ["Touchez le début de la mesure.", "Touchez la fin de la mesure (ou tapez sa longueur).", "Touchez où placer la ligne de cote."][nb]
       : (T==="poly" || T==="hachure") ? (nb ? "Point suivant (ou tapez une longueur). Le premier point ferme, le dernier termine." : "Touchez le premier point.")
@@ -1498,8 +1508,8 @@ $("btDxfD").addEventListener("click", function(){ exporterDxf(); });
    tapées au centimètre. Chaque forme garde son style : épaisseur (fine,
    moyenne, épaisse : 0,18, 0,35, 0,7 mm sur le papier), couleur, tirets,
    remplissage (gris ou hachures). Points dans l'unité du plan. */
-var GEO_OUTILS={trait:1, poly:1, rect:1, rond:1, triangle:1, fleche:1, hachure:1, cote:1, gtexte:1};
-var GEO_NOMS={trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
+var GEO_OUTILS={trait:1, poly:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1, gtexte:1};
+var GEO_NOMS={trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 var COULEURS_G={noir:null, rouge:"#DC2626", bleu:"#2563EB", vert:"#16A34A", orange:"#EA580C"};
 var COUL_DXF={noir:7, rouge:1, bleu:5, vert:3, orange:30};
 var EP_G={fin:[1,0.18], moyen:[1.8,0.35], epais:[3.2,0.7]};     /* pixels à l'écran, mm sur le papier */
@@ -1507,11 +1517,38 @@ var STYLE_G=(function(){ var d={ep:"moyen", coul:"noir", tir:false, remp:"aucun"
 var GEO_EC=null;      /* la forme en cours : {t, pts} */
 var PX_MM=0;          /* à l'impression : pixels par mm de papier (0 à l'écran) */
 function geos(){ return (DESSIN && DESSIN.geo) || []; }
+/* la forme qu'on est en train de tirer n'accroche pas à elle-même (le point traînait derrière le doigt) */
+var GEO_EXCLU=null;
+function geosAccroche(){ return geos().filter(function(o){ return o.id!==GEO_EXCLU; }); }
 function geoDe(id){ var l=geos(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
-function fermee(o){ return o.t==="rect" || o.t==="rond" || o.t==="triangle" || o.t==="hachure" || (o.t==="poly" && !!o.ferme); }
+function fermee(o){ return o.t==="rect" || o.t==="rond" || o.t==="ellipse" || o.t==="triangle" || o.t==="hachure" || (o.t==="poly" && !!o.ferme); }
 function largeurG(o){ var e=EP_G[o.ep]||EP_G.moyen; return PX_MM ? e[1]*PX_MM : e[0]; }
 function ptsRond(o, n){ n=n||64; var c=o.pts[0], out=[]; for(var i=0;i<n;i++){ var a=i/n*Math.PI*2; out.push([c[0]+o.r*Math.cos(a), c[1]+o.r*Math.sin(a)]); } return out; }
-function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.pts; }
+function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.t==="ellipse" ? ptsEllipse(o) : o.t==="arc" ? ptsArc(o) : o.pts; }
+/* l'ellipse : un centre, deux demi-axes, une rotation (degrés) */
+function ptsEllipse(o, n){
+  n=n||72; var c=o.pts[0], a=(o.rot||0)*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), out=[];
+  for(var i=0;i<n;i++){ var t=i/n*Math.PI*2, x=o.rx*Math.cos(t), y=o.ry*Math.sin(t); out.push([c[0]+x*ca-y*sa, c[1]+x*sa+y*ca]); }
+  return out;
+}
+/* l'arc : par trois points (début, un point de la courbe, fin) */
+function arcInfo(o){
+  var A=o.pts[0], M=o.pts[1], B=o.pts[2];
+  var d=2*(A[0]*(M[1]-B[1]) + M[0]*(B[1]-A[1]) + B[0]*(A[1]-M[1]));
+  if(Math.abs(d) < 1e-9*Math.max(1, lng(sub(B,A))*lng(sub(B,A)))) return null;
+  var a2=A[0]*A[0]+A[1]*A[1], m2=M[0]*M[0]+M[1]*M[1], b2=B[0]*B[0]+B[1]*B[1];
+  var c=[(a2*(M[1]-B[1]) + m2*(B[1]-A[1]) + b2*(A[1]-M[1]))/d, (a2*(B[0]-M[0]) + m2*(A[0]-B[0]) + b2*(M[0]-A[0]))/d];
+  var r=lng(sub(A,c)), a0=Math.atan2(A[1]-c[1], A[0]-c[0]), am=Math.atan2(M[1]-c[1], M[0]-c[0]), a1=Math.atan2(B[1]-c[1], B[0]-c[0]);
+  function norm(x){ var t=x%(2*Math.PI); return t<0 ? t+2*Math.PI : t; }
+  var sw=norm(a1-a0), sm=norm(am-a0);
+  return {c:c, r:r, a0:a0, sweep: sm<=sw ? sw : sw-2*Math.PI};
+}
+function ptsArc(o, n){
+  var k=arcInfo(o); if(!k) return [o.pts[0], o.pts[2]];
+  n=n||Math.max(12, Math.min(96, Math.round(Math.abs(k.sweep)*24))); var out=[];
+  for(var i=0;i<=n;i++){ var t=k.a0+k.sweep*i/n; out.push([k.c[0]+k.r*Math.cos(t), k.c[1]+k.r*Math.sin(t)]); }
+  return out;
+}
 function unite(v){ var L=lng(v)||1; return [v[0]/L, v[1]/L]; }
 /* la cote : la ligne de cote, décalée de la mesure */
 function geomCote(o){
@@ -1533,15 +1570,17 @@ function centreG(o){
 /* les points qui accrochent : sommets, centre et quadrants d'un rond, bouts d'une cote */
 function pointsGeo(){
   var out=[];
-  geos().forEach(function(o){
+  geosAccroche().forEach(function(o){
     if(o.t==="rond"){ var c=o.pts[0]; out.push(c, [c[0]+o.r,c[1]], [c[0]-o.r,c[1]], [c[0],c[1]+o.r], [c[0],c[1]-o.r]); return; }
+    if(o.t==="ellipse"){ var e=ptsEllipse(o, 4); out.push(o.pts[0]); e.forEach(function(q){ out.push(q); }); return; }
+    if(o.t==="arc"){ var k=arcInfo(o); out.push(o.pts[0], o.pts[2]); if(k){ var t=k.a0+k.sweep/2; out.push(k.c, [k.c[0]+k.r*Math.cos(t), k.c[1]+k.r*Math.sin(t)]); } return; }
     if(o.t==="gtexte") return;
     o.pts.forEach(function(q){ out.push(q); });
   });
   return out;
 }
 function milieuxGeo(){
-  var out=[]; geos().forEach(function(o){ if(o.t==="rond" || o.t==="cote") return; segmentsG(o).forEach(function(s){ out.push([(s[0][0]+s[1][0])/2, (s[0][1]+s[1][1])/2]); }); }); return out;
+  var out=[]; geosAccroche().forEach(function(o){ if(o.t==="rond" || o.t==="cote" || o.t==="ellipse" || o.t==="arc") return; segmentsG(o).forEach(function(s){ out.push([(s[0][0]+s[1][0])/2, (s[0][1]+s[1][1])/2]); }); }); return out;
 }
 function tailleDefaut(px){ var v=(px||14)/V.k, p=Math.pow(10, Math.floor(Math.log10(v))); return Math.max(1, Math.round(v/p)*p); }
 /* la cote écrite comme sur un plan : le nombre seul, en cm (en mm si l'unité choisie est le mm) */
@@ -1554,6 +1593,8 @@ function nommerG(o){
   var n=GEO_NOMS[o.t==="poly" && o.ferme ? "poly" : o.t];
   if(o.t==="rect"){ var W=lng(sub(o.pts[1],o.pts[0])), H=lng(sub(o.pts[3],o.pts[0])); return n+" "+cm(W*DESSIN_MM)+" × "+cm(H*DESSIN_MM)+" cm"; }
   if(o.t==="rond") return n+" Ø "+cm(2*o.r*DESSIN_MM)+" cm";
+  if(o.t==="ellipse") return n+" "+cm(2*o.rx*DESSIN_MM)+" × "+cm(2*o.ry*DESSIN_MM)+" cm";
+  if(o.t==="arc"){ var ka=arcInfo(o); return ka ? n+" de rayon "+cm(ka.r*DESSIN_MM)+" cm, "+Math.round(Math.abs(ka.sweep)*180/Math.PI)+"°" : n; }
   if(o.t==="trait" || o.t==="fleche" || o.t==="cote") return n+" de "+cm(lng(sub(o.pts[1],o.pts[0]))*DESSIN_MM)+" cm";
   if(o.t==="gtexte") return n+" « "+o.s+" »";
   return n+(o.t==="poly" ? (o.ferme ? " fermée" : "")+", "+o.pts.length+" points" : "");
@@ -1578,11 +1619,23 @@ function toucherGeo(cible, p){
     creerGeo({t:"gtexte", pts:[pt], s:String(s).trim()}); return;
   }
   if(!GEO_EC){ GEO_EC={t:t, pts:[pt]}; D_PT=pt; D_SEL=null; majDessin(); return; }
-  var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(t==="triangle" || t==="rect" || t==="rond");
+  var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(t==="triangle" || t==="rect" || t==="rond" || t==="ellipse" || (t==="arc" && ec.pts.length===2));
   var q = diag ? pt : finGeo(dern, cible), meme=memePoint(p, dern) || memePoint(q, dern);
   if(t==="trait" || t==="fleche"){ if(meme) return; creerGeo({t:t, pts:[dern, q]}); return; }
   if(t==="rect"){ if(meme) return; creerGeo({t:"rect", pts:rectDe(ec.pts[0], q)}); return; }
   if(t==="rond"){ var r=lng(sub(q, ec.pts[0])); if(meme || !(r>0)) return; creerGeo({t:"rond", pts:[ec.pts[0]], r:r}); return; }
+  if(t==="ellipse"){
+    var ex=Math.abs(q[0]-ec.pts[0][0]), ey=Math.abs(q[1]-ec.pts[0][1]); if(meme || !(ex>0) || !(ey>0)) return;
+    creerGeo({t:"ellipse", pts:[ec.pts[0]], rx:ex, ry:ey, rot:0}); return;
+  }
+  if(t==="arc"){
+    /* le début, la fin, puis un point de la courbe */
+    if(ec.pts.length===1){ if(meme) return; ec.pts.push(q); D_PT=q; majDessin(); return; }
+    var A=ec.pts[0], B=ec.pts[1], ar={t:"arc", pts:[A, q, B]};
+    if(memePoint(p, B) || memePoint(p, A)) return;
+    if(!arcInfo(ar)){ creerGeo({t:"trait", pts:[A, B]}); return; }
+    creerGeo(ar); return;
+  }
   if(t==="triangle"){
     if(meme) return; ec.pts.push(q);
     if(ec.pts.length===3) creerGeo({t:"triangle", pts:ec.pts}); else { D_PT=q; majDessin(); }
@@ -1625,6 +1678,9 @@ function saisirGeo(){
     creerGeo({t:"rect", pts:rectDe(a, [a[0]+sx*L*u, a[1]+sy*Hh*u])});
   } else if(ec.t==="rond"){
     creerGeo({t:"rond", pts:[ec.pts[0]], r:L*u/2});
+  } else if(ec.t==="ellipse"){
+    if(!(Hh>0)) { $("gH").focus(); return; }
+    creerGeo({t:"ellipse", pts:[ec.pts[0]], rx:L*u/2, ry:Hh*u/2, rot:0});
   } else {
     var d=directionSaisie(dern), q=[dern[0]+d[0]*L*u, dern[1]+d[1]*L*u];
     if(ec.t==="trait" || ec.t==="fleche") creerGeo({t:ec.t, pts:[dern, q]});
@@ -1641,7 +1697,7 @@ function transformerG(o, f){ o.pts=o.pts.map(f); }
 function tournerGeo(o){
   var c=centreG(o);
   transformerG(o, function(q){ var dx=q[0]-c[0], dy=q[1]-c[1]; return [c[0]-dy, c[1]+dx]; });
-  if(o.t==="gtexte") o.rot=((o.rot||0)+90)%360;
+  if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+90)%360;
 }
 function dupliquerGeo(){
   var o=objetSel(); if(!o || D_SEL.t!=="geo") return;
@@ -1660,6 +1716,7 @@ function tirerCoinRect(o, i, p){
 /* les poignées de la forme choisie : sommets, rayon d'un rond, ligne d'une cote */
 function poigneesG(o){
   if(o.t==="rond") return [{i:"c", p:o.pts[0]}, {i:"r", p:[o.pts[0][0]+o.r, o.pts[0][1]]}];
+  if(o.t==="ellipse"){ var e4=ptsEllipse(o, 4); return [{i:"c", p:o.pts[0]}, {i:"rx", p:e4[0]}, {i:"ry", p:e4[1]}]; }
   if(o.t==="gtexte") return [];
   var out=o.pts.map(function(q, i){ return {i:i, p:q}; });
   if(o.t==="cote"){ var g=geomCote(o); out.push({i:"off", p:[(g.A[0]+g.B[0])/2, (g.A[1]+g.B[1])/2]}); }
@@ -1673,6 +1730,11 @@ function poigneeSous(o, sx, sy){
 function tirerPoignee(o, h, cible, p){
   var q=cible.pt;
   if(o.t==="rond"){ if(h.i==="c") o.pts=[q]; else o.r=Math.max(1/DESSIN_MM, lng(sub(q, o.pts[0]))); return; }
+  if(o.t==="ellipse"){
+    if(h.i==="c"){ o.pts=[q]; return; }
+    var an=(o.rot||0)*Math.PI/180, ax = h.i==="rx" ? [Math.cos(an), Math.sin(an)] : [-Math.sin(an), Math.cos(an)], d=sub(q, o.pts[0]);
+    var v=Math.max(1/DESSIN_MM, Math.abs(d[0]*ax[0]+d[1]*ax[1])); if(h.i==="rx") o.rx=v; else o.ry=v; return;
+  }
   if(o.t==="rect"){ tirerCoinRect(o, h.i, q); return; }
   if(o.t==="cote" && h.i==="off"){ var g=geomCote(o); o.off=(p[0]-g.a[0])*g.n[0]+(p[1]-g.a[1])*g.n[1]; return; }
   o.pts[h.i]=q;
@@ -1761,13 +1823,15 @@ function peindreGeo(c, E, coulTrait, orange){
   if(os) poigneesG(os).forEach(function(h){ var P=E(h.p); c.save(); c.fillStyle="#FFFFFF"; c.strokeStyle=orange; c.lineWidth=2; c.fillRect(P[0]-5,P[1]-5,10,10); c.strokeRect(P[0]-5,P[1]-5,10,10); c.restore(); });
   /* la forme en cours, jusqu'au pointeur */
   if(GEO_EC && MODE==="dessin"){
-    var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(ec.t==="triangle" || ec.t==="rect" || ec.t==="rond");
+    var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(ec.t==="triangle" || ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || (ec.t==="arc" && ec.pts.length===2));
     var q=D_SOURIS ? (diag ? D_SOURIS.pt : finGeo(dern, D_SOURIS)) : null;
     c.save(); c.strokeStyle="rgba(251,146,60,.95)"; c.lineWidth=1.6; c.setLineDash([6,4]);
     ec.pts.forEach(function(p0){ var P=E(p0); c.fillStyle=orange; c.beginPath(); c.arc(P[0],P[1],4,0,Math.PI*2); c.fill(); });
     var apercu=null, lib="";
     if(ec.t==="rect" && q){ apercu=[rectDe(ec.pts[0], q), true]; lib=cm(Math.abs(q[0]-ec.pts[0][0])*DESSIN_MM)+" × "+cm(Math.abs(q[1]-ec.pts[0][1])*DESSIN_MM)+" cm"; }
     else if(ec.t==="rond" && q){ apercu=[ptsRond({pts:[ec.pts[0]], r:lng(sub(q, ec.pts[0]))}), true]; lib="Ø "+cm(2*lng(sub(q, ec.pts[0]))*DESSIN_MM)+" cm"; }
+    else if(ec.t==="ellipse" && q){ var ex=Math.abs(q[0]-ec.pts[0][0]), ey=Math.abs(q[1]-ec.pts[0][1]); apercu=[ptsEllipse({pts:[ec.pts[0]], rx:ex||1e-6, ry:ey||1e-6, rot:0}), true]; lib=cm(2*ex*DESSIN_MM)+" × "+cm(2*ey*DESSIN_MM)+" cm"; }
+    else if(ec.t==="arc" && ec.pts.length===2 && q){ var art={t:"arc", pts:[ec.pts[0], q, ec.pts[1]]}, ki=arcInfo(art); apercu=[ptsArc(art), false]; if(ki) lib="R "+cm(ki.r*DESSIN_MM)+" cm"; }
     else if(ec.t==="cote" && ec.pts.length===2 && D_SOURIS){ var a=ec.pts[0], b=ec.pts[1], u=unite(sub(b,a)), n=[-u[1],u[0]], off=(D_SOURIS.pt[0]-a[0])*n[0]+(D_SOURIS.pt[1]-a[1])*n[1];
       apercu=[[[a[0]+n[0]*off, a[1]+n[1]*off], [b[0]+n[0]*off, b[1]+n[1]*off]], false]; lib=texteCote(lng(sub(b,a))); }
     else { var ps=ec.pts.slice(); if(q) ps.push(q); apercu=[ps, (ec.t==="triangle" && ps.length===3) || (ec.t==="hachure" && ps.length>2)]; if(q) lib=formater(lng(sub(q, dern))); }
@@ -1814,7 +1878,16 @@ function dxfGeo(g){
       return;
     }
     else if(o.t==="trait" || o.t==="fleche") ligne(o.pts[0], o.pts[1]);
-    else poly(o.pts, fermee(o));
+    else if(o.t==="arc"){
+      var ka=arcInfo(o);
+      if(!ka) ligne(o.pts[0], o.pts[2]);
+      else {
+        var d0=ka.a0*180/Math.PI, d1=(ka.a0+ka.sweep)*180/Math.PI; if(ka.sweep<0){ var tmp=d0; d0=d1; d1=tmp; }
+        d0=((d0%360)+360)%360; d1=((d1%360)+360)%360;
+        g(0,"ARC", 8,cal, 62,col, 10,ka.c[0],20,ka.c[1],30,0, 40,ka.r, 50,d0, 51,d1);
+      }
+    }
+    else poly(contourG(o), fermee(o));
     if(o.t==="fleche"){
       [[o.pts[0], o.pts[1]]].concat(o.double ? [[o.pts[1], o.pts[0]]] : []).forEach(function(ab){
         var d=unite(sub(ab[1], ab[0])), nn=[-d[1], d[0]], L=o.fl, W=o.fl*0.36, B=ab[1];
@@ -2226,9 +2299,9 @@ function volumes3D(sc, hsp){
 function majGeoPanneau(o, t){
   var geoSel = t==="geo" ? o : null, outil = GEO_OUTILS[OUTIL_D], ec=GEO_EC;
   /* la saisie au clavier pendant le tracé */
-  var saisie = ec && (ec.t==="rect" || ec.t==="rond" || ec.t==="trait" || ec.t==="fleche" || ec.t==="poly" || ec.t==="hachure" || ec.t==="triangle" || (ec.t==="cote" && ec.pts.length===1));
+  var saisie = ec && (ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || ec.t==="trait" || ec.t==="fleche" || ec.t==="poly" || ec.t==="hachure" || ec.t==="triangle" || (ec.t==="cote" && ec.pts.length===1));
   $("grpSaisieG").hidden=!saisie;
-  if(saisie){ $("labGL").textContent = ec.t==="rect" ? "L" : ec.t==="rond" ? "Ø" : "Longueur"; $("labGH").hidden=$("gH").hidden=(ec.t!=="rect"); }
+  if(saisie){ $("labGL").textContent = (ec.t==="rect" || ec.t==="ellipse") ? "L" : ec.t==="rond" ? "Ø" : "Longueur"; $("labGH").hidden=$("gH").hidden=(ec.t!=="rect" && ec.t!=="ellipse"); }
   /* le style */
   var st = geoSel || STYLE_G, montre = !!geoSel || !!outil;
   $("grpStyleG").hidden=!montre;
@@ -2236,7 +2309,7 @@ function majGeoPanneau(o, t){
     Array.prototype.forEach.call($("segEpG").children, function(b){ b.classList.toggle("on", b.dataset.e===st.ep); });
     Array.prototype.forEach.call($("segCoulG").children, function(b){ b.classList.toggle("on", b.dataset.c===st.coul); });
     $("btTiretsG").classList.toggle("on", !!st.tir); $("btTiretsG").setAttribute("aria-pressed", st.tir?"true":"false");
-    var typ = geoSel ? geoSel.t : OUTIL_D, ferme = geoSel ? fermee(geoSel) : (typ==="rect" || typ==="rond" || typ==="triangle" || typ==="poly");
+    var typ = geoSel ? geoSel.t : OUTIL_D, ferme = geoSel ? fermee(geoSel) : (typ==="rect" || typ==="rond" || typ==="ellipse" || typ==="triangle" || typ==="poly");
     $("segRempG").hidden = !ferme || typ==="hachure";
     Array.prototype.forEach.call($("segRempG").children, function(b){ b.classList.toggle("on", b.dataset.r===(st.remp||"aucun")); });
     $("btDoubleG").hidden = typ!=="fleche" || !geoSel;
@@ -2246,14 +2319,23 @@ function majGeoPanneau(o, t){
     $("btTiretsG").hidden = typ==="gtexte" || typ==="cote";
   }
   /* les cotes exactes de la forme choisie */
-  var dim = geoSel && (geoSel.t==="rect" || geoSel.t==="rond" || geoSel.t==="trait" || geoSel.t==="fleche");
+  var dim = geoSel && (geoSel.t==="rect" || geoSel.t==="rond" || geoSel.t==="ellipse" || geoSel.t==="trait" || geoSel.t==="fleche");
   $("grpDimG").hidden=!dim;
   if(dim){
-    $("labDL").textContent = geoSel.t==="rect" ? "L" : geoSel.t==="rond" ? "Ø" : "Longueur";
-    $("labDH").hidden=$("dH").hidden=(geoSel.t!=="rect");
-    var vL = geoSel.t==="rect" ? lng(sub(geoSel.pts[1],geoSel.pts[0])) : geoSel.t==="rond" ? 2*geoSel.r : lng(sub(geoSel.pts[1],geoSel.pts[0]));
+    var deuxD = geoSel.t==="rect" || geoSel.t==="ellipse";
+    $("labDL").textContent = deuxD ? "L" : geoSel.t==="rond" ? "Ø" : "Longueur";
+    $("labDH").hidden=$("dH").hidden=!deuxD;
+    var vL = geoSel.t==="rect" ? lng(sub(geoSel.pts[1],geoSel.pts[0])) : geoSel.t==="rond" ? 2*geoSel.r : geoSel.t==="ellipse" ? 2*geoSel.rx : lng(sub(geoSel.pts[1],geoSel.pts[0]));
+    var vH = geoSel.t==="rect" ? lng(sub(geoSel.pts[3],geoSel.pts[0])) : geoSel.t==="ellipse" ? 2*geoSel.ry : 0;
     if(document.activeElement!==$("dL")) $("dL").value=cm(vL*DESSIN_MM);
-    if(geoSel.t==="rect" && document.activeElement!==$("dH")) $("dH").value=cm(lng(sub(geoSel.pts[3],geoSel.pts[0]))*DESSIN_MM);
+    if(deuxD && document.activeElement!==$("dH")) $("dH").value=cm(vH*DESSIN_MM);
+  }
+  /* en 3D : une hauteur fait d'une forme un volume (ou d'un trait un panneau), posé à une hauteur du sol */
+  var d3 = geoSel && geoSel.t!=="cote" && geoSel.t!=="gtexte";
+  $("grpG3D").hidden=!d3;
+  if(d3){
+    if(document.activeElement!==$("g3H")) $("g3H").value=cm(geoSel.h3||0);
+    if(document.activeElement!==$("g3Z")) $("g3Z").value=cm(geoSel.z3||0);
   }
   $("btDupliquerD").hidden = !geoSel;
 }
@@ -2281,6 +2363,7 @@ function majGeoPanneau(o, t){
     var u=10/DESSIN_MM;
     modifierSel(function(o){
       if(o.t==="rond"){ o.r=L*u/2; return; }
+      if(o.t==="ellipse"){ o.rx=L*u/2; if(H>0) o.ry=H*u/2; return; }
       if(o.t==="rect"){
         var p0=o.pts[0], ux=unite(sub(o.pts[1],p0)), vy=unite(sub(o.pts[3],p0)), W=L*u, Hh=(H>0 ? H : lng(sub(o.pts[3],p0))/u)*u;
         o.pts=[p0, [p0[0]+ux[0]*W, p0[1]+ux[1]*W], [p0[0]+ux[0]*W+vy[0]*Hh, p0[1]+ux[1]*W+vy[1]*Hh], [p0[0]+vy[0]*Hh, p0[1]+vy[1]*Hh]]; return;
@@ -2288,6 +2371,11 @@ function majGeoPanneau(o, t){
       var d=unite(sub(o.pts[1], o.pts[0])); o.pts[1]=[o.pts[0][0]+d[0]*L*u, o.pts[0][1]+d[1]*L*u];
     });
   }
+  function dims3D(){
+    var h=parseFloat(String($("g3H").value).replace(",", ".")), z=parseFloat(String($("g3Z").value).replace(",", "."));
+    modifierSel(function(o){ o.h3 = h>0 ? Math.round(h*10) : 0; o.z3 = z>0 ? Math.round(z*10) : 0; });
+  }
+  ["g3H","g3Z"].forEach(function(id){ $(id).addEventListener("change", dims3D); $(id).addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); }); });
   ["dL","dH"].forEach(function(id){ $(id).addEventListener("change", dims); $(id).addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); }); });
 })();
 /* ---------- le DXF : murs pleins, ouvertures, noms, et les symboles ---------- */
@@ -2386,7 +2474,7 @@ function etendueDessin(){
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(m) pt(surMur(m, o.t*axes(m).L, 0), o.l+m.ep); });
   DESSIN.textes.forEach(function(t){ pt([t.x, t.y], t.h*3); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ pt(q, 0); }); });
-  geos().forEach(function(o){ if(o.t==="rond") pt(o.pts[0], o.r); else if(o.t==="gtexte") pt(o.pts[0], o.h*String(o.s).length*0.4); else o.pts.forEach(function(q){ pt(q, o.t==="cote" ? Math.abs(o.off||0)+o.h*2 : 0); }); });
+  geos().forEach(function(o){ if(o.t==="rond") pt(o.pts[0], o.r); else if(o.t==="gtexte") pt(o.pts[0], o.h*String(o.s).length*0.4); else contourG(o).forEach(function(q){ pt(q, o.t==="cote" ? Math.abs(o.off||0)+o.h*2 : 0); }); });
   SYMB.forEach(function(o){ pt([o.x, o.y], o.r*2); });
   return isFinite(x0) ? {minx:x0, miny:y0, maxx:x1, maxy:y1} : null;
 }
@@ -2490,6 +2578,7 @@ function dessinEnMm(D, k){
     murs:D.murs.map(function(m){ return {id:m.id, a:p(m.a), b:p(m.b), ep:m.ep*k}; }),
     ouv:D.ouv.map(function(o){ return {id:o.id, type:o.type, mur:o.mur, t:o.t, l:o.l*k, sens:o.sens, main:o.main}; }),
     textes:D.textes.map(function(t){ return {id:t.id, x:t.x*k, y:t.y*k, s:t.s, h:t.h*k}; }),
+    geo:(D.geo||[]).map(function(o){ var x=JSON.parse(JSON.stringify(o)); x.pts=o.pts.map(p); ["r","rx","ry","off","h","fl"].forEach(function(c){ if(x[c]!=null) x[c]*=k; }); return x; }),
     mob:(D.mob||[]).map(function(o){ return {id:o.id, cle:o.cle, x:o.x*k, y:o.y*k, rot:o.rot, l:o.l*k, p:o.p*k, h:o.h, z:o.z, nom:o.nom}; })};
 }
 /* l'ancienne scène rend sa mémoire (géométries, matières, textes) avant la
@@ -2569,6 +2658,7 @@ function construire3Dmm(ed){
   DESSIN.textes.forEach(function(t){ var sp=texteSprite(t.s, 0.32, null); var p=P3(t.x, t.y, 30); sp.position.set(p[0], 0.05, p[2]); sp.material.depthTest=true; sc.add(sp); });
   /* le mobilier, et les volumes de la salle de bains */
   mobilier3D(sc);
+  geo3D(sc);
   if(VOLS) volumes3D(sc, hsp);
   /* les symboles */
   var cotes=[];
@@ -2624,6 +2714,77 @@ function construire3Dmm(ed){
   sc.updateMatrixWorld(true);     /* pour les rayons de visibilité, avant le premier rendu */
   V3.scene=sc;
 }
+/* ---------- le dessin technique en 3D ----------
+   Au sol (ou à sa hauteur du sol) : les traits, arcs, flèches et cotes en
+   lignes, les formes remplies en aplat. Avec une hauteur, une forme fermée
+   devient un volume (un rectangle de 60 × 40 et 72 de haut : un caisson),
+   un trait ou un arc un panneau vertical. Les textes flottent au-dessus. */
+function geo3D(sc){
+  var THREE=V3.THREE, l=DESSIN.geo||[]; if(!l.length) return;
+  function V(q, z){ return new THREE.Vector3(q[0]/1000, z, -q[1]/1000); }
+  function couleurTrait(o){ return COULEURS_G[o.coul] ? new THREE.Color(COULEURS_G[o.coul]) : new THREE.Color(0x1F2933); }
+  function couleurVolume(o){
+    var base=new THREE.Color(o.remp==="gris" ? 0xB4BBC4 : o.remp==="hach" ? 0xD9CDB9 : 0xECE8E0);
+    return COULEURS_G[o.coul] ? new THREE.Color(COULEURS_G[o.coul]).lerp(new THREE.Color(0xFFFFFF), 0.5) : base;
+  }
+  function ligne(pts, z, o, ferme){
+    var geo=new THREE.BufferGeometry().setFromPoints(pts.concat(ferme ? [pts[0]] : []).map(function(q){ return V(q, z); }));
+    var mat = o.tir ? new THREE.LineDashedMaterial({color:couleurTrait(o), dashSize:0.06, gapSize:0.04}) : new THREE.LineBasicMaterial({color:couleurTrait(o)});
+    var li=new THREE.Line(geo, mat); if(o.tir) li.computeLineDistances(); sc.add(li);
+  }
+  function hachures3D(pts, z, o){
+    var x0=Infinity, x1=-Infinity; pts.forEach(function(q){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); });
+    var sp=Math.max(12, (x1-x0)/24), segs=[];
+    lignesHachure(pts, sp).forEach(function(s2){ segs.push(V(s2[0], z), V(s2[1], z)); });
+    if(segs.length) sc.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:couleurTrait(o), transparent:true, opacity:0.55})));
+  }
+  l.forEach(function(o){
+    var z=(o.z3||0)/1000, h=(o.h3||0)/1000;
+    if(o.t==="gtexte"){ var sp=texteSprite(o.s, 0.026, "rgba(31,41,51,.78)", true); var q=V(o.pts[0], z+Math.max(0.05, h)); sp.position.copy(q); sc.add(sp); return; }
+    if(o.t==="cote"){
+      var g=geomCote(o), zc=z+0.004, s=g.s, ext=o.h*0.5;
+      ligne([g.a, [g.A[0]+g.n[0]*s*ext, g.A[1]+g.n[1]*s*ext]], zc, o); ligne([g.b, [g.B[0]+g.n[0]*s*ext, g.B[1]+g.n[1]*s*ext]], zc, o); ligne([g.A, g.B], zc, o);
+      var et=texteSprite(texteCote(lng(sub(g.b, g.a))/DESSIN_MM), 0.024, "rgba(31,41,51,.82)", true);
+      et.position.copy(V([(g.A[0]+g.B[0])/2, (g.A[1]+g.B[1])/2], zc+0.02)); sc.add(et); return;
+    }
+    var pts=contourG(o), ferme=fermee(o);
+    if(ferme && h>0){
+      var shp=new THREE.Shape(pts.map(function(q){ return new THREE.Vector2(q[0]/1000, q[1]/1000); }));
+      var geo=new THREE.ExtrudeGeometry(shp, {depth:h, bevelEnabled:false, curveSegments:4});
+      var me=new THREE.Mesh(geo, new THREE.MeshStandardMaterial({color:couleurVolume(o), roughness:0.85}));
+      me.rotation.x=-Math.PI/2; me.position.y=z; sc.add(me);
+      var ar=new THREE.LineSegments(new THREE.EdgesGeometry(geo, 20), new THREE.LineBasicMaterial({color:0x3A424C, transparent:true, opacity:0.55}));
+      ar.rotation.x=-Math.PI/2; ar.position.y=z; sc.add(ar);
+      if(o.remp==="hach") hachures3D(pts, z+h+0.002, o);
+      return;
+    }
+    if(ferme && o.remp!=="aucun"){
+      var sh2=new THREE.Shape(pts.map(function(q){ return new THREE.Vector2(q[0]/1000, q[1]/1000); }));
+      var plat=new THREE.Mesh(new THREE.ShapeGeometry(sh2), new THREE.MeshBasicMaterial({color:o.remp==="gris" ? 0x9AA3AD : 0xE7DFD2, side:THREE.DoubleSide, transparent:true, opacity:0.85}));
+      plat.rotation.x=-Math.PI/2; plat.position.y=z+0.002; sc.add(plat);
+      if(o.remp==="hach") hachures3D(pts, z+0.003, o);
+    }
+    ligne(pts, z+0.003, o, ferme);
+    if(!ferme && h>0){
+      /* un trait qui a une hauteur : un panneau vertical, comme une planche */
+      var pos=[];
+      for(var i=0;i<pts.length-1;i++){
+        var a=V(pts[i], z), b=V(pts[i+1], z), c=V(pts[i+1], z+h), d=V(pts[i], z+h);
+        pos.push(a.x,a.y,a.z, b.x,b.y,b.z, c.x,c.y,c.z, a.x,a.y,a.z, c.x,c.y,c.z, d.x,d.y,d.z);
+      }
+      var bg=new THREE.BufferGeometry(); bg.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); bg.computeVertexNormals();
+      sc.add(new THREE.Mesh(bg, new THREE.MeshStandardMaterial({color:couleurVolume(o), roughness:0.85, side:THREE.DoubleSide})));
+      ligne(pts, z+h, o);
+      [pts[0], pts[pts.length-1]].forEach(function(q){ ligne([q, q], z, o); sc.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([V(q, z), V(q, z+h)]), new THREE.LineBasicMaterial({color:couleurTrait(o)}))); });
+    }
+    if(o.t==="fleche"){
+      [[o.pts[0], o.pts[1]]].concat(o.double ? [[o.pts[1], o.pts[0]]] : []).forEach(function(ab){
+        var d2=unite(sub(ab[1], ab[0])), nn=[-d2[1], d2[0]], L=o.fl, W=o.fl*0.36, B=ab[1];
+        ligne([[B[0]-d2[0]*L+nn[0]*W, B[1]-d2[1]*L+nn[1]*W], B, [B[0]-d2[0]*L-nn[0]*W, B[1]-d2[1]*L-nn[1]*W]], z+0.003, o);
+      });
+    }
+  });
+}
 function halo3D(sc, x, y, z){
   var THREE=V3.THREE;
   if(!V3.texHalo){
@@ -2662,6 +2823,16 @@ function cadrer3D(mode){
   }
   else { V3.cam={az:-0.65, el:0.72, dist:t*1.25+3, cible:[c[0], 0.9, c[2]]}; }
 }
+function majPivot3D(){
+  var THREE=V3.THREE;
+  if(!V3.pivot || V3.pivot.parent!==V3.scene){
+    V3.pivot=new THREE.Mesh(new THREE.SphereGeometry(1, 18, 12), new THREE.MeshBasicMaterial({color:0xFB923C, depthTest:false, transparent:true, opacity:0.9}));
+    V3.pivot.renderOrder=20; V3.scene.add(V3.pivot);
+  }
+  var c=V3.cam, r=Math.max(0.004, c.dist*0.012);
+  V3.pivot.visible=!!V3.pivotVu && V3.mode!=="visite";
+  V3.pivot.position.set(c.cible[0], V3.mode==="dessus" ? 0.01 : c.cible[1], c.cible[2]); V3.pivot.scale.set(r, r, r);
+}
 function rendu3D(){
   if(!V3 || !V3.scene) return;
   var c=V3.cam, cam=V3.camera, t=c.cible, ce=Math.cos(c.el), fac=1;
@@ -2670,11 +2841,12 @@ function rendu3D(){
     var o=V3.ortho, hh=c.dist*Math.tan(25*Math.PI/180), asp=V3.camera.aspect;
     o.left=-hh*asp; o.right=hh*asp; o.top=hh; o.bottom=-hh; o.updateProjectionMatrix();
     o.position.set(t[0], 60, t[2]); o.up.set(0,0,-1); o.lookAt(t[0], 0, t[2]);
-    fac=2*hh/0.9326;
+    fac=2*hh/0.9326; majPivot3D();
     V3.etiquettes.forEach(function(s){ s.scale.set(s.userData.base[0]*fac, s.userData.base[1]*fac, 1); s.visible=true; });
     V3.renderer.render(V3.scene, o); return;
   }
   V3.etiquettes.forEach(function(s){ s.scale.set(s.userData.base[0], s.userData.base[1], 1); s.visible=true; });
+  majPivot3D();
   var dir=[Math.sin(c.az)*ce, Math.sin(c.el), Math.cos(c.az)*ce];
   if(V3.mode==="visite"){ cam.position.set(t[0], t[1], t[2]); cam.up.set(0,1,0); cam.lookAt(t[0]-dir[0], t[1]-dir[1], t[2]-dir[2]); }
   else {
@@ -2696,27 +2868,68 @@ function rendu3D(){
 }
 var DEMANDE3=false;
 function demander3D(){ if(DEMANDE3) return; DEMANDE3=true; requestAnimationFrame(function(){ DEMANDE3=false; rendu3D(); }); }
+/* ---------- se déplacer dans l'espace 3D, comme sur un logiciel de DAO ----------
+   Le point autour duquel on tourne (le pivot, marqué d'une petite bille
+   orange pendant le geste) se choisit : double-toucher ou double-clic
+   sur un meuble, un mur, le sol. La molette et la pince zooment vers le
+   point visé, pas vers le milieu. Déplacer fait glisser la vue dans le
+   plan de l'écran : deux doigts, clic droit ou Maj + glisser, ou le mode
+   « Déplacer » pour un seul doigt. */
+function pointVise3D(sx, sy){
+  var THREE=V3.THREE, cv3=$("v3Canvas"), r=cv3.getBoundingClientRect();
+  var cam = V3.mode==="dessus" ? V3.ortho : V3.camera; cam.updateMatrixWorld();
+  var rc=new THREE.Raycaster(); rc.setFromCamera(new THREE.Vector2(sx/r.width*2-1, -(sy/r.height)*2+1), cam);
+  var objs=[];
+  V3.scene.traverse(function(o){ if(o.isMesh && o.visible && o!==V3.pivot && !(o.material && o.material.transparent && o.material.opacity<0.4)) objs.push(o); });
+  var h=rc.intersectObjects(objs, false)[0];
+  if(h) return h.point.clone();
+  /* sinon le sol */
+  var d=rc.ray.direction, o=rc.ray.origin;
+  if(Math.abs(d.y)<1e-6) return null;
+  var t=-o.y/d.y; if(t<0) return null;
+  return o.clone().add(d.clone().multiplyScalar(t));
+}
+/* rapprocher (s<1) ou éloigner (s>1) la vue, vers le point P qui reste sous le doigt */
+function zoomVers3D(P, s){
+  var c=V3.cam, d=c.dist*s;
+  if(d<0.12) s=0.12/c.dist; if(d>400) s=400/c.dist;
+  if(P){ c.cible=[P.x+(c.cible[0]-P.x)*s, V3.mode==="dessus" ? 0 : P.y+(c.cible[1]-P.y)*s, P.z+(c.cible[2]-P.z)*s]; }
+  c.dist*=s;
+}
+/* le pivot passe sur P, sans que la vue bouge */
+function pivoter3D(P){
+  if(!P) return;
+  var c=V3.cam;
+  if(V3.mode==="dessus"){ c.cible=[P.x, 0, P.z]; return; }
+  var C=V3.camera.position, dx=C.x-P.x, dy=C.y-P.y, dz=C.z-P.z, d=Math.hypot(dx, dy, dz);
+  if(d<0.05) return;
+  c.cible=[P.x, P.y, P.z]; c.dist=d; c.el=Math.max(0.06, Math.min(1.56, Math.asin(dy/d))); c.az=Math.atan2(dx, dz);
+}
+/* glisser la vue dans le plan de l'écran : le point sous le doigt suit le doigt */
+function glisser3D(dx, dy){
+  var c=V3.cam, h=$("v3Canvas").clientHeight||600, s=2*c.dist*Math.tan(25*Math.PI/180)/h;
+  if(V3.mode==="visite"){ var a=c.az; c.cible[0]+=(-dx*Math.cos(a))*0.01; c.cible[2]+=(dx*Math.sin(a))*0.01; c.cible[1]=Math.max(0.3, Math.min(3, c.cible[1]+dy*0.004)); return; }
+  if(V3.mode==="dessus"){ c.cible[0]-=dx*s; c.cible[2]-=dy*s; return; }
+  var ce=Math.cos(c.el), dir=[Math.sin(c.az)*ce, Math.sin(c.el), Math.cos(c.az)*ce], dr=[Math.cos(c.az), 0, -Math.sin(c.az)];
+  var up=[dir[1]*dr[2]-dir[2]*dr[1], dir[2]*dr[0]-dir[0]*dr[2], dir[0]*dr[1]-dir[1]*dr[0]];
+  for(var k=0;k<3;k++) c.cible[k]+= -dr[k]*dx*s + up[k]*dy*s;
+}
+var PIVOT_T=null;
+function montrerPivot3D(){ V3.pivotVu=true; clearTimeout(PIVOT_T); PIVOT_T=setTimeout(function(){ V3.pivotVu=false; demander3D(); }, 900); }
 function brancherGestes3D(){
-  var cv3=$("v3Canvas"), D3={}, g=null;
+  var cv3=$("v3Canvas"), D3={}, g=null, dernier=null;
   function pos3(e){ var r=cv3.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
-  function deplacer(dx, dy){
-    /* glisser la cible dans le plan du sol, dans le sens de l'écran */
-    var c=V3.cam, s=(V3.mode==="visite" ? 0.01 : c.dist*0.0016);
-    var ax=Math.cos(c.az), az=-Math.sin(c.az);
-    var fx=-Math.sin(c.az), fz=-Math.cos(c.az);
-    if(V3.mode==="dessus"){ c.cible[0]-=dx*s; c.cible[2]-=dy*s; }
-    else { c.cible[0]+=(-dx*ax + dy*fx)*s; c.cible[2]+=(-dx*az + dy*fz)*s; }
-  }
-  function avancer(f){
-    var c=V3.cam;
-    if(V3.mode==="visite"){ c.cible[0]-=Math.sin(c.az)*f*0.6; c.cible[2]-=Math.cos(c.az)*f*0.6; }
-    else c.dist=Math.max(0.6, Math.min(200, c.dist*(f>0 ? 1/1.12 : 1.12)));
-  }
+  function avancer(f){ var c=V3.cam; c.cible[0]-=Math.sin(c.az)*f*0.6; c.cible[2]-=Math.cos(c.az)*f*0.6; }
   cv3.addEventListener("pointerdown", function(e){
     try{ cv3.setPointerCapture(e.pointerId); }catch(er){}
     D3[e.pointerId]=pos3(e); var ids=Object.keys(D3);
-    if(ids.length===2){ var a=D3[ids[0]], b=D3[ids[1]]; g={pince:true, d0:Math.hypot(a[0]-b[0],a[1]-b[1]), m0:[(a[0]+b[0])/2,(a[1]+b[1])/2], dist0:V3.cam.dist}; return; }
-    g={p:pos3(e), droit:e.button===2 || e.shiftKey};
+    if(ids.length===2){
+      var a=D3[ids[0]], b=D3[ids[1]], m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
+      g={pince:true, d:Math.hypot(a[0]-b[0],a[1]-b[1]), m:m, P:V3.mode==="visite" ? null : pointVise3D(m[0], m[1])};
+      return;
+    }
+    var p=pos3(e);
+    g={p:p, p0:p, t0:Date.now(), bouge:false, glisse:e.button===2 || e.button===1 || e.shiftKey || V3.geste==="deplacer"};
   });
   cv3.addEventListener("pointermove", function(e){
     if(!g || !D3[e.pointerId]) return;
@@ -2724,22 +2937,46 @@ function brancherGestes3D(){
     if(g.pince){
       var ids=Object.keys(D3); if(ids.length<2) return;
       var a=D3[ids[0]], b=D3[ids[1]], d=Math.hypot(a[0]-b[0],a[1]-b[1]), m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
-      if(V3.mode==="visite"){ avancer((d-g.d0)/60); g.d0=d; }
-      else V3.cam.dist=Math.max(0.6, Math.min(200, g.dist0*g.d0/Math.max(10,d)));
-      deplacer(m[0]-g.m0[0], m[1]-g.m0[1]); g.m0=m; demander3D(); return;
+      if(V3.mode==="visite") avancer((d-g.d)/60);
+      else { zoomVers3D(g.P, g.d/Math.max(10, d)); glisser3D(m[0]-g.m[0], m[1]-g.m[1]); }
+      g.d=d; g.m=m; montrerPivot3D(); demander3D(); return;
     }
     var dx=p[0]-g.p[0], dy=p[1]-g.p[1]; g.p=p;
-    if(g.droit){ deplacer(dx, dy); demander3D(); return; }
+    if(!g.bouge && Math.hypot(p[0]-g.p0[0], p[1]-g.p0[1])>4) g.bouge=true;
+    if(g.glisse){ glisser3D(dx, dy); montrerPivot3D(); demander3D(); return; }
     var c=V3.cam;
     c.az -= dx*0.008;
     if(V3.mode==="visite") c.el=Math.max(-1.2, Math.min(1.2, c.el - dy*0.006));
     else if(V3.mode!=="dessus") c.el=Math.max(0.06, Math.min(1.56, c.el + dy*0.006));
+    if(V3.mode!=="visite") montrerPivot3D();
     demander3D();
   });
-  function fin(e){ delete D3[e.pointerId]; if(!Object.keys(D3).length) g=null; else if(g && g.pince) g=null; }
+  function fin(e){
+    var tape = g && !g.pince && !g.bouge && Date.now()-g.t0 < 350, p=D3[e.pointerId];
+    delete D3[e.pointerId];
+    if(!Object.keys(D3).length) g=null; else if(g && g.pince) g=null;
+    if(!tape || !p || e.type==="pointercancel") return;
+    /* double-toucher : le pivot passe sur le point touché */
+    if(dernier && Date.now()-dernier.t < 400 && Math.hypot(p[0]-dernier.p[0], p[1]-dernier.p[1]) < 30){
+      dernier=null;
+      if(V3.mode==="visite") return;
+      pivoter3D(pointVise3D(p[0], p[1])); montrerPivot3D(); demander3D();
+    } else dernier={t:Date.now(), p:p};
+  }
   cv3.addEventListener("pointerup", fin); cv3.addEventListener("pointercancel", fin);
   cv3.addEventListener("contextmenu", function(e){ e.preventDefault(); });
-  cv3.addEventListener("wheel", function(e){ e.preventDefault(); avancer(e.deltaY<0 ? 1 : -1); demander3D(); }, {passive:false});
+  cv3.addEventListener("wheel", function(e){
+    e.preventDefault();
+    if(V3.mode==="visite"){ avancer(e.deltaY<0 ? 1 : -1); demander3D(); return; }
+    var p=pos3(e), f=Math.exp(Math.max(-3, Math.min(3, e.deltaY*(e.deltaMode===1 ? 0.05 : 0.0018))));
+    zoomVers3D(pointVise3D(p[0], p[1]), f); montrerPivot3D(); demander3D();
+  }, {passive:false});
+}
+/* les boutons : zoomer vers le milieu, recentrer, et le geste d'un seul doigt */
+function zoomBouton3D(f){
+  if(!V3) return;
+  if(V3.mode==="visite"){ var c=V3.cam; c.cible[0]-=Math.sin(c.az)*(f<1?0.6:-0.6); c.cible[2]-=Math.cos(c.az)*(f<1?0.6:-0.6); demander3D(); return; }
+  var cv3=$("v3Canvas"); zoomVers3D(pointVise3D(cv3.clientWidth/2, cv3.clientHeight/2), f); montrerPivot3D(); demander3D();
 }
 function majBarre3D(){
   Array.prototype.forEach.call($("v3Vue").children, function(b){ b.classList.toggle("on", b.dataset.v===V3.mode); });
@@ -2754,10 +2991,19 @@ function majBarre3D(){
     var ul=bo.querySelector("ul"); ul.textContent="";
     al.liste.forEach(function(a){ var li=document.createElement("li"); li.textContent=a.texte; ul.appendChild(li); });
   }
-  $("v3Aide").textContent = V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer, se déplacer" : "Un doigt : tourner · deux doigts : zoomer, déplacer";
+  Array.prototype.forEach.call($("v3Geste").children, function(b){ b.classList.toggle("on", b.dataset.g===(V3.geste||"tourner")); });
+  $("v3Geste").hidden = V3.mode==="visite";
+  var tactile = window.matchMedia && window.matchMedia("(hover:none)").matches;
+  $("v3Aide").textContent = V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer"
+    : tactile ? (V3.geste==="deplacer" ? "Un doigt : déplacer" : "Un doigt : tourner")+" · deux doigts : zoomer, déplacer · double-toucher : pivot ici"
+    : "Glisser : "+(V3.geste==="deplacer" ? "déplacer" : "tourner")+" · clic droit ou Maj : déplacer · molette : zoomer vers le pointeur · double-clic : pivot ici";
 }
 $("btVue3d").addEventListener("click", ouvrir3D);
 $("v3Fermer").addEventListener("click", fermer3D);
+$("v3Geste").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.geste=b.dataset.g; majBarre3D(); });
+$("v3Recentrer").addEventListener("click", function(){ if(!V3) return; cadrer3D(V3.mode); rendu3D(); });
+$("v3Plus").addEventListener("click", function(){ zoomBouton3D(1/1.35); });
+$("v3Moins").addEventListener("click", function(){ zoomBouton3D(1.35); });
 $("v3Vue").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; cadrer3D(b.dataset.v); majBarre3D(); rendu3D(); });
 $("v3Transp").addEventListener("click", function(){ if(!V3) return; V3.transp=!V3.transp; construire3D(); majBarre3D(); rendu3D(); });
 $("v3Vols").addEventListener("click", function(){ if(!V3) return; VOLS=!VOLS; garder("dwg:volumes", VOLS?"1":"0"); construire3D(); majBarre3D(); rendu3D(); demander(); });
