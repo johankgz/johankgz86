@@ -917,6 +917,21 @@ function majBas(){
 
 /* ---------- les gestes : un doigt glisse le plan, deux doigts zooment, une touche cote ---------- */
 var DOIGTS={}, G=null;
+/* au doigt ou au stylet, ces outils se tracent en glissant : on appuie au
+   début, on glisse, on lâche à la fin (le plan se déplace alors à deux doigts).
+   Les touchers un par un marchent toujours. */
+var TRACE_GLISSE={mur:1, cloison:1, trait:1, poly:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1};
+function traceGlisse(e){ return MODE==="dessin" && !REF && e.pointerType!=="mouse" && !!TRACE_GLISSE[OUTIL_D]; }
+/* le début d'un tracé glissé : il prolonge le tracé en cours s'il part de son dernier point, sinon il en commence un */
+function debutGlisse(c){
+  var dern = GEO_EC ? GEO_EC.pts[GEO_EC.pts.length-1] : D_PT;
+  if(dern){
+    var e=versEcran(dern[0], dern[1]);
+    if(Math.hypot(e[0]-c.ecran[0], e[1]-c.ecran[1])<28 || lng(sub(c.pt, dern))*V.k<6) return;
+    if(GEO_EC) terminerGeo(); else { D_PT=null; }
+  }
+  toucherD(0, 0, {pt:c.pt, acc:c.acc, genre:c.genre});
+}
 function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
 cv.addEventListener("pointerdown", function(e){
   if(!PLAN) return;
@@ -942,6 +957,7 @@ cv.addEventListener("pointerdown", function(e){
       var sm=mobSous(versPlan(p[0], p[1]));
       if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y]; return; }
     }
+    if(traceGlisse(e)){ var c0=chercherD(p[0], p[1]); G.trace={pt:c0.pt, acc:c0.acc, genre:c0.genre, ecran:p}; }
     if(e.pointerType!=="mouse"){
       G.minuteur=setTimeout(function(){ if(G && !G.bouge && !G.pince){ G.visee=true; var c=chercherD(p[0],p[1]); D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); } }, 260);
     }
@@ -968,6 +984,12 @@ cv.addEventListener("pointermove", function(e){
     var k=Math.max(1e-9, G.k0*d/(G.d0||1)), f=k/G.k0;
     V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demander(); return;
   }
+  /* un tracé glissé : le début est posé dès que le doigt part, la fin suit le doigt, avec la loupe */
+  if(G.trace && !G.glisse && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>(G.visee ? 14 : 8)){
+    G.glisse=true; G.bouge=true; clearTimeout(G.minuteur); debutGlisse(G.trace);
+  }
+  if(G.glisse){ var cg=chercherD(p[0],p[1]); D_SOURIS=cg; VISEE={pt:cg.pt, acc:cg.acc, genre:cg.genre, ecran:p}; demander(); return; }
+  if(G.trace && !G.visee) return;          /* pas encore parti : le plan ne bouge pas sous un outil de tracé */
   if(G.visee){ var c = MODE==="dessin" ? chercherD(p[0],p[1]) : chercher(p[0],p[1]); if(MODE==="dessin") D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
   if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
   if(G.bouge && G.symb!=null){
@@ -1016,6 +1038,11 @@ function lacher(e){
         else { D_SEL={t:"mob", id:G.mob}; if(G.garde) enregistrerD(); majDessin(); }
       }
       G=null; demander(); return;
+    }
+    if(G.glisse){
+      /* la fin du tracé glissé, là où le doigt se lève */
+      if(e.type!=="pointercancel"){ var cf=chercherD(p[0], p[1]); toucherD(0, 0, {pt:cf.pt, acc:cf.acc, genre:cf.genre}); }
+      D_SOURIS=null; VISEE=null; G=null; demander(); return;
     }
     if(e.type!=="pointercancel"){
       if(G.visee && VISEE) toucherD(0, 0, {pt:VISEE.pt, acc:VISEE.acc, genre:VISEE.genre});
@@ -1628,7 +1655,7 @@ function majDessin(){
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button"), function(b){ b.classList.toggle("on", b.dataset.o===OUTIL_D); });
   majFamille();
   var info=NOMS_OUTILS[OUTIL_D], det="";
-  if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur. Toucher le même point, ou « Terminer », arrête le tracé." : "Touchez le début du mur.";
+  if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur, ou glissez depuis ce point. Toucher le même point, ou « Terminer », arrête le tracé." : "Glissez du début à la fin du mur, ou touchez le début puis la fin. Deux doigts déplacent le plan.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
   else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier.";
   else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
@@ -3756,7 +3783,7 @@ document.addEventListener("click", function(e){ if(!$("plusMenu").hidden && !e.t
 window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
-window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; })); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
