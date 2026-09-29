@@ -43,6 +43,7 @@ button,select{font:inherit}
 .plus-menu .bt{justify-content:flex-start;width:100%}
 .plus-menu .bt .lib{display:inline}
 @media (max-width:520px){ .haut{gap:6px} .haut #btCalques,.haut #btFond,.haut #btImage{display:none} #btPlus{display:inline-flex} }
+@media (max-width:380px){ .haut{gap:4px;padding-left:8px;padding-right:8px} .haut .bt{padding:6px 8px} .haut a{padding:6px 10px} }
 #scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
 body.clair #scene{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 20px 20px;text-align:center}
@@ -1994,7 +1995,18 @@ function dessinEnMm(D, k){
     textes:D.textes.map(function(t){ return {id:t.id, x:t.x*k, y:t.y*k, s:t.s, h:t.h*k}; }),
     mob:(D.mob||[]).map(function(o){ return {id:o.id, cle:o.cle, x:o.x*k, y:o.y*k, rot:o.rot, l:o.l*k, p:o.p*k, h:o.h, z:o.z, nom:o.nom}; })};
 }
+/* l'ancienne scène rend sa mémoire (géométries, matières, textes) avant la
+   nouvelle : sur un téléphone, basculer souvent finissait par saturer la carte graphique */
+function liberer3D(sc){
+  var gardees=[V3.texHalo]; for(var k in V3.textures) gardees.push(V3.textures[k]);
+  sc.traverse(function(o){
+    if(o.geometry) o.geometry.dispose();
+    var ms = o.material ? (Array.isArray(o.material) ? o.material : [o.material]) : [];
+    ms.forEach(function(m){ if(m.map && gardees.indexOf(m.map)<0) m.map.dispose(); m.dispose(); });
+  });
+}
 function construire3D(){
+  if(V3.scene){ try{ liberer3D(V3.scene); }catch(e){} V3.scene=null; }
   var D0=DESSIN, ed=etendue3D();
   V3.alertes = (window.SymbolesElec && VOLS) ? alertesVolumes() : {par:{}, liste:[]};
   DESSIN=dessinEnMm(D0, DESSIN_MM);      /* axes(), trous(), morceaux() lisent DESSIN */

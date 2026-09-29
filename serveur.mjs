@@ -57,7 +57,8 @@ const ROUTES = [
 const INTERDITS = [".git", ".claude", "node_modules", "donnees", "netlify", "prive", "analyseur-plans", "serveur.mjs", "package-lock.json"];
 
 function fichierDemande(chemin) {
-  const propre = decodeURIComponent(chemin.split("?")[0]);
+  let propre;
+  try { propre = decodeURIComponent(chemin.split("?")[0]); } catch { return null; }   /* « % » isolé : adresse illisible */
   const relatif = propre === "/" ? "index.html" : propre.replace(/^\/+/, "");
   if (relatif.split("/").some((m) => m === ".." || INTERDITS.includes(m))) return null;
   const complet = path.join(RACINE, relatif);

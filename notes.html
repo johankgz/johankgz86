@@ -1061,11 +1061,16 @@ function pousser_serveur(){
 function tirer_serveur(cb){
   var fini=false;
   function fin(){ if(fini) return; fini=true; if(cb) cb(); }
+  tirer_serveur.aPousser = undefined;
   if(!apiPret(true)){ majSync("hors"); fin(); return; }
   majSync("cours");
   fetch(apiUrl("notes"), {headers:apiEnTetes()})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
+      /* y a-t-il ici quelque chose que le serveur n'a pas ? (sinon, rien à renvoyer) */
+      var dist={}; (d.listes||[]).forEach(function(x){ dist[x.id]=x.maj||""; });
+      tirer_serveur.aPousser = N.listes.some(function(l){ return !(l.id in dist) || (l.maj||"") > dist[l.id]; })
+        || !!(N.aSupprimer && N.aSupprimer.length);
       if(d.moi){ AUTEUR_MOI=d.moi; try{ localStorage.setItem("notes:moi", d.moi); }catch(e){} }
       fusionner(d.listes||[], d.supprimees||[]);
       majSync("ok");
@@ -2089,7 +2094,8 @@ function start(){
     }catch(e){}
     majSync(apiPret(true) ? "cours" : "hors");
     chargerListesDeroulantes();
-    tirer_serveur(function(){ pousser_serveur(); });
+    /* à l'ouverture : on lit le serveur, et on ne lui renvoie que ce qui est nouveau ici */
+    tirer_serveur(function(){ if(tirer_serveur.aPousser === false) majSync("ok"); else pousser_serveur(); });
   });
 }
 start();

@@ -1813,10 +1813,21 @@ function banniereAcces(){
   b.textContent = (NOMS_APPLIS[refus]||"Cette appli") + " ne vous est pas attribuée. Voyez avec votre administrateur.";
 }
 /* les droits peuvent changer pendant que la session dure : on les relit */
+/* « qui suis-je » : une seule question au serveur pour les droits et
+   l'identité, même demandés coup sur coup à l'ouverture */
+var MOI_P=null, MOI_T=0;
+function lireMoi(s){
+  if(MOI_P && Date.now()-MOI_T < 5000) return MOI_P;
+  MOI_T=Date.now();
+  MOI_P=fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return (r.ok ? r.json().catch(function(){ return null; }) : Promise.resolve(null)).then(function(d){ return {status:r.status, ok:r.ok, d:d}; }); });
+  MOI_P.catch(function(){ MOI_P=null; });
+  return MOI_P;
+}
 function rafraichirDroits(s){
   if(!s || !s.jeton) return;
-  fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
-    .then(function(r){ return r.ok ? r.json() : null; })
+  lireMoi(s)
+    .then(function(x){ return x.ok ? x.d : null; })
     .then(function(d){
       if(!d || !d.role) return;
       var avant=JSON.stringify([s.applis||[], s.role, !!s.proprietaire]);
@@ -2299,13 +2310,13 @@ function peindreDemandes(s){
 
 /* ---------- identité : métier et ville, rafraîchis sans tout reconstruire ---------- */
 function majIdentite(s){
-  fetch(apiUrl("moi"), {headers:{"x-auth":s.jeton}})
+  lireMoi(s)
     .then(function(r){
       /* un jeton que le site ne reconnaît plus — mot de passe changé
          ailleurs, compte remis à zéro : on revient à la connexion plutôt
          que de laisser une page vide. */
       if(r.status===401){ localStorage.removeItem("outils:session"); location.reload(); return Promise.reject(); }
-      return r.ok ? r.json() : Promise.reject();
+      return r.ok && r.d ? r.d : Promise.reject();
     })
     .then(function(d){
       s.nom=d.nom||s.nom; s.role=d.role||s.role;
@@ -2322,7 +2333,13 @@ function majIdentite(s){
 
 /* ---------- statistiques et travaux en bref ---------- */
 var SESSION_COURANTE=null;
-function rafraichir(){
+/* au retour sur l'accueil (onglet revenu, appli rouverte), on relit tout ;
+   mais pas deux fois de suite : à l'ouverture, « pageshow » et « focus »
+   arrivent juste après le premier chargement */
+var DERNIER_CHARGEMENT=0;
+function rafraichir(e){
+  if(e && e.type==="pageshow" && !e.persisted) return;
+  if(Date.now()-DERNIER_CHARGEMENT < 15000) return;
   if(SESSION_COURANTE && !document.hidden){
     charger(SESSION_COURANTE);
     chargerDemandes(SESSION_COURANTE);
@@ -2395,6 +2412,7 @@ function relevesEnCours(s){
     .catch(function(){});
 }
 function charger(s){
+  DERNIER_CHARGEMENT=Date.now();
   relevesEnCours(s);
   messagesNonLus(s);
   SESSION_COURANTE=s;
