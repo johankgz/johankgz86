@@ -886,6 +886,7 @@ a.act[hidden]{display:none}
       <input type="file" id="ph_fichierG" accept="image/*" multiple hidden>
     </div>
     <div id="ph_grille"></div>
+    <p class="hint ph-site" id="ph_site" hidden></p>
     <p class="hint" id="ph_aide">Le crayon d'une photo l'annote : flèches, cercles, texte.</p>
     <label class="f" style="margin-top:12px"><span>Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite."></textarea></label>
     <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
@@ -1231,6 +1232,7 @@ function save(){
   clearTimeout(saveT);
   saveT=setTimeout(enregistrer, 400);
   refreshHeader();
+  try{ planifierPhotosSite(); }catch(e){}
 }
 function savePrefs(){ try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} }
 
@@ -1350,6 +1352,7 @@ function ajouterLigne(cle, champ, rendu){
 /* ---------- reportage photo ---------- */
 function renderPhotos(){
   var g=$("ph_grille"); if(!g) return;
+  try{ planifierPhotosSite(); }catch(e){}
   g.textContent="";
   (S.photos||[]).forEach(function(ph, i){
     var d=document.createElement("div"); d.className="sv-photo";
@@ -2005,12 +2008,18 @@ function nomClient(){ return S.client.nom; }
 function adresseTravaux(){ return (S.client.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.visite.date; }
 
-/* ---------- dépôt des photos sur le site ---------- */
+/* ---------- dépôt des photos sur le site ----------
+   Les photos du suivi partent dans le dossier du chantier : à la
+   publication, et aussi toutes seules, quelques secondes après chaque
+   photo prise, annotée ou retirée (rien ne se perd si le téléphone
+   s'éteint). Un lot trop lourd pour une requête part en plusieurs
+   parties. Les photos ne préviennent personne. */
+var LOT_PHOTOS=4.6*1024*1024;
 function deposerPhotos(auto){
-  if(!apiPret()) return Promise.resolve(false);
+  if(auto ? !(baseSite() && jetonSession()) : !apiPret()) return Promise.resolve(false);
   var liste=(S.photos||[]).map(function(ph){ return {data:ph.data, legende:ph.legende, section:"Photo"}; });
   if(!liste.length){ if(!auto) toast("Aucune photo dans ce suivi."); return Promise.resolve(false); }
-  if(!refAffaire()){ toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
+  if(!refAffaire()){ if(!auto) toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
   var dossier = nomFichier(refAffaire());
   var fichiers = liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
@@ -2018,27 +2027,79 @@ function deposerPhotos(auto){
     return {nom: dossier + "/" + num + (etiquette ? "-" + nomFichier(etiquette) : "") + ".jpg",
             octets: b64ToBytes(String(p.data).split(",")[1])};
   });
-  var blob = creerZip(fichiers);
-  return new Promise(function(fin){
-    var fr = new FileReader();
-    fr.onload = function(){
-      var b64 = String(fr.result).split(",")[1];
-      if(b64.length*0.75 > 5.4*1024*1024){ toast("Photos trop lourdes pour le dépôt : retirez-en quelques-unes."); fin(false); return; }
-      fetch(apiUrl("publier"), {
-        method:"POST", headers:apiEnTetes(),
-        body:JSON.stringify({
-          pdf: b64, type:"photos", suiviId: S.suiviId,
+  /* des lots qui tiennent dans une requête */
+  var lots=[], cour=[], poids=0;
+  fichiers.forEach(function(f){
+    if(cour.length && poids+f.octets.length > LOT_PHOTOS){ lots.push(cour); cour=[]; poids=0; }
+    cour.push(f); poids+=f.octets.length;
+  });
+  if(cour.length) lots.push(cour);
+  var versDossier = (typeof PUB_MODE === "undefined") || PUB_MODE === "dossier";
+  function envoyer(lot, k){
+    return new Promise(function(fin){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var b64 = String(fr.result).split(",")[1];
+        if(b64.length*0.75 > 5.4*1024*1024){ if(!auto) toast("Une photo est trop lourde pour le dépôt."); fin({ok:false}); return; }
+        var corps = {
+          pdf: b64, type:"photos", suiviId: S.suiviId + (k ? "-" + (k+1) : ""),
           chantier: refAffaire(), client: nomClient(), adresse: adresseTravaux(),
           date: dateFiche(), destinataires: destinataires().slice(),
-          titre: "Photos · "+titreSuivi()+" ("+liste.length+")"
-        })
-      })
-      .then(function(r){ fin(r.ok); })
-      .catch(function(){ fin(false); });
-    };
-    fr.readAsDataURL(blob);
-  });
+          titre: "Photos · "+titreSuivi()+" ("+liste.length+")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")
+        };
+        if(versDossier) corps.dossier = true;
+        fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+          .then(function(r){ return r.json().then(function(d){ fin({ok:r.ok, erreur:d && d.erreur}); }, function(){ fin({ok:r.ok}); }); })
+          .catch(function(){ fin({ok:false, reseau:true}); });
+      };
+      fr.readAsDataURL(creerZip(lot));
+    });
+  }
+  var tous=true, derniere=null;
+  return lots.reduce(function(p, lot, k){
+    return p.then(function(){ return envoyer(lot, k).then(function(r){ if(!r.ok){ tous=false; derniere=r; } }); });
+  }, Promise.resolve()).then(function(){ deposerPhotos.derniere=derniere; return tous; });
 }
+/* l'envoi automatique : une signature des photos, envoyée quand elle change */
+function signaturePhotos(){
+  /* le suivi et le chantier en font partie : un nouveau suivi, ou un autre chantier, renvoie tout */
+  return S.suiviId+"@"+refAffaire()+"#"+(S.photos||[]).map(function(ph){ return String(ph.data||"").length+":"+(ph.legende||""); }).join("|");
+}
+var PH_SITE_T=null, PH_SITE_EN_COURS=false;
+function peindrePhotosSite(){
+  var el=$("ph_site"); if(!el) return;
+  var n=(S.photos||[]).length, st=S.photosSite||{};
+  if(!n || !baseSite() || !jetonSession()){ el.hidden=true; return; }
+  el.hidden=false;
+  if(PH_SITE_EN_COURS){ el.textContent="Envoi des photos sur le site…"; return; }
+  if(st.sig && st.sig===signaturePhotos()){
+    var q=new Date(st.le);
+    el.textContent="Photos enregistrées sur le site ("+n+"), à "+String(q.getHours()).padStart(2,"0")+":"+String(q.getMinutes()).padStart(2,"0")+".";
+  } else if(!refAffaire()) el.textContent="Les photos partiront sur le site dès que le chantier sera choisi.";
+  else if(st.erreur) el.textContent="Photos gardées sur l'appareil : "+st.erreur;
+  else el.textContent="Photos gardées sur l'appareil, envoi sur le site dans un instant.";
+}
+function planifierPhotosSite(){
+  clearTimeout(PH_SITE_T);
+  if(!(S.photos||[]).length || !baseSite() || !jetonSession() || !refAffaire()){ peindrePhotosSite(); return; }
+  if(S.photosSite && S.photosSite.sig===signaturePhotos()){ peindrePhotosSite(); return; }
+  peindrePhotosSite();
+  PH_SITE_T=setTimeout(function(){
+    if(PH_SITE_EN_COURS){ planifierPhotosSite(); return; }
+    var sig=signaturePhotos(), idSuivi=S.suiviId;
+    PH_SITE_EN_COURS=true; peindrePhotosSite();
+    deposerPhotos(true).then(function(ok){
+      PH_SITE_EN_COURS=false;
+      if(S.suiviId!==idSuivi) return;            /* un autre suivi a été ouvert entre-temps */
+      var d=deposerPhotos.derniere;
+      if(ok) S.photosSite={sig:sig, le:new Date().toISOString()};
+      else S.photosSite={sig:"", erreur: d && d.erreur ? d.erreur : "pas de réseau, nouvel essai à la prochaine photo."};
+      enregistrer(); peindrePhotosSite();
+      if(ok && sig!==signaturePhotos()) planifierPhotosSite();
+    });
+  }, 4000);
+}
+window.addEventListener("online", function(){ try{ planifierPhotosSite(); }catch(e){} });
 
 /* Le dossier de photos porte le nom du client, suivi de « photos » :
    c'est ce qu'on cherche des mois plus tard dans ses téléchargements.
@@ -2951,7 +3012,9 @@ function bindAll(){
      suivi s'ouvre d'un appui */
   window.addEventListener("suivi:publie", function(){
     var el=$("pubEtat");
+    var sigPub=signaturePhotos();
     deposerPhotos(true).then(function(ok){
+      if(ok){ S.photosSite={sig:sigPub, le:new Date().toISOString()}; enregistrer(); peindrePhotosSite(); }
       if(ok && el) el.textContent += " Photos enregistrées sur le site.";
     });
     if(!el || document.getElementById("btnSuivant")) return;
