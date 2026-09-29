@@ -87,7 +87,7 @@ body.clair #scene{background:#FFFFFF}
 .calques li i{flex:0 0 auto;width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.3)}
 .calques li span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calques li small{color:var(--ink3)}
-.toast{position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;background:#F2F5F9;color:#0B0E12;
+.toast{pointer-events:none;position:fixed;left:50%;bottom:calc(130px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:20;background:#F2F5F9;color:#0B0E12;
   padding:9px 14px;border-radius:999px;font-size:13.5px;font-weight:600;width:max-content;max-width:90vw;text-align:center}
 .toast[hidden]{display:none}
 /* la palette des symboles : la légende CFO, en tuiles blanches comme sur le plan */
@@ -258,7 +258,6 @@ body.clair #scene{background:#FFFFFF}
 
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
-  <button type="button" class="bs-supp" id="bsSupp"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg>Supprimer</button>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
 </div>
@@ -300,6 +299,7 @@ body.clair #scene{background:#FFFFFF}
   <div class="palette" id="palette" role="listbox" aria-label="Symboles de la légende"></div>
   <div class="reglages">
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
+    <button class="bt" id="btEnchainerS" type="button" aria-pressed="false" title="Poser le même symbole plusieurs fois (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> cm</label>
     <datalist id="hTypes"><option value="30" label="prise"><option value="70" label="prise au-dessus du chevet"><option value="90" label="interrupteur de tête de lit"><option value="110" label="commande, plan de travail"><option value="130" label="liseuse"><option value="180" label="applique"><option value="200" label="au-dessus du miroir"></datalist>
@@ -319,6 +319,7 @@ body.clair #scene{background:#FFFFFF}
   <div class="palette outils-d" id="outilsD" role="toolbar" aria-label="Outils de dessin">
     <button type="button" data-o="mur"><i><svg viewBox="0 0 24 24"><path d="M3 9h18v6H3z" fill="#2F343B" stroke="none"/></svg></i>Mur</button>
     <button type="button" data-o="cloison"><i><svg viewBox="0 0 24 24"><path d="M3 11h18v2.4H3z" fill="#2F343B" stroke="none"/></svg></i>Cloison</button>
+    <button type="button" data-o="piece"><i><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z" fill="none" stroke="#2F343B" stroke-width="3"/></svg></i>Pièce</button>
     <button type="button" data-o="porte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M2 20h4M18 20h4" stroke-width="4" stroke="#2F343B"/><path d="M6 20V6"/><path d="M6 6a14 14 0 0 1 12 14"/></svg></i>Porte</button>
     <button type="button" data-o="pf"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M1 20h2M21 20h2" stroke-width="4" stroke="#2F343B"/><path d="M3 20v-9M21 20v-9M3 11a9 9 0 0 1 9 9M21 11a9 9 0 0 0-9 9"/></svg></i>Porte-fenêtre</button>
     <button type="button" data-o="fenetre"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.2"><path d="M1 12h4M19 12h4" stroke-width="6" stroke="#2F343B"/><path d="M5 9h14M5 15h14M5 11.3h14M5 12.7h14M5 9v6M19 9v6"/></svg></i>Fenêtre</button>
@@ -340,6 +341,7 @@ body.clair #scene{background:#FFFFFF}
   <div class="reglages">
     <span class="groupe" id="grpEp"><span class="lab">Épaisseur</span>
       <span class="seg" id="segEp"><button type="button" data-e="50">5</button><button type="button" data-e="70">7</button><button type="button" data-e="100">10</button><button type="button" data-e="150">15</button><button type="button" data-e="200">20</button><button type="button" data-e="300">30</button></span><span class="lab">cm</span></span>
+    <span class="groupe" id="grpPiece" hidden><span class="lab">Largeur</span><input class="champ-cm" id="pcL" type="text" inputmode="decimal" aria-label="Largeur de la pièce en cm"><span class="lab">× longueur</span><input class="champ-cm" id="pcP" type="text" inputmode="decimal" aria-label="Longueur de la pièce en cm"><span class="lab">× hauteur</span><input class="champ-cm" id="pcH" type="text" inputmode="decimal" aria-label="Hauteur sous plafond en cm"><span class="lab">cm</span></span>
     <span class="groupe" id="grpLarg" hidden><span class="lab">Largeur</span><select id="selLarg" class="sel-d"></select></span>
     <span class="groupe" id="grpChoixMob" hidden><span class="lab">Poser</span><select id="selMob" class="sel-d" aria-label="Meuble ou forme à poser"></select></span>
     <span class="groupe" id="grpMob" hidden><span class="lab">L</span><input class="champ-cm" id="mobL" type="text" inputmode="decimal" aria-label="Largeur en cm"><span class="lab">P</span><input class="champ-cm" id="mobP" type="text" inputmode="decimal" aria-label="Profondeur en cm"><span class="lab">H</span><input class="champ-cm" id="mobH" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab">du sol</span><input class="champ-cm" id="mobZ" type="text" inputmode="decimal" aria-label="Hauteur du dessous au-dessus du sol en cm"><span class="lab">cm</span></span>
@@ -360,6 +362,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span></span>
     <button class="bt" id="btDepuisD" type="button" title="Le prochain point à une distance exacte d'un point">Depuis un point</button>
     <button class="bt" id="btTerminer" type="button" hidden>Terminer le mur</button>
+    <button class="bt" id="btEnchainerD" type="button" aria-pressed="false" title="Garder l'outil après chaque élément (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btInverser" type="button" hidden>Sens d'ouverture</button>
     <button class="bt" id="btMain" type="button" hidden>Côté des gonds</button>
     <button class="bt" id="btRenommer" type="button" hidden>Renommer</button>
@@ -1058,7 +1061,7 @@ function lacher(e){
     }
     if(e.type!=="pointercancel"){
       if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
-      else if(!G.bouge) poserSymbole(versPlan(p[0], p[1]));
+      else if(!G.bouge){ if(ARME_S || garderOutil()) poserSymbole(versPlan(p[0], p[1])); else SEL=-1; }
       majSymb();
     }
     G=null; demander(); return;
@@ -1138,7 +1141,9 @@ function poserSymbole(pt){
   var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
   if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
   SYMB.push(o);
-  SEL=SYMB.length-1; enregistrerSymb();
+  /* posé : la palette se relâche et rien n'est choisi, le doigt redéplace le plan ; Enchaîner (ou Ctrl) garde le symbole */
+  if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
+  enregistrerSymb();
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
 function supprimerSymb(){ if(SEL<0) return; garderSymb(); SYMB.splice(SEL,1); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
@@ -1152,7 +1157,7 @@ function majSymb(){
   $("symbNb").textContent=String(SYMB.length);
   $("symbDetail").textContent = def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
-    : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"."
+    : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole en bas pour en poser un autre.")
                    : "Choisissez un symbole, puis touchez le plan pour le poser.");
   $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
   $("grpHSym").hidden=!o;
@@ -1161,7 +1166,8 @@ function majSymb(){
   $("btAccrS").classList.toggle("on", ACCR_D); $("btAccrS").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDefaireS").disabled=!HISTO_S.length; $("btDxf").disabled=!SYMB.length && dessinVide();
   Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
-  Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX; b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
+  Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX && (ARME_S || garderOutil()); b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
+  majEnchainer();
   peindreQuantites();
   majBarreSel();
 }
@@ -1185,7 +1191,7 @@ function remplirPalette(){
       var b=document.createElement("button"); b.type="button"; b.dataset.cle=sy.cle; b.title=sy.nom; b.setAttribute("role","option");
       var i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(sy.cle, 28);
       b.appendChild(i); b.appendChild(document.createTextNode(sy.court||sy.nom));
-      b.addEventListener("click", function(){ CHOIX=sy.cle; garder("dwg:symbole", CHOIX); SEL=-1; majSymb(); demander(); });
+      b.addEventListener("click", function(){ CHOIX=sy.cle; ARME_S=true; garder("dwg:symbole", CHOIX); SEL=-1; majSymb(); demander(); });
       pal.appendChild(b);
     });
   });
@@ -1199,7 +1205,7 @@ function basculerMode(m){
   if(m==="dessin") majDessin();
   if(m!=="symb") $("quantites").hidden=true;
   majBarreSel();
-  if(m==="symb"){ remplirPalette(); majSymb(); if(!SYMB.length) toast("Choisissez un symbole en bas, puis touchez le plan pour le poser."); }
+  if(m==="symb"){ ARME_S=true; remplirPalette(); majSymb(); if(!SYMB.length) toast("Choisissez un symbole en bas, puis touchez le plan pour le poser."); }
   else majBas();
   demander();
 }
@@ -1377,7 +1383,6 @@ function majBarreSel(){
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
-$("bsSupp").addEventListener("click", function(){ if(MODE==="symb") supprimerSymb(); else supprimerD(); majBarreSel(); });
 $("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; majDessin(); } majBarreSel(); demander(); });
 function telecharger(blob, nom){
   /* dans l'appli installée, un PDF s'ouvre avec sa barre OK au lieu de remplacer la page */
@@ -1402,9 +1407,18 @@ function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
 function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir",
+var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir",
   trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+/* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
+   l'outil se relâche (retour à Choisir, rien de choisi) et le doigt redéplace
+   le plan. « Enchaîner », ou Ctrl maintenu, garde l'outil pour en poser plusieurs. */
+var ENCHAINER=false, CTRL_TENU=false, ARME_S=true;
+function garderOutil(){ return ENCHAINER || CTRL_TENU; }
+function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=null; GEO_EC=null; D_SEL=null; return true; }
+function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
+/* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
+var PIECE=(function(){ var v=String(lire("dwg:piece","400x300x250")).split("x").map(Number); return {l:v[0]>0?v[0]:400, p:v[1]>0?v[1]:300, h:v[2]>0?v[2]:250}; })();
 function garderD(){ HISTO_D.push(JSON.stringify(DESSIN)); if(HISTO_D.length>100) HISTO_D.shift(); }
 function enregistrerD(){
   if(!DESSIN_CLE) return;
@@ -1595,7 +1609,20 @@ function toucherD(sx, sy, force){
     garderD();
     var m={id:idD(), a:D_PT.slice(), b:fin, ep:(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM};
     var hd = OUTIL_D==="cloison" ? H_CLOISON : H_MUR; if(hd) m.h=hd;
-    DESSIN.murs.push(m); D_PT=fin; D_SEL={t:"mur", id:m.id}; enregistrerD(); majDessin(); return;
+    DESSIN.murs.push(m); enregistrerD();
+    if(garderOutil()){ D_PT=fin; D_SEL={t:"mur", id:m.id}; } else finOutil();
+    majDessin(); return;
+  }
+  if(OUTIL_D==="piece"){
+    /* le point touché est le coin intérieur en haut à gauche ; les murs s'épaississent vers l'extérieur */
+    var L=PIECE.l*10/DESSIN_MM, P=PIECE.p*10/DESSIN_MM, e=EP_MUR/DESSIN_MM, c=cible.pt;
+    var x0=c[0]-e/2, x1=c[0]+L+e/2, y1=c[1]+e/2, y0=c[1]-P-e/2, pts=[[x0,y1],[x1,y1],[x1,y0],[x0,y0]];
+    garderD();
+    for(var k=0;k<4;k++) DESSIN.murs.push({id:idD(), a:pts[k].slice(), b:pts[(k+1)%4].slice(), ep:e, h:PIECE.h*10});
+    if(PIECE.h*10 > hspD()) DESSIN.hsp=PIECE.h*10;
+    enregistrerD(); finOutil(); majDessin();
+    toast("Pièce de "+PIECE.l+" × "+PIECE.p+" cm, "+PIECE.h+" cm de haut : ajoutez portes et fenêtres, ou « Nom de pièce ».", 4000);
+    return;
   }
   if(OUTIL_D==="porte" || OUTIL_D==="pf" || OUTIL_D==="fenetre"){
     var best=null, bd=Infinity;
@@ -1607,7 +1634,7 @@ function toucherD(sx, sy, force){
     var cote=((p[0]-best.m.a[0])*x.n[0]+(p[1]-best.m.a[1])*x.n[1])>=0 ? 1 : -1;
     garderD();
     var o={id:idD(), type:OUTIL_D, mur:best.m.id, t:t, l:l, sens:cote, main:1};
-    DESSIN.ouv.push(o); D_SEL={t:"ouv", id:o.id}; enregistrerD(); majDessin(); return;
+    DESSIN.ouv.push(o); D_SEL={t:"ouv", id:o.id}; finOutil(); enregistrerD(); majDessin(); return;
   }
   if(OUTIL_D==="objet"){
     poserMob(p); return;     /* même sur un autre meuble : un miroir au-dessus d'une vasque */
@@ -1617,7 +1644,7 @@ function toucherD(sx, sy, force){
     if(s==null || !String(s).trim()) return;
     garderD();
     var tx={id:idD(), x:p[0], y:p[1], s:String(s).trim(), h:250/DESSIN_MM};
-    DESSIN.textes.push(tx); D_SEL={t:"texte", id:tx.id}; enregistrerD(); majDessin(); return;
+    DESSIN.textes.push(tx); D_SEL={t:"texte", id:tx.id}; finOutil(); enregistrerD(); majDessin(); return;
   }
   /* choisir : l'objet le plus proche */
   D_SEL=objetSous(p); majDessin();
@@ -1655,7 +1682,8 @@ function majDessin(){
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button"), function(b){ b.classList.toggle("on", b.dataset.o===OUTIL_D); });
   majFamille();
   var info=NOMS_OUTILS[OUTIL_D], det="";
-  if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur, ou glissez depuis ce point. Toucher le même point, ou « Terminer », arrête le tracé." : "Glissez du début à la fin du mur, ou touchez le début puis la fin. Deux doigts déplacent le plan.";
+  if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur"+(garderOutil() ? ", ou glissez depuis ce point. Toucher le même point, ou « Terminer », arrête le tracé." : ".") : "Glissez du début à la fin du mur, ou touchez le début puis la fin. Deux doigts déplacent le plan.";
+  else if(OUTIL_D==="piece") det="Tapez largeur × longueur × hauteur, puis touchez le coin intérieur en haut à gauche de la pièce.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
   else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier.";
   else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
@@ -1678,7 +1706,10 @@ function majDessin(){
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
   if(o && t==="mob") det=(o.nom || defMob(o.cle).nom)+" · "+cm(o.l*DESSIN_MM)+" × "+cm(o.p*DESSIN_MM)+" × "+cm(o.h)+" cm"+((o.z||0) ? ", à "+cm(o.z)+" cm du sol" : "")+". Glissez pour déplacer.";
   $("dsInfo").textContent=info; $("dsDetail").textContent=det;
-  var pourMur = (OUTIL_D==="mur" || OUTIL_D==="cloison") && !o || t==="mur";
+  var pourMur = (OUTIL_D==="mur" || OUTIL_D==="cloison" || OUTIL_D==="piece") && !o || t==="mur";
+  $("grpPiece").hidden = OUTIL_D!=="piece" || !!o;
+  if(OUTIL_D==="piece") [["pcL","l"],["pcP","p"],["pcH","h"]].forEach(function(c){ if(document.activeElement!==$(c[0])) $(c[0]).value=String(PIECE[c[1]]); });
+  majEnchainer();
   $("grpEp").hidden = !pourMur;
   var ep = t==="mur" ? Math.round(o.ep*DESSIN_MM) : (OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR);
   Array.prototype.forEach.call($("segEp").children, function(b){ b.classList.toggle("on", Number(b.dataset.e)===ep); });
@@ -1749,6 +1780,25 @@ $("outilsD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; majDessin();
 });
+[["pcL","l"],["pcP","p"],["pcH","h"]].forEach(function(c){
+  $(c[0]).addEventListener("input", function(){
+    var v=parseFloat(String(this.value).replace(",", "."));
+    if(v>0 && v<100000){ PIECE[c[1]]=Math.round(v*10)/10; garder("dwg:piece", PIECE.l+"x"+PIECE.p+"x"+PIECE.h); }
+  });
+});
+["btEnchainerD","btEnchainerS"].forEach(function(id){
+  $(id).addEventListener("click", function(){
+    ENCHAINER=!ENCHAINER; majEnchainer();
+    if(!ENCHAINER && D_PT && !GEO_EC){ D_PT=null; }
+    if(MODE==="symb"){ ARME_S=true; majSymb(); } else majDessin();
+    toast(ENCHAINER ? "Enchaîner : l'outil reste actif, pour en poser plusieurs à la suite." : "L'outil se relâche après chaque élément.");
+    demander();
+  });
+});
+/* Ctrl (ou Cmd) maintenu : l'outil reste, comme avec Enchaîner */
+window.addEventListener("keydown", function(e){ if(e.key==="Control" || e.key==="Meta") CTRL_TENU=true; });
+window.addEventListener("keyup", function(e){ if(e.key==="Control" || e.key==="Meta") CTRL_TENU=false; });
+window.addEventListener("blur", function(){ CTRL_TENU=false; });
 $("segEp").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return; var v=Number(b.dataset.e);
   if(D_SEL && D_SEL.t==="mur"){ modifierSel(function(o){ o.ep=v/DESSIN_MM; }); return; }
@@ -1899,7 +1949,7 @@ function creerGeo(o){
   if(o.t==="cote" || o.t==="gtexte") o.h=o.h||tailleDefaut(o.t==="cote" ? 12 : 16);
   if(o.t==="fleche") o.fl=o.fl||tailleDefaut(12);
   garderD(); DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(o);
-  GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; enregistrerD(); majDessin();
+  GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; finOutil(); enregistrerD(); majDessin();
 }
 function rectDe(a, c){ return [a.slice(), [c[0], a[1]], c.slice(), [a[0], c[1]]]; }
 /* la fin d'un segment : sur le point accroché, sinon droite si Ortho */
@@ -2288,7 +2338,7 @@ function accrocherMob(o, p, garderRot, sansCaler){
 function poserMob(p){
   var o=nouveauMob(CHOIX_MOB), a=accrocherMob(o, p, false);
   o.x=a.x; o.y=a.y; o.rot=a.rot;
-  garderD(); DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(o); D_SEL={t:"mob", id:o.id}; enregistrerD(); majDessin();
+  garderD(); DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(o); D_SEL={t:"mob", id:o.id}; finOutil(); enregistrerD(); majDessin();
 }
 function tournerMob(){
   var o=objetSel(); if(o && D_SEL.t==="geo"){ modifierSel(tournerGeo); return; }
@@ -3783,7 +3833,7 @@ document.addEventListener("click", function(e){ if(!$("plusMenu").hidden && !e.t
 window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
-window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; })); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
