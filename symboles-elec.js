@@ -249,7 +249,43 @@
     })+"\r\n";
   }
 
+  /* ---------- dans un PDF (jsPDF, en mm, y vers le bas) ----------
+     Vectoriel : la légende d'un plan imprimé reste nette. */
+  function pdf(doc, cle, x, y, R, o){
+    var s=PAR[cle]; if(!s) return false;
+    o=o||{};
+    var col=(o.couleur||s.couleur).replace("#",""), rgb=[parseInt(col.slice(0,2),16), parseInt(col.slice(2,4),16), parseInt(col.slice(4,6),16)];
+    var co=Math.cos(o.rot||0), si=Math.sin(o.rot||0);
+    function P(px, py){ return [x+(px*co-py*si)*R, y+(px*si+py*co)*R]; }
+    function poly(pts, plein, ferme){
+      var q=pts.map(function(t){ return P(t[0], t[1]); }), d=[];
+      for(var i=1;i<q.length;i++) d.push([q[i][0]-q[i-1][0], q[i][1]-q[i-1][1]]);
+      doc.lines(d, q[0][0], q[0][1], [1,1], plein ? "F" : "S", !!ferme);
+    }
+    function arcPts(cx, cy, r, a0, a1, n){
+      var out=[]; for(var k=0;k<=n;k++){ var t=(a0+(a1-a0)*k/n)*Math.PI/180; out.push([cx+r*Math.cos(t), cy+r*Math.sin(t)]); } return out;
+    }
+    doc.setDrawColor(rgb[0],rgb[1],rgb[2]); doc.setFillColor(rgb[0],rgb[1],rgb[2]);
+    doc.setLineWidth(Math.max(0.08, R*EP));
+    if(doc.setLineCap) try{ doc.setLineCap("round"); doc.setLineJoin("round"); }catch(e){}
+    s.el.forEach(function(e){
+      if(e.c){ var c=P(e.c[0], e.c[1]); doc.circle(c[0], c[1], e.c[2]*R, e.f ? "FD" : "S"); }
+      else if(e.l){ var a=P(e.l[0],e.l[1]), b=P(e.l[2],e.l[3]); doc.line(a[0],a[1],b[0],b[1]); }
+      else if(e.p){ poly(e.p, false, !!e.z); }
+      else if(e.t){ poly(e.t, true, true); poly(e.t.concat([e.t[0]]), false, false); }
+      else if(e.a){ poly(arcPts(e.a[0],e.a[1],e.a[2],e.a[3],e.a[4],Math.max(6, Math.round((e.a[4]-e.a[3])/6))), false, false); }
+      else if(e.s){ poly([[e.s[0],e.s[1]]].concat(arcPts(e.s[0],e.s[1],e.s[2],e.s[3],e.s[4],18)), true, true); }
+      else if(e.r){
+        /* l'anneau : un trait aussi épais que l'anneau, au rayon moyen */
+        var cr=P(e.r[0], e.r[1]); doc.setLineWidth((e.r[3]-e.r[2])*R); doc.circle(cr[0], cr[1], (e.r[2]+e.r[3])/2*R, "S");
+        doc.setLineWidth(Math.max(0.08, R*EP));
+      }
+    });
+    return true;
+  }
+
   window.SymbolesElec = {
+    pdf: pdf,
     liste: LISTE,
     groupes: ["Éclairage","Prises","Commandes","Alimentations"],
     trouver: function(cle){ return PAR[cle] || null; },
