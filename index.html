@@ -163,9 +163,26 @@ body.connexion button.lien{color:var(--accent)}
   display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--accent-vif,#EA7A1E);color:#fff;
   font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .ba-droite .btn-outils.todo .nb[hidden]{display:none}
-@media (max-width:370px){ .barre-actions .btn-outils{padding:0 13px 0 11px;font-size:14px;gap:6px} }
-/* Outils, Calendrier, puis la to-do list et la cloche : sur un téléphone étroit, deux rangées */
-.barre-actions{flex-wrap:wrap;row-gap:10px}
+
+/* Outils, Calendrier, la to-do list et la cloche : une seule ligne, même sur un petit téléphone */
+.barre-actions{flex-wrap:nowrap}
+.barre-actions .btn-outils{flex:0 1 auto;min-width:0}
+.barre-actions .btn-outils svg{flex:0 0 auto}
+@media (max-width:480px){
+  .barre-actions{gap:6px}
+  .barre-actions .ba-droite{gap:6px}
+  .barre-actions .btn-outils{min-height:38px;padding:0 11px 0 9px;gap:5px;font-size:13.5px}
+  .barre-actions .btn-outils svg{width:17px;height:17px}
+  .barre-actions .ba-droite .cloche{width:38px;height:38px}
+  .barre-actions .ba-droite .cloche svg{width:19px;height:19px}
+}
+@media (max-width:380px){
+  .barre-actions{gap:5px}
+  .barre-actions .ba-droite{gap:5px}
+  .barre-actions .btn-outils{min-height:36px;padding:0 8px 0 7px;gap:4px;font-size:12.5px;letter-spacing:-.02em}
+  .barre-actions .btn-outils svg{width:16px;height:16px}
+  .barre-actions .ba-droite .cloche{width:36px;height:36px}
+}
 .btn-cal{position:relative;white-space:nowrap}
 .btn-cal .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;
   border-radius:10px;background:var(--accent-vif,#EA7A1E);color:#fff;font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
@@ -2138,7 +2155,9 @@ function choisirJourCal(iso){
   CAL.jour=iso; var d=new Date(iso+"T12:00:00");
   if(d.getMonth()!==CAL.mois || d.getFullYear()!==CAL.an){ CAL.mois=d.getMonth(); CAL.an=d.getFullYear(); }
   peindreCal();
-  try{ $("calTexte").focus({preventScroll:true}); }catch(e){}
+  /* au doigt, pas de clavier qui surgit : on touche le champ quand on veut écrire */
+  var souris=window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches;
+  if(souris) try{ $("calTexte").focus({preventScroll:true}); }catch(e){}
 }
 function peindreJourCal(){
   var d=new Date(CAL.jour+"T12:00:00");
