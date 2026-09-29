@@ -242,6 +242,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button></span>
     <button class="bt" id="v3Recentrer" type="button" title="Voir tout le dessin">Recentrer</button>
     <button class="bt" id="v3Transp" type="button" aria-pressed="false">Murs transparents</button>
+    <button class="bt" id="v3Plafond" type="button" aria-pressed="true" title="Le plafond, au-dessus des pièces fermées par les murs">Plafond</button>
     <button class="bt" id="v3Cotes" type="button" aria-pressed="false" title="Afficher les hauteurs de pose et les cotes">Cotes</button>
     <button class="bt" id="v3Vols" type="button" aria-pressed="true" hidden>Volumes SDB</button>
     <label>Sous plafond <input id="v3Hsp" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur sous plafond en cm"> cm</label>
@@ -2506,6 +2507,71 @@ function mobilier3D(sc){
     sc.add(gr);
   });
 }
+/* ---------- le plafond ----------
+   Il couvre ce que les murs ferment : le plan est quadrillé finement, les
+   murs y sont tracés, et tout ce qu'on n'atteint pas depuis le bord (les
+   pièces, et les murs eux-mêmes) est sous plafond. Une porte n'ouvre pas
+   la pièce : le mur est tracé plein. Si rien n'est fermé (un plan en
+   cours), le plafond couvre le rectangle des murs. Il ne se voit que par
+   en dessous : d'en haut, on voit toujours l'intérieur ; en visite, on
+   voit le plafond et ses luminaires. */
+function zonePlafond(){
+  var murs=DESSIN.murs; if(!murs.length) return null;
+  var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  murs.forEach(function(m){ [m.a, m.b].forEach(function(q){ x0=Math.min(x0, q[0]-m.ep); x1=Math.max(x1, q[0]+m.ep); y0=Math.min(y0, q[1]-m.ep); y1=Math.max(y1, q[1]+m.ep); }); });
+  var pas=Math.max(25, Math.max(x1-x0, y1-y0)/500);
+  x0-=2*pas; y0-=2*pas; x1+=2*pas; y1+=2*pas;
+  var nx=Math.ceil((x1-x0)/pas), ny=Math.ceil((y1-y0)/pas), g=new Uint8Array(nx*ny);     /* 0 libre, 1 mur, 2 dehors */
+  murs.forEach(function(m){
+    var r=m.ep/2+pas*0.75, ax=Math.max(0, Math.floor((Math.min(m.a[0], m.b[0])-r-x0)/pas)), bx=Math.min(nx-1, Math.ceil((Math.max(m.a[0], m.b[0])+r-x0)/pas));
+    var ay=Math.max(0, Math.floor((Math.min(m.a[1], m.b[1])-r-y0)/pas)), by=Math.min(ny-1, Math.ceil((Math.max(m.a[1], m.b[1])+r-y0)/pas));
+    for(var j=ay;j<=by;j++) for(var i=ax;i<=bx;i++){
+      if(g[j*nx+i]) continue;
+      if(distSeg([x0+(i+0.5)*pas, y0+(j+0.5)*pas], m.a, m.b).d<=r) g[j*nx+i]=1;
+    }
+  });
+  /* le dehors, par remplissage depuis le bord */
+  var pile=[];
+  for(var i=0;i<nx;i++){ pile.push(i, (ny-1)*nx+i); }
+  for(var j=0;j<ny;j++){ pile.push(j*nx, j*nx+nx-1); }
+  while(pile.length){
+    var c=pile.pop(); if(g[c]) continue; g[c]=2;
+    var ci=c%nx, cj=(c-ci)/nx;
+    if(ci>0) pile.push(c-1); if(ci<nx-1) pile.push(c+1); if(cj>0) pile.push(c-nx); if(cj<ny-1) pile.push(c+nx);
+  }
+  /* des bandes de cellules sous plafond, fusionnées d'une rangée à l'autre */
+  var rects=[], ouverts={}, libres=0;
+  for(var j2=0;j2<=ny;j2++){
+    var runs={};
+    if(j2<ny){
+      for(var i2=0;i2<nx;){
+        if(g[j2*nx+i2]===2){ i2++; continue; }
+        var d=i2; while(i2<nx && g[j2*nx+i2]!==2){ if(!g[j2*nx+i2]) libres++; i2++; }
+        runs[d+":"+i2]=1;
+      }
+    }
+    Object.keys(ouverts).forEach(function(k){ if(!runs[k]){ var o=ouverts[k]; rects.push([x0+o.i0*pas, y0+o.j0*pas, x0+o.i1*pas, y0+j2*pas]); delete ouverts[k]; } });
+    Object.keys(runs).forEach(function(k){ if(!ouverts[k]){ var t=k.split(":"); ouverts[k]={i0:+t[0], i1:+t[1], j0:j2}; } });
+  }
+  if(!libres) return {rects:[[x0+2*pas, y0+2*pas, x1-2*pas, y1-2*pas]], ferme:false};
+  return {rects:rects, ferme:true};
+}
+function plafond3D(sc, hsp){
+  var THREE=V3.THREE, z=zonePlafond(); if(!z) return;
+  var pos=[], y=hsp/1000;
+  z.rects.forEach(function(r){
+    var a=r[0]/1000, b=r[2]/1000, c=-r[1]/1000, d=-r[3]/1000;
+    /* deux triangles tournés vers le bas */
+    pos.push(a,y,c, a,y,d, b,y,d,  a,y,c, b,y,d, b,y,c);
+  });
+  var geo=new THREE.BufferGeometry(); geo.setAttribute("position", new THREE.Float32BufferAttribute(pos, 3)); geo.computeVertexNormals();
+  /* dessous : blanc cassé, éclairé ; dessus : un voile léger, pour deviner le plafond sans cacher les pièces */
+  var mat=new THREE.MeshStandardMaterial({color:0xF7F6F2, emissive:0x8E8C86, roughness:0.95, side:THREE.FrontSide, transparent:V3.transp, opacity:V3.transp ? 0.35 : 1, depthWrite:!V3.transp});
+  var me=new THREE.Mesh(geo, mat); me.name="plafond"; sc.add(me);
+  var voile=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0xFFFFFF, side:THREE.BackSide, transparent:true, opacity:0.16, depthWrite:false}));
+  voile.renderOrder=5; voile.raycast=function(){}; sc.add(voile);   /* le pivot se prend dessous, pas sur le voile */
+  V3.plafond3=me;
+}
 function volumes3D(sc, hsp){
   var THREE=V3.THREE;
   var m1=new THREE.MeshBasicMaterial({color:0x2563EB, transparent:true, opacity:0.13, depthWrite:false, side:THREE.DoubleSide});
@@ -2779,7 +2845,7 @@ function ouvrir3D(){
       var cv3=$("v3Canvas");
       var r=new THREE.WebGLRenderer({canvas:cv3, antialias:true, preserveDrawingBuffer:true});
       V3={THREE:THREE, renderer:r, scene:null, camera:new THREE.PerspectiveCamera(50, 1, 0.02, 400), cam:{az:-0.6, el:0.75, dist:12, cible:[0,0,0]},
-          ortho:new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), etiquettes:[], murs3:[], mode:"persp", transp:false, cotes:lire("dwg:cotes3d","0")==="1", textures:{}};
+          ortho:new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), etiquettes:[], murs3:[], mode:"persp", transp:false, cotes:lire("dwg:cotes3d","0")==="1", plafond:lire("dwg:plafond3d","1")==="1", textures:{}};
       brancherGestes3D();
       window.addEventListener("resize", function(){ if(!$("vue3d").hidden){ taille3D(); rendu3D(); } });
     }
@@ -2863,7 +2929,7 @@ function construire3D(){
 }
 function construire3Dmm(ed){
   var THREE=V3.THREE, sc=new THREE.Scene(), hsp=hspD(), k=DESSIN_MM;
-  V3.etiquettes=[]; V3.murs3=[];
+  V3.etiquettes=[]; V3.murs3=[]; V3.plafond3=null;
   sc.background=new THREE.Color(0xE9EDF2);
   sc.add(new THREE.HemisphereLight(0xFFFFFF, 0x8A949E, 1.1)); sc.add(new THREE.AmbientLight(0xFFFFFF, 0.9));
   var so=new THREE.DirectionalLight(0xFFFFFF, 1.1); so.position.set(6, 12, 8); sc.add(so);
@@ -2925,6 +2991,7 @@ function construire3Dmm(ed){
   mobilier3D(sc);
   geo3D(sc);
   if(VOLS) volumes3D(sc, hsp);
+  if(V3.plafond) plafond3D(sc, hsp);
   /* les symboles */
   var cotes=[];
   SYMB.forEach(function(o, iS){
@@ -3264,6 +3331,7 @@ function majBarre3D(){
   Array.prototype.forEach.call($("v3Vue").children, function(b){ b.classList.toggle("on", b.dataset.v===V3.mode); });
   $("v3Transp").classList.toggle("on", V3.transp); $("v3Transp").setAttribute("aria-pressed", V3.transp?"true":"false");
   $("v3Cotes").classList.toggle("on", V3.cotes); $("v3Cotes").setAttribute("aria-pressed", V3.cotes?"true":"false");
+  $("v3Plafond").hidden=!DESSIN.murs.length; $("v3Plafond").classList.toggle("on", V3.plafond); $("v3Plafond").setAttribute("aria-pressed", V3.plafond?"true":"false");
   var vol=mobs().some(function(o){ return defMob(o.cle).vol; });
   $("v3Vols").hidden=!vol; $("v3Vols").classList.toggle("on", VOLS); $("v3Vols").setAttribute("aria-pressed", VOLS?"true":"false");
   var al=V3.alertes || {liste:[]}, bo=$("v3Alerte");
@@ -3289,6 +3357,7 @@ $("v3Moins").addEventListener("click", function(){ zoomBouton3D(1.35); });
 $("v3Vue").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; cadrer3D(b.dataset.v); majBarre3D(); rendu3D(); });
 $("v3Transp").addEventListener("click", function(){ if(!V3) return; V3.transp=!V3.transp; construire3D(); majBarre3D(); rendu3D(); });
 $("v3Vols").addEventListener("click", function(){ if(!V3) return; VOLS=!VOLS; garder("dwg:volumes", VOLS?"1":"0"); construire3D(); majBarre3D(); rendu3D(); demander(); });
+$("v3Plafond").addEventListener("click", function(){ if(!V3) return; V3.plafond=!V3.plafond; garder("dwg:plafond3d", V3.plafond?"1":"0"); construire3D(); majBarre3D(); rendu3D(); });
 $("v3Cotes").addEventListener("click", function(){ if(!V3) return; V3.cotes=!V3.cotes; garder("dwg:cotes3d", V3.cotes?"1":"0"); construire3D(); majBarre3D(); rendu3D(); });
 $("v3Hsp").addEventListener("change", function(){
   var cm=parseFloat(String(this.value).replace(",", ".")); if(!(cm>=180 && cm<=600)){ this.value=String(hspD()/10).replace(".", ","); return; }
@@ -3684,7 +3753,7 @@ document.addEventListener("click", function(e){ if(!$("plusMenu").hidden && !e.t
 window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
-window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; })); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
