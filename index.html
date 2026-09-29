@@ -2411,9 +2411,33 @@ function relevesEnCours(s){
     })
     .catch(function(){});
 }
+/* les interventions SAV confiées à la personne connectée : à terminer sur
+   place. Elles passent en tête des notifications, qui se repeignent
+   souvent : on les garde pour les remettre à chaque fois. */
+var SAV_A_TERMINER=[];
+function savATerminer(s){
+  fetch(apiUrl("sav-a-terminer"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ SAV_A_TERMINER=(d.interventions||[]).filter(function(x){ return x.pourMoi; }); peindreSavATerminer(); })
+    .catch(function(){});
+}
+function peindreSavATerminer(){
+  var host=$("notifs"); if(!host) return;
+  var vieux=host.querySelector(".sav-a-terminer"); if(vieux) vieux.remove();
+  var l=SAV_A_TERMINER; if(!l.length){ host.hidden=!host.children.length; return; }
+  var x=l[0], urg=l.some(function(i){ return i.urgence && i.urgence!=="Normale"; });
+  var n=notif(urg ? "rge sav-a-terminer" : "amb sav-a-terminer", String(l.length),
+    l.length>1 ? l.length+" interventions SAV à terminer" : "Une intervention SAV à terminer",
+    l.length>1 ? "La plus récente : "+(x.client||x.ref)+(x.appel && x.appel.par ? ", appel pris par "+x.appel.par : "")
+               : (x.client||x.ref)+(x.motif ? " — "+x.motif : "")+(x.appel && x.appel.par ? " · appel pris par "+x.appel.par : ""),
+    l.length>1 ? "./sav.html" : "./sav.html?terminer="+encodeURIComponent(x.cle));
+  host.insertBefore(n, host.firstChild);
+  host.hidden=false;
+}
 function charger(s){
   DERNIER_CHARGEMENT=Date.now();
   relevesEnCours(s);
+  savATerminer(s);
   messagesNonLus(s);
   SESSION_COURANTE=s;
   fetch(apiUrl("liste"), {headers:{"x-auth":s.jeton}})
@@ -2572,6 +2596,7 @@ function peindreNotifs(s, ch, relances){
   if(!tech && aRelancer.length) host.appendChild(notif("amb", String(aRelancer.length),
     aRelancer.length+(aRelancer.length>1?" chantiers sans nouvelle":" chantier sans nouvelle"),
     "Rien de déposé depuis trois semaines", "./rapports.html"));
+  peindreSavATerminer();
   host.hidden = !host.children.length;
 }
 /* ---------- la cloche des chantiers ----------

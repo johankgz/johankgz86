@@ -31,6 +31,10 @@ function libelleDocument(entree) {
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
     : entree.type === "point" ? "Le point de chantier"
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
+    : entree.type === "sav" ? (entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
+    : entree.type === "reception" ? "Procès-verbal de réception"
+    : entree.type === "etiquettes" ? "Étiquettes de tableau"
+    : entree.type === "photos" ? "Photos du chantier"
     : "Relevé technique"
   );
 }
@@ -773,7 +777,7 @@ async function traiter(req) {
     /* e-mail et téléphone : l'annuaire de la société, pour remplir les
        coordonnées du chargé d'affaires sur le relevé */
     return json({ personnes: comptes.map((p) => ({ nom: p.nom, role: p.role,
-      email: p.email || "", tel: p.tel || "" })) });
+      email: p.email || "", tel: p.tel || "", ...(p.nom === personne.nom || memeNom(p.nom, personne.nom) || (personne.identifiant && String(p.identifiant || "").trim().toLowerCase() === personne.identifiant) ? { moi: true } : {}) })) });
   }
 
   /* ---------- mon compte : chacun ses coordonnées ---------- */
@@ -1145,6 +1149,17 @@ async function traiter(req) {
       lectures: (ancien && ancien.lectures) ? ancien.lectures : {}
     };
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
+    /* une intervention SAV confiée, une fois publiée, n'est plus « à terminer » */
+    if (sav && typeof d.brouillon === "string" && /^[^/]+\/sav-a-terminer-[a-z0-9-]+\.json$/i.test(d.brouillon)) {
+      const refB = d.brouillon.split("/")[0], cB = idx.chantiers[refB];
+      const fB = cB && cB.fichiers.find((f) => f.cle === d.brouillon);
+      if (fB && (fB.auteur === personne.nom || (fB.destinataires || []).indexOf(personne.nom) >= 0 || bureau)) {
+        cB.fichiers = cB.fichiers.filter((f) => f.cle !== d.brouillon);
+        if (refB !== ref && !cB.fichiers.length) delete idx.chantiers[refB];
+        try { await store.delete(d.brouillon); } catch { /* rien à retirer */ }
+        entree.appel = fB.appel || null;
+      }
+    }
     /* un relevé publié n'est plus un relevé en cours */
     if (entree.type === "releve") {
       const brouillon = ref + "/releve-a-poursuivre.json";
@@ -1306,10 +1321,83 @@ async function traiter(req) {
     return json({ ok: true });
   }
 
+  const deposerBrouillonSav = async (d) => {
+    /* SAV : le bureau prend l'appel et commence la fiche, un technicien la
+       termine sur place. Pas de PDF : la fiche, le technicien, et qui a
+       pris l'appel. Une fiche confiée par intervention (plusieurs SAV
+       peuvent attendre sur le même dossier). */
+    if (!d.fiche) return json({ erreur: "Fiche vide." }, 400);
+    if (!aAcces(personne, APPLI_DU_TYPE.sav || "sav")) return json({ erreur: "Cette appli ne vous est pas attribuée. Voyez avec votre administrateur." }, 403);
+    const dest = Array.isArray(d.destinataires) ? d.destinataires.filter(Boolean).slice(0, 1) : [];
+    if (!dest.length) return json({ erreur: "Choisissez le technicien qui termine l'intervention." }, 400);
+    const id = String(d.id || "").toLowerCase().replace(/[^a-z0-9]+/g, "").slice(0, 24) || Date.now().toString(36);
+    const ref = slug(d.chantier || d.client || "sans-ref").toUpperCase();
+    const cle = ref + "/sav-a-terminer-" + id + ".json";
+    const idx = await lireIndex();
+    /* une fiche déjà confiée ailleurs (le dossier a changé de référence) : on la déplace */
+    Object.values(idx.chantiers).forEach((c0) => {
+      const avant = (c0.fichiers || []).find((f) => f.brouillon && f.type === "sav" && f.cle !== cle && f.cle.endsWith("/sav-a-terminer-" + id + ".json"));
+      if (avant) { c0.fichiers = c0.fichiers.filter((f) => f !== avant); store.delete(avant.cle).catch(() => {}); if (!c0.fichiers.length) delete idx.chantiers[c0.ref]; }
+    });
+    await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
+    const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: d.adresse || "", fichiers: [] };
+    if (d.client) c.client = d.client;
+    if (d.adresse && !c.adresse) c.adresse = d.adresse;
+    /* un dossier né de l'appel : celui qui l'a pris en est le responsable,
+       le technicien pourra publier « dans le dossier » */
+    if (!c.equipe || !c.equipe.length) c.equipe = [nomDuCompte(personne.nom, await lireComptes(personne.societe))].filter(Boolean);
+    const avant = c.fichiers.find((f) => f.cle === cle);
+    c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
+    const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+    const entree = {
+      cle, titre: "Intervention SAV à terminer", type: "sav", visite: "", etape: court(d.nature, 60),
+      date: d.date || new Date().toISOString().slice(0, 10),
+      auteur: avant ? avant.auteur : personne.nom, destinataires: dest, publie: new Date().toISOString(),
+      donnees: true, brouillon: true, lectures: {},
+      appel: avant && avant.appel ? avant.appel : { par: personne.nom, le: new Date().toISOString() },
+      urgence: court(d.urgence, 40), motif: court(d.motif, 160), confiePar: personne.nom
+    };
+    c.fichiers.push(entree);
+    c.maj = new Date().toISOString();
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    let prevenus = [];
+    const comptes = await lireComptes(personne.societe);
+    try { prevenus = await prevenir(entree, c, personne.nom, url.origin, comptes); } catch { prevenus = []; }
+    prevenirPush(store, magasinAnnuaire(), dest, "documents", {
+      titre: "SAV à terminer" + (entree.urgence && entree.urgence !== "Normale" ? " — " + entree.urgence : ""),
+      texte: (c.client || ref) + (entree.motif ? " : " + entree.motif : "") + " — confié par " + personne.nom,
+      url: "./sav.html?terminer=" + encodeURIComponent(cle),
+      tag: "sav-" + id
+    }, contactPush(url.origin), { comptes, exclure: [personne.nom] }).catch(() => {});
+    return json({ ok: true, ref, cle, prevenus });
+  };
+
+  if (action === "sav-a-terminer") {
+    /* les interventions confiées : au technicien celles qu'il doit terminer,
+       à celui qui a pris l'appel celles qui attendent encore */
+    const idx = await lireIndex();
+    const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
+    const out = [];
+    Object.values(idx.chantiers).forEach((c) => {
+      (c.fichiers || []).forEach((f) => {
+        if (f.type !== "sav" || !f.brouillon) return;
+        const pourMoi = (f.destinataires || []).some(moi), deMoi = moi(f.auteur) || moi(f.confiePar);
+        if (!pourMoi && !deMoi && !bureau) return;
+        out.push({ cle: f.cle, ref: c.ref, client: c.client, adresse: c.adresse || "", date: f.date, publie: f.publie,
+          technicien: (f.destinataires || [])[0] || "", appel: f.appel || null, urgence: f.urgence || "", motif: f.motif || "",
+          nature: f.etape || "", pourMoi, deMoi });
+      });
+    });
+    out.sort((a, b) => (a.pourMoi === b.pourMoi ? 0 : a.pourMoi ? -1 : 1) || (b.publie || "").localeCompare(a.publie || ""));
+    return json({ interventions: out });
+  }
+
   if (action === "deposer-brouillon") {
     /* relevé transmis à poursuivre : pas de PDF, juste la fiche et ses destinataires */
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    if (d.type === "sav") return await deposerBrouillonSav(d);
     if (!d.fiche) return json({ erreur: "Relevé vide." }, 400);
     const ref = slug(d.chantier || d.client || "sans-ref").toUpperCase();
     const dest = Array.isArray(d.destinataires) ? d.destinataires.filter(Boolean) : [];
@@ -2302,6 +2390,24 @@ async function traiter(req) {
     delete idx.chantiers[ref];
     await store.setJSON(INDEX, idx);
     return json({ ok: true, supprimes: n });
+  }
+
+  if (action === "brouillon-supprimer" && url.searchParams.get("cle")) {
+    /* reprendre ou annuler une intervention SAV confiée, jamais publiée */
+    const cle = String(url.searchParams.get("cle") || "");
+    if (!/^[^/]+\/sav-a-terminer-[a-z0-9-]+\.json$/i.test(cle)) return json({ erreur: "Fiche inconnue." }, 400);
+    const idx = await lireIndex();
+    const c = idx.chantiers[cle.split("/")[0]];
+    const f = c && c.fichiers.find((x) => x.cle === cle);
+    if (!f) return json({ erreur: "Cette intervention n'est plus à terminer." }, 404);
+    if (!bureau && f.auteur !== personne.nom && (f.destinataires || []).indexOf(personne.nom) < 0) {
+      return json({ erreur: "Cette intervention ne vous est pas confiée." }, 403);
+    }
+    c.fichiers = c.fichiers.filter((x) => x.cle !== cle);
+    if (!c.fichiers.length) delete idx.chantiers[c.ref];
+    await store.setJSON(INDEX, idx);
+    try { await store.delete(cle); } catch { /* rien à retirer */ }
+    return json({ ok: true });
   }
 
   if (action === "brouillon-supprimer") {

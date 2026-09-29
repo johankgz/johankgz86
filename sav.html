@@ -715,6 +715,16 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .grille{border-top-color:var(--trait-fond)}
 .stepnav .dots button{color:var(--sur-fond-2);border-color:var(--trait-fond)}
 .stepnav .dots button[aria-current="true"]{background:var(--sur-fond);color:var(--g-900)}
+.a-terminer{border-left:3px solid var(--accent,#B4621A)}
+.a-terminer .at-ligne{display:flex;gap:10px;align-items:center;justify-content:space-between;padding:10px 0;border-top:1px solid var(--rule,#ddd)}
+.a-terminer .at-ligne:first-child{border-top:0;padding-top:2px}
+.a-terminer .at-txt{min-width:0;flex:1}
+.a-terminer .at-txt b{display:block;font-size:15px}
+.a-terminer .at-txt span{display:block;font-size:12.5px;color:var(--ink-3,#777);margin-top:2px}
+.a-terminer .at-txt .at-urg{color:#B3261E;font-weight:600}
+.a-terminer .at-act{display:flex;gap:6px;flex:0 0 auto}
+.a-terminer .at-act .act{min-height:40px;padding:8px 12px}
+.appel-info{margin:0 0 12px;padding:8px 12px;border-radius:var(--r-field,8px);background:var(--field,#f4f4f4)}
 </style>
 <link rel="stylesheet" href="./sobre.css?v=20260929c">
 </head>
@@ -738,6 +748,12 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <button class="act ghost mini" id="btnNew" title="Nouvelle intervention : Repartir de zéro efface la fiche en cours sur cet appareil."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg>Nouveau</button>
     <span class="par-qui" id="parQui"></span>
   </div>
+
+  <div class="block a-terminer" id="aTerminer" hidden>
+    <h2 id="aTerminerTitre">À terminer</h2>
+    <div id="aTerminerListe"></div>
+  </div>
+  <p class="hint appel-info" id="appelInfo" hidden></p>
 
   <div class="block">
     <h2>Client</h2>
@@ -891,6 +907,15 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <div id="resume"></div>
     <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer la fiche</button></div>
     <p class="hint" id="pdfInfo"></p>
+  </div>
+
+  <div class="block" id="blocConfier">
+    <h2>Confier à un technicien</h2>
+    <p class="hint" style="margin:-8px 0 12px" id="confierIntro">Vous avez pris l'appel : le client, l'adresse, la nature, l'urgence et le motif suffisent. Le technicien reçoit la fiche, la termine sur place (constat, travaux, matériel, photos, signatures) et la publie.</p>
+    <div class="chips" id="ch_confier"></div>
+    <p class="hint" id="confierVide" hidden>Aucune autre personne dans l'équipe : ajoutez le technicien dans Comptes et sociétés.</p>
+    <button class="act" id="btnConfier" style="width:100%;margin-top:6px" disabled>Confier la fiche</button>
+    <p class="hint" id="confierEtat"></p>
   </div>
 
   <div class="block">
@@ -1161,7 +1186,8 @@ function blank(){
     materiel:[], photos:[],
     suite:{etat:"", action:"", detail:"", retour:""},
     sig:{client:null, tech:null, nomClient:"", nomTech:"", horodatage:""},
-    destinataires:[], dest:""
+    destinataires:[], dest:"",
+    id:uid(), appel:null, confie:null, brouillon:""
   };
 }
 function blankPrefs(){
@@ -1439,7 +1465,7 @@ function paintForm(){
   chips("ch_suite", SUITES, function(o){ return S.suite.action===o; },
     function(o){ S.suite.action=(S.suite.action===o)?"":o; save(); renderResume(); });
   majEtat();
-  renderMateriel(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
+  renderMateriel(); renderPhotos(); renderDest(); renderResume(); refreshHeader(); renderConfier(); renderAppel(); renderATerminer();
   $("gpsInfo").textContent = S.chantier.lat!=null
     ? "Position relevée : "+S.chantier.lat.toFixed(5)+", "+S.chantier.lon.toFixed(5) : "";
 }
@@ -1632,7 +1658,7 @@ function chargerEquipe(){
     .then(function(res){
       if(!res.ok){ if(res.d.erreur) $("pubEtat").textContent=res.d.erreur; return; }
       EQUIPE_CACHE = res.d.personnes || [];
-      renderDest();
+      renderDest(); renderConfier();
     })
     .catch(function(){});
 }
@@ -1764,6 +1790,7 @@ function publierRapport(meta){
   .then(function(res){
     if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return; }
     effacerMarques();
+    if(S.brouillon){ S.brouillon=""; save(); setTimeout(chargerATerminer, 300); }
     var msg = res.d.remplace
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
                              : "Visite remplacée par cette nouvelle version.")
@@ -1789,6 +1816,170 @@ function deposerFiche(cle, el){
   }
   fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:cle, donnees:donnees})})
     .catch(function(){});
+}
+
+/* ---------- SAV en deux temps : l'appel au bureau, la fin sur place ----------
+   Celui qui prend l'appel commence la fiche (client, adresse, nature,
+   urgence, motif) et la confie à un technicien. Le technicien la trouve
+   dans « À terminer » (et par notification), la termine sur place et la
+   publie : la fiche confiée disparaît alors de la liste. La fiche garde
+   qui a pris l'appel, et quand : le PDF le dit. */
+var CONFIE_A="", A_TERMINER=[];
+function texteAppel(a){
+  if(!a || !a.le) return "";
+  var d=new Date(a.le), h=isNaN(d) ? "" : String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  return frDate(isNaN(d) ? a.le : d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"))
+    + (h ? " à "+h : "") + (a.par ? ", pris par "+a.par : "");
+}
+function renderAppel(){
+  var el=$("appelInfo"); if(!el || !S) return;
+  var t=[];
+  if(S.appel && S.appel.le) t.push("Appel du "+texteAppel(S.appel)+".");
+  if(S.brouillon && S.confie && S.confie.a) t.push("Confiée à "+S.confie.a+(S.confie.par && S.confie.par!==(S.appel||{}).par ? " par "+S.confie.par : "")+" : à terminer puis publier.");
+  el.textContent=t.join(" "); el.hidden=!t.length;
+}
+function techniciensPossibles(){
+  var moi=(SESSION && SESSION.nom) || "";
+  var l=(EQUIPE_CACHE || []).filter(function(p){ return p && p.nom && !p.moi && p.nom!==moi; });
+  l.sort(function(a, b){ return ((a.role==="technicien") ? 0 : 1) - ((b.role==="technicien") ? 0 : 1) || String(a.nom).localeCompare(String(b.nom)); });
+  return l.map(function(p){ return p.nom; });
+}
+function renderConfier(){
+  if(!$("ch_confier")) return;
+  var noms=techniciensPossibles();
+  if(CONFIE_A && noms.indexOf(CONFIE_A)<0) CONFIE_A="";
+  chips("ch_confier", noms, function(o){ return CONFIE_A===o; }, function(o){ CONFIE_A=(CONFIE_A===o) ? "" : o; majBoutonConfier(); });
+  $("confierVide").hidden = !!noms.length || !EQUIPE_CACHE;
+  var tech = !!(SESSION && SESSION.role==="technicien");
+  $("blocConfier").querySelector("h2").textContent = tech ? "Confier à un autre technicien" : "Confier à un technicien";
+  majBoutonConfier();
+}
+function majBoutonConfier(){
+  var b=$("btnConfier"); if(!b) return;
+  b.disabled=!CONFIE_A; b.textContent = CONFIE_A ? "Confier à "+CONFIE_A : "Confier la fiche";
+}
+function confierFiche(){
+  if(!apiPret()) return;
+  if(!CONFIE_A){ toast("Choisissez le technicien."); return; }
+  if(!refAffaire()){ toast("Indiquez le client ou la référence."); showTab("client"); return; }
+  if(!String(S.inter.motif||"").trim() && !window.confirm("Aucun motif d'appel n'est écrit (onglet Constat). Confier quand même ?")) return;
+  if(!S.id) S.id=uid();
+  var moi=(SESSION && SESSION.nom) || "";
+  S.appel = S.appel || {par:moi, le:new Date().toISOString()};
+  S.confie = {a:CONFIE_A, par:moi, le:new Date().toISOString()};
+  var copie; try{ copie=JSON.parse(JSON.stringify(S)); }catch(e){ toast("Fiche illisible."); return; }
+  /* les heures sur place et les signatures sont celles du technicien */
+  copie.inter.arr=""; copie.inter.dep="";
+  copie.sig={client:null, tech:null, nomClient:"", nomTech:CONFIE_A, horodatage:""};
+  copie.brouillon=""; delete copie._modifs;
+  var charge=JSON.stringify(copie);
+  if(charge.length > 5.2*1024*1024){ toast("Fiche trop lourde : retirez quelques photos."); return; }
+  var el=$("confierEtat"), b=$("btnConfier"), qui=CONFIE_A;
+  el.textContent="Envoi à "+qui+"…"; b.disabled=true;
+  fetch(apiUrl("deposer-brouillon"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({
+    type:"sav", id:S.id, fiche:charge, chantier:refAffaire(), client:S.chantier.client, adresse:adresseTravaux(),
+    date:S.inter.date, nature:S.inter.nature, urgence:S.inter.urgence, motif:S.inter.motif, destinataires:[qui]})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ el.textContent=res.d.erreur || "Envoi refusé."; majBoutonConfier(); return; }
+      CONFIE_A="";
+      reinitialiserFormulaire("Fiche confiée à "+qui+".");
+      $("confierEtat").textContent="Fiche confiée à "+qui+" : elle l'attend dans « À terminer »"
+        +((res.d.prevenus||[]).length ? ", et il a reçu un e-mail" : "")+". Formulaire vidé pour le prochain appel.";
+      chargerATerminer();
+    })
+    .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; majBoutonConfier(); });
+}
+function chargerATerminer(){
+  if(!baseSite() || !jetonSession()) return;
+  fetch(apiUrl("sav-a-terminer"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      A_TERMINER=d.interventions || [];
+      renderATerminer();
+      /* ouverte depuis une notification : ?terminer=… */
+      var q=null; try{ q=new URLSearchParams(location.search).get("terminer"); }catch(e){}
+      if(q){
+        try{ var u=new URL(location.href); u.searchParams.delete("terminer"); history.replaceState(null, "", u.pathname+u.search+u.hash); }catch(e){}
+        var x=A_TERMINER.filter(function(i){ return i.cle===q; })[0];
+        if(x && S.brouillon!==x.cle) ouvrirATerminer(x);
+        else if(!x) toast("Cette intervention a déjà été terminée ou retirée.");
+      }
+    })
+    .catch(function(){});
+}
+function renderATerminer(){
+  var box=$("aTerminer"), hote=$("aTerminerListe"); if(!box || !S) return;
+  hote.textContent="";
+  var liste=A_TERMINER.filter(function(x){ return x.cle!==S.brouillon; });
+  box.hidden=!liste.length;
+  if(!liste.length) return;
+  var miens=liste.filter(function(x){ return x.pourMoi; }).length;
+  $("aTerminerTitre").textContent = miens ? "À terminer ("+miens+")" : "Confiées, en attente";
+  liste.forEach(function(x){
+    var l=document.createElement("div"); l.className="at-ligne";
+    var t=document.createElement("div"); t.className="at-txt";
+    var b=document.createElement("b"); b.textContent=x.client || x.ref;
+    var s1=document.createElement("span");
+    if(x.urgence && x.urgence!=="Normale"){ var u=document.createElement("em"); u.className="at-urg"; u.style.fontStyle="normal"; u.textContent=x.urgence+" · "; s1.appendChild(u); }
+    s1.appendChild(document.createTextNode([x.nature, x.appel ? "appel du "+texteAppel(x.appel) : ""].filter(Boolean).join(" · ")));
+    t.appendChild(b); t.appendChild(s1);
+    if(x.motif){ var s2=document.createElement("span"); s2.textContent=x.motif; t.appendChild(s2); }
+    if(!x.pourMoi){ var s3=document.createElement("span"); s3.textContent="Confiée à "+x.technicien+", pas encore terminée."; t.appendChild(s3); }
+    var a=document.createElement("div"); a.className="at-act";
+    var ouvrir=document.createElement("button"); ouvrir.type="button"; ouvrir.className="act"+(x.pourMoi ? " blue" : " ghost");
+    ouvrir.textContent = x.pourMoi ? "Terminer" : "Ouvrir";
+    ouvrir.addEventListener("click", function(){ ouvrirATerminer(x); });
+    a.appendChild(ouvrir);
+    if(!x.pourMoi){
+      var ret=document.createElement("button"); ret.type="button"; ret.className="act ghost"; ret.textContent="Retirer";
+      ret.title="Retirer cette intervention confiée";
+      ret.addEventListener("click", function(){
+        if(!window.confirm("Retirer l'intervention de « "+(x.client || x.ref)+" » confiée à "+x.technicien+" ?\n\nElle disparaît de sa liste « À terminer ».")) return;
+        ret.disabled=true;
+        fetch(apiUrl("brouillon-supprimer")+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":jetonSession()}})
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+          .then(function(res){ if(!res.ok){ toast(res.d.erreur || "Refusé."); ret.disabled=false; return; } toast("Intervention retirée."); chargerATerminer(); })
+          .catch(function(){ toast("Pas de réseau."); ret.disabled=false; });
+      });
+      a.appendChild(ret);
+    }
+    l.appendChild(t); l.appendChild(a); hote.appendChild(l);
+  });
+}
+function ouvrirATerminer(x){
+  if(!apiPret()) return;
+  toast("Ouverture…");
+  fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var d; try{ d=JSON.parse(txt); }catch(e){ toast("Fiche illisible."); return; }
+      if(d.erreur){ toast(d.erreur); chargerATerminer(); return; }
+      function charger(){
+        S=Object.assign(blank(), d);
+        S.brouillon=x.cle; if(!S.appel && x.appel) S.appel=x.appel;
+        if(!S.confie) S.confie={a:x.technicien, par:(x.appel||{}).par||"", le:x.publie||""};
+        if(x.pourMoi){
+          S.sig.nomTech=(SESSION && SESSION.nom) || S.sig.nomTech;
+          /* on arrive sur place : la date et l'heure d'arrivée sont celles du jour */
+          if(!S.inter.arr){ S.inter.date=aujourdhui(); S.inter.arr=maintenant(); }
+        }
+        save(); paintForm();
+        try{ basculePub("dossier"); }catch(e){}
+        showTab(x.pourMoi ? "constat" : "client");
+        try{ peindreNavChantier(); }catch(e){}
+        toast(x.pourMoi ? "Intervention reprise : complétez le constat, les travaux et les signatures, puis publiez." : "Fiche ouverte : modifiez-la, puis confiez-la de nouveau ou publiez-la.");
+      }
+      if(ficheRemplie(S) && S.brouillon!==x.cle){
+        mettreDeCote().then(function(etat){
+          if(etat==="echec" && !window.confirm("La fiche en cours sur cet appareil n'a pas de client ni de référence : elle sera remplacée. Continuer ?")) return;
+          if(etat==="ok") toast("La fiche en cours est mise de côté.");
+          charger();
+        });
+      } else charger();
+    })
+    .catch(function(){ toast("Pas de réseau."); });
 }
 
 /* ---------- ouvrir une fiche depuis le site ---------- */
@@ -2117,6 +2308,7 @@ function buildPdf(){
   kv("Temps de trajet", S.inter.trajet);
   kv("Prise en charge", S.inter.charge);
   kv("Urgence", S.inter.urgence);
+  if(S.appel && S.appel.le) kv("Appel reçu", texteAppel(S.appel));
   kv("Technicien", S.sig.nomTech || (SESSION && SESSION.nom) || "");
 
   if((S.inter.motif||"").trim()){
@@ -2775,11 +2967,12 @@ function bindAll(){
       chantier: refAffaire(), client: S.chantier.client, adresse: adresseTravaux(),
       lat: S.chantier.lat, lon: S.chantier.lon,
       type: "sav", date: S.inter.date, visite: S.inter.numero || "",
-      etape: S.suite.etat || "",
+      etape: S.suite.etat || "", brouillon: S.brouillon || "",
       titre: "Intervention SAV" + (S.inter.numero ? " n° "+S.inter.numero : "")
     });
   });
 
+  $("btnConfier").addEventListener("click", confierFiche);
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
   $("btnPhotosSite").addEventListener("click", deposerPhotos);
   $("btnNew").addEventListener("click", function(){
@@ -3260,6 +3453,8 @@ function ecrireFiche(){
   var p;
   try{ p = new URLSearchParams(location.search); }catch(e){ return; }
   if((p.get("ref")||"").trim()) return;
+  /* ouverte pour terminer une intervention confiée : elle s'en occupe */
+  if((p.get("terminer")||"").trim()) return;
   var type = "";
   try{ type = performance.getEntriesByType("navigation")[0].type; }catch(e){}
   if(type && type !== "navigate") return;
@@ -3500,8 +3695,9 @@ function start(){
     P = pBrut ? Object.assign(blankPrefs(), pBrut) : blankPrefs();
     if(window.Sobre) Sobre.ficheSociete(P).then(function(ch){ if(ch) try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} });
     S = sBrut ? Object.assign(blank(), sBrut) : blank();
+    if(!S.id) S.id=uid();
     if(!S.sig.nomTech) S.sig.nomTech=(SESSION&&SESSION.nom)||"";
-    paintForm(); showTab("client"); chargerEquipe();
+    paintForm(); showTab("client"); chargerEquipe(); chargerATerminer();
   }
   function fini(){ if(--pending===0) go(); }
   try{
