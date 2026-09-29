@@ -218,6 +218,7 @@
     var calques=[["0",7]];
     Object.keys(CALQUES).forEach(function(k){ var c=LISTE.filter(function(s){ return s.groupe===k; })[0]; calques.push([CALQUES[k], ACI[c.couleur]||7]); });
     calques.push(["ELEC-REPERES",7]);
+    (o.calquesExtra||[]).forEach(function(c){ calques.push(c); });
     g(0,"TABLE", 2,"LAYER", 70,calques.length);
     calques.forEach(function(c){ g(0,"LAYER", 2,c[0], 70,0, 62,c[1], 6,"CONTINUOUS"); });
     g(0,"ENDTAB", 0,"ENDSEC");
@@ -228,6 +229,8 @@
       g(0,"ENDBLK", 8,"0");
     });
     g(0,"ENDSEC", 0,"SECTION", 2,"ENTITIES");
+    /* le dessin du plan (murs, ouvertures, pièces), déjà en codes DXF */
+    if(o.extra && o.extra.length) L=L.concat(o.extra);
     (poses||[]).forEach(function(p){
       var s=PAR[p.cle]; if(!s) return;
       var t=p.taille||1;
