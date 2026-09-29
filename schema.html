@@ -496,6 +496,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
 @media (min-width:1000px){ body.panneau-ouvert .toast{bottom:18px} }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="./cartouche.js?v=20260929a"></script>
 </head>
 <body>
 <header>
@@ -1055,41 +1056,14 @@ function logoCartouche(S){
   return null;
 }
 function cartouche(T, S, f, total, titre){
-  var x0=36, x1=LARGEUR-16, y0=888, y1=HAUTEUR-16, h=y1-y0;
-  var L=[232, 250, 226, 246, 128], xs=[x0];
-  L.forEach(function(w){ xs.push(xs[xs.length-1]+w); });
-  var mention = S.mention==null ? MENTION_DEFAUT : String(S.mention);
-  if(mention.trim()) T.t(x1-4, y0-8, mention.trim(), 10.5, {anchor:"end", u:true});
-  T.r(x0,y0,x1-x0,h,{sw:1.2,fill:"#fff"});
-  xs.slice(1).forEach(function(x){ T.l(x,y0,x,y1,1); });
-  /* le logo */
-  var lg=logoCartouche(S);
-  if(lg && lg.noir){ T.r(xs[0]+5,y0+5,L[0]-10,h-10,{sw:1,fill:"#000000",c:"#000000"}); T.img(lg.img.data, xs[0]+10,y0+9,L[0]-20,h-18, lg.img.w, lg.img.h); }
-  else if(lg) T.img(lg.img.data, xs[0]+8,y0+8,L[0]-16,h-16, lg.img.w, lg.img.h);
-  else decouper(String(S.societe||"").toUpperCase(), 22).slice(0,3).forEach(function(m,i){ T.t(xs[0]+L[0]/2, y0+h/2+4+(i-0.5)*15, m, 12, {anchor:"middle", bold:true}); });
-  /* le dessinateur */
-  var xd=xs[1]+8;
-  T.t(xd,y0+19,"Dess :",10.5,{bold:true}); T.t(xd+38,y0+19,S.auteur||"",10.5);
-  T.t(xd,y0+38,"Mail :",10.5,{bold:true}); T.t(xd,y0+53,S.mail||"",10);
-  T.t(xd,y0+75,"Date :",10.5,{bold:true}); T.t(xd+38,y0+75,frDateS(S.date),10.5);
-  T.t(xd+118,y0+75,"Indice :",10.5,{bold:true}); T.t(xd+164,y0+75,S.indice||"A",10.5);
-  /* affaire, objet */
-  function case2(k, etiquette, lignes){
-    var x=xs[k], w=L[k]; T.t(x+8,y0+19,etiquette,10.5,{bold:true});
-    var tout=[]; lignes.forEach(function(l){ decouper(l.s, Math.floor(w/7)).forEach(function(m){ tout.push({s:m, b:l.b}); }); });
-    tout=tout.slice(0,3);
-    var yc=y0+(h+22)/2-(tout.length-1)*7.5+4;
-    tout.forEach(function(m,i){ T.t(x+w/2, yc+i*15, m.s, 11, {anchor:"middle", bold:m.b}); });
-  }
-  case2(2, "AFFAIRE", [{s:String(S.chantier.client||"").toUpperCase()}, {s:S.chantier.ref ? "Réf. "+S.chantier.ref : ""}].filter(function(l){ return l.s; }));
-  case2(3, "OBJET", [{s:(titre||"Schéma unifilaire").toUpperCase()}, {s:S.tableau||""}].filter(function(l){ return l.s; }));
-  /* folio */
-  T.t(xs[4]+8,y0+19,"FOLIO",10.5,{bold:true});
-  T.t(xs[4]+L[4]/2,y0+h/2+12,(f+1)+"/"+total,14,{anchor:"middle", bold:true, c:COULEURS.rouge});
-  /* remarques */
-  var xr=xs[5]+8, wr=x1-xs[5]-16;
-  T.t(xr,y0+19,"REMARQUES",10.5,{bold:true});
-  decouper(S.remarques||"", Math.floor(wr/5.6)).slice(0,4).forEach(function(m,i){ T.t(xr,y0+36+i*13,m,9.5); });
+  /* le bandeau vient de cartouche.js : le même que sur le plan DWG */
+  Cartouche.dessiner(T, {
+    societe:S.societe||(SESSION&&SESSION.societeNom)||"", auteur:S.auteur, mail:S.mail, date:S.date, indice:S.indice,
+    remarques:S.remarques, mention:S.mention,
+    affaire:[String(S.chantier.client||"").toUpperCase(), S.chantier.ref ? "Réf. "+S.chantier.ref : ""],
+    objet:[(titre||"Schéma unifilaire").toUpperCase(), S.tableau||""],
+    folio:f+1, total:total
+  }, {x0:36, x1:LARGEUR-16, y1:HAUTEUR-16, logo:logoCartouche(S)});
 }
 function frDateS(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 /* un texte en lignes d'une longueur donnée, sur les mots (et sur les retours à la ligne) */

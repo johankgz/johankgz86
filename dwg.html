@@ -6,6 +6,7 @@
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
 <script src="./symboles-elec.js?v=20260929a"></script>
+<script src="./cartouche.js?v=20260929a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="apple-touch-icon" href="/icone-180.png">
 <style>
@@ -113,6 +114,8 @@ body.clair #scene{background:#FFFFFF}
 .mep fieldset{border:1px solid var(--trait);border-radius:12px;padding:8px 10px 2px;margin:0;display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
 .mep legend{font-size:11.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--ink3);padding:0 4px}
 .mep fieldset label{display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:600;color:var(--ink2);margin-bottom:8px;min-width:0}
+.mep fieldset label.large{grid-column:1 / -1}
+.mep fieldset textarea{padding:6px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:14px;resize:vertical}
 .mep fieldset input{min-height:36px;padding:6px 9px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px;min-width:0}
 .etalon{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:10;width:min(340px,calc(100vw - 32px));padding:16px;
   background:rgba(20,25,32,.98);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -10px rgba(0,0,0,.8);color:var(--ink)}
@@ -203,17 +206,17 @@ body.clair #scene{background:#FFFFFF}
       <select id="mepEchelle"><option value="0">Ajustée à la page</option><option value="20">1/20</option><option value="50">1/50</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option></select>
       <small id="mepInfo"></small></div>
     <label class="mep-case"><input type="checkbox" id="mepLegende" checked> Légende CFO avec les quantités</label>
-    <fieldset><legend>Cartouche</legend>
-      <label>Titre du plan<input id="mepTitre" type="text" placeholder="PLAN ÉLECTRIQUE"></label>
-      <label>Niveau<input id="mepNiveau" type="text" placeholder="RDC"></label>
-      <label>Projet<input id="mepProjet" type="text" placeholder="Nom du client ou de l'opération"></label>
-      <label>Adresse du chantier<input id="mepAdresse" type="text" placeholder="10 allée…, 85100 Les Sables-d'Olonne"></label>
-      <label>Maître d'ouvrage<input id="mepMo" type="text" placeholder="Nom (si différent du projet)"></label>
-      <label>N° chantier<input id="mepChantier" type="text" placeholder="H0123035"></label>
-      <label>N° de plan<input id="mepPlan" type="text" placeholder="ELE01"></label>
+    <fieldset><legend>Cartouche (le même que le schéma)</legend>
+      <label>Affaire (client)<input id="mepClient" type="text" placeholder="TESSIER - SAVARY"></label>
+      <label>Réf. chantier<input id="mepRef" type="text" placeholder="H0123035"></label>
+      <label>Objet<input id="mepObjet" type="text" placeholder="PLAN ÉLECTRIQUE"></label>
+      <label>Niveau / précision<input id="mepNiveau" type="text" placeholder="RDC"></label>
       <label>Indice<input id="mepIndice" type="text" placeholder="A" maxlength="3"></label>
-      <label>Modification<input id="mepModif" type="text" placeholder="CRÉATION DE PLAN"></label>
+      <label>Date<input id="mepDate" type="date"></label>
       <label>Dessinateur<input id="mepDess" type="text"></label>
+      <label>Mail<input id="mepMail" type="email"></label>
+      <label class="large">Remarques<textarea id="mepRemarques" rows="2"></textarea></label>
+      <label class="large">Mention (au-dessus du cartouche)<input id="mepMention" type="text"></label>
     </fieldset>
   </div>
   <footer><button class="bt" id="mepAnnuler" type="button">Annuler</button><button class="bt or" type="submit" id="mepCreer">Créer le PDF</button></footer>
@@ -904,29 +907,18 @@ function chargerJsPdf(){
     document.head.appendChild(sc);
   });
 }
-/* le logo de la maison, en noir sur blanc comme dans le cartouche de nos plans :
-   le blanc et le noir s'échangent, les couleurs restent */
+/* les logos, comme le schéma : celui de la maison (sur fond noir), ou celui de la fiche société */
+function imageDe(src){
+  return new Promise(function(ok){
+    var im=new Image(); im.onload=function(){ ok({data:src, w:im.naturalWidth, h:im.naturalHeight}); }; im.onerror=function(){ ok(null); }; im.src=src;
+  });
+}
 function chargerLogo(){
   if(LOGO) return Promise.resolve(LOGO);
-  return new Promise(function(ok){
-    var im=new Image();
-    im.onload=function(){
-      try{
-        var c=document.createElement("canvas"); c.width=im.naturalWidth; c.height=im.naturalHeight;
-        var x=c.getContext("2d"); x.drawImage(im,0,0);
-        var d=x.getImageData(0,0,c.width,c.height), p=d.data;
-        for(var i=0;i<p.length;i+=4){
-          var mx=Math.max(p[i],p[i+1],p[i+2]), mn=Math.min(p[i],p[i+1],p[i+2]);
-          if(mx-mn<60){ var v=255-Math.round((p[i]+p[i+1]+p[i+2])/3); if(v>215) v=255; p[i]=p[i+1]=p[i+2]=v; }
-        }
-        x.putImageData(d,0,0);
-        LOGO={data:c.toDataURL("image/png"), w:c.width, h:c.height};
-      }catch(e){ LOGO=null; }
-      ok(LOGO);
-    };
-    im.onerror=function(){ ok(null); };
-    im.src="./logo-tle-noir.png";
-  });
+  return fetch("./logo-tle-noir.png").then(function(r){ return r.ok ? r.blob() : null; }).then(function(b){
+    if(!b) return null;
+    return new Promise(function(ok){ var fr=new FileReader(); fr.onload=function(){ ok(fr.result); }; fr.onerror=function(){ ok(null); }; fr.readAsDataURL(b); });
+  }).then(function(d){ return d ? imageDe(d) : null; }).then(function(x){ LOGO=x; return x; }).catch(function(){ return null; });
 }
 function chargerSociete(){
   if(SOC) return Promise.resolve(SOC);
@@ -935,15 +927,25 @@ function chargerSociete(){
   if(!ses || !ses.jeton || !/^https?:$/.test(location.protocol)) return Promise.resolve(SOC);
   return fetch(location.origin+"/api/rapports?action=societe-fiche", {headers:{"x-auth":ses.jeton}})
     .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){ var f=d && d.fiche; if(d){ SOC.nom=(f && f.nom)||d.nom||SOC.nom; } if(f){ SOC.adresse=f.adresse||""; SOC.tel=f.tel||""; SOC.web=f.web||""; } return SOC; })
+    .then(function(d){ var f=d && d.fiche; if(d){ SOC.nom=(f && f.nom)||d.nom||SOC.nom; } if(f){ SOC.adresse=f.adresse||""; SOC.tel=f.tel||""; SOC.web=f.web||""; }
+      return f && f.logo && f.logo.data ? imageDe(f.logo.data).then(function(x){ SOC.logo=x; return SOC; }) : SOC; })
     .catch(function(){ return SOC; });
 }
 function page(){ var a3=MEP.format==="a3", l=MEP.orient==="l"; var w=a3?420:297, h=a3?297:210; return l ? {w:w,h:h} : {w:h,h:w}; }
 /* où va quoi sur la page, en mm */
 function gabarit(){
-  var P=page(), a3=MEP.format==="a3", m=a3?10:7, l=MEP.orient==="l";
-  if(l){ var C=a3?100:78; return {P:P, m:m, zone:{x:m, y:m, w:P.w-2*m-C, h:P.h-2*m}, col:{x:P.w-m-C, y:m, w:C, h:P.h-2*m}, f:C/100}; }
-  var B=a3?128:100; return {P:P, m:m, zone:{x:m, y:m, w:P.w-2*m, h:P.h-2*m-B}, bande:{x:m, y:P.h-m-B, w:P.w-2*m, h:B}, f:a3?1:0.8};
+  /* l'unité du cartouche : une page de 1400 de large, comme le schéma (A3 paysage = 0,3 mm) */
+  var P=page(), k=P.w/1400, l=MEP.orient==="l";
+  var gx=Cartouche.MARGE_GAUCHE*k, dx=Cartouche.MARGE_DROITE*k, haut=16*k;
+  var bas=P.h-(Cartouche.MARGE_BAS+Cartouche.HAUT+Cartouche.MENTION)*k;      /* au-dessus de la mention */
+  var g={P:P, k:k, cadre:{x:gx, y:haut, w:P.w-gx-dx, h:bas-haut}};
+  var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length;
+  if(l){ var C=300*k; g.zone={x:gx, y:haut, w:g.cadre.w-C, h:g.cadre.h}; g.col={x:gx+g.cadre.w-C, y:haut, w:C, h:g.cadre.h}; }
+  else {
+    var hl=nl && MEP.legende!==false ? (40+Math.ceil(nl/2)*34)*k : 0;
+    g.zone={x:gx, y:haut, w:g.cadre.w, h:g.cadre.h-hl}; if(hl) g.bande={x:gx, y:haut+g.cadre.h-hl, w:g.cadre.w, h:hl};
+  }
+  return g;
 }
 /* le cadrage : ce qu'on imprime, en unités du plan */
 function cadrage(){
@@ -972,13 +974,14 @@ function majMep(){
   $("mepInfo").textContent = (MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" au 1/"+e.n
     +(e.deborde ? " : le plan déborde de la page, seul le centre est imprimé." : (MEP.echelle>0 ? "" : " (l'échelle la plus grande qui tient)."));
 }
-var CHAMPS_MEP=[["mepTitre","titre"],["mepNiveau","niveau"],["mepProjet","projet"],["mepAdresse","adresse"],["mepMo","mo"],["mepChantier","chantier"],["mepPlan","plan"],["mepIndice","indice"],["mepModif","modif"],["mepDess","dess"]];
+var CHAMPS_MEP=[["mepClient","client"],["mepRef","ref"],["mepObjet","objet"],["mepNiveau","niveau"],["mepIndice","indice"],["mepDate","date"],["mepDess","dess"],["mepMail","mail"],["mepRemarques","remarques"],["mepMention","mention"]];
+var MENTION_PLAN="Plan donné à titre indicatif, à des fins d'usage interne, ne pouvant servir à d'autres fins";
 function cleMep(){ return "dwg:mep:"+((PLAN && PLAN.nom)||""); }
 function ouvrirMep(){
   var d={}; try{ d=JSON.parse(localStorage.getItem(cleMep())||localStorage.getItem("dwg:mep")||"{}")||{}; }catch(e){ d={}; }
   if(d.format) MEP.format=d.format; if(d.orient) MEP.orient=d.orient; if(d.cadre) MEP.cadre=d.cadre; if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0;
   var ses=null; try{ ses=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
-  var defaut={titre:"PLAN ÉLECTRIQUE", indice:"A", modif:"CRÉATION DE PLAN", dess:(ses && ses.nom)||""};
+  var defaut={objet:"PLAN ÉLECTRIQUE", indice:"A", date:new Date().toISOString().slice(0,10), dess:(ses && ses.nom)||"", mail:(ses && ses.email)||"", mention:MENTION_PLAN};
   CHAMPS_MEP.forEach(function(c){ $(c[0]).value = d[c[1]]!=null ? d[c[1]] : (defaut[c[1]]||""); });
   $("mepLegende").checked = d.legende!=null ? !!d.legende : true;
   $("mepLegende").disabled = !SYMB.length;
@@ -986,8 +989,9 @@ function ouvrirMep(){
 }
 function lireMep(){
   var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, legende:$("mepLegende").checked};
+  MEP.legende=d.legende;
   CHAMPS_MEP.forEach(function(c){ d[c[1]]=$(c[0]).value.trim(); });
-  try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess})); }catch(e){}
+  try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess, mail:d.mail, mention:d.mention})); }catch(e){}
   return d;
 }
 [["mepFormat","format"],["mepOrient","orient"],["mepCadre","cadre"]].forEach(function(s){
@@ -1040,7 +1044,6 @@ function creerPdf(d, logo, soc){
   /* 1. le plan */
   var dpi=a3 ? 200 : 260, img=rendrePlan(e, dpi), z=g.zone;
   doc.addImage(img.toDataURL("image/jpeg", 0.93), "JPEG", z.x, z.y, z.w, z.h, undefined, "FAST");
-  trait(0.5); doc.rect(g.m, g.m, P.w-2*g.m, P.h-2*g.m);
   trait(0.3); doc.rect(z.x, z.y, z.w, z.h);
   /* la barre d'échelle, en bas à gauche du plan : 0 - 1 - 2 … mètres */
   var mmParM=1000/e.n, pas=[0.1,0.2,0.5,1,2,5,10,20,50,100].filter(function(v){ return v*mmParM>=8; })[0]||100;
@@ -1050,77 +1053,35 @@ function creerPdf(d, logo, soc){
   trait(0.2); doc.rect(bx, by-1.2, nb*pas*mmParM, 1.6);
   for(var j=0;j<=nb;j++) texte(String(Math.round(j*pas*100)/100).replace(".",","), bx+j*pas*mmParM, by-2.4, 6.5, {a:"center"});
   texte("m", bx+nb*pas*mmParM+2.5, by+0.3, 6.5); texte("Échelle 1/"+e.n, bx, by+3.8, 6.5, {b:true});
-  /* 2. la colonne (paysage) ou la bande (portrait) */
-  var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), avecLeg=d.legende && lignes.length;
-  var boiteLeg, boiteCart, f=g.f;
-  var hCart=112*f;
-  if(g.col){ boiteCart={x:g.col.x, y:g.col.y+g.col.h-hCart, w:g.col.w, h:hCart}; boiteLeg={x:g.col.x, y:g.col.y, w:g.col.w, h:g.col.h-hCart-4}; }
-  else { var wl=g.bande.w*0.42; boiteLeg={x:g.bande.x, y:g.bande.y+4, w:wl-4, h:g.bande.h-4}; boiteCart={x:g.bande.x+wl, y:g.bande.y+g.bande.h-Math.min(hCart,g.bande.h-4), w:g.bande.w-wl, h:Math.min(hCart,g.bande.h-4)}; f=boiteCart.h/112; }
-  trait(0.3); if(g.col) doc.line(g.col.x, g.col.y, g.col.x, g.col.y+g.col.h); else doc.line(g.bande.x, g.bande.y, g.bande.x+g.bande.w, g.bande.y);
-  if(avecLeg){
-    var L=boiteLeg, lh=Math.min(6*f+0.6, (L.h-10*f)/lignes.length), cs=13*f, tt=Math.min(8.5*f+0.8, lh*2.2);
-    trait(0.3); doc.rect(L.x+2, L.y+2, L.w-4, 9*f+lignes.length*lh);
-    texte("CFO", L.x+4, L.y+2+6.3*f, 11*f+1);
-    doc.line(L.x+2, L.y+2+9*f, L.x+L.w-2, L.y+2+9*f);
-    doc.line(L.x+2+cs, L.y+2+9*f, L.x+2+cs, L.y+2+9*f+lignes.length*lh);
+  /* 2. la légende CFO et les quantités : colonne à droite (paysage), bande sous le plan (portrait) */
+  var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), k=g.k;
+  trait(0.35); doc.rect(g.cadre.x, g.cadre.y, g.cadre.w, g.cadre.h);
+  if(d.legende && lignes.length){
+    var L=g.col || g.bande, deux=!g.col, cols=deux ? 2 : 1, lh=(deux ? 34 : Math.min(28, (L.h/k-60)/lignes.length))*k, cs=52*k, cw=(L.w-16*k)/cols;
+    var x0l=L.x+8*k, y0l=L.y+8*k, parCol=Math.ceil(lignes.length/cols);
+    if(g.col) doc.line(L.x, L.y, L.x, L.y+L.h); else doc.line(L.x, L.y, L.x+L.w, L.y);
+    trait(0.3); doc.rect(x0l, y0l, L.w-16*k, 30*k+parCol*lh);
+    texte("CFO", x0l+6*k, y0l+21*k, 17*k/0.3528);
+    doc.line(x0l, y0l+30*k, x0l+L.w-16*k, y0l+30*k);
     lignes.forEach(function(sy, i){
-      var y=L.y+2+9*f+i*lh, bb=SymbolesElec.boite(sy.cle);
+      var c=Math.floor(i/parCol), r=i%parCol, x=x0l+c*cw, y=y0l+30*k+r*lh, bb=SymbolesElec.boite(sy.cle);
+      if(r===0){ trait(0.2); doc.line(x+cs, y0l+30*k, x+cs, y0l+30*k+parCol*lh); if(c) doc.line(x, y0l+30*k, x, y0l+30*k+parCol*lh); }
       var R=Math.min(lh*0.78/(bb.y1-bb.y0), cs*0.84/(bb.x1-bb.x0));
-      SymbolesElec.pdf(doc, sy.cle, L.x+2+cs/2, y+lh/2, R);
-      texte(sy.nom+" ("+n[sy.cle]+")", L.x+4+cs, y+lh*0.68, tt, {max:L.w-cs-8});
-      trait(0.2); doc.line(L.x+2, y+lh, L.x+L.w-2, y+lh);
+      SymbolesElec.pdf(doc, sy.cle, x+cs/2, y+lh/2, R);
+      texte(sy.nom+" ("+n[sy.cle]+")", x+cs+6*k, y+lh*0.64, Math.min(11, lh/k*0.4)*k/0.3528, {max:cw-cs-10*k});
+      trait(0.15); doc.line(x, y+lh, x+cw, y+lh);
     });
   }
-  /* 3. le cartouche, bloc par bloc (hauteurs pour 100 mm de large) */
-  var C=boiteCart, x0=C.x+2, w=C.w-4, y=C.y, u=f;
-  function bloc(h, titre, fn){
-    trait(0.3); doc.rect(x0, y, w, h*u);
-    if(titre){ doc.setFillColor(255,255,255); texte(titre, x0+2, y+3.4*u, 6.8*u+0.4); }
-    fn(y, h*u); y+=h*u;
-  }
-  var projet=d.projet||"", mo=d.mo||projet;
-  bloc(22, "PROJET", function(y0, h){
-    texte(projet.toUpperCase(), x0+w/2, y0+9*u, 10*u+1, {a:"center", b:true, max:w-4});
-    coupe(d.adresse, 7.5*u+0.6, w-6).slice(0,2).forEach(function(l2, i){ texte(l2, x0+w/2, y0+14*u+i*3.8*u, 7.5*u+0.6, {a:"center"}); });
-  });
-  bloc(16, "MAÎTRE D'OUVRAGE", function(y0, h){
-    texte(mo.toUpperCase(), x0+w/2, y0+9*u, 8.5*u+0.8, {a:"center", max:w-4});
-    if(d.adresse) texte(coupe(d.adresse, 7*u+0.5, w-6)[0], x0+w/2, y0+13.5*u, 7*u+0.5, {a:"center"});
-  });
-  bloc(14, "", function(y0, h){
-    var c1=x0+9*u, c3=x0+w-24*u; trait(0.2); doc.line(c1, y0, c1, y0+h); doc.line(c3, y0, c3, y0+h); doc.line(x0, y0+h-5*u, x0+w, y0+h-5*u);
-    texte("N°", x0+4.5*u, y0+h-1.5*u, 6*u+0.4, {a:"center"}); texte("MODIFICATION", (c1+c3)/2, y0+h-1.5*u, 6*u+0.4, {a:"center"}); texte("DATE", (c3+x0+w)/2, y0+h-1.5*u, 6*u+0.4, {a:"center"});
-    var auj=new Date(), dt=("0"+auj.getDate()).slice(-2)+"/"+("0"+(auj.getMonth()+1)).slice(-2)+"/"+String(auj.getFullYear()).slice(-2);
-    texte(d.indice||"A", x0+4.5*u, y0+h-7*u, 7*u+0.5, {a:"center"}); texte((d.modif||"").toUpperCase(), c1+2, y0+h-7*u, 7*u+0.5, {max:c3-c1-3}); texte(dt, (c3+x0+w)/2, y0+h-7*u, 7*u+0.5, {a:"center"});
-  });
-  bloc(22, "", function(y0, h){
-    var lw=w*0.55;
-    if(logo){ var r=Math.min((lw-4)/logo.w, (h-4)/logo.h); doc.addImage(logo.data, "PNG", x0+2, y0+(h-logo.h*r)/2, logo.w*r, logo.h*r); }
-    else texte((soc && soc.nom)||"", x0+lw/2, y0+h/2, 9*u+1, {a:"center", b:true, max:lw-4});
-    var lt=[(soc && soc.nom)||""].concat(coupe((soc && soc.adresse)||"", 6.3*u+0.4, w-lw-3)).concat([soc && soc.tel ? "Tél : "+soc.tel : "", soc && soc.web ? soc.web : ""]).filter(Boolean).slice(0,5);
-    lt.forEach(function(l2, i){ texte(l2, x0+w-2, y0+4.5*u+i*3.5*u, 6.3*u+0.4, {a:"right", b:i===0}); });
-  });
-  bloc(15, "", function(y0, h){ texte((d.titre||"PLAN ÉLECTRIQUE").toUpperCase()+(d.niveau ? " "+d.niveau.toUpperCase() : ""), x0+w/2, y0+h/2+2*u, 11*u+1.4, {a:"center", b:true, max:w-4}); });
-  /* une rangée de cases : le libellé en petit en haut, la valeur dessous */
-  function cases(h, parts){
-    bloc(h, "", function(y0, hh){
-      var x=x0; trait(0.2);
-      parts.forEach(function(c, k){
-        var cw=w*c[0];
-        if(k) doc.line(x, y0, x, y0+hh);
-        if(c[1]) texte(c[1], x+1.5, y0+3.3*u, 5.6*u+0.4);
-        var t=c[3] || (7.6*u+0.6), ls=coupe(c[2], t, cw-3).slice(0,2);
-        ls.forEach(function(l2, i){ texte(l2, c[1] ? x+cw/2 : x+cw/2, y0+(c[1] ? hh*0.62 : hh/2+t*0.14)+i*t*0.4+(ls.length>1 ? -t*0.2 : 0), t, {a:"center", b:!!c[4]}); });
-        x+=cw;
-      });
-    });
-  }
-  var auj=new Date(), dt2=("0"+auj.getDate()).slice(-2)+"."+("0"+(auj.getMonth()+1)).slice(-2)+"."+String(auj.getFullYear()).slice(-2);
-  cases(11, [[0.3,"NIVEAU",d.niveau||"—"],[0.42,"DESS.",d.dess||""],[0.28,"DATE",dt2]]);
-  cases(12, [[0.29,"N° CHANTIER",d.chantier||""],[0.15,"LOT","ELEC"],[0.18,"ÉCHELLE","1/"+e.n],[0.27,"PLAN",d.plan||"",8.6*u+0.8,true],[0.11,"IND.",d.indice||"A",10*u+0.8,true]]);
-  var mention="Ce document est la propriété de "+((soc && soc.nom)||"la société")+". Il ne peut être reproduit et/ou communiqué sans autorisation écrite.";
-  texte(mention, P.w-g.m-1, P.h-g.m+ (g.m>8?4:3), 5.8, {a:"right"});
-  var nom=nomDeBase()+(d.plan ? "-"+d.plan : "")+"-"+(a3?"A3":"A4")+".pdf";
+  /* 3. le cartouche : le bandeau du schéma unifilaire, au même rapport */
+  var T=new Cartouche.Trace(), socNom=(soc && soc.nom)||"";
+  Cartouche.dessiner(T, {
+    societe:socNom, auteur:d.dess, mail:d.mail, date:d.date, indice:d.indice||"A", remarques:d.remarques, mention:d.mention,
+    affaire:[String(d.client||"").toUpperCase(), d.ref ? "Réf. "+d.ref : ""],
+    objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), [d.niveau, "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
+    folio:1, total:1
+  }, {x0:Cartouche.MARGE_GAUCHE, x1:1400-Cartouche.MARGE_DROITE, y1:P.h/k-Cartouche.MARGE_BAS, logo:Cartouche.choisirLogo(socNom, logo, soc && soc.logo)});
+  Cartouche.versPDF(doc, T, k, 0, 0);
+  var nom=nomDeBase()+(d.niveau ? "-"+d.niveau : "")+"-ind"+(d.indice||"A")+"-"+(a3?"A3":"A4")+".pdf";
   return {blob:doc.output("blob"), nom:nom.replace(/[^\w.\-À-ÿ]+/g,"-"), n:e.n, deborde:e.deborde, format:a3?"A3":"A4"};
 }
 
