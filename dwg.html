@@ -151,6 +151,12 @@ body.clair #scene{background:#FFFFFF}
 @media (max-width:620px){ .v3-barre{flex-wrap:wrap;overflow:visible;gap:6px} .v3-barre .bt{padding:6px 10px} .v3-barre .esp{display:none} }
 #v3Canvas{flex:1;display:block;width:100%;min-height:0;touch-action:none;cursor:grab}
 #v3Aide{position:absolute;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);padding:6px 12px;border-radius:999px;background:rgba(31,41,51,.78);color:#F2F5F9;font-size:12.5px;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 24px);overflow:hidden;text-overflow:ellipsis}
+.champ-cm{flex:0 0 auto;width:58px;min-height:34px;padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px;text-align:center}
+.v3-alerte{position:absolute;left:10px;top:calc(62px + env(safe-area-inset-top,0px));max-width:min(420px,calc(100vw - 20px));padding:8px 12px;border-radius:12px;background:rgba(127,29,29,.92);color:#FEF2F2;font-size:13px;box-shadow:0 10px 30px -12px rgba(0,0,0,.6)}
+.v3-alerte[hidden]{display:none}
+.v3-alerte summary{cursor:pointer;font-weight:700}
+.v3-alerte ul{margin:6px 0 4px;padding-left:18px} .v3-alerte li{margin:2px 0}
+.v3-alerte p{margin:4px 0 0;font-size:11.5px;opacity:.85}
 .champ-h{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
 .champ-h[hidden]{display:none}
 .champ-h input{width:64px;min-height:34px;padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px;text-align:center}
@@ -193,12 +199,14 @@ body.clair #scene{background:#FFFFFF}
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="visite">Visite</button></span>
     <button class="bt" id="v3Transp" type="button" aria-pressed="false">Murs transparents</button>
     <button class="bt" id="v3Cotes" type="button" aria-pressed="true">Hauteurs</button>
+    <button class="bt" id="v3Vols" type="button" aria-pressed="true" hidden>Volumes SDB</button>
     <label>Sous plafond <input id="v3Hsp" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur sous plafond en cm"> cm</label>
     <span class="esp"></span>
     <button class="bt" id="v3Image" type="button">Image</button>
   </div>
   <canvas id="v3Canvas" aria-label="Vue 3D"></canvas>
   <div id="v3Aide"></div>
+  <details class="v3-alerte" id="v3Alerte" hidden><summary></summary><ul></ul><p>Repères indicatifs d'après la NF C 15-100 (volume 1 au-dessus de la baignoire ou du receveur jusqu'à 2,25 m, volume 2 à 60 cm autour jusqu'à 3 m) : à vérifier sur place.</p></details>
 </div>
 
 <div class="chargement" id="chargement" hidden><i></i><span id="chargementTxt">Chargement…</span></div>
@@ -228,7 +236,8 @@ body.clair #scene{background:#FFFFFF}
   <div class="reglages">
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
-    <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur de pose en cm"> cm</label>
+    <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> cm</label>
+    <datalist id="hTypes"><option value="30" label="prise"><option value="70" label="prise au-dessus du chevet"><option value="90" label="interrupteur de tête de lit"><option value="110" label="commande, plan de travail"><option value="130" label="liseuse"><option value="180" label="applique"><option value="200" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
     <button class="bt" id="btDefaireS" type="button" disabled>Annuler</button>
@@ -247,12 +256,16 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="pf"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M1 20h2M21 20h2" stroke-width="4" stroke="#2F343B"/><path d="M3 20v-9M21 20v-9M3 11a9 9 0 0 1 9 9M21 11a9 9 0 0 0-9 9"/></svg></i>Porte-fenêtre</button>
     <button type="button" data-o="fenetre"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.2"><path d="M1 12h4M19 12h4" stroke-width="6" stroke="#2F343B"/><path d="M5 9h14M5 15h14M5 11.3h14M5 12.7h14M5 9v6M19 9v6"/></svg></i>Fenêtre</button>
     <button type="button" data-o="texte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 6h14M12 6v13"/></svg></i>Nom de pièce</button>
+    <button type="button" data-o="objet"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M3 19V8M3 15h18v4M21 15v-3a2 2 0 0 0-2-2h-8v5"/><rect x="5" y="10.5" width="4" height="3" rx="1"/></svg></i>Mobilier</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
   </div>
   <div class="reglages">
     <span class="groupe" id="grpEp"><span class="lab">Épaisseur</span>
       <span class="seg" id="segEp"><button type="button" data-e="50">5</button><button type="button" data-e="70">7</button><button type="button" data-e="100">10</button><button type="button" data-e="150">15</button><button type="button" data-e="200">20</button><button type="button" data-e="300">30</button></span><span class="lab">cm</span></span>
     <span class="groupe" id="grpLarg" hidden><span class="lab">Largeur</span><select id="selLarg" class="sel-d"></select></span>
+    <span class="groupe" id="grpChoixMob" hidden><span class="lab">Poser</span><select id="selMob" class="sel-d" aria-label="Meuble ou forme à poser"></select></span>
+    <span class="groupe" id="grpMob" hidden><span class="lab">L</span><input class="champ-cm" id="mobL" type="text" inputmode="decimal" aria-label="Largeur en cm"><span class="lab">P</span><input class="champ-cm" id="mobP" type="text" inputmode="decimal" aria-label="Profondeur en cm"><span class="lab">H</span><input class="champ-cm" id="mobH" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab">du sol</span><input class="champ-cm" id="mobZ" type="text" inputmode="decimal" aria-label="Hauteur du dessous au-dessus du sol en cm"><span class="lab">cm</span></span>
+    <button class="bt" id="btTournerD" type="button" hidden>Tourner 90°</button>
     <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span></span>
     <button class="bt" id="btTerminer" type="button" hidden>Terminer le mur</button>
     <button class="bt" id="btInverser" type="button" hidden>Sens d'ouverture</button>
@@ -827,6 +840,10 @@ cv.addEventListener("pointerdown", function(e){
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
   if(MODE==="dessin"){
+    if(OUTIL_D==="choisir" || OUTIL_D==="objet"){
+      var sm=mobSous(versPlan(p[0], p[1]));
+      if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y]; return; }
+    }
     if(e.pointerType!=="mouse"){
       G.minuteur=setTimeout(function(){ if(G && !G.bouge && !G.pince){ G.visee=true; var c=chercherD(p[0],p[1]); D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); } }, 260);
     }
@@ -862,6 +879,12 @@ cv.addEventListener("pointermove", function(e){
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
     SEL=G.symb; demander(); return;
   }
+  if(G.bouge && G.mob!=null){
+    var om=mobDe(G.mob); if(!om) return;
+    if(!G.garde){ garderD(); G.garde=true; }
+    var am=accrocherMob(om, [G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k], true);
+    om.x=am.x; om.y=am.y; om.rot=am.rot; D_SEL={t:"mob", id:om.id}; demander(); return;
+  }
   if(G.bouge){ V.x=G.vx+(p[0]-G.depart[0]); V.y=G.vy+(p[1]-G.depart[1]); demander(); }
   if(e.pointerType==="mouse"){ SURVOL=chercher(p[0],p[1]); }
 });
@@ -873,6 +896,13 @@ function lacher(e){
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
   if(MODE==="dessin"){
+    if(G.mob!=null){
+      if(e.type!=="pointercancel"){
+        if(!G.bouge && OUTIL_D==="objet") toucherD(p[0], p[1]);
+        else { D_SEL={t:"mob", id:G.mob}; if(G.garde) enregistrerD(); majDessin(); }
+      }
+      G=null; demander(); return;
+    }
     if(e.type!=="pointercancel"){
       if(G.visee && VISEE) toucherD(0, 0, {pt:VISEE.pt, acc:VISEE.acc, genre:VISEE.genre});
       else if(!G.bouge) toucherD(p[0], p[1]);
@@ -957,7 +987,9 @@ function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   garderSymb();
   var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
-  SYMB.push({cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""});
+  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
+  if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
+  SYMB.push(o);
   SEL=SYMB.length-1; enregistrerSymb();
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
@@ -1037,7 +1069,7 @@ var DESSIN={murs:[], ouv:[], textes:[]}, DESSIN_CLE="", HISTO_D=[], OUTIL_D=lire
 var EP_MUR=Number(lire("dwg:epMur","200"))||200, EP_CLOISON=70;
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", choisir:"Choisir"};
+var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function garderD(){ HISTO_D.push(JSON.stringify(DESSIN)); if(HISTO_D.length>100) HISTO_D.shift(); }
 function enregistrerD(){
@@ -1045,7 +1077,7 @@ function enregistrerD(){
   try{ localStorage.setItem(DESSIN_CLE, JSON.stringify(DESSIN)); }catch(e){ toast("Mémoire de l'appareil pleine : le dessin n'a pas pu être gardé."); }
   if(PLAN && PLAN.vierge) toucherVierge(PLAN.id);
 }
-function dessinVide(){ return !DESSIN.murs.length && !DESSIN.textes.length; }
+function dessinVide(){ return !DESSIN.murs.length && !DESSIN.textes.length && !(DESSIN.mob && DESSIN.mob.length); }
 function murDe(id){ for(var i=0;i<DESSIN.murs.length;i++) if(DESSIN.murs[i].id===id) return DESSIN.murs[i]; return null; }
 function sub(a,b){ return [a[0]-b[0], a[1]-b[1]]; }
 function lng(v){ return Math.hypot(v[0], v[1]); }
@@ -1130,6 +1162,8 @@ function peindreDessin(c){
       ligne(surMur(m,g0,-e*0.18), surMur(m,g1,-e*0.18), fin, col);   /* le seuil */
     }
   });
+  /* le mobilier et les formes */
+  peindreMobilier(c, E, fin, coulTrait, orange);
   /* les noms de pièces */
   DESSIN.textes.forEach(function(t){
     var P=E([t.x, t.y]), hp=Math.max(9, t.h*V.k);
@@ -1162,6 +1196,7 @@ function etiquette(c, x, y, t){
 function pointsDessin(){
   var out=[];
   DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
+  mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   return out;
 }
 /* L'accrochage du dessin, du plus fort au plus faible : un bout ou un angle
@@ -1228,6 +1263,9 @@ function toucherD(sx, sy, force){
     var o={id:idD(), type:OUTIL_D, mur:best.m.id, t:t, l:l, sens:cote, main:1};
     DESSIN.ouv.push(o); D_SEL={t:"ouv", id:o.id}; enregistrerD(); majDessin(); return;
   }
+  if(OUTIL_D==="objet"){
+    poserMob(p); return;     /* même sur un autre meuble : un miroir au-dessus d'une vasque */
+  }
   if(OUTIL_D==="texte"){
     var s=window.prompt("Nom de la pièce (ex. Séjour, Chambre 1, SdB) :", "");
     if(s==null || !String(s).trim()) return;
@@ -1243,12 +1281,13 @@ function objetSous(p){
   DESSIN.textes.forEach(function(t){ var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
   if(best) return best;
+  var mb=mobSous(p); if(mb) return {t:"mob", id:mb.id};
   DESSIN.murs.forEach(function(m){ var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
   return best;
 }
 function objetSel(){
   if(!D_SEL) return null;
-  var l = D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : DESSIN.textes;
+  var l = D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : D_SEL.t==="mob" ? mobs() : DESSIN.textes;
   for(var i=0;i<l.length;i++) if(l[i].id===D_SEL.id) return l[i];
   return null;
 }
@@ -1257,10 +1296,11 @@ function supprimerD(){
   garderD();
   if(D_SEL.t==="mur"){ DESSIN.murs=DESSIN.murs.filter(function(m){ return m.id!==o.id; }); DESSIN.ouv=DESSIN.ouv.filter(function(x){ return x.mur!==o.id; }); }
   else if(D_SEL.t==="ouv") DESSIN.ouv=DESSIN.ouv.filter(function(x){ return x.id!==o.id; });
+  else if(D_SEL.t==="mob") DESSIN.mob=mobs().filter(function(x){ return x.id!==o.id; });
   else DESSIN.textes=DESSIN.textes.filter(function(x){ return x.id!==o.id; });
   D_SEL=null; enregistrerD(); majDessin();
 }
-function defaireD(){ if(D_PT){ D_PT=null; majDessin(); return; } if(!HISTO_D.length) return; DESSIN=JSON.parse(HISTO_D.pop()); D_SEL=null; enregistrerD(); majDessin(); }
+function defaireD(){ if(D_PT){ D_PT=null; majDessin(); return; } if(!HISTO_D.length) return; DESSIN=normD(JSON.parse(HISTO_D.pop())); D_SEL=null; enregistrerD(); majDessin(); }
 /* ---------- le panneau du dessin ---------- */
 function majDessin(){
   var o=objetSel(), t=D_SEL && D_SEL.t;
@@ -1268,11 +1308,13 @@ function majDessin(){
   var info=NOMS_OUTILS[OUTIL_D], det="";
   if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur. Toucher le même point, ou « Terminer », arrête le tracé." : "Touchez le début du mur.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
-  else if(OUTIL_D==="choisir") det="Touchez un mur, une ouverture ou un nom pour le modifier.";
+  else if(OUTIL_D==="choisir") det="Touchez un mur, une ouverture, un meuble ou un nom pour le modifier.";
+  else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
   else det="Touchez un mur, du côté où elle s'ouvre.";
   if(o && t==="mur") det="Mur de "+formater(axes(o).L)+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm.";
   if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm.";
   if(o && t==="texte") det="« "+o.s+" »";
+  if(o && t==="mob") det=(o.nom || defMob(o.cle).nom)+" · "+cm(o.l*DESSIN_MM)+" × "+cm(o.p*DESSIN_MM)+" × "+cm(o.h)+" cm"+((o.z||0) ? ", à "+cm(o.z)+" cm du sol" : "")+". Glissez pour déplacer.";
   $("dsInfo").textContent=info; $("dsDetail").textContent=det;
   var pourMur = (OUTIL_D==="mur" || OUTIL_D==="cloison") && !o || t==="mur";
   $("grpEp").hidden = !pourMur;
@@ -1292,7 +1334,11 @@ function majDessin(){
   if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=String(Math.round(axes(o).L*DESSIN_MM)/10).replace(".",",");
   $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre");
   $("btMain").hidden = !(t==="ouv" && o.type==="porte");
-  $("btRenommer").hidden = t!=="texte";
+  $("btRenommer").hidden = t!=="texte" && t!=="mob";
+  $("grpChoixMob").hidden = OUTIL_D!=="objet";
+  if(OUTIL_D==="objet") $("selMob").value=CHOIX_MOB;
+  $("grpMob").hidden = t!=="mob"; $("btTournerD").hidden = t!=="mob";
+  if(t==="mob") [["mobL", o.l*DESSIN_MM], ["mobP", o.p*DESSIN_MM], ["mobH", o.h], ["mobZ", o.z||0]].forEach(function(v){ if(document.activeElement!==$(v[0])) $(v[0]).value=cm(v[1]); });
   $("btSuppD").disabled = !o;
   $("btTerminer").hidden = !D_PT;
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT;
@@ -1326,15 +1372,414 @@ $("dsLong").addEventListener("keydown", function(e){ if(e.key==="Enter") this.bl
 $("btInverser").addEventListener("click", function(){ modifierSel(function(o){ o.sens=-(o.sens||1); }); });
 $("btMain").addEventListener("click", function(){ modifierSel(function(o){ o.main=-(o.main||1); }); });
 $("btRenommer").addEventListener("click", function(){
-  var o=objetSel(); if(!o) return; var s=window.prompt("Nom de la pièce :", o.s); if(s==null || !String(s).trim()) return;
+  var o=objetSel(); if(!o) return;
+  if(D_SEL.t==="mob"){ var n=window.prompt("Nom écrit sur le plan :", o.nom || defMob(o.cle).court); if(n==null) return; modifierSel(function(x){ x.nom=String(n).trim(); }); return; }
+  var s=window.prompt("Nom de la pièce :", o.s); if(s==null || !String(s).trim()) return;
   modifierSel(function(x){ x.s=String(s).trim(); });
 });
+function cm(mm){ return String(Math.round(mm)/10).replace(".", ","); }
 $("btSuppD").addEventListener("click", supprimerD);
 $("btDefaireD").addEventListener("click", defaireD);
 $("btTerminer").addEventListener("click", function(){ D_PT=null; majDessin(); });
 $("btAccrD").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majDessin(); });
 $("btOrthoD").addEventListener("click", function(){ ORTHO_D=!ORTHO_D; garder("dwg:orthoD", ORTHO_D?"1":"0"); majDessin(); });
 $("btDxfD").addEventListener("click", function(){ exporterDxf(); });
+/* ---------- le mobilier et les formes ----------
+   Des volumes simples posés sur le plan (lit, chevet, baignoire, douche,
+   meuble vasque, WC, plan de travail… ou un pavé, un cylindre) pour
+   dessiner le principe de pose d'une chambre ou d'une salle de bains. Ils
+   s'adossent au mur et se calent contre un mur voisin ou un autre meuble ;
+   on règle leurs dimensions ; la 3D les monte avec les appareils à leur
+   hauteur. Au sol, x, y, l (largeur) et p (profondeur) sont dans l'unité
+   du plan ; h (épaisseur) et z (dessous, au-dessus du sol) en mm. Le dos
+   d'un meuble (tête du lit, côté long de la baignoire) est son côté +p/2. */
+var MOB=[
+  {cle:"lit140", nom:"Lit 140 × 190", court:"Lit 140", groupe:"Chambre", l:1400, p:1950, h:1000, genre:"lit"},
+  {cle:"lit160", nom:"Lit 160 × 200", court:"Lit 160", groupe:"Chambre", l:1600, p:2050, h:1000, genre:"lit"},
+  {cle:"lit90", nom:"Lit 90 × 190", court:"Lit 90", groupe:"Chambre", l:900, p:1950, h:900, genre:"lit"},
+  {cle:"chevet", nom:"Table de chevet", court:"Chevet", groupe:"Chambre", l:450, p:400, h:550, genre:"meuble"},
+  {cle:"commode", nom:"Commode", court:"Commode", groupe:"Chambre", l:1000, p:500, h:850, genre:"meuble"},
+  {cle:"armoire", nom:"Armoire, dressing", court:"Armoire", groupe:"Chambre", l:1200, p:600, h:2200, genre:"armoire"},
+  {cle:"bureau", nom:"Bureau", court:"Bureau", groupe:"Chambre", l:1200, p:600, h:750, genre:"table"},
+  {cle:"baignoire", nom:"Baignoire 170 × 70", court:"Baignoire", groupe:"Salle de bains", l:1700, p:700, h:560, genre:"baignoire", vol:1},
+  {cle:"douche90", nom:"Douche 90 × 90", court:"Douche", groupe:"Salle de bains", l:900, p:900, h:50, genre:"douche", vol:1},
+  {cle:"douche120", nom:"Douche 120 × 90", court:"Douche", groupe:"Salle de bains", l:1200, p:900, h:50, genre:"douche", vol:1},
+  {cle:"vasque", nom:"Meuble vasque 80", court:"Vasque", groupe:"Salle de bains", l:800, p:500, h:850, genre:"vasque", n:1},
+  {cle:"vasque2", nom:"Meuble double vasque 120", court:"Double vasque", groupe:"Salle de bains", l:1200, p:500, h:850, genre:"vasque", n:2},
+  {cle:"miroir", nom:"Miroir", court:"Miroir", groupe:"Salle de bains", l:800, p:30, h:700, z:1100, genre:"miroir"},
+  {cle:"wc", nom:"WC", court:"WC", groupe:"Salle de bains", l:400, p:650, h:800, genre:"wc"},
+  {cle:"seche", nom:"Sèche-serviettes", court:"Sèche-serv.", groupe:"Salle de bains", l:500, p:100, h:1200, z:200, genre:"seche"},
+  {cle:"lavelinge", nom:"Lave-linge", court:"Lave-linge", groupe:"Salle de bains", l:600, p:600, h:850, genre:"machine"},
+  {cle:"plan", nom:"Meubles bas et plan de travail", court:"Plan de travail", groupe:"Cuisine", l:2400, p:650, h:900, genre:"plan"},
+  {cle:"hauts", nom:"Meubles hauts", court:"Meubles hauts", groupe:"Cuisine", l:2400, p:350, h:700, z:1450, genre:"meuble"},
+  {cle:"frigo", nom:"Réfrigérateur", court:"Frigo", groupe:"Cuisine", l:600, p:650, h:1850, genre:"machine"},
+  {cle:"table", nom:"Table", court:"Table", groupe:"Cuisine", l:1600, p:900, h:750, genre:"table", libre:1},
+  {cle:"pave", nom:"Pavé", court:"Pavé", groupe:"Formes", l:1000, p:600, h:1000, genre:"pave"},
+  {cle:"cylindre", nom:"Cylindre", court:"Cylindre", groupe:"Formes", l:600, p:600, h:1000, genre:"cyl", libre:1},
+  {cle:"caisson", nom:"Caisson, soffite au plafond", court:"Caisson", groupe:"Formes", l:1200, p:400, h:300, genre:"pave", plafond:1},
+  {cle:"estrade", nom:"Marche, estrade", court:"Estrade", groupe:"Formes", l:1200, p:800, h:180, genre:"pave"}
+];
+var CHOIX_MOB=lire("dwg:mob","lit140"), VOLS=lire("dwg:volumes","1")!=="0";
+function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; return MOB[20]; }
+function mobs(){ return (DESSIN && DESSIN.mob) || []; }
+function mobDe(id){ var l=mobs(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
+function normD(D){ D=D||{}; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; return D; }
+function repereMob(o){ var a=(o.rot||0)*Math.PI/180; return {ux:[Math.cos(a), Math.sin(a)], uy:[-Math.sin(a), Math.cos(a)]}; }
+function versMob(o, lx, ly){ var r=repereMob(o); return [o.x+r.ux[0]*lx+r.uy[0]*ly, o.y+r.ux[1]*lx+r.uy[1]*ly]; }
+function localMob(o, p){ var r=repereMob(o), dx=p[0]-o.x, dy=p[1]-o.y; return [dx*r.ux[0]+dy*r.ux[1], dx*r.uy[0]+dy*r.uy[1]]; }
+function dansMob(o, p, marge){ var q=localMob(o, p); marge=marge||0; return Math.abs(q[0])<=o.l/2+marge && Math.abs(q[1])<=o.p/2+marge; }
+function coinsMob(o){ return [versMob(o,-o.l/2,-o.p/2), versMob(o,o.l/2,-o.p/2), versMob(o,o.l/2,o.p/2), versMob(o,-o.l/2,o.p/2)]; }
+function mobSous(p){
+  var l=mobs(), m=6/V.k;
+  for(var i=l.length-1;i>=0;i--) if(dansMob(l[i], p, m)) return l[i];
+  return null;
+}
+function nouveauMob(cle){
+  var d=defMob(cle);
+  return {id:idD(), cle:d.cle, x:0, y:0, rot:0, l:d.l/DESSIN_MM, p:d.p/DESSIN_MM, h:d.h, z:d.plafond ? Math.max(0, hspD()-d.h) : (d.z||0), nom:""};
+}
+/* Adosser au mur le plus proche : le dos contre sa face (à la pose), ou le
+   côté déjà tourné vers lui (en déplaçant) ; puis se caler contre un mur
+   en retour ou un meuble voisin adossé au même mur. */
+function accrocherMob(o, p, garderRot, sansCaler){
+  var res={x:p[0], y:p[1], rot:o.rot||0, acc:null}, d=defMob(o.cle), q=1/DESSIN_MM;
+  if(!ACCR_D || d.libre || !DESSIN.murs.length) return res;
+  var best=null, bd=Infinity, tol=Math.max(Math.max(o.l, o.p)/2+300*q, 30/V.k);
+  DESSIN.murs.forEach(function(m){
+    var r=distSeg(p, m.a, m.b), face=r.d-m.ep/2;
+    if(r.t>0 && r.t<1 && face<tol && face<bd){ bd=face; best={m:m, t:r.t}; }
+  });
+  if(!best) return res;
+  var m=best.m, x=axes(m), cote=((p[0]-m.a[0])*x.n[0]+(p[1]-m.a[1])*x.n[1])>=0 ? 1 : -1, nIn=[x.n[0]*cote, x.n[1]*cote];
+  var a0=Math.atan2(nIn[0], -nIn[1])*180/Math.PI, k=0;
+  if(garderRot){ k=Math.round(((o.rot||0)-a0)/90); k=((k%4)+4)%4; }
+  var rot=((a0+k*90)%360+360)%360, prof=(k%2) ? o.l/2 : o.p/2, he=(k%2) ? o.p/2 : o.l/2;
+  var s=x.L*best.t, tolC=Math.max(250*q, 20/V.k), fait=!!sansCaler;
+  function caler(bas, haut){      /* une butée à gauche (bas) ou à droite (haut) de l'axe du mur */
+    if(fait) return;
+    if(bas!=null && Math.abs((s-he)-bas)<tolC){ s=bas+he; fait=true; }
+    else if(haut!=null && Math.abs((s+he)-haut)<tolC){ s=haut-he; fait=true; }
+  }
+  DESSIN.murs.forEach(function(m2){
+    if(m2===m) return; var x2=axes(m2);
+    if(Math.abs(x2.u[0]*x.u[0]+x2.u[1]*x.u[1])>0.2) return;              /* seulement un mur en retour */
+    var da=(m2.a[0]-m.a[0])*nIn[0]+(m2.a[1]-m.a[1])*nIn[1], db=(m2.b[0]-m.a[0])*nIn[0]+(m2.b[1]-m.a[1])*nIn[1];
+    if(Math.max(da, db)<m.ep/2+10*q || Math.min(da, db)>m.ep/2+2*prof) return;
+    var su=(m2.a[0]-m.a[0])*x.u[0]+(m2.a[1]-m.a[1])*x.u[1];
+    if(su<=s) caler(su+m2.ep/2, null); else caler(null, su-m2.ep/2);
+  });
+  mobs().forEach(function(o2){
+    if(o2===o || o2.id===o.id || fait) return;
+    var dn=(o2.x-m.a[0])*nIn[0]+(o2.y-m.a[1])*nIn[1]; if(dn<m.ep/2 || dn>m.ep/2+Math.max(o2.l,o2.p)) return;
+    var r2=repereMob(o2), he2=Math.abs(r2.ux[0]*x.u[0]+r2.ux[1]*x.u[1])*o2.l/2+Math.abs(r2.uy[0]*x.u[0]+r2.uy[1]*x.u[1])*o2.p/2;
+    var s2=(o2.x-m.a[0])*x.u[0]+(o2.y-m.a[1])*x.u[1];
+    if(s2<=s) caler(s2+he2, null); else caler(null, s2-he2);
+  });
+  var pied=[m.a[0]+x.u[0]*s+nIn[0]*m.ep/2, m.a[1]+x.u[1]*s+nIn[1]*m.ep/2];
+  return {x:pied[0]+nIn[0]*prof, y:pied[1]+nIn[1]*prof, rot:Math.round(rot*10)/10, acc:{pt:pied, genre:5}};
+}
+function poserMob(p){
+  var o=nouveauMob(CHOIX_MOB), a=accrocherMob(o, p, false);
+  o.x=a.x; o.y=a.y; o.rot=a.rot;
+  garderD(); DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(o); D_SEL={t:"mob", id:o.id}; enregistrerD(); majDessin();
+}
+function tournerMob(){
+  var o=objetSel(); if(!o || D_SEL.t!=="mob") return;
+  modifierSel(function(x){ x.rot=((x.rot||0)+90)%360; var a=accrocherMob(x, [x.x, x.y], true); x.x=a.x; x.y=a.y; x.rot=a.rot; });
+}
+/* les volumes de la salle de bains (NF C 15-100, section 701, à titre indicatif) :
+   le volume 1 au-dessus de la baignoire ou du receveur jusqu'à 2,25 m, le
+   volume 2 à 60 cm autour, jusqu'à 3 m. Un côté contre un mur ne déborde pas. */
+function extVol(o, mmParU){
+  var r=repereMob(o), e=600/mmParU, pas=40/mmParU, out={};
+  [["xm",[-r.ux[0],-r.ux[1]],o.l/2], ["xp",r.ux,o.l/2], ["ym",[-r.uy[0],-r.uy[1]],o.p/2], ["yp",r.uy,o.p/2]].forEach(function(c){
+    var pt=[o.x+c[1][0]*(c[2]+pas), o.y+c[1][1]*(c[2]+pas)];
+    out[c[0]] = DESSIN.murs.some(function(m){ return distSeg(pt, m.a, m.b).d<=m.ep/2; }) ? 0 : e;
+  });
+  return out;
+}
+var PRISES_S={"cfo-prise":1, "cfo-prise-etanche":1, "cfo-alim":1};
+var COMMANDES_S={"cfo-inter-va":1, "cfo-inter-double-voyant":1, "cfo-inter-voyant":1, "cfo-inter-simple":1, "cfo-bouton-vr":1, "cfo-bp-voyant":1, "cfo-bp":1};
+function alertesVolumes(){
+  var out={}, liste=[];
+  mobs().forEach(function(o){
+    if(!defMob(o.cle).vol) return;
+    var e=extVol(o, DESSIN_MM);
+    SYMB.forEach(function(s, i){
+      if(out[i]) return;
+      var q=localMob(o, [s.x, s.y]), h=hauteurDe(s), v=0;
+      if(Math.abs(q[0])<=o.l/2 && Math.abs(q[1])<=o.p/2 && h<=2250) v=1;
+      else if(q[0]>=-o.l/2-e.xm && q[0]<=o.l/2+e.xp && q[1]>=-o.p/2-e.ym && q[1]<=o.p/2+e.yp && h<=3000) v=2;
+      if(!v) return;
+      var def=SymbolesElec.trouver(s.cle)||{nom:s.cle}, msg;
+      if(PRISES_S[s.cle] || COMMANDES_S[s.cle]) msg = v===1 ? "interdit en volume 1" : "interdit en volume 2 (sauf prise rasoir à transformateur, ou TBTS)";
+      else msg = v===1 ? "volume 1 : TBTS 12 V seulement" : "volume 2 : classe II, ou TBTS";
+      out[i]={v:v, msg:msg}; liste.push({i:i, v:v, texte:def.nom+(s.t ? " "+s.t : "")+" : "+msg});
+    });
+  });
+  return {par:out, liste:liste};
+}
+/* la hauteur de pose que suggère le meuble voisin */
+function hauteurContexte(cle, p){
+  var q=1/DESSIN_MM, res=null;
+  mobs().forEach(function(o){
+    if(res) return;
+    var d=defMob(o.cle), lq=localMob(o, p), lx=lq[0], ly=lq[1];
+    if(d.genre==="lit"){
+      if(ly>=o.p/2-400*q && ly<=o.p/2+300*q && Math.abs(lx)<=o.l/2+700*q){
+        if(COMMANDES_S[cle]) res={h:900, raison:"interrupteur de tête de lit"};
+        else if(PRISES_S[cle]) res={h:700, raison:"prise de tête de lit, au-dessus du chevet"};
+        else if(cle==="cfo-applique-brick" || cle==="cfo-dcl-mural" || cle==="cfo-encastre-mural") res={h:1300, raison:"liseuse de tête de lit"};
+      }
+    } else if(d.genre==="plan" || d.genre==="vasque"){
+      if(ly>=o.p/2-300*q && ly<=o.p/2+300*q && Math.abs(lx)<=o.l/2+150*q && (PRISES_S[cle] || COMMANDES_S[cle]))
+        res={h:(o.z||0)+o.h+200, raison:"au-dessus du plan"};
+    } else if(d.genre==="miroir"){
+      if(LUMIERE[cle] && !PLAFOND[cle] && Math.abs(lx)<=o.l/2+150*q && Math.abs(ly)<=400*q) res={h:(o.z||0)+o.h+100, raison:"au-dessus du miroir"};
+    }
+  });
+  return res;
+}
+/* ---------- au plan : le contour et quelques traits, comme un plan d'archi ---------- */
+function traceMob(o){
+  var d=defMob(o.cle), q=1/DESSIN_MM, L2=o.l/2, P2=o.p/2, T=[];
+  function r(x0,y0,x1,y1,opt){ T.push({t:"r", x0:x0, y0:y0, x1:x1, y1:y1, tir:opt&&opt.tir}); }
+  function l(a,b){ T.push({t:"l", a:a, b:b}); }
+  function e(cx,cy,rx,ry){ T.push({t:"e", c:[cx,cy], rx:rx, ry:ry}); }
+  var haut=(o.z||0)>=1200;       /* au-dessus du plan de coupe : en tirets */
+  if(d.genre==="cyl"){ e(0,0,L2,P2); return T; }
+  r(-L2,-P2,L2,P2,{tir:haut});
+  if(d.genre==="lit"){
+    var tete=Math.min(60*q, o.p*0.05); l([-L2,P2-tete],[L2,P2-tete]);
+    var n=o.l>=1200*q ? 2 : 1, g=60*q, wo=(o.l-(n+1)*g)/n, y1=P2-tete-g, y0=y1-380*q;
+    for(var i=0;i<n;i++){ var x0=-L2+g+i*(wo+g); r(x0,y0,x0+wo,y1); }
+    var yp=y0-120*q; l([-L2,yp],[L2,yp]); l([-L2,yp],[-L2+Math.min(o.l*0.35, 450*q), yp-Math.min(o.p*0.2, 380*q)]);
+  } else if(d.genre==="armoire"){
+    T.push({t:"l", a:[-L2+50*q,0], b:[L2-50*q,0], tir:true});
+  } else if(d.genre==="baignoire"){
+    var ep=80*q; r(-L2+ep,-P2+ep,L2-ep,P2-ep); e(-L2+ep+120*q, 0, 28*q, 28*q);
+  } else if(d.genre==="douche"){
+    l([-L2,-P2],[L2,P2]); l([-L2,P2],[L2,-P2]); e(0,0,50*q,50*q);
+  } else if(d.genre==="vasque"){
+    var nv=defMob(o.cle).n||1, pasv=o.l/nv;
+    for(var j=0;j<nv;j++) e(-L2+pasv*(j+0.5), -20*q, Math.min(pasv*0.32, 220*q), Math.min(o.p*0.32, 170*q));
+  } else if(d.genre==="wc"){
+    var rs=Math.min(180*q, o.p*0.3); l([-L2,P2-rs],[L2,P2-rs]); e(0,(-P2+P2-rs)/2, L2*0.85, (o.p-rs)/2*0.92);
+  } else if(d.genre==="machine" && o.cle==="lavelinge"){
+    e(0,0,Math.min(L2,P2)*0.62,Math.min(L2,P2)*0.62);
+  } else if(d.genre==="plan"){
+    l([-L2,-P2+30*q],[L2,-P2+30*q]);
+  } else if(d.genre==="table"){
+    r(-L2+40*q,-P2+40*q,L2-40*q,P2-40*q);
+  } else if(d.genre==="pave" && haut){
+    l([-L2,-P2],[L2,P2]); l([-L2,P2],[L2,-P2]);
+  }
+  return T;
+}
+function peindreMobilier(c, E, fin, coulTrait, orange){
+  var l=mobs(); if(!l.length) return;
+  var q=1/DESSIN_MM;
+  l.forEach(function(o){
+    var sel=D_SEL && D_SEL.t==="mob" && D_SEL.id===o.id, col=sel ? orange : coulTrait, d=defMob(o.cle);
+    function P(x,y){ return E(versMob(o, x, y)); }
+    c.save(); c.lineWidth=fin; c.strokeStyle=col;
+    /* le fond, à peine teinté, pour lire le meuble sur le plan */
+    var k=coinsMob(o).map(E);
+    if(d.genre!=="cyl"){ c.fillStyle=CLAIR ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.beginPath(); c.moveTo(k[0][0],k[0][1]); for(var i=1;i<4;i++) c.lineTo(k[i][0],k[i][1]); c.closePath(); c.fill(); }
+    traceMob(o).forEach(function(t){
+      c.setLineDash(t.tir ? [Math.max(3, 60*q*V.k), Math.max(2, 40*q*V.k)] : []);
+      c.beginPath();
+      if(t.t==="r"){ var a=P(t.x0,t.y0), b=P(t.x1,t.y0), cc=P(t.x1,t.y1), dd=P(t.x0,t.y1); c.moveTo(a[0],a[1]); c.lineTo(b[0],b[1]); c.lineTo(cc[0],cc[1]); c.lineTo(dd[0],dd[1]); c.closePath(); }
+      else if(t.t==="l"){ var u=P(t.a[0],t.a[1]), w=P(t.b[0],t.b[1]); c.moveTo(u[0],u[1]); c.lineTo(w[0],w[1]); }
+      else { for(var n=0;n<=36;n++){ var an=n/36*Math.PI*2, pe=P(t.c[0]+Math.cos(an)*t.rx, t.c[1]+Math.sin(an)*t.ry); if(n) c.lineTo(pe[0],pe[1]); else c.moveTo(pe[0],pe[1]); } }
+      c.stroke();
+    });
+    c.setLineDash([]);
+    /* le nom, s'il tient */
+    var cote=Math.min(o.l, o.p)*V.k, nom=o.nom || d.court;
+    if(cote>=18){
+      var hp=Math.max(8, Math.min(13, cote*0.22)), ce=E([o.x, o.y]);
+      c.font="600 "+hp.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=col;
+      c.globalAlpha=0.8; c.fillText(nom, ce[0], ce[1]); c.globalAlpha=1;
+    }
+    /* le volume 2 autour d'une baignoire ou d'une douche */
+    if(VOLS && d.vol){
+      var e=extVol(o, DESSIN_MM), v=[P(-o.l/2-e.xm,-o.p/2-e.ym), P(o.l/2+e.xp,-o.p/2-e.ym), P(o.l/2+e.xp,o.p/2+e.yp), P(-o.l/2-e.xm,o.p/2+e.yp)];
+      c.strokeStyle=CLAIR ? "rgba(37,99,235,.75)" : "rgba(96,165,250,.8)"; c.lineWidth=Math.max(1, fin); c.setLineDash([6,4]);
+      c.beginPath(); c.moveTo(v[0][0],v[0][1]); for(var j=1;j<4;j++) c.lineTo(v[j][0],v[j][1]); c.closePath(); c.stroke(); c.setLineDash([]);
+      var hv=Math.max(8, Math.min(12, 110*q*V.k)); c.font="700 "+hv.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.fillStyle=c.strokeStyle;
+      c.textAlign="left"; c.textBaseline="top"; var mx=Math.min(v[0][0],v[1][0],v[2][0],v[3][0]), my=Math.min(v[0][1],v[1][1],v[2][1],v[3][1]);
+      c.fillText("V2", mx+4, my+3);
+      var ce1=E([o.x,o.y]); if(Math.min(o.l,o.p)*V.k>=40){ c.textAlign="center"; c.textBaseline="middle"; c.fillText("V1", ce1[0], ce1[1]+hp*1.3); }
+    }
+    c.restore();
+  });
+  /* un anneau rouge autour d'un appareil mal placé dans les volumes */
+  if(VOLS && typeof SYMB!=="undefined" && SYMB.length && window.SymbolesElec){
+    var al=alertesVolumes().par;
+    SYMB.forEach(function(s, i){
+      if(!al[i]) return; var ps=E([s.x, s.y]), rr=Math.max(10, s.r*V.k*1.5);
+      c.save(); c.strokeStyle="#DC2626"; c.lineWidth=2.2; c.beginPath(); c.arc(ps[0], ps[1], rr, 0, Math.PI*2); c.stroke(); c.restore();
+    });
+  }
+}
+function dxfMobilier(g, ligneD){
+  mobs().forEach(function(o){
+    var cal=(o.z||0)>=1200 ? "MOBILIER_HAUT" : "MOBILIER";
+    function P(x,y){ return versMob(o, x, y); }
+    function poly(pts){ g(0,"POLYLINE", 8,cal, 66,1, 10,0,20,0,30,0, 70,1); pts.forEach(function(p){ g(0,"VERTEX", 8,cal, 10,p[0],20,p[1],30,0); }); g(0,"SEQEND", 8,cal); }
+    traceMob(o).forEach(function(t){
+      if(t.t==="r") poly([P(t.x0,t.y0), P(t.x1,t.y0), P(t.x1,t.y1), P(t.x0,t.y1)]);
+      else if(t.t==="l") ligneD(P(t.a[0],t.a[1]), P(t.b[0],t.b[1]), cal);
+      else { var pts=[]; for(var n=0;n<36;n++){ var an=n/36*Math.PI*2; pts.push(P(t.c[0]+Math.cos(an)*t.rx, t.c[1]+Math.sin(an)*t.ry)); } poly(pts); }
+    });
+    if(VOLS && defMob(o.cle).vol){
+      var e=extVol(o, DESSIN_MM), v=[P(-o.l/2-e.xm,-o.p/2-e.ym), P(o.l/2+e.xp,-o.p/2-e.ym), P(o.l/2+e.xp,o.p/2+e.yp), P(-o.l/2-e.xm,o.p/2+e.yp)];
+      g(0,"POLYLINE", 8,"VOLUMES_SDB", 66,1, 10,0,20,0,30,0, 70,1); v.forEach(function(p){ g(0,"VERTEX", 8,"VOLUMES_SDB", 10,p[0],20,p[1],30,0); }); g(0,"SEQEND", 8,"VOLUMES_SDB");
+    }
+  });
+}
+/* ---------- en 3D : chaque meuble en quelques volumes (mm, repère du meuble) ---------- */
+function piecesMob(o){
+  var d=defMob(o.cle), l=o.l, p=o.p, h=o.h, L2=l/2, P2=p/2, P=[], i;
+  var BOIS=0xC9A27E, BOIS2=0x9C7654, BLANC=0xF7F8F9, CHROME=0xA7AFB8, VERRE=0x9BD3F0, FORME=0xAFC0D6;
+  function b(x0,x1,y0,y1,z0,z1,c,x){ var q={x0:x0,x1:x1,y0:y0,y1:y1,z0:z0,z1:z1,c:c}; if(x) for(var k in x) q[k]=x[k]; P.push(q); }
+  switch(d.genre){
+    case "lit":
+      var tete=Math.min(60, p*0.05), hm=Math.min(550, h), hs=Math.min(300, hm*0.55);
+      b(-L2,L2, P2-tete,P2, 0,h, BOIS2);
+      b(-L2,L2, -P2,P2-tete, 0,hs, BOIS);
+      b(-L2+20,L2-20, -P2+20,P2-tete-10, hs,hm, 0xF1EEE6);
+      var n=l>=1200 ? 2 : 1, g=60, wo=(l-(n+1)*g)/n;
+      for(i=0;i<n;i++){ var x0=-L2+g+i*(wo+g); b(x0,x0+wo, P2-tete-g-380,P2-tete-g, hm,hm+110, 0xFFFFFF); }
+      b(-L2+10,L2-10, -P2+10,P2-tete-g-500, hm,hm+45, 0x8FA9C4);
+      break;
+    case "meuble": b(-L2,L2,-P2,P2,0,h,BOIS); b(-L2+12,L2-12,-P2-3,-P2, h*0.5-6,h*0.5+6, BOIS2); break;
+    case "armoire":
+      b(-L2,L2,-P2,P2,0,h,0xDCCFB9); b(-4,4,-P2-3,-P2,20,h-20,0x8A7A66);
+      b(-44,-24,-P2-22,-P2,h*0.45,h*0.55,0x555B63); b(24,44,-P2-22,-P2,h*0.45,h*0.55,0x555B63);
+      break;
+    case "table":
+      b(-L2,L2,-P2,P2,h-30,h,BOIS);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s){ var cx=s[0]*(L2-60), cy=s[1]*(P2-60); b(cx-25,cx+25,cy-25,cy+25,0,h-30,BOIS2); });
+      break;
+    case "baignoire":
+      var ep=70; b(-L2,L2,-P2,P2,0,110,BLANC);
+      b(-L2,L2,-P2,-P2+ep,0,h,BLANC); b(-L2,L2,P2-ep,P2,0,h,BLANC); b(-L2,-L2+ep,-P2+ep,P2-ep,0,h,BLANC); b(L2-ep,L2,-P2+ep,P2-ep,0,h,BLANC);
+      b(-L2+ep,L2-ep,-P2+ep,P2-ep,110,h*0.62,VERRE,{opa:0.5});
+      b(-L2+ep+60,-L2+ep+90, P2-ep-10,P2, h,h+160, CHROME);
+      break;
+    case "douche":
+      b(-L2,L2,-P2,P2,0,h,BLANC);
+      b(-L2,-L2+8,-P2,P2,h,h+1950,VERRE,{opa:0.28});
+      b(-15,15,P2-45,P2-15,h,2100,CHROME); b(-110,110,P2-330,P2-110,2080,2100,CHROME,{cyl:1});
+      break;
+    case "vasque":
+      b(-L2,L2,-P2,P2,300,h-30,BOIS); b(-L2,L2,-P2,P2,h-30,h,BLANC);
+      var nv=d.n||1, pasv=l/nv;
+      for(i=0;i<nv;i++){ var cx=-L2+pasv*(i+0.5), rx=Math.min(pasv*0.32, 220), ry=Math.min(p*0.32, 170);
+        b(cx-rx,cx+rx,-20-ry,-20+ry,h,h+130,BLANC,{cyl:1}); b(cx-12,cx+12,P2-95,P2-65,h,h+190,CHROME); }
+      break;
+    case "miroir": b(-L2,L2,-P2,P2,0,h,0xCFE3EE,{brille:1}); break;
+    case "wc":
+      var rs=Math.min(180, p*0.3); b(-L2+20,L2-20,P2-rs,P2,300,h,BLANC);
+      b(-L2*0.85,L2*0.85,-P2,P2-rs,0,400,BLANC,{cyl:1});
+      break;
+    case "seche":
+      b(-L2,-L2+30,-P2+20,P2-20,0,h,0xBFC5CC); b(L2-30,L2,-P2+20,P2-20,0,h,0xBFC5CC);
+      for(var zz=40; zz<h-20; zz+=90) b(-L2+30,L2-30,-P2+35,P2-35,zz,zz+24,0xD4D8DD);
+      break;
+    case "machine":
+      b(-L2,L2,-P2,P2,0,h,BLANC);
+      if(o.cle==="lavelinge"){ b(-L2+30,L2-30,-P2-3,-P2,h-110,h-30,0x9CA3AF); var rr=Math.min(L2,h/2)*0.62; b(-rr,rr,-P2-3,-P2+0.5,h*0.45-rr,h*0.45+rr,0x4B5563,{disque:1}); }
+      else b(-L2+30,-L2+50,-P2-25,-P2,h*0.45,h*0.75,CHROME);
+      break;
+    case "plan":
+      b(-L2,L2,-P2+60,P2,0,100,0x4B5563); b(-L2,L2,-P2+20,P2,100,h-40,0xE8E2D6); b(-L2,L2,-P2,P2,h-40,h,0x8B7D6B);
+      for(var xs=-L2+600; xs<L2-50; xs+=600) b(xs-3,xs+3,-P2+14,-P2+20,110,h-50,0xA8A29E);
+      break;
+    case "cyl": b(-L2,L2,-P2,P2,0,h,FORME,{cyl:1}); break;
+    default: b(-L2,L2,-P2,P2,0,h,FORME);
+  }
+  return P;
+}
+function mobilier3D(sc){
+  var THREE=V3.THREE, mats={};
+  function mat(c, opa, brille){
+    var cle=c+":"+(opa||1)+":"+(brille?1:0);
+    if(!mats[cle]) mats[cle]=new THREE.MeshStandardMaterial({color:c, roughness:brille ? 0.15 : 0.8, metalness:brille ? 0.3 : 0,
+      transparent:(opa||1)<1, opacity:opa||1, depthWrite:!((opa||1)<1), side:(opa||1)<1 ? THREE.DoubleSide : THREE.FrontSide});
+    return mats[cle];
+  }
+  var arete=new THREE.LineBasicMaterial({color:0x5B6470, transparent:true, opacity:0.35});
+  var geoCyl=new THREE.CylinderGeometry(0.5,0.5,1,40), geoDisque=new THREE.CylinderGeometry(0.5,0.5,1,40);
+  DESSIN.mob.forEach(function(o){
+    var gr=new THREE.Group(), z=o.z||0;
+    gr.position.set(o.x/1000, z/1000, -o.y/1000); gr.rotation.y=(o.rot||0)*Math.PI/180;
+    piecesMob(o).forEach(function(q){
+      var w=Math.max(1,q.x1-q.x0)/1000, hh=Math.max(1,q.z1-q.z0)/1000, dd=Math.max(1,q.y1-q.y0)/1000, me;
+      if(q.cyl){ me=new THREE.Mesh(geoCyl, mat(q.c, q.opa, q.brille)); me.scale.set(w, hh, dd); }
+      else if(q.disque){ me=new THREE.Mesh(geoDisque, mat(q.c)); me.rotation.x=Math.PI/2; me.scale.set(w, dd, hh); }
+      else {
+        var g=new THREE.BoxGeometry(w, hh, dd); me=new THREE.Mesh(g, mat(q.c, q.opa, q.brille));
+        if(!q.opa){ var ar=new THREE.LineSegments(new THREE.EdgesGeometry(g), arete); ar.position.set((q.x0+q.x1)/2000, (q.z0+q.z1)/2000, -(q.y0+q.y1)/2000); gr.add(ar); }
+      }
+      me.position.set((q.x0+q.x1)/2000, (q.z0+q.z1)/2000, -(q.y0+q.y1)/2000); gr.add(me);
+    });
+    sc.add(gr);
+  });
+}
+function volumes3D(sc, hsp){
+  var THREE=V3.THREE;
+  var m1=new THREE.MeshBasicMaterial({color:0x2563EB, transparent:true, opacity:0.13, depthWrite:false, side:THREE.DoubleSide});
+  var m2=new THREE.MeshBasicMaterial({color:0x60A5FA, transparent:true, opacity:0.08, depthWrite:false, side:THREE.DoubleSide});
+  var l1=new THREE.LineBasicMaterial({color:0x2563EB, transparent:true, opacity:0.55}), l2=new THREE.LineBasicMaterial({color:0x3B82F6, transparent:true, opacity:0.4});
+  DESSIN.mob.forEach(function(o){
+    if(!defMob(o.cle).vol) return;
+    var e=extVol(o, 1), gr=new THREE.Group(), z1=Math.min(2250, hsp), z2=Math.min(3000, hsp);
+    gr.position.set(o.x/1000, 0, -o.y/1000); gr.rotation.y=(o.rot||0)*Math.PI/180;
+    function boite(x0,x1,y0,y1,za,zb,m,ln){
+      if(x1-x0<1 || y1-y0<1 || zb-za<1) return;
+      var g=new THREE.BoxGeometry((x1-x0)/1000,(zb-za)/1000,(y1-y0)/1000), me=new THREE.Mesh(g, m);
+      me.position.set((x0+x1)/2000,(za+zb)/2000,-(y0+y1)/2000); me.renderOrder=2; gr.add(me);
+      if(ln){ var a=new THREE.LineSegments(new THREE.EdgesGeometry(g), ln); a.position.copy(me.position); gr.add(a); }
+    }
+    var L2=o.l/2, P2=o.p/2, X0=-L2-e.xm, X1=L2+e.xp, Y0=-P2-e.ym, Y1=P2+e.yp;
+    boite(-L2,L2,-P2,P2,0,z1,m1,l1);
+    boite(X0,-L2,Y0,Y1,0,z2,m2); boite(L2,X1,Y0,Y1,0,z2,m2); boite(-L2,L2,Y0,-P2,0,z2,m2); boite(-L2,L2,P2,Y1,0,z2,m2);
+    boite(X0,X1,Y0,Y1,0,z2,new THREE.MeshBasicMaterial({visible:false}),l2);
+    var s1=texteSprite("Volume 1", 0.024, "rgba(37,99,235,.85)", true); s1.position.set(0, z1/1000, 0); gr.add(s1);
+    if(e.xm+e.xp+e.ym+e.yp>0){
+      /* dans un angle de la bande du volume 2, à mi-hauteur : loin de l'étiquette du volume 1 */
+      var cx = e.xp ? (L2+X1)/2 : (e.xm ? (X0-L2)/2 : 0), cy = e.ym ? (Y0-P2)/2 : (e.yp ? (P2+Y1)/2 : 0);
+      var s2=texteSprite("Volume 2", 0.022, "rgba(59,130,246,.8)", true); s2.position.set(cx/1000, z2*0.55/1000, -cy/1000); gr.add(s2);
+    }
+    sc.add(gr);
+  });
+}
+/* le mobilier : le choix à poser, et les cotes du meuble choisi (en cm) */
+(function(){
+  var sel=$("selMob"), grs={};
+  MOB.forEach(function(d){
+    if(!grs[d.groupe]){ grs[d.groupe]=document.createElement("optgroup"); grs[d.groupe].label=d.groupe; sel.appendChild(grs[d.groupe]); }
+    var op=document.createElement("option"); op.value=d.cle; op.textContent=d.nom; grs[d.groupe].appendChild(op);
+  });
+  sel.value=CHOIX_MOB;
+  sel.addEventListener("change", function(){ CHOIX_MOB=this.value; garder("dwg:mob", CHOIX_MOB); majDessin(); });
+  [["mobL","l"], ["mobP","p"], ["mobH","h"], ["mobZ","z"]].forEach(function(c){
+    $(c[0]).addEventListener("change", function(){
+      var v=parseFloat(String(this.value).replace(",", ".")); if(!(v>=0) || (c[1]!=="z" && !(v>0))){ majDessin(); return; }
+      modifierSel(function(o){
+        var mm=Math.round(v*10);
+        if(c[1]==="l" || c[1]==="p") o[c[1]]=mm/DESSIN_MM; else o[c[1]]=mm;
+        /* toujours adossé, mais sans glisser : il grandit autour de son milieu */
+        var d=defMob(o.cle); if(!d.libre){ var a=accrocherMob(o, [o.x, o.y], true, true); o.x=a.x; o.y=a.y; o.rot=a.rot; }
+      });
+    });
+    $(c[0]).addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+  });
+  $("btTournerD").addEventListener("click", tournerMob);
+})();
 /* ---------- le DXF : murs pleins, ouvertures, noms, et les symboles ---------- */
 function dxfDessin(){
   var L=[];
@@ -1368,14 +1813,15 @@ function dxfDessin(){
     }
   });
   DESSIN.textes.forEach(function(t){ g(0,"TEXT", 8,"TEXTES", 10,t.x,20,t.y-t.h/2,30,0, 40,t.h, 1,t.s.replace(/[\r\n]+/g," "), 72,1, 11,t.x,21,t.y-t.h/2,31,0); });
+  dxfMobilier(g, ligneD);
   return L;
 }
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; }),
-    {extra:dxfDessin(), calquesExtra:[["MURS",8],["OUVERTURES",7],["TEXTES",7]]});
+    {extra:dxfDessin(), calquesExtra:[["MURS",8],["OUVERTURES",7],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4]]});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
-  toast("DXF enregistré : murs, ouvertures, pièces et symboles, en millimètres, aux coordonnées du plan.", 6000);
+  toast("DXF enregistré : murs, ouvertures, pièces, mobilier et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
 /* ---------- les pages vierges ---------- */
 function listeVierges(){ try{ var l=JSON.parse(localStorage.getItem("dwg:vierges")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
@@ -1414,7 +1860,7 @@ function ouvrirVierge(id, neuf){
   COTES=[]; A_PT=null; D_PT=null; D_SEL=null; HISTO_D=[]; HISTO_S=[]; SEL=-1;
   DESSIN_MM=1; ECHELLE_SRC="vierge"; FICHIER_CLE="dwg:echelle:vierge:"+id;
   DESSIN_CLE="dwg:dessin:vierge:"+id; SYMB_CLE="dwg:symboles:vierge:"+id;
-  try{ DESSIN=JSON.parse(localStorage.getItem(DESSIN_CLE)||"null") || {murs:[], ouv:[], textes:[]}; }catch(e){ DESSIN={murs:[], ouv:[], textes:[]}; }
+  try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
   try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
   $("accueil").hidden=true; $("btCalques").disabled=true; $("btImage").disabled=false; $("btSymb").disabled=false; $("btPdf").disabled=false; $("btDessin").disabled=false; $("btVue3d").disabled=false;
   basculerMode("dessin");
@@ -1428,6 +1874,7 @@ function etendueDessin(){
   DESSIN.murs.forEach(function(m){ pt(m.a, m.ep); pt(m.b, m.ep); });
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(m) pt(surMur(m, o.t*axes(m).L, 0), o.l+m.ep); });
   DESSIN.textes.forEach(function(t){ pt([t.x, t.y], t.h*3); });
+  mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ pt(q, 0); }); });
   SYMB.forEach(function(o){ pt([o.x, o.y], o.r*2); });
   return isFinite(x0) ? {minx:x0, miny:y0, maxx:x1, maxy:y1} : null;
 }
@@ -1462,7 +1909,7 @@ function charger3D(){
 }
 function ouvrir3D(){
   if(!PLAN) return;
-  if(dessinVide() && !SYMB.length && PLAN.vierge){ toast("Dessinez d'abord des murs, ou posez des symboles."); return; }
+  if(dessinVide() && !SYMB.length && PLAN.vierge){ toast("Dessinez d'abord des murs ou des meubles, ou posez des symboles."); return; }
   charger3D().then(function(THREE){
     $("vue3d").hidden=false;
     if(!V3){
@@ -1525,15 +1972,17 @@ function texteSprite(txt, taille, fond, ecran){
 }
 /* le dessin en millimètres (sur un DWG, il est dans l'unité du fichier) */
 function dessinEnMm(D, k){
-  if(k===1) return D;
+  if(k===1) return normD(D);
   function p(q){ return [q[0]*k, q[1]*k]; }
   return {hsp:D.hsp,
     murs:D.murs.map(function(m){ return {id:m.id, a:p(m.a), b:p(m.b), ep:m.ep*k}; }),
     ouv:D.ouv.map(function(o){ return {id:o.id, type:o.type, mur:o.mur, t:o.t, l:o.l*k, sens:o.sens, main:o.main}; }),
-    textes:D.textes.map(function(t){ return {id:t.id, x:t.x*k, y:t.y*k, s:t.s, h:t.h*k}; })};
+    textes:D.textes.map(function(t){ return {id:t.id, x:t.x*k, y:t.y*k, s:t.s, h:t.h*k}; }),
+    mob:(D.mob||[]).map(function(o){ return {id:o.id, cle:o.cle, x:o.x*k, y:o.y*k, rot:o.rot, l:o.l*k, p:o.p*k, h:o.h, z:o.z, nom:o.nom}; })};
 }
 function construire3D(){
   var D0=DESSIN, ed=etendue3D();
+  V3.alertes = (window.SymbolesElec && VOLS) ? alertesVolumes() : {par:{}, liste:[]};
   DESSIN=dessinEnMm(D0, DESSIN_MM);      /* axes(), trous(), morceaux() lisent DESSIN */
   try{ construire3Dmm(ed); } finally { DESSIN=D0; }
 }
@@ -1595,9 +2044,12 @@ function construire3Dmm(ed){
   });
   /* les noms de pièces, au sol */
   DESSIN.textes.forEach(function(t){ var sp=texteSprite(t.s, 0.32, null); var p=P3(t.x, t.y, 30); sp.position.set(p[0], 0.05, p[2]); sp.material.depthTest=true; sc.add(sp); });
+  /* le mobilier, et les volumes de la salle de bains */
+  mobilier3D(sc);
+  if(VOLS) volumes3D(sc, hsp);
   /* les symboles */
   var cotes=[];
-  SYMB.forEach(function(o){
+  SYMB.forEach(function(o, iS){
     var h=hauteurDe(o), tex=texture3D(o.cle), x0=o.x*k, y0=o.y*k;
     var matP=new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide, transparent:true});
     var lum=LUMIERE[o.cle];
@@ -1640,7 +2092,8 @@ function construire3Dmm(ed){
     }
     if(lum) halo3D(sc, pos[0]+(nrm?nrm[0]*0.03:0), pos[1]+0.12, pos[2]-(nrm?nrm[1]*0.03:0));
     if(V3.cotes){
-      var et=texteSprite((h/10).toLocaleString("fr-FR")+" cm"+(o.t ? " · "+o.t : ""), 0.03, "rgba(31,41,51,.82)", true);
+      var alS=V3.alertes.par[iS];
+      var et=texteSprite((h/10).toLocaleString("fr-FR")+" cm"+(o.t ? " · "+o.t : "")+(alS ? " · V"+alS.v+" !" : ""), 0.03, alS ? "rgba(185,28,28,.92)" : "rgba(31,41,51,.82)", true);
       et.center.set(0.5, 1.25); et.position.set(pos[0]+(nrm?nrm[0]*0.06:0), pos[1]-taille/2, pos[2]-(nrm?nrm[1]*0.06:0)); sc.add(et);
       et.userData.ancre=new THREE.Vector3(pos[0]+(nrm?nrm[0]*0.03:0), pos[1], pos[2]-(nrm?nrm[1]*0.03:0));
     }
@@ -1769,12 +2222,22 @@ function majBarre3D(){
   Array.prototype.forEach.call($("v3Vue").children, function(b){ b.classList.toggle("on", b.dataset.v===V3.mode); });
   $("v3Transp").classList.toggle("on", V3.transp); $("v3Transp").setAttribute("aria-pressed", V3.transp?"true":"false");
   $("v3Cotes").classList.toggle("on", V3.cotes); $("v3Cotes").setAttribute("aria-pressed", V3.cotes?"true":"false");
+  var vol=mobs().some(function(o){ return defMob(o.cle).vol; });
+  $("v3Vols").hidden=!vol; $("v3Vols").classList.toggle("on", VOLS); $("v3Vols").setAttribute("aria-pressed", VOLS?"true":"false");
+  var al=V3.alertes || {liste:[]}, bo=$("v3Alerte");
+  bo.hidden=!al.liste.length;
+  if(al.liste.length){
+    bo.querySelector("summary").textContent="⚠ "+al.liste.length+" appareil"+(al.liste.length>1?"s":"")+" à revoir dans les volumes de la salle de bains";
+    var ul=bo.querySelector("ul"); ul.textContent="";
+    al.liste.forEach(function(a){ var li=document.createElement("li"); li.textContent=a.texte; ul.appendChild(li); });
+  }
   $("v3Aide").textContent = V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer, se déplacer" : "Un doigt : tourner · deux doigts : zoomer, déplacer";
 }
 $("btVue3d").addEventListener("click", ouvrir3D);
 $("v3Fermer").addEventListener("click", fermer3D);
 $("v3Vue").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; cadrer3D(b.dataset.v); majBarre3D(); rendu3D(); });
 $("v3Transp").addEventListener("click", function(){ if(!V3) return; V3.transp=!V3.transp; construire3D(); majBarre3D(); rendu3D(); });
+$("v3Vols").addEventListener("click", function(){ if(!V3) return; VOLS=!VOLS; garder("dwg:volumes", VOLS?"1":"0"); construire3D(); majBarre3D(); rendu3D(); demander(); });
 $("v3Cotes").addEventListener("click", function(){ if(!V3) return; V3.cotes=!V3.cotes; construire3D(); majBarre3D(); rendu3D(); });
 $("v3Hsp").addEventListener("change", function(){
   var cm=parseFloat(String(this.value).replace(",", ".")); if(!(cm>=180 && cm<=600)){ this.value=String(hspD()/10).replace(".", ","); return; }
@@ -2018,7 +2481,7 @@ function ouvrirFichier(f){
         FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
         SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
         DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; D_PT=null;
-        try{ DESSIN=JSON.parse(localStorage.getItem(DESSIN_CLE)||"null") || {murs:[], ouv:[], textes:[]}; }catch(e){ DESSIN={murs:[], ouv:[], textes:[]}; }
+        try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
         try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
         var garde=Number(lire(FICHIER_CLE, "0"));
         if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
