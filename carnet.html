@@ -634,6 +634,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script src="./sobre.js?v=20260927b"></script>
+<script src="./une-page.js?v=20260930a"></script>
 <script src="./visionneuse.js?v=20260929a"></script>
 <script>
 (function(){
@@ -1129,11 +1130,15 @@ function majAvance(name){
   if(titre) titre.textContent = TABS[i][1];
 }
 function showTab(name){
-  TABS.forEach(function(t){
-    $("tab-"+t[0]).hidden = (t[0]!==name);
-    $("nav").querySelector('[data-tab="'+t[0]+'"]').setAttribute("aria-current", t[0]===name?"true":"false");
-  });
-  majAvance(name); stepNav(name); boutonHaut($("tab-"+name)); window.scrollTo(0,0);
+  /* une seule page, comme le suivi : tout reste ouvert, l'onglet mène à sa partie (une-page.js) */
+  var premierAppel=UnePage.aller(name, TABS, entreeOnglet), dernier=$("tab-"+TABS[TABS.length-1][0]);
+  if(!dernier.querySelector(".haut")) boutonHaut(dernier);
+  /* à l'ouverture, et quand on revient en haut (fiche vidée ou reprise), tout est remis à jour */
+  if(premierAppel || name===TABS[0][0]) TABS.forEach(function(t){ entreeOnglet(t[0]); });
+  else entreeOnglet(name);
+}
+/* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
+function entreeOnglet(name){
   if(name==="document") renderResume();
 }
 function boutonHaut(sec){

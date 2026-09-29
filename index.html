@@ -2071,9 +2071,13 @@ function peindreRappels(s){
   var vieuxP=document.getElementById("panneauRappels"); if(vieuxP) vieuxP.remove();
   var dus=rappelsDus();
   if(!dus.length){ host.hidden = !host.children.length; return; }
+  /* deux sortes : les points bloquants des suivis, et les lignes de to-do list */
+  var todo=dus.filter(function(t){ return t.todo; }).length, tous=todo===dus.length, aucun=!todo;
   var a=notif("rge urgent", String(dus.length),
-    dus.length>1 ? dus.length+" points bloquants à relancer" : "Un point bloquant à relancer",
-    dus.length>1 ? "Rappels de vos suivis de chantier" : (dus[0].texte+" — "+(dus[0].client||dus[0].chantier)));
+    dus.length>1 ? (aucun ? dus.length+" points bloquants à relancer" : tous ? dus.length+" rappels de la to-do list" : dus.length+" rappels")
+                 : (aucun ? "Un point bloquant à relancer" : "Rappel de la to-do list"),
+    dus.length>1 ? (aucun ? "Rappels de vos suivis de chantier" : tous ? "Les lignes que vous vouliez revoir" : "Suivis de chantier et to-do list")
+                 : (dus[0].texte+" — "+(dus[0].todo ? (dus[0].liste||"to-do list") : (dus[0].client||dus[0].chantier))));
   a.id="notifRappels"; a.style.cursor="pointer";
   var u=document.createElement("span"); u.className="urg"; u.textContent="rappel";
   a.querySelector("b").appendChild(u);
@@ -2083,14 +2087,15 @@ function peindreRappels(s){
     var d=document.createElement("div"); d.className="d";
     var b=document.createElement("b"); b.textContent=t.texte; d.appendChild(b);
     var info=document.createElement("span");
-    info.textContent=[t.client||t.chantier, "rappel du "+frCourt(t.quand)+(t.heure ? " à "+t.heure : "")].filter(Boolean).join("  •  ");
+    info.textContent=[t.todo ? (t.liste||"To-do list") : (t.client||t.chantier), "rappel du "+frCourt(t.quand)+(t.heure ? " à "+t.heure : "")].filter(Boolean).join("  •  ");
     d.appendChild(info);
     var row=document.createElement("div"); row.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
-    var ouvrir=document.createElement("a"); ouvrir.href="./chantier.html?ref="+encodeURIComponent(t.chantier||"");
-    ouvrir.textContent="Ouvrir le chantier";
+    var ouvrir=document.createElement("a"); ouvrir.href = t.todo ? "./notes.html" : "./chantier.html?ref="+encodeURIComponent(t.chantier||"");
+    ouvrir.textContent = t.todo ? "Ouvrir la liste" : "Ouvrir le chantier";
     ouvrir.style.cssText="min-height:36px;padding:9px 14px;border-radius:var(--r-field);background:var(--accent);"
       +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
-    var btn=document.createElement("button"); btn.type="button"; btn.textContent="Point levé";
+    var libre = t.todo ? "Fait" : "Point levé";
+    var btn=document.createElement("button"); btn.type="button"; btn.textContent=libre;
     btn.style.cssText="min-height:36px;padding:0 14px;border:0;border-radius:var(--r-field);background:var(--field);"
       +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
     btn.addEventListener("click", function(){
@@ -2098,7 +2103,7 @@ function peindreRappels(s){
       fetch(apiUrl("tache-faite")+"&cle="+encodeURIComponent(t.cle), {headers:{"x-auth":s.jeton}})
         .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
         .then(function(){ TACHES=TACHES.filter(function(x){ return x.cle!==t.cle; }); peindreRappels(s); peindreCloche(); })
-        .catch(function(){ btn.disabled=false; btn.textContent="Point levé"; });
+        .catch(function(){ btn.disabled=false; btn.textContent=libre; });
     });
     row.appendChild(ouvrir); row.appendChild(btn); d.appendChild(row);
     liste.appendChild(d);

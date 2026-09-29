@@ -970,6 +970,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./symboles-elec.js?v=20260929c"></script>
 <script src="./annotation.js?v=20260929c"></script>
 <script src="./sobre.js?v=20260927b"></script>
+<script src="./une-page.js?v=20260930a"></script>
 <script src="./visionneuse.js?v=20260929a"></script>
 <script>
 (function(){
@@ -1299,6 +1300,8 @@ function initSignature(id, cle){
     img.src=S.sig[cle];
     SIG[cle].vide=false;
   }
+  /* une seule page : la signature est remise à jour souvent, ses gestes ne s'attachent qu'une fois */
+  if(cv.dataset.lie) return; cv.dataset.lie="1";
   var trace=false, last=null;
   function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
   cv.addEventListener("pointerdown", function(e){ e.preventDefault(); trace=true; last=pos(e); cv.setPointerCapture(e.pointerId); });
@@ -1382,15 +1385,19 @@ function majAvance(name){
   if(titre) titre.textContent = TABS[i][1];
 }
 function showTab(name){
-  TABS.forEach(function(t){
-    $("tab-"+t[0]).hidden = (t[0]!==name);
-    $("nav").querySelector('[data-tab="'+t[0]+'"]').setAttribute("aria-current", t[0]===name?"true":"false");
-  });
-  majAvance(name); stepNav(name); boutonHaut($("tab-"+name)); window.scrollTo(0,0);
+  /* une seule page, comme le suivi : tout reste ouvert, l'onglet mène à sa partie (une-page.js) */
+  var premierAppel=UnePage.aller(name, TABS, entreeOnglet), dernier=$("tab-"+TABS[TABS.length-1][0]);
+  if(!dernier.querySelector(".haut")) boutonHaut(dernier);
   var nav=$("nav"), actif=nav.querySelector('[aria-current="true"]');
   if(actif && actif.scrollIntoView && nav.scrollWidth > nav.clientWidth + 4){
     actif.scrollIntoView({inline:"center", block:"nearest", behavior:"smooth"});
   }
+  /* à l'ouverture, et quand on revient en haut (fiche vidée ou reprise), tout est remis à jour */
+  if(premierAppel || name===TABS[0][0]) TABS.forEach(function(t){ entreeOnglet(t[0]); });
+  else entreeOnglet(name);
+}
+/* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
+function entreeOnglet(name){
   if(name==="suite"){ initSignature("sig_client","client"); initSignature("sig_tech","tech"); majEtatSignatures(); }
   if(name==="rapport") renderResume();
 }

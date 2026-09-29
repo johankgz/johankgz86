@@ -1637,8 +1637,68 @@ function ligneItem(l, it, i){
     +"background:none;color:#8C8475;font-size:18px;line-height:1;cursor:pointer";
   del.setAttribute("aria-label","Supprimer la tâche");
   del.addEventListener("click", function(){ l.items.splice(i,1); touche(l); save(); render(); });
-  row.appendChild(case_); row.appendChild(txt); row.appendChild(del);
+  /* le rappel de la ligne : un jour, une heure */
+  var cloche=document.createElement("button"); cloche.type="button"; cloche.className="n-rappel"+(it.rappel ? " on" : "");
+  cloche.style.cssText="flex:0 0 auto;width:28px;height:28px;min-height:28px;padding:0;border:0;border-radius:50%;cursor:pointer;"
+    +"display:flex;align-items:center;justify-content:center;background:"+(it.rappel ? "rgba(234,122,30,.16)" : "none")+";"
+    +"color:"+(it.rappel ? "#C2410C" : "#8C8475");
+  cloche.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" width="17" height="17" style="width:17px;height:17px;stroke:currentColor;'
+    +'fill:'+(it.rappel ? "currentColor" : "none")+';stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round">'
+    +'<path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0" fill="none"/></svg>';
+  cloche.setAttribute("aria-label", it.rappel ? "Rappel le "+texteRappel(it.rappel)+" : modifier" : "Ajouter un rappel à cette ligne");
+  cloche.title = it.rappel ? "Rappel : "+texteRappel(it.rappel) : "Rappel";
+  cloche.addEventListener("click", function(){ ouvrirRappel(l, it, row); });
+  row.style.flexWrap="wrap";
+  row.appendChild(case_); row.appendChild(txt); row.appendChild(cloche); row.appendChild(del);
+  if(it.rappel){
+    var chip=document.createElement("button"); chip.type="button"; chip.className="n-rappel-chip";
+    var passe = !it.fait && new Date(it.rappel.quand+"T"+(it.rappel.heure||"08:00")+":00").getTime() <= Date.now();
+    chip.style.cssText="flex:0 0 100%;margin:-4px 0 4px 32px;padding:0;border:0;background:none;text-align:left;cursor:pointer;"
+      +"font-family:inherit;font-size:12.5px;font-weight:600;color:"+(it.fait ? "#8C8475" : passe ? "#B3261E" : "#C2410C");
+    chip.textContent="Rappel "+texteRappel(it.rappel)+(passe ? " · passé" : "");
+    chip.addEventListener("click", function(){ ouvrirRappel(l, it, row); });
+    row.appendChild(chip);
+  }
   return row;
+}
+var JOURS_COURTS=["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+function texteRappel(r){
+  if(!r || !r.quand) return "";
+  var d=new Date(r.quand+"T12:00:00"), a=r.quand.split("-");
+  var auj=new Date(); auj.setHours(12,0,0,0);
+  var ecart=Math.round((d-auj)/864e5);
+  var jour = ecart===0 ? "aujourd'hui" : ecart===1 ? "demain" : (JOURS_COURTS[d.getDay()]+" "+a[2]+"/"+a[1]+(a[0]!==String(auj.getFullYear()) ? "/"+a[0] : ""));
+  return jour+" à "+(r.heure||"08:00").replace(":", "h");
+}
+function deux(n){ return (n<10?"0":"")+n; }
+/* le petit panneau sous la ligne : le jour, l'heure, Enregistrer ou Retirer */
+function ouvrirRappel(l, it, row){
+  var vieux=document.getElementById("panneauRappel"); if(vieux){ var meme=vieux.dataset.item===it.id; vieux.remove(); if(meme) return; }
+  var p=document.createElement("div"); p.id="panneauRappel"; p.dataset.item=it.id;
+  p.style.cssText="flex:0 0 100%;display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 8px 32px;padding:10px;"
+    +"border-radius:var(--r-field);background:rgba(255,255,255,.8);box-shadow:0 1px 4px rgba(0,0,0,.08)";
+  var h=new Date(Date.now()+3600e3); h.setMinutes(h.getMinutes()<30 ? 30 : 60, 0, 0);
+  var r=it.rappel || {quand:h.getFullYear()+"-"+deux(h.getMonth()+1)+"-"+deux(h.getDate()), heure:deux(h.getHours())+":"+deux(h.getMinutes())};
+  var jour=document.createElement("input"); jour.type="date"; jour.value=r.quand; jour.setAttribute("aria-label","Jour du rappel");
+  var heure=document.createElement("input"); heure.type="time"; heure.value=r.heure||"08:00"; heure.setAttribute("aria-label","Heure du rappel");
+  [jour, heure].forEach(function(x){ x.style.cssText="min-height:38px;padding:6px 10px;border:1px solid rgba(34,32,28,.18);border-radius:var(--r-field);"
+    +"background:#fff;font-family:inherit;font-size:15px;color:#22201C;width:auto;flex:0 0 auto"; });
+  function bouton(t, plein, fn){
+    var b=document.createElement("button"); b.type="button"; b.textContent=t;
+    b.style.cssText="min-height:38px;padding:0 14px;border:0;border-radius:var(--r-field);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;"
+      +(plein ? "background:#22201C;color:#fff" : "background:rgba(34,32,28,.08);color:#22201C");
+    b.addEventListener("click", fn); return b;
+  }
+  var ok=bouton("Enregistrer", true, function(){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(jour.value)){ toast("Choisissez le jour du rappel."); return; }
+    it.rappel={quand:jour.value, heure:/^\d{2}:\d{2}/.test(heure.value) ? heure.value.slice(0,5) : "08:00", qui:AUTEUR_MOI || MOI};
+    toucheItem(l, it); save(); render();
+    toast("Rappel "+texteRappel(it.rappel)+" : une notification arrivera à l'heure dite.");
+  });
+  p.appendChild(jour); p.appendChild(heure); p.appendChild(ok);
+  if(it.rappel) p.appendChild(bouton("Retirer", false, function(){ delete it.rappel; toucheItem(l, it); save(); render(); toast("Rappel retiré."); }));
+  row.appendChild(p);
+  try{ jour.focus({preventScroll:true}); }catch(e){}
 }
 function blocCouleurs(l){
   var d=document.createElement("div"); d.className="n-details";

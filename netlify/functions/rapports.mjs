@@ -1534,6 +1534,49 @@ async function traiter(req) {
        3. chaque jour, avant la première écriture, une copie complète
           est gardée (14 jours), et elle se restaure depuis la page. */
   const cleNotes = (nom) => "notes/" + slug(nom) + ".json";
+  /* Le rappel posé sur une ligne de to-do list (un jour, une heure) : une
+     tâche datée par ligne, pour celui qui l'a posé. Elle part en
+     notification à l'heure dite, comme les rappels du suivi, et revient
+     sur l'accueil. Une ligne cochée, supprimée ou sans rappel retire la
+     sienne. Seules les listes envoyées sont revues : une liste absente de
+     l'envoi n'a rien dit de ses rappels. */
+  async function synchroRappelsTodo(listes) {
+    const pre = "taches/todo-" + slug(personne.nom) + "-";
+    const gardes = new Set(), vues = [];
+    for (const l of (Array.isArray(listes) ? listes : [])) {
+      if (!l || !l.id) continue;
+      vues.push(slug(String(l.id)) + "-");
+      for (const it of (Array.isArray(l.items) ? l.items : [])) {
+        const r = it && it.rappel;
+        if (!r || it.fait || !/^\d{4}-\d{2}-\d{2}$/.test(String(r.quand || ""))) continue;
+        /* sur une liste partagée, chacun envoie les rappels de tous : on ne garde que les siens
+           (le nom du compte, ou le nom affiché de la session, plus long) */
+        const q = String(r.qui || "");
+        if (q && q !== personne.nom && !memeNom(q, personne.nom) && !memeNom(q.split(/\s+/)[0], personne.nom)) continue;
+        const cleR = pre + slug(String(l.id)) + "-" + slug(String(it.id)) + ".json";
+        gardes.add(cleR);
+        let avant = null;
+        try { avant = await store.get(cleR, { type: "json" }); } catch { avant = null; }
+        const t = {
+          texte: String(it.texte || "").trim().slice(0, 300) || "Tâche de la to-do list", prio: "", qui: personne.nom,
+          quand: r.quand, heure: /^\d{2}:\d{2}$/.test(String(r.heure || "")) ? r.heure : "08:00",
+          rappel: true, todo: String(l.id), item: String(it.id), liste: String(l.titre || "").trim().slice(0, 80),
+          auteurListe: l.auteur || personne.nom, cree: (avant && avant.cree) || new Date().toISOString(), faite: false,
+          notifie: (avant && avant.notifie) || ""
+        };
+        if (!avant || JSON.stringify(avant) !== JSON.stringify(t)) await store.setJSON(cleR, t);
+      }
+    }
+    try {
+      const res = await store.list({ prefix: pre });
+      for (const b of (res.blobs || [])) {
+        if (gardes.has(b.key)) continue;
+        const reste = b.key.slice(pre.length);
+        if (!vues.some((v) => reste.startsWith(v))) continue;
+        try { await store.delete(b.key); } catch { /* déjà parti */ }
+      }
+    } catch { /* rien à retirer */ }
+  }
   const cleCorbeille = (nom) => "notes-corbeille/" + slug(nom) + ".json";
   const prefixeSauvegardes = (nom) => "notes-sauvegardes/" + slug(nom) + "/";
   /* une lecture qui échoue n'est pas une liste vide : on s'arrête là,
@@ -1640,6 +1683,7 @@ async function traiter(req) {
           await store.setJSON(autre, l);
         } catch { /* l'auteur n'a rien encore */ }
       }
+      try { await synchroRappelsTodo(d.listes); } catch { /* les rappels suivront au prochain envoi */ }
       return json({ ok: true, enregistrees: miennes.length });
     });
   }
@@ -1657,6 +1701,11 @@ async function traiter(req) {
           corbeille.unshift({ ...jetee, supprimeeLe: new Date().toISOString() });
           await store.setJSON(cleCorbeille(personne.nom), corbeille.slice(0, 100));
           await store.setJSON(cle, l.filter((n) => n.id !== id));
+          /* ses rappels ne sonneront plus, chez personne */
+          try {
+            const res = await store.list({ prefix: "taches/todo-" });
+            for (const b of (res.blobs || [])) if (b.key.indexOf("-" + slug(id) + "-") > 0) await store.delete(b.key);
+          } catch { /* rien à retirer */ }
           return json({ ok: true });
         }
       } catch { return json({ erreur: "Suppression impossible pour le moment." }, 503); }
@@ -1761,6 +1810,21 @@ async function traiter(req) {
     t.faitePar = personne.nom;
     t.faiteLe = new Date().toISOString();
     await store.setJSON(cle, t);
+    /* un rappel de to-do list : « Fait » coche aussi la ligne dans sa liste */
+    if (t.todo && t.item) {
+      const cleL = cleNotes(t.auteurListe || t.qui);
+      try {
+        await sousVerrou(personne.societe + ":" + cleL, async () => {
+          const l = await lireNotes(cleL);
+          const liste = l.find((n) => n.id === t.todo);
+          const it = liste && (liste.items || []).find((x) => x.id === t.item);
+          if (!it || it.fait) return;
+          const maj = new Date().toISOString();
+          it.fait = true; it.maj = maj; liste.maj = maj;
+          await store.setJSON(cleL, l);
+        });
+      } catch { /* la tâche est faite, la liste suivra */ }
+    }
     return json({ ok: true });
   }
 
