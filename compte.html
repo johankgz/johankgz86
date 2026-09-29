@@ -400,6 +400,16 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .bascule input:checked::after{transform:translateX(18px)}
 .bascule input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .nt-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.nt-journal{margin-top:14px}
+.nt-journal summary{cursor:pointer;font-size:13.5px;font-weight:600;color:var(--ink-2,#3A4250);padding:4px 0}
+.nt-journal ul{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-direction:column;gap:6px}
+.nt-journal li{display:flex;flex-direction:column;gap:1px;padding:8px 10px;border-radius:10px;background:var(--field,#F4F6F8);border-left:3px solid #9AA3AE;font-size:13px}
+.nt-journal li.ok{border-left-color:#1B7F4B}
+.nt-journal li.non{border-left-color:#C2410C}
+.nt-journal li.vide{border-left-color:transparent;color:var(--ink-3,#7A8796)}
+.nt-journal li b{font-size:12px}
+.nt-journal li small{color:var(--ink-3,#6B7583)}
+.nt-tout{display:flex;gap:8px;align-items:center;font-size:12.5px;margin-top:8px}
 .nt-actions button{flex:1 1 auto;min-height:42px;padding:9px 14px;border-radius:10px;font-size:14px;font-weight:600;font-family:inherit;
   cursor:pointer;background:var(--card);color:var(--ink-2);border:1px solid var(--rule)}
 .nt-actions button.coupe{color:var(--rouge)}
@@ -462,6 +472,11 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
       <button type="button" class="coupe" id="nt_couper">Désactiver ici</button>
     </div>
     <p class="err" id="nt_err"></p>
+    <details class="nt-journal" id="nt_journal">
+      <summary>Dernières notifications pour vous</summary>
+      <ul id="nt_liste"><li class="vide">Chargement…</li></ul>
+      <label class="nt-tout" id="nt_toutLab" hidden><input type="checkbox" id="nt_tout"> Toute la société (administrateur)</label>
+    </details>
   </div>
 
   <div class="block" id="blocTableau" hidden>
@@ -617,6 +632,30 @@ if(S.role==="bureau" || S.role==="admin"){
   });
 })();
 
+/* ---------- le journal : ce qui est parti, vers qui, et pourquoi pas ---------- */
+var NT_RES={envoye:["Arrivée sur le téléphone","ok"], "pas-abonne":["Pas de téléphone abonné à ce nom","non"], coupe:["Coupée dans vos réglages","non"],
+  echec:["Refusée par le service de notification","non"], perime:["Abonnement périmé : réactivez sur le téléphone","non"]};
+var NT_GENRE={messages:"Message", documents:"Document", rappels:"Rappel", essai:"Essai"};
+function ntJournal(){
+  var tout=$("nt_tout") && $("nt_tout").checked;
+  fetch("/api/rapports?action=push-journal"+(tout?"&tout=1":""), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      var ul=$("nt_liste"); ul.textContent="";
+      var j=(d && d.journal)||[];
+      if(!j.length){ var li=document.createElement("li"); li.className="vide"; li.textContent="Aucune notification envoyée pour l'instant."; ul.appendChild(li); return; }
+      j.forEach(function(e){
+        var li=document.createElement("li"), r=NT_RES[e.resultat]||[e.resultat,"non"], q=new Date(e.le);
+        li.className=r[1];
+        var h=document.createElement("b"); h.textContent=(NT_GENRE[e.genre]||e.genre)+" · "+q.toLocaleDateString("fr-FR")+" "+String(q.getHours()).padStart(2,"0")+":"+String(q.getMinutes()).padStart(2,"0");
+        var t=document.createElement("span"); t.textContent=e.titre||"";
+        var st=document.createElement("small"); st.textContent=r[0]+(tout ? " — pour "+e.pour : "")+(e.ecrit && e.ecrit!==e.pour ? " (écrit « "+e.ecrit+" » sur la fiche)" : "");
+        li.appendChild(h); li.appendChild(t); li.appendChild(st); ul.appendChild(li);
+      });
+    }).catch(function(){ $("nt_liste").innerHTML='<li class="vide">Journal indisponible hors réseau.</li>'; });
+}
+$("nt_journal").addEventListener("toggle", function(){ if(this.open) ntJournal(); });
+if(S.role==="admin" || S.proprietaire){ $("nt_toutLab").hidden=false; $("nt_tout").addEventListener("change", ntJournal); }
 /* ---------- notifications ---------- */
 function ntMessage(t, ok){ var e=$("nt_err"); e.className="err"+(ok?" ok":""); e.textContent=t||""; }
 function ntPeindre(e){
@@ -659,7 +698,7 @@ $("nt_activer").addEventListener("click", function(){
 });
 $("nt_essai").addEventListener("click", function(){
   ntMessage("Envoi…");
-  Notif.essai(S).then(function(d){ ntMessage(d.ok ? "Essai envoyé : la notification arrive dans quelques secondes." : "L'essai n'est pas parti. Désactivez puis réactivez ici.", !!d.ok); })
+  Notif.essai(S).then(function(d){ ntMessage(d.ok ? "Essai envoyé : la notification arrive dans quelques secondes." : "L'essai n'est pas parti. Désactivez puis réactivez ici.", !!d.ok); if($("nt_journal").open) setTimeout(ntJournal, 800); })
     .catch(function(){ ntMessage("Pas de réseau."); });
 });
 $("nt_couper").addEventListener("click", function(){

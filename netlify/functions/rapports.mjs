@@ -3,7 +3,7 @@ import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte } from "./notifications.mjs";
 
 const INDEX = "_index";
 
@@ -65,14 +65,16 @@ async function tic(force) {
       for (const soc of await lireSocietes()) {
         if (soc.actif === false) continue;
         const store = magasinSociete(soc.code);
-        try { lots.push({ store, dus: await repererRappelsDus(store) }); } catch { /* société suivante */ }
+        try { lots.push({ store, dus: await repererRappelsDus(store), code: soc.code }); } catch { /* société suivante */ }
       }
     } catch { /* on réessaiera */ }
   });
   let n = 0;
   for (const l of lots) {
+    let comptes = [];
+    if (l.dus.length) { try { comptes = await lireComptes(l.code); } catch { comptes = []; } }
     for (const r of l.dus) {
-      try { n += (await prevenirPush(l.store, annuaire, [r.qui], "rappels", r.charge, contactPush(""))).length; } catch { /* suivant */ }
+      try { n += (await prevenirPush(l.store, annuaire, [r.qui], "rappels", r.charge, contactPush(""), { comptes })).length; } catch { /* suivant */ }
     }
   }
   return n;
@@ -83,9 +85,10 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
      publication « dans le dossier » — toute l'équipe du chantier, sauf
      celui qui vient de publier : il sait déjà. */
   const vises = entree.destinataires || [];
-  const noms = vises.length
-    ? vises
-    : ((chantier && chantier.equipe) || []).filter((n) => n && n !== auteur);
+  /* les noms écrits sur les fiches renvoient aux comptes (nom exact, sans accents, prénom seul…) */
+  const moi = nomDuCompte(auteur, comptes);
+  const noms = (vises.length ? vises : ((chantier && chantier.equipe) || []))
+    .map((n) => nomDuCompte(n, comptes)).filter((n) => n && (vises.length || n !== moi));
   const cibles = (comptes || []).filter(
     (u) => noms.indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0
   );
@@ -575,13 +578,19 @@ async function garnirDemo(st) {
   } catch { /* les listes viendront plus tard */ }
 }
 
+/* deux écritures d'un même nom : sans accents, sans majuscules, sans ponctuation */
+function memeNom(a, b) {
+  const p = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  return !!a && p(a) === p(b);
+}
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
-  if (fichier.auteur === personne.nom) return true;
-  if ((fichier.destinataires || []).indexOf(personne.nom) >= 0) return true;
-  return !!chantier && (chantier.equipe || []).indexOf(personne.nom) >= 0;
+  const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
+  if (moi(fichier.auteur)) return true;
+  if ((fichier.destinataires || []).some(moi)) return true;
+  return !!chantier && (chantier.equipe || []).some(moi);
 }
 function chantierDe(idx, cle) {
   return idx.chantiers[String(cle).split("/")[0]] || null;
@@ -618,7 +627,7 @@ function rang(f) {
    ses photos, une lecture et une publication) liraient la même version,
    et la seconde effacerait ce que la première venait d'ajouter. Les
    lectures, elles, ne s'attendent pas. */
-const LECTURES = new Set(["liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
+const LECTURES = new Set(["push-journal", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche"]);
 export default async (req) => {
@@ -1043,8 +1052,11 @@ async function traiter(req) {
       const idxV = await lireIndex();
       const equipeDossier = ((idxV.chantiers[ref] || {}).equipe) || [];
       const concernes = versDossier ? equipeDossier : vises;
-      const auMoinsUnBureau = concernes.some((n) =>
-        comptesSoc.some((u) => u.nom === n && (u.role === "bureau" || u.role === "admin")));
+      /* le nom écrit sur la fiche renvoie au compte (« MICKAEL K. » → Mickaël) */
+      const auMoinsUnBureau = concernes.some((n) => {
+        const nom = nomDuCompte(n, comptesSoc);
+        return comptesSoc.some((u) => u.nom === nom && (u.role === "bureau" || u.role === "admin"));
+      });
       if (!auMoinsUnBureau) {
         return json({ erreur: versDossier
           ? "Ce dossier n'a pas encore de chargé d'affaires : choisissez la personne destinataire."
@@ -1135,10 +1147,13 @@ async function traiter(req) {
       }
     }
     if (entree.type === "releve") {
-      /* le relevé publié constitue l'équipe du chantier */
-      const equipe = new Set(c.equipe || []);
-      equipe.add(entree.auteur);
-      (entree.destinataires || []).forEach((n) => equipe.add(n));
+      /* le relevé publié constitue l'équipe du chantier, sous les noms
+         des comptes (le chargé d'affaires d'un relevé est tapé à la main) */
+      let comptesEq = [];
+      try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
+      const equipe = new Set((c.equipe || []).map((n) => nomDuCompte(n, comptesEq)));
+      equipe.add(nomDuCompte(entree.auteur, comptesEq));
+      (entree.destinataires || []).forEach((n) => equipe.add(nomDuCompte(n, comptesEq)));
       c.equipe = Array.from(equipe).filter(Boolean);
     } else if (!c.equipe || !c.equipe.length) {
       /* premier document d'un dossier sans relevé : son auteur en est responsable */
@@ -1163,12 +1178,12 @@ async function traiter(req) {
     if (!photos) {
       try { prevenus = await prevenir(entree, c, entree.auteur, url.origin, await lireComptes(personne.societe)); } catch { prevenus = []; }
       /* et sur le téléphone, sans faire attendre la publication */
-      prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
+      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
         titre: libelleDocument(entree),
         texte: (c.client || ref) + " — déposé par " + entree.auteur,
         url: "./chantier.html?ref=" + encodeURIComponent(ref),
         tag: "doc-" + cle
-      }, contactPush(url.origin)).catch(() => {});
+      }, contactPush(url.origin), { comptes, exclure: [personne.nom, entree.auteur] })).catch(() => {});
     }
 
     /* tâches datées : une entrée par tâche, pour les notifications */
@@ -1746,6 +1761,13 @@ async function traiter(req) {
     await store.setJSON(cleAbonne(personne.nom), f);
     return json({ ok: true, prefs: f.prefs, appareils: f.abonnements.length });
   }
+  if (action === "push-journal") {
+    /* les dernières notifications : les siennes, ou toutes pour l'administrateur */
+    let j = [];
+    try { j = (await store.get("push/journal.json", { type: "json" })) || []; } catch { j = []; }
+    const tout = admin && url.searchParams.get("tout") === "1";
+    return json({ journal: (Array.isArray(j) ? j : []).filter((e) => tout || e.pour === personne.nom).slice(0, 30) });
+  }
   if (action === "push-essai") {
     const prevenus = await prevenirPush(store, magasinAnnuaire(), [personne.nom], "essai", {
       titre: "Notifications activées",
@@ -1806,7 +1828,7 @@ async function traiter(req) {
 
     /* on prévient l'équipe par e-mail */
     const comptes = await lireComptes(personne.societe);
-    const vises = (c.equipe || []).filter((n) => n !== personne.nom);
+    const vises = (c.equipe || []).map((n) => nomDuCompte(n, comptes)).filter((n) => n && n !== personne.nom);
     const cibles = comptes.filter((u) => vises.indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0);
     let prevenus = [];
     if (cibles.length) {
@@ -1818,12 +1840,12 @@ async function traiter(req) {
         if (await envoyerMail(u.email, sujet, corpsMail)) prevenus.push(u.nom);
       }
     }
-    prevenirPush(store, magasinAnnuaire(), vises, "messages", {
+    prevenirPush(store, magasinAnnuaire(), c.equipe || [], "messages", {
       titre: "Message — " + (c.client || ref),
       texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : "une photo"),
       url: "./rapports.html?discussion=" + encodeURIComponent(ref),
       tag: "discu-" + ref
-    }, contactPush(url.origin)).catch(() => {});
+    }, contactPush(url.origin), { comptes, exclure: [personne.nom] }).catch(() => {});
     return json({ ok: true, message, prevenus });
   }
 

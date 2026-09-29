@@ -124,17 +124,46 @@ export async function lireAbonne(store, nom) {
     prefs: { ...PREFS_DEFAUT, ...(f.prefs || {}) } };
 }
 
+/* Un nom tel qu'il est écrit sur une fiche (« Johan », « JOHAN K. »,
+   l'identifiant…) renvoie au nom exact du compte : c'est sous ce nom
+   que le téléphone est abonné. Sans compte qui corresponde, le nom
+   reste tel quel. */
+function plat(t) {
+  return String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+export function nomDuCompte(nom, comptes) {
+  const s = String(nom || "").trim();
+  if (!s || !Array.isArray(comptes) || !comptes.length) return s;
+  const p = plat(s), prem = p.split(" ")[0];
+  const exact = comptes.find((c) => c.nom === s) || comptes.find((c) => plat(c.nom) === p)
+    || comptes.find((c) => plat(c.identifiant) === p);
+  if (exact) return exact.nom;
+  /* le début du nom (« Johan K » pour « Johan Klughertz »), puis le seul prénom, s'il n'y a pas d'ambiguïté */
+  const debut = comptes.filter((c) => p.length >= 3 && plat(c.nom).startsWith(p.replace(/\s+\S$/, "")) && plat(c.nom).split(" ")[0] === prem);
+  if (debut.length === 1) return debut[0].nom;
+  const memePrenom = comptes.filter((c) => plat(c.nom).split(" ")[0] === prem || plat(c.identifiant) === prem);
+  if (memePrenom.length === 1) return memePrenom[0].nom;
+  return s;
+}
+
 /* Prévenir des personnes, selon ce qu'elles ont choisi de recevoir.
-   genre : "messages" | "documents" | "rappels" | "essai" */
-export async function prevenirPush(store, annuaire, noms, genre, charge, contact) {
-  const vises = [...new Set((noms || []).filter(Boolean))];
+   genre : "messages" | "documents" | "rappels" | "essai"
+   o.comptes : les comptes de la société (pour retrouver les noms) ;
+   o.exclure : qui ne doit pas être prévenu (l'auteur). Chaque envoi
+   est noté dans le journal (push/journal.json, les 60 derniers). */
+export async function prevenirPush(store, annuaire, noms, genre, charge, contact, o = {}) {
+  const exclure = new Set((o.exclure || []).map((n) => nomDuCompte(n, o.comptes)));
+  const ecrits = new Map();
+  (noms || []).filter(Boolean).forEach((n) => { const c = nomDuCompte(n, o.comptes); if (!exclure.has(c) && !ecrits.has(c)) ecrits.set(c, n); });
+  const vises = [...ecrits.keys()];
   if (!vises.length) return [];
   const vapid = await clesVapid(annuaire);
-  const prevenus = [];
+  const prevenus = [], journal = [];
   await Promise.all(vises.map(async (nom) => {
     const f = await lireAbonne(store, nom);
-    if (!f.abonnements.length) return;
-    if (genre !== "essai" && f.prefs[genre] === false) return;
+    const note = (resultat) => journal.push({ le: new Date().toISOString(), genre, pour: nom, ecrit: ecrits.get(nom), titre: String(charge.titre || "").slice(0, 120), resultat, appareils: f.abonnements.length });
+    if (!f.abonnements.length) { note("pas-abonne"); return; }
+    if (genre !== "essai" && f.prefs[genre] === false) { note("coupe"); return; }
     let recu = false, oublies = 0;
     const gardes = [];
     for (const a of f.abonnements) {
@@ -146,8 +175,15 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     if (oublies) {
       try { await store.setJSON(cleAbonne(nom), { abonnements: gardes, prefs: f.prefs }); } catch { /* tant pis */ }
     }
+    note(recu ? "envoye" : (gardes.length ? "echec" : "perime"));
     if (recu) prevenus.push(nom);
   }));
+  if (journal.length) {
+    try {
+      const avant = (await store.get("push/journal.json", { type: "json" })) || [];
+      await store.setJSON("push/journal.json", journal.concat(Array.isArray(avant) ? avant : []).slice(0, 60));
+    } catch { /* le journal n'empêche rien */ }
+  }
   return prevenus;
 }
 
