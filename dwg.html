@@ -168,7 +168,10 @@ body.clair #scene{background:#FFFFFF}
 .vues-d[hidden]{display:none}
 .vues-d .vues-aide{font-size:12px;color:var(--ink-3,#8B949E)}
 .mesure .fam-d button{font-size:12.5px}
-.outils-d button.hors-fam{display:none}
+/* dans la ligne du haut du panneau : compact, sans la faire grandir */
+.mesure .seg button{min-height:26px;padding:3px 10px}
+.mesure .fam-d{margin-top:-4px;margin-bottom:-4px}
+.outils-d button.hors-fam,.outils-d button.hors-vue{display:none}
 .barre-sel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:8px;
   max-width:calc(100vw - 20px);padding:6px 6px 6px 14px;border-radius:999px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
 .barre-sel[hidden]{display:none}
@@ -177,6 +180,7 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
+.barre-sel button[hidden]{display:none}
 .barre-sel .bs-dist svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ref-panel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:8;width:min(560px,calc(100vw - 16px));padding:10px 12px;border-radius:16px;
   background:rgba(20,25,32,.97);border:1px solid rgba(251,146,60,.55);box-shadow:0 14px 34px -12px rgba(0,0,0,.85);color:var(--ink);display:flex;flex-direction:column;gap:8px}
@@ -298,7 +302,8 @@ body.clair #scene{background:#FFFFFF}
   </div>
 </div>
 <div class="bas" id="basSymb" hidden>
-  <div class="mesure"><b id="symbNb">0</b><span id="symbDetail">Choisissez un symbole, puis touchez le plan pour le poser.</span></div>
+  <div class="mesure"><b id="symbNb">0</b><span id="symbDetail">Choisissez un symbole, puis touchez le plan pour le poser.</span>
+    <span class="seg fam-d" id="segVueS" role="group" aria-label="Vue où l'on pose"><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button></span></div>
   <div class="palette" id="palette" role="listbox" aria-label="Symboles de la légende"></div>
   <div class="reglages">
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
@@ -806,20 +811,21 @@ function peindre(){
     repere(A_PT);
   }
   peindreDessin(c2);
-  if(aPlatP) peindreSymboles(c2);
+  peindreSymboles(c2);
   var cible = VISEE ? VISEE : SURVOL;
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
 }
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
+  var vue=vueD();
   SYMB.forEach(function(o, i){
-    var p=versEcran(o.x, o.y), R=o.r*V.k;
+    var q = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), p=versEcran(q[0], q[1]), R=o.r*V.k;
     if(R<0.8 || p[0]<-R*4 || p[0]>W+R*4 || p[1]<-R*4 || p[1]>H+R*4) return;
     var def=SymbolesElec.trouver(o.cle); if(!def) return;
     /* le bleu des prises se perd sur le fond sombre : un liseré clair dessous */
     var halo = !CLAIR && def.couleur==="#0000FF" ? "rgba(255,255,255,.55)" : false;
-    SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot:-(o.rot||0)*Math.PI/180, halo:halo, epMin:1});
+    SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1});
     if(o.t && R>3){
       var b=SymbolesElec.boite(o.cle);
       c.save(); c.font="600 "+Math.max(10, Math.min(28, R*0.9)).toFixed(0)+"px Helvetica, Arial, sans-serif";
@@ -965,9 +971,9 @@ cv.addEventListener("pointerdown", function(e){
       var gs=geoSous(versPlan(p[0], p[1]));
       if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); return; }
     }
-    if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF && vueD()==="dessus"){
-      var sm=mobSous(versPlan(p[0], p[1]));
-      if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y]; return; }
+    if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF){
+      var pp=versPlan(p[0], p[1]), sm = vueD()==="dessus" ? mobSous(pp) : mobSousV(pp);
+      if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y, sm.z||0]; return; }
     }
     if(traceGlisse(e)){ var c0=chercherD(p[0], p[1]); G.trace={pt:c0.pt, acc:c0.acc, genre:c0.genre, ecran:p}; }
     if(e.pointerType!=="mouse"){
@@ -977,7 +983,7 @@ cv.addEventListener("pointerdown", function(e){
   }
   if(MODE==="symb"){
     var ti=REF ? -1 : symboleSous(p);
-    if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y]; }
+    if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y, hauteurDe(SYMB[ti])]; }
     return;
   }
   /* au doigt : un appui tenu fait apparaître la loupe, on vise puis on lâche */
@@ -1006,7 +1012,15 @@ cv.addEventListener("pointermove", function(e){
   if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
   if(G.bouge && G.symb!=null){
     if(!G.garde){ garderSymb(); G.garde=true; }
-    var os=SYMB[G.symb], brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
+    var os=SYMB[G.symb];
+    if(vueD()!=="dessus"){
+      /* en élévation : de côté et en hauteur, au centimètre ; la profondeur reste */
+      var pasS=10/DESSIN_MM, dhS=Math.round((p[0]-G.depart[0])/V.k/pasS)*pasS, dzS=-(p[1]-G.depart[1])/V.k*DESSIN_MM;
+      if(vueD()==="cote") os.y=G.base[1]+dhS; else os.x=G.base[0]+dhS;
+      if(!PLAFOND[os.cle] || os.h!=null) os.h=Math.max(0, Math.round((G.base[2]+dzS)/10)*10);
+      SEL=G.symb; demander(); return;
+    }
+    var brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
     var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0));
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
     SEL=G.symb; demander(); return;
@@ -1022,6 +1036,11 @@ cv.addEventListener("pointermove", function(e){
   if(G.bouge && G.mob!=null){
     var om=mobDe(G.mob); if(!om) return;
     if(!G.garde){ garderD(); G.garde=true; }
+    if(vueD()!=="dessus"){
+      var pasM=10/DESSIN_MM, dhM=Math.round((p[0]-G.depart[0])/V.k/pasM)*pasM, dzM=-(p[1]-G.depart[1])/V.k*DESSIN_MM;
+      if(vueD()==="cote") om.y=G.base[1]+dhM; else om.x=G.base[0]+dhM;
+      om.z=zMobV(om, G.base[2]+dzM, 80); D_SEL={t:"mob", id:om.id}; demander(); return;
+    }
     var am=accrocherMob(om, [G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k], true);
     om.x=am.x; om.y=am.y; om.rot=am.rot; D_SEL={t:"mob", id:om.id}; demander(); return;
   }
@@ -1103,8 +1122,9 @@ function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); 
 /* ---------- les symboles électriques ---------- */
 function symboleSous(p){
   var best=-1, bd=Infinity;
+  var vue=vueD();
   SYMB.forEach(function(o, i){
-    var q=versEcran(o.x, o.y), d=Math.hypot(q[0]-p[0], q[1]-p[1]), lim=Math.max(20, o.r*V.k*1.5);
+    var s = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), q=versEcran(s[0], s[1]), d=Math.hypot(q[0]-p[0], q[1]-p[1]), lim=Math.max(20, o.r*V.k*1.5);
     if(d<lim && d<bd){ bd=d; best=i; }
   });
   return best;
@@ -1145,6 +1165,7 @@ function accrocherSymbole(cle, p, R, rot){
 }
 function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
+  if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
   var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
   var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
@@ -1177,6 +1198,7 @@ function majSymb(){
   Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
   Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX && (ARME_S || garderOutil()); b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
   majEnchainer();
+  majVues();
   peindreQuantites();
   majBarreSel();
 }
@@ -1389,6 +1411,7 @@ function majBarreSel(){
   }
   if(REF) nom="";
   b.hidden=!nom;
+  $("bsDist").hidden = vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob"));
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
@@ -1484,7 +1507,7 @@ function peindreDessin(c){
   var fin=Math.max(1, 25*V.k/2), moyen=Math.max(1.2, 40*V.k/2);   /* 12 mm et 20 mm de trait au 1/1 : fins à l'échelle */
   c.save(); c.lineCap="round"; c.lineJoin="round";
   var aPlat=vueD()==="dessus";
-  /* les murs, pleins (en Face et en Côté, seul le dessin technique est là) */
+  /* les murs, pleins (en Face et en Côté : en élévation, avec le mobilier) */
   if(aPlat){
   DESSIN.murs.forEach(function(m){
     var sel = D_SEL && D_SEL.t==="mur" && D_SEL.id===m.id;
@@ -1531,7 +1554,7 @@ function peindreDessin(c){
     c.fillStyle=(D_SEL && D_SEL.t==="texte" && D_SEL.id===t.id) ? orange : coulTrait;
     String(t.s).split("\n").forEach(function(l, i, tout){ c.fillText(l, P[0], P[1]+(i-(tout.length-1)/2)*hp*1.15); });
   });
-  }
+  } else peindreElevation(c, E, fin, coulTrait, orange);
   /* le dessin technique : traits, formes, cotes */
   peindreGeo(c, E, coulTrait, orange);
   /* le mur en cours, et sa longueur */
@@ -1558,7 +1581,7 @@ function etiquette(c, x, y, t){
 /* ---------- l'accrochage du dessin : bouts et angles des murs, puis la grille du centimètre ---------- */
 function pointsDessin(){
   var out=[];
-  if(vueD()!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); return out; }
+  if(vueD()!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vueD()).forEach(function(q){ out.push(q); }); return out; }
   DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   pointsGeo().forEach(function(q){ out.push(q); });
@@ -1615,6 +1638,7 @@ function toucherD(sx, sy, force){
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
   if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(GEO_OUTILS[OUTIL_D]){ toucherGeo(cible, p); return; }
+  if(vueD()!=="dessus" && OUTIL_D!=="objet" && OUTIL_D!=="choisir"){ toast("Les murs, les portes et les pièces se tracent en vue de dessus."); return; }
   if(OUTIL_D==="mur" || OUTIL_D==="cloison"){
     if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
     var fin=finMur(D_PT, cible);
@@ -1665,7 +1689,7 @@ function toucherD(sx, sy, force){
 }
 function objetSous(p){
   var best=null, bd=18/V.k;
-  if(vueD()!=="dessus"){ var g0=geoSous(p); return g0 ? {t:"geo", id:g0.id} : null; }
+  if(vueD()!=="dessus"){ var g0=geoSous(p); if(g0) return {t:"geo", id:g0.id}; var m0=mobSousV(p); return m0 ? {t:"mob", id:m0.id} : null; }
   DESSIN.textes.forEach(function(t){ var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
   if(best) return best;
@@ -1776,38 +1800,51 @@ function majDessin(){
 function modifierSel(fn){ var o=objetSel(); if(!o) return; garderD(); fn(o); enregistrerD(); majDessin(); }
 /* deux familles d'outils : le plan (murs, ouvertures, pièces, mobilier) et le dessin technique */
 var FAM_D=lire("dwg:famD", "");
+/* en Face et en Côté, le plan n'offre que le mobilier (les murs se tracent de dessus) */
+function outilVue(o){ return VUE_D==="dessus" || FAM_D!=="plan" || o==="objet" || o==="choisir"; }
+function majVues(){
+  var aide = VUE_D==="face" ? "vue de face : la hauteur vers le haut" : VUE_D==="cote" ? "vue de côté : la profondeur vers la droite" : "";
+  ["segVueD","segVueS"].forEach(function(id){ Array.prototype.forEach.call($(id).children, function(b){ b.classList.toggle("on", b.dataset.v===VUE_D); }); });
+  $("vuesAide").textContent=aide;
+}
 function majFamille(){
   if(!FAM_D) FAM_D = GEO_OUTILS[OUTIL_D] ? "dessin" : "plan";
-  if(VUE_D!=="dessus") FAM_D="dessin";
-  $("vuesD").hidden = FAM_D!=="dessin";
-  Array.prototype.forEach.call($("segVueD").children, function(b){ b.classList.toggle("on", b.dataset.v===VUE_D); });
-  $("vuesAide").textContent = VUE_D==="face" ? "vue de face : la hauteur vers le haut" : VUE_D==="cote" ? "vue de côté : la profondeur vers la droite" : "";
+  $("vuesD").hidden=false;
+  majVues();
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button[data-o]"), function(b){
     var o=b.dataset.o, dansDessin=!!GEO_OUTILS[o];
     b.classList.toggle("hors-fam", o!=="choisir" && (FAM_D==="dessin") !== dansDessin);
+    b.classList.toggle("hors-vue", !outilVue(o));
   });
   Array.prototype.forEach.call($("segFamD").children, function(b){ b.classList.toggle("on", b.dataset.f===FAM_D); });
 }
 $("segFamD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   FAM_D=b.dataset.f; garder("dwg:famD", FAM_D);
-  if(FAM_D==="plan" && VUE_D!=="dessus"){ VUE_D="dessus"; garder("dwg:vueD", VUE_D); D_SEL=null; demander(); }
-  /* l'outil en cours suit la famille */
-  if(OUTIL_D!=="choisir" && (FAM_D==="dessin") !== !!GEO_OUTILS[OUTIL_D]){ OUTIL_D = FAM_D==="dessin" ? "trait" : "mur"; garder("dwg:outil", OUTIL_D); }
+  /* l'outil en cours suit la famille (en Face et en Côté, le plan, c'est le mobilier) */
+  if(OUTIL_D!=="choisir" && (FAM_D==="dessin") !== !!GEO_OUTILS[OUTIL_D]){ OUTIL_D = FAM_D==="dessin" ? "trait" : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
   D_PT=null; GEO_EC=null; majFamille(); majDessin();
 });
-$("segVueD").addEventListener("click", function(e){
-  var b=e.target.closest("button"); if(!b || b.dataset.v===VUE_D) return;
-  VUE_D=b.dataset.v; garder("dwg:vueD", VUE_D);
-  D_SEL=null; D_PT=null; GEO_EC=null;
-  if(VUE_D!=="dessus"){ FAM_D="dessin"; if(!GEO_OUTILS[OUTIL_D] && OUTIL_D!=="choisir") OUTIL_D="rect"; }
-  /* on regarde là où sont les formes de cette vue */
-  var l=geosVue();
-  if(l.length){ var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity; l.forEach(function(o){ contourG(o).forEach(function(q){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); y0=Math.min(y0,q[1]); y1=Math.max(y1,q[1]); }); });
-    var cx=(x0+x1)/2, cy=(y0+y1)/2, pe=versEcran(cx, cy); V.x+=W/2-pe[0]; V.y+=(H*0.4)-pe[1]; }
-  majFamille(); majDessin(); demander();
-  toast(VUE_D==="face" ? "Vue de face : dessinez ce qu'on voit de devant. Les autres vues sont en gris." : VUE_D==="cote" ? "Vue de côté : dessinez ce qu'on voit de côté. Les autres vues sont en gris." : "Vue de dessus.");
-});
+function choisirVue(v){
+  if(v===VUE_D) return;
+  VUE_D=v;
+  D_SEL=null; D_PT=null; GEO_EC=null; SEL=-1;
+  if(VUE_D!=="dessus"){
+    if(FAM_D==="plan"){ if(OUTIL_D!=="choisir" && OUTIL_D!=="objet") OUTIL_D="objet"; }
+    else if(!GEO_OUTILS[OUTIL_D] && OUTIL_D!=="choisir") OUTIL_D="rect";
+  }
+  /* on regarde là où sont les formes de cette vue (en élévation : les murs, les meubles, les symboles) */
+  var l=geosVue(), x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  if(l.length) l.forEach(function(o){ contourG(o).forEach(function(q){ x0=Math.min(x0,q[0]); x1=Math.max(x1,q[0]); y0=Math.min(y0,q[1]); y1=Math.max(y1,q[1]); }); });
+  else if(VUE_D!=="dessus"){ var ev=etendueVue(VUE_D); if(ev){ x0=ev.minx; x1=ev.maxx; y0=ev.miny; y1=ev.maxy; } }
+  if(isFinite(x0)){ var cx=(x0+x1)/2, cy=(y0+y1)/2, pe=versEcran(cx, cy); V.x+=W/2-pe[0]; V.y+=(H*0.4)-pe[1]; }
+  majFamille();
+  if(MODE==="symb"){ ARME_S=true; majSymb(); } else majDessin();
+  demander();
+  var quoi = MODE==="symb" ? "posez les symboles à leur hauteur, contre le mur du fond" : FAM_D==="plan" ? "posez le mobilier, contre le mur du fond, à la hauteur touchée" : "dessinez ce qu'on voit de "+(VUE_D==="face" ? "devant" : "côté")+". Les autres vues sont en gris";
+  toast(VUE_D==="face" ? "Vue de face : "+quoi+"." : VUE_D==="cote" ? "Vue de côté : "+quoi+"." : "Vue de dessus.", 3500);
+}
+["segVueD","segVueS"].forEach(function(id){ $(id).addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) choisirVue(b.dataset.v); }); });
 $("btPerspD").addEventListener("click", function(){ $("btVue3d").click(); });
 $("outilsD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
@@ -1901,11 +1938,11 @@ function geos(){ return (DESSIN && DESSIN.geo) || []; }
    une profondeur pour une forme de face, une largeur pour une forme de
    côté, à partir d'un décalage. Chaque vue montre en gris, projetées, les
    formes des deux autres : un bouton, un profil, une idée se dessinent
-   comme sur une planche de dessin industriel. Les murs, le mobilier et
-   les symboles restent dans la vue de dessus. */
-var VUE_D=lire("dwg:vueD","dessus");
-if(VUE_D!=="face" && VUE_D!=="cote") VUE_D="dessus";
-function vueD(){ return MODE==="dessin" ? VUE_D : "dessus"; }
+   comme sur une planche de dessin industriel. Les murs se tracent en
+   vue de dessus ; en Face et en Côté, ils se voient en élévation, et le
+   mobilier et les symboles s'y posent et s'y déplacent (voir plus bas). */
+var VUE_D="dessus";          /* chaque plan s'ouvre en vue de dessus */
+function vueD(){ return MODE==="dessin" || MODE==="symb" ? VUE_D : "dessus"; }
 function vueDe(o){ return o.vue==="face" || o.vue==="cote" ? o.vue : "dessus"; }
 function geosVue(){ var v=vueD(); return geos().filter(function(o){ return vueDe(o)===v; }); }
 /* un point 2D d'une forme, à la profondeur d (unités du dessin), en 3D [x, y, z(hauteur)] */
@@ -1929,6 +1966,131 @@ function projectionG(o, vue){
     idx.forEach(function(i){ out.push([pt2(vue, pt3(o, pts[i], d0)), pt2(vue, pt3(o, pts[i], d1))]); });
   }
   return out;
+}
+/* ---------- en Face et en Côté : murs, mobilier et symboles en élévation ----------
+   La vue de face regarde le plan depuis le bas de la page : la largeur (x)
+   vers la droite, la hauteur vers le haut. La vue de côté le regarde depuis
+   la droite : la profondeur (y) vers la droite. Les murs s'y voient en gris,
+   avec leurs portes et fenêtres, le sol et le plafond. Un meuble ou un
+   symbole posé dans ces vues se colle au mur du fond, tourné vers soi, à
+   la hauteur touchée ; on le glisse de côté et en hauteur, sa profondeur ne
+   bouge pas (elle se règle en vue de dessus). */
+function horizV(vue, q){ return vue==="cote" ? q[1] : q[0]; }
+function profV(vue, q){ return vue==="cote" ? -q[0] : q[1]; }          /* plus grand : plus loin de soi */
+function planDeV(vue, h, pr){ return vue==="cote" ? [-pr, h] : [h, pr]; }
+function plageV(vue, pts){ var a=Infinity, b=-Infinity; pts.forEach(function(q){ var h=horizV(vue, q); if(h<a) a=h; if(h>b) b=h; }); return [a, b]; }
+function coinsMur(m){ var L=axes(m).L; return [surMur(m,0,-m.ep/2), surMur(m,L,-m.ep/2), surMur(m,L,m.ep/2), surMur(m,0,m.ep/2)]; }
+function boiteMobV(o, vue){
+  var k=coinsMob(o), r=plageV(vue, k), z0=(o.z||0)/DESSIN_MM;
+  return {h0:r[0], h1:r[1], z0:z0, z1:z0+o.h/DESSIN_MM, prof:Math.min.apply(null, k.map(function(q){ return profV(vue, q); }))};
+}
+function ptSymbV(o, vue){ return [horizV(vue, [o.x, o.y]), hauteurDe(o)/DESSIN_MM]; }
+function mobSousV(p){
+  var vue=vueD(), m=6/V.k, best=null, bp=Infinity;
+  mobs().forEach(function(o){ var b=boiteMobV(o, vue); if(p[0]>=b.h0-m && p[0]<=b.h1+m && p[1]>=b.z0-m && p[1]<=b.z1+m && b.prof<bp){ bp=b.prof; best=o; } });
+  return best;
+}
+/* les murs parallèles à la vue derrière la position h, du plus loin au plus proche (prof : leur face tournée vers soi) */
+function mursDerriere(vue, h){
+  var out=[];
+  DESSIN.murs.forEach(function(m){
+    var u=axes(m).u; if(Math.abs(vue==="cote" ? u[1] : u[0])<0.9) return;
+    var r=plageV(vue, [m.a, m.b]); if(h<r[0]-1e-6 || h>r[1]+1e-6) return;
+    out.push({m:m, prof:profV(vue, [(m.a[0]+m.b[0])/2, (m.a[1]+m.b[1])/2])-m.ep/2});
+  });
+  return out.sort(function(a, b){ return b.prof-a.prof; });
+}
+/* la hauteur d'un meuble (mm, sous lui) : posé au sol, ou sous le plafond, sinon au centimètre */
+function zMobV(o, z, tol){
+  var hs=hspD(); if(defMob(o.cle).plafond) return Math.max(0, hs-o.h);
+  if(ACCR_D){ if(z<tol) return 0; if(DESSIN.murs.length && Math.abs(z+o.h-hs)<tol) return Math.max(0, hs-o.h); }
+  return Math.max(0, Math.round(z/10)*10);
+}
+function poserMobVue(p){
+  var vue=vueD(), o=nouveauMob(CHOIX_MOB), fond=mursDerriere(vue, p[0])[0];
+  o.rot = vue==="cote" ? 90 : 0;                   /* sa face avant vers soi */
+  var c=planDeV(vue, p[0], (fond ? fond.prof : 0)-o.p/2); o.x=c[0]; o.y=c[1];
+  o.z=zMobV(o, p[1]*DESSIN_MM-o.h/2, Math.max(150, o.h*0.35));
+  garderD(); DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(o); D_SEL={t:"mob", id:o.id}; finOutil(); enregistrerD(); majDessin();
+  toast(defMob(o.cle).court+(fond ? " contre le mur du fond" : "")+(o.z ? ", à "+cm(o.z)+" cm du sol." : ", au sol.")+" Glissez-le de côté ou en hauteur ; sa profondeur se règle en vue de dessus.", 4000);
+}
+function poserSymboleVue(pt){
+  var vue=vueD(), R=R_REEL*TAILLE/DESSIN_MM, murs=mursDerriere(vue, pt[0]), fond=murs[0], o={cle:CHOIX, r:R, t:"", rot:0}, pr;
+  if(PLAFOND[CHOIX]){
+    /* au plafond : au milieu de la pièce, entre le mur du fond et celui de devant */
+    pr = !fond ? 0 : murs[1] ? (fond.prof+murs[1].prof+murs[1].m.ep)/2 : fond.prof-1000/DESSIN_MM;
+  } else {
+    pr=(fond ? fond.prof : 0)-SymbolesElec.boite(CHOIX).y1*R;
+    o.rot = vue==="cote" ? 270 : 180;             /* tourné vers la pièce, donc vers soi */
+    var h=Math.max(0, Math.round(pt[1]*DESSIN_MM/10)*10), hd=HAUTEURS[CHOIX];
+    if(ACCR_D && hd!=null && Math.abs(h-hd)<80) h=hd;   /* près de sa hauteur de pose habituelle : elle */
+    o.h=h;
+  }
+  var c=planDeV(vue, pt[0], pr); o.x=c[0]; o.y=c[1];
+  garderSymb(); SYMB.push(o);
+  if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
+  enregistrerSymb();
+  if(!PLAFOND[CHOIX]) toast("Posé à "+cm(o.h)+" cm"+(fond ? ", contre le mur du fond" : "")+". Glissez-le pour le déplacer.", 3000);
+}
+/* les coins en élévation, pour l'accrochage */
+function pointsVue(vue){
+  var out=[];
+  DESSIN.murs.forEach(function(m){ var r=plageV(vue, coinsMur(m)), h=(m.h||hspD())/DESSIN_MM; if(r[1]-r[0]>1e-6) out.push([r[0],0], [r[1],0], [r[0],h], [r[1],h]); });
+  mobs().forEach(function(o){ var b=boiteMobV(o, vue); out.push([b.h0,b.z0], [b.h1,b.z0], [b.h0,b.z1], [b.h1,b.z1]); });
+  return out;
+}
+/* l'étendue en élévation (pour cadrer la vue et le PDF) */
+function etendueVue(vue){
+  var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+  function pt(q, r){ r=r||0; x0=Math.min(x0,q[0]-r); x1=Math.max(x1,q[0]+r); y0=Math.min(y0,q[1]-r); y1=Math.max(y1,q[1]+r); }
+  pointsVue(vue).forEach(function(q){ pt(q); });
+  SYMB.forEach(function(o){ pt(ptSymbV(o, vue), o.r*2); });
+  geos().forEach(function(o){ if(vueDe(o)===vue) contourG(o).forEach(function(q){ pt(q); }); else projectionG(o, vue).forEach(function(l){ l.forEach(function(q){ pt(q); }); }); });
+  return isFinite(x0) ? {minx:x0, miny:y0, maxx:x1, maxy:y1} : null;
+}
+function peindreElevation(c, E, fin, coulTrait, orange){
+  var vue=vueD(), gris = CLAIR || IMPRIME ? "rgba(60,70,80,.55)" : "rgba(201,209,217,.42)", fond = CLAIR || IMPRIME ? "#FFFFFF" : "#0B0E12";
+  function rect(h0, h1, z0, z1){ var a=E([h0,z0]), b=E([h1,z1]); c.beginPath(); c.rect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1])); }
+  c.save(); c.lineWidth=fin; c.setLineDash([]);
+  if(DESSIN.murs.length){
+    var tout=plageV(vue, [].concat.apply([], DESSIN.murs.map(coinsMur))), mg=400/DESSIN_MM, hs=hspD()/DESSIN_MM;
+    /* le sol, et le plafond en tirets */
+    c.strokeStyle=gris; c.lineWidth=Math.max(1.2, fin*1.4);
+    var s0=E([tout[0]-mg, 0]), s1=E([tout[1]+mg, 0]); c.beginPath(); c.moveTo(s0[0], s0[1]); c.lineTo(s1[0], s1[1]); c.stroke();
+    c.lineWidth=fin; c.setLineDash([8,6]);
+    var p0=E([tout[0], hs]), p1=E([tout[1], hs]); c.beginPath(); c.moveTo(p0[0], p0[1]); c.lineTo(p1[0], p1[1]); c.stroke(); c.setLineDash([]);
+    /* les murs, du plus loin au plus proche, avec leurs ouvertures */
+    DESSIN.murs.slice().sort(function(a, b){ return profV(vue, b.a)+profV(vue, b.b)-profV(vue, a.a)-profV(vue, a.b); }).forEach(function(m){
+      var r=plageV(vue, coinsMur(m)), h=(m.h||hspD())/DESSIN_MM, sel=D_SEL && D_SEL.t==="mur" && D_SEL.id===m.id;
+      c.fillStyle = CLAIR || IMPRIME ? "rgba(0,0,0,.03)" : "rgba(255,255,255,.035)"; rect(r[0], r[1], 0, h); c.fill();
+      c.strokeStyle = sel ? orange : gris; c.stroke();
+      DESSIN.ouv.forEach(function(o){
+        if(o.mur!==m.id) return;
+        var x=axes(m), cc=o.t*x.L, ro=plageV(vue, [surMur(m, cc-o.l/2, 0), surMur(m, cc+o.l/2, 0)]); if(ro[1]-ro[0]<1e-6) return;
+        var z0=allegeOuv(o)/DESSIN_MM, z1=Math.min(h, hautOuv(o)/DESSIN_MM);
+        c.fillStyle=fond; rect(ro[0], ro[1], z0, z1); c.fill(); c.strokeStyle=gris; c.stroke();
+        if(o.type==="fenetre" || o.type==="pf"){ var mi=(ro[0]+ro[1])/2, a=E([mi, z0]), b=E([mi, z1]); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); }
+      });
+    });
+  }
+  /* le mobilier, chaque volume en rectangle, du plus loin au plus proche : le plus proche cache ce qui est derrière */
+  mobs().map(function(o){ return {o:o, b:boiteMobV(o, vue)}; }).sort(function(a, b){ return b.b.prof-a.b.prof; }).forEach(function(e){
+    var o=e.o, sel=D_SEL && D_SEL.t==="mob" && D_SEL.id===o.id, col=sel ? orange : coulTrait, z0=(o.z||0);
+    c.strokeStyle=col; c.lineWidth=fin;
+    piecesMob({cle:o.cle, l:o.l*DESSIN_MM, p:o.p*DESSIN_MM, h:o.h}).forEach(function(q){
+      var r=plageV(vue, [[q.x0,q.y0],[q.x1,q.y0],[q.x1,q.y1],[q.x0,q.y1]].map(function(k){ return versMob(o, k[0]/DESSIN_MM, k[1]/DESSIN_MM); }));
+      rect(r[0], r[1], (z0+q.z0)/DESSIN_MM, (z0+q.z1)/DESSIN_MM);
+      if(!q.opa){ c.fillStyle=fond; c.fill(); c.fillStyle = CLAIR || IMPRIME ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.fill(); }
+      c.stroke();
+    });
+    var b=e.b, lg=(b.h1-b.h0)*V.k, nom=o.nom || defMob(o.cle).court;
+    if(lg>=40 && (b.z1-b.z0)*V.k>=16){
+      var hp=Math.max(8, Math.min(13, lg*0.12)), ce=E([(b.h0+b.h1)/2, (b.z0+b.z1)/2]);
+      c.font="600 "+hp.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=col;
+      c.globalAlpha=0.8; c.fillText(nom, ce[0], ce[1]); c.globalAlpha=1;
+    }
+  });
+  c.restore();
 }
 /* la forme qu'on est en train de tirer n'accroche pas à elle-même (le point traînait derrière le doigt) */
 var GEO_EXCLU=null;
@@ -2414,6 +2576,7 @@ function accrocherMob(o, p, garderRot, sansCaler){
   return {x:pied[0]+nIn[0]*prof, y:pied[1]+nIn[1]*prof, rot:Math.round(rot*10)/10, acc:{pt:pied, genre:5}};
 }
 function poserMob(p){
+  if(vueD()!=="dessus"){ poserMobVue(p); return; }
   var o=nouveauMob(CHOIX_MOB), a=accrocherMob(o, p, false);
   o.x=a.x; o.y=a.y; o.rot=a.rot;
   garderD(); DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(o); D_SEL={t:"mob", id:o.id}; finOutil(); enregistrerD(); majDessin();
@@ -2946,6 +3109,7 @@ function nouveauVierge(){
 }
 function ouvrirVierge(id, neuf){
   var v=listeVierges().filter(function(z){ return z.id===id; })[0]; if(!v) return;
+  VUE_D="dessus";
   PLAN={vierge:true, id:id, nom:v.nom, groupes:{}, textes:[], calques:{}, pts:[], grille:{}, cel:1000, minx:0, miny:0, maxx:12000, maxy:9000, nb:0};
   COTES=[]; A_PT=null; D_PT=null; D_SEL=null; HISTO_D=[]; HISTO_S=[]; SEL=-1;
   DESSIN_MM=1; ECHELLE_SRC="vierge"; FICHIER_CLE="dwg:echelle:vierge:"+id;
@@ -3648,6 +3812,7 @@ function cadrage(){
     var a=versPlan(0, h0), b=versPlan(W, h1);
     return {cx:(a[0]+b[0])/2, cy:(a[1]+b[1])/2, w:Math.abs(b[0]-a[0]), h:Math.abs(a[1]-b[1])};
   }
+  if(vueD()!=="dessus"){ var ev=etendueVue(vueD()); if(ev) return {cx:(ev.minx+ev.maxx)/2, cy:(ev.miny+ev.maxy)/2, w:(ev.maxx-ev.minx)*1.04, h:(ev.maxy-ev.miny)*1.04}; }
   var x0=PLAN.minx, x1=PLAN.maxx, y0=PLAN.miny, y1=PLAN.maxy;
   if(PLAN.vierge){ var ed=etendueDessin(); if(ed){ x0=ed.minx; x1=ed.maxx; y0=ed.miny; y1=ed.maxy; } }
   else { var ed2=etendueDessin(); if(ed2){ x0=Math.min(x0,ed2.minx); x1=Math.max(x1,ed2.maxx); y0=Math.min(y0,ed2.miny); y1=Math.max(y1,ed2.maxy); } }
@@ -3804,7 +3969,7 @@ function ouvrirFichier(f){
         try{ L.l.dwg_free(brut); }catch(e){}
         var P=construire(db);
         if(!P.nb && !P.textes.length) throw new Error("vide");
-        PLAN=P; COTES=[]; A_PT=null;
+        PLAN=P; COTES=[]; A_PT=null; VUE_D="dessus";
         /* l'unité du dessin : un étalonnage déjà fait sur ce fichier, sinon ce que
            disent le fichier et les cotes du plan */
         var u={1:25.4, 2:304.8, 4:1, 5:10, 6:1000, 14:100}[(db.header||{}).INSUNITS];
