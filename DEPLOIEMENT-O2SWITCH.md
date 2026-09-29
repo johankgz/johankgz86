@@ -59,7 +59,7 @@ cPanel → **Setup Node.js App** → **Create Application**.
 | Node.js version | la plus élevée proposée, **20 minimum** |
 | Application mode | `Production` |
 | Application root | `outils` |
-| Application URL | votre domaine ou un sous-domaine, par exemple `outils.tlenergies.com` |
+| Application URL | votre domaine ou un sous-domaine, par exemple `outils.votre-domaine.fr` |
 | Application startup file | `app.js` — si cPanel le refuse, mettez `app.cjs` |
 
 **Create**, puis restez sur la page.

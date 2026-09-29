@@ -45,13 +45,9 @@
     });
     return out;
   }
-  /* le logo : celui de la maison (fond noir) pour Trichet Loué, sinon celui de la fiche société */
-  function choisirLogo(societe, logoMaison, logoFiche){
-    var soc=String(societe||"");
-    if(logoMaison && /trichet/i.test(soc)) return {img:logoMaison, noir:true};
-    if(logoFiche) return {img:logoFiche, noir:false};
-    if(logoMaison && !soc) return {img:logoMaison, noir:true};
-    return null;
+  /* le logo : celui de la fiche société (sinon, le nom de la société en toutes lettres) */
+  function choisirLogo(societe, logoFiche){
+    return logoFiche ? {img:logoFiche, noir:false} : null;
   }
 
   /* S : {societe, auteur, mail, date (AAAA-MM-JJ), indice, remarques, mention,

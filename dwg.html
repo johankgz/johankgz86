@@ -196,6 +196,7 @@ body.clair #scene{background:#FFFFFF}
   <div class="mesure"><b id="symbNb">0</b><span id="symbDetail">Choisissez un symbole, puis touchez le plan pour le poser.</span></div>
   <div class="palette" id="palette" role="listbox" aria-label="Symboles de la légende"></div>
   <div class="reglages">
+    <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
@@ -226,6 +227,7 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btInverser" type="button" hidden>Sens d'ouverture</button>
     <button class="bt" id="btMain" type="button" hidden>Côté des gonds</button>
     <button class="bt" id="btRenommer" type="button" hidden>Renommer</button>
+    <button class="bt" id="btAccrD" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btOrthoD" type="button" aria-pressed="true">Ortho</button>
     <button class="bt" id="btDefaireD" type="button" disabled>Annuler</button>
     <button class="bt" id="btSuppD" type="button" disabled>Supprimer</button>
@@ -692,6 +694,7 @@ function accroche(pt, genre){
   var p=versEcran(pt[0],pt[1]); c2.strokeStyle="#22D3EE"; c2.lineWidth=2; c2.beginPath();
   if(genre===2){ c2.moveTo(p[0],p[1]-8); c2.lineTo(p[0]+8,p[1]+6); c2.lineTo(p[0]-8,p[1]+6); c2.closePath(); }
   else if(genre===3){ c2.arc(p[0],p[1],8,0,Math.PI*2); }
+  else if(genre===5){ c2.moveTo(p[0]-7,p[1]-7); c2.lineTo(p[0]+7,p[1]+7); c2.moveTo(p[0]-7,p[1]+7); c2.lineTo(p[0]+7,p[1]-7); }
   else c2.rect(p[0]-7,p[1]-7,14,14);
   c2.stroke();
 }
@@ -792,7 +795,12 @@ cv.addEventListener("pointerdown", function(e){
   }
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
-  if(MODE==="dessin") return;
+  if(MODE==="dessin"){
+    if(e.pointerType!=="mouse"){
+      G.minuteur=setTimeout(function(){ if(G && !G.bouge && !G.pince){ G.visee=true; var c=chercherD(p[0],p[1]); D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); } }, 260);
+    }
+    return;
+  }
   if(MODE==="symb"){
     var ti=symboleSous(p);
     if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y]; }
@@ -814,11 +822,13 @@ cv.addEventListener("pointermove", function(e){
     var k=Math.max(1e-9, G.k0*d/(G.d0||1)), f=k/G.k0;
     V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demander(); return;
   }
-  if(G.visee){ var c=chercher(p[0],p[1]); VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
+  if(G.visee){ var c = MODE==="dessin" ? chercherD(p[0],p[1]) : chercher(p[0],p[1]); if(MODE==="dessin") D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
   if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
   if(G.bouge && G.symb!=null){
     if(!G.garde){ garderSymb(); G.garde=true; }
-    SYMB[G.symb].x=G.base[0]+(p[0]-G.depart[0])/V.k; SYMB[G.symb].y=G.base[1]-(p[1]-G.depart[1])/V.k;
+    var os=SYMB[G.symb], brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
+    var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0));
+    os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
     SEL=G.symb; demander(); return;
   }
   if(G.bouge){ V.x=G.vx+(p[0]-G.depart[0]); V.y=G.vy+(p[1]-G.depart[1]); demander(); }
@@ -832,12 +842,16 @@ function lacher(e){
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
   if(MODE==="dessin"){
-    if(e.type!=="pointercancel" && !G.bouge){ toucherD(p[0], p[1]); if(e.pointerType==="mouse") D_SOURIS=chercherD(p[0],p[1]); }
-    G=null; demander(); return;
+    if(e.type!=="pointercancel"){
+      if(G.visee && VISEE) toucherD(0, 0, {pt:VISEE.pt, acc:VISEE.acc, genre:VISEE.genre});
+      else if(!G.bouge) toucherD(p[0], p[1]);
+      D_SOURIS = e.pointerType==="mouse" ? chercherD(p[0],p[1]) : null;
+    }
+    VISEE=null; G=null; demander(); return;
   }
   if(MODE==="symb"){
     if(e.type!=="pointercancel"){
-      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); }
+      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
       else if(!G.bouge) poserSymbole(versPlan(p[0], p[1]));
       majSymb();
     }
@@ -879,10 +893,40 @@ function symboleSous(p){
 }
 function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
 function enregistrerSymb(){ if(SYMB_CLE){ try{ localStorage.setItem(SYMB_CLE, JSON.stringify(SYMB)); }catch(e){} } }
+/* les symboles qu'on pose au mur : ils s'y collent, tournés vers la pièce */
+var MURAUX={"cfo-prise":1, "cfo-prise-etanche":1, "cfo-inter-va":1, "cfo-inter-double-voyant":1, "cfo-inter-voyant":1, "cfo-inter-simple":1,
+  "cfo-bouton-vr":1, "cfo-bp-voyant":1, "cfo-bp":1, "cfo-dcl-mural":1, "cfo-applique-brick":1, "cfo-encastre-mural":1};
+var SYMB_ACC=null;
+function accrocherSymbole(cle, p, R, rot){
+  var libre={x:p[0], y:p[1], rot:rot||0, acc:null};
+  if(!ACCR_D || !window.SymbolesElec) return libre;
+  var tolE=26/V.k;
+  if(MURAUX[cle] && typeof DESSIN!=="undefined" && DESSIN.murs.length){
+    var best=null, bd=Infinity;
+    DESSIN.murs.forEach(function(m){
+      var r=distSeg(p, m.a, m.b), face=Math.abs(r.d-m.ep/2);
+      if(r.t>0 && r.t<1 && face<Math.max(tolE, R*1.6) && face<bd){ bd=face; best={m:m, t:r.t}; }
+    });
+    if(best){
+      var m=best.m, x=axes(m), cote=((p[0]-m.a[0])*x.n[0]+(p[1]-m.a[1])*x.n[1])>=0 ? 1 : -1;
+      var nIn=[x.n[0]*cote, x.n[1]*cote], L=x.L*best.t;
+      var pied=[m.a[0]+x.u[0]*L+nIn[0]*m.ep/2, m.a[1]+x.u[1]*L+nIn[1]*m.ep/2];
+      var bb=SymbolesElec.boite(cle), recul=bb.y1*R;
+      var ang=Math.atan2(-nIn[0], nIn[1])*180/Math.PI;
+      return {x:pied[0]+nIn[0]*recul, y:pied[1]+nIn[1]*recul, rot:Math.round(((ang%360)+360)%360*10)/10, acc:{pt:pied, genre:5}};
+    }
+  }
+  /* sinon, un point du plan (bouts, milieux, centres) ou un angle de mur */
+  var e=versEcran(p[0], p[1]);
+  var c = (PLAN && !PLAN.vierge && PLAN.pts && PLAN.pts.length) ? chercher(e[0], e[1]) : {acc:false};
+  if(c.acc) return {x:c.pt[0], y:c.pt[1], rot:rot||0, acc:{pt:c.pt, genre:c.genre}};
+  return libre;
+}
 function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   garderSymb();
-  SYMB.push({cle:CHOIX, x:pt[0], y:pt[1], rot:0, r:R_REEL*TAILLE/DESSIN_MM, t:""});
+  var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
+  SYMB.push({cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""});
   SEL=SYMB.length-1; enregistrerSymb();
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
@@ -901,6 +945,7 @@ function majSymb(){
                    : "Choisissez un symbole, puis touchez le plan pour le poser.");
   $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
   if(document.activeElement!==$("symbRep")) $("symbRep").value = o ? (o.t||"") : "";
+  $("btAccrS").classList.toggle("on", ACCR_D); $("btAccrS").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDefaireS").disabled=!HISTO_S.length; $("btDxf").disabled=!SYMB.length && dessinVide();
   Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
   Array.prototype.forEach.call($("palette").querySelectorAll("button"), function(b){ var on=b.dataset.cle===CHOIX; b.classList.toggle("on", on); b.setAttribute("aria-selected", on?"true":"false"); });
@@ -1064,14 +1109,15 @@ function peindreDessin(c){
   if(!IMPRIME && MODE==="dessin" && D_PT){
     var P0=E(D_PT); c.fillStyle=orange; c.beginPath(); c.arc(P0[0],P0[1],5,0,Math.PI*2); c.fill();
     if(D_SOURIS){
-      var fin2=contraindreD(D_PT, D_SOURIS.pt), ep=OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR;
+      var fin2=finMur(D_PT, D_SOURIS), ep=OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR;
       var P1=E(fin2); c.strokeStyle="rgba(251,146,60,.8)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
       c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke();
       etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(sub(fin2, D_PT))));
     }
   }
   if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(axes(ms).L)); } }
-  if(!IMPRIME && MODE==="dessin" && D_SOURIS && D_SOURIS.acc){ var Q=E(D_SOURIS.pt); c.strokeStyle="#22D3EE"; c.lineWidth=2; c.strokeRect(Q[0]-6,Q[1]-6,12,12); }
+  if(!IMPRIME && MODE==="dessin" && D_SOURIS && D_SOURIS.acc) accroche(D_SOURIS.pt, D_SOURIS.genre);
+  if(!IMPRIME && MODE==="symb" && SYMB_ACC) accroche(SYMB_ACC.pt, SYMB_ACC.genre);
   c.restore();
 }
 function etiquette(c, x, y, t){
@@ -1085,24 +1131,54 @@ function pointsDessin(){
   DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
   return out;
 }
+/* L'accrochage du dessin, du plus fort au plus faible : un bout ou un angle
+   de mur (carré), le milieu d'un mur (triangle), un point du plan DWG,
+   puis n'importe où le long d'un mur (croix : un départ en T). Sinon, le
+   centimètre. « Accrochage » le coupe. */
+var ACCR_D=lire("dwg:accrD","1")!=="0";
+function grille10(p){ return [Math.round(p[0]/10)*10, Math.round(p[1]/10)*10]; }
 function chercherD(sx, sy){
-  var p=versPlan(sx, sy), best=null, bd=16/V.k;
-  pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best=q; } });
-  if(best) return {pt:[best[0], best[1]], acc:true};
-  if(ACCROCHE && PLAN && !PLAN.vierge){ var c=chercher(sx, sy); if(c.acc) return c; }
-  return {pt:[Math.round(p[0]/10)*10, Math.round(p[1]/10)*10], acc:false};
+  var p=versPlan(sx, sy);
+  if(!ACCR_D) return {pt:grille10(p), acc:false};
+  var best=null, bd=16/V.k;
+  pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:1}; } });
+  if(best) return best;
+  bd=14/V.k;
+  DESSIN.murs.forEach(function(m){ var q=[(m.a[0]+m.b[0])/2, (m.a[1]+m.b[1])/2], d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:q, acc:true, genre:2}; } });
+  if(best) return best;
+  if(PLAN && !PLAN.vierge && PLAN.pts && PLAN.pts.length){ var c=chercher(sx, sy); if(c.acc) return c; }
+  bd=12/V.k;
+  DESSIN.murs.forEach(function(m){
+    var r=distSeg(p, m.a, m.b); if(r.d<Math.max(bd, m.ep/2) && r.d<bd+m.ep/2){
+      var q=[m.a[0]+(m.b[0]-m.a[0])*r.t, m.a[1]+(m.b[1]-m.a[1])*r.t]; best={pt:grille10(q), acc:true, genre:5}; bd=r.d; }
+  });
+  if(best) return best;
+  return {pt:grille10(p), acc:false};
+}
+/* la fin d'un mur : ortho, puis alignée sur un angle voisin (même x ou même y) */
+function finMur(a, cible){
+  var b=contraindreD(a, cible.pt);
+  if(!ACCR_D || cible.acc || !ORTHO_D) return b;
+  var tol=12/V.k, hor=Math.abs(b[1]-a[1])<1e-6, meilleur=null, bd=tol;
+  pointsDessin().forEach(function(q){
+    var d = hor ? Math.abs(q[0]-b[0]) : Math.abs(q[1]-b[1]);
+    if(d<bd){ bd=d; meilleur=q; }
+  });
+  if(meilleur){ if(hor) b=[meilleur[0], b[1]]; else b=[b[0], meilleur[1]]; }
+  return b;
 }
 function contraindreD(a, b){
   if(!ORTHO_D) return b;
   return Math.abs(b[0]-a[0]) >= Math.abs(b[1]-a[1]) ? [b[0], a[1]] : [a[0], b[1]];
 }
 /* ---------- les gestes du dessin ---------- */
-function toucherD(sx, sy){
-  var cible=chercherD(sx, sy), p=versPlan(sx, sy);
+function toucherD(sx, sy, force){
+  var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
   if(OUTIL_D==="mur" || OUTIL_D==="cloison"){
     if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
-    var fin=contraindreD(D_PT, cible.pt);
-    if(lng(sub(fin, D_PT)) < 20){ D_PT=null; majDessin(); return; }       /* toucher le même point : le mur s'arrête */
+    var fin=finMur(D_PT, cible);
+    /* retoucher le point en cours (à un doigt près) : le mur s'arrête */
+    if(lng(sub(p, D_PT))*V.k < 18 || lng(sub(fin, D_PT)) < 50){ D_PT=null; majDessin(); return; }
     garderD();
     var m={id:idD(), a:D_PT.slice(), b:fin, ep:OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR};
     DESSIN.murs.push(m); D_PT=fin; D_SEL={t:"mur", id:m.id}; enregistrerD(); majDessin(); return;
@@ -1188,6 +1264,7 @@ function majDessin(){
   $("btTerminer").hidden = !D_PT;
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT;
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
+  $("btAccrD").classList.toggle("on", ACCR_D); $("btAccrD").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDxfD").disabled = dessinVide() && !SYMB.length;
   demander();
 }
@@ -1222,6 +1299,7 @@ $("btRenommer").addEventListener("click", function(){
 $("btSuppD").addEventListener("click", supprimerD);
 $("btDefaireD").addEventListener("click", defaireD);
 $("btTerminer").addEventListener("click", function(){ D_PT=null; majDessin(); });
+$("btAccrD").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majDessin(); });
 $("btOrthoD").addEventListener("click", function(){ ORTHO_D=!ORTHO_D; garder("dwg:orthoD", ORTHO_D?"1":"0"); majDessin(); });
 $("btDxfD").addEventListener("click", function(){ exporterDxf(); });
 /* ---------- le DXF : murs pleins, ouvertures, noms, et les symboles ---------- */
@@ -1341,19 +1419,13 @@ function chargerJsPdf(){
     document.head.appendChild(sc);
   });
 }
-/* les logos, comme le schéma : celui de la maison (sur fond noir), ou celui de la fiche société */
+/* le logo, comme le schéma : celui de la fiche société */
 function imageDe(src){
   return new Promise(function(ok){
     var im=new Image(); im.onload=function(){ ok({data:src, w:im.naturalWidth, h:im.naturalHeight}); }; im.onerror=function(){ ok(null); }; im.src=src;
   });
 }
-function chargerLogo(){
-  if(LOGO) return Promise.resolve(LOGO);
-  return fetch("./logo-tle-noir.png").then(function(r){ return r.ok ? r.blob() : null; }).then(function(b){
-    if(!b) return null;
-    return new Promise(function(ok){ var fr=new FileReader(); fr.onload=function(){ ok(fr.result); }; fr.onerror=function(){ ok(null); }; fr.readAsDataURL(b); });
-  }).then(function(d){ return d ? imageDe(d) : null; }).then(function(x){ LOGO=x; return x; }).catch(function(){ return null; });
-}
+function chargerLogo(){ return Promise.resolve(null); }
 function chargerSociete(){
   if(SOC) return Promise.resolve(SOC);
   var ses=null; try{ ses=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
@@ -1516,7 +1588,7 @@ function creerPdf(d, logo, soc){
     affaire:[String(d.client||"").toUpperCase(), d.ref ? "Réf. "+d.ref : ""],
     objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), [d.niveau, "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
     folio:1, total:1
-  }, {x0:Cartouche.MARGE_GAUCHE, x1:1400-Cartouche.MARGE_DROITE, y1:P.h/k-Cartouche.MARGE_BAS, logo:Cartouche.choisirLogo(socNom, logo, soc && soc.logo)});
+  }, {x0:Cartouche.MARGE_GAUCHE, x1:1400-Cartouche.MARGE_DROITE, y1:P.h/k-Cartouche.MARGE_BAS, logo:Cartouche.choisirLogo(socNom, soc && soc.logo)});
   Cartouche.versPDF(doc, T, k, 0, 0);
   var nom=nomDeBase()+(d.niveau ? "-"+d.niveau : "")+"-ind"+(d.indice||"A")+"-"+(a3?"A3":"A4")+".pdf";
   return {blob:doc.output("blob"), nom:nom.replace(/[^\w.\-À-ÿ]+/g,"-"), n:e.n, deborde:e.deborde, format:a3?"A3":"A4"};
@@ -1610,6 +1682,7 @@ $("etalon").addEventListener("submit", function(e){
 });
 $("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
 $("btTourner").addEventListener("click", tournerSymb);
+$("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majSymb(); });
 $("btSuppSymb").addEventListener("click", supprimerSymb);
 $("btDefaireS").addEventListener("click", defaireSymb);
 $("symbRep").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
@@ -1626,7 +1699,7 @@ $("btQuantites").addEventListener("click", function(){ peindreQuantites(); $("qu
 $("qtFermer").addEventListener("click", function(){ $("quantites").hidden=true; });
 $("btDxf").addEventListener("click", function(){ exporterDxf(); });
 $("btBiblio").addEventListener("click", function(){
-  telecharger(new Blob([SymbolesElec.dxf([], {tous:true})], {type:"application/dxf"}), "Symboles-CFO-TLE.dxf");
+  telecharger(new Blob([SymbolesElec.dxf([], {tous:true})], {type:"application/dxf"}), "Symboles-CFO.dxf");
   toast("Bibliothèque enregistrée : les 18 blocs de la légende CFO, au rayon 1 (insérez-les à l'échelle 125 en mm).", 6000);
 });
 $("btAccroche").addEventListener("click", function(){ ACCROCHE=!ACCROCHE; garder("dwg:accroche", ACCROCHE?"1":"0"); majBas(); });

@@ -55,7 +55,7 @@ export default async (req) => {
   const qs = new URL(req.url).searchParams;
 
   if (qs.get("diagnostic")) {
-    const essai = new URLSearchParams({ lat: "46.648", lon: "-1.658", peakpower: "3", loss: "14", angle: "30",
+    const essai = new URLSearchParams({ lat: "46.603", lon: "1.888", peakpower: "3", loss: "14", angle: "30",
       aspect: "0", pvtechchoice: "crystSi", mountingplace: "building", outputformat: "json" });
     const lignes = [];
     for (const v of VERSIONS) {

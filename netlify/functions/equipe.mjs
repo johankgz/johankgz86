@@ -34,9 +34,9 @@ export const PROPRIETAIRE = {
    page Comptes du site, sans toucher à ce fichier. */
 export const SOCIETE_DEPART = {
   code: "tle",
-  nom: "TRICHET LOUÉ ÉNERGIES",
-  metier: "Génie électrique & climatique",
-  ville: "Les Achards (85150)",
+  nom: "SUIVI TRAVAUX 360",
+  metier: "Suivi de chantier",
+  ville: "",
   utilisateurs: [
     { identifiant: "johan",        motdepasse: "", nom: "Johan",          role: "admin",       email: "Jklughertz@tlenergies.com" },
     { identifiant: "rodolphe",     motdepasse: "", nom: "Rodolphe",       role: "bureau",      email: "" },

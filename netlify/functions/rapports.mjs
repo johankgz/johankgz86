@@ -194,6 +194,13 @@ async function lireSocietes() {
   /* réparation : la société de départ et la démonstration existent toujours */
   if (Array.isArray(liste) && liste.length) {
     let corrige = false;
+    /* la société de départ portait le nom d'un employeur sans rapport avec le
+       site : elle reprend celui du site, sans ville ni métier imposés */
+    const dep = liste.find((x) => x.code === SOCIETE_DEPART.code);
+    if (dep && /trichet|lou[eé]\s*[eé]nergies/i.test(dep.nom || "")) {
+      dep.nom = SOCIETE_DEPART.nom; dep.metier = SOCIETE_DEPART.metier; dep.ville = SOCIETE_DEPART.ville;
+      corrige = true;
+    }
     for (const s of [SOCIETE_DEPART, SOCIETE_DEMO]) {
       if (!liste.some((x) => x.code === s.code)) { liste.push(ligneSociete(s)); corrige = true; }
     }

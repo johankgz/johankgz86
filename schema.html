@@ -1047,13 +1047,9 @@ function dessinerFolio(S, f, opts){
 /* le cartouche : un bandeau sur toute la largeur, en bas du folio — logo,
    dessinateur, affaire, objet, folio, remarques — et la mention au-dessus */
 var MENTION_DEFAUT="Synoptique donné à titre indicatif, à des fins d'usage interne, pour évaluation approximative, ne pouvant servir à d'autres fins";
-var LOGO_TLE=null, LOGO_FICHE=null;
+var LOGO_FICHE=null;
 function logoCartouche(S){
-  var soc=String(S.societe||(SESSION&&SESSION.societeNom)||"");
-  if(LOGO_TLE && /trichet/i.test(soc)) return {img:LOGO_TLE, noir:true};
-  if(LOGO_FICHE) return {img:LOGO_FICHE, noir:false};
-  if(LOGO_TLE && !soc) return {img:LOGO_TLE, noir:true};
-  return null;
+  return LOGO_FICHE ? {img:LOGO_FICHE, noir:false} : null;
 }
 function cartouche(T, S, f, total, titre){
   /* le bandeau vient de cartouche.js : le même que sur le plan DWG */
@@ -1596,14 +1592,10 @@ $("folioPrec").addEventListener("click", function(){ if(F>0){ F--; peindre(); } 
 $("folioSuiv").addEventListener("click", function(){ if(F<nbFolios(S)-1){ F++; peindre(); } });
 
 /* ---------- les fenêtres : lignes du tableau, cartouche, modèles, publier ---------- */
-/* les logos du cartouche : celui de la maison (fond noir), ou celui de la
-   fiche de la société réglée dans « Comptes et sociétés » */
+/* le logo du cartouche : celui de la fiche de la société, réglée dans « Comptes et sociétés » */
 function dataUrlEnImage(data, fn){ var im=new Image(); im.onload=function(){ fn({data:data, w:im.naturalWidth, h:im.naturalHeight}); }; im.onerror=function(){}; im.src=data; }
 function repeindreSiPret(){ try{ if(S) peindre(); }catch(e){} }
-fetch("./logo-tle-noir.png").then(function(r){ return r.ok ? r.blob() : null; }).then(function(b){
-  if(!b) return;
-  var fr=new FileReader(); fr.onload=function(){ dataUrlEnImage(fr.result, function(x){ LOGO_TLE=x; repeindreSiPret(); }); }; fr.readAsDataURL(b);
-}).catch(function(){});
+/* le logo du cartouche : celui de la fiche société (Comptes et sociétés) */
 if(SESSION && SESSION.jeton) fetch(API+"?action=societe-fiche", {headers:{"x-auth":SESSION.jeton}})
   .then(function(r){ return r.ok ? r.json() : null; })
   .then(function(d){ var lg=d && d.fiche && d.fiche.logo; if(lg && lg.data) dataUrlEnImage(lg.data, function(x){ LOGO_FICHE=x; repeindreSiPret(); }); })
