@@ -967,10 +967,11 @@ cv.addEventListener("pointerdown", function(e){
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
   if(MODE==="dessin"){
     if(OUTIL_D==="choisir" && !REF){
-      var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel ? poigneeSous(gsel, p[0], p[1]) : null;
+      var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
       if(hp){ G.geoH={id:gsel.id, h:hp}; return; }
-      var gs=geoSous(versPlan(p[0], p[1]));
-      if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); return; }
+      var pv=versPlan(p[0], p[1]), gs=geoSous(pv), autre=false;
+      if(!gs && !mobSousV2(pv)){ gs=geoAutreSous(pv); autre=!!gs; }
+      if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); G.autre=autre; G.z0=gs.z3||0; return; }
     }
     if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF){
       var pp=versPlan(p[0], p[1]), sm = vueD()==="dessus" ? mobSous(pp) : mobSousV(pp);
@@ -1032,6 +1033,13 @@ cv.addEventListener("pointermove", function(e){
     var og2=geoDe(G.geo); if(!og2) return;
     var dx=(p[0]-G.depart[0])/V.k, dy=-(p[1]-G.depart[1])/V.k, pas=10/DESSIN_MM;
     dx=Math.round(dx/pas)*pas; dy=Math.round(dy/pas)*pas;
+    if(G.autre){
+      /* une forme d'une autre vue : déplacée comme on la voit d'ici, et aimantée par ses traits projetés */
+      decalerAutre(og2, G.base, G.z0, dx, dy);
+      GEO_EXCLU=og2.id; var ca=[]; projectionG(og2, vueD()).forEach(function(l){ l.forEach(function(q){ ca.push(q); }); }); var aa=aimanter(ca); GEO_EXCLU=null;
+      if(aa){ decalerAutre(og2, G.base, G.z0, dx+aa.d[0], dy+aa.d[1]); D_SOURIS={pt:aa.pt, acc:true, genre:1}; } else D_SOURIS=null;
+      D_SEL={t:"geo", id:og2.id}; demander(); return;
+    }
     og2.pts=G.base.map(function(q){ return [q[0]+dx, q[1]+dy]; });
     /* elle s'aimante : un de ses points sur un point d'une autre forme, d'une autre vue, d'un mur ou d'un meuble */
     GEO_EXCLU=og2.id; var ai=aimanter(ptsClesG(og2, [])); GEO_EXCLU=null;
@@ -1420,7 +1428,8 @@ function majBarreSel(){
   }
   if(REF) nom="";
   b.hidden=!nom;
-  $("bsDist").hidden = vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob"));
+  var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
+  $("bsDist").hidden = gA || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
@@ -1703,11 +1712,11 @@ function toucherD(sx, sy, force){
 }
 function objetSous(p){
   var best=null, bd=18/V.k;
-  if(vueD()!=="dessus"){ var g0=geoSous(p); if(g0) return {t:"geo", id:g0.id}; var m0=mobSousV(p); return m0 ? {t:"mob", id:m0.id} : null; }
+  if(vueD()!=="dessus"){ var g0=geoSous(p); if(g0) return {t:"geo", id:g0.id}; var m0=mobSousV(p); if(m0) return {t:"mob", id:m0.id}; var ga=geoAutreSous(p); return ga ? {t:"geo", id:ga.id} : null; }
   DESSIN.textes.forEach(function(t){ var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
   if(best) return best;
-  var gs=geoSous(p); if(gs) return {t:"geo", id:gs.id};
+  var gs=geoSous(p) || geoAutreSous(p); if(gs) return {t:"geo", id:gs.id};
   var mb=mobSous(p); if(mb) return {t:"mob", id:mb.id};
   DESSIN.murs.forEach(function(m){ var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
   return best;
@@ -2000,6 +2009,7 @@ function boiteMobV(o, vue){
   return {h0:r[0], h1:r[1], z0:z0, z1:z0+o.h/DESSIN_MM, prof:Math.min.apply(null, k.map(function(q){ return profV(vue, q); }))};
 }
 function ptSymbV(o, vue){ return [horizV(vue, [o.x, o.y]), hauteurDe(o)/DESSIN_MM]; }
+function mobSousV2(p){ return vueD()==="dessus" ? mobSous(p) : mobSousV(p); }
 function mobSousV(p){
   var vue=vueD(), m=6/V.k, best=null, bp=Infinity;
   mobs().forEach(function(o){ var b=boiteMobV(o, vue); if(p[0]>=b.h0-m && p[0]<=b.h1+m && p[1]>=b.z0-m && p[1]<=b.z1+m && b.prof<bp){ bp=b.prof; best=o; } });
@@ -2184,6 +2194,26 @@ function pointsAutresVues(vue){
   traitsAutresVues(vue).forEach(function(sg){ [sg[0], sg[1]].forEach(function(q){ var k=Math.round(q[0]*100)+":"+Math.round(q[1]*100); if(!vus[k]){ vus[k]=1; out.push(q); } }); });
   if(vue!=="dessus") SYMB.forEach(function(o){ out.push(ptSymbV(o, vue)); });
   return out;
+}
+/* Attraper une forme d'une autre vue : touchée sur ses traits gris, elle se
+   choisit et se glisse ici, pour l'assembler (la plaque dessinée de dessus,
+   remontée de côté sous le bouton dessiné de face). Elle reste dans sa vue :
+   ses points et sa profondeur suivent le déplacement vu d'ici. */
+function geoAutreSous(p){
+  var vue=vueD(), tol=10/V.k, l=geos();
+  for(var i=l.length-1;i>=0;i--){
+    var o=l[i]; if(vueDe(o)===vue) continue;
+    var tr=projectionG(o, vue);
+    for(var j=0;j<tr.length;j++) for(var k=0;k<tr[j].length-1;k++) if(distSeg(p, tr[j][k], tr[j][k+1]).d<tol) return o;
+  }
+  return null;
+}
+/* le déplacement (du, dv) vu depuis la vue en cours, reporté dans la vue de la forme (unités du plan ; profondeur z3 en mm) */
+function decalerAutre(o, base, z0, du, dv){
+  var vue=vueD(), d = vue==="face" ? [du, 0, dv] : vue==="cote" ? [0, du, dv] : [du, dv, 0], v=vueDe(o), a, b, n;
+  if(v==="face"){ a=d[0]; b=d[2]; n=d[1]; } else if(v==="cote"){ a=d[1]; b=d[2]; n=d[0]; } else { a=d[0]; b=d[1]; n=d[2]; }
+  o.pts=base.map(function(q){ return [q[0]+a, q[1]+b]; });
+  var z=Math.round(z0+n*DESSIN_MM); o.z3 = v==="dessus" ? Math.max(0, z) : z;
 }
 /* un élément qu'on glisse s'aimante : celui de ses points qui passe le plus près d'un point accrochable s'y pose */
 function aimanter(cands){
@@ -2377,7 +2407,8 @@ function peindreGeo(c, E, coulTrait, orange){
   /* les formes des autres vues, projetées, en gris : on dessine « en face » de ce qui existe */
   if(!IMPRIME || vue!=="dessus") geos().forEach(function(o){
     if(vueDe(o)===vue) return;
-    c.save(); c.strokeStyle = CLAIR || IMPRIME ? "rgba(60,70,80,.45)" : "rgba(201,209,217,.38)"; c.lineWidth=1; c.setLineDash([5,4]);
+    var selA=!IMPRIME && D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id;
+    c.save(); c.strokeStyle = selA ? orange : CLAIR || IMPRIME ? "rgba(60,70,80,.45)" : "rgba(201,209,217,.38)"; c.lineWidth=selA ? 2 : 1; c.setLineDash(selA ? [] : [5,4]);
     projectionG(o, vue).forEach(function(tr){ c.beginPath(); tr.forEach(function(q, i){ var P=E(q); if(i) c.lineTo(P[0],P[1]); else c.moveTo(P[0],P[1]); }); c.stroke(); });
     c.restore();
   });
@@ -2441,7 +2472,7 @@ function peindreGeo(c, E, coulTrait, orange){
   if(IMPRIME) return;
   /* les poignées de la forme choisie */
   var os=D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null;
-  if(os) poigneesG(os).forEach(function(h){ var P=E(h.p); c.save(); c.fillStyle="#FFFFFF"; c.strokeStyle=orange; c.lineWidth=2; c.fillRect(P[0]-5,P[1]-5,10,10); c.strokeRect(P[0]-5,P[1]-5,10,10); c.restore(); });
+  if(os && vueDe(os)===vue) poigneesG(os).forEach(function(h){ var P=E(h.p); c.save(); c.fillStyle="#FFFFFF"; c.strokeStyle=orange; c.lineWidth=2; c.fillRect(P[0]-5,P[1]-5,10,10); c.strokeRect(P[0]-5,P[1]-5,10,10); c.restore(); });
   /* la forme en cours, jusqu'au pointeur */
   if(GEO_EC && MODE==="dessin"){
     var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(ec.t==="triangle" || ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || (ec.t==="arc" && ec.pts.length===2));
