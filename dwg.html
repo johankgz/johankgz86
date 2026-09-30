@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20260929c"></script>
+<script src="./symboles-elec.js?v=20260930a"></script>
 <script src="./visionneuse.js?v=20260929a"></script>
 <script src="./cartouche.js?v=20260929a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
@@ -2041,9 +2041,10 @@ function poserMobVue(p){
 }
 function poserSymboleVue(pt){
   var vue=vueD(), R=R_REEL*TAILLE/DESSIN_MM, murs=mursDerriere(vue, pt[0]), fond=murs[0], o={cle:CHOIX, r:R, t:"", rot:0}, pr;
-  if(PLAFOND[CHOIX]){
-    /* au plafond : au milieu de la pièce, entre le mur du fond et celui de devant */
+  if(!MURAUX[CHOIX]){
+    /* au plafond, ou posé librement (un spot de jardin) : au milieu de la pièce, entre le mur du fond et celui de devant */
     pr = !fond ? 0 : murs[1] ? (fond.prof+murs[1].prof+murs[1].m.ep)/2 : fond.prof-1000/DESSIN_MM;
+    if(!PLAFOND[CHOIX]) o.h=Math.max(0, Math.round(pt[1]*DESSIN_MM/10)*10);
   } else {
     pr=(fond ? fond.prof : 0)-SymbolesElec.boite(CHOIX).y1*R;
     o.rot = vue==="cote" ? 270 : 180;             /* tourné vers la pièce, donc vers soi */
@@ -2055,7 +2056,7 @@ function poserSymboleVue(pt){
   garderSymb(); SYMB.push(o);
   if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
   enregistrerSymb();
-  if(!PLAFOND[CHOIX]) toast("Posé à "+cm(o.h)+" cm"+(fond ? ", contre le mur du fond" : "")+". Glissez-le pour le déplacer.", 3000);
+  if(!PLAFOND[CHOIX]) toast("Posé à "+cm(o.h)+" cm"+(fond && MURAUX[CHOIX] ? ", contre le mur du fond" : "")+". Glissez-le pour le déplacer.", 3000);
 }
 /* les coins en élévation, pour l'accrochage */
 function pointsVue(vue){
@@ -3415,7 +3416,7 @@ function construire3Dmm(ed){
     }
     /* au mur : contre la face du mur le plus proche, tournée vers la pièce */
     var best=null, bd=Infinity, pt=[x0, y0];
-    DESSIN.murs.forEach(function(m){ var r=distSeg(pt, m.a, m.b), face=Math.abs(r.d-m.ep/2); if(r.t>=0 && r.t<=1 && face<bd && face<450){ bd=face; best={m:m, t:r.t}; } });
+    if(MURAUX[o.cle]) DESSIN.murs.forEach(function(m){ var r=distSeg(pt, m.a, m.b), face=Math.abs(r.d-m.ep/2); if(r.t>=0 && r.t<=1 && face<bd && face<450){ bd=face; best={m:m, t:r.t}; } });   /* un spot de jardin, lui, reste sur son piquet */
     var pos, nrm=null;
     if(best){
       var m=best.m, xa=axes(m), cote=((x0-m.a[0])*xa.n[0]+(y0-m.a[1])*xa.n[1])>=0 ? 1 : -1, nIn=[xa.n[0]*cote, xa.n[1]*cote];
