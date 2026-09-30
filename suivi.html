@@ -779,7 +779,8 @@ details.block.sv-societe summary{padding:0}
 .sv-photo .sv-ph-b{position:absolute;top:6px;width:32px;height:32px;min-height:32px;padding:0;border:0;border-radius:50%;
   background:rgba(10,14,20,.62);color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;box-shadow:none}
 .sv-photo .sv-ph-b.sup{right:6px}
-.sv-photo .sv-ph-b.ann{right:44px}
+.sv-photo .sv-ph-b.ann{left:6px;right:auto;top:auto;bottom:48px;width:auto;border-radius:999px;padding:0 11px 0 9px;gap:5px;font-size:13px;font-weight:700}
+.sv-photo .sv-ph-b.ann svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .sv-photo .sv-badge{position:absolute;top:8px;left:8px;font-size:10px;font-weight:700;padding:2px 7px;border-radius:999px;background:#EF4444;color:#fff}
 .sv-plan-d{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--rule)}
 .sv-plan-d:last-child{border-bottom:0}
@@ -800,6 +801,7 @@ a.act{display:inline-flex;align-items:center;justify-content:center;gap:6px;text
 a.act[hidden]{display:none}
 </style>
 <link rel="stylesheet" href="./sobre.css?v=20260929c">
+<script src="./clavier.js?v=20260930a" defer></script>
 </head>
 <body>
 <header>
@@ -883,12 +885,13 @@ a.act[hidden]{display:none}
     <div class="tuiles-act">
       <button class="act blue" id="ph_prendre"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>Photo</button>
       <button class="act ghost" id="ph_galerie"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h17v13h-17z"/><path d="m3.5 15.5 5-4.5 4 3.5 3-2.5 5 4"/><circle cx="15.5" cy="9" r="1.5"/></svg>Galerie</button>
+      <button class="act ghost" id="ph_croquis" title="Un croquis sur une page blanche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 3.5h15v17h-15z"/><path d="m8 15.5 5.8-5.8 2 2L10 17.5H8z"/><path d="m12.6 10.9 2 2"/></svg>Croquis</button>
       <input type="file" id="ph_fichier" accept="image/*" capture="environment" multiple hidden>
       <input type="file" id="ph_fichierG" accept="image/*" multiple hidden>
     </div>
     <div id="ph_grille"></div>
     <p class="hint ph-site" id="ph_site" hidden></p>
-    <p class="hint" id="ph_aide">Le crayon d'une photo l'annote : flèches, cercles, texte.</p>
+    <p class="hint" id="ph_aide">« Modifier » sur une photo l'annote : flèches, cercles, texte, cotes, symboles ; on y revient autant qu'on veut. « Croquis » dessine sur une page blanche, rangée avec les photos.</p>
     <label class="f" style="margin-top:12px"><span>Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite."></textarea></label>
     <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
   </div>
@@ -1363,8 +1366,9 @@ function renderPhotos(){
     var lg=document.createElement("input"); lg.type="text"; lg.placeholder="Légende"; lg.value=ph.legende||"";
     lg.setAttribute("aria-label","Légende de la photo "+(i+1));
     lg.addEventListener("input", function(){ ph.legende=lg.value; save(); });
-    var ba=document.createElement("button"); ba.type="button"; ba.className="sv-ph-b ann"; ba.textContent="✎";
-    ba.title="Annoter"; ba.setAttribute("aria-label","Annoter la photo "+(i+1));
+    var ba=document.createElement("button"); ba.type="button"; ba.className="sv-ph-b ann";
+    ba.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>Modifier';
+    ba.title="Modifier (annoter)"; ba.setAttribute("aria-label", (ph.croquis ? "Modifier le croquis " : "Modifier la photo ")+(i+1));
     ba.addEventListener("click", function(){ openSketch(S, i, renderPhotos); });
     var bd=document.createElement("button"); bd.type="button"; bd.className="sv-ph-b sup"; bd.textContent="×";
     bd.title="Retirer"; bd.setAttribute("aria-label","Retirer la photo "+(i+1));
@@ -2911,6 +2915,7 @@ function bindAll(){
   });
   $("ph_prendre").addEventListener("click", function(){ $("ph_fichier").click(); });
   $("ph_galerie").addEventListener("click", function(){ $("ph_fichierG").click(); });
+  $("ph_croquis").addEventListener("click", function(){ openSketch(S, null, renderPhotos); });
   ["ph_fichier","ph_fichierG"].forEach(function(id){
     $(id).addEventListener("change", function(){
       var f=this.files; if(!f || !f.length) return;
