@@ -247,7 +247,8 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="v3Fermer" type="button" aria-label="Revenir au plan">✕</button>
     <b>3D</b>
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="visite">Visite</button></span>
-    <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button></span>
+    <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button><button type="button" data-g="objet" title="Glisser un meuble, une forme ou un symbole">Objet</button></span>
+    <span class="seg" id="v3Axe" role="group" aria-label="L'objet glisse" hidden><button type="button" data-a="plat">À plat</button><button type="button" data-a="haut">En hauteur</button></span>
     <button class="bt" id="v3Recentrer" type="button" title="Voir tout le dessin">Recentrer</button>
     <button class="bt" id="v3Transp" type="button" aria-pressed="false">Murs transparents</button>
     <button class="bt" id="v3Plafond" type="button" aria-pressed="true" title="Le plafond, au-dessus des pièces fermées par les murs">Plafond</button>
@@ -1031,7 +1032,11 @@ cv.addEventListener("pointermove", function(e){
     var og2=geoDe(G.geo); if(!og2) return;
     var dx=(p[0]-G.depart[0])/V.k, dy=-(p[1]-G.depart[1])/V.k, pas=10/DESSIN_MM;
     dx=Math.round(dx/pas)*pas; dy=Math.round(dy/pas)*pas;
-    og2.pts=G.base.map(function(q){ return [q[0]+dx, q[1]+dy]; }); D_SEL={t:"geo", id:og2.id}; demander(); return;
+    og2.pts=G.base.map(function(q){ return [q[0]+dx, q[1]+dy]; });
+    /* elle s'aimante : un de ses points sur un point d'une autre forme, d'une autre vue, d'un mur ou d'un meuble */
+    GEO_EXCLU=og2.id; var ai=aimanter(ptsClesG(og2, [])); GEO_EXCLU=null;
+    if(ai){ og2.pts=og2.pts.map(function(q){ return [q[0]+ai.d[0], q[1]+ai.d[1]]; }); D_SOURIS={pt:ai.pt, acc:true, genre:1}; } else D_SOURIS=null;
+    D_SEL={t:"geo", id:og2.id}; demander(); return;
   }
   if(G.bouge && G.mob!=null){
     var om=mobDe(G.mob); if(!om) return;
@@ -1039,7 +1044,11 @@ cv.addEventListener("pointermove", function(e){
     if(vueD()!=="dessus"){
       var pasM=10/DESSIN_MM, dhM=Math.round((p[0]-G.depart[0])/V.k/pasM)*pasM, dzM=-(p[1]-G.depart[1])/V.k*DESSIN_MM;
       if(vueD()==="cote") om.y=G.base[1]+dhM; else om.x=G.base[0]+dhM;
-      om.z=zMobV(om, G.base[2]+dzM, 80); D_SEL={t:"mob", id:om.id}; demander(); return;
+      om.z=zMobV(om, G.base[2]+dzM, 80);
+      /* un coin du meuble sur un coin d'un autre, d'un mur ou d'une forme (des meubles hauts juste au-dessus du plan de travail) */
+      MOB_EXCLU=om.id; var bm=boiteMobV(om, vueD()), aiM=aimanter([[bm.h0,bm.z0],[bm.h1,bm.z0],[bm.h0,bm.z1],[bm.h1,bm.z1]]); MOB_EXCLU=null;
+      if(aiM){ if(vueD()==="cote") om.y+=aiM.d[0]; else om.x+=aiM.d[0]; om.z=Math.max(0, Math.round(om.z+aiM.d[1]*DESSIN_MM)); D_SOURIS={pt:aiM.pt, acc:true, genre:1}; } else D_SOURIS=null;
+      D_SEL={t:"mob", id:om.id}; demander(); return;
     }
     var am=accrocherMob(om, [G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k], true);
     om.x=am.x; om.y=am.y; om.rot=am.rot; D_SEL={t:"mob", id:om.id}; demander(); return;
@@ -1068,7 +1077,7 @@ function lacher(e){
         if(!G.bouge && OUTIL_D==="objet") toucherD(p[0], p[1]);
         else { D_SEL={t:"mob", id:G.mob}; if(G.garde) enregistrerD(); majDessin(); }
       }
-      G=null; demander(); return;
+      D_SOURIS=null; G=null; demander(); return;
     }
     if(G.glisse){
       /* la fin du tracé glissé, là où le doigt se lève */
@@ -1581,7 +1590,9 @@ function etiquette(c, x, y, t){
 /* ---------- l'accrochage du dessin : bouts et angles des murs, puis la grille du centimètre ---------- */
 function pointsDessin(){
   var out=[];
-  if(vueD()!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vueD()).forEach(function(q){ out.push(q); }); return out; }
+  var vue=vueD();
+  pointsAutresVues(vue).forEach(function(q){ out.push(q); });
+  if(vue!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vue).forEach(function(q){ out.push(q); }); return out; }
   DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   pointsGeo().forEach(function(q){ out.push(q); });
@@ -1614,6 +1625,9 @@ function chercherD(sx, sy){
   geosAccroche().forEach(function(o){ segmentsG(o).forEach(function(sg){
     var r=distSeg(p, sg[0], sg[1]); if(r.d<bd){ bd=r.d; best={pt:[sg[0][0]+(sg[1][0]-sg[0][0])*r.t, sg[0][1]+(sg[1][1]-sg[0][1])*r.t], acc:true, genre:5}; }
   }); });
+  traitsAutresVues(vueD()).forEach(function(sg){
+    var r=distSeg(p, sg[0], sg[1]); if(r.d<bd){ bd=r.d; best={pt:[sg[0][0]+(sg[1][0]-sg[0][0])*r.t, sg[0][1]+(sg[1][1]-sg[0][1])*r.t], acc:true, genre:5}; }
+  });
   if(best) return best;
   return {pt:grille10(p), acc:false};
 }
@@ -1975,6 +1989,7 @@ function projectionG(o, vue){
    symbole posé dans ces vues se colle au mur du fond, tourné vers soi, à
    la hauteur touchée ; on le glisse de côté et en hauteur, sa profondeur ne
    bouge pas (elle se règle en vue de dessus). */
+var MOB_EXCLU=null;
 function horizV(vue, q){ return vue==="cote" ? q[1] : q[0]; }
 function profV(vue, q){ return vue==="cote" ? -q[0] : q[1]; }          /* plus grand : plus loin de soi */
 function planDeV(vue, h, pr){ return vue==="cote" ? [-pr, h] : [h, pr]; }
@@ -2036,7 +2051,7 @@ function poserSymboleVue(pt){
 function pointsVue(vue){
   var out=[];
   DESSIN.murs.forEach(function(m){ var r=plageV(vue, coinsMur(m)), h=(m.h||hspD())/DESSIN_MM; if(r[1]-r[0]>1e-6) out.push([r[0],0], [r[1],0], [r[0],h], [r[1],h]); });
-  mobs().forEach(function(o){ var b=boiteMobV(o, vue); out.push([b.h0,b.z0], [b.h1,b.z0], [b.h0,b.z1], [b.h1,b.z1]); });
+  mobs().forEach(function(o){ if(o.id===MOB_EXCLU) return; var b=boiteMobV(o, vue); out.push([b.h0,b.z0], [b.h1,b.z0], [b.h0,b.z1], [b.h1,b.z1]); });
   return out;
 }
 /* l'étendue en élévation (pour cadrer la vue et le PDF) */
@@ -2143,16 +2158,39 @@ function centreG(o){
   var x=0, y=0; o.pts.forEach(function(q){ x+=q[0]; y+=q[1]; }); return [x/o.pts.length, y/o.pts.length];
 }
 /* les points qui accrochent : sommets, centre et quadrants d'un rond, bouts d'une cote */
+function ptsClesG(o, out){
+  if(o.t==="rond"){ var c=o.pts[0]; out.push(c, [c[0]+o.r,c[1]], [c[0]-o.r,c[1]], [c[0],c[1]+o.r], [c[0],c[1]-o.r]); return out; }
+  if(o.t==="ellipse"){ var e=ptsEllipse(o, 4); out.push(o.pts[0]); e.forEach(function(q){ out.push(q); }); return out; }
+  if(o.t==="arc"){ var k=arcInfo(o); out.push(o.pts[0], o.pts[2]); if(k){ var t=k.a0+k.sweep/2; out.push(k.c, [k.c[0]+k.r*Math.cos(t), k.c[1]+k.r*Math.sin(t)]); } return out; }
+  if(o.t==="gtexte") return out;
+  o.pts.forEach(function(q){ out.push(q); });
+  return out;
+}
 function pointsGeo(){
   var out=[];
-  geosAccroche().forEach(function(o){
-    if(o.t==="rond"){ var c=o.pts[0]; out.push(c, [c[0]+o.r,c[1]], [c[0]-o.r,c[1]], [c[0],c[1]+o.r], [c[0],c[1]-o.r]); return; }
-    if(o.t==="ellipse"){ var e=ptsEllipse(o, 4); out.push(o.pts[0]); e.forEach(function(q){ out.push(q); }); return; }
-    if(o.t==="arc"){ var k=arcInfo(o); out.push(o.pts[0], o.pts[2]); if(k){ var t=k.a0+k.sweep/2; out.push(k.c, [k.c[0]+k.r*Math.cos(t), k.c[1]+k.r*Math.sin(t)]); } return; }
-    if(o.t==="gtexte") return;
-    o.pts.forEach(function(q){ out.push(q); });
-  });
+  geosAccroche().forEach(function(o){ ptsClesG(o, out); });
   return out;
+}
+/* L'assemblage : les formes des autres vues, projetées (en gris), s'accrochent
+   aussi : les sommets et les arêtes de la plaque vue de dessus attrapent le
+   bouton qu'on dessine de face. En élévation, les symboles aussi. */
+function traitsAutresVues(vue){
+  var out=[];
+  geos().forEach(function(o){ if(vueDe(o)===vue || o.id===GEO_EXCLU) return; projectionG(o, vue).forEach(function(l){ for(var i=0;i<l.length-1;i++) out.push([l[i], l[i+1]]); if(l.length===1) out.push([l[0], l[0]]); }); });
+  return out;
+}
+function pointsAutresVues(vue){
+  var out=[], vus={};
+  traitsAutresVues(vue).forEach(function(sg){ [sg[0], sg[1]].forEach(function(q){ var k=Math.round(q[0]*100)+":"+Math.round(q[1]*100); if(!vus[k]){ vus[k]=1; out.push(q); } }); });
+  if(vue!=="dessus") SYMB.forEach(function(o){ out.push(ptSymbV(o, vue)); });
+  return out;
+}
+/* un élément qu'on glisse s'aimante : celui de ses points qui passe le plus près d'un point accrochable s'y pose */
+function aimanter(cands){
+  if(!ACCR_D) return null;
+  var cibles=pointsDessin(), best=null, bd=12/V.k;
+  cands.forEach(function(c){ cibles.forEach(function(q){ var d=Math.hypot(q[0]-c[0], q[1]-c[1]); if(d<bd){ bd=d; best={d:[q[0]-c[0], q[1]-c[1]], pt:[q[0], q[1]]}; } }); });
+  return best;
 }
 function milieuxGeo(){
   var out=[]; geosAccroche().forEach(function(o){ if(o.t==="rond" || o.t==="cote" || o.t==="ellipse" || o.t==="arc") return; segmentsG(o).forEach(function(s){ out.push([(s[0][0]+s[1][0])/2, (s[0][1]+s[1][1])/2]); }); }); return out;
@@ -2814,7 +2852,7 @@ function mobilier3D(sc){
   var geoCyl=new THREE.CylinderGeometry(0.5,0.5,1,40), geoDisque=new THREE.CylinderGeometry(0.5,0.5,1,40);
   DESSIN.mob.forEach(function(o){
     var gr=new THREE.Group(), z=o.z||0;
-    gr.position.set(o.x/1000, z/1000, -o.y/1000); gr.rotation.y=(o.rot||0)*Math.PI/180;
+    gr.position.set(o.x/1000, z/1000, -o.y/1000); gr.rotation.y=(o.rot||0)*Math.PI/180; gr.userData.src={t:"mob", id:o.id};
     piecesMob(o).forEach(function(q){
       var w=Math.max(1,q.x1-q.x0)/1000, hh=Math.max(1,q.z1-q.z0)/1000, dd=Math.max(1,q.y1-q.y0)/1000, me;
       if(q.cyl){ me=new THREE.Mesh(geoCyl, mat(q.c, q.opa, q.brille)); me.scale.set(w, hh, dd); }
@@ -3320,7 +3358,8 @@ function construire3Dmm(ed){
   if(V3.plafond) plafond3D(sc, hsp);
   /* les symboles */
   var cotes=[];
-  SYMB.forEach(function(o, iS){
+  SYMB.forEach(function(o, iS){ var n0=sc.children.length; unSymbole3D(o, iS); for(var i=n0;i<sc.children.length;i++) sc.children[i].userData.src={t:"symb", i:iS}; });
+  function unSymbole3D(o, iS){
     var h=hauteurDe(o), tex=texture3D(o.cle), x0=o.x*k, y0=o.y*k;
     var matP=new THREE.MeshBasicMaterial({map:tex, side:THREE.DoubleSide, transparent:true});
     var lum=LUMIERE[o.cle];
@@ -3369,7 +3408,7 @@ function construire3Dmm(ed){
       et.center.set(0.5, 1.25); et.position.set(pos[0]+(nrm?nrm[0]*0.06:0), pos[1]-taille/2, pos[2]-(nrm?nrm[1]*0.06:0)); sc.add(et);
       et.userData.ancre=new THREE.Vector3(pos[0]+(nrm?nrm[0]*0.03:0), pos[1], pos[2]-(nrm?nrm[1]*0.03:0));
     }
-  });
+  }
   sc.updateMatrixWorld(true);     /* pour les rayons de visibilité, avant le premier rendu */
   V3.scene=sc;
 }
@@ -3411,7 +3450,8 @@ function geo3D(sc){
     lignesHachure(pts, sp).forEach(function(s2){ segs.push(Vo(o, s2[0], z), Vo(o, s2[1], z)); });
     if(segs.length) sc.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:couleurTrait(o), transparent:true, opacity:0.55})));
   }
-  l.forEach(function(o){
+  l.forEach(function(o){ var n0=sc.children.length; uneForme3D(o); for(var i=n0;i<sc.children.length;i++) sc.children[i].userData.src={t:"geo", id:o.id}; });
+  function uneForme3D(o){
     var z=(o.z3||0)/1000, h=(o.h3||0)/1000;
     if(o.t==="gtexte"){ var sp=texteSprite(o.s, 0.026, "rgba(31,41,51,.78)", true); var q=Vo(o, o.pts[0], z+Math.max(0.05, h)); sp.position.copy(q); sc.add(sp); return; }
     if(o.t==="cote"){
@@ -3457,7 +3497,7 @@ function geo3D(sc){
         ligne([[B[0]-d2[0]*L+nn[0]*W, B[1]-d2[1]*L+nn[1]*W], B, [B[0]-d2[0]*L-nn[0]*W, B[1]-d2[1]*L-nn[1]*W]], z+0.003, o);
       });
     }
-  });
+  }
 }
 /* le faisceau d'un point lumineux : un cône de lumière étroit qui s'éteint
    en descendant, plutôt qu'un grand halo rond */
@@ -3637,6 +3677,114 @@ function glisser3D(dx, dy){
 }
 var PIVOT_T=null;
 function montrerPivot3D(){ V3.pivotVu=true; clearTimeout(PIVOT_T); PIVOT_T=setTimeout(function(){ V3.pivotVu=false; demander3D(); }, 900); }
+/* ---------- glisser un objet dans la 3D ----------
+   Le geste « Objet » : un doigt attrape un meuble, une forme du dessin ou
+   un symbole, et le glisse. En perspective et de dessus, il glisse à plat
+   (au sol, à sa hauteur), ou « En hauteur » ; de face et de côté, dans le
+   plan de la vue. Il avance au centimètre et s'aimante : ses faces se
+   posent contre celles des autres objets et des murs, ou s'alignent sur
+   elles, et il se pose sur le sol. Lâché, le dessin est mis à jour (on
+   annule comme au plan). */
+function cleSrc(src){ return src.t==="symb" ? "s"+src.i : src.t+":"+src.id; }
+function srcDe(o){ while(o){ if(o.userData && o.userData.src) return o.userData.src; o=o.parent; } return null; }
+function camera3D(){ var cam = ortho3D(V3.mode) ? V3.ortho : V3.camera; cam.updateMatrixWorld(); return cam; }
+function rayon3D(sx, sy){
+  var THREE=V3.THREE, r=$("v3Canvas").getBoundingClientRect(), rc=new THREE.Raycaster(), cam=camera3D();
+  rc.setFromCamera(new THREE.Vector2(sx/r.width*2-1, -(sy/r.height)*2+1), cam); rc.camera=cam;
+  return rc;
+}
+function objetSous3D(sx, sy){
+  var rc=rayon3D(sx, sy), objs=[];
+  V3.scene.traverse(function(o){
+    if(!(o.isMesh || o.isSprite) || !o.visible || o===V3.pivot) return;
+    if(o.material && o.material.transparent && o.material.opacity<0.4) return;
+    if(srcDe(o)) objs.push(o);
+  });
+  var h=rc.intersectObjects(objs, false)[0];
+  return h ? {src:srcDe(h.object), point:h.point.clone()} : null;
+}
+/* tous les morceaux de la scène d'un même objet, et la boîte de chaque autre objet (et des murs) */
+function morceaux3D(cle){ var out=[]; V3.scene.children.forEach(function(o){ var s2=o.userData && o.userData.src; if(s2 && cleSrc(s2)===cle) out.push(o); }); return out; }
+function boites3D(sauf){
+  var THREE=V3.THREE, par={}, out=[];
+  V3.scene.children.forEach(function(o){
+    var s2=o.userData && o.userData.src; if(!s2 || o.isSprite) return;
+    var k=cleSrc(s2); if(k===sauf) return;
+    (par[k]=par[k]||new THREE.Box3()).expandByObject(o);
+  });
+  for(var k in par) if(!par[k].isEmpty()) out.push(par[k]);
+  (V3.murs3||[]).forEach(function(m){ out.push(new THREE.Box3().setFromObject(m)); });
+  return out;
+}
+function debutObjet3D(p){
+  if(V3.mode==="visite") return null;
+  var hit=objetSous3D(p[0], p[1]); if(!hit) return null;
+  var THREE=V3.THREE, cle=cleSrc(hit.src), mo=morceaux3D(cle), bo=new THREE.Box3();
+  mo.forEach(function(o){ if(!o.isSprite) bo.expandByObject(o); });
+  if(bo.isEmpty()) mo.forEach(function(o){ bo.expandByObject(o); });
+  /* le plan où il glisse */
+  var n, axes;
+  if(V3.mode==="face"){ n=new THREE.Vector3(0,0,1); axes=["x","y"]; }
+  else if(V3.mode==="cote"){ n=new THREE.Vector3(1,0,0); axes=["z","y"]; }
+  else if(V3.axe==="haut" && V3.mode==="persp"){ var d=new THREE.Vector3(); camera3D().getWorldDirection(d); d.y=0; if(d.lengthSq()<1e-6) d.set(0,0,1); n=d.normalize(); axes=["y"]; }
+  else { n=new THREE.Vector3(0,1,0); axes=["x","z"]; }
+  return {src:hit.src, cle:cle, P0:hit.point, plan:new THREE.Plane().setFromNormalAndCoplanarPoint(n, hit.point), axes:axes,
+    objs:mo, base:mo.map(function(o){ return o.position.clone(); }), boite:bo, cibles:boites3D(cle), delta:new THREE.Vector3(), aimant:false};
+}
+/* l'aimant : sur chaque axe qui bouge, une face de l'objet contre (ou alignée sur) une face d'un voisin qui le chevauche sur les autres axes ; le sol */
+function aimant3D(ob, d){
+  var B=ob.boite.clone().translate(d), dist=camera3D().position.distanceTo(ob.P0), tol=Math.max(0.01, Math.min(0.06, dist*0.012)), pris=false;
+  ob.axes.forEach(function(a){
+    var autres=["x","y","z"].filter(function(b){ return b!==a; }), best=null, bd=tol;
+    ob.cibles.forEach(function(T){
+      if(!autres.every(function(b){ return B.min[b] < T.max[b]+0.15 && B.max[b] > T.min[b]-0.15; })) return;
+      [[B.min[a], T.max[a]], [B.max[a], T.min[a]], [B.min[a], T.min[a]], [B.max[a], T.max[a]]].forEach(function(c){ var e=c[1]-c[0]; if(Math.abs(e)<bd){ bd=Math.abs(e); best=e; } });
+    });
+    if(a==="y" && Math.abs(B.min.y)<bd){ bd=Math.abs(B.min.y); best=-B.min.y; }
+    if(best!=null){ d[a]+=best; B.min[a]+=best; B.max[a]+=best; pris=true; }
+  });
+  if(B.min.y<0) d.y-=B.min.y;               /* jamais sous le sol */
+  return pris;
+}
+function bougerObjet3D(ob, p){
+  var THREE=V3.THREE, rc=rayon3D(p[0], p[1]), P=new THREE.Vector3();
+  if(!rc.ray.intersectPlane(ob.plan, P)) return;
+  var d=P.sub(ob.P0);
+  ["x","y","z"].forEach(function(a){ d[a] = ob.axes.indexOf(a)>=0 ? Math.round(d[a]*100)/100 : 0; });   /* au centimètre */
+  ob.aimant=aimant3D(ob, d);
+  ob.delta.copy(d);
+  ob.objs.forEach(function(o, i){ o.position.copy(ob.base[i]).add(d); });
+  var cm3=function(v){ return (v>=0 ? "+" : "")+(Math.round(v*1000)/10).toLocaleString("fr-FR"); };
+  $("v3Aide").textContent="Objet : "+ob.axes.map(function(a){ return (a==="y" ? "hauteur " : a==="x" ? "x " : "y ")+cm3(a==="z" ? -d[a] : d[a])+" cm"; }).join(" · ")+(ob.aimant ? " · aimanté" : "");
+  demander3D();
+}
+/* lâché : le dessin prend le déplacement (x et y du plan, hauteur en mm) */
+function poserObjet3D(ob){
+  var d=ob.delta; if(d.lengthSq()<1e-10){ majBarre3D(); return; }
+  var dxP=d.x*1000/DESSIN_MM, dyP=-d.z*1000/DESSIN_MM, dz=Math.round(d.y*1000), src=ob.src;
+  if(src.t==="symb"){
+    var s2=SYMB[src.i]; if(!s2) return;
+    garderSymb(); s2.x+=dxP; s2.y+=dyP;
+    if(dz && !PLAFOND[s2.cle]) s2.h=Math.max(0, hauteurDe(s2)+dz);
+    if(MURAUX[s2.cle] && (dxP || dyP)){ var a=accrocherSymbole(s2.cle, [s2.x, s2.y], s2.r, s2.rot||0); s2.x=a.x; s2.y=a.y; s2.rot=a.rot; }
+    enregistrerSymb(); if(MODE==="symb") majSymb();
+  } else {
+    var o = src.t==="mob" ? mobDe(src.id) : geoDe(src.id); if(!o) return;
+    garderD();
+    if(src.t==="mob"){ o.x+=dxP; o.y+=dyP; o.z=Math.max(0, (o.z||0)+dz); }
+    else {
+      /* une forme vit dans le plan de sa vue : ses points, et sa profondeur le long de la normale */
+      var v=vueDe(o), du, dv, dn;
+      if(v==="face"){ du=dxP; dv=dz/DESSIN_MM; dn=dyP*DESSIN_MM; }
+      else if(v==="cote"){ du=dyP; dv=dz/DESSIN_MM; dn=dxP*DESSIN_MM; }
+      else { du=dxP; dv=dyP; dn=dz; }
+      o.pts=o.pts.map(function(q){ return [q[0]+du, q[1]+dv]; });
+      if(dn) o.z3=Math.max(v==="dessus" ? 0 : -1e9, Math.round((o.z3||0)+dn));
+    }
+    enregistrerD(); if(MODE==="dessin") majDessin();
+  }
+  construire3D(); majBarre3D(); rendu3D(); demander();
+}
 function brancherGestes3D(){
   var cv3=$("v3Canvas"), D3={}, g=null, dernier=null;
   function pos3(e){ var r=cv3.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
@@ -3645,12 +3793,14 @@ function brancherGestes3D(){
     try{ cv3.setPointerCapture(e.pointerId); }catch(er){}
     D3[e.pointerId]=pos3(e); var ids=Object.keys(D3);
     if(ids.length===2){
+      if(g && g.objet){ g.objet.objs.forEach(function(o, i){ o.position.copy(g.objet.base[i]); }); majBarre3D(); }   /* un 2e doigt : on zoome, l'objet revient */
       var a=D3[ids[0]], b=D3[ids[1]], m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
       g={pince:true, d:Math.hypot(a[0]-b[0],a[1]-b[1]), m:m, P:V3.mode==="visite" ? null : pointVise3D(m[0], m[1])};
       return;
     }
     var p=pos3(e);
     g={p:p, p0:p, t0:Date.now(), bouge:false, glisse:e.button===2 || e.button===1 || e.shiftKey || V3.geste==="deplacer" || V3.mode==="face" || V3.mode==="cote"};
+    if(V3.geste==="objet" && !e.button && !e.shiftKey) g.objet=debutObjet3D(p);
   });
   cv3.addEventListener("pointermove", function(e){
     if(!g || !D3[e.pointerId]) return;
@@ -3664,6 +3814,7 @@ function brancherGestes3D(){
     }
     var dx=p[0]-g.p[0], dy=p[1]-g.p[1]; g.p=p;
     if(!g.bouge && Math.hypot(p[0]-g.p0[0], p[1]-g.p0[1])>4) g.bouge=true;
+    if(g.objet){ if(g.bouge) bougerObjet3D(g.objet, p); return; }
     if(g.glisse){ glisser3D(dx, dy); montrerPivot3D(); demander3D(); return; }
     var c=V3.cam;
     c.az -= dx*0.008;
@@ -3673,6 +3824,8 @@ function brancherGestes3D(){
     demander3D();
   });
   function fin(e){
+    if(g && g.objet && e.type!=="pointercancel" && g.bouge){ var ob=g.objet; delete D3[e.pointerId]; g=null; poserObjet3D(ob); return; }
+    if(g && g.objet && g.bouge){ g.objet.objs.forEach(function(o, i){ o.position.copy(g.objet.base[i]); }); demander3D(); }
     var tape = g && !g.pince && !g.bouge && Date.now()-g.t0 < 350, p=D3[e.pointerId];
     delete D3[e.pointerId];
     if(!Object.keys(D3).length) g=null; else if(g && g.pince) g=null;
@@ -3713,10 +3866,14 @@ function majBarre3D(){
     var ul=bo.querySelector("ul"); ul.textContent="";
     al.liste.forEach(function(a){ var li=document.createElement("li"); li.textContent=a.texte; ul.appendChild(li); });
   }
-  Array.prototype.forEach.call($("v3Geste").children, function(b){ b.classList.toggle("on", b.dataset.g===(V3.geste||"tourner")); });
-  $("v3Geste").hidden = V3.mode==="visite" || V3.mode==="face" || V3.mode==="cote";
+  var plat3 = V3.mode==="face" || V3.mode==="cote";
+  Array.prototype.forEach.call($("v3Geste").children, function(b){ b.classList.toggle("on", b.dataset.g===(V3.geste||"tourner")); if(b.dataset.g==="tourner") b.hidden=plat3; });
+  $("v3Geste").hidden = V3.mode==="visite";
+  $("v3Axe").hidden = V3.geste!=="objet" || V3.mode!=="persp";
+  Array.prototype.forEach.call($("v3Axe").children, function(b){ b.classList.toggle("on", b.dataset.a===(V3.axe||"plat")); });
   var tactile = window.matchMedia && window.matchMedia("(hover:none)").matches;
-  $("v3Aide").textContent = V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer"
+  $("v3Aide").textContent = V3.geste==="objet" && V3.mode!=="visite" ? "Objet : glissez un meuble, une forme ou un symbole ("+(V3.mode==="persp" && V3.axe==="haut" ? "en hauteur" : plat3 ? "dans la vue" : "à plat")+") · il s'aimante aux autres et au sol"
+    : V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer"
     : (V3.mode==="face" || V3.mode==="cote") ? (V3.mode==="face" ? "Vue de face" : "Vue de côté")+", sans perspective · glisser : déplacer · "+(tactile ? "deux doigts : zoomer" : "molette : zoomer")
     : tactile ? (V3.geste==="deplacer" ? "Un doigt : déplacer" : "Un doigt : tourner")+" · deux doigts : zoomer, déplacer · double-toucher : pivot ici"
     : "Glisser : "+(V3.geste==="deplacer" ? "déplacer" : "tourner")+" · clic droit ou Maj : déplacer · molette : zoomer vers le pointeur · double-clic : pivot ici";
@@ -3724,6 +3881,7 @@ function majBarre3D(){
 $("btVue3d").addEventListener("click", ouvrir3D);
 $("v3Fermer").addEventListener("click", fermer3D);
 $("v3Geste").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.geste=b.dataset.g; majBarre3D(); });
+$("v3Axe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.axe=b.dataset.a; majBarre3D(); });
 $("v3Recentrer").addEventListener("click", function(){ if(!V3) return; cadrer3D(V3.mode); rendu3D(); });
 $("v3Plus").addEventListener("click", function(){ zoomBouton3D(1/1.35); });
 $("v3Moins").addEventListener("click", function(){ zoomBouton3D(1.35); });
