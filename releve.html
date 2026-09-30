@@ -1231,7 +1231,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>2. Publier</h2>
-    <p class="hint" style="margin:-8px 0 14px">Le relevé part dans l'espace des personnes choisies, avec son PDF. Elles peuvent le lire, et le rouvrir pour le poursuivre. Une nouvelle publication remplace la précédente : un seul relevé par dossier, toujours à jour.</p>
+    <p class="hint" style="margin:-8px 0 14px">Le relevé part dans l'espace des personnes choisies, avec son PDF, et ses photos dans le dossier du chantier (sous-dossier « Photos du chantier »). Elles peuvent le lire, et le rouvrir pour le poursuivre. Une nouvelle publication remplace la précédente : un seul relevé par dossier, toujours à jour.</p>
     <div class="choix-pub" id="choixPublication">
       <button type="button" class="opt on" data-pub="dossier">
         <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
@@ -4239,7 +4239,7 @@ $("btnConseilLarge").addEventListener("click", function(){
   toast(c.large.kwc+" kWc reportés.");
 });
 $("btnPhotosZip").addEventListener("click", exporterPhotos);
-$("btnPhotosSite").addEventListener("click", deposerPhotos);
+$("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(false); });
 
 $("btnOpenHaut").addEventListener("click", function(){ ouvrirDepuisSite("releve", "Relevés techniques"); });
 /* repartir de zéro : le bouton « Nouveau », en haut du relevé */
@@ -4967,49 +4967,88 @@ function nomClient(){ return S.client.nom; }
 function adresseTravaux(){ return (S.client.adresse||"").replace(/\n/g,", "); }
 function dateFiche(){ return S.meta.date; }
 
-/* ---------- dépôt des photos sur le site ---------- */
-function deposerPhotos(){
-  if(!apiPret()) return;
+/* ---------- dépôt des photos sur le site ----------
+   Les photos du relevé (pièces, implantation, toiture, IRVE) partent
+   d'elles-mêmes dans le dossier du chantier quand on publie le relevé,
+   sous-dossier « Photos du chantier » : un seul lot par relevé, remplacé
+   à chaque republication (inutile de les renvoyer si elles n'ont pas
+   changé). Un lot trop lourd pour une requête part en plusieurs parties.
+   Le bouton « Enregistrer les photos sur le site » reste, pour les
+   envoyer sans publier. Les photos ne préviennent personne. */
+var LOT_PHOTOS=4.6*1024*1024;
+function signaturePhotos(){
+  var l=[]; try{ l=toutesLesPhotos(); }catch(e){}
+  return refAffaire()+"#"+l.map(function(ph){ return String(ph.data||"").length+":"+(ph.section||"")+":"+(ph.legende||""); }).join("|");
+}
+function deposerPhotos(auto){
+  if(auto!==true) auto=false;
+  if(!apiPret()) return Promise.resolve(false);
   var liste;
   try{ liste = toutesLesPhotos(); }catch(e){ liste = []; }
-  if(!liste.length){ toast("Aucune photo dans cette fiche."); return; }
-  if(!refAffaire()){ toast("Renseignez les travaux avant de déposer."); return; }
-  var dossier = nomFichier(refAffaire());
+  if(!liste.length){ if(!auto) toast("Aucune photo dans cette fiche."); return Promise.resolve(false); }
+  if(!refAffaire()){ if(!auto) toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
+  /* tout est lu maintenant : après la publication, le formulaire peut se vider pendant l'envoi */
+  var ref=refAffaire(), client=nomClient(), adresse=adresseTravaux(), date=dateFiche()||new Date().toISOString().slice(0,10);
+  var versDossier = (typeof PUB_MODE === "undefined") || PUB_MODE === "dossier", dest = versDossier ? [] : destinataires().slice();
+  var dossier = nomFichier(ref);
   var fichiers = liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
     var etiquette = [p.section, p.legende].filter(Boolean).join(" ");
     return {nom: dossier + "/" + num + (etiquette ? "-" + nomFichier(etiquette) : "") + ".jpg",
             octets: b64ToBytes(String(p.data).split(",")[1])};
   });
-  var blob = creerZip(fichiers);
+  var lots=[], cour=[], poids=0;
+  fichiers.forEach(function(f){
+    if(cour.length && poids+f.octets.length > LOT_PHOTOS){ lots.push(cour); cour=[]; poids=0; }
+    cour.push(f); poids+=f.octets.length;
+  });
+  if(cour.length) lots.push(cour);
   var el = $("pubEtat");
-  if(el) el.textContent = "Dépôt des photos…";
-  var fr = new FileReader();
-  fr.onload = function(){
-    var b64 = String(fr.result).split(",")[1];
-    if(b64.length*0.75 > 5.4*1024*1024){
-      if(el) el.textContent = "Lot de photos trop lourd. Retirez-en quelques-unes.";
-      toast("Lot trop lourd pour le dépôt.");
-      return;
+  if(!auto && el) el.textContent = "Dépôt des photos…";
+  function envoyer(lot, k){
+    return new Promise(function(fin){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var b64 = String(fr.result).split(",")[1];
+        if(b64.length*0.75 > 5.4*1024*1024){ fin({ok:false, erreur:"une photo est trop lourde pour le dépôt."}); return; }
+        var corps = {
+          pdf: b64, type:"photos", suiviId: "releve" + (k ? "-" + (k+1) : ""),
+          chantier: ref, client: client, adresse: adresse, date: date, destinataires: dest,
+          titre: "Photos · Relevé technique (" + liste.length + ")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")
+        };
+        if(versDossier) corps.dossier = true;
+        fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+          .then(function(r){ return r.json().then(function(d){ fin({ok:r.ok, erreur:d && d.erreur}); }, function(){ fin({ok:r.ok}); }); })
+          .catch(function(){ fin({ok:false, erreur:"pas de réseau."}); });
+      };
+      fr.readAsDataURL(creerZip(lot));
+    });
+  }
+  var tous=true, derniere=null;
+  return lots.reduce(function(pr, lot, k){
+    return pr.then(function(){ return envoyer(lot, k).then(function(r){ if(!r.ok){ tous=false; derniere=r; } }); });
+  }, Promise.resolve()).then(function(){
+    deposerPhotos.derniere=derniere;
+    if(!auto){
+      if(tous){ if(el) el.textContent = liste.length + " photo" + (liste.length>1 ? "s enregistrées" : " enregistrée") + " dans le dossier du chantier (Photos du chantier)."; toast("Photos déposées."); }
+      else if(el) el.textContent = "Photos non déposées : " + ((derniere && derniere.erreur) || "réessayez une fois connecté.");
     }
-    fetch(apiUrl("publier"), {
-      method:"POST", headers:apiEnTetes(),
-      body:JSON.stringify({
-        pdf: b64, type:"photos",
-        chantier: refAffaire(), client: nomClient(), adresse: adresseTravaux(),
-        date: dateFiche(), destinataires: destinataires().slice(),
-        titre: "Photos des travaux (" + liste.length + ")"
-      })
-    })
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-    .then(function(res){
-      if(!res.ok){ if(el) el.textContent = res.d.erreur || "Dépôt refusé."; return; }
-      if(el) el.textContent = liste.length + " photos déposées sur le site. Vous les retrouverez dans les rapports des travaux, en ZIP.";
-      toast("Photos déposées.");
-    })
-    .catch(function(){ if(el) el.textContent="Pas de réseau. Réessayez une fois connecté."; });
-  };
-  fr.readAsDataURL(blob);
+    if(tous){ S.photosSite={sig:signaturePhotos(), le:new Date().toISOString(), n:liste.length}; save(); }
+    return tous;
+  });
+}
+/* après la publication : les photos suivent, si elles ont changé depuis le dernier envoi */
+function photosApresPublication(el){
+  var n=0; try{ n=toutesLesPhotos().length; }catch(e){}
+  if(!n) return Promise.resolve(true);
+  if(S.photosSite && S.photosSite.sig===signaturePhotos()){ if(el) el.textContent += " Photos déjà dans le dossier ("+n+")."; return Promise.resolve(true); }
+  if(el) el.textContent += " Envoi des photos…";
+  return deposerPhotos(true).then(function(ok){
+    var d=deposerPhotos.derniere;
+    if(el) el.textContent = el.textContent.replace(" Envoi des photos…", "") + (ok ? " "+n+" photo"+(n>1?"s enregistrées":" enregistrée")+" dans le dossier (Photos du chantier)."
+      : " Photos non envoyées ("+((d && d.erreur) || "pas de réseau")+") : republiez quand le réseau revient.");
+    return ok;
+  });
 }
 
 /* Le dossier de photos porte le nom du client, suivi de « photos » :
@@ -5273,12 +5312,16 @@ function publierRapport(meta){
     /* publié au dossier et bien déposé sur le site : le relevé se rouvre
        depuis la page du chantier, on repart d'une fiche vierge. Tant que
        le dépôt n'a pas abouti, on garde tout. */
+    /* les photos partent dans le dossier du chantier, lues avant que le formulaire se vide */
+    var photos = APP_TYPE==="releve" ? photosApresPublication(el) : Promise.resolve(true);
     deposerFiche(res.d.cle, el, function(ok){
       if(!versDossier || !ok) return;
+      photos.then(function(){
       S=ficheVierge(); save(); paintForm(); showTab("client");
       try{ peindreNavChantier(); }catch(e){}
       toast("Relevé publié. Formulaire vidé pour un nouveau relevé.");
       el.textContent += "  ·  Formulaire vidé pour un nouveau relevé.";
+      });
     });
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
