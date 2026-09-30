@@ -804,6 +804,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   <div class="block">
     <h2>Publication</h2>
     <p class="hint" id="pubIntro" style="margin:-8px 0 14px">Le point part directement dans l'espace des personnes choisies dans l'onglet Travaux.</p>
+    <p class="hint" style="margin:-8px 0 14px">Ses photos partent d'elles-mêmes dans le dossier du chantier (sous-dossier « Photos du chantier »).</p>
     <button class="act blue" id="btnPublier" style="width:100%">Publier</button>
     <p class="hint" id="pubEtat"></p>
   </div>
@@ -1428,49 +1429,88 @@ function nomClient(){ return S.chantier.client; }
 function adresseTravaux(){ return S.chantier.adresse; }
 function dateFiche(){ return S.date; }
 
-/* ---------- dépôt des photos sur le site ---------- */
-function deposerPhotos(){
-  if(!apiPret()) return;
+/* ---------- dépôt des photos sur le site ----------
+   Les photos du point partent d'elles-mêmes dans le dossier du chantier
+   (sous-dossier « Photos du chantier ») quand on publie le point : comme
+   son PDF, un lot par jour et par personne, remplacé si l'on republie
+   (et rien n'est renvoyé si les photos n'ont pas changé). Un lot trop
+   lourd pour une requête part en plusieurs parties. « Photos sur le
+   site » les envoie sans publier. Les photos ne préviennent personne. */
+var LOT_PHOTOS=4.6*1024*1024;
+function signaturePhotos(){
+  var l=[]; try{ l=toutesLesPhotos(); }catch(e){}
+  return refAffaire()+"@"+S.date+"#"+l.map(function(ph){ return String(ph.data||"").length+":"+(ph.legende||""); }).join("|");
+}
+function deposerPhotos(auto){
+  if(auto!==true) auto=false;
+  if(!apiPret()) return Promise.resolve(false);
   var liste;
   try{ liste = toutesLesPhotos(); }catch(e){ liste = []; }
-  if(!liste.length){ toast("Aucune photo dans cette fiche."); return; }
-  if(!refAffaire()){ toast("Renseignez les travaux avant de déposer."); return; }
-  var dossier = nomFichier(refAffaire());
+  if(!liste.length){ if(!auto) toast("Aucune photo dans cette fiche."); return Promise.resolve(false); }
+  if(!refAffaire()){ if(!auto) toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
+  /* tout est lu maintenant : après la publication, le formulaire se vide pendant l'envoi */
+  var ref=refAffaire(), client=nomClient(), adresse=adresseTravaux(), date=dateFiche()||aujourdhui();
+  var versDossier = (typeof PUB_MODE === "undefined") || PUB_MODE === "dossier", dest = versDossier ? [] : destinataires().slice();
+  var qui = "point-" + ((SESSION && SESSION.nom) || S.auteur || "moi");
+  var dossier = nomFichier(ref);
   var fichiers = liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
     var etiquette = [p.section, p.legende].filter(Boolean).join(" ");
     return {nom: dossier + "/" + num + (etiquette ? "-" + nomFichier(etiquette) : "") + ".jpg",
             octets: b64ToBytes(String(p.data).split(",")[1])};
   });
-  var blob = creerZip(fichiers);
+  var lots=[], cour=[], poids=0;
+  fichiers.forEach(function(f){
+    if(cour.length && poids+f.octets.length > LOT_PHOTOS){ lots.push(cour); cour=[]; poids=0; }
+    cour.push(f); poids+=f.octets.length;
+  });
+  if(cour.length) lots.push(cour);
   var el = $("pubEtat");
-  if(el) el.textContent = "Dépôt des photos…";
-  var fr = new FileReader();
-  fr.onload = function(){
-    var b64 = String(fr.result).split(",")[1];
-    if(b64.length*0.75 > 5.4*1024*1024){
-      if(el) el.textContent = "Lot de photos trop lourd. Retirez-en quelques-unes.";
-      toast("Lot trop lourd pour le dépôt.");
-      return;
+  if(!auto && el) el.textContent = "Dépôt des photos…";
+  function envoyer(lot, k){
+    return new Promise(function(fin){
+      var fr = new FileReader();
+      fr.onload = function(){
+        var b64 = String(fr.result).split(",")[1];
+        if(b64.length*0.75 > 5.4*1024*1024){ fin({ok:false, erreur:"une photo est trop lourde pour le dépôt."}); return; }
+        var corps = {
+          pdf: b64, type:"photos", suiviId: qui + (k ? "-" + (k+1) : ""),
+          chantier: ref, client: client, adresse: adresse, date: date, destinataires: dest,
+          titre: "Photos · Le point du " + date.split("-").reverse().join("/") + " (" + liste.length + ")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")
+        };
+        if(versDossier) corps.dossier = true;
+        fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+          .then(function(r){ return r.json().then(function(d){ fin({ok:r.ok, erreur:d && d.erreur}); }, function(){ fin({ok:r.ok}); }); })
+          .catch(function(){ fin({ok:false, erreur:"pas de réseau."}); });
+      };
+      fr.readAsDataURL(creerZip(lot));
+    });
+  }
+  var tous=true, derniere=null;
+  return lots.reduce(function(pr, lot, k){
+    return pr.then(function(){ return envoyer(lot, k).then(function(r){ if(!r.ok){ tous=false; derniere=r; } }); });
+  }, Promise.resolve()).then(function(){
+    deposerPhotos.derniere=derniere;
+    if(!auto){
+      if(tous){ if(el) el.textContent = liste.length + " photo" + (liste.length>1 ? "s enregistrées" : " enregistrée") + " dans le dossier du chantier (Photos du chantier)."; toast("Photos déposées."); }
+      else if(el) el.textContent = "Photos non déposées : " + ((derniere && derniere.erreur) || "réessayez une fois connecté.");
     }
-    fetch(apiUrl("publier"), {
-      method:"POST", headers:apiEnTetes(),
-      body:JSON.stringify({
-        pdf: b64, type:"photos",
-        chantier: refAffaire(), client: nomClient(), adresse: adresseTravaux(),
-        date: dateFiche(), destinataires: destinataires().slice(),
-        titre: "Photos des travaux (" + liste.length + ")"
-      })
-    })
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-    .then(function(res){
-      if(!res.ok){ if(el) el.textContent = res.d.erreur || "Dépôt refusé."; return; }
-      if(el) el.textContent = liste.length + " photos déposées sur le site. Vous les retrouverez dans les rapports des travaux, en ZIP.";
-      toast("Photos déposées.");
-    })
-    .catch(function(){ if(el) el.textContent="Pas de réseau. Réessayez une fois connecté."; });
-  };
-  fr.readAsDataURL(blob);
+    if(tous){ S.photosSite={sig:signaturePhotos(), le:new Date().toISOString(), n:liste.length}; save(); }
+    return tous;
+  });
+}
+/* après la publication : les photos suivent, si elles ont changé depuis le dernier envoi */
+function photosApresPublication(el){
+  var n=0; try{ n=toutesLesPhotos().length; }catch(e){}
+  if(!n) return Promise.resolve(true);
+  if(S.photosSite && S.photosSite.sig===signaturePhotos()){ if(el) el.textContent += " Photos déjà dans le dossier ("+n+")."; return Promise.resolve(true); }
+  if(el) el.textContent += " Envoi des photos…";
+  return deposerPhotos(true).then(function(ok){
+    var d=deposerPhotos.derniere;
+    if(el) el.textContent = el.textContent.replace(" Envoi des photos…", "") + (ok ? " "+n+" photo"+(n>1?"s enregistrées":" enregistrée")+" dans le dossier (Photos du chantier)."
+      : " Photos non envoyées ("+((d && d.erreur) || "pas de réseau")+") : republiez quand le réseau revient.");
+    return ok;
+  });
 }
 
 /* Le dossier de photos porte le nom du client, suivi de « photos » :
@@ -1675,10 +1715,14 @@ function publierRapport(meta){
     el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
                                         : " Disponible pour " + meta.destinataires.join(", ") + ".")
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
+    /* les photos partent dans le dossier du chantier, lues avant que le formulaire se vide */
+    var photos=photosApresPublication(el);
     deposerFiche(res.d.cle, el);
     if(versDossier){
-      reinitialiserFormulaire("Point publié. Formulaire vidé pour un nouveau point.");
-      el.textContent += "  ·  Formulaire vidé pour un nouveau point.";
+      photos.then(function(){
+        reinitialiserFormulaire("Point publié. Formulaire vidé pour un nouveau point.");
+        el.textContent += "  ·  Formulaire vidé pour un nouveau point.";
+      });
     } else {
       toast("Rapport publié.");
     }
@@ -2197,7 +2241,7 @@ function bindAll(){
     });
   });
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
-  $("btnPhotosSite").addEventListener("click", deposerPhotos);
+  $("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(false); });
 
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce point et repartir de zéro ?")) return;
