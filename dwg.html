@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20260930a"></script>
+<script src="./symboles-elec.js?v=20260930b"></script>
 <script src="./visionneuse.js?v=20260929a"></script>
 <script src="./cartouche.js?v=20260929a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
@@ -310,6 +310,8 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btEnchainerS" type="button" aria-pressed="false" title="Poser le même symbole plusieurs fois (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
+    <label class="champ-h" id="grpLSym" hidden>Longueur <input id="symbL" type="text" inputmode="decimal" autocomplete="off" list="lTypes" aria-label="Longueur de la réglette en cm"> cm</label>
+    <datalist id="lTypes"><option value="60" label="réglette 60"><option value="120" label="réglette 120"><option value="150" label="réglette 150"></datalist>
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> cm</label>
     <datalist id="hTypes"><option value="30" label="prise"><option value="70" label="prise au-dessus du chevet"><option value="90" label="interrupteur de tête de lit"><option value="110" label="commande, plan de travail"><option value="130" label="liseuse"><option value="180" label="applique"><option value="200" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
@@ -747,6 +749,26 @@ var UNITE=lire("dwg:unite","m"), ACCROCHE=lire("dwg:accroche","1")==="1", ORTHO=
 var DESSIN_MM=1, ECHELLE_SRC="", FICHIER_CLE="";
 /* les symboles posés : {cle, x, y (unités du plan), rot (degrés, sens trigo), r (rayon, unités du plan), t (repère)} */
 var MODE="cote", SYMB=[], SEL=-1, CHOIX=canonS(lire("dwg:symbole","cfo-prise")), TAILLE=Number(lire("dwg:taille","1"))||1, SYMB_CLE="", HISTO_S=[];
+/* la réglette LED : son symbole s'étire à sa longueur réelle (mm), 120 cm par défaut ; la dernière longueur choisie sert aux suivantes */
+var LONG_REG=Number(lire("dwg:reglette","1200"))||1200;
+function longueurS(o){ var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return d && d.long ? (o.long||d.long) : 0; }
+function etirerS(o){ var L=longueurS(o); return L ? (L/DESSIN_MM)/(4*o.r) : 1; }
+/* sa longueur vue d'ici : entière de dessus, raccourcie de face ou de côté selon son orientation */
+function longueurVueS(o, vue){
+  var L=longueurS(o)/DESSIN_MM, a=(o.rot||0)*Math.PI/180;
+  if(vue==="face") L*=Math.abs(Math.cos(a)); else if(vue==="cote") L*=Math.abs(Math.sin(a));
+  return Math.max(L, 0.6*o.r);
+}
+function tracerReglette(c, def, x, y, R, rot, sx, halo){
+  var ep=Math.max(1, R*0.07);
+  c.save(); c.translate(x, y); c.rotate(rot); c.lineCap="round";
+  [halo ? [halo, ep+2.5] : null, [def.couleur, ep]].forEach(function(t){
+    if(!t) return; c.strokeStyle=t[0]; c.lineWidth=t[1]; c.beginPath();
+    def.el.forEach(function(e){ if(e.l){ c.moveTo(e.l[0]*R*sx, e.l[1]*R); c.lineTo(e.l[2]*R*sx, e.l[3]*R); } });
+    c.stroke();
+  });
+  c.restore();
+}
 var R_REEL=125;   /* le rayon du cercle de base, en mm : 2,5 mm sur un plan au 1/50, comme notre légende */
 document.body.classList.toggle("clair", CLAIR);
 function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
@@ -826,6 +848,16 @@ function peindreSymboles(c){
     var def=SymbolesElec.trouver(o.cle); if(!def) return;
     /* le bleu des prises se perd sur le fond sombre : un liseré clair dessous */
     var halo = !CLAIR && def.couleur==="#0000FF" ? "rgba(255,255,255,.55)" : false;
+    if(def.long){
+      /* la réglette, à sa longueur réelle */
+      var Lv = vue==="dessus" ? longueurS(o)/DESSIN_MM : longueurVueS(o, vue);
+      tracerReglette(c, def, p[0], p[1], R, vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, Lv/(4*o.r), halo);
+      if(i===SEL){
+        c.save(); c.translate(p[0], p[1]); c.rotate(vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0); c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]);
+        var lp=Lv*V.k/2+8, hp=Math.max(10, 0.3*R+8); c.strokeRect(-lp, -hp, 2*lp, 2*hp); c.restore();
+      }
+      return;
+    }
     SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1});
     if(o.t && R>3){
       var b=SymbolesElec.boite(o.cle);
@@ -1142,6 +1174,12 @@ function symboleSous(p){
   var vue=vueD();
   SYMB.forEach(function(o, i){
     var s = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), q=versEcran(s[0], s[1]), d=Math.hypot(q[0]-p[0], q[1]-p[1]), lim=Math.max(20, o.r*V.k*1.5);
+    if(longueurS(o)){
+      /* une réglette se touche sur toute sa longueur */
+      var a=vue==="dessus" ? (o.rot||0)*Math.PI/180 : 0, Lh=(vue==="dessus" ? longueurS(o)/DESSIN_MM : longueurVueS(o, vue))/2*V.k;
+      var u=[Math.cos(a), -Math.sin(a)];
+      d=distSeg(p, [q[0]-u[0]*Lh, q[1]-u[1]*Lh], [q[0]+u[0]*Lh, q[1]+u[1]*Lh]).d; lim=Math.max(20, o.r*V.k*0.6);
+    }
     if(d<lim && d<bd){ bd=d; best=i; }
   });
   return best;
@@ -1186,6 +1224,7 @@ function poserSymbole(pt){
   garderSymb();
   var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
   var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
+  if(longueurS(o)) o.long=LONG_REG;
   if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
   SYMB.push(o);
   /* posé : la palette se relâche et rien n'est choisi, le doigt redéplace le plan ; Enchaîner (ou Ctrl) garde le symbole */
@@ -1209,6 +1248,8 @@ function majSymb(){
   $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
   $("grpHSym").hidden=!o;
   if(o && document.activeElement!==$("symbH")) $("symbH").value=String(hauteurDe(o)/10).replace(".", ",");
+  $("grpLSym").hidden=!(o && longueurS(o));
+  if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=String(longueurS(o)/10).replace(".", ",");
   if(document.activeElement!==$("symbRep")) $("symbRep").value = o ? (o.t||"") : "";
   $("btAccrS").classList.toggle("on", ACCR_D); $("btAccrS").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDefaireS").disabled=!HISTO_S.length; $("btDxf").disabled=!SYMB.length && dessinVide();
@@ -1219,12 +1260,19 @@ function majSymb(){
   peindreQuantites();
   majBarreSel();
 }
+/* le nom d'une ligne des quantités : pour les réglettes, le détail des longueurs (2 × 120 cm, 1 × 60 cm) */
+function nomQuantite(sy){
+  if(!sy.long) return sy.nom;
+  var par={}; SYMB.forEach(function(o){ if(canonS(o.cle)===sy.cle){ var L=longueurS(o); par[L]=(par[L]||0)+1; } });
+  var det=Object.keys(par).sort(function(a, b){ return b-a; }).map(function(L){ return par[L]+" × "+cm(Number(L))+" cm"; }).join(", ");
+  return sy.nom+(det ? " : "+det : "");
+}
 function peindreQuantites(){
   var ul=$("listeQuantites"); ul.textContent=""; var n=compter(), total=0;
   SymbolesElec.liste.forEach(function(sy){
     if(!n[sy.cle]) return; total+=n[sy.cle];
     var li=document.createElement("li"), i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(sy.cle, 24);
-    var sp=document.createElement("span"); sp.textContent=sy.nom; var b=document.createElement("b"); b.textContent=String(n[sy.cle]);
+    var sp=document.createElement("span"); sp.textContent=nomQuantite(sy); var b=document.createElement("b"); b.textContent=String(n[sy.cle]);
     li.appendChild(i); li.appendChild(sp); li.appendChild(b); ul.appendChild(li);
   });
   var li=document.createElement("li"); li.className="total";
@@ -2053,6 +2101,7 @@ function poserSymboleVue(pt){
     o.h=h;
   }
   var c=planDeV(vue, pt[0], pr); o.x=c[0]; o.y=c[1];
+  if(longueurS(o)){ o.long=LONG_REG; if(vue==="cote") o.rot=90; }      /* de côté, elle se pose dans le sens de la vue */
   garderSymb(); SYMB.push(o);
   if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
   enregistrerSymb();
@@ -3141,7 +3190,7 @@ function dxfDessin(){
 }
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
-  var txt=SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; }),
+  var txt=SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, etirer:etirerS(o)}; }),
     {extra:dxfDessin(), calquesExtra:[["MURS",8],["OUVERTURES",7],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7],["HACHURES",8],["COTES",7]]});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs, ouvertures, pièces, mobilier, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
@@ -3404,8 +3453,14 @@ function construire3Dmm(ed){
         var abat=new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.22, 24, 1, true), new THREE.MeshStandardMaterial({color:0x2F343B, side:THREE.DoubleSide, roughness:0.5}));
         abat.position.set(x0/1000, zc/1000-0.1, -y0/1000); sc.add(abat);
       }
+      if(longueurS(o)){
+        /* la réglette : une barre lumineuse à sa longueur, sous le plafond */
+        var br=new THREE.Mesh(new THREE.BoxGeometry(longueurS(o)/1000, 0.045, 0.075), new THREE.MeshStandardMaterial({color:0xFFFFFF, emissive:0xFFF1C9, emissiveIntensity:0.9, roughness:0.4}));
+        br.position.set(x0/1000, zc/1000-0.025, -y0/1000); br.rotation.y=(o.rot||0)*Math.PI/180; sc.add(br);
+      } else {
       var pl=new THREE.Mesh(new THREE.PlaneGeometry(0.2, 0.2), matP);
       pl.rotation.x=Math.PI/2; pl.position.set(x0/1000, zc/1000-0.006, -y0/1000); pl.renderOrder=3; sc.add(pl);
+      }
       if(lum) faisceau3D(sc, x0/1000, zc/1000-0.03, -y0/1000, Math.min(1.3, Math.max(0.5, zc/1000-0.6)), genreLum(o.cle)==="spot" ? 11 : 16);
       /* le point au sol, pour le repérer d'en haut */
       var trace=new THREE.Mesh(new THREE.CircleGeometry(0.06, 20), new THREE.MeshBasicMaterial({color:0xFB923C, transparent:true, opacity:0.55}));
@@ -3942,6 +3997,14 @@ $("symbH").addEventListener("change", function(){
   SYMB[SEL].h=Math.round(cm*10); enregistrerSymb(); majSymb();
 });
 $("symbH").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+$("symbL").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbL").addEventListener("change", function(){
+  if(SEL<0 || !longueurS(SYMB[SEL])) return; var cm=parseFloat(String(this.value).replace(",", "."));
+  if(!(cm>=10 && cm<=1000)){ majSymb(); return; }
+  SYMB[SEL].long=Math.round(cm*10); LONG_REG=SYMB[SEL].long; garder("dwg:reglette", String(LONG_REG));
+  enregistrerSymb(); majSymb(); demander();
+});
+$("symbL").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 
 /* ---------- la mise en page PDF : A4 ou A3, à l'échelle, légende et cartouche ----------
    Le plan est redessiné pour la page (fond blanc, à l'échelle choisie),
@@ -4121,7 +4184,7 @@ function creerPdf(d, logo, soc){
       if(r===0){ trait(0.2); doc.line(x+cs, y0l+30*k, x+cs, y0l+30*k+parCol*lh); if(c) doc.line(x, y0l+30*k, x, y0l+30*k+parCol*lh); }
       var R=Math.min(lh*0.78/(bb.y1-bb.y0), cs*0.84/(bb.x1-bb.x0));
       SymbolesElec.pdf(doc, sy.cle, x+cs/2, y+lh/2, R);
-      texte(sy.nom+" ("+n[sy.cle]+")", x+cs+6*k, y+lh*0.64, Math.min(11, lh/k*0.4)*k/0.3528, {max:cw-cs-10*k});
+      texte(nomQuantite(sy)+" ("+n[sy.cle]+")", x+cs+6*k, y+lh*0.64, Math.min(11, lh/k*0.4)*k/0.3528, {max:cw-cs-10*k});
       trait(0.15); doc.line(x, y+lh, x+cw, y+lh);
     });
   }
@@ -4289,7 +4352,7 @@ $("btImage").addEventListener("click", function(){
       var y=by+34*k+i*lh;
       var bs=SymbolesElec.boite(sy.cle), rs=Math.min(24*k/(bs.x1-bs.x0), 16*k/(bs.y1-bs.y0));
       SymbolesElec.dessiner(c, sy.cle, bx+18*k-(bs.x0+bs.x1)/2*rs, y+lh/2-2*k-(bs.y0+bs.y1)/2*rs, rs, {epMin:1});
-      c.fillStyle="#000000"; c.fillText(sy.nom+" ("+n[sy.cle]+")", bx+42*k, y+lh/2-2*k);
+      c.fillStyle="#000000"; c.fillText(nomQuantite(sy)+" ("+n[sy.cle]+")", bx+42*k, y+lh/2-2*k);
       c.beginPath(); c.moveTo(bx, y+lh); c.lineTo(bx+lw, y+lh); c.stroke();
     });
     source=cp;
@@ -4318,7 +4381,7 @@ window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
 window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
-  mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t}; })); },
+  mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, etirer:etirerS(o)}; })); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
 })();
 </script>
