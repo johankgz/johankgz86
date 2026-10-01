@@ -176,6 +176,14 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:8px;
   max-width:calc(100vw - 20px);padding:6px 6px 6px 14px;border-radius:999px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
 .barre-sel[hidden]{display:none}
+/* la zone à imprimer : sa barre, en haut */
+.barre-zone{position:fixed;left:50%;top:calc(62px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:8;display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:6px 8px;
+  width:max-content;max-width:calc(100vw - 16px);padding:8px 10px;border-radius:16px;background:rgba(20,25,32,.97);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
+.barre-zone[hidden]{display:none}
+.barre-zone b{font-size:13.5px}
+.barre-zone .seg button{min-height:32px;padding:4px 10px}
+.barre-zone select{min-height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:13.5px;padding:0 6px}
+.barre-zone small{flex-basis:100%;text-align:center;font-size:12px;color:var(--ink-3,#8B949E)}
 .barre-sel span{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .barre-sel button{flex:0 0 auto;min-height:40px;border-radius:999px;border:0;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
@@ -402,6 +410,14 @@ body.clair #scene{background:#FFFFFF}
 </aside>
 <div class="toast" id="toast" hidden></div>
 
+<div class="barre-zone" id="barreZone" hidden role="toolbar" aria-label="Zone à imprimer">
+  <b>Zone à imprimer</b>
+  <span class="seg" id="zFormat"><button type="button" data-v="a4">A4</button><button type="button" data-v="a3">A3</button></span>
+  <span class="seg" id="zOrient"><button type="button" data-v="l">Paysage</button><button type="button" data-v="p">Portrait</button></span>
+  <select id="zEchelle" aria-label="Échelle"><option value="1">1/1</option><option value="2">1/2</option><option value="5">1/5</option><option value="10">1/10</option><option value="20">1/20</option><option value="25">1/25</option><option value="50">1/50</option><option value="75">1/75</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option></select>
+  <button class="bt" id="zAnnuler" type="button">Annuler</button><button class="bt or" id="zValider" type="button">Valider</button>
+  <small id="zInfo">Glissez le cadre sur la partie à imprimer ; tirez un coin pour changer d'échelle.</small>
+</div>
 <form class="mep" id="mep" hidden>
   <header><b>Mise en page PDF</b><button class="bt" id="mepFermer" type="button" aria-label="Fermer">✕</button></header>
   <div class="mep-corps">
@@ -409,7 +425,8 @@ body.clair #scene{background:#FFFFFF}
       <span class="seg" id="mepFormat"><button type="button" data-v="a4">A4</button><button type="button" data-v="a3">A3</button></span>
       <span class="seg" id="mepOrient"><button type="button" data-v="l">Paysage</button><button type="button" data-v="p">Portrait</button></span></div>
     <div class="mep-ligne"><span class="lab">Cadrage</span>
-      <span class="seg" id="mepCadre"><button type="button" data-v="plan">Plan entier</button><button type="button" data-v="vue">Vue à l'écran</button></span></div>
+      <span class="seg" id="mepCadre"><button type="button" data-v="plan">Plan entier</button><button type="button" data-v="vue">Vue à l'écran</button><button type="button" data-v="zone">Zone choisie</button></span>
+      <button class="bt" id="mepZoneBt" type="button" hidden>Placer la zone sur le plan</button></div>
     <div class="mep-ligne"><span class="lab">Échelle</span>
       <select id="mepEchelle"><option value="0">Ajustée à la page</option><option value="1">1/1</option><option value="2">1/2</option><option value="5">1/5</option><option value="10">1/10</option><option value="20">1/20</option><option value="25">1/25</option><option value="50">1/50</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option></select>
       <small id="mepInfo"></small></div>
@@ -902,6 +919,7 @@ function peindre(){
   var cible = VISEE ? VISEE : SURVOL;
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
+  if(ZONE_ACTIF && !IMPRIME) peindreZone(c2);
 }
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
@@ -1062,6 +1080,15 @@ cv.addEventListener("pointerdown", function(e){
   }
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
+  if(ZONE_ACTIF && MEP.zone){
+    /* la zone à imprimer : un coin la redimensionne, l'intérieur la déplace, ailleurs le plan glisse */
+    var rz=cadreZoneEcran(), coins=[[rz.x0,rz.y0],[rz.x1,rz.y0],[rz.x0,rz.y1],[rz.x1,rz.y1]];
+    G.zone=true;
+    coins.forEach(function(q){ if(Math.hypot(q[0]-p[0], q[1]-p[1])<28) G.zoneCoin=true; });
+    if(G.zoneCoin){ G.n0=echelleZone(); G.c0=versEcran(MEP.zone.cx, MEP.zone.cy); G.d0=Math.max(Math.abs(p[0]-G.c0[0])/((rz.x1-rz.x0)/2), Math.abs(p[1]-G.c0[1])/((rz.y1-rz.y0)/2)); }
+    else if(p[0]>=rz.x0 && p[0]<=rz.x1 && p[1]>=rz.y0 && p[1]<=rz.y1) G.zoneBase=[MEP.zone.cx, MEP.zone.cy];
+    return;
+  }
   if(MODE==="dessin"){
     if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
@@ -1102,6 +1129,19 @@ cv.addEventListener("pointermove", function(e){
     V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demander(); return;
   }
   /* un tracé glissé : le début est posé dès que le doigt part, la fin suit le doigt, avec la loupe */
+  if(G.zone){
+    var dxz=p[0]-G.depart[0], dyz=p[1]-G.depart[1];
+    if(G.zoneCoin){
+      /* l'échelle suit le coin tiré : la plus proche des échelles courantes */
+      var rz2=Math.max(Math.abs(p[0]-G.c0[0]), 1)/Math.max(Math.abs(G.depart[0]-G.c0[0]), 1);
+      var rz3=Math.max(Math.abs(p[1]-G.c0[1]), 1)/Math.max(Math.abs(G.depart[1]-G.c0[1]), 1);
+      var voulu=G.n0*Math.max(rz2, rz3), best=ECHELLES[0];
+      ECHELLES.forEach(function(e2){ if(Math.abs(Math.log(e2/voulu)) < Math.abs(Math.log(best/voulu))) best=e2; });
+      if(best!==MEP.echelle){ MEP.echelle=best; majZone(); }
+    } else if(G.zoneBase){ MEP.zone={cx:G.zoneBase[0]+dxz/V.k, cy:G.zoneBase[1]-dyz/V.k}; }
+    else { V.x=G.vx+dxz; V.y=G.vy+dyz; }
+    demander(); return;
+  }
   if(G.trace && !G.glisse && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>(G.visee ? 14 : 8)){
     G.glisse=true; G.bouge=true; clearTimeout(G.minuteur); debutGlisse(G.trace);
   }
@@ -1168,6 +1208,7 @@ function lacher(e){
   if(!G) return;
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
+  if(G.zone){ G=null; majZone(); demander(); return; }
   if(MODE==="dessin"){
     if(G.geo!=null || G.geoH){
       if(e.type!=="pointercancel"){
@@ -1223,6 +1264,7 @@ cv.addEventListener("wheel", function(e){
 }, {passive:false});
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
+  if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
@@ -4313,7 +4355,11 @@ function gabarit(){
   return g;
 }
 /* le cadrage : ce qu'on imprime, en unités du plan */
+function echelleZone(){ return MEP.echelle>0 ? MEP.echelle : 50; }
+/* la zone choisie : la taille du dessin sur la feuille, à l'échelle, en unités du plan */
+function tailleZone(){ var g=gabarit(), n=echelleZone(); return {w:g.zone.w*n/DESSIN_MM, h:g.zone.h*n/DESSIN_MM}; }
 function cadrage(){
+  if(MEP.cadre==="zone" && MEP.zone){ var tz=tailleZone(); return {cx:MEP.zone.cx, cy:MEP.zone.cy, w:tz.w, h:tz.h}; }
   if(MEP.cadre==="vue"){
     var h0=haut(), h1=H-basH();
     var a=versPlan(0, h0), b=versPlan(W, h1);
@@ -4329,6 +4375,7 @@ function cadrage(){
 function echelleMep(){
   var g=gabarit(), c=cadrage();
   var fit=Math.max(c.w*DESSIN_MM/g.zone.w, c.h*DESSIN_MM/g.zone.h);
+  if(MEP.cadre==="zone" && MEP.zone){ var nz=echelleZone(); return {n:nz, fit:nz, deborde:false, g:g, c:c}; }
   var n=MEP.echelle>0 ? MEP.echelle : (ECHELLES.filter(function(e){ return e>=fit*0.999; })[0] || Math.ceil(fit));
   return {n:n, fit:fit, deborde: n<fit*0.999, g:g, c:c};
 }
@@ -4336,11 +4383,15 @@ function majMep(){
   Array.prototype.forEach.call($("mepFormat").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.format); });
   Array.prototype.forEach.call($("mepOrient").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.orient); });
   Array.prototype.forEach.call($("mepCadre").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.cadre); });
+  if(MEP.cadre==="zone" && !(MEP.echelle>0)) MEP.echelle=50;
   $("mepEchelle").value=String(MEP.echelle);
+  $("mepZoneBt").hidden = MEP.cadre!=="zone";
+  $("mepZoneBt").textContent = MEP.zone ? "Déplacer la zone sur le plan" : "Placer la zone sur le plan";
   if(!PLAN) return;
   var e=echelleMep();
   $("mepInfo").textContent = (MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" au 1/"+e.n
-    +(e.deborde ? " : le plan déborde de la page, seul le centre est imprimé." : (MEP.echelle>0 ? "" : " (l'échelle la plus grande qui tient)."));
+    +(MEP.cadre==="zone" ? (MEP.zone ? " : la zone choisie sur le plan." : " : placez la zone sur le plan.")
+      : e.deborde ? " : le plan déborde de la page, seul le centre est imprimé." : (MEP.echelle>0 ? "" : " (l'échelle la plus grande qui tient)."));
 }
 var CHAMPS_MEP=[["mepClient","client"],["mepRef","ref"],["mepObjet","objet"],["mepNiveau","niveau"],["mepIndice","indice"],["mepDate","date"],["mepDess","dess"],["mepMail","mail"],["mepRemarques","remarques"],["mepMention","mention"]];
 var MENTION_PLAN="Plan donné à titre indicatif, à des fins d'usage interne, ne pouvant servir à d'autres fins";
@@ -4349,6 +4400,7 @@ function ouvrirMep(){
   var d={}; try{ d=JSON.parse(localStorage.getItem(cleMep())||localStorage.getItem("dwg:mep")||"{}")||{}; }catch(e){ d={}; }
   if(d.format) MEP.format=d.format; if(d.orient) MEP.orient=d.orient; if(d.cadre) MEP.cadre=d.cadre;
   if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0; else if(PLAN && PLAN.vierge) MEP.echelle=50;
+  MEP.zone = d.zone && isFinite(d.zone.cx) && isFinite(d.zone.cy) ? {cx:d.zone.cx, cy:d.zone.cy} : null;
   var ses=null; try{ ses=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
   var defaut={objet:"PLAN ÉLECTRIQUE", indice:"A", date:jourLocal(), dess:(ses && ses.nom)||"", mail:(ses && ses.email)||"", mention:MENTION_PLAN};
   CHAMPS_MEP.forEach(function(c){ $(c[0]).value = d[c[1]]!=null ? d[c[1]] : (defaut[c[1]]||""); });
@@ -4357,15 +4409,76 @@ function ouvrirMep(){
   majMep(); $("quantites").hidden=true; $("mep").hidden=false;
 }
 function lireMep(){
-  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, legende:$("mepLegende").checked};
+  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, legende:$("mepLegende").checked};
   MEP.legende=d.legende;
   CHAMPS_MEP.forEach(function(c){ d[c[1]]=$(c[0]).value.trim(); });
   try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess, mail:d.mail, mention:d.mention})); }catch(e){}
   return d;
 }
 [["mepFormat","format"],["mepOrient","orient"],["mepCadre","cadre"]].forEach(function(s){
-  $(s[0]).addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; MEP[s[1]]=b.dataset.v; majMep(); });
+  $(s[0]).addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; MEP[s[1]]=b.dataset.v; majMep();
+    if(s[1]==="cadre" && b.dataset.v==="zone" && !MEP.zone) ouvrirZone(); });
 });
+$("mepZoneBt").addEventListener("click", function(){ ouvrirZone(); });
+
+/* ---------- la zone à imprimer, choisie sur le plan ----------
+   Un cadre aux proportions de la feuille (A4 ou A3, paysage ou portrait), à
+   la taille du dessin à l'échelle choisie : on le glisse sur la pièce à
+   imprimer, un coin tiré change l'échelle. Le reste du plan s'assombrit. */
+var ZONE_ACTIF=false, ZONE_AVANT=null;
+function ouvrirZone(){
+  if(!PLAN) return;
+  ZONE_AVANT={format:MEP.format, orient:MEP.orient, echelle:MEP.echelle, zone:MEP.zone ? {cx:MEP.zone.cx, cy:MEP.zone.cy} : null, cadre:MEP.cadre};
+  MEP.cadre="zone";
+  var a=versPlan(0, haut()), b=versPlan(W, H-basH());
+  if(!(MEP.echelle>0)){
+    /* une échelle courante qui tient dans ce qu'on voit, aux deux tiers */
+    var g=gabarit(), vw=Math.abs(b[0]-a[0])*0.66, vh=Math.abs(a[1]-b[1])*0.66;
+    var nfit=Math.min(vw*DESSIN_MM/g.zone.w, vh*DESSIN_MM/g.zone.h);
+    MEP.echelle=ECHELLES.filter(function(e){ return e<=nfit; }).pop() || ECHELLES[0];
+  }
+  if(!MEP.zone) MEP.zone={cx:(a[0]+b[0])/2, cy:(a[1]+b[1])/2};
+  /* le cadre entier à l'écran */
+  var t=tailleZone(), h0=haut()+90, h1=H-basH()-20;
+  V.k=Math.min(V.k, (W-40)/t.w, (h1-h0)/t.h);
+  V.x=W/2-V.k*MEP.zone.cx; V.y=(h0+h1)/2+V.k*MEP.zone.cy;
+  $("mep").hidden=true; ZONE_ACTIF=true; $("barreZone").hidden=false; majZone(); demander();
+}
+function majZone(){
+  Array.prototype.forEach.call($("zFormat").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.format); });
+  Array.prototype.forEach.call($("zOrient").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.orient); });
+  var n=echelleZone(), sel=$("zEchelle");
+  if(!sel.querySelector('option[value="'+n+'"]')){ var o=document.createElement("option"); o.value=String(n); o.textContent="1/"+n; sel.appendChild(o); }
+  sel.value=String(n);
+  var t=tailleZone();
+  $("zInfo").textContent=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" au 1/"+n+" : "
+    +String(Math.round(t.w*DESSIN_MM/100)/10).replace(".", ",")+" × "+String(Math.round(t.h*DESSIN_MM/100)/10).replace(".", ",")+" m du plan. Glissez le cadre ; tirez un coin pour changer d'échelle.";
+}
+function fermerZone(garder){
+  if(!garder && ZONE_AVANT){ MEP.format=ZONE_AVANT.format; MEP.orient=ZONE_AVANT.orient; MEP.echelle=ZONE_AVANT.echelle; MEP.zone=ZONE_AVANT.zone; MEP.cadre=ZONE_AVANT.cadre; }
+  ZONE_ACTIF=false; ZONE_AVANT=null; $("barreZone").hidden=true; demander();
+  majMep(); $("mep").hidden=false;
+}
+/* le cadre à l'écran : ses quatre coins, en pixels */
+function cadreZoneEcran(){ var t=tailleZone(), a=versEcran(MEP.zone.cx-t.w/2, MEP.zone.cy+t.h/2), b=versEcran(MEP.zone.cx+t.w/2, MEP.zone.cy-t.h/2); return {x0:a[0], y0:a[1], x1:b[0], y1:b[1]}; }
+function peindreZone(c){
+  if(!ZONE_ACTIF || !MEP.zone) return;
+  var r=cadreZoneEcran();
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0);
+  c.fillStyle="rgba(0,0,0,.5)"; c.beginPath(); c.rect(0, 0, W, H); c.rect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); c.fill("evenodd");
+  c.strokeStyle="#FB923C"; c.lineWidth=2.5; c.setLineDash([]); c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0);
+  c.fillStyle="#FB923C";
+  [[r.x0,r.y0],[r.x1,r.y0],[r.x0,r.y1],[r.x1,r.y1]].forEach(function(q){ c.beginPath(); c.arc(q[0], q[1], 8, 0, 2*Math.PI); c.fill(); });
+  var et=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" · 1/"+echelleZone();
+  c.font="700 13px system-ui, -apple-system, sans-serif"; var lw=c.measureText(et).width+16;
+  c.fillRect(r.x0, r.y0-26, lw, 22); c.fillStyle="#1A1206"; c.textBaseline="middle"; c.fillText(et, r.x0+8, r.y0-15);
+  c.restore();
+}
+function segZone(id, cle){ $(id).addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; MEP[cle]=b.dataset.v; majZone(); demander(); }); }
+segZone("zFormat", "format"); segZone("zOrient", "orient");
+$("zEchelle").addEventListener("change", function(){ MEP.echelle=Number(this.value)||50; majZone(); demander(); });
+$("zValider").addEventListener("click", function(){ fermerZone(true); toast("Zone retenue : le PDF n'imprimera qu'elle.", 3000); });
+$("zAnnuler").addEventListener("click", function(){ fermerZone(false); });
 $("mepEchelle").addEventListener("change", function(){ MEP.echelle=Number(this.value)||0; majMep(); });
 $("btPdf").addEventListener("click", ouvrirMep);
 $("mepFermer").addEventListener("click", function(){ $("mep").hidden=true; });
@@ -4636,7 +4749,7 @@ redim(); majBas();
 /* pour les essais */
 window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
-  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin};
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage};
 })();
 </script>
 </body>
