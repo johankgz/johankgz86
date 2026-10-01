@@ -60,8 +60,10 @@
     if(!parHistorique && history.state && history.state.visionneuse) try{ history.back(); }catch(e){}
   }
 
-  function pdf(blob, nom){
-    fermer(false);
+  /* opts (facultatif) : {retour:"Modifier", action:{texte:"Créer le PDF", faire:function(){…}}}
+     pour un aperçu : OK prend le nom de retour, et l'action remplace Partager */
+  function pdf(blob, nom, opts){
+    fermer(false); opts = opts || {};
     nom = nom || "document.pdf";
     var ov=style(document.createElement("div"), "position:fixed;inset:0;z-index:2147483000;background:#2A2723;display:flex;flex-direction:column;"
       +"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif");
@@ -71,7 +73,7 @@
       +"padding:calc(env(safe-area-inset-top,0px) + 8px) 10px 8px;background:#F4F4F6;border-bottom:1px solid rgba(0,0,0,.14);color:#111");
     var ok=style(document.createElement("button"), "flex:0 0 auto;min-height:40px;min-width:52px;padding:0 12px;border:0;background:none;"
       +"color:#0A6CFF;font:600 17px/1 inherit;cursor:pointer");
-    ok.type="button"; ok.textContent="OK"; ok.setAttribute("aria-label", "Fermer le document et revenir");
+    ok.type="button"; ok.textContent=opts.retour || "OK"; ok.setAttribute("aria-label", "Fermer le document et revenir");
     ok.className="vis-ok";
     var titre=style(document.createElement("div"), "flex:1;min-width:0;text-align:center;font:600 15px/1.2 inherit;"
       +"overflow:hidden;text-overflow:ellipsis;white-space:nowrap");
@@ -81,7 +83,8 @@
     part.type="button"; part.className="vis-partager";
     var fichier=null; try{ fichier=new File([blob], nom, {type:"application/pdf"}); }catch(e){}
     var peutPartager = !!(fichier && navigator.canShare && navigator.canShare({files:[fichier]}));
-    part.textContent = peutPartager ? "Partager" : "Enregistrer";
+    part.textContent = opts.action ? opts.action.texte : peutPartager ? "Partager" : "Enregistrer";
+    if(opts.action){ part.className="vis-action"; part.style.color="#fff"; part.style.background="#0A6CFF"; part.style.borderRadius="999px"; part.style.minHeight="36px"; }
     barre.appendChild(ok); barre.appendChild(titre); barre.appendChild(part);
     var corps=style(document.createElement("div"), "flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 10px calc(env(safe-area-inset-bottom,0px) + 16px);"
       +"display:flex;flex-direction:column;align-items:center;gap:12px;touch-action:pan-x pan-y pinch-zoom");
@@ -104,6 +107,15 @@
 
     ok.addEventListener("click", function(){ fermer(false); });
     part.addEventListener("click", function(){
+      if(opts.action){
+        /* l'action vient après la fermeture et son retour d'historique, pour ne pas les mêler */
+        var fait=false, histo=!!(history.state && history.state.visionneuse);
+        var go=function(){ if(fait) return; fait=true; window.removeEventListener("popstate", go); opts.action.faire(); };
+        if(histo) window.addEventListener("popstate", go);
+        fermer(false);
+        if(histo) setTimeout(go, 800); else go();
+        return;
+      }
       if(peutPartager) navigator.share({files:[fichier], title:nom}).catch(function(){});
       else telecharger(blob, nom);
     });

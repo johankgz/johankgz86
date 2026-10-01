@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
 <script src="./symboles-elec.js?v=20261002b"></script>
-<script src="./visionneuse.js?v=20260929a"></script>
+<script src="./visionneuse.js?v=20261001a"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="apple-touch-icon" href="/icone-180.png">
@@ -268,6 +268,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="visite">Visite</button></span>
     <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button><button type="button" data-g="objet" title="Glisser un meuble, une forme ou un symbole">Objet</button><button type="button" data-g="coter" title="Coter : touchez deux points, accrochés aux coins et aux arêtes">Coter</button></span>
     <span class="seg" id="v3CoteAxe" role="group" aria-label="La cote mesure" hidden><button type="button" data-a="libre" title="La distance entre les deux points">Directe</button><button type="button" data-a="ortho" title="Seulement selon l'axe dominant : longueur, profondeur ou hauteur">Ortho</button></span>
+    <button class="bt" id="v3CoteSupp" type="button" hidden title="Retirer la cote choisie (touche Suppr)">Supprimer la cote</button>
     <button class="bt" id="v3CotesEff" type="button" hidden title="Retirer les cotes posées en 3D">Effacer les cotes</button>
     <span class="seg" id="v3Axe" role="group" aria-label="L'objet glisse" hidden><button type="button" data-a="plat">À plat</button><button type="button" data-a="haut">En hauteur</button></span>
     <span class="seg" id="v3Rendu" role="group" aria-label="Rendu"><button type="button" data-r="trait" title="Comme un dessin d'architecte : les arêtes en traits, les faces cachées">Trait</button><button type="button" data-r="ombre" title="Les volumes ombrés, en couleurs">Ombré</button></span>
@@ -465,7 +466,7 @@ body.clair #scene{background:#FFFFFF}
       <label class="large">Mention (au-dessus du cartouche)<input id="mepMention" type="text"></label>
     </fieldset>
   </div>
-  <footer><button class="bt" id="mepAnnuler" type="button">Annuler</button><button class="bt or" type="submit" id="mepCreer">Créer le PDF</button></footer>
+  <footer><button class="bt" id="mepAnnuler" type="button">Annuler</button><button class="bt" id="mepApercu" type="button" title="Voir le PDF avant de le créer">Aperçu</button><button class="bt or" type="submit" id="mepCreer">Créer le PDF</button></footer>
 </form>
 
 <form class="etalon" id="etalon" hidden>
@@ -1346,6 +1347,10 @@ cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
   if(e.key==="Escape" && V3 && V3.coteA && !$("vue3d").hidden){ V3.coteA=null; majVisee3D(); return; }
+  if(V3 && V3.coteSel && !$("vue3d").hidden && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){
+    if(e.key==="Delete" || e.key==="Backspace"){ e.preventDefault(); supprimerCote3D(); return; }
+    if(e.key==="Escape"){ choisirCote3D(null); return; }
+  }
   var champ=/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"");
   if(MODE==="dessin" && !champ && (e.ctrlKey||e.metaKey)){
     var k=String(e.key).toLowerCase();
@@ -4084,7 +4089,7 @@ function geo3D(sc){
     lignesHachure(pts, sp).forEach(function(s2){ segs.push(Vo(o, s2[0], z), Vo(o, s2[1], z)); });
     if(segs.length) sc.add(new THREE.LineSegments(new THREE.BufferGeometry().setFromPoints(segs), new THREE.LineBasicMaterial({color:couleurTrait(o), transparent:true, opacity:0.55})));
   }
-  l.forEach(function(o){ var n0=sc.children.length; uneForme3D(o); for(var i=n0;i<sc.children.length;i++) sc.children[i].userData.src={t:"geo", id:o.id}; });
+  l.forEach(function(o){ var n0=sc.children.length; uneForme3D(o); for(var i=n0;i<sc.children.length;i++){ sc.children[i].userData.src={t:"geo", id:o.id}; if(o.t==="cote") sc.children[i].userData.cote={k:"geo", id:o.id}; } });
   function uneForme3D(o){
     var z=(o.z3||0)/1000, h=(o.h3||0)/1000;
     if(o.t==="gtexte"){ var sp=texteSprite(o.s, 0.026, "rgba(31,41,51,.78)", true); var q=Vo(o, o.pts[0], z+Math.max(0.05, h)); sp.position.copy(q); sc.add(sp); return; }
@@ -4487,7 +4492,7 @@ function contraindre3D(a, b){
 }
 function texteLongueur3D(a, b){ var mm=a.distanceTo(b)*1000; return formater(mm/DESSIN_MM); }
 /* une cote : la ligne de cote, deux traits de rappel obliques aux bouts, la longueur au milieu */
-function dessinerCote3D(sc, a, b, provisoire){
+function dessinerCote3D(sc, a, b, provisoire, idx){
   var T=V3.THREE, col=provisoire ? 0xF97316 : (V3.style==="trait" && !CLAIR ? 0xFBBF24 : 0xC2410C);
   var mat=new T.LineBasicMaterial({color:col, depthTest:false, transparent:true}), grp=new T.Group();
   grp.add(new T.Line(new T.BufferGeometry().setFromPoints([a, b]), mat));
@@ -4501,11 +4506,73 @@ function dessinerCote3D(sc, a, b, provisoire){
   sc.add(grp);
   var et=texteSprite(texteLongueur3D(a, b), 0.032, provisoire ? "rgba(234,88,12,.95)" : "rgba(31,41,51,.88)", true);
   et.center.set(0.5, -0.25); et.position.copy(a.clone().add(b).multiplyScalar(0.5)); sc.add(et);
+  if(idx!=null){ grp.userData.cote={k:"3d", i:idx}; et.userData.cote={k:"3d", i:idx}; }
   return grp;
 }
 function cotes3D(sc){
   var T=V3.THREE;
-  (V3.cotesListe||[]).forEach(function(c){ dessinerCote3D(sc, new T.Vector3(c.a[0], c.a[1], c.a[2]), new T.Vector3(c.b[0], c.b[1], c.b[2]), false); });
+  (V3.cotesListe||[]).forEach(function(c, i){ dessinerCote3D(sc, new T.Vector3(c.a[0], c.a[1], c.a[2]), new T.Vector3(c.b[0], c.b[1], c.b[2]), false, i); });
+  marquerCote3D(sc);
+}
+/* Choisir une cote en 3D pour la retirer : celles posées en 3D comme celles du plan.
+   Un toucher sur son trait ou sur sa longueur la choisit (en bleu) ; « Supprimer la cote » ou Suppr la retire. */
+function memeCote3D(a, b){ return !!(a && b && a.k===b.k && (a.k==="3d" ? a.i===b.i : a.id===b.id)); }
+function coteValide3D(c){
+  if(!c) return null;
+  if(c.k==="3d") return (DESSIN.cotes3d||[])[c.i] ? c : null;
+  return (DESSIN.geo||[]).some(function(o){ return o.id===c.id && o.t==="cote"; }) ? c : null;
+}
+function marquerCote3D(sc){
+  sc=sc||V3.scene; if(!sc) return;
+  V3.coteSel=coteValide3D(V3.coteSel);
+  var sombre = V3.style==="trait" && !CLAIR;
+  sc.children.forEach(function(o){
+    var c=o.userData.cote; if(!c) return;
+    var on=memeCote3D(c, V3.coteSel);
+    o.traverse(function(x){ if(!x.material || !x.material.color) return;
+      if(x.userData.col0==null) x.userData.col0=x.material.color.getHex();
+      x.material.color.setHex(on ? (x.isSprite ? 0x93C5FD : sombre ? 0x38BDF8 : 0x2563EB) : x.userData.col0); });
+  });
+}
+/* la cote sous le doigt : un trait à moins de 9 px, ou l'étiquette de la longueur */
+function coteSous3D(sx, sy, etiquetteSeule){
+  if(!V3 || !V3.scene) return null;
+  var T=V3.THREE, cam=camera3D(), H=$("v3Canvas").getBoundingClientRect().height||600, best=null, bd=9;
+  V3.scene.updateMatrixWorld(true);
+  V3.scene.children.forEach(function(o){
+    var c=o.userData.cote; if(!c || !o.visible) return;
+    o.traverse(function(x){
+      if(x.isSprite){
+        var e=versEcran3D(new T.Vector3().setFromMatrixPosition(x.matrixWorld)); if(e.z>1) return;
+        var hp = cam.isOrthographicCamera ? x.scale.y/(cam.top-cam.bottom)*H : x.scale.y/(2*Math.tan(cam.fov*Math.PI/360))*H;
+        if(x.material && x.material.sizeAttenuation && !cam.isOrthographicCamera) hp=hp/Math.max(1e-6, cam.position.distanceTo(new T.Vector3().setFromMatrixPosition(x.matrixWorld)));
+        var wp=hp*x.scale.x/x.scale.y, cx=x.center.x, cy=x.center.y, m=4;
+        if(sx>=e.x-cx*wp-m && sx<=e.x+(1-cx)*wp+m && sy>=e.y-(1-cy)*hp-m && sy<=e.y+cy*hp+m){ best=c; bd=-1; }
+        return;
+      }
+      if(etiquetteSeule || !x.isLine || bd<0) return;
+      var pa=x.geometry && x.geometry.attributes.position; if(!pa) return;
+      for(var i=0;i+1<pa.count;i++){
+        var ea=versEcran3D(new T.Vector3().fromBufferAttribute(pa, i).applyMatrix4(x.matrixWorld)), eb=versEcran3D(new T.Vector3().fromBufferAttribute(pa, i+1).applyMatrix4(x.matrixWorld));
+        if(ea.z>1 || eb.z>1) continue;
+        var dx=eb.x-ea.x, dy=eb.y-ea.y, l2=dx*dx+dy*dy, t=l2<1 ? 0 : Math.max(0, Math.min(1, ((sx-ea.x)*dx+(sy-ea.y)*dy)/l2)), d=Math.hypot(ea.x+t*dx-sx, ea.y+t*dy-sy);
+        if(d<bd){ bd=d; best=c; }
+      }
+    });
+  });
+  return best;
+}
+function choisirCote3D(c){
+  V3.coteSel=c||null; marquerCote3D(); majBarre3D(); demander3D();
+  if(c) toast((c.k==="geo" ? "Cote du plan" : "Cote 3D")+" choisie : « Supprimer la cote » ou Suppr pour la retirer.", 2200);
+}
+function supprimerCote3D(){
+  var c=coteValide3D(V3 && V3.coteSel); if(!c) return;
+  garderD();
+  if(c.k==="3d") DESSIN.cotes3d.splice(c.i, 1);
+  else DESSIN.geo=DESSIN.geo.filter(function(o){ return o.id!==c.id; });
+  V3.coteSel=null; enregistrerD(); construire3D(); majBarre3D(); majVisee3D(); rendu3D();
+  toast(c.k==="geo" ? "Cote retirée (du plan aussi)." : "Cote retirée.", 2200);
 }
 /* le repère du point visé, et la cote en cours */
 function majVisee3D(){
@@ -4588,6 +4655,11 @@ function brancherGestes3D(){
     delete D3[e.pointerId];
     if(!Object.keys(D3).length) g=null; else if(g && g.pince) g=null;
     if(!tape || !p || e.type==="pointercancel") return;
+    if(!(coter && V3.coteA)){
+      var cs=coteSous3D(p[0], p[1], coter);
+      if(cs){ dernier=null; choisirCote3D(memeCote3D(cs, V3.coteSel) ? null : cs); return; }
+      if(V3.coteSel) choisirCote3D(null);
+    }
     if(coter){ dernier=null; toucherCote3D(p[0], p[1]); return; }
     /* double-toucher : le pivot passe sur le point touché */
     if(dernier && Date.now()-dernier.t < 400 && Math.hypot(p[0]-dernier.p[0], p[1]-dernier.p[1]) < 30){
@@ -4633,6 +4705,7 @@ function majBarre3D(){
   $("v3CoteAxe").hidden = V3.geste!=="coter";
   Array.prototype.forEach.call($("v3CoteAxe").children, function(b){ b.classList.toggle("on", b.dataset.a===(V3.coteAxe||"libre")); });
   $("v3CotesEff").hidden = !(DESSIN.cotes3d && DESSIN.cotes3d.length);
+  $("v3CoteSupp").hidden = !coteValide3D(V3.coteSel);
   Array.prototype.forEach.call($("v3Axe").children, function(b){ b.classList.toggle("on", b.dataset.a===(V3.axe||"plat")); });
   var tactile = window.matchMedia && window.matchMedia("(hover:none)").matches;
   $("v3Aide").textContent = V3.geste==="coter" && V3.mode!=="visite" ? "Coter : touchez un premier point, puis un second · ils s'accrochent au coin (bleu), au milieu d'une arête (vert), le long d'une arête (violet) · zoomez pour viser juste · Échap annule"
@@ -4647,10 +4720,11 @@ $("v3Fermer").addEventListener("click", fermer3D);
 $("v3Geste").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.geste=b.dataset.g; majBarre3D(); });
 $("v3Axe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.axe=b.dataset.a; majBarre3D(); });
 $("v3CoteAxe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.coteAxe=b.dataset.a; garder("dwg:coteAxe3d", V3.coteAxe); majBarre3D(); majVisee3D(); });
+$("v3CoteSupp").addEventListener("click", supprimerCote3D);
 $("v3CotesEff").addEventListener("click", function(){
   if(!V3 || !(DESSIN.cotes3d||[]).length) return;
   if(!window.confirm("Retirer les "+DESSIN.cotes3d.length+" cote"+(DESSIN.cotes3d.length>1?"s":"")+" posée"+(DESSIN.cotes3d.length>1?"s":"")+" en 3D ?")) return;
-  garderD(); DESSIN.cotes3d=[]; V3.coteA=null; enregistrerD(); construire3D(); majBarre3D(); rendu3D();
+  garderD(); DESSIN.cotes3d=[]; V3.coteA=null; V3.coteSel=null; enregistrerD(); construire3D(); majBarre3D(); rendu3D();
 });
 $("v3Recentrer").addEventListener("click", function(){ if(!V3) return; cadrer3D(V3.mode); rendu3D(); });
 $("v3Plus").addEventListener("click", function(){ zoomBouton3D(1/1.35); });
@@ -4961,9 +5035,8 @@ $("mepEchelle").addEventListener("change", function(){ MEP.echelle=Number(this.v
 $("btPdf").addEventListener("click", ouvrirMep);
 $("mepFermer").addEventListener("click", function(){ $("mep").hidden=true; });
 $("mepAnnuler").addEventListener("click", function(){ $("mep").hidden=true; });
-$("mep").addEventListener("submit", function(e){
-  e.preventDefault();
-  var d=lireMep(), bt=$("mepCreer"); bt.disabled=true; charge("Mise en page…");
+/* le PDF de la mise en page : la même fabrication pour l'aperçu et pour « Créer le PDF » */
+function fabriquerPdf(d){
   /* la perspective, s'il y en a une : rendue à la taille de sa case avant la mise en page */
   var avecP = planche() && vuesMep().indexOf("persp")>=0, imgP=Promise.resolve(null);
   if(avecP){
@@ -4971,19 +5044,38 @@ $("mep").addEventListener("submit", function(e){
     var wpx=Math.min(2400, Math.round(kp.dessin.w/25.4*dpiP)), hpx=Math.min(2400, Math.round(kp.dessin.h/25.4*dpiP));
     imgP=imagePerspective(wpx, hpx).catch(function(){ return null; });
   }
-  Promise.all([chargerJsPdf(), chargerLogo(), chargerSociete(), imgP]).then(function(r){
+  return Promise.all([chargerJsPdf(), chargerLogo(), chargerSociete(), imgP]).then(function(r){
     return new Promise(function(ok){ setTimeout(ok, 30); }).then(function(){ return creerPdf(d, r[1], r[2], r[3]); });
-  }).then(function(res){
-    charge(""); bt.disabled=false; $("mep").hidden=true;
-    var f=null; try{ f=new File([res.blob], res.nom, {type:"application/pdf"}); }catch(er){}
-    if(f && navigator.canShare && navigator.canShare({files:[f]}) && window.matchMedia("(hover:none)").matches){
-      navigator.share({files:[f], title:res.nom}).catch(function(){ telecharger(res.blob, res.nom); });
-    } else telecharger(res.blob, res.nom);
-    toast("PDF "+res.format+" créé au 1/"+res.n+(res.deborde ? " (le plan déborde : seul le centre est imprimé)." : "."), 5000);
-  }).catch(function(er){
-    charge(""); bt.disabled=false;
-    toast(/jsPDF/.test(String(er && er.message)) ? "Le module PDF n'a pas pu se charger : vérifiez la connexion Internet." : "PDF impossible : "+((er && er.message)||er), 6000);
   });
+}
+function erreurPdf(er){
+  toast(/jsPDF/.test(String(er && er.message)) ? "Le module PDF n'a pas pu se charger : vérifiez la connexion Internet." : "PDF impossible : "+((er && er.message)||er), 6000);
+}
+function boutonsMep(actif){ $("mepCreer").disabled=!actif; $("mepApercu").disabled=!actif; }
+/* le PDF fini : partagé (téléphone) ou enregistré */
+function livrerPdf(res){
+  $("mep").hidden=true;
+  var f=null; try{ f=new File([res.blob], res.nom, {type:"application/pdf"}); }catch(er){}
+  if(f && navigator.canShare && navigator.canShare({files:[f]}) && window.matchMedia("(hover:none)").matches){
+    navigator.share({files:[f], title:res.nom}).catch(function(){ telecharger(res.blob, res.nom); });
+  } else telecharger(res.blob, res.nom);
+  toast("PDF "+res.format+" créé au 1/"+res.n+(res.deborde ? " (le plan déborde : seul le centre est imprimé)." : "."), 5000);
+}
+$("mep").addEventListener("submit", function(e){
+  e.preventDefault();
+  var d=lireMep(); boutonsMep(false); charge("Mise en page…");
+  fabriquerPdf(d).then(function(res){ charge(""); boutonsMep(true); livrerPdf(res); })
+    .catch(function(er){ charge(""); boutonsMep(true); erreurPdf(er); });
+});
+/* l'aperçu : le PDF tel qu'il sortira, par-dessus la mise en page restée ouverte ;
+   « Modifier » y revient pour changer un réglage, « Créer le PDF » le garde tel quel */
+$("mepApercu").addEventListener("click", function(){
+  var d=lireMep(); boutonsMep(false); charge("Aperçu…");
+  fabriquerPdf(d).then(function(res){
+    charge(""); boutonsMep(true);
+    if(window.Visionneuse) Visionneuse.pdf(res.blob, "Aperçu — "+res.nom, {retour:"Modifier", action:{texte:"Créer le PDF", faire:function(){ livrerPdf(res); }}});
+    else { var u=URL.createObjectURL(res.blob); window.open(u, "_blank"); setTimeout(function(){ URL.revokeObjectURL(u); }, 60000); }
+  }).catch(function(er){ charge(""); boutonsMep(true); erreurPdf(er); });
 });
 /* le plan, redessiné sur un canvas de la taille de la zone, à l'échelle 1/n */
 function rendrePlan(e, dpi, zone, vue){
