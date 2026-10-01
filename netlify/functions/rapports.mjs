@@ -2232,11 +2232,13 @@ async function traiter(req) {
     if (vu && vu.v === v) return vu.ts;
     let fiche = null;
     try { fiche = JSON.parse(await store.get(f.cle.replace(/\.pdf$/, ".json"), { type: "text" })); } catch { fiche = null; }
-    const date = (fiche && fiche.visite && fiche.visite.date) || f.date || "";
-    const ts = (fiche && fiche.version === 2 && Array.isArray(fiche.ts))
-      ? fiche.ts.filter((t) => !t.fait && String(t.texte || "").trim())
-          .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }))
-      : [];
+    const date = (fiche && fiche.visite && fiche.visite.date) || (fiche && fiche.date) || f.date || "";
+    /* un point de chantier : ses « Demande client », les modifications vues sur place avec le client */
+    const liste = f.type === "point"
+      ? (fiche && Array.isArray(fiche.demandes) ? fiche.demandes.map((t) => ({ ...t, qui: t.qui || fiche.auteur || f.auteur || "" })) : [])
+      : (fiche && fiche.version === 2 && Array.isArray(fiche.ts) ? fiche.ts : []);
+    const ts = liste.filter((t) => !t.fait && String(t.texte || "").trim())
+      .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }));
     CACHE_TS.set(k, { v, ts });
     return ts;
   }
@@ -2297,15 +2299,24 @@ async function traiter(req) {
           date: f.date || "", jours: j });
       }
       const suiviFiche = suivis.find((f) => f.donnees);
+      let tsIci = 0;
       if (suiviFiche) {
         const ts = await tsDuSuivi(suiviFiche);
-        if (ts.length) n.tsChantiers++;
         for (const t of ts) {
-          n.ts++;
+          n.ts++; tsIci++;
           aTraiter.push({ genre: "ts", ...chez, cle: suiviFiche.cle, id: t.id, titre: t.texte, qui: t.qui,
-            depuis: t.depuis, jours: joursDepuis(t.depuis) });
+            depuis: t.depuis, jours: joursDepuis(t.depuis), source: "suivi" });
         }
       }
+      /* les « Demande client » de chaque point de chantier, tant qu'elles ne sont pas chiffrées */
+      for (const pf of visibles.filter((f) => f.type === "point" && f.donnees)) {
+        for (const t of await tsDuSuivi(pf)) {
+          n.ts++; tsIci++;
+          aTraiter.push({ genre: "ts", ...chez, cle: pf.cle, id: t.id, titre: t.texte, qui: t.qui,
+            depuis: t.depuis, jours: joursDepuis(t.depuis), source: "point", origine: pf.titre || "Point de chantier" });
+        }
+      }
+      if (tsIci) n.tsChantiers++;
     }
     /* les points bloquants des suivis, avec leur rappel */
     try {
@@ -2342,12 +2353,13 @@ async function traiter(req) {
     const cle = String(d.cle || "");
     const idx = await lireIndex();
     const f = trouver(idx, cle);
-    if (!f || f.type !== "suivi") return json({ erreur: "Suivi introuvable." }, 404);
+    if (!f || (f.type !== "suivi" && f.type !== "point")) return json({ erreur: "Suivi introuvable." }, 404);
     if (!membreDe(chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const cleFiche = cle.replace(/\.pdf$/, ".json");
     let fiche = null;
     try { fiche = JSON.parse(await store.get(cleFiche, { type: "text" })); } catch { fiche = null; }
-    const t = fiche && Array.isArray(fiche.ts) ? fiche.ts.find((x) => String(x.id) === String(d.id)) : null;
+    const liste = fiche && (f.type === "point" ? fiche.demandes : fiche.ts);
+    const t = Array.isArray(liste) ? liste.find((x) => String(x.id) === String(d.id)) : null;
     if (!t) return json({ erreur: "Travaux supplémentaire introuvable." }, 404);
     t.fait = d.fait !== false;
     if (t.fait) { t.chiffrePar = personne.nom; t.chiffreLe = new Date().toISOString(); }

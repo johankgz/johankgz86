@@ -573,7 +573,7 @@ var ETIQ={ts:"TS À CHIFFRER", commande:"COMMANDE", point:"POINT BLOQUANT", rela
 var MOT_FILTRE={tout:"le plus urgent en haut", ts:"TS à chiffrer seulement", commande:"commandes à saisir seulement",
   point:"points bloquants seulement", relance:"dossiers à relancer seulement"};
 function sousTitre(x){
-  if(x.genre==="ts") return x.client+(x.qui ? " · demandé par "+x.qui.toLowerCase() : "")+(x.depuis ? " le "+frDate(x.depuis) : "");
+  if(x.genre==="ts") return x.client+(x.source==="point" ? " · demande client, "+(x.origine||"point de chantier")+(x.qui ? ", vue par "+x.qui : "") : (x.qui ? " · demandé par "+x.qui.toLowerCase() : ""))+(x.depuis ? " le "+frDate(x.depuis) : "");
   if(x.genre==="commande") return x.client+" · déposée par "+(x.qui||"?")+(x.date ? " le "+frDate(x.date) : "");
   if(x.genre==="point") return x.client+" · rappel du "+frDate(x.quand)+" à "+x.heure+(x.qui ? " · "+x.qui : "");
   return x.client+" · en attente depuis "+pluriel(x.jours, "jour");
@@ -595,7 +595,7 @@ function actionsDe(x, ligne){
   if(x.genre==="ts"){
     acts.appendChild(bouton("Chiffré", function(b){
       occupe(b, true);
-      appel("ts-chiffre", {cle:x.cle, id:x.id}).then(function(){ ligneFaite(ligne, "TS marqué chiffré : il ne passera plus au suivi suivant."); })
+      appel("ts-chiffre", {cle:x.cle, id:x.id}).then(function(){ ligneFaite(ligne, x.source==="point" ? "Demande client marquée chiffrée." : "TS marqué chiffré : il ne passera plus au suivi suivant."); })
         .catch(function(e){ occupe(b, false); toast(e.message); });
     }));
   } else if(x.genre==="commande"){
@@ -628,7 +628,7 @@ function actionsDe(x, ligne){
 }
 function ligneATraiter(x){
   var l=el("div","lg");
-  l.appendChild(el("span","tag t-"+x.genre, ETIQ[x.genre]));
+  l.appendChild(el("span","tag t-"+x.genre, x.genre==="ts" && x.source==="point" ? "TS · DEMANDE CLIENT" : ETIQ[x.genre]));
   var q=el("a","quoi"); q.href=lienChantier(x.ref);
   q.appendChild(el("b", null, x.titre));
   q.appendChild(el("span", null, sousTitre(x)));
@@ -668,9 +668,10 @@ function peindreListe(){
    Un fichier que tableur et logiciel de devis ouvrent tels quels :
    séparateur « ; » et accents compris (comme l'attend Excel en France). */
 $("btnExport").addEventListener("click", function(){
-  var lignes=[["Chantier","Référence","Travaux supplémentaire","Demandé par","Depuis le"]];
+  var lignes=[["Chantier","Référence","Travaux supplémentaire","Demandé par","Depuis le","Origine"]];
   D.aTraiter.filter(function(x){ return x.genre==="ts"; }).forEach(function(x){
-    lignes.push([x.client, x.ref, x.titre, x.qui||"", x.depuis ? dateLocale(x.depuis).split("-").reverse().join("/") : ""]);
+    lignes.push([x.client, x.ref, x.titre, x.qui||"", x.depuis ? dateLocale(x.depuis).split("-").reverse().join("/") : "",
+      x.source==="point" ? "Demande client — "+(x.origine||"point de chantier") : "Suivi de chantier"]);
   });
   var csv=lignes.map(function(l){
     return l.map(function(v){ v=String(v==null?"":v); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(";");

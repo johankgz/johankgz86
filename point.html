@@ -205,6 +205,10 @@ button.act:disabled{opacity:.4}
 .note.vert{background:#E6F4E4;border-color:#CBE6C7}
 .note.bleu{background:#E3EEFC;border-color:#C8DCF6}
 .note.gris{background:#EEF1F5;border-color:#DCE2EA}
+.note.orange{background:#FCEBDD;border-color:#F2D1B6}
+.note .n-puce{flex:0 0 auto;width:22px;height:22px;margin-top:6px;display:flex;align-items:center;justify-content:center;color:#B4621A}
+.note .n-puce svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.note .n-item.chiffre .n-texte{color:var(--ink-3)}
 .note .n-titre{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px;display:flex;
  align-items:baseline;gap:8px}
 .note .n-titre span{font-size:12.5px;font-weight:500;color:var(--ink-3)}
@@ -797,6 +801,13 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <p class="n-vide" id="resteAide">Touchez une tâche pour la corriger, la case pour la cocher, la cloche pour la confier à quelqu'un à une date.</p>
   </div>
 
+  <div class="note orange" id="noteDemandes">
+    <p class="n-titre">Demande client <span id="demandesCompte">les TS du chargé d'affaires</span></p>
+    <div class="n-items" id="listeDemandes"></div>
+    <button type="button" class="n-plus" id="btnPlusDemande"><b>+</b> Ajouter une demande</button>
+    <p class="n-vide" id="demandesAide">Ce que le client demande de modifier, vu en direct avec vous (une prise en plus, un spot déplacé, un autre appareillage) : chaque ligne part au chargé d'affaires, dans ses TS à chiffrer.</p>
+  </div>
+
   <div class="note vert">
     <p class="n-titre">À prendre en compte <span>ce que le bureau doit savoir</span></p>
     <textarea class="n-libre" id="notes" rows="3" placeholder="Accès, matériel manquant, client absent, reprise d'un autre corps d'état."></textarea>
@@ -1065,7 +1076,8 @@ function blank(){
     destinataires:[], dest:"",
     id:uid(),            /* un point = une publication : republier le même point le met à jour */
     numero:"", numAuto:true, objet:"",
-    retires:[]           /* tâches reprises du chantier puis retirées de ce point */
+    retires:[],          /* tâches reprises du chantier puis retirées de ce point */
+    demandes:[]          /* {id, texte} les modifications demandées par le client, vues sur place : les TS du chargé d'affaires */
   };
 }
 /* « Point chantier 2 — Suite RDV sur site » */
@@ -1122,7 +1134,57 @@ function refreshHeader(){
   if(n) r.push(n+" article"+(n>1?"s":""));
   var restantes=(S.taches||[]).filter(function(t){ return !t.fait; }).length;
   if(restantes) r.push(restantes+" à faire");
+  var nd=demandesUtiles().length;
+  if(nd) r.push(nd+" demande"+(nd>1?"s":"")+" client");
   $("hdrRef").textContent=r.join(" · ");
+}
+
+/* ---------- demande client ----------
+   Les modifications que le client demande sur place, vues en direct par le
+   technicien : elles ne sont pas du reste à faire, mais des travaux
+   supplémentaires à chiffrer. Publiées avec le point, elles arrivent au
+   chargé d'affaires dans « TS à chiffrer » (tableau de bord), qui les coche
+   « chiffré ». Elles restent attachées à ce point : le suivant repart à vide. */
+function majCompteDemandes(){
+  var n=demandesUtiles().length;
+  $("demandesCompte").textContent = n ? n+" demande"+(n>1?"s":"")+" · TS pour le chargé d'affaires" : "les TS du chargé d'affaires";
+  $("demandesAide").hidden = n>0;
+}
+function demandesUtiles(){ return (S.demandes||[]).filter(function(d){ return (d.texte||"").trim(); }); }
+function renderDemandes(){
+  if(!Array.isArray(S.demandes)) S.demandes=[];
+  S.demandes.forEach(function(d){ if(!d.id) d.id=uid(); });
+  var host=$("listeDemandes"); if(!host) return; host.textContent="";
+  majCompteDemandes();
+  S.demandes.forEach(function(d, i){
+    var ligne=document.createElement("div"); ligne.className="n-item"+(d.fait ? " chiffre" : "");
+    var puce=document.createElement("span"); puce.className="n-puce"; puce.setAttribute("aria-hidden", "true");
+    puce.innerHTML='<svg viewBox="0 0 24 24"><path d="M12 3.5l8.5 8.5-8.5 8.5L3.5 12z"/><path d="M12 8.5v4.5M12 16v.2"/></svg>';
+    var corps=document.createElement("div"); corps.className="n-corps";
+    var texte=document.createElement("textarea"); texte.rows=1; texte.className="n-texte"; texte.value=d.texte||"";
+    texte.placeholder="Ce que le client demande de modifier";
+    texte.setAttribute("aria-label", "Demande client "+(i+1));
+    function hauteur(){ texte.style.height="auto"; texte.style.height=Math.max(28, texte.scrollHeight)+"px"; }
+    setTimeout(hauteur, 0);
+    texte.addEventListener("input", function(){ d.texte=texte.value; hauteur(); save(); majCompteDemandes(); });
+    texte.addEventListener("change", function(){ renderDemandes(); renderResume(); });
+    texte.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterDemande(i+1); } });
+    corps.appendChild(texte);
+    if(d.fait){ var ch=document.createElement("span"); ch.className="n-depuis"; ch.textContent="chiffré"+(d.chiffrePar ? " par "+d.chiffrePar : ""); corps.appendChild(ch); }
+    var jeter=document.createElement("button"); jeter.type="button"; jeter.className="n-petit n-del"; jeter.textContent="×";
+    jeter.setAttribute("aria-label", "Retirer "+(d.texte||"la demande"));
+    jeter.addEventListener("click", function(){ S.demandes.splice(i, 1); save(); renderDemandes(); renderResume(); refreshHeader(); });
+    ligne.appendChild(puce); ligne.appendChild(corps); ligne.appendChild(jeter);
+    host.appendChild(ligne);
+  });
+}
+function ajouterDemande(position){
+  if(!Array.isArray(S.demandes)) S.demandes=[];
+  var d={id:uid(), texte:""};
+  if(position==null || position>S.demandes.length) S.demandes.push(d); else S.demandes.splice(position, 0, d);
+  save(); renderDemandes();
+  var l=$("listeDemandes").querySelectorAll(".n-texte"), k=position==null ? l.length-1 : position;
+  if(l[k]) l[k].focus();
 }
 
 /* ---------- reste à faire ---------- */
@@ -1414,7 +1476,7 @@ function paintForm(){
     function(o){ return S.etatChantier===o; },
     function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); renderResume(); refreshHeader(); });
   peindreObjets(); peindrePointsAvant();
-  renderTaches(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
+  renderTaches(); renderDemandes(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
 }
 var ETATS_CHANTIER=["Pas commencé","En cours","Presque fini","Terminé","À l'arrêt"];
 var OBJETS_POINT=["Suite RDV sur site","Réunion de chantier","Visite client","Avant réception","Fin de journée"];
@@ -1461,6 +1523,7 @@ function renderResume(){
    ["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
    ["Où j'en suis", S.etatChantier || ((S.resteNote||"").trim() ? "noté" : "à renseigner")],
    ["Reste à faire", S.taches.length ? restantes + " sur " + S.taches.length : "rien"],
+   ["Demande client", demandesUtiles().length ? demandesUtiles().length + " → TS du chargé d'affaires" : "aucune"],
    ["Photos", String(S.photos.length)],
    ["Destinataires", destinataires().join(", ")||"aucun"]].forEach(function(l){
     var d=document.createElement("div");
@@ -2203,6 +2266,23 @@ function buildPdf(){
     });
   }
 
+  var dem=demandesUtiles();
+  if(dem.length){
+    h2("Demande client   (" + dem.length + " modification" + (dem.length>1?"s":"") + " à chiffrer)", 40);
+    dem.forEach(function(d){
+      need(12);
+      /* un losange, comme à l'écran : une demande, pas une tâche */
+      doc.setDrawColor(180, 98, 26); doc.setLineWidth(0.45);
+      doc.line(M+3, y-3.9, M+5, y-1.9); doc.line(M+5, y-1.9, M+3, y+0.1); doc.line(M+3, y+0.1, M+1, y-1.9); doc.line(M+1, y-1.9, M+3, y-3.9);
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); setText(INK);
+      var ld=doc.splitTextToSize(d.texte.trim(), CW-12);
+      for(var k=0;k<ld.length;k++){ if(k) need(6); doc.text(ld[k], M+8, y); y+=5; }
+      y+=2;
+    });
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
+    need(6); doc.text("Vues sur place avec le client. Transmises au chargé d'affaires pour chiffrage (TS).", M+1, y); setText(INK); y+=6;
+  }
+
   if((S.notes||"").trim()){
     h2("À prendre en compte", 35);
     encadre(S.notes);
@@ -2318,6 +2398,7 @@ function bindAll(){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
   });
   $("btnPlusTache").addEventListener("click", function(){ ajouterTache(); });
+  $("btnPlusDemande").addEventListener("click", function(){ ajouterDemande(); });
 
   $("btnPhoto").addEventListener("click", function(){ $("filePhoto").click(); });
   $("filePhoto").addEventListener("change", function(){
@@ -2353,6 +2434,7 @@ function bindAll(){
         return {id:t.id, texte:t.texte, fait:!!t.fait, prio:t.prio||"", qui:t.qui||"", quand:t.quand||"", maj:t.maj};
       }),
       retires: (S.retires||[]).slice(),
+      demandes: demandesUtiles().length,
       chantier: refAffaire(), client: S.chantier.client, adresse: S.chantier.adresse,
       type: APP_TYPE, date: S.date, visite: String(S.numero||"").trim(),
       etape: etatCourt(),
