@@ -1098,6 +1098,7 @@ function chercher(sx, sy){
   if(typeof DESSIN!=="undefined" && DESSIN.murs.length){
     pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-pt[0], q[1]-pt[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], genre:1, acc:true}; } });
   }
+  if(typeof SYMB!=="undefined" && MODE==="cote") pointsSymboles().forEach(function(q){ var d=Math.hypot(q[0]-pt[0], q[1]-pt[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], genre:3, acc:true}; } });
   return best || {pt:pt, acc:false};
 }
 function contraindre(a, b){
@@ -2148,6 +2149,8 @@ function etiquette(c, x, y, t){
   c.fillStyle="#FDBA74"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(t, x, y); c.restore();
 }
 /* ---------- l'accrochage du dessin : bouts et angles des murs, puis la grille du centimètre ---------- */
+/* le centre des symboles posés : on cote jusqu'à l'axe d'une liseuse, d'une prise, d'un spot */
+function pointsSymboles(){ return SYMB.map(function(o){ return [o.x, o.y]; }); }
 function pointsDessin(){
   var out=[];
   var vue=vueD();
@@ -2169,6 +2172,8 @@ function chercherD(sx, sy){
   if(!ACCR_D) return {pt:grille10(p), acc:false};
   var best=null, bd=16/V.k;
   pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:1}; } });
+  /* le centre d'un symbole, pour une cote ou un tracé (pas pour un mur) */
+  if(vueD()==="dessus" && !/^(mur|cloison|piece|porte|fenetre)$/.test(OUTIL_D||"")) pointsSymboles().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:3}; } });
   if(best) return best;
   bd=14/V.k;
   var plat=vueD()==="dessus";
@@ -4553,6 +4558,13 @@ function accroches3D(){
   var T=V3.THREE, coins=[], aretes=[], vu={};
   V3.scene.updateMatrixWorld(true);
   V3.scene.traverse(function(o){
+    /* un symbole (liseuse, prise, spot…) : son centre accroche, comme un coin, plaque au mur ou pastille sur pied */
+    var src=o.userData && o.userData.src;
+    if(src && src.t==="symb" && o.visible && (o.isSprite || (o.isMesh && o.geometry && /^(Plane|Circle)Geometry$/.test(o.geometry.type)))){
+      var cq=new T.Vector3().setFromMatrixPosition(o.matrixWorld), kq=cq.x.toFixed(4)+","+cq.y.toFixed(4)+","+cq.z.toFixed(4);
+      if(!vu[kq]){ vu[kq]=1; coins.push(cq); }
+      if(o.isSprite) return;
+    }
     if(!o.isMesh || o.isInstancedMesh || !o.visible || o===V3.pivot || !o.geometry || !o.geometry.attributes.position) return;
     if(o.name==="plafond" || o.name==="plafond-voile") return;          /* le plafond n'est qu'un décor : on cote les murs */
     if(o.material && o.material.transparent && o.material.opacity<0.4) return;
