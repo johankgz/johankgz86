@@ -378,7 +378,8 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btDupliquerD" type="button" hidden>Dupliquer</button>
     <button class="bt" id="btTournerD" type="button" hidden>Tourner 90°</button>
     <span class="groupe" id="grpHautD" hidden><span class="lab" id="labHautD">Hauteur</span><input class="champ-cm" id="dsHaut" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab" id="labAllD" hidden>allège</span><input class="champ-cm" id="dsAllege" type="text" inputmode="decimal" aria-label="Hauteur d'allège en cm" hidden><span class="lab">cm</span></span>
-    <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span></span>
+    <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span>
+      <span class="lab">Angle</span><input class="champ-rep" id="dsAngle" type="text" inputmode="decimal" aria-label="Angle du mur en degrés" style="width:58px"><span class="lab">°</span></span>
     <button class="bt" id="btDepuisD" type="button" title="Le prochain point à une distance exacte d'un point">Depuis un point</button>
     <button class="bt" id="btTerminer" type="button" hidden>Terminer le mur</button>
     <button class="bt" id="btEnchainerD" type="button" aria-pressed="false" title="Garder l'outil après chaque élément (ou maintenir Ctrl)">Enchaîner</button>
@@ -1498,7 +1499,7 @@ function telecharger(blob, nom){
    un mur (position le long du mur, largeur, sens d'ouverture). Les murs
    sont dessinés pleins, les ouvertures y découpent leur passage. Tout
    sort au 1/50 (ou à l'échelle choisie) dans le PDF, et en DXF. */
-var DESSIN={murs:[], ouv:[], textes:[]}, DESSIN_CLE="", HISTO_D=[], OUTIL_D=lire("dwg:outil","mur"), D_PT=null, D_SEL=null, D_SOURIS=null, ORTHO_D=lire("dwg:orthoD","1")!=="0", IMPRIME=false;
+var DESSIN={murs:[], ouv:[], textes:[]}, DESSIN_CLE="", HISTO_D=[], OUTIL_D=lire("dwg:outil","mur"), D_PT=null, D_SEL=null, D_SOURIS=null, ANGLE_D=({"0":"libre","45":"45"})[lire("dwg:orthoD","1")]||"90", ORTHO_D=ANGLE_D!=="libre", IMPRIME=false;
 var EP_MUR=Number(lire("dwg:epMur","200"))||200, EP_CLOISON=70;
 /* la hauteur des prochains murs et cloisons (mm) ; 0 : jusqu'au plafond */
 var H_MUR=Number(lire("dwg:hMur","0"))||0, H_CLOISON=Number(lire("dwg:hCloison","0"))||0;
@@ -1545,11 +1546,56 @@ function trous(m){
   DESSIN.ouv.forEach(function(o){ if(o.mur!==m.id) return; var c=o.t*x.L; out.push([c-o.l/2, c+o.l/2, o]); });
   return out.sort(function(p,q){ return p[0]-q[0]; });
 }
+/* Les bouts d'un mur, côté par côté : là où il rejoint un autre mur, chacun
+   de ses deux bords s'arrête sur la face du mur rejoint. À angle droit, c'est
+   le prolongement d'une demi-épaisseur ; en biais (un pan coupé à 45°, une
+   cloison en diagonale), les angles se ferment en onglet, sans pointe.
+   Rend, pour le début et la fin, [abscisse du bord -ep/2, du bord +ep/2]. */
+function finsMur(m){
+  var x=axes(m), e=m.ep/2;
+  function bout(P, auDebut){
+    var res=null, ref=auDebut ? 0 : x.L;
+    DESSIN.murs.forEach(function(o){
+      if(o===m) return;
+      if(distSeg(P, o.a, o.b).d > o.ep/2+1) return;
+      var xo=axes(o), cr=x.u[0]*xo.u[1]-x.u[1]*xo.u[0];
+      if(Math.abs(cr)<0.05) return;                       /* dans le prolongement : rien à fermer */
+      /* à l'angle (le bout de l'autre mur) : jusqu'à sa face la plus lointaine ;
+         en T (au milieu de l'autre) : jusqu'à son axe */
+      var coin = lng(sub(P, o.a))<=o.ep/2+1 || lng(sub(P, o.b))<=o.ep/2+1;
+      var faces = coin ? [-o.ep/2, o.ep/2] : [0];
+      var ss=[-e, e].map(function(off){
+        var meilleur=null;
+        faces.forEach(function(oo){
+          var w=[o.a[0]+xo.n[0]*oo-(m.a[0]+x.n[0]*off), o.a[1]+xo.n[1]*oo-(m.a[1]+x.n[1]*off)];
+          var t=(w[0]*xo.u[1]-w[1]*xo.u[0])/cr;
+          if(meilleur===null || (auDebut ? t<meilleur : t>meilleur)) meilleur=t;
+        });
+        return meilleur;
+      });
+      /* un angle très aigu ferait une longue pointe : on s'en tient à la demi-épaisseur */
+      if(ss.some(function(t){ return Math.abs(t-ref) > 3*Math.max(m.ep, o.ep); })) ss=[ref+(auDebut?-e:e), ref+(auDebut?-e:e)];
+      res = !res ? ss : res.map(function(v, i){ return auDebut ? Math.min(v, ss[i]) : Math.max(v, ss[i]); });
+    });
+    return res || [ref, ref];
+  }
+  return {a:bout(m.a, true), b:bout(m.b, false)};
+}
+/* les morceaux pleins d'un mur, entre ses ouvertures : [début, fin] sur l'axe ;
+   le premier et le dernier portent leurs bouts côté par côté (aBords, bBords) */
 function morceaux(m){
-  var x=axes(m), s0=touche(m, m.a) ? -m.ep/2 : 0, s1=x.L+(touche(m, m.b) ? m.ep/2 : 0), out=[], cur=s0;
-  trous(m).forEach(function(g){ if(g[0]>cur) out.push([cur, Math.min(g[0], s1)]); cur=Math.max(cur, g[1]); });
-  if(s1>cur) out.push([cur, s1]);
+  var x=axes(m), f=finsMur(m), s0=Math.min(f.a[0], f.a[1]), s1=Math.max(f.b[0], f.b[1]), out=[], cur=s0, premier=true;
+  trous(m).forEach(function(g){
+    if(g[0]>cur){ var pc=[cur, Math.min(g[0], s1)]; if(premier) pc.aBords=f.a; out.push(pc); }
+    premier=false; cur=Math.max(cur, g[1]);
+  });
+  if(s1>cur){ var der=[cur, s1]; if(premier) der.aBords=f.a; der.bBords=f.b; out.push(der); }
   return out;
+}
+/* les quatre coins d'un morceau de mur, bouts en onglet compris */
+function quadMorceau(m, pc){
+  var e=m.ep/2, a=pc.aBords || [pc[0], pc[0]], b=pc.bBords || [pc[1], pc[1]];
+  return [surMur(m, a[0], -e), surMur(m, b[0], -e), surMur(m, b[1], e), surMur(m, a[1], e)];
 }
 /* ---------- à l'écran (et à l'impression) ---------- */
 function peindreDessin(c){
@@ -1582,7 +1628,7 @@ function peindreDessin(c){
     var sel = D_SEL && D_SEL.t==="mur" && D_SEL.id===m.id;
     c.fillStyle = sel ? orange : coulMur;
     morceaux(m).forEach(function(pc){
-      var q=[surMur(m,pc[0],-m.ep/2), surMur(m,pc[1],-m.ep/2), surMur(m,pc[1],m.ep/2), surMur(m,pc[0],m.ep/2)].map(E);
+      var q=quadMorceau(m, pc).map(E);
       c.beginPath(); c.moveTo(q[0][0],q[0][1]); for(var i=1;i<4;i++) c.lineTo(q[i][0],q[i][1]); c.closePath(); c.fill();
     });
   });
@@ -1633,7 +1679,9 @@ function peindreDessin(c){
       var fin2=finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
       var P1=E(fin2); c.strokeStyle="rgba(251,146,60,.8)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
       c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke();
-      etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(sub(fin2, D_PT))));
+      var dg=sub(fin2, D_PT), angTxt="";
+      if(lng(dg)>0 && Math.abs(dg[0])>1e-6 && Math.abs(dg[1])>1e-6) angTxt="  ·  "+String(angleMur({a:[0,0], b:dg})).replace(".", ",")+"°";
+      etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(dg))+angTxt);
     }
   }
   if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(axes(ms).L)); } }
@@ -1695,7 +1743,8 @@ function chercherD(sx, sy){
 function finMur(a, cible){
   var b=contraindreD(a, cible.pt);
   if(!ACCR_D || cible.acc || !ORTHO_D) return b;
-  var tol=12/V.k, hor=Math.abs(b[1]-a[1])<1e-6, meilleur=null, bd=tol;
+  var tol=12/V.k, hor=Math.abs(b[1]-a[1])<1e-6, ver=Math.abs(b[0]-a[0])<1e-6, meilleur=null, bd=tol;
+  if(!hor && !ver) return b;                     /* en diagonale (45°) : pas d'alignement */
   pointsDessin().forEach(function(q){
     var d = hor ? Math.abs(q[0]-b[0]) : Math.abs(q[1]-b[1]);
     if(d<bd){ bd=d; meilleur=q; }
@@ -1703,10 +1752,20 @@ function finMur(a, cible){
   if(meilleur){ if(hor) b=[meilleur[0], b[1]]; else b=[b[0], meilleur[1]]; }
   return b;
 }
+/* Ortho 90° : horizontal ou vertical ; Ortho 45° : aussi les diagonales ;
+   Angle libre : là où l'on touche */
 function contraindreD(a, b){
   if(!ORTHO_D) return b;
+  if(ANGLE_D==="45"){
+    var d=sub(b, a), L=lng(d); if(!L) return b;
+    var ang=Math.round(Math.atan2(d[1], d[0])/(Math.PI/4))*(Math.PI/4), u=[Math.cos(ang), Math.sin(ang)];
+    var t=d[0]*u[0]+d[1]*u[1];
+    if(Math.abs(u[0])<1e-9) u[0]=0; if(Math.abs(u[1])<1e-9) u[1]=0;
+    return [a[0]+u[0]*t, a[1]+u[1]*t];
+  }
   return Math.abs(b[0]-a[0]) >= Math.abs(b[1]-a[1]) ? [b[0], a[1]] : [a[0], b[1]];
 }
+var NOMS_ANGLE={"90":"Ortho 90°", "45":"Ortho 45°", "libre":"Angle libre"};
 /* ---------- les gestes du dessin ---------- */
 function toucherD(sx, sy, force){
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
@@ -1852,6 +1911,7 @@ function majDessin(){
     if(fen && document.activeElement!==$("dsAllege")) $("dsAllege").value=cm(allegeOuv(o));
   }
   if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=String(Math.round(axes(o).L*DESSIN_MM)/10).replace(".",",");
+  if(t==="mur" && document.activeElement!==$("dsAngle")) $("dsAngle").value=String(angleMur(o)).replace(".",",");
   $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre");
   $("btMain").hidden = !(t==="ouv" && o.type==="porte");
   $("btRenommer").hidden = t!=="texte" && t!=="mob" && !(t==="geo" && o.t==="gtexte");
@@ -1865,6 +1925,8 @@ function majDessin(){
   $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : "Terminer le mur";
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT && !GEO_EC;
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
+  $("btOrthoD").textContent=NOMS_ANGLE[ANGLE_D];
+  $("btOrthoD").title="Touchez pour passer de Ortho 90° (droit) à Ortho 45° (et les diagonales) puis à Angle libre";
   $("btAccrD").classList.toggle("on", ACCR_D); $("btAccrD").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDxfD").disabled = dessinVide() && !SYMB.length;
   $("btDepuisD").hidden = OUTIL_D==="choisir";
@@ -1960,6 +2022,18 @@ $("dsLong").addEventListener("change", function(){
   modifierSel(function(o){ var x=axes(o); o.b=[o.a[0]+x.u[0]*cm*10/DESSIN_MM, o.a[1]+x.u[1]*cm*10/DESSIN_MM]; });
 });
 $("dsLong").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+/* l'angle d'un mur, en degrés depuis l'horizontale (sens inverse des aiguilles) : 0 à 179,9 */
+function angleMur(o){ var x=axes(o), a=Math.atan2(x.u[1], x.u[0])*180/Math.PI; a=((a%180)+180)%180; return Math.round(a*10)/10; }
+$("dsAngle").addEventListener("change", function(){
+  var deg=parseFloat(String(this.value).replace(",", ".")); if(!isFinite(deg)) return;
+  /* le mur pivote autour de son début ; s'il pointait vers la gauche, il garde ce sens */
+  modifierSel(function(o){
+    var x=axes(o), r=deg*Math.PI/180, u=[Math.cos(r), Math.sin(r)];
+    if(u[0]*x.u[0]+u[1]*x.u[1] < 0) u=[-u[0], -u[1]];
+    o.b=[o.a[0]+u[0]*x.L, o.a[1]+u[1]*x.L];
+  });
+});
+$("dsAngle").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("dsHaut").addEventListener("change", function(){
   var v=String(this.value).trim(), c=parseFloat(v.replace(",", ".")), mm = c>0 ? Math.round(c*10) : 0;
   var ch=D_SEL && D_SEL.t;
@@ -1987,7 +2061,12 @@ $("btSuppD").addEventListener("click", supprimerD);
 $("btDefaireD").addEventListener("click", defaireD);
 $("btTerminer").addEventListener("click", function(){ if(GEO_EC){ terminerGeo(); return; } D_PT=null; majDessin(); });
 $("btAccrD").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majDessin(); });
-$("btOrthoD").addEventListener("click", function(){ ORTHO_D=!ORTHO_D; garder("dwg:orthoD", ORTHO_D?"1":"0"); majDessin(); });
+$("btOrthoD").addEventListener("click", function(){
+  ANGLE_D = ANGLE_D==="90" ? "45" : ANGLE_D==="45" ? "libre" : "90"; ORTHO_D = ANGLE_D!=="libre";
+  garder("dwg:orthoD", ANGLE_D==="90" ? "1" : ANGLE_D==="45" ? "45" : "0");
+  toast(ANGLE_D==="90" ? "Ortho 90° : murs et traits droits, horizontaux ou verticaux." : ANGLE_D==="45" ? "Ortho 45° : droits, ou en diagonale à 45°." : "Angle libre : le mur suit le doigt, dans toutes les directions.");
+  majDessin();
+});
 $("btDxfD").addEventListener("click", function(){ exporterDxf(); });
 /* ---------- le dessin technique : traits, formes, flèches, hachures, cotes ----------
    Pour dessiner un meuble, un détail, un principe : des formes simples
@@ -2360,7 +2439,8 @@ function directionSaisie(dern){
   if(D_SOURIS && lng(sub(D_SOURIS.pt, dern))>1e-9) d=sub(D_SOURIS.pt, dern);
   else if(ec && ec.pts.length>=2) d=sub(dern, ec.pts[ec.pts.length-2]);
   else d=[1,0];
-  if(ORTHO_D) d = Math.abs(d[0])>=Math.abs(d[1]) ? [d[0]>=0?1:-1, 0] : [0, d[1]>=0?1:-1];
+  if(ORTHO_D) d = sub(contraindreD([0,0], d), [0,0]);
+  if(!lng(d)) d=[1,0];
   return unite(d);
 }
 function saisirGeo(){
@@ -3162,7 +3242,7 @@ function dxfDessin(){
   function arcD(ctr, r, a0, a1, calque){ var d0=a0*180/Math.PI, d1=a1*180/Math.PI; if(d1<d0){ var t=d0; d0=d1; d1=t; } g(0,"ARC", 8,calque, 10,ctr[0],20,ctr[1],30,0, 40,r, 50,d0, 51,d1); }
   DESSIN.murs.forEach(function(m){
     morceaux(m).forEach(function(pc){
-      var p1=surMur(m,pc[0],-m.ep/2), p2=surMur(m,pc[1],-m.ep/2), p3=surMur(m,pc[1],m.ep/2), p4=surMur(m,pc[0],m.ep/2);
+      var qm=quadMorceau(m, pc), p1=qm[0], p2=qm[1], p3=qm[2], p4=qm[3];
       g(0,"SOLID", 8,"MURS", 10,p1[0],20,p1[1],30,0, 11,p2[0],21,p2[1],31,0, 12,p4[0],22,p4[1],32,0, 13,p3[0],23,p3[1],33,0);
       g(0,"POLYLINE", 8,"MURS", 66,1, 10,0,20,0,30,0, 70,1);
       [p1,p2,p3,p4].forEach(function(q){ g(0,"VERTEX", 8,"MURS", 10,q[0],20,q[1],30,0); });
@@ -3402,6 +3482,14 @@ function construire3Dmm(ed){
   var matTranche=new THREE.LineBasicMaterial({color:0x5B6470, transparent:true, opacity:V3.transp ? 0.5 : 0.8});
   var matVitre=new THREE.MeshStandardMaterial({color:0x9BD3F0, transparent:true, opacity:0.35, roughness:0.1, depthWrite:false});
   var matCadre=new THREE.MeshStandardMaterial({color:0x6B7280, roughness:0.6});
+  function prismeMur(quad, z0, z1){
+    if(z1-z0<1) return;
+    var shp=new THREE.Shape(quad.map(function(q){ return new THREE.Vector2(q[0]/1000, q[1]/1000); }));
+    var g=new THREE.ExtrudeGeometry(shp, {depth:(z1-z0)/1000, bevelEnabled:false});
+    var me=new THREE.Mesh(g, matMur); me.rotation.x=-Math.PI/2; me.position.y=z0/1000; sc.add(me);
+    V3.murs3.push(me);
+    var ar=new THREE.LineSegments(new THREE.EdgesGeometry(g), matTranche); ar.rotation.copy(me.rotation); ar.position.copy(me.position); sc.add(ar);
+  }
   function bloc(m, s0, s1, z0, z1, mat, epais, decal){
     if(s1-s0<1 || z1-z0<1) return;
     var x=axes(m), c=surMur(m, (s0+s1)/2, decal||0), ep=(epais||m.ep);
@@ -3414,7 +3502,11 @@ function construire3Dmm(ed){
   DESSIN.murs.forEach(function(m){
     /* chaque mur a sa hauteur (un muret, une cloison à mi-hauteur), sinon il monte au plafond */
     var hm=Math.min(hsp, m.h || hsp);
-    morceaux(m).forEach(function(pc){ bloc(m, pc[0], pc[1], 0, hm, matMur); });
+    morceaux(m).forEach(function(pc){
+      /* un bout en onglet (mur en biais) : un prisme à la forme exacte du plan */
+      var biais=(pc.aBords && Math.abs(pc.aBords[0]-pc.aBords[1])>1) || (pc.bBords && Math.abs(pc.bBords[0]-pc.bBords[1])>1);
+      if(biais) prismeMur(quadMorceau(m, pc), 0, hm); else bloc(m, pc[0], pc[1], 0, hm, matMur);
+    });
     trous(m).forEach(function(g){
       var o=g[2], al=Math.min(allegeOuv(o), hm), haut=Math.max(al, Math.min(hm, hautOuv(o)));
       bloc(m, g[0], g[1], haut, hm, matMur);                                    /* le linteau */
@@ -4385,7 +4477,7 @@ redim(); majBas();
 /* pour les essais */
 window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(SYMB.map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, etirer:etirerS(o)}; })); },
-  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater};
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin};
 })();
 </script>
 </body>
