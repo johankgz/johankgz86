@@ -155,5 +155,5 @@
     if(installee()) pdf(blob, nom); else telecharger(blob, nom);
   }
 
-  window.Visionneuse = {installee:installee, pdf:pdf, fichier:fichierPdf, fermer:function(){ fermer(false); }};
+  window.Visionneuse = {installee:installee, pdf:pdf, fichier:fichierPdf, fermer:function(){ fermer(false); }, pdfjs:chargerPdfJs};
 })();

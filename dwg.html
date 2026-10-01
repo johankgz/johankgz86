@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
 <script src="./symboles-elec.js?v=20261002b"></script>
-<script src="./visionneuse.js?v=20261001a"></script>
+<script src="./visionneuse.js?v=20261001b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="apple-touch-icon" href="/icone-180.png">
@@ -262,7 +262,7 @@ body.clair #scene{background:#FFFFFF}
   <button class="bt" id="btPdf" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M9 13h6M9 16.5h6"/></svg><span class="lib">PDF</span></button>
   <button class="bt" id="btImage" type="button" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3.5v11M7.5 10l4.5 4.5 4.5-4.5M4.5 17v3.5h15V17"/></svg><span class="lib">Image</span></button>
   <button class="bt" id="btPlus" type="button" aria-label="Plus d'actions" aria-haspopup="true" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.3"/><circle cx="12" cy="12" r="1.3"/><circle cx="19" cy="12" r="1.3"/></svg></button>
-  <input type="file" id="fichier" accept=".dwg,.dxf,application/acad,image/vnd.dwg" hidden>
+  <input type="file" id="fichier" accept=".dwg,.dxf,.pdf,.png,.jpg,.jpeg,.webp,application/acad,image/vnd.dwg,application/pdf,image/*" hidden>
 </div>
 <div class="plus-menu" id="plusMenu" hidden role="menu">
   <button class="bt" type="button" data-cible="btCalques" role="menuitem"><span class="lib">Calques</span></button>
@@ -273,8 +273,8 @@ body.clair #scene{background:#FFFFFF}
 <div class="accueil" id="accueil">
   <div class="depot" id="depot">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M7.5 16.5h9M7.5 16.5v-2M16.5 16.5v-2M9 12.5h6"/></svg>
-    <h1>Ouvrir un plan DWG</h1>
-    <p>Choisissez un fichier .dwg (AutoCAD R14 à 2018) ou glissez-le ici. Il est lu sur cet appareil, rien n'est envoyé sur le site. Touchez ensuite deux points du plan pour prendre une cote.</p>
+    <h1>Ouvrir un plan DWG ou PDF</h1>
+    <p>Choisissez un fichier .dwg (AutoCAD R14 à 2018), un plan en PDF ou une image, ou glissez-le ici. Un PDF se met à l'échelle sur une longueur connue (Étalonner). Il est lu sur cet appareil, rien n'est envoyé sur le site. Touchez ensuite deux points du plan pour prendre une cote.</p>
     <button class="bt or" id="btOuvrir2" type="button">Choisir un fichier</button>
     <div class="ou">ou</div>
     <button class="bt" id="btVierge" type="button">Partir d'une page vierge</button>
@@ -518,9 +518,10 @@ var $=function(i){ return document.getElementById(i); };
 var LIB_URL="https://cdn.jsdelivr.net/npm/@mlightcad/libredwg-web@0.7.14/dist/libredwg-web.js";
 var LIB=null;
 function toast(t, duree){ var e=$("toast"); e.textContent=t; e.style.bottom=(basH()+16)+"px"; e.hidden=false; clearTimeout(toast.t); toast.t=setTimeout(function(){ e.hidden=true; }, duree||3200); }
-var SOURCES={"vierge":"page vierge, en mm", "etalon":"étalonné", "fichier-cotes":"fichier et cotes du plan", "fichier":"d'après le fichier", "cotes":"d'après les cotes du plan", "taille":"d'après la taille du plan", "suppose":"supposé", "choisi":"choisi"};
+var SOURCES={"pdf-echelle":"d'après l'échelle écrite sur le PDF", "vierge":"page vierge, en mm", "etalon":"étalonné", "fichier-cotes":"fichier et cotes du plan", "fichier":"d'après le fichier", "cotes":"d'après les cotes du plan", "taille":"d'après la taille du plan", "suppose":"supposé", "choisi":"choisi"};
 function majTitre(){
   if(!PLAN) return;
+  if(PLAN.pdf){ var n=echellePdfDe(DESSIN_MM), nr=DESSIN_MM/PT_MM; $("sousTitre").textContent=PLAN.nom+" · "+(n ? "au 1/"+n : "≈ 1/"+(nr>=10 ? Math.round(nr) : nr.toLocaleString("fr-FR",{maximumFractionDigits:2})))+" ("+(SOURCES[ECHELLE_SRC]||"")+")"; return; }
   $("sousTitre").textContent=PLAN.nom+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")";
 }
 function charge(t){ $("chargementTxt").textContent=t; $("chargement").hidden=!t; }
@@ -791,7 +792,10 @@ function construire(db){
     }
   }
   ents.forEach(function(e){ dessiner(e, [1,0,0,1,0,0], null, 0); });
-
+  return finirPlan(P);
+}
+/* l'étendue, la grille d'accrochage, le nombre de tracés : commun au DWG, au PDF et à l'image */
+function finirPlan(P){
   /* l'étendue : on écarte les objets égarés très loin du plan */
   if(P.xs.length){
     var xs=P.xs.slice().sort(function(a,b){ return a-b; }), ys=P.ys.slice().sort(function(a,b){ return a-b; });
@@ -941,8 +945,11 @@ function peindre(){
   c2.setTransform(DPR*V.k,0,0,-DPR*V.k,DPR*V.x,DPR*V.y);
   c2.lineWidth=1/V.k; c2.lineJoin="round"; c2.lineCap="round";
   var aPlatP=vueD()==="dessus";
+  if(aPlatP && PLAN.fond && !(PLAN.calques["Image du plan"] && !PLAN.calques["Image du plan"].visible)){
+    c2.save(); c2.translate(0, PLAN.fondH); c2.scale(1, -1); c2.imageSmoothingEnabled=true; c2.drawImage(PLAN.fond, 0, 0, PLAN.fondW, PLAN.fondH); c2.restore();
+  }
   if(aPlatP) for(var k in PLAN.groupes){
-    var g=PLAN.groupes[k]; if(PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible) continue;
+    var g=PLAN.groupes[k]; if(g.cache || (PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible)) continue;
     var col=couleurTrait(g.couleur);
     if(g.pleins){ c2.globalAlpha=0.35; c2.fillStyle=col; c2.fill(g.pleins); c2.globalAlpha=1; }
     c2.strokeStyle=col; c2.stroke(g.chemin);
@@ -5353,10 +5360,217 @@ function chargerLib(){
   charge("Chargement du lecteur DWG… (9 Mo la première fois)");
   return import(LIB_URL).then(function(m){ return m.LibreDwg.create().then(function(l){ LIB={m:m, l:l}; return LIB; }); });
 }
+/* un plan lu (DWG, PDF ou image) devient le plan en cours : son échelle (étalonnée la dernière fois, sinon d), ses symboles et son dessin gardés sur l'appareil */
+function installerPlan(P, f, d){
+  PLAN=P; COTES=[]; A_PT=null; VUE_D="dessus";
+  FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
+  SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
+  DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; GRP=null; D_PT=null;
+  try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
+  try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
+  SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
+  var garde=Number(lire(FICHIER_CLE, "0"));
+  if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
+  else { DESSIN_MM=d.mm; ECHELLE_SRC=d.source; }
+  PLAN.nom=f.name;
+  $("accueil").hidden=true; $("btCalques").disabled=false; $("btImage").disabled=false; $("btSymb").disabled=false; $("btPdf").disabled=false; $("btDessin").disabled=false; $("btVue3d").disabled=false;
+  basculerMode(SYMB.length ? "symb" : "cote");
+  majTitre(); remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
+}
+/* ---------- un plan en PDF (ou en image) ----------
+   Le PDF d'un architecte est le plus souvent vectoriel : ses traits sont lus un à un
+   (pdf.js), avec leurs bouts, leurs milieux et leurs coins pour l'accrochage, comme un DWG.
+   L'unité est le point du PDF (1/72 de pouce sur le papier) : au 1/50, 1 point vaut
+   0,3528 × 50 = 17,64 mm. L'échelle écrite sur le plan (« Échelle 1/50 ») donne un
+   premier réglage ; une longueur connue, cotée puis « Étalonner », donne le vrai.
+   Un PDF scanné (sans traits) ou une photo de plan s'affiche en fond : on cote alors
+   sans accrochage, au zoom. */
+var PT_MM=25.4/72;
+var ECHELLES_PLAN=[1, 2, 5, 10, 20, 25, 50, 75, 100, 125, 150, 200, 250, 500, 1000, 2000];
+function chargerPdfJs(){
+  if(window.Visionneuse && Visionneuse.pdfjs) return Visionneuse.pdfjs();
+  return Promise.reject(new Error("pdf.js"));
+}
+function echelleEcrite(txt){
+  var t=String(txt||"").replace(/\s+/g, " ");
+  var m=t.match(/[ée]ch(?:elle|\.)?\s*:?\s*1\s*[\/:]\s*(\d{1,4})\b/i) || t.match(/(?:^|[^\d,.])1\s*\/\s*(20|25|50|75|100|125|150|200|250|500|1000)(?![\d,.])/);
+  var n=m ? Number(m[1]) : 0;
+  return n>=1 && n<=5000 ? n : 0;
+}
+/* au 1/n exact quand l'étalonnage d'un PDF en tombe à moins de 1 % */
+function echellePdfDe(mm){ var n=mm/PT_MM; for(var i=0;i<ECHELLES_PLAN.length;i++) if(Math.abs(Math.log(n/ECHELLES_PLAN[i]))<0.01) return ECHELLES_PLAN[i]; return 0; }
+function couleurPdf(c){
+  /* le noir du papier devient le blanc du fond sombre (et redevient noir en fond clair) ; le blanc, invisible sur le papier, est écarté */
+  var r=0, g=0, b=0;
+  if(typeof c==="string" && /^#[0-9a-f]{6}$/i.test(c)){ r=parseInt(c.substr(1,2),16); g=parseInt(c.substr(3,2),16); b=parseInt(c.substr(5,2),16); }
+  else if(c && c.length>=3){ r=c[0]; g=c[1]; b=c[2]; }
+  var l=(r*0.3+g*0.59+b*0.11);
+  if(l>235) return null;
+  if(Math.max(r,g,b)-Math.min(r,g,b)<40) return "#FFFFFF";
+  function h(x){ return ("0"+Math.round(x).toString(16)).slice(-2); }
+  return "#"+h(r)+h(g)+h(b);
+}
+function construirePdf(page, lib){
+  var vp=page.getViewport({scale:1}), W0=vp.width, H0=vp.height, vt=vp.transform, OPS=lib.OPS;
+  var P={groupes:{}, textes:[], calques:{}, pts:[], minx:0, miny:0, maxx:W0, maxy:H0, xs:[0, W0], ys:[0, H0], cotesPlan:[], pdf:true, segments:0, images:0, largeur:W0, hauteur:H0};
+  P.calques["PDF"]={nom:"PDF", couleur:"#FFFFFF", visible:true, n:0};
+  function mul(a, b){ return [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1], a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3], a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]]; }
+  function T(m, x, y){ var q=[m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; return [q[0], H0-q[1]]; }
+  function groupe(coul){ var k="PDF|"+coul, g=P.groupes[k]; if(!g) g=P.groupes[k]={calque:"PDF", couleur:coul, chemin:new Path2D(), pleins:null, n:0}; return g; }
+  return page.getOperatorList().then(function(ol){
+    var fn=ol.fnArray, ar=ol.argsArray, ctm=vt.slice(), pile=[], trait="#000000", fond="#000000", chemin=[];
+    function bez(p0, c1, c2, p3, out){ for(var k=1;k<=8;k++){ var t=k/8, u=1-t; out.push([u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0], u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]]); } }
+    function lirePath(ops, co){
+      var out=[], cur=null, sp=null, j=0;
+      for(var i=0;i<ops.length;i++){
+        var o=ops[i];
+        if(o===OPS.moveTo){ cur={pts:[T(ctm, co[j], co[j+1])], ferme:false, droit:[true], start:[co[j], co[j+1]]}; out.push(cur); sp=[co[j], co[j+1]]; j+=2; }
+        else if(o===OPS.lineTo){ if(!cur){ cur={pts:[T(ctm, sp?sp[0]:0, sp?sp[1]:0)], ferme:false, droit:[true]}; out.push(cur); } cur.pts.push(T(ctm, co[j], co[j+1])); cur.droit.push(true); sp=[co[j], co[j+1]]; j+=2; }
+        else if(o===OPS.curveTo || o===OPS.curveTo2 || o===OPS.curveTo3){
+          var n = o===OPS.curveTo ? 6 : 4, a=sp||[0,0], c1, c2, p3;
+          if(o===OPS.curveTo){ c1=[co[j],co[j+1]]; c2=[co[j+2],co[j+3]]; p3=[co[j+4],co[j+5]]; }
+          else if(o===OPS.curveTo2){ c1=a; c2=[co[j],co[j+1]]; p3=[co[j+2],co[j+3]]; }
+          else { c1=[co[j],co[j+1]]; c2=[co[j+2],co[j+3]]; p3=c2; }
+          j+=n; if(!cur){ cur={pts:[T(ctm, a[0], a[1])], ferme:false, droit:[true]}; out.push(cur); }
+          var tmp=[]; bez(a, c1, c2, p3, tmp); tmp.forEach(function(q, k){ cur.pts.push(T(ctm, q[0], q[1])); cur.droit.push(k===tmp.length-1 ? "fin" : false); }); sp=p3;
+        }
+        else if(o===OPS.rectangle){
+          var x=co[j], y=co[j+1], w=co[j+2], h=co[j+3]; j+=4;
+          out.push({pts:[T(ctm,x,y), T(ctm,x+w,y), T(ctm,x+w,y+h), T(ctm,x,y+h)], ferme:true, droit:[true,true,true,true]}); cur=null; sp=[x, y];
+        }
+        else if(o===OPS.closePath){ if(cur){ cur.ferme=true; sp=cur.start||sp; cur=null; } }
+      }
+      return out;
+    }
+    function peindreChemin(stroke, fill){
+      var cs=stroke ? couleurPdf(trait) : null, cf=fill ? couleurPdf(fond) : null;
+      if(!cs && !cf){ chemin=[]; return; }
+      chemin.forEach(function(sp2){
+        var q=sp2.pts; if(q.length<2) return;
+        var g=groupe(cs || cf);
+        if(cs){ g.chemin.moveTo(q[0][0], q[0][1]); for(var i=1;i<q.length;i++) g.chemin.lineTo(q[i][0], q[i][1]); if(sp2.ferme) g.chemin.closePath(); }
+        if(cf && q.length>2){ if(!g.pleins) g.pleins=new Path2D(); g.pleins.moveTo(q[0][0], q[0][1]); for(var k=1;k<q.length;k++) g.pleins.lineTo(q[k][0], q[k][1]); g.pleins.closePath(); }
+        g.n++; P.calques.PDF.n++; P.segments+=q.length-1;
+        if(P.pts.length<1800000){
+          /* l'accrochage : les sommets (bouts, coins), le milieu des segments droits, les bouts des courbes */
+          for(var z=0;z<q.length;z++){
+            if(sp2.droit[z]===true || sp2.droit[z]==="fin" || z===0) P.pts.push(q[z][0], q[z][1], 1);
+            if(z>0 && sp2.droit[z]===true) P.pts.push((q[z][0]+q[z-1][0])/2, (q[z][1]+q[z-1][1])/2, 2);
+          }
+          if(sp2.ferme && q.length>2) P.pts.push((q[0][0]+q[q.length-1][0])/2, (q[0][1]+q[q.length-1][1])/2, 2);
+        }
+      });
+      chemin=[];
+    }
+    for(var i=0;i<fn.length;i++){
+      var o=fn[i], a=ar[i];
+      if(o===OPS.save) pile.push([ctm, trait, fond]);
+      else if(o===OPS.restore){ var r=pile.pop(); if(r){ ctm=r[0]; trait=r[1]; fond=r[2]; } }
+      else if(o===OPS.transform) ctm=mul(ctm, a);
+      else if(o===OPS.paintFormXObjectBegin){ pile.push([ctm, trait, fond]); if(a && a[0]) ctm=mul(ctm, a[0]); }
+      else if(o===OPS.paintFormXObjectEnd){ var r2=pile.pop(); if(r2){ ctm=r2[0]; trait=r2[1]; fond=r2[2]; } }
+      /* pdf.js ramène toutes les couleurs en RVB de 0 à 255 (ou en « #rrvvbb ») */
+      else if(o===OPS.setStrokeRGBColor) trait = typeof a[0]==="string" ? a[0] : a.length>=3 ? [a[0], a[1], a[2]] : trait;
+      else if(o===OPS.setFillRGBColor) fond = typeof a[0]==="string" ? a[0] : a.length>=3 ? [a[0], a[1], a[2]] : fond;
+      else if(o===OPS.setStrokeGray){ var gs=a[0]*255; trait=[gs,gs,gs]; }
+      else if(o===OPS.setFillGray){ var gf=a[0]*255; fond=[gf,gf,gf]; }
+      else if(o===OPS.constructPath) chemin=chemin.concat(lirePath(a[0], a[1]));
+      else if(o===OPS.stroke || o===OPS.closeStroke){ if(o===OPS.closeStroke) chemin.forEach(function(c){ c.ferme=true; }); peindreChemin(true, false); }
+      else if(o===OPS.fill || o===OPS.eoFill) peindreChemin(false, true);
+      else if(o===OPS.fillStroke || o===OPS.eoFillStroke || o===OPS.closeFillStroke || o===OPS.closeEOFillStroke) peindreChemin(true, true);
+      else if(o===OPS.endPath) chemin=[];
+      else if(o===OPS.paintImageXObject || o===OPS.paintInlineImageXObject || o===OPS.paintImageMaskXObject || o===OPS.paintJpegXObject) P.images++;
+    }
+    return page.getTextContent();
+  }).then(function(tc){
+    var tout=[];
+    P.calques["PDF textes"]={nom:"PDF textes", couleur:"#FFFFFF", visible:true, n:0};
+    (tc.items||[]).forEach(function(it){
+      if(!it.str || !it.str.trim()) return; tout.push(it.str);
+      var m=mul(vt, it.transform), p0=T(vt, it.transform[4], it.transform[5]);
+      var ax=[m[0], -m[1]], hy=Math.hypot(m[2], m[3]);
+      if(!(hy>0)) return;
+      P.textes.push({x:p0[0], y:p0[1], h:hy, rot:Math.atan2(ax[1], ax[0]), s:it.str, align:"left", base:"alphabetic", couleur:"#FFFFFF", calque:"PDF textes"});
+      P.calques["PDF textes"].n++;
+    });
+    P.texte=tout.join(" ");
+    return finirPlan(P);
+  });
+}
+/* un PDF scanné, une photo de plan : l'image en fond (unité : le point du PDF, ou le pixel de l'image) */
+function fondImage(P, source, w, h){
+  P.fond=source; P.fondW=w; P.fondH=h;
+  P.calques["Image du plan"]={nom:"Image du plan", couleur:"#9CA3AF", visible:true, n:1};
+}
+function rendrePagePdf(page){
+  var vp1=page.getViewport({scale:1}), k=Math.max(1, Math.min(4, 3200/Math.max(vp1.width, vp1.height)));
+  var vp=page.getViewport({scale:k}), c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+  var x=c.getContext("2d"); x.fillStyle="#FFFFFF"; x.fillRect(0, 0, c.width, c.height);
+  return page.render({canvasContext:x, viewport:vp}).promise.then(function(){ return c; });
+}
+function ouvrirPdf(f){
+  charge("Lecture de « "+f.name+" »…");
+  var lib;
+  chargerPdfJs().then(function(L){ lib=L; return f.arrayBuffer(); }).then(function(buf){
+    return lib.getDocument({data:new Uint8Array(buf)}).promise;
+  }).then(function(doc){
+    var n=1;
+    if(doc.numPages>1){
+      charge("");
+      var r=window.prompt("Ce PDF a "+doc.numPages+" pages : laquelle ouvrir ? (1 à "+doc.numPages+")", "1");
+      if(r==null) return null;
+      n=Math.max(1, Math.min(doc.numPages, parseInt(r, 10)||1));
+      charge("Lecture de la page "+n+"…");
+    }
+    return doc.getPage(n).then(function(page){
+      return construirePdf(page, lib).then(function(P){
+        /* vectoriel : les traits ; un logo dans le cartouche n'y change rien, un plan scanné (peu de traits) passe en image */
+        var vectoriel = P.segments>=150 && (!P.images || P.segments>=3000);
+        if(vectoriel) return P;
+        /* scanné, ou des images dans le plan : la page entière en fond, les traits gardés pour l'accrochage seulement */
+        return rendrePagePdf(page).then(function(c){
+          Object.keys(P.groupes).forEach(function(k){ P.groupes[k].cache=true; });
+          if(P.calques["PDF textes"]) P.calques["PDF textes"].visible=false;      /* l'image les montre déjà */
+          fondImage(P, c, P.largeur, P.hauteur); return P;
+        });
+      }).then(function(P){ P.page=n; P.pages=doc.numPages; return P; });
+    });
+  }).then(function(P){
+    if(!P) return;
+    var nE=echelleEcrite(P.texte), d = nE ? {mm:PT_MM*nE, source:"pdf-echelle"} : {mm:PT_MM*50, source:"suppose"};
+    var fp={name:f.name+(P.pages>1 ? "#p"+P.page : ""), size:f.size};
+    installerPlan(P, fp, d);
+    var n1=echellePdfDe(DESSIN_MM);
+    var msg = ECHELLE_SRC==="etalon" ? "Plan ouvert, avec l'étalonnage fait la dernière fois"+(n1 ? " (au 1/"+n1+")" : "")+"."
+      : (nE ? "PDF ouvert au 1/"+nE+", l'échelle écrite sur le plan." : "PDF ouvert, échelle supposée au 1/50.")
+        +" Pour toutes les cotes justes : cotez une longueur connue, puis Étalonner.";
+    if(P.fond && !P.segments) msg+=" PDF scanné : pas d'accrochage, zoomez pour viser.";
+    toast(msg, 7000);
+  }).catch(function(e){
+    charge("");
+    toast(/pdf\.js|fetch|network/i.test(String(e && e.message)) ? "Le lecteur PDF n'a pas pu se charger : vérifiez la connexion Internet." : "Ce PDF n'a pas pu être lu ("+((e && e.message)||e)+").", 6000);
+  });
+}
+function ouvrirImagePlan(f){
+  charge("Lecture de « "+f.name+" »…");
+  var url=URL.createObjectURL(f), im=new Image();
+  im.onload=function(){
+    var w=im.naturalWidth, h=im.naturalHeight, k=Math.min(1, 4000/Math.max(w, h)), c=document.createElement("canvas");
+    c.width=Math.round(w*k); c.height=Math.round(h*k); c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+    var P={groupes:{}, textes:[], calques:{}, pts:[], minx:0, miny:0, maxx:c.width, maxy:c.height, xs:[0, c.width], ys:[0, c.height], cotesPlan:[], image:true, segments:0};
+    fondImage(P, c, c.width, c.height); finirPlan(P);
+    installerPlan(P, f, {mm:10, source:"suppose"});
+    toast("Image du plan ouverte. Cotez une longueur connue (une porte, une cote écrite), puis Étalonner : toutes les autres cotes seront justes.", 7000);
+  };
+  im.onerror=function(){ URL.revokeObjectURL(url); charge(""); toast("Cette image n'a pas pu être lue."); };
+  im.src=url;
+}
 function ouvrirFichier(f){
   if(!f) return;
   var ext=(f.name.split(".").pop()||"").toLowerCase();
-  if(ext!=="dwg" && ext!=="dxf"){ toast("Choisissez un fichier .dwg ou .dxf."); return; }
+  if(ext==="pdf"){ ouvrirPdf(f); return; }
+  if(/^(png|jpe?g|webp)$/.test(ext)){ ouvrirImagePlan(f); return; }
+  if(ext!=="dwg" && ext!=="dxf"){ toast("Choisissez un plan .dwg, .dxf, .pdf ou une image."); return; }
   chargerLib().then(function(L){
     charge("Lecture de « "+f.name+" »…");
     return f.arrayBuffer().then(function(buf){
@@ -5368,24 +5582,11 @@ function ouvrirFichier(f){
         try{ L.l.dwg_free(brut); }catch(e){}
         var P=construire(db);
         if(!P.nb && !P.textes.length) throw new Error("vide");
-        PLAN=P; COTES=[]; A_PT=null; VUE_D="dessus";
         /* l'unité du dessin : un étalonnage déjà fait sur ce fichier, sinon ce que
            disent le fichier et les cotes du plan */
         var u={1:25.4, 2:304.8, 4:1, 5:10, 6:1000, 14:100}[(db.header||{}).INSUNITS];
         var d=deduireEchelle(u, P.cotesPlan, Math.max(P.maxx-P.minx, P.maxy-P.miny));
-        FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
-        SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
-        DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; GRP=null; D_PT=null;
-        try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
-        try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
-  SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
-        var garde=Number(lire(FICHIER_CLE, "0"));
-        if(garde>0){ DESSIN_MM=garde; ECHELLE_SRC="etalon"; }
-        else { DESSIN_MM=d.mm; ECHELLE_SRC=d.source; }
-        PLAN.nom=f.name;
-        $("accueil").hidden=true; $("btCalques").disabled=false; $("btImage").disabled=false; $("btSymb").disabled=false; $("btPdf").disabled=false; $("btDessin").disabled=false; $("btVue3d").disabled=false;
-        basculerMode(SYMB.length ? "symb" : "cote");
-        majTitre(); remplirCalques(); majBas(); redim(); vueEntiere(); charge("");
+        installerPlan(P, f, d);
         var msg;
         if(ECHELLE_SRC==="etalon") msg="Plan ouvert, avec l'étalonnage fait la dernière fois (1 unité = "+nomUnite(DESSIN_MM)+").";
         else if(d.annonce) msg="Échelle corrigée "+(d.source==="cotes" ? "d'après les cotes du plan" : "d'après la taille du plan")+" : 1 unité = "+nomUnite(d.mm)+" (le fichier annonçait "+nomUnite(d.annonce)+"). Vérifiez sur une cote connue.";
@@ -5430,9 +5631,11 @@ $("etalon").addEventListener("submit", function(e){
   var dern=COTES[COTES.length-1], v=nombre($("etValeur").value);
   if(!dern || !(v>0)){ $("etValeur").focus(); return; }
   var reel=v*{mm:1, cm:10, m:1000}[ET_U], d=distance(dern.a, dern.b);
-  DESSIN_MM=arrondirUsuel(reel/d); ECHELLE_SRC="etalon"; garder(FICHIER_CLE, String(DESSIN_MM));
+  var nP=PLAN && PLAN.pdf ? echellePdfDe(reel/d) : 0;
+  DESSIN_MM = PLAN && PLAN.pdf ? (nP ? nP*PT_MM : reel/d) : PLAN && PLAN.image ? reel/d : arrondirUsuel(reel/d); ECHELLE_SRC="etalon"; garder(FICHIER_CLE, String(DESSIN_MM));
   $("etalon").hidden=true; majTitre(); majBas(); demander();
-  toast("Échelle étalonnée : 1 unité = "+nomUnite(DESSIN_MM)+". Gardée pour ce fichier.", 4500);
+  if(PLAN && PLAN.pdf){ var nr=DESSIN_MM/PT_MM; toast("Échelle étalonnée : le PDF est "+(nP ? "au 1/"+nP : "à environ 1/"+Math.round(nr))+". Toutes les cotes sont à jour"+(COTES.length>1 ? " ("+COTES.length+" cotes)" : "")+". Gardée pour ce fichier.", 5500); }
+  else toast("Échelle étalonnée : 1 unité = "+nomUnite(DESSIN_MM)+". Gardée pour ce fichier.", 4500);
 });
 $("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
 $("btTourner").addEventListener("click", tournerSymb);
