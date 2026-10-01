@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
@@ -974,16 +975,16 @@ function uid(){ return "n"+Date.now().toString(36)+Math.random().toString(36).sl
 function maintenant(){ return new Date().toISOString(); }
 function frCourt(iso){
   if(!iso) return "";
-  var a=String(iso).slice(0,10).split("-");
+  var a=dateLocale(iso).split("-");
   return a[2]+"/"+a[1];
 }
 function frJour(iso){
   if(!iso) return "";
   var d=new Date(iso+"T12:00:00");
   var J=["dimanche","lundi","mardi","mercredi","jeudi","vendredi","samedi"];
-  var auj=new Date().toISOString().slice(0,10);
+  var auj=jourLocal();
   if(iso===auj) return "aujourd'hui";
-  var demain=new Date(Date.now()+864e5).toISOString().slice(0,10);
+  var demain=jourLocal(new Date(Date.now()+864e5));
   if(iso===demain) return "demain";
   if(iso<auj) return "en retard";
   var dans=(Date.parse(iso+"T12:00:00")-Date.now())/864e5;
@@ -1374,7 +1375,7 @@ function apercu(l){
   var partagee=partageDe(l);
   if(dAutrui(l)) tags.appendChild(tag("de "+l.auteur, "gris"));
   else if(partagee.length) tags.appendChild(tag(partagee.length>2 ? "partagée · "+partagee.length : "partagée · "+partagee.join(", "), "gris"));
-  if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < new Date().toISOString().slice(0,10) ? "rouge" : "ambre"));
+  if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < jourLocal() ? "rouge" : "ambre"));
   if(tags.children.length) corps.appendChild(tags);
   c.appendChild(corps);
   c.addEventListener("click", function(){ ouvrirListe(l.id); });
@@ -1493,7 +1494,7 @@ function carte(l){
       ? ("partagée · "+partagee.length+" personnes")
       : ("partagée · "+partagee.join(", ")), "gris"));
   }
-  if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < new Date().toISOString().slice(0,10) ? "rouge" : "ambre"));
+  if(l.quand) tags.appendChild(tag(frJour(l.quand), l.quand < jourLocal() ? "rouge" : "ambre"));
   if(tags.children.length) c.appendChild(tags);
 
   /* items */
@@ -1930,8 +1931,8 @@ function champDate(libelle, valeur, fn){
 }
 function frDateHeure(iso){
   if(!iso) return "";
-  var a=String(iso).slice(0,10).split("-");
-  return a[2]+"/"+a[1]+"/"+a[0]+" à "+String(iso).slice(11,16);
+  var a=dateLocale(iso).split("-");
+  return a[2]+"/"+a[1]+"/"+a[0]+" à "+heureLocale(iso);
 }
 function ouvrirCorbeille(){
   var v=$("corbeille"), corps=$("corbCorps");

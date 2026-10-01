@@ -20,7 +20,7 @@ var $=function(i){ return document.getElementById(i); };
 function charger(){ if(CFG.charger) CFG.charger(); }
 function toast(t){ if(CFG.toast) CFG.toast(t); }
 function octets(n){ return n>1048576 ? (n/1048576).toFixed(1).replace(".",",")+" Mo" : Math.round(n/1024)+" Ko"; }
-function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
 
 
 /* ---------- export des photos en ZIP (sans bibliothèque) ---------- */
@@ -122,8 +122,8 @@ function archiver(c, bouton){
           var lignes=["Discussion du chantier "+(c.client||c.ref)+" ("+c.ref+")",
             d.messages.length+" message"+(d.messages.length>1?"s":""), ""];
           d.messages.forEach(function(m){
-            lignes.push(m.auteur+"  "+String(m.quand).slice(0,10).split("-").reverse().join("/")
-              +" "+String(m.quand).slice(11,16));
+            lignes.push(m.auteur+"  "+dateLocale(m.quand).split("-").reverse().join("/")
+              +" "+heureLocale(m.quand));
             if(m.texte) lignes.push("  "+m.texte.replace(/\n/g, "\n  "));
             if(m.photo) lignes.push("  [photo jointe]");
             lignes.push("");
@@ -416,10 +416,10 @@ function ouvrirDiscussion(c){
 }
 function quandLisible(iso){
   var d=new Date(iso), maintenant=new Date();
-  var jour=d.toISOString().slice(0,10), auj=maintenant.toISOString().slice(0,10);
+  var jour=jourLocal(d), auj=jourLocal(maintenant);
   var heure=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   if(jour===auj) return heure;
-  var hier=new Date(maintenant.getTime()-86400000).toISOString().slice(0,10);
+  var hier=jourLocal(new Date(maintenant.getTime()-86400000));
   if(jour===hier) return "hier "+heure;
   return frDate(jour)+" "+heure;
 }
@@ -1055,7 +1055,7 @@ function carteDossier(c, i, opts){
       lu.textContent="Lu par "+lus.map(function(n){
         var quand=f.lectures[n];
         var avant = f.publie && String(quand) < String(f.publie);
-        return n+" le "+frDate(quand)+" à "+String(quand).slice(11,16)
+        return n+" le "+frDate(quand)+" à "+heureLocale(quand)
           + (avant ? " (avant la mise à jour)" : "");
       }).join(", ");
       t.appendChild(lu);
@@ -1185,6 +1185,7 @@ function carteDossier(c, i, opts){
 }
 
 window.Dossier={
+  quandLisible:quandLisible, frDate:frDate,
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
   moi:function(m){ MOI=m; },
   carte:carteDossier,

@@ -4,6 +4,8 @@ import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte } from "./notifications.mjs";
+/* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
+function jourParis() { return maintenantParis().slice(0, 10); }
 
 const INDEX = "_index";
 
@@ -1092,31 +1094,31 @@ async function traiter(req) {
       /* un fichier par tableau et par indice : l'indice A reste quand le B arrive */
       ? "schema-" + slug(d.etape || "tableau") + "-indice-" + slug(d.visite || "A") + ".pdf"
       : technique
-      ? "technique-" + slug(d.titre) + "-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "." + ext
+      ? "technique-" + slug(d.titre) + "-" + slug(d.date || jourParis()) + "." + ext
       : (carnet || memoire || doe)
       ? (carnet ? "carnet-echantillons-" : doe ? "doe-" : "memoire-technique-")
-        + slug(d.visite || d.date || new Date().toISOString().slice(0, 10)) + ".pdf"
+        + slug(d.visite || d.date || jourParis()) + ".pdf"
       : autocontrole
-      ? "autocontrole-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
+      ? "autocontrole-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : sav
-      ? "sav-" + slug(d.date || new Date().toISOString().slice(0,10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
+      ? "sav-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : reportage
-      ? "reportage-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.visite || personne.nom) + ".pdf"
+      ? "reportage-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : etiquettes
       ? "etiquettes-" + slug(d.etape || "tableau") + ".pdf"
       : reception
-      ? "reception-" + slug(d.date || new Date().toISOString().slice(0, 10)) + ".pdf"
+      ? "reception-" + slug(d.date || jourParis()) + ".pdf"
       : point
-      ? "point-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".pdf"
+      ? "point-" + slug(d.date || jourParis()) + "-" + slug(personne.nom) + ".pdf"
       : photos
-      ? "photos-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.suiviId || personne.nom) + ".zip"
+      ? "photos-" + slug(d.date || jourParis()) + "-" + slug(d.suiviId || personne.nom) + ".zip"
       : commande
-        ? "commande-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(personne.nom) + ".pdf"
+        ? "commande-" + slug(d.date || jourParis()) + "-" + slug(personne.nom) + ".pdf"
         : suivi
           /* chaque suivi est indépendant : un fichier par suivi, sans
              numéro de visite. Les anciens gardaient un seul rapport. */
           ? (d.suiviId
-              ? "suivi-" + slug(d.date || new Date().toISOString().slice(0, 10)) + "-" + slug(d.suiviId) + ".pdf"
+              ? "suivi-" + slug(d.date || jourParis()) + "-" + slug(d.suiviId) + ".pdf"
               : "suivi-de-travaux.pdf")
           : "releve.pdf";
     const cle = ref + "/" + nomFichier;
@@ -1142,7 +1144,7 @@ async function traiter(req) {
       type: schema ? "schema" : point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
-      date: d.date || new Date().toISOString().slice(0, 10),
+      date: d.date || jourParis(),
       auteur: bureau ? (d.auteur || personne.nom) : personne.nom,
       destinataires: versDossier ? [] : (Array.isArray(d.destinataires) ? d.destinataires : []),
       versDossier,
@@ -1356,7 +1358,7 @@ async function traiter(req) {
     const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
     const entree = {
       cle, titre: "Intervention SAV à terminer", type: "sav", visite: "", etape: court(d.nature, 60),
-      date: d.date || new Date().toISOString().slice(0, 10),
+      date: d.date || jourParis(),
       auteur: avant ? avant.auteur : personne.nom, destinataires: dest, publie: new Date().toISOString(),
       donnees: true, brouillon: true, lectures: {},
       appel: avant && avant.appel ? avant.appel : { par: personne.nom, le: new Date().toISOString() },
@@ -1415,7 +1417,7 @@ async function traiter(req) {
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     c.fichiers.push({
       cle, titre: d.titre || "Relevé à poursuivre", type: "releve", visite: "", etape: "",
-      date: d.date || new Date().toISOString().slice(0, 10),
+      date: d.date || jourParis(),
       auteur: personne.nom, destinataires: dest, publie: new Date().toISOString(),
       donnees: true, brouillon: true, lectures: {}
     });
@@ -1598,7 +1600,7 @@ async function traiter(req) {
   }
   async function sauvegarderDuJour(nom, contenu) {
     if (!contenu.length) return;
-    const jour = new Date().toISOString().slice(0, 10);
+    const jour = jourParis();
     const pre = prefixeSauvegardes(nom);
     try {
       const deja = await store.get(pre + jour + ".json", { type: "json" });

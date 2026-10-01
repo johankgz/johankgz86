@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
@@ -1527,7 +1528,7 @@ function blank(){
     client:{nom:"",code:"",tel:"",contact:"",email:"",adresse:"",lat:null,lon:null},
     rdv:{objet:"",description:""},
     affaire:{devis:"",chantier:"",demarrage:""},
-    meta:{date:new Date().toISOString().slice(0,10),ca:"",caTel:"",caMail:"",societe:"",statut:"",emailCA:"",emailTech:"",emailSuite:""},
+    meta:{date:jourLocal(),ca:"",caTel:"",caMail:"",societe:"",statut:"",emailCA:"",emailTech:"",emailSuite:""},
     chantier:{typeBien:"",natures:[],construction:"",surface:"",niveaux:"",alim:"",puissance:"",pdl:"",gtl:""},
     pieces:[],
     activeRoom:null,
@@ -3662,7 +3663,7 @@ function handlePvgis(d, a){
       months: m.map(function(x){ return Math.round(x.E_m); }),
       kwc:a.kwc, angle:a.angle, aspect:a.aspect, loss:a.loss,
       base:(d.inputs && d.inputs.meteo_data && d.inputs.meteo_data.radiation_db) || "PVGIS",
-      date:new Date().toISOString().slice(0,10)
+      date:jourLocal()
     };
     save(); paintPvgis();
     $("pvgisState").textContent="Simulation PVGIS du "+new Date().toLocaleDateString("fr-FR")+".";
@@ -4988,7 +4989,7 @@ function deposerPhotos(auto){
   if(!liste.length){ if(!auto) toast("Aucune photo dans cette fiche."); return Promise.resolve(false); }
   if(!refAffaire()){ if(!auto) toast("Renseignez les travaux avant de déposer."); return Promise.resolve(false); }
   /* tout est lu maintenant : après la publication, le formulaire peut se vider pendant l'envoi */
-  var ref=refAffaire(), client=nomClient(), adresse=adresseTravaux(), date=dateFiche()||new Date().toISOString().slice(0,10);
+  var ref=refAffaire(), client=nomClient(), adresse=adresseTravaux(), date=dateFiche()||jourLocal();
   var versDossier = (typeof PUB_MODE === "undefined") || PUB_MODE === "dossier", dest = versDossier ? [] : destinataires().slice();
   var dossier = nomFichier(ref);
   var fichiers = liste.map(function(p, i){
@@ -6036,7 +6037,7 @@ function ecrireFiche(){
 
 /* ---------- la date suit le jour en cours ---------- */
 function majDateDuJour(){
-  var auj=new Date().toISOString().slice(0,10);
+  var auj=jourLocal();
   try{
     if(S.meta.date && S.meta.date < auj){
       S.meta.date = auj;

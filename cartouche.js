@@ -30,7 +30,7 @@
     this.o.push({t:"i",data:data,x:x+(w-ww)/2,y:y+(h-hh)/2,w:ww,h:hh});
   };
 
-  function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a.length===3 ? a[2]+"/"+a[1]+"/"+a[0] : String(d); }
+  function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a.length===3 ? a[2]+"/"+a[1]+"/"+a[0] : String(d); }
   /* un texte en lignes d'une longueur donnée, sur les mots (et sur les retours à la ligne) */
   function decouper(s, n){
     var out=[];

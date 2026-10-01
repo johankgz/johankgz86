@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
@@ -1425,7 +1426,7 @@ var METEO={0:"Soleil",1:"Éclaircies",2:"Éclaircies",3:"Couvert",45:"Brouillard
 function meteo3j(cb){
   var c=null;
   try{ c=JSON.parse(localStorage.getItem("meteo:3j")||"null"); }catch(e){}
-  var auj=new Date().toISOString().slice(0,10);
+  var auj=jourLocal();
   var utilisable = c && c.v && c.v.jours && c.v.jours.length && c.v.jours[c.v.jours.length-1].date >= auj;
   if(utilisable) cb(c.v);
   if(utilisable && Date.now()-c.t < 30*60*1000) return;
@@ -1490,7 +1491,7 @@ function dateLongue(d){
 function hhmm(d){ return String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
 function frCourt(iso){
   if(!iso) return "";
-  var a=String(iso).slice(0,10).split("-");
+  var a=dateLocale(iso).split("-");
   return a[2]+"/"+a[1];
 }
 
@@ -2334,7 +2335,7 @@ function peindreRappels(s){
 function tacheDue(t){
   if(t.rappel) return false;          /* les rappels ont leur propre ligne */
   /* due le jour dit à partir de 7 h, et tant qu'elle n'est pas faite */
-  var d=new Date(), auj=d.toISOString().slice(0,10);
+  var d=new Date(), auj=jourLocal(d);
   if(!t.quand) return false;
   if(t.quand < auj) return true;                 /* en retard */
   if(t.quand === auj) return d.getHours() >= 7;
@@ -2347,7 +2348,7 @@ function peindreTaches(s){
   var dues=TACHES.filter(tacheDue);
   if(!dues.length){ host.hidden = !host.children.length; return; }
 
-  var auj=new Date().toISOString().slice(0,10);
+  var auj=jourLocal();
   var retard=dues.filter(function(t){ return t.quand < auj; }).length;
   var a=notif("rge urgent", String(dues.length),
     dues.length>1 ? dues.length+" tâches à faire" : "Une tâche à faire",
@@ -2403,7 +2404,7 @@ function listeDue(l){
   if(!l.quand) return false;
   var restantes=(l.items||[]).filter(function(i){ return !i.fait; }).length;
   if(!restantes) return false;
-  var d=new Date(), auj=d.toISOString().slice(0,10);
+  var d=new Date(), auj=jourLocal(d);
   if(l.quand < auj) return true;
   if(l.quand === auj) return d.getHours() >= 7;
   return false;
@@ -2415,7 +2416,7 @@ function peindreListes(s){
   var dues=LISTES.filter(listeDue);
   if(!dues.length){ host.hidden = !host.children.length; return; }
 
-  var auj=new Date().toISOString().slice(0,10);
+  var auj=jourLocal();
   var retard=dues.filter(function(l){ return l.quand < auj; }).length;
   var total=dues.reduce(function(a,l){ return a+(l.items||[]).filter(function(i){ return !i.fait; }).length; }, 0);
   var a=notif("rge urgent", String(dues.length),

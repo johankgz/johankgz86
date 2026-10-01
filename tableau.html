@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20260928a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F4F1EA">
@@ -503,7 +504,7 @@ function toast(t){
   clearTimeout(toastT); toastT=setTimeout(function(){ e.hidden=true; }, 2600);
 }
 function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
-function frDate(d){ if(!d) return ""; var a=String(d).slice(0,10).split("-"); return a[2]+"/"+a[1]; }
+function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a[2]+"/"+a[1]; }
 function pluriel(n, mot, pl){ return n+" "+(n>1 ? (pl||mot+"s") : mot); }
 function lienChantier(ref){ return "./chantier.html?ref="+encodeURIComponent(ref); }
 var ICO_RETARD='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.3v.2"/></svg>';
@@ -668,7 +669,7 @@ function peindreListe(){
 $("btnExport").addEventListener("click", function(){
   var lignes=[["Chantier","Référence","Travaux supplémentaire","Demandé par","Depuis le"]];
   D.aTraiter.filter(function(x){ return x.genre==="ts"; }).forEach(function(x){
-    lignes.push([x.client, x.ref, x.titre, x.qui||"", x.depuis ? String(x.depuis).slice(0,10).split("-").reverse().join("/") : ""]);
+    lignes.push([x.client, x.ref, x.titre, x.qui||"", x.depuis ? dateLocale(x.depuis).split("-").reverse().join("/") : ""]);
   });
   var csv=lignes.map(function(l){
     return l.map(function(v){ v=String(v==null?"":v); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; }).join(";");
@@ -676,7 +677,7 @@ $("btnExport").addEventListener("click", function(){
   var blob=new Blob(["﻿"+csv], {type:"text/csv;charset=utf-8"});
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob);
-  a.download="TS-a-chiffrer-"+new Date().toISOString().slice(0,10)+".csv";
+  a.download="TS-a-chiffrer-"+jourLocal()+".csv";
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   toast(pluriel(lignes.length-1, "TS exporté", "TS exportés")+".");
