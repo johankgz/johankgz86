@@ -132,6 +132,7 @@ body.clair #scene{background:#FFFFFF}
 .mep footer{border-top:1px solid var(--trait);justify-content:flex-end}
 .mep-corps{flex:1;overflow:auto;padding:10px 12px}
 .mep-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}
+.mep-ligne[hidden]{display:none}
 .mep-ligne .lab{width:64px}
 .mep select{min-height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);padding:4px 10px;font-size:13.5px}
 .mep small{flex:1 1 100%;font-size:12px;color:var(--ink3);padding-left:72px}
@@ -435,7 +436,10 @@ body.clair #scene{background:#FFFFFF}
     <div class="mep-ligne"><span class="lab">Format</span>
       <span class="seg" id="mepFormat"><button type="button" data-v="a4">A4</button><button type="button" data-v="a3">A3</button></span>
       <span class="seg" id="mepOrient"><button type="button" data-v="l">Paysage</button><button type="button" data-v="p">Portrait</button></span></div>
-    <div class="mep-ligne"><span class="lab">Cadrage</span>
+    <div class="mep-ligne"><span class="lab">Vues</span>
+      <span class="seg" id="mepVues" role="group" aria-label="Vues sur la feuille"><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="persp">Perspective</button></span>
+      <small id="mepVuesAide">une vue, ou plusieurs sur la même feuille</small></div>
+    <div class="mep-ligne" id="mepLigneCadre"><span class="lab">Cadrage</span>
       <span class="seg" id="mepCadre"><button type="button" data-v="plan">Plan entier</button><button type="button" data-v="vue">Vue à l'écran</button><button type="button" data-v="zone">Zone choisie</button></span>
       <button class="bt" id="mepZoneBt" type="button" hidden>Placer la zone sur le plan</button></div>
     <div class="mep-ligne"><span class="lab">Échelle</span>
@@ -3739,6 +3743,12 @@ function ouvrir3D(){
   if(dessinVide() && !SYMB.length && PLAN.vierge){ toast("Dessinez d'abord des murs ou des meubles, ou posez des symboles."); return; }
   charger3D().then(function(THREE){
     $("vue3d").hidden=false;
+    initV3(THREE);
+    $("v3Hsp").value=enUnite(hspD());
+    construire3D(); cadrer3D("persp"); taille3D(); majBarre3D(); rendu3D();
+  }).catch(function(){ toast("La 3D n'a pas pu se charger : vérifiez la connexion Internet.", 5000); });
+}
+function initV3(THREE){
     if(!V3){
       var cv3=$("v3Canvas");
       var r=new THREE.WebGLRenderer({canvas:cv3, antialias:true, preserveDrawingBuffer:true});
@@ -3747,9 +3757,24 @@ function ouvrir3D(){
       brancherGestes3D();
       window.addEventListener("resize", function(){ if(!$("vue3d").hidden){ taille3D(); rendu3D(); } });
     }
-    $("v3Hsp").value=enUnite(hspD());
-    construire3D(); cadrer3D("persp"); taille3D(); majBarre3D(); rendu3D();
-  }).catch(function(){ toast("La 3D n'a pas pu se charger : vérifiez la connexion Internet.", 5000); });
+}
+/* la perspective pour le PDF : rendue à part, au trait sur fond blanc, à la taille de sa case */
+function imagePerspective(wpx, hpx){
+  return charger3D().then(function(THREE){
+    initV3(THREE);
+    var ouverte=!$("vue3d").hidden, garde={mode:V3.mode, cam:JSON.parse(JSON.stringify(V3.cam)), clair:CLAIR};
+    try{
+      CLAIR=true; construire3D(); cadrer3D("persp");
+      V3.renderer.setPixelRatio(1); V3.renderer.setSize(wpx, hpx, false);
+      V3.camera.aspect=wpx/Math.max(1, hpx); V3.camera.updateProjectionMatrix();
+      rendu3D();
+      return V3.renderer.domElement.toDataURL("image/png");
+    } finally {
+      CLAIR=garde.clair; V3.mode=garde.mode; V3.cam=garde.cam;
+      construire3D();
+      if(ouverte){ taille3D(); rendu3D(); }
+    }
+  });
 }
 function fermer3D(){ $("vue3d").hidden=true; }
 function taille3D(){
@@ -4532,7 +4557,30 @@ $("symbL").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blu
    électriques : projet, maître d'ouvrage, indices, logo, titre, niveau,
    n° de chantier, lot, échelle, n° de plan. */
 var ECHELLES=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1250,1500,2000,2500,5000,10000];
-var MEP={format:"a3", orient:"l", cadre:"plan", echelle:0};
+var MEP={format:"a3", orient:"l", cadre:"plan", echelle:0, vues:null};
+/* les vues de la feuille : une seule (celle à l'écran), ou une planche de plusieurs */
+var ORDRE_VUES=["face","cote","dessus","persp"], NOM_VUES={face:"Vue de face", cote:"Vue de côté", dessus:"Vue de dessus", persp:"Perspective"};
+function vuesMep(){ var v=(MEP.vues||[]).filter(function(x){ return ORDRE_VUES.indexOf(x)>=0; }); return v.length ? ORDRE_VUES.filter(function(x){ return v.indexOf(x)>=0; }) : [vueD()]; }
+function planche(){ var v=vuesMep(); return v.length>1 || v[0]==="persp"; }
+/* les cases de la planche, dans la zone du dessin : face et côté en haut, dessus et perspective en bas */
+function casesPlanche(z){
+  var v=vuesMep(), n=v.length, l=MEP.orient==="l", cols = n===1 ? 1 : n===2 ? (l ? 2 : 1) : 2, rows=Math.ceil(n/cols), g=4, ht=6;
+  var cw=(z.w-g*(cols-1))/cols, ch=(z.h-g*(rows-1))/rows;
+  return v.map(function(nom, i){ var c=i%cols, r=Math.floor(i/cols); var x=z.x+c*(cw+g), y=z.y+r*(ch+g); return {vue:nom, x:x, y:y, w:cw, h:ch, dessin:{x:x+2, y:y+ht, w:cw-4, h:ch-ht-2}}; });
+}
+/* ce qu'on imprime d'une vue : tout ce qu'elle montre */
+function cadrageVue(vue){
+  if(vue!=="dessus"){ var ev=etendueVue(vue); return ev ? {cx:(ev.minx+ev.maxx)/2, cy:(ev.miny+ev.maxy)/2, w:(ev.maxx-ev.minx)*1.06, h:(ev.maxy-ev.miny)*1.06} : null; }
+  var gv=VUE_D, gm=MODE; VUE_D="dessus"; MODE= MODE==="symb" ? "symb" : "dessin";
+  try{ var plein=MEP.cadre; MEP.cadre="plan"; var c=cadrage(); MEP.cadre=plein; return c; } finally { VUE_D=gv; MODE=gm; }
+}
+function echellePlanche(cases){
+  var fit=0;
+  cases.forEach(function(k){ if(k.vue==="persp") return; var c=cadrageVue(k.vue); k.c=c; if(c) fit=Math.max(fit, c.w*DESSIN_MM/k.dessin.w, c.h*DESSIN_MM/k.dessin.h); });
+  if(!fit) fit=50;
+  var n=MEP.echelle>0 ? MEP.echelle : (ECHELLES.filter(function(e){ return e>=fit*0.999; })[0] || Math.ceil(fit));
+  return {n:n, fit:fit, deborde:n<fit*0.999};
+}
 var JSPDF_URL="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 var LOGO=null, SOC=null;
 function chargerJsPdf(){
@@ -4607,11 +4655,20 @@ function majMep(){
   Array.prototype.forEach.call($("mepFormat").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.format); });
   Array.prototype.forEach.call($("mepOrient").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.orient); });
   Array.prototype.forEach.call($("mepCadre").children, function(b){ b.classList.toggle("on", b.dataset.v===MEP.cadre); });
+  var vs=vuesMep();
+  Array.prototype.forEach.call($("mepVues").children, function(b){ b.classList.toggle("on", vs.indexOf(b.dataset.v)>=0); });
+  $("mepLigneCadre").hidden = planche();
   if(MEP.cadre==="zone" && !(MEP.echelle>0)) MEP.echelle=50;
   $("mepEchelle").value=String(MEP.echelle);
   $("mepZoneBt").hidden = MEP.cadre!=="zone";
   $("mepZoneBt").textContent = MEP.zone ? "Déplacer la zone sur le plan" : "Placer la zone sur le plan";
   if(!PLAN) return;
+  if(planche()){
+    var gp=gabarit(), ep=echellePlanche(casesPlanche(gp.zone));
+    $("mepInfo").textContent=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" : "+vs.length+" vue"+(vs.length>1?"s":"")+" ("+vs.map(function(x){ return NOM_VUES[x].replace("Vue de ","").toLowerCase(); }).join(", ")+")"
+      +(vs.some(function(x){ return x!=="persp"; }) ? " au 1/"+ep.n+(ep.deborde ? " : une vue déborde de sa case." : "") : "")+".";
+    return;
+  }
   var e=echelleMep();
   $("mepInfo").textContent = (MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" au 1/"+e.n
     +(MEP.cadre==="zone" ? (MEP.zone ? " : la zone choisie sur le plan." : " : placez la zone sur le plan.")
@@ -4625,6 +4682,7 @@ function ouvrirMep(){
   if(d.format) MEP.format=d.format; if(d.orient) MEP.orient=d.orient; if(d.cadre) MEP.cadre=d.cadre;
   if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0; else if(PLAN && PLAN.vierge) MEP.echelle=50;
   MEP.zone = d.zone && isFinite(d.zone.cx) && isFinite(d.zone.cy) ? {cx:d.zone.cx, cy:d.zone.cy} : null;
+  MEP.vues = Array.isArray(d.vues) && d.vues.length ? d.vues : null;
   var ses=null; try{ ses=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
   var defaut={objet:"PLAN ÉLECTRIQUE", indice:"A", date:jourLocal(), dess:(ses && ses.nom)||"", mail:(ses && ses.email)||"", mention:MENTION_PLAN};
   CHAMPS_MEP.forEach(function(c){ $(c[0]).value = d[c[1]]!=null ? d[c[1]] : (defaut[c[1]]||""); });
@@ -4633,7 +4691,7 @@ function ouvrirMep(){
   majMep(); $("quantites").hidden=true; $("mep").hidden=false;
 }
 function lireMep(){
-  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, legende:$("mepLegende").checked};
+  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, vues:MEP.vues, legende:$("mepLegende").checked};
   MEP.legende=d.legende;
   CHAMPS_MEP.forEach(function(c){ d[c[1]]=$(c[0]).value.trim(); });
   try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess, mail:d.mail, mention:d.mention})); }catch(e){}
@@ -4644,6 +4702,12 @@ function lireMep(){
     if(s[1]==="cadre" && b.dataset.v==="zone" && !MEP.zone) ouvrirZone(); });
 });
 $("mepZoneBt").addEventListener("click", function(){ ouvrirZone(); });
+$("mepVues").addEventListener("click", function(e){
+  var b=e.target.closest("button"); if(!b) return;
+  var v=vuesMep().slice(), i=v.indexOf(b.dataset.v);
+  if(i>=0){ if(v.length>1) v.splice(i, 1); } else v.push(b.dataset.v);
+  MEP.vues=v; majMep();
+});
 
 /* ---------- la zone à imprimer, choisie sur le plan ----------
    Un cadre aux proportions de la feuille (A4 ou A3, paysage ou portrait), à
@@ -4719,8 +4783,15 @@ $("mepAnnuler").addEventListener("click", function(){ $("mep").hidden=true; });
 $("mep").addEventListener("submit", function(e){
   e.preventDefault();
   var d=lireMep(), bt=$("mepCreer"); bt.disabled=true; charge("Mise en page…");
-  Promise.all([chargerJsPdf(), chargerLogo(), chargerSociete()]).then(function(r){
-    return new Promise(function(ok){ setTimeout(ok, 30); }).then(function(){ return creerPdf(d, r[1], r[2]); });
+  /* la perspective, s'il y en a une : rendue à la taille de sa case avant la mise en page */
+  var avecP = planche() && vuesMep().indexOf("persp")>=0, imgP=Promise.resolve(null);
+  if(avecP){
+    var kp=casesPlanche(gabarit().zone).filter(function(k){ return k.vue==="persp"; })[0], dpiP=MEP.format==="a3" ? 160 : 200;
+    var wpx=Math.min(2400, Math.round(kp.dessin.w/25.4*dpiP)), hpx=Math.min(2400, Math.round(kp.dessin.h/25.4*dpiP));
+    imgP=imagePerspective(wpx, hpx).catch(function(){ return null; });
+  }
+  Promise.all([chargerJsPdf(), chargerLogo(), chargerSociete(), imgP]).then(function(r){
+    return new Promise(function(ok){ setTimeout(ok, 30); }).then(function(){ return creerPdf(d, r[1], r[2], r[3]); });
   }).then(function(res){
     charge(""); bt.disabled=false; $("mep").hidden=true;
     var f=null; try{ f=new File([res.blob], res.nom, {type:"application/pdf"}); }catch(er){}
@@ -4734,23 +4805,25 @@ $("mep").addEventListener("submit", function(e){
   });
 });
 /* le plan, redessiné sur un canvas de la taille de la zone, à l'échelle 1/n */
-function rendrePlan(e, dpi){
-  var z=e.g.zone, wpx=Math.round(z.w/25.4*dpi), hpx=Math.round(z.h/25.4*dpi);
+function rendrePlan(e, dpi, zone, vue){
+  var z=zone||e.g.zone, wpx=Math.round(z.w/25.4*dpi), hpx=Math.round(z.h/25.4*dpi);
   var off=document.createElement("canvas"); off.width=wpx; off.height=hpx;
   var k=(DESSIN_MM/e.n)*(dpi/25.4);    /* pixels par unité du plan */
-  var garde={cv:cv, c2:c2, V:V, DPR:DPR, W:W, H:H, CLAIR:CLAIR, SEL:SEL, A_PT:A_PT, VISEE:VISEE, SURVOL:SURVOL, D_SEL:D_SEL, D_PT:D_PT};
+  var garde={cv:cv, c2:c2, V:V, DPR:DPR, W:W, H:H, CLAIR:CLAIR, SEL:SEL, A_PT:A_PT, VISEE:VISEE, SURVOL:SURVOL, D_SEL:D_SEL, D_PT:D_PT, VUE_D:VUE_D, MODE:MODE, GRP:GRP};
   try{
+    if(vue){ VUE_D=vue; if(MODE!=="symb") MODE="dessin"; GRP=null; }
     cv=off; c2=off.getContext("2d"); DPR=1; W=wpx; H=hpx; CLAIR=true; SEL=-1; A_PT=null; VISEE=null; SURVOL=null; D_SEL=null; D_PT=null; IMPRIME=true; PX_MM=dpi/25.4;
     var GEO_EC_G=GEO_EC; GEO_EC=null;
     V={k:k, x:wpx/2-k*e.c.cx, y:hpx/2+k*e.c.cy};
     peindre();
   } finally {
-    cv=garde.cv; c2=garde.c2; V=garde.V; DPR=garde.DPR; W=garde.W; H=garde.H; CLAIR=garde.CLAIR; SEL=garde.SEL; A_PT=garde.A_PT; VISEE=garde.VISEE; SURVOL=garde.SURVOL; D_SEL=garde.D_SEL; D_PT=garde.D_PT; IMPRIME=false; PX_MM=0; GEO_EC=GEO_EC_G;
+    cv=garde.cv; c2=garde.c2; V=garde.V; DPR=garde.DPR; W=garde.W; H=garde.H; CLAIR=garde.CLAIR; SEL=garde.SEL; A_PT=garde.A_PT; VISEE=garde.VISEE; SURVOL=garde.SURVOL; D_SEL=garde.D_SEL; D_PT=garde.D_PT; VUE_D=garde.VUE_D; MODE=garde.MODE; GRP=garde.GRP; IMPRIME=false; PX_MM=0; GEO_EC=GEO_EC_G;
   }
   return off;
 }
-function creerPdf(d, logo, soc){
-  var e=echelleMep(), g=e.g, P=g.P, a3=MEP.format==="a3";
+function creerPdf(d, logo, soc, imgPersp){
+  var e=echelleMep(), g=e.g, P=g.P, a3=MEP.format==="a3", lesCases=null;
+  if(planche()){ lesCases=casesPlanche(g.zone); var ep=echellePlanche(lesCases); e={n:ep.n, fit:ep.fit, deborde:ep.deborde, g:g, c:null}; }
   var doc=new window.jspdf.jsPDF({unit:"mm", format:MEP.format, orientation:MEP.orient==="l" ? "landscape" : "portrait"});
   var NOIR=[0,0,0];
   function trait(w){ doc.setDrawColor(0,0,0); doc.setLineWidth(w||0.25); }
@@ -4758,17 +4831,40 @@ function creerPdf(d, logo, soc){
     doc.text(String(s||""), x, y, {align:o.a||"left", baseline:o.base||"alphabetic", maxWidth:o.max}); }
   function coupe(s, t, w){ doc.setFontSize(t); return doc.splitTextToSize(String(s||""), w); }
   /* 1. le plan */
-  var dpi=a3 ? 200 : 260, img=rendrePlan(e, dpi), z=g.zone;
-  doc.addImage(img.toDataURL("image/jpeg", 0.93), "JPEG", z.x, z.y, z.w, z.h, undefined, "FAST");
+  var dpi=a3 ? 200 : 260, z=g.zone;
+  if(lesCases){
+    /* la planche : chaque vue dans sa case, à la même échelle, avec son titre */
+    var orthos=lesCases.filter(function(k){ return k.vue!=="persp"; }).length;
+    lesCases.forEach(function(k){
+      var dz=k.dessin;
+      if(k.vue==="persp"){
+        if(imgPersp) doc.addImage(imgPersp, "PNG", dz.x, dz.y, dz.w, dz.h, undefined, "FAST");
+        else texte("Perspective indisponible (3D non chargée).", dz.x+dz.w/2, dz.y+dz.h/2, 8, {a:"center"});
+      } else if(k.c){
+        var img=rendrePlan({n:e.n, g:g, c:k.c}, dpi, dz, k.vue);
+        doc.addImage(img.toDataURL("image/jpeg", 0.93), "JPEG", dz.x, dz.y, dz.w, dz.h, undefined, "FAST");
+      } else texte("Rien de dessiné dans cette vue.", dz.x+dz.w/2, dz.y+dz.h/2, 8, {a:"center"});
+      trait(0.25); doc.rect(k.x, k.y, k.w, k.h);
+      doc.line(k.x, k.y+6, k.x+k.w, k.y+6);
+      texte(NOM_VUES[k.vue].toUpperCase()+(k.vue!=="persp" ? "   ·   1/"+e.n : ""), k.x+3, k.y+4.3, 7.5, {b:true});
+    });
+    if(!orthos){ /* une perspective seule : pas de barre d'échelle */ }
+  } else {
+    var img=rendrePlan(e, dpi);
+    doc.addImage(img.toDataURL("image/jpeg", 0.93), "JPEG", z.x, z.y, z.w, z.h, undefined, "FAST");
+  }
   trait(0.3); doc.rect(z.x, z.y, z.w, z.h);
   /* la barre d'échelle, en bas à gauche du plan : 0 - 1 - 2 … mètres */
   var mmParM=1000/e.n, pas=[0.1,0.2,0.5,1,2,5,10,20,50,100].filter(function(v){ return v*mmParM>=8; })[0]||100;
   var bx=z.x+6, by=z.y+z.h-7, nb=4;
+  if(lesCases){ var kb=lesCases.filter(function(k){ return k.vue!=="persp"; }); kb=kb[kb.length-1]; if(kb){ bx=kb.x+5; by=kb.y+kb.h-6; } }
+  if(!lesCases || lesCases.some(function(k){ return k.vue!=="persp"; })){
   doc.setFillColor(255,255,255); doc.rect(bx-2, by-7.5, nb*pas*mmParM+14, 11, "F");
   for(var i=0;i<nb;i++){ if(i%2===0){ doc.setFillColor(0,0,0); doc.rect(bx+i*pas*mmParM, by-1.2, pas*mmParM, 1.6, "F"); } }
   trait(0.2); doc.rect(bx, by-1.2, nb*pas*mmParM, 1.6);
   for(var j=0;j<=nb;j++) texte(String(Math.round(j*pas*100)/100).replace(".",","), bx+j*pas*mmParM, by-2.4, 6.5, {a:"center"});
   texte("m", bx+nb*pas*mmParM+2.5, by+0.3, 6.5); texte("Échelle 1/"+e.n, bx, by+3.8, 6.5, {b:true});
+  }
   /* 2. la légende CFO et les quantités : colonne à droite (paysage), bande sous le plan (portrait) */
   var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), k=g.k;
   trait(0.35); doc.rect(g.cadre.x, g.cadre.y, g.cadre.w, g.cadre.h);
