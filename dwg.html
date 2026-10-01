@@ -3692,7 +3692,12 @@ function etendueDessin(){
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(m) pt(surMur(m, o.t*axes(m).L, 0), o.l+m.ep); });
   DESSIN.textes.forEach(function(t){ pt([t.x, t.y], t.h*3); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ pt(q, 0); }); });
-  geos().forEach(function(o){ if(o.t==="rond") pt(o.pts[0], o.r); else if(o.t==="gtexte") pt(o.pts[0], o.h*String(o.s).length*0.4); else contourG(o).forEach(function(q){ pt(q, o.t==="cote" ? Math.abs(o.off||0)+o.h*2 : 0); }); });
+  /* les formes dessinées de face ou de côté comptent par leur empreinte vue de dessus,
+     pas par leurs coordonnées d'élévation (sinon le dessus se décentre) */
+  geos().forEach(function(o){
+    if(vueDe(o)!=="dessus"){ projectionG(o, "dessus").forEach(function(l){ l.forEach(function(q){ pt(q, 0); }); }); return; }
+    if(o.t==="rond") pt(o.pts[0], o.r); else if(o.t==="gtexte") pt(o.pts[0], o.h*String(o.s).length*0.4); else contourG(o).forEach(function(q){ pt(q, o.t==="cote" ? Math.abs(o.off||0)+o.h*2 : 0); });
+  });
   SYMB.forEach(function(o){ pt([o.x, o.y], o.r*2); });
   return isFinite(x0) ? {minx:x0, miny:y0, maxx:x1, maxy:y1} : null;
 }
@@ -5252,7 +5257,7 @@ redim(); majBas();
 /* pour les essais */
 window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
-  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, grp:function(){ return GRP; }};
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 })();
 </script>
 </body>
