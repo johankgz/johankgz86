@@ -399,6 +399,7 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="objet"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M3 19V8M3 15h18v4M21 15v-3a2 2 0 0 0-2-2h-8v5"/><rect x="5" y="10.5" width="4" height="3" rx="1"/></svg></i>Mobilier</button>
     <button type="button" data-o="trait"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20 20 4"/></svg></i>Trait</button>
     <button type="button" data-o="poly"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18l5-9 6 5 7-10"/></svg></i>Polyligne</button>
+    <button type="button" data-o="spline" title="Spline : une courbe lisse qui passe par chaque point touché (ou glissez à main levée)"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c3-9 6-9 8-4s5 5 10-6"/><circle cx="3" cy="17" r="1.3" fill="#111"/><circle cx="11" cy="13" r="1.3" fill="#111"/><circle cx="21" cy="7" r="1.3" fill="#111"/></svg></i>Spline</button>
     <button type="button" data-o="rect"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="6" width="16" height="12"/></svg></i>Rectangle</button>
     <button type="button" data-o="rond"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8"/></svg></i>Rond</button>
     <button type="button" data-o="ellipse"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="12" rx="9" ry="5.5"/></svg></i>Ellipse</button>
@@ -1134,9 +1135,20 @@ var DOIGTS={}, G=null;
 /* au doigt ou au stylet, ces outils se tracent en glissant : on appuie au
    début, on glisse, on lâche à la fin (le plan se déplace alors à deux doigts).
    Les touchers un par un marchent toujours. */
-var TRACE_GLISSE={mur:1, cloison:1, trait:1, poly:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1};
-function traceGlisse(e){ return MODE==="dessin" && !REF && e.pointerType!=="mouse" && !!TRACE_GLISSE[OUTIL_D]; }
+var TRACE_GLISSE={mur:1, cloison:1, trait:1, poly:1, spline:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1};
+function traceGlisse(e){ return MODE==="dessin" && !REF && (e.pointerType!=="mouse" || (OUTIL_D==="spline" && !e.button && !e.shiftKey)) && !!TRACE_GLISSE[OUTIL_D]; }   /* à la souris, seule la spline se trace en glissant (main levée) ; Maj+glisser déplace le plan */
 /* le début d'un tracé glissé : il prolonge le tracé en cours s'il part de son dernier point, sinon il en commence un */
+/* la fin d'une spline à main levée : le dernier point accroché, les points simplifiés ; revenue à son départ, elle se ferme */
+function finMainLevee(cf){
+  var ec=GEO_EC; if(!ec) return;
+  var pts=ec.pts.slice(), ferme=false;
+  if(cf){ if(lng(sub(cf.pt, pts[pts.length-1]))*V.k<4) pts[pts.length-1]=cf.pt; else pts.push(cf.pt); }
+  pts=simplifierTrace(pts, 2.5/V.k);
+  if(pts.length>=4 && memePoint(pts[pts.length-1], pts[0])){ pts.pop(); ferme=true; }
+  if(pts.length<2 || lng(sub(pts[pts.length-1], pts[0]))*V.k<3 && !ferme){ GEO_EC=null; D_PT=null; majDessin(); return; }
+  creerGeo({t:"spline", pts:pts, ferme:ferme});
+  toast("Spline de "+pts.length+" points"+(ferme ? ", fermée" : "")+" : tirez ses poignées pour l'ajuster.", 2600);
+}
 function debutGlisse(c){
   var dern = GEO_EC ? GEO_EC.pts[GEO_EC.pts.length-1] : D_PT;
   if(dern){
@@ -1145,6 +1157,7 @@ function debutGlisse(c){
     if(GEO_EC) terminerGeo(); else { D_PT=null; }
   }
   toucherD(0, 0, {pt:c.pt, acc:c.acc, genre:c.genre});
+  if(OUTIL_D==="spline" && GEO_EC && GEO_EC.pts.length===1) GEO_EC.libre=true;
 }
 function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
 cv.addEventListener("pointerdown", function(e){
@@ -1241,7 +1254,10 @@ cv.addEventListener("pointermove", function(e){
   if(G.trace && !G.glisse && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>(G.visee ? 14 : 8)){
     G.glisse=true; G.bouge=true; clearTimeout(G.minuteur); debutGlisse(G.trace);
   }
-  if(G.glisse){ var cg=chercherD(p[0],p[1]); D_SOURIS=cg; VISEE={pt:cg.pt, acc:cg.acc, genre:cg.genre, ecran:p}; demander(); return; }
+  if(G.glisse){ var cg=chercherD(p[0],p[1]); D_SOURIS=cg; VISEE={pt:cg.pt, acc:cg.acc, genre:cg.genre, ecran:p};
+    /* la spline à main levée : le doigt laisse ses points (tous les 4 px) */
+    if(GEO_EC && GEO_EC.libre){ var vp=versPlan(p[0], p[1]), dl=GEO_EC.pts[GEO_EC.pts.length-1]; if(lng(sub(vp, dl))*V.k>=4) GEO_EC.pts.push(vp); }
+    demander(); return; }
   if(G.trace && !G.visee) return;          /* pas encore parti : le plan ne bouge pas sous un outil de tracé */
   if(G.visee){ var c = MODE==="dessin" ? chercherD(p[0],p[1]) : chercher(p[0],p[1]); if(MODE==="dessin") D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
   if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6){ G.bouge=true; clearTimeout(G.minuteur); }
@@ -1338,6 +1354,7 @@ function lacher(e){
     }
     if(G.glisse){
       /* la fin du tracé glissé, là où le doigt se lève */
+      if(GEO_EC && GEO_EC.libre){ finMainLevee(e.type==="pointercancel" ? null : chercherD(p[0], p[1])); D_SOURIS=null; VISEE=null; G=null; demander(); return; }
       if(e.type!=="pointercancel"){ var cf=chercherD(p[0], p[1]); toucherD(0, 0, {pt:cf.pt, acc:cf.acc, genre:cf.genre}); }
       D_SOURIS=null; VISEE=null; G=null; demander(); return;
     }
@@ -1963,7 +1980,7 @@ function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : 
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
 var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir", selection:"Sélection",
-  trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
+  trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
    l'outil se relâche (retour à Choisir, rien de choisi) et le doigt redéplace
@@ -2331,6 +2348,7 @@ function majDessin(){
       : T==="triangle" ? ["Touchez le premier sommet.", "Touchez le deuxième sommet.", "Touchez le troisième sommet."][nb]
       : T==="cote" ? ["Touchez le début de la mesure.", "Touchez la fin de la mesure (ou tapez sa longueur).", "Touchez où placer la ligne de cote."][nb]
       : (T==="poly" || T==="hachure") ? (nb ? "Point suivant (ou tapez une longueur). Le premier point ferme, le dernier termine." : "Touchez le premier point.")
+      : T==="spline" ? (nb ? "Point suivant : la courbe passe par chaque point. Le premier point la ferme, le dernier termine." : "Touchez le premier point, ou glissez pour tracer à main levée.")
       : (nb ? "Touchez la fin, ou tapez sa longueur." : "Touchez le début.");
   }
   else det="Touchez un mur, du côté où elle s'ouvre.";
@@ -2384,7 +2402,7 @@ function majDessin(){
   if(t==="mob") [["mobL", o.l*DESSIN_MM], ["mobP", o.p*DESSIN_MM], ["mobH", o.h], ["mobZ", o.z||0]].forEach(function(v){ if(document.activeElement!==$(v[0])) $(v[0]).value=enUnite(v[1]); });
   $("btSuppD").disabled = !o && !grpTaille(GRP);
   $("btTerminer").hidden = !D_PT;
-  $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : "Terminer le mur";
+  $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="spline" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : "Terminer le mur";
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT && !GEO_EC;
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
   $("btOrthoD").textContent=NOMS_ANGLE[ANGLE_D];
@@ -2536,8 +2554,8 @@ $("btDxfD").addEventListener("click", function(){ exporterDxf(); });
    tapées au centimètre. Chaque forme garde son style : épaisseur (fine,
    moyenne, épaisse : 0,18, 0,35, 0,7 mm sur le papier), couleur, tirets,
    remplissage (gris ou hachures). Points dans l'unité du plan. */
-var GEO_OUTILS={trait:1, poly:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1, gtexte:1};
-var GEO_NOMS={trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
+var GEO_OUTILS={trait:1, poly:1, spline:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1, gtexte:1};
+var GEO_NOMS={trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 var COULEURS_G={noir:null, rouge:"#DC2626", bleu:"#2563EB", vert:"#16A34A", orange:"#EA580C"};
 var COUL_DXF={noir:7, rouge:1, bleu:5, vert:3, orange:30};
 var EP_G={fin:[1,0.18], moyen:[1.8,0.35], epais:[3.2,0.7]};     /* pixels à l'écran, mm sur le papier */
@@ -2715,10 +2733,49 @@ function peindreElevation(c, E, fin, coulTrait, orange){
 var GEO_EXCLU=null;
 function geosAccroche(){ return geosVue().filter(function(o){ return o.id!==GEO_EXCLU; }); }
 function geoDe(id){ var l=geos(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
-function fermee(o){ return o.t==="rect" || o.t==="rond" || o.t==="ellipse" || o.t==="triangle" || o.t==="hachure" || (o.t==="poly" && !!o.ferme); }
+function fermee(o){ return o.t==="rect" || o.t==="rond" || o.t==="ellipse" || o.t==="triangle" || o.t==="hachure" || ((o.t==="poly" || o.t==="spline") && !!o.ferme); }
 function largeurG(o){ var e=EP_G[o.ep]||EP_G.moyen; return PX_MM ? e[1]*PX_MM : e[0]; }
 function ptsRond(o, n){ n=n||64; var c=o.pts[0], out=[]; for(var i=0;i<n;i++){ var a=i/n*Math.PI*2; out.push([c[0]+o.r*Math.cos(a), c[1]+o.r*Math.sin(a)]); } return out; }
-function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.t==="ellipse" ? ptsEllipse(o) : o.t==="arc" ? ptsArc(o) : o.pts; }
+function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.t==="ellipse" ? ptsEllipse(o) : o.t==="arc" ? ptsArc(o) : o.t==="spline" ? ptsSpline(o) : o.pts; }
+/* La spline : une courbe lisse qui passe exactement par chacun de ses points (Catmull-Rom
+   centripète : pas de boucle ni de dépassement entre deux points serrés), ouverte ou fermée */
+function ptsSpline(o, n){
+  var P=o.pts, m=P.length, F=!!o.ferme && m>2, out=[];
+  if(m<3) return P.slice();
+  function at(i){
+    if(F) return P[((i%m)+m)%m];
+    if(i<0) return [2*P[0][0]-P[1][0], 2*P[0][1]-P[1][1]];
+    if(i>=m) return [2*P[m-1][0]-P[m-2][0], 2*P[m-1][1]-P[m-2][1]];
+    return P[i];
+  }
+  function mix(a, b, ta, tb, t){ var d=tb-ta; if(d<1e-12) return a.slice(); return [(a[0]*(tb-t)+b[0]*(t-ta))/d, (a[1]*(tb-t)+b[1]*(t-ta))/d]; }
+  var seg=F ? m : m-1;
+  for(var i=0;i<seg;i++){
+    var p0=at(i-1), p1=at(i), p2=at(i+1), p3=at(i+2);
+    var t0=0, t1=t0+Math.max(1e-6, Math.sqrt(lng(sub(p1,p0)))), t2=t1+Math.max(1e-6, Math.sqrt(lng(sub(p2,p1)))), t3=t2+Math.max(1e-6, Math.sqrt(lng(sub(p3,p2))));
+    var k=n||Math.max(8, Math.min(32, Math.round(lng(sub(p2,p1))*DESSIN_MM/25)));     /* un point tous les 2,5 cm environ, quel que soit le zoom */
+    for(var j=0;j<k;j++){
+      var t=t1+(t2-t1)*j/k;
+      var A1=mix(p0,p1,t0,t1,t), A2=mix(p1,p2,t1,t2,t), A3=mix(p2,p3,t2,t3,t);
+      var B1=mix(A1,A2,t0,t2,t), B2=mix(A2,A3,t1,t3,t);
+      out.push(j===0 ? p1.slice() : mix(B1,B2,t1,t2,t));
+    }
+  }
+  if(!F) out.push(P[m-1].slice());
+  return out;
+}
+/* un tracé à main levée : les points utiles seulement (Douglas-Peucker), la spline lisse le reste */
+function simplifierTrace(pts, tol){
+  if(pts.length<3) return pts.slice();
+  var gard=[0, pts.length-1], pile=[[0, pts.length-1]];
+  while(pile.length){
+    var ab=pile.pop(), a=ab[0], b=ab[1], im=-1, dm=tol;
+    for(var i=a+1;i<b;i++){ var d=distSeg(pts[i], pts[a], pts[b]).d; if(d>dm){ dm=d; im=i; } }
+    if(im>=0){ gard.push(im); pile.push([a, im], [im, b]); }
+  }
+  gard.sort(function(x, y){ return x-y; });
+  return gard.map(function(i){ return pts[i]; });
+}
 /* l'ellipse : un centre, deux demi-axes, une rotation (degrés) */
 function ptsEllipse(o, n){
   n=n||72; var c=o.pts[0], a=(o.rot||0)*Math.PI/180, ca=Math.cos(a), sa=Math.sin(a), out=[];
@@ -2817,7 +2874,7 @@ function aimanter(cands){
   return best;
 }
 function milieuxGeo(){
-  var out=[]; geosAccroche().forEach(function(o){ if(o.t==="rond" || o.t==="cote" || o.t==="ellipse" || o.t==="arc") return; segmentsG(o).forEach(function(s){ out.push([(s[0][0]+s[1][0])/2, (s[0][1]+s[1][1])/2]); }); }); return out;
+  var out=[]; geosAccroche().forEach(function(o){ if(o.t==="rond" || o.t==="cote" || o.t==="ellipse" || o.t==="arc" || o.t==="spline") return; segmentsG(o).forEach(function(s){ out.push([(s[0][0]+s[1][0])/2, (s[0][1]+s[1][1])/2]); }); }); return out;
 }
 function tailleDefaut(px){ var v=(px||14)/V.k, p=Math.pow(10, Math.floor(Math.log10(v))); return Math.max(1, Math.round(v/p)*p); }
 /* la cote écrite comme sur un plan : le nombre seul, en cm (en mm si l'unité choisie est le mm) */
@@ -2827,14 +2884,14 @@ function texteCote(L){
   return (Math.round(mm)/10).toLocaleString("fr-FR", {maximumFractionDigits:1});
 }
 function nommerG(o){
-  var n=GEO_NOMS[o.t==="poly" && o.ferme ? "poly" : o.t];
+  var n=GEO_NOMS[o.t];
   if(o.t==="rect"){ var W=lng(sub(o.pts[1],o.pts[0])), H=lng(sub(o.pts[3],o.pts[0])); return n+" "+cm(W*DESSIN_MM)+" × "+cm(H*DESSIN_MM)+" cm"; }
   if(o.t==="rond") return n+" Ø "+cm(2*o.r*DESSIN_MM)+" cm";
   if(o.t==="ellipse") return n+" "+cm(2*o.rx*DESSIN_MM)+" × "+cm(2*o.ry*DESSIN_MM)+" cm";
   if(o.t==="arc"){ var ka=arcInfo(o); return ka ? n+" de rayon "+cm(ka.r*DESSIN_MM)+" cm, "+Math.round(Math.abs(ka.sweep)*180/Math.PI)+"°" : n; }
   if(o.t==="trait" || o.t==="fleche" || o.t==="cote") return n+" de "+cm(lng(sub(o.pts[1],o.pts[0]))*DESSIN_MM)+" cm";
   if(o.t==="gtexte") return n+" « "+o.s+" »";
-  return n+(o.t==="poly" ? (o.ferme ? " fermée" : "")+", "+o.pts.length+" points" : "");
+  return n+((o.t==="poly" || o.t==="spline") ? (o.ferme ? " fermée" : "")+", "+o.pts.length+" points" : "");
 }
 /* ---------- créer ---------- */
 function creerGeo(o){
@@ -2848,7 +2905,7 @@ function creerGeo(o){
 }
 function rectDe(a, c){ return [a.slice(), [c[0], a[1]], c.slice(), [a[0], c[1]]]; }
 /* la fin d'un segment : sur le point accroché, sinon droite si Ortho */
-function finGeo(a, cible){ if(cible.acc) return cible.pt; return ORTHO_D ? contraindreD(a, cible.pt) : cible.pt; }
+function finGeo(a, cible){ if(cible.acc || OUTIL_D==="spline") return cible.pt; return ORTHO_D ? contraindreD(a, cible.pt) : cible.pt; }
 function memePoint(p, q){ var P=versEcran(p[0],p[1]), Q=versEcran(q[0],q[1]); return Math.hypot(P[0]-Q[0], P[1]-Q[1]) < 14; }
 function toucherGeo(cible, p){
   var t=OUTIL_D, pt=cible.pt;
@@ -2891,7 +2948,7 @@ function toucherGeo(cible, p){
 }
 function terminerGeo(){
   var ec=GEO_EC; if(!ec){ D_PT=null; majDessin(); return; }
-  if(ec.t==="poly" && ec.pts.length>=2){ creerGeo({t:"poly", pts:ec.pts, ferme:false}); return; }
+  if((ec.t==="poly" || ec.t==="spline") && ec.pts.length>=2){ creerGeo({t:ec.t, pts:ec.pts, ferme:false}); return; }
   if(ec.t==="hachure" && ec.pts.length>=3){ creerGeo({t:"hachure", pts:ec.pts, ferme:true}); return; }
   GEO_EC=null; D_PT=null; majDessin();
 }
@@ -2924,7 +2981,7 @@ function saisirGeo(){
     var d=directionSaisie(dern), q=[dern[0]+d[0]*L*u, dern[1]+d[1]*L*u];
     if(ec.t==="trait" || ec.t==="fleche") creerGeo({t:ec.t, pts:[dern, q]});
     else if(ec.t==="cote" && ec.pts.length===1){ ec.pts.push(q); D_PT=q; majDessin(); }
-    else if(ec.t==="poly" || ec.t==="hachure" || ec.t==="triangle"){
+    else if(ec.t==="poly" || ec.t==="spline" || ec.t==="hachure" || ec.t==="triangle"){
       ec.pts.push(q); D_PT=q;
       if(ec.t==="triangle" && ec.pts.length===3) creerGeo({t:"triangle", pts:ec.pts}); else majDessin();
     }
@@ -3077,6 +3134,7 @@ function peindreGeo(c, E, coulTrait, orange){
     else if(ec.t==="arc" && ec.pts.length===2 && q){ var art={t:"arc", pts:[ec.pts[0], q, ec.pts[1]]}, ki=arcInfo(art); apercu=[ptsArc(art), false]; if(ki) lib="R "+cm(ki.r*DESSIN_MM)+" cm"; }
     else if(ec.t==="cote" && ec.pts.length===2 && D_SOURIS){ var a=ec.pts[0], b=ec.pts[1], u=unite(sub(b,a)), n=[-u[1],u[0]], off=(D_SOURIS.pt[0]-a[0])*n[0]+(D_SOURIS.pt[1]-a[1])*n[1];
       apercu=[[[a[0]+n[0]*off, a[1]+n[1]*off], [b[0]+n[0]*off, b[1]+n[1]*off]], false]; lib=texteCote(lng(sub(b,a))); }
+    else if(ec.t==="spline"){ var pss=ec.pts.slice(); if(q && !ec.libre) pss.push(q); apercu=[ptsSpline({pts:pss}), false]; }
     else { var ps=ec.pts.slice(); if(q) ps.push(q); apercu=[ps, (ec.t==="triangle" && ps.length===3) || (ec.t==="hachure" && ps.length>2)]; if(q) lib=formater(lng(sub(q, dern))); }
     if(apercu && apercu[0].length>1){ chemin(apercu[0], apercu[1]); c.stroke(); }
     if(lib && q){ var P2=E(q); etiquette(c, P2[0], P2[1]-24, lib); }
@@ -3609,7 +3667,7 @@ function volumes3D(sc, hsp){
 function majGeoPanneau(o, t){
   var geoSel = t==="geo" ? o : null, outil = GEO_OUTILS[OUTIL_D], ec=GEO_EC;
   /* la saisie au clavier pendant le tracé */
-  var saisie = ec && (ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || ec.t==="trait" || ec.t==="fleche" || ec.t==="poly" || ec.t==="hachure" || ec.t==="triangle" || (ec.t==="cote" && ec.pts.length===1));
+  var saisie = ec && (ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || ec.t==="trait" || ec.t==="fleche" || ec.t==="poly" || ec.t==="spline" || ec.t==="hachure" || ec.t==="triangle" || (ec.t==="cote" && ec.pts.length===1));
   $("grpSaisieG").hidden=!saisie;
   if(saisie){ $("labGL").textContent = (ec.t==="rect" || ec.t==="ellipse") ? "L" : ec.t==="rond" ? "Ø" : "Longueur"; $("labGH").hidden=$("gH").hidden=(ec.t!=="rect" && ec.t!=="ellipse"); }
   /* le style */
@@ -3619,7 +3677,7 @@ function majGeoPanneau(o, t){
     Array.prototype.forEach.call($("segEpG").children, function(b){ b.classList.toggle("on", b.dataset.e===st.ep); });
     Array.prototype.forEach.call($("segCoulG").children, function(b){ b.classList.toggle("on", b.dataset.c===st.coul); });
     $("btTiretsG").classList.toggle("on", !!st.tir); $("btTiretsG").setAttribute("aria-pressed", st.tir?"true":"false");
-    var typ = geoSel ? geoSel.t : OUTIL_D, ferme = geoSel ? fermee(geoSel) : (typ==="rect" || typ==="rond" || typ==="ellipse" || typ==="triangle" || typ==="poly");
+    var typ = geoSel ? geoSel.t : OUTIL_D, ferme = geoSel ? fermee(geoSel) : (typ==="rect" || typ==="rond" || typ==="ellipse" || typ==="triangle" || typ==="poly" || typ==="spline");
     $("segRempG").hidden = !ferme || typ==="hachure";
     Array.prototype.forEach.call($("segRempG").children, function(b){ b.classList.toggle("on", b.dataset.r===(st.remp||"aucun")); });
     $("btDoubleG").hidden = typ!=="fleche" || !geoSel;
@@ -5468,7 +5526,7 @@ document.addEventListener("click", function(e){ if(!$("plusMenu").hidden && !e.t
 window.addEventListener("resize", function(){ redim(); majBarreSel(); });
 redim(); majBas();
 /* pour les essais */
-window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 })();
