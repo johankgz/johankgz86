@@ -51,4 +51,20 @@
   window.addEventListener("online", etat);
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", etat); else etat();
   window.HorsLigne={etat:etat};
+
+  /* la pastille sur l'icône de l'appli, sur l'écran d'accueil du téléphone :
+     le nombre de la cloche de l'accueil. Le service la tient à jour quand
+     une notification arrive appli fermée (sw.js), l'accueil la remet au
+     compte juste à chaque ouverture. iPhone : appli ajoutée à l'écran
+     d'accueil et notifications autorisées. */
+  function pastille(n){
+    n = Math.max(0, parseInt(n, 10) || 0);
+    try{
+      if(n && navigator.setAppBadge) navigator.setAppBadge(n).catch(function(){});
+      else if(!n && navigator.clearAppBadge) navigator.clearAppBadge().catch(function(){});
+    }catch(e){}
+    dire({type:"pastille", n:n});
+  }
+  window.PastilleAppli={poser:pastille};
+  if(sansSession) pastille(0);
 })();

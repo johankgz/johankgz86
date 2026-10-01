@@ -80,8 +80,33 @@ self.addEventListener("message", function(e){
     }));
   }
   /* déconnecté : les données de l'ancien compte ne restent pas sur l'appareil */
-  if(d.type === "oublier") e.waitUntil(caches.delete(DONNEES));
+  if(d.type === "oublier") e.waitUntil(Promise.all([caches.delete(DONNEES), ecrirePastille(0)]));
+  /* l'accueil a compté sa cloche : la pastille de l'icône repart de là */
+  if(d.type === "pastille") e.waitUntil(ecrirePastille(d.n));
 });
+
+/* ---------- la pastille de l'icône (écran d'accueil du téléphone) ---------- */
+function lirePastille(){
+  return caches.open(REGLAGES).then(function(c){ return c.match("/__pastille"); })
+    .then(function(r){ return r ? r.text() : "0"; }).then(function(t){ return parseInt(t, 10) || 0; })
+    .catch(function(){ return 0; });
+}
+function ecrirePastille(n){
+  n = Math.max(0, parseInt(n, 10) || 0);
+  return caches.open(REGLAGES).then(function(c){ return c.put("/__pastille", new Response(String(n))); }).catch(function(){});
+}
+function montrerPastille(n){
+  try{
+    var nav = self.navigator;
+    if(n && nav.setAppBadge) return nav.setAppBadge(n).catch(function(){});
+    if(!n && nav.clearAppBadge) return nav.clearAppBadge().catch(function(){});
+  }catch(er){}
+  return Promise.resolve();
+}
+/* une notification de plus, appli fermée : la pastille compte un de plus */
+function pastillePlusUn(){
+  return lirePastille().then(function(n){ n += 1; return ecrirePastille(n).then(function(){ return montrerPastille(n); }); });
+}
 
 /* ---------- les stratégies ---------- */
 function avecDelai(p, ms){
@@ -201,7 +226,10 @@ self.addEventListener("push", function(e){
   /* même sujet (même discussion, même rappel) : la nouvelle remplace
      l'ancienne au lieu de s'empiler, et sonne quand même */
   if (d.tag) { options.tag = d.tag; options.renotify = true; }
-  e.waitUntil(self.registration.showNotification(d.titre || "Suivi travaux 360", options));
+  e.waitUntil(Promise.all([
+    self.registration.showNotification(d.titre || "Suivi travaux 360", options),
+    pastillePlusUn()
+  ]));
 });
 
 self.addEventListener("notificationclick", function(e){
