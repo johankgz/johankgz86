@@ -252,6 +252,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="visite">Visite</button></span>
     <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button><button type="button" data-g="objet" title="Glisser un meuble, une forme ou un symbole">Objet</button></span>
     <span class="seg" id="v3Axe" role="group" aria-label="L'objet glisse" hidden><button type="button" data-a="plat">À plat</button><button type="button" data-a="haut">En hauteur</button></span>
+    <span class="seg" id="v3Rendu" role="group" aria-label="Rendu"><button type="button" data-r="trait" title="Comme un dessin d'architecte : les arêtes en traits, les faces cachées">Trait</button><button type="button" data-r="ombre" title="Les volumes ombrés, en couleurs">Ombré</button></span>
     <button class="bt" id="v3Recentrer" type="button" title="Voir tout le dessin">Recentrer</button>
     <button class="bt" id="v3Transp" type="button" aria-pressed="false">Murs transparents</button>
     <button class="bt" id="v3Plafond" type="button" aria-pressed="true" title="Le plafond, au-dessus des pièces fermées par les murs">Plafond</button>
@@ -3154,7 +3155,7 @@ function plafond3D(sc, hsp){
   var mat=new THREE.MeshStandardMaterial({color:0xF7F6F2, emissive:0x8E8C86, roughness:0.95, side:THREE.FrontSide, transparent:V3.transp, opacity:V3.transp ? 0.35 : 1, depthWrite:!V3.transp});
   var me=new THREE.Mesh(geo, mat); me.name="plafond"; sc.add(me);
   var voile=new THREE.Mesh(geo, new THREE.MeshBasicMaterial({color:0xFFFFFF, side:THREE.BackSide, transparent:true, opacity:0.16, depthWrite:false}));
-  voile.renderOrder=5; voile.raycast=function(){}; sc.add(voile);   /* le pivot se prend dessous, pas sur le voile */
+  voile.name="plafond-voile"; voile.renderOrder=5; voile.raycast=function(){}; sc.add(voile);   /* le pivot se prend dessous, pas sur le voile */
   V3.plafond3=me;
 }
 function volumes3D(sc, hsp){
@@ -3476,7 +3477,7 @@ function ouvrir3D(){
       var cv3=$("v3Canvas");
       var r=new THREE.WebGLRenderer({canvas:cv3, antialias:true, preserveDrawingBuffer:true});
       V3={THREE:THREE, renderer:r, scene:null, camera:new THREE.PerspectiveCamera(50, 1, 0.02, 400), cam:{az:-0.6, el:0.75, dist:12, cible:[0,0,0]},
-          ortho:new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), etiquettes:[], murs3:[], mode:"persp", transp:false, cotes:lire("dwg:cotes3d","0")==="1", plafond:lire("dwg:plafond3d","1")==="1", textures:{}};
+          ortho:new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), etiquettes:[], murs3:[], mode:"persp", transp:false, style:lire("dwg:rendu3d","trait")==="ombre" ? "ombre" : "trait", cotes:lire("dwg:cotes3d","0")==="1", plafond:lire("dwg:plafond3d","1")==="1", textures:{}};
       brancherGestes3D();
       window.addEventListener("resize", function(){ if(!$("vue3d").hidden){ taille3D(); rendu3D(); } });
     }
@@ -3522,7 +3523,7 @@ function texteSprite(txt, taille, fond, ecran){
   x.font="600 "+f+"px Helvetica, Arial, sans-serif"; var w=Math.ceil(x.measureText(txt).width)+36;
   c.width=w; c.height=f+30; x.font="600 "+f+"px Helvetica, Arial, sans-serif";
   if(fond){ x.fillStyle=fond; x.beginPath(); if(x.roundRect) x.roundRect(0,0,w,c.height,20); else x.rect(0,0,w,c.height); x.fill(); }
-  x.fillStyle=fond ? "#FFFFFF" : "#1F2933"; x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt, w/2, c.height/2+2);
+  x.fillStyle=fond ? "#FFFFFF" : (V3.style==="trait" && !CLAIR ? "#E5E9EF" : "#1F2933"); x.textAlign="center"; x.textBaseline="middle"; x.fillText(txt, w/2, c.height/2+2);
   var t=new THREE.CanvasTexture(c); t.colorSpace=THREE.SRGBColorSpace;
   var s=new THREE.Sprite(new THREE.SpriteMaterial({map:t, depthTest:false, transparent:true, sizeAttenuation:!ecran}));
   s.scale.set(taille*w/c.height, taille, 1); s.renderOrder=10;
@@ -3698,8 +3699,45 @@ function construire3Dmm(ed){
       et.userData.ancre=new THREE.Vector3(pos[0]+(nrm?nrm[0]*0.03:0), pos[1], pos[2]-(nrm?nrm[1]*0.03:0));
     }
   }
+  if(V3.style==="trait") enTrait3D(sc);
   sc.updateMatrixWorld(true);     /* pour les rayons de visibilité, avant le premier rendu */
   V3.scene=sc;
+}
+/* Le rendu « Trait », comme un dessin d'architecte et comme le plan : le fond du
+   plan (sombre, ou blanc en fond clair), chaque volume dessiné par ses arêtes,
+   ses faces de la couleur du fond pour cacher ce qui est derrière (les traits
+   cachés disparaissent). Murs transparents : les faces s'effacent, tout se voit
+   en fil de fer. Les symboles gardent leurs couleurs, les LED restent allumées. */
+function enTrait3D(sc){
+  var T=V3.THREE, fond=CLAIR ? 0xFFFFFF : 0x0B0E12, encre=CLAIR ? 0x111111 : 0xE5E9EF;
+  sc.background=new T.Color(fond);
+  var trait=new T.LineBasicMaterial({color:encre}), grille=CLAIR ? [0xD5DAE0] : [0x232A33];
+  var murs=V3.murs3||[], ajouts=[];
+  function sombre(c){ return c && (c.r*0.3+c.g*0.59+c.b*0.11) < 0.5; }
+  sc.traverse(function(o){
+    if(o.isSprite){ if(o.material && o.material.blending===T.AdditiveBlending) o.visible=false; return; }
+    if(o.type==="GridHelper"){
+      var cs=o.geometry.attributes.color; if(cs){ var g0=new T.Color(grille[0]); for(var i=0;i<cs.count;i++) cs.setXYZ(i, g0.r, g0.g, g0.b); cs.needsUpdate=true; }
+      return;
+    }
+    if(o.isLine){
+      /* les arêtes et les traits sombres passent à l'encre ; les couleurs (rouge, bleu, orange) restent */
+      var lm=o.material; if(lm && lm.color && (sombre(lm.color) || lm.color.getHex()===0x5B6470)){ lm.color.setHex(encre); lm.opacity=1; lm.transparent=false; }
+      return;
+    }
+    if(!o.isMesh || o.isInstancedMesh) return;
+    var m=o.material;
+    if(!m || Array.isArray(m)) return;
+    if(m.blending===T.AdditiveBlending || o.name==="plafond-voile"){ o.visible=false; return; }    /* faisceaux, voile du plafond : pas dans un dessin */
+    if(m.map) return;                                                   /* une icône, le plan DWG au sol */
+    if(m.transparent && m.opacity<0.9 && murs.indexOf(o)<0) return;     /* vitrages, volumes SDB, repères */
+    var cache=new T.MeshBasicMaterial({color:fond, side:m.side, polygonOffset:true, polygonOffsetFactor:1, polygonOffsetUnits:1});
+    if(V3.transp && murs.indexOf(o)>=0){ cache.colorWrite=false; cache.depthWrite=false; }
+    if(m.emissive && m.emissive.r>0.9) return;                          /* une lumière (ruban LED, réglette) */
+    o.material=cache;
+    if(o.geometry && o.geometry.type!=="PlaneGeometry" && o.geometry.type!=="CircleGeometry") ajouts.push(o);
+  });
+  ajouts.forEach(function(o){ var ar=new T.LineSegments(new T.EdgesGeometry(o.geometry, 25), trait); o.add(ar); });
 }
 /* ---------- le dessin technique en 3D ----------
    Au sol (ou à sa hauteur du sol) : les traits, arcs, flèches et cotes en
@@ -4144,6 +4182,7 @@ function zoomBouton3D(f){
 function majBarre3D(){
   Array.prototype.forEach.call($("v3Vue").children, function(b){ b.classList.toggle("on", b.dataset.v===V3.mode); });
   $("v3Transp").classList.toggle("on", V3.transp); $("v3Transp").setAttribute("aria-pressed", V3.transp?"true":"false");
+  Array.prototype.forEach.call($("v3Rendu").children, function(b){ var on=b.dataset.r===V3.style; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on?"true":"false"); });
   $("v3Cotes").classList.toggle("on", V3.cotes); $("v3Cotes").setAttribute("aria-pressed", V3.cotes?"true":"false");
   $("v3Plafond").hidden=!DESSIN.murs.length; $("v3Plafond").classList.toggle("on", V3.plafond); $("v3Plafond").setAttribute("aria-pressed", V3.plafond?"true":"false");
   var vol=mobs().some(function(o){ return defMob(o.cle).vol; });
@@ -4175,6 +4214,10 @@ $("v3Recentrer").addEventListener("click", function(){ if(!V3) return; cadrer3D(
 $("v3Plus").addEventListener("click", function(){ zoomBouton3D(1/1.35); });
 $("v3Moins").addEventListener("click", function(){ zoomBouton3D(1.35); });
 $("v3Vue").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; cadrer3D(b.dataset.v); majBarre3D(); rendu3D(); });
+Array.prototype.forEach.call($("v3Rendu").children, function(b){ b.addEventListener("click", function(){
+  if(!V3 || V3.style===b.dataset.r) return;
+  V3.style=b.dataset.r; garder("dwg:rendu3d", V3.style); construire3D(); majBarre3D(); rendu3D();
+}); });
 $("v3Transp").addEventListener("click", function(){ if(!V3) return; V3.transp=!V3.transp; construire3D(); majBarre3D(); rendu3D(); });
 $("v3Vols").addEventListener("click", function(){ if(!V3) return; VOLS=!VOLS; garder("dwg:volumes", VOLS?"1":"0"); construire3D(); majBarre3D(); rendu3D(); demander(); });
 $("v3Plafond").addEventListener("click", function(){ if(!V3) return; V3.plafond=!V3.plafond; garder("dwg:plafond3d", V3.plafond?"1":"0"); construire3D(); majBarre3D(); rendu3D(); });
