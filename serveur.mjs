@@ -1,8 +1,9 @@
 /* =====================================================================
    LE SITE, SUR UN SERVEUR ORDINAIRE
    ---------------------------------------------------------------------
-   Sert les pages du site et les deux fonctions (rapports et PVGIS),
-   sans Netlify. Les données sont rangées dans un dossier de fichiers.
+   Sert les pages du site et ses fonctions (rapports, PVGIS, plans),
+   rangées dans le dossier serveur/. Les données sont dans un dossier de
+   fichiers.
 
    Sur votre ordinateur :        npm start
    puis ouvrez                   http://localhost:8080
@@ -25,10 +26,10 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import zlib from "node:zlib";
-import rapports from "./netlify/functions/rapports.mjs";
-import pvgis from "./netlify/functions/pvgis.mjs";
-import plan from "./netlify/functions/plan.mjs";
-import { dossierDonnees } from "./netlify/functions/magasin-fichiers.mjs";
+import rapports from "./serveur/rapports.mjs";
+import pvgis from "./serveur/pvgis.mjs";
+import plan from "./serveur/plan.mjs";
+import { dossierDonnees } from "./serveur/magasin-fichiers.mjs";
 
 const RACINE = path.dirname(fileURLToPath(import.meta.url));
 const PORT = parseInt(process.env.PORT || "8080", 10);
@@ -48,13 +49,13 @@ const TYPES = {
 
 /* les fonctions du site, à leur adresse */
 const ROUTES = [
-  { chemins: ["/api/rapports", "/.netlify/functions/rapports"], fonction: rapports },
-  { chemins: ["/api/pvgis", "/.netlify/functions/pvgis"], fonction: pvgis },
+  { chemins: ["/api/rapports"], fonction: rapports },
+  { chemins: ["/api/pvgis"], fonction: pvgis },
   { chemins: ["/api/plan"], fonction: plan }
 ];
 
 /* jamais de fichier hors du site, ni le dossier des données, ni le dépôt */
-const INTERDITS = [".git", ".claude", "node_modules", "donnees", "netlify", "prive", "analyseur-plans", "serveur.mjs", "package-lock.json"];
+const INTERDITS = [".git", ".claude", "node_modules", "donnees", "serveur", "prive", "analyseur-plans", "serveur.mjs", "package-lock.json"];
 
 function fichierDemande(chemin) {
   let propre;

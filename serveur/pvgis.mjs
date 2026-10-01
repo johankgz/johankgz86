@@ -1,7 +1,7 @@
 // Proxy PVGIS — évite le blocage CORS du navigateur.
-// Appelé sur /api/pvgis?lat=...&lon=... — comme /api/rapports. Pas
-// d'adresse en /.netlify/… : chez o2switch, Apache refuse (403) tout
-// chemin qui commence par un point, avant même d'atteindre le serveur Node.
+// Appelé sur /api/pvgis?lat=...&lon=... — comme /api/rapports. Jamais
+// d'adresse qui commence par un point : chez o2switch, Apache la refuse
+// (403) avant même d'atteindre le serveur Node.
 //
 // PVGIS change de version de temps en temps (5.2, puis 5.3…) et retire les
 // anciennes : on essaie la plus récente d'abord, puis l'adresse sans

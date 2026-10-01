@@ -1,8 +1,8 @@
 /* =====================================================================
    MAGASIN SUR FICHIERS
    ---------------------------------------------------------------------
-   La même poignée d'opérations que Netlify Blobs — get, set, setJSON,
-   delete, list — mais rangées dans un dossier ordinaire.
+   Une poignée d'opérations — get, set, setJSON, delete, list —
+   rangées dans un dossier ordinaire.
 
    Chaque magasin est un sous-dossier, chaque clé un fichier. Les
    « dossiers » du site apparaissent donc tels quels :

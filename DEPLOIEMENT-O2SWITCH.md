@@ -133,7 +133,7 @@ un dossier resté vide d'une tentative précédente.
 
 Ouvrez l'adresse de l'application : la page de connexion doit
 apparaître. Les comptes de départ sont ceux de
-`netlify/functions/equipe.mjs` — société `tle`, identifiant `johan`.
+`serveur/equipe.mjs` — société `tle`, identifiant `johan`.
 
 **Changez les mots de passe dès la première connexion.** Ceux du fichier
 sont écrits en clair dans le dépôt : ils servent à ouvrir le site la
@@ -238,34 +238,7 @@ l'installation sur l'écran d'accueil.
 
 ---
 
-## 4. Reprendre les données déjà sur Netlify
-
-À faire une fois, quand le site répond sur o2switch.
-
-1. Sur netlify.com, relevez le **Site ID** (`Site configuration` →
-   `General`) et créez un jeton (votre avatar → `User settings` →
-   `Applications` → `Personal access tokens`).
-2. Dans le Terminal cPanel, après être entré dans l'environnement
-   virtuel :
-
-```bash
-cd ~/outils
-NETLIFY_SITE_ID=xxx NETLIFY_AUTH_TOKEN=yyy DONNEES_DOSSIER=~/outils-donnees npm run export-netlify
-```
-
-3. **RESTART** dans Setup Node.js App.
-
-Tous les dossiers, documents, comptes et listes sont là. Rien n'est
-modifié chez Netlify : le script ne fait que lire, et vous pouvez
-laisser l'ancien site en service le temps de vérifier.
-
-Si le terminal n'est pas disponible, lancez la même commande depuis
-votre ordinateur (Node 20 requis), puis téléversez le dossier `donnees`
-obtenu dans `/home/VOTRECOMPTE/outils-donnees`.
-
----
-
-## 5. Au quotidien
+## 4. Au quotidien
 
 **Les notifications sur le téléphone** marchent sans rien installer ni
 régler : les clés sont fabriquées au premier usage et rangées dans le
@@ -306,13 +279,13 @@ journal des erreurs est dans `~/outils/stderr.log` ou dans la section
 
 ---
 
-## 6. Vérifier que tout y est
+## 5. Vérifier que tout y est
 
 Une fois le site en ligne, cinq minutes suffisent à s'en assurer :
 
 - [ ] La page de connexion s'ouvre en `https://`, cadenas fermé.
 - [ ] Vous vous connectez, le menu affiche vos applis.
-- [ ] `https://votre-adresse/netlify/functions/equipe.mjs` renvoie
+- [ ] `https://votre-adresse/serveur/equipe.mjs` renvoie
       **Interdit** — les sources restent hors de portée.
 - [ ] Un relevé se publie, et il apparaît dans **Mes rapports**.
 - [ ] **Carte des chantiers** ouvre la carte et pose une épingle.
@@ -328,15 +301,15 @@ Si l'un de ces points cloche, dites-moi lequel.
 
 ---
 
-## 7. Si votre offre n'a pas Node.js
+## 6. Si votre offre n'a pas Node.js
 
 Le site a besoin d'un serveur pour son API : les pages seules ne
 suffisent pas. Trois issues, de la plus simple à la plus lourde :
 
 1. **Demander à o2switch.** Le support répond vite et Node fait partie
    de leur offre ; il s'agit souvent d'une case à activer.
-2. **Garder l'API ailleurs.** Les pages sur o2switch, l'API sur Netlify
-   ou un petit serveur. Il faut alors un renvoi `/api/*` vers l'autre
+2. **Garder l'API ailleurs.** Les pages sur o2switch, l'API sur un petit
+   serveur. Il faut alors un renvoi `/api/*` vers l'autre
    adresse — quelques lignes de `.htaccess` que je peux écrire.
 3. **Changer d'hébergeur pour cette application.** Voir `DEPLOIEMENT.md`
    pour Render, Railway, Fly ou un VPS.

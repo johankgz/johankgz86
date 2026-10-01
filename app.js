@@ -25,9 +25,8 @@ if (!process.env.DONNEES_DOSSIER) {
   process.env.DONNEES_DOSSIER = path.join(ici, "..", "outils-donnees");
 }
 
-/* La dépendance @netlify/blobs n'est pas utilisée ici — les données sont
-   dans des fichiers — mais le code la charge au passage. Si elle manque,
-   Node s'arrête sur une trace illisible : on dit plutôt quoi faire. */
+/* Si un module manque, Node s'arrête sur une trace illisible : on dit
+   plutôt quoi faire. */
 try {
   await import("./serveur.mjs");
 } catch (e) {

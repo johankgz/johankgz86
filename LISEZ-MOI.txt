@@ -469,7 +469,7 @@ LES MOTS DE PASSE  —  chacun le sien, personne ne le lit
    faire le jour où des mots de passe ont traîné quelque part.
 
 LE COMPTE PROPRIÉTAIRE
-   Son identifiant est écrit dans netlify/functions/equipe.mjs. Le mot de
+   Son identifiant est écrit dans serveur/equipe.mjs. Le mot de
    passe qui l'accompagne ne sert QU'À SE RATTRAPER : il n'ouvre que tant
    qu'aucun mot de passe n'est posé sur le compte — première installation,
    ou annuaire perdu. Et même là, la première chose demandée est d'en
@@ -480,7 +480,7 @@ LE COMPTE PROPRIÉTAIRE
    Être propriétaire tient à l'identifiant et à la société d'origine,
    jamais au mot de passe : on ne perd pas ses droits en le changeant.
 
-UTILISATEURS  —  fichier netlify/functions/equipe.mjs
+UTILISATEURS  —  fichier serveur/equipe.mjs
    Une ligne par personne, SANS mot de passe :
       { identifiant: "brian", motdepasse: "", nom: "Brian", role: "technicien" },
    Pour ajouter quelqu'un : copiez une ligne et changez les valeurs, sans
@@ -551,7 +551,7 @@ NOTIFICATIONS PAR E-MAIL
    Mise en service, une seule fois :
    1. Créez un compte sur https://resend.com (gratuit jusqu'à 3 000 mails/mois)
       et générez une clé API.
-   2. Dans Netlify : Site configuration > Environment variables > Add a variable
+   2. Chez o2switch : cPanel > Setup Node.js App > Environment variables
          RESEND_API_KEY = la clé donnée par Resend
          EXPEDITEUR     = Outils de travaux <contact@votredomaine.fr>
       Tant que votre domaine n'est pas vérifié chez Resend, laissez EXPEDITEUR
@@ -559,18 +559,17 @@ NOTIFICATIONS PAR E-MAIL
       l'adresse de votre compte Resend. Pour écrire à tout le monde, vérifiez
       votre domaine chez Resend (une page à suivre, quelques lignes
       DNS à ajouter chez votre hébergeur).
-   3. Deploys > Trigger deploy.
+   3. Save, puis Restart.
 
    Sans RESEND_API_KEY, tout fonctionne comme avant, simplement sans e-mail.
    Les adresses se règlent dans equipe.mjs, champ email. Une adresse vide
    signifie : pas de notification pour cette personne.
 
-FAIRE TOURNER LE SITE AILLEURS QUE SUR NETLIFY
-   Le site sait vivre à deux endroits avec le même code : chez Netlify
-   comme aujourd'hui, ou sur n'importe quel serveur Node — un hébergeur,
-   un VPS, une machine du bureau. Il suffit de renseigner la variable
-   DONNEES_DOSSIER : les données sont alors rangées dans un dossier de
-   fichiers ordinaires, qu'on copie pour sauvegarder.
+LE SERVEUR DU SITE
+   Le site tourne chez o2switch, sur un serveur Node : serveur.mjs sert les
+   pages et l'API, dont le code est dans le dossier serveur/ (rapports.mjs,
+   equipe.mjs…). Les données sont rangées dans un dossier de fichiers
+   ordinaires (variable DONNEES_DOSSIER), qu'on copie pour sauvegarder.
 
    Sur votre ordinateur, pour essayer ou pour modifier une page et voir
    le résultat tout de suite :
@@ -582,18 +581,14 @@ FAIRE TOURNER LE SITE AILLEURS QUE SUR NETLIFY
    ou Linux, outils/essayer-en-local.cmd sur Windows. Le script installe
    ce qu'il faut, démarre le site et l'ouvre dans le navigateur.
 
-   Pour rapatrier les données déjà sur Netlify, une fois :
-
-      NETLIFY_SITE_ID=xxx NETLIFY_AUTH_TOKEN=yyy npm run export-netlify
-
    Le mode d'emploi complet — hébergeurs, disque persistant, HTTPS,
    sauvegarde, et un point de sécurité à vérifier — est dans le fichier
    DEPLOIEMENT.md, à la racine du site.
 
    Pour o2switch, qui est un hébergement cPanel, la marche à suivre est
    détaillée pas à pas dans DEPLOIEMENT-O2SWITCH.md : création de
-   l'application Node, variables à recopier, reprise des données de
-   Netlify, publication des modifications ensuite. Le fichier app.js
+   l'application Node, variables à recopier, publication des
+   modifications ensuite. Le fichier app.js
    sert de point d'entrée à cPanel, et les données se rangent hors du
    dossier du site pour qu'aucun document ne soit téléchargeable par
    son adresse.

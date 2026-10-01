@@ -201,7 +201,7 @@ self.addEventListener("fetch", function(e){
     return;
   }
   if(u.origin === location.origin){
-    if(/^\/(api|\.netlify\/functions)\//.test(u.pathname)){
+    if(/^\/api\//.test(u.pathname)){
       if(SANS_CACHE.test(u.searchParams.get("action") || "")) return;
       e.respondWith(lecture(req, u)); return;
     }

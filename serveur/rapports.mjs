@@ -329,7 +329,7 @@ function cleKnx(societe, id, compte) {
   return createHmac("sha256", compte.knx.empreinte).update("knx|" + societe + "|" + id).digest("hex").slice(0, 32);
 }
 async function scriptKnx() {
-  const lire = (f) => readFile(new URL("../../prive/" + f, import.meta.url), "utf8");
+  const lire = (f) => readFile(new URL("../prive/" + f, import.meta.url), "utf8");
   return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js"));
 }
 
@@ -364,7 +364,7 @@ function aAcces(personne, appli) {
    se charge de le ressortir au bout d'un mois pour demander ce qu'il
    devient.
    Aucune tâche planifiée là-dedans : l'échéance se calcule à la lecture,
-   ce qui marche aussi bien sur o2switch que sur Netlify, et ne peut pas
+   ce qui marche sur n'importe quel hébergement, et ne peut pas
    se gripper en silence.
    ===================================================================== */
 const RELANCE_JOURS = 30;
@@ -731,7 +731,7 @@ async function traiter(req) {
          "E-mail : " + email,
          demande.tel ? "Téléphone : " + demande.tel : "",
          "", demande.message || "(pas de message)",
-         "", "Pour créer le compte : ajoutez une ligne dans netlify/functions/equipe.mjs."
+         "", "Pour créer le compte : ajoutez une ligne dans serveur/equipe.mjs."
         ].filter(Boolean).join("\n"));
     }
     return json({ ok: true });

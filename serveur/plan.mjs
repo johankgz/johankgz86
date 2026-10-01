@@ -25,7 +25,7 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /* l'analyseur rangé dans le site */
-const DOSSIER = fileURLToPath(new URL("../../analyseur-plans/", import.meta.url));
+const DOSSIER = fileURLToPath(new URL("../analyseur-plans/", import.meta.url));
 const LANCEUR = join(DOSSIER, "analyser.py");
 function python() {
   if (process.env.PLAN_PYTHON) return process.env.PLAN_PYTHON;

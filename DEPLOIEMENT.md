@@ -1,13 +1,10 @@
-# Faire tourner le site ailleurs que sur Netlify
+# Faire tourner le site sur un serveur Node
 
-Le site sait désormais vivre à deux endroits, avec le même code :
-
-- **sur Netlify**, comme depuis le premier jour, rien ne change ;
-- **sur n'importe quel serveur Node**, dès que la variable
-  `DONNEES_DOSSIER` est renseignée : les données sont alors rangées dans
-  un dossier de fichiers ordinaires, que l'on copie pour sauvegarder.
-
-Une seule pièce fait la bascule : `netlify/functions/magasin.mjs`.
+Le site tourne sur n'importe quel serveur Node (aujourd'hui o2switch, voir
+`DEPLOIEMENT-O2SWITCH.md`) : `serveur.mjs` sert les pages et l'API, dont
+le code est dans le dossier `serveur/`. Les données sont rangées dans un
+dossier de fichiers ordinaires (variable `DONNEES_DOSSIER`), que l'on copie
+pour sauvegarder.
 
 ---
 
@@ -28,7 +25,7 @@ npm start
 ```
 
 Le site est sur <http://localhost:8080>. Les comptes de départ sont ceux
-de `netlify/functions/equipe.mjs` : société `tle`, identifiant `johan`.
+de `serveur/equipe.mjs` : société `tle`, identifiant `johan`.
 
 Les données atterrissent dans `donnees/`, à côté du site. Vous pouvez
 l'ouvrir : chaque dossier de chantier est un dossier, chaque PDF un
@@ -48,27 +45,7 @@ Réglages, tous facultatifs :
 
 ---
 
-## 2. Rapatrier les données déjà sur Netlify
-
-À faire une fois, avant de basculer pour de bon. Rien n'est modifié chez
-Netlify : on ne fait que lire.
-
-1. Sur netlify.com, relevez le **Site ID** : `Site configuration` →
-   `General` → `Site ID`.
-2. Créez un jeton : votre avatar → `User settings` → `Applications` →
-   `Personal access tokens` → `New access token`.
-3. Lancez :
-
-```bash
-NETLIFY_SITE_ID=xxx NETLIFY_AUTH_TOKEN=yyy npm run export-netlify
-```
-
-Tout arrive dans `donnees/`. Relancez `npm start` : le site repart sur
-ces données, avec ses dossiers, ses documents et ses comptes.
-
----
-
-## 3. Mettre en ligne
+## 2. Mettre en ligne
 
 ### Render, Railway, Fly — le plus simple
 
@@ -135,7 +112,7 @@ outils.votredomaine.fr {
 
 ---
 
-## 4. Sauvegarder
+## 3. Sauvegarder
 
 Tout tient dans le dossier des données.
 
@@ -149,35 +126,14 @@ d'entretien que le site demande.
 
 ---
 
-## 5. Ce qui change par rapport à Netlify
+## 4. Un point de sécurité
 
-| | Netlify | Serveur Node |
-|---|---|---|
-| Mise en ligne | dépôt ZIP ou push GitHub | `git pull` puis redémarrage, ou push chez l'hébergeur |
-| Données | blobs Netlify, invisibles | un dossier de fichiers, que vous voyez et copiez |
-| Sauvegarde | à demander à Netlify | vous copiez le dossier |
-| HTTPS | fourni | fourni par l'hébergeur, ou Caddy sur un serveur à vous |
-| Essayer avant de publier | non | `npm start` sur votre ordinateur |
-| Coût | gratuit jusqu'à un certain trafic | de 0 à quelques euros par mois |
-
-Les deux peuvent tourner en même temps : gardez Netlify en service
-pendant que vous essayez le nouveau serveur, et ne basculez l'adresse
-qu'une fois sûr. Attention seulement à ne pas travailler des deux côtés
-en même temps, les données ne se parlent pas.
-
----
-
-## 6. Un point de sécurité, à vérifier sur le site en ligne
-
-Le dossier `netlify/` se trouve à l'intérieur du dossier publié.
-Ouvrez, sur votre site Netlify :
+Le code du serveur (`serveur/`, dont `equipe.mjs` et ses comptes de départ)
+n'est jamais servi : `serveur.mjs` refuse ce dossier, comme `prive/`, les
+données et le dépôt. Pour le vérifier sur le site en ligne :
 
 ```
-https://votre-site/netlify/functions/equipe.mjs
+https://votre-site/serveur/equipe.mjs
 ```
 
-Si le fichier s'affiche, **les mots de passe de départ sont lisibles par
-qui connaît l'adresse**. Le fichier `_redirects` ajouté à la racine
-ferme ce chemin dès le prochain déploiement ; changez tout de même les
-mots de passe concernés depuis la page Comptes. Le serveur Node, lui,
-refuse ce chemin d'emblée.
+doit répondre **Interdit**.

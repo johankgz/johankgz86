@@ -4,7 +4,7 @@ Copie du paquet `plan_analyzer` du dépôt GitHub **johankgz/plan-** (comptage
 des symboles d'un plan électrique PDF vectoriel à partir de sa légende),
 sans sa partie API web : ici, c'est le serveur du site qui l'appelle.
 
-- `analyser.py` : le lanceur appelé par `netlify/functions/plan.mjs`. Il
+- `analyser.py` : le lanceur appelé par `serveur/plan.mjs`. Il
   écrit sur la sortie standard le même JSON que l'ancienne API (résultat,
   tableau Markdown, images annotées en data URL).
 - `installer.sh` : à lancer une fois sur le serveur. Il choisit un Python

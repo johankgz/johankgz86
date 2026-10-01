@@ -27,7 +27,7 @@
   function versLeSite(entree){
     try{
       var u = new URL(adresse(entree), location.href);
-      return u.origin === location.origin && /^\/(api|\.netlify\/functions)\//.test(u.pathname)
+      return u.origin === location.origin && /^\/api\//.test(u.pathname)
         && !/[?&]action=ping(&|$)/.test(u.search);
     }catch(e){ return false; }
   }

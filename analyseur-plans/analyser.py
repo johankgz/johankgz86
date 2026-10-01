@@ -1,6 +1,6 @@
 """Lanceur de l'analyse de plan pour Suivi travaux 360.
 
-Le serveur du site (netlify/functions/plan.mjs) l'appelle directement,
+Le serveur du site (serveur/plan.mjs) l'appelle directement,
 sans passer par un sous-domaine :
 
     python analyser.py plan.pdf --nom "Plan RDC.pdf" [--page 2] [--zoom 3]
