@@ -186,11 +186,12 @@ function reechantillonner(pts, pas){
 var A = null, D = null, MESURE = null;
 var FLOUS = {};
 var PREFS = {outil:"stylo", couleur:"#E5484D", surCouleur:"#FDE047", ep:"moyen", surEp:"moyen", droit:true,
-  gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"pastille", symbole:"cfo-dcl-plafond",
+  gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"symbole", symbole:"cfo-dcl-plafond",
   texteStyle:"bulle", texteTaille:40, rail:false, reglages:false};
 try{
   var lu = JSON.parse(localStorage.getItem("annotation:prefs") || "null");
   if(lu && typeof lu === "object") for(var kp in lu){ if(PREFS.hasOwnProperty(kp)) PREFS[kp]=lu[kp]; }
+  if(PREFS.repere==="pastille") PREFS.repere="symbole";     /* les pastilles 1 2 3 ne se posent plus */
 }catch(e){}
 function garderPrefs(){
   try{ localStorage.setItem("annotation:prefs", JSON.stringify(PREFS)); }catch(e){}
@@ -907,8 +908,7 @@ function surAppui(e){
       }
       o=trouver(p, function(x){ return x.t==="pastille" || x.t==="symbole"; });
       if(!o){
-        if(PREFS.repere==="pastille") o=nouveau({t:"pastille", x:p[0], y:p[1], r:22*A.u, n:prochainNumero(), c:PREFS.couleur, texte:""});
-        else o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
+        o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
         A.sel=o;
         G={type:"deplacer", o:o, base:clone(o), p0:p, s0:s, avant:avant1, tap:false, pose:true};
         peindre(); majUI();
@@ -1283,7 +1283,7 @@ function choisirOutil(o){
   A.outil=o; PREFS.outil=o; garderPrefs();
   if(o!=="choisir") A.sel=null;
   if(o!=="gomme") A.curseur=null;
-  if(o==="reperes" && PREFS.repere==="flou" && !A.img) PREFS.repere="pastille";
+  if(o==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !A.img))) PREFS.repere="symbole";
   astuceOutil();
   peindre(); majUI();
 }
@@ -1518,7 +1518,7 @@ function remplirOptions(op, o){
       }, "rouge"));
       break;
     case "reperes":
-      var modes=[["pastille","Pastilles 1 2 3"],["symbole","Symboles"]];
+      var modes=[["symbole","Symboles"]];
       if(A.img) modes.push(["flou","Flouter"]);
       modes.forEach(function(m){
         op.appendChild(chip(m[1], PREFS.repere===m[0], function(){ PREFS.repere=m[0]; A.sel=null; garderPrefs(); astuceOutil(); peindre(); majUI(); }));
@@ -1583,7 +1583,8 @@ function ouvrir(opt){
         outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve};
       FLOUS={};
       if(opt.plan){ A.outil="reperes"; PREFS.repere="symbole"; }
-      if(A.outil==="reperes" && PREFS.repere==="flou" && !img) PREFS.repere="pastille";
+      /* les pastilles numérotées ont laissé la place aux repères des plans du suivi : ici, symboles et flou */
+      if(A.outil==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !img))) PREFS.repere="symbole";
       DOIGTS={}; G=null;
       D.titre.textContent = opt.titre || (img ? "Annoter la photo" : "Croquis");
       D.racine.hidden=false;

@@ -857,8 +857,9 @@ details.block.sv-societe summary{padding:0}
 .rp-plein .rp-pb b{flex:1;min-width:0;font-size:15px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rp-plein .rp-pb .act{min-height:38px;padding:6px 12px;font-size:13.5px}
 .rp-plein .rp-pb .act.on{background:var(--accent);border-color:var(--accent);color:#fff}
-.rp-plein .rp-corps{flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:14px;display:flex}
-.rp-plein .rp-corps .rp-zone{margin:auto;flex:0 0 auto}
+.rp-plein .rp-corps{flex:1;position:relative;overflow:hidden;touch-action:none}
+.rp-plein .rp-corps .rp-zone{position:absolute}
+@media (hover:none){ .rp-plein .rp-pb .rp-zm{display:none} }
 .rp-plein .rp-aide{color:#D1D5DB;font-size:12.5px;text-align:center;padding:4px 12px calc(10px + env(safe-area-inset-bottom,0px))}
 .sv-go{width:100%;min-height:52px;margin-top:14px;font-size:16px}
 .sv-choix{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);border:1px solid rgba(180,83,9,.25)}
@@ -1050,7 +1051,7 @@ a.act[hidden]{display:none}
 
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="./symboles-elec.js?v=20260930b"></script>
-<script src="./annotation.js?v=20260930b"></script>
+<script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script src="./visionneuse.js?v=20260929a"></script>
 <script>
@@ -3909,15 +3910,9 @@ function renderPlans(){
     d.appendChild(h);
     d.appendChild(zoneReperes(pl, i, {maxH:260}));
     var r=document.createElement("div"); r.className="rp-outils";
-    var b0=document.createElement("button"); b0.type="button"; b0.className="act ghost rp-armer"+(RP_ARME===idPlan(pl) ? " on" : "");
-    b0.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round"><circle cx="12" cy="11" r="7"/><path d="M12 8v6M9 11h6"/></svg>Repère';
-    b0.setAttribute("aria-pressed", RP_ARME===idPlan(pl) ? "true" : "false");
-    b0.addEventListener("click", function(){ RP_ARME = RP_ARME===idPlan(pl) ? null : idPlan(pl); renderPlans(); });
-    var b1=document.createElement("button"); b1.type="button"; b1.className="act blue"; b1.textContent="Annoter";
-    b1.addEventListener("click", function(){ annoterPlan(i); });
-    var b3=document.createElement("button"); b3.type="button"; b3.className="act ghost"; b3.textContent="Plein écran";
-    b3.addEventListener("click", function(){ pleinEcranPlan(i); });
-    var b2=document.createElement("button"); b2.type="button"; b2.className="act danger"; b2.textContent="Retirer";
+    var ai=document.createElement("p"); ai.className="hint"; ai.style.cssText="flex:1 1 180px;margin:0;align-self:center";
+    ai.textContent="Touchez le plan : il s'ouvre en grand, pour l'annoter ou y poser un repère.";
+    var b2=document.createElement("button"); b2.type="button"; b2.className="act danger"; b2.style.flex="0 0 auto"; b2.textContent="Retirer";
     b2.addEventListener("click", function(){
       var nr=reperesDe(pl).length;
       if(!window.confirm("Retirer ce plan du suivi ?"+(nr ? "\n\nSes "+nr+" repère"+(nr>1?"s":"")+" (et leurs points bloquants) partent avec lui." : ""))) return;
@@ -3925,9 +3920,8 @@ function renderPlans(){
       S.points=(S.points||[]).filter(function(p){ return p.plan!==idp; });
       S.plans.splice(i,1); save(); renderPlans(); renderPlansDossier(); renderPoints();
     });
-    r.appendChild(b0); r.appendChild(b1); r.appendChild(b3); r.appendChild(b2);
+    r.appendChild(ai); r.appendChild(b2);
     d.appendChild(r);
-    if(RP_ARME===idPlan(pl)){ var ar=document.createElement("p"); ar.className="rp-arme-aide"; ar.textContent="Touchez le plan à l'endroit du repère."; d.appendChild(ar); }
     var lg2=document.createElement("div"); lg2.className="rp-leg";
     ["afaire","encours","fait"].forEach(function(k){ var sp=document.createElement("span"); sp.innerHTML='<i style="background:'+RP_COUL[k]+'"></i>'+RP_MOT[k]; lg2.appendChild(sp); });
     d.appendChild(lg2);
@@ -3997,7 +3991,7 @@ function zoneReperes(pl, i, opts){
       rafraichirReperes(); ouvrirRepere(it, true);
       return;
     }
-    if(!opts.plein) annoterPlan(i);                        /* comme avant : toucher le plan l'annote */
+    if(!opts.plein) pleinEcranPlan(i);                     /* toucher le plan l'ouvre en grand : Annoter ou Repère */
   });
   return z;
 }
@@ -4188,42 +4182,101 @@ function ouvrirRepere(it, neuf){
   if(neuf) setTimeout(function(){ try{ ta_focus(); }catch(e){} }, 50);
   function ta_focus(){ var t=document.getElementById("rp_texte"); if(t && window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches) t.focus(); }
 }
-/* ---------- le plan en plein écran : viser juste, zoomer ---------- */
+/* ---------- le plan en grand : annoter, poser un repère, zoomer ----------
+   Toucher le plan l'ouvre en grand. « Annoter » ouvre l'outil
+   d'annotation ; « Repère », puis un toucher, pose une pastille. Deux
+   doigts zooment (vers l'endroit pincé) et déplacent, un doigt déplace
+   le plan agrandi ; à la souris, la molette zoome. */
 function pleinEcranPlan(i){
   var pl=S.plans[i]; if(!pl) return;
-  var o=document.createElement("div"); o.className="rp-plein"; o.setAttribute("role","dialog"); o.setAttribute("aria-label","Plan en plein écran");
-  var zoom=1;
+  var o=document.createElement("div"); o.className="rp-plein"; o.setAttribute("role","dialog"); o.setAttribute("aria-label","Plan en grand");
+  var V={k:1, x:0, y:0, base:1};
   var bar=document.createElement("div"); bar.className="rp-pb";
   var t=document.createElement("b"); t.textContent=(pl.legende||"").trim() || "Plan "+(i+1);
-  var br=document.createElement("button"); br.type="button"; br.className="act ghost"; br.textContent="Repère";
-  var bm=document.createElement("button"); bm.type="button"; bm.className="act ghost"; bm.textContent="−"; bm.setAttribute("aria-label","Dézoomer");
-  var bp=document.createElement("button"); bp.type="button"; bp.className="act ghost"; bp.textContent="+"; bp.setAttribute("aria-label","Zoomer");
-  var bx=document.createElement("button"); bx.type="button"; bx.className="act ghost"; bx.textContent="✕"; bx.setAttribute("aria-label","Fermer le plein écran");
-  bar.appendChild(t); bar.appendChild(br); bar.appendChild(bm); bar.appendChild(bp); bar.appendChild(bx);
+  var ba=document.createElement("button"); ba.type="button"; ba.className="act ghost"; ba.textContent="Annoter";
+  var br=document.createElement("button"); br.type="button"; br.className="act ghost rp-armer"; br.textContent="Repère";
+  var bm=document.createElement("button"); bm.type="button"; bm.className="act ghost rp-zm"; bm.textContent="−"; bm.setAttribute("aria-label","Dézoomer");
+  var bp=document.createElement("button"); bp.type="button"; bp.className="act ghost rp-zm"; bp.textContent="+"; bp.setAttribute("aria-label","Zoomer");
+  var bx=document.createElement("button"); bx.type="button"; bx.className="act ghost"; bx.textContent="✕"; bx.setAttribute("aria-label","Fermer");
+  bar.appendChild(t); bar.appendChild(ba); bar.appendChild(br); bar.appendChild(bm); bar.appendChild(bp); bar.appendChild(bx);
   var corps=document.createElement("div"); corps.className="rp-corps";
   var aide=document.createElement("div"); aide.className="rp-aide";
   o.appendChild(bar); o.appendChild(corps); o.appendChild(aide);
+  var zone=null;
+  function ratio(){ return (pl.w && pl.h) ? pl.w/pl.h : 1.414; }
+  function cadrer(){
+    var W=corps.clientWidth||window.innerWidth, H=corps.clientHeight||(window.innerHeight-140);
+    V.base=Math.min(W-16, (H-16)*ratio()); V.k=1;
+    V.x=(W-V.base)/2; V.y=(H-V.base/ratio())/2;
+  }
+  function placer(){ if(!zone) return; zone.style.left=V.x+"px"; zone.style.top=V.y+"px"; zone.style.width=(V.base*V.k)+"px"; }
+  /* zoomer de f autour d'un point (px, py) du cadre : ce point reste sous les doigts */
+  function zoomer(f, px, py){
+    var k=Math.max(1, Math.min(8, V.k*f)); f=k/V.k;
+    V.x=px-(px-V.x)*f; V.y=py-(py-V.y)*f; V.k=k; placer();
+  }
   function peindre(){
-    var ratio=(pl.w && pl.h) ? pl.w/pl.h : 1.414, W=window.innerWidth-28, H=window.innerHeight-140;
-    var base=Math.min(W, H*ratio);
-    corps.textContent=""; corps.appendChild(zoneReperes(pl, i, {plein:true, largeur:base*zoom}));
-    br.classList.toggle("on", RP_ARME===idPlan(pl)); br.setAttribute("aria-pressed", RP_ARME===idPlan(pl) ? "true" : "false");
-    aide.textContent = RP_ARME===idPlan(pl) ? "Touchez le plan à l'endroit du repère." : "Une pastille : la toucher l'ouvre, la glisser la déplace. + et − zooment.";
+    corps.textContent="";
+    zone=zoneReperes(pl, i, {plein:true, largeur:V.base*V.k});
+    zone.style.position="absolute"; zone.style.margin="0";
+    corps.appendChild(zone); placer();
+    var arme=RP_ARME===idPlan(pl);
+    br.classList.toggle("on", arme); br.setAttribute("aria-pressed", arme ? "true" : "false");
+    aide.textContent = arme ? "Touchez le plan à l'endroit du repère · deux doigts pour zoomer"
+      : "« Repère » pour en poser un · deux doigts pour zoomer, un doigt pour déplacer · une pastille s'ouvre d'un toucher, se glisse pour la bouger";
   }
   o.__peindre=peindre;
-  br.addEventListener("click", function(){ RP_ARME = RP_ARME===idPlan(pl) ? null : idPlan(pl); peindre(); renderPlans(); });
-  bp.addEventListener("click", function(){ zoom=Math.min(5, zoom*1.5); peindre(); });
-  bm.addEventListener("click", function(){ zoom=Math.max(1, zoom/1.5); peindre(); });
-  /* au doigt sur iPhone et iPad : la pince zoome */
-  var z0=1;
-  o.addEventListener("gesturestart", function(e){ e.preventDefault(); z0=zoom; });
-  o.addEventListener("gesturechange", function(e){ e.preventDefault(); zoom=Math.max(1, Math.min(5, z0*e.scale)); peindre(); });
-  function fermer(){ if(o.parentNode) o.parentNode.removeChild(o); document.removeEventListener("keydown", cle); renderPlans(); }
+  /* les gestes : un doigt déplace, deux doigts zooment et déplacent */
+  var PTS={}, g=null, bouge=false;
+  function pos(e){ var r=corps.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+  corps.addEventListener("pointerdown", function(e){
+    /* le doigt n'est capturé qu'une fois le geste parti : un simple toucher reste un toucher (il pose le repère) */
+    PTS[e.pointerId]=pos(e);
+    var ids=Object.keys(PTS);
+    if(ids.length===2){ var a=PTS[ids[0]], b=PTS[ids[1]]; g={pince:true, d:Math.hypot(a[0]-b[0], a[1]-b[1]), m:[(a[0]+b[0])/2, (a[1]+b[1])/2]}; bouge=true;
+      ids.forEach(function(id){ try{ corps.setPointerCapture(Number(id)); }catch(er){} }); }
+    else if(ids.length===1) g={p:PTS[ids[0]], depart:PTS[ids[0]]};
+  });
+  corps.addEventListener("pointermove", function(e){
+    if(!PTS[e.pointerId] || !g) return;
+    PTS[e.pointerId]=pos(e);
+    var ids=Object.keys(PTS);
+    if(g.pince && ids.length>=2){
+      var a=PTS[ids[0]], b=PTS[ids[1]], d=Math.hypot(a[0]-b[0], a[1]-b[1]), m=[(a[0]+b[0])/2, (a[1]+b[1])/2];
+      V.x+=m[0]-g.m[0]; V.y+=m[1]-g.m[1];
+      zoomer(d/(g.d||d), m[0], m[1]);
+      g.d=d; g.m=m; return;
+    }
+    if(!g.pince){
+      var p=PTS[e.pointerId];
+      if(!bouge && Math.hypot(p[0]-g.depart[0], p[1]-g.depart[1])>8){ bouge=true; try{ corps.setPointerCapture(e.pointerId); }catch(er){} }
+      if(bouge){ V.x+=p[0]-g.p[0]; V.y+=p[1]-g.p[1]; placer(); }
+      g.p=p;
+    }
+  });
+  function lacher(e){
+    delete PTS[e.pointerId];
+    if(!Object.keys(PTS).length){ g=null; setTimeout(function(){ bouge=false; }, 0); }
+    else if(g && g.pince) g=null;               /* il reste un doigt : on attend qu'il se lève */
+  }
+  corps.addEventListener("pointerup", lacher); corps.addEventListener("pointercancel", lacher);
+  /* après un déplacement ou une pince, le doigt qui se lève ne pose pas de repère */
+  corps.addEventListener("click", function(e){ if(bouge){ e.stopPropagation(); e.preventDefault(); bouge=false; } }, true);
+  corps.addEventListener("wheel", function(e){ e.preventDefault(); var p=pos(e); zoomer(e.deltaY<0 ? 1.2 : 1/1.2, p[0], p[1]); }, {passive:false});
+  /* Safari ne zoome pas la page sous le plan */
+  ["gesturestart","gesturechange"].forEach(function(n){ o.addEventListener(n, function(e){ e.preventDefault(); }); });
+  ba.addEventListener("click", function(){ RP_ARME=null; fermer(); annoterPlan(i); });
+  br.addEventListener("click", function(){ RP_ARME = RP_ARME===idPlan(pl) ? null : idPlan(pl); peindre(); });
+  bp.addEventListener("click", function(){ zoomer(1.5, corps.clientWidth/2, corps.clientHeight/2); });
+  bm.addEventListener("click", function(){ zoomer(1/1.5, corps.clientWidth/2, corps.clientHeight/2); });
+  function fermer(){ if(o.parentNode) o.parentNode.removeChild(o); RP_ARME=null; document.removeEventListener("keydown", cle); window.removeEventListener("resize", recadrer); renderPlans(); }
   function cle(e){ if(e.key==="Escape" && !document.querySelector(".rp-voile")) fermer(); }
+  function recadrer(){ cadrer(); peindre(); }
   bx.addEventListener("click", fermer);
   document.addEventListener("keydown", cle);
+  window.addEventListener("resize", recadrer);
   document.body.appendChild(o);
-  peindre();
+  cadrer(); peindre();
 }
 /* pour les essais automatiques */
 window.__suivi={etat:function(){ return S; }, buildPdf:function(){ return buildPdf(); }, nouveauSuivi:function(d){ nouveauSuivi(d); },
