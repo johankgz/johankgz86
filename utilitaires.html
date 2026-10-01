@@ -352,8 +352,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 /* ---------- les petits outils ---------- */
 main{max-width:520px}
-.onglets{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
-@media (min-width:560px){ .onglets{grid-template-columns:repeat(6,minmax(0,1fr))} }
+.onglets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
+@media (min-width:560px){ .onglets{grid-template-columns:repeat(7,minmax(0,1fr))} }
 .onglets button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 7px;border:0;
   border-radius:9px;background:none;color:#8A97A6;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer}
 .onglets button svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -419,6 +419,7 @@ main{max-width:520px}
 .conv-params input:focus{border-color:var(--accent-vif)!important;box-shadow:none!important}
 .conv-params i{position:absolute;right:12px;bottom:13px;font-style:normal;color:#8A97A6;font-size:14px}
 .puces{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.puces[hidden]{display:none}
 .puces button{min-height:32px;padding:0 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
   background:rgba(255,255,255,.04);color:#AEB7BF;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
 .puces button.on{border-color:rgba(251,146,60,.6);color:#FDBA74;background:rgba(251,146,60,.1)}
@@ -435,6 +436,17 @@ main{max-width:520px}
 
 .conv-params.deux input{font-size:22px;font-weight:600;min-height:54px}
 .conv-aide{margin:8px 0 14px;font-size:12px;color:#8A97A6;line-height:1.45}
+/* l'échelle */
+.ech-rappel{align-self:center;font-size:13px;color:#AEB7BF;line-height:1.45}
+.ech-rappel b{color:#E7ECF2;font-variant-numeric:tabular-nums}
+.ech-unites{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
+.ech-unites .seg{margin-bottom:8px}
+.ech-liste{display:flex;flex-direction:column;gap:6px;margin-top:12px}
+.ech-liste:empty{display:none}
+.ech-ligne{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:#05080C;border:1px solid var(--trait-tech);font-size:13.5px;color:#AEB7BF;font-variant-numeric:tabular-nums}
+.ech-ligne b{color:#E7ECF2}
+.ech-ligne span{flex:1}
+.ech-ligne button{width:30px;height:30px;border:0;border-radius:50%;background:none;color:#8A97A6;font-size:18px;cursor:pointer}
 .cab-lignes{display:flex;flex-direction:column;gap:6px;margin-top:14px;text-align:left}
 .cab-ligne{display:grid;grid-template-columns:70px 1fr 58px 18px;align-items:center;gap:8px;font-size:13px;
   color:#AEB7BF;font-variant-numeric:tabular-nums;padding:5px 8px;border-radius:8px}
@@ -568,6 +580,8 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg>Conversion</button>
     <button type="button" role="tab" data-vue="cable" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg>Câble</button>
+    <button type="button" role="tab" data-vue="echelle" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 15.5 15.5 2.5l6 6-13 13z"/><path d="M6 12l2 2M9 9l3 3M12 6l2 2"/></svg>Échelle</button>
     <button type="button" role="tab" data-vue="surface" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/><path d="M3.5 3v1.5M20.5 3v1.5M3.5 3.8h17" opacity=".6"/></svg>Surface</button>
   </div>
@@ -663,6 +677,57 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
         <p class="conv-formule" id="pvExpl"></p>
         <p class="conv-calibre" id="pvAlerte" hidden></p>
         <button type="button" class="bouton-clair" id="pvVersCable" hidden></button>
+      </div>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-echelle" hidden>
+    <div class="carte-outil conv">
+      <p class="conv-legende">Échelle du plan</p>
+      <div class="puces" id="echPuces" style="margin:0 0 10px">
+        <button type="button" data-n="20">1/20</button><button type="button" data-n="25">1/25</button><button type="button" data-n="50">1/50</button>
+        <button type="button" data-n="75">1/75</button><button type="button" data-n="100">1/100</button><button type="button" data-n="200">1/200</button><button type="button" data-n="500">1/500</button>
+      </div>
+      <div class="conv-params deux">
+        <label><span>Échelle 1/</span><input type="text" id="echN" inputmode="decimal" autocomplete="off" placeholder="50" aria-label="Dénominateur de l'échelle"></label>
+        <div class="ech-rappel" id="echRappel"></div>
+      </div>
+
+      <p class="conv-legende" style="margin-top:16px">Convertir</p>
+      <div class="conv-params deux">
+        <label><span>Sur le plan</span><input type="text" id="echPlan" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Longueur sur le plan"><i id="echPlanU">cm</i></label>
+        <label><span>En réel</span><input type="text" id="echReel" inputmode="decimal" autocomplete="off" placeholder="0" aria-label="Longueur réelle"><i id="echReelU">m</i></label>
+      </div>
+      <div class="ech-unites">
+        <div class="seg" id="echSegPlan" role="radiogroup" aria-label="Unité sur le plan"><button type="button" role="radio" data-u="mm">mm</button><button type="button" role="radio" data-u="cm">cm</button></div>
+        <div class="seg" id="echSegReel" role="radiogroup" aria-label="Unité réelle"><button type="button" role="radio" data-u="cm">cm</button><button type="button" role="radio" data-u="m">m</button></div>
+      </div>
+      <div class="conv-res" aria-live="polite" style="margin-top:4px">
+        <div class="conv-principal"><b id="echGrand">—</b><span id="echGrandU"></span></div>
+        <p class="conv-formule" id="echFormule">Tapez une longueur sur le plan, ou la longueur réelle : l'autre se calcule.</p>
+        <button type="button" class="bouton-clair" id="echGarder" hidden>Garder cette mesure</button>
+      </div>
+      <div class="ech-liste" id="echListe"></div>
+    </div>
+
+    <div class="carte-outil conv" style="margin-top:14px">
+      <h2 class="outil-titre">Retrouver l'échelle avec une cote</h2>
+      <p class="conv-aide">Sur un plan imprimé ou une photo de plan : une cote connue (la largeur d'une porte, un mur coté) et ce qu'elle mesure à la règle sur le papier donnent l'échelle réelle du plan. Elle sert ensuite à mesurer tout le reste.</p>
+      <div class="conv-params deux">
+        <label><span>La cote dit</span><input type="text" id="refReel" inputmode="decimal" autocomplete="off" placeholder="3,50"><i id="refReelU">m</i></label>
+        <label><span>Je mesure sur le plan</span><input type="text" id="refPlan" inputmode="decimal" autocomplete="off" placeholder="7"><i id="refPlanU">cm</i></label>
+      </div>
+      <div class="ech-unites">
+        <div class="seg" id="refSegReel" role="radiogroup" aria-label="Unité de la cote"><button type="button" role="radio" data-u="cm">cm</button><button type="button" role="radio" data-u="m">m</button></div>
+        <div class="seg" id="refSegPlan" role="radiogroup" aria-label="Unité mesurée"><button type="button" role="radio" data-u="mm">mm</button><button type="button" role="radio" data-u="cm">cm</button></div>
+      </div>
+      <div class="conv-res" aria-live="polite" style="margin-top:4px">
+        <div class="conv-principal"><b id="refGrand">—</b></div>
+        <p class="conv-formule" id="refExpl">Tapez la cote et ce qu'elle mesure sur le plan.</p>
+        <div class="puces" id="refActions" hidden style="justify-content:center">
+          <button type="button" id="refExacte">Travailler à cette échelle</button>
+          <button type="button" id="refArrondie" hidden></button>
+        </div>
       </div>
     </div>
   </section>
@@ -777,7 +842,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
 function $(i){ return document.getElementById(i); }
 
 /* ---------- onglets ---------- */
-var VUES=["boussole","niveau","calcul","conversion","cable","surface"];
+var VUES=["boussole","niveau","calcul","conversion","cable","echelle","surface"];
 function montrer(v){
   if(VUES.indexOf(v)<0) v="boussole";
   VUES.forEach(function(x){ $("vue-"+x).hidden = x!==v; });
@@ -1410,6 +1475,81 @@ peindreSurf();
 
 /* pour les essais */
 window.__calcul = calculer;
+})();
+</script>
+<script>
+/* ---------- l'échelle : 1/50 = x cm, dans les deux sens ; et l'échelle retrouvée par une cote ---------- */
+(function(){
+  function $(i){ return document.getElementById(i); }
+  function lire(t){ var x=parseFloat(String(t||"").replace(/\s/g,"").replace(",", ".")); return isFinite(x) ? x : NaN; }
+  function fr(n, dec){ if(!isFinite(n)) return "—"; var f=Math.pow(10, dec), s=(Math.round(n*f)/f).toFixed(dec); if(dec>0) s=s.replace(/0+$/,"").replace(/\.$/,""); return s.replace(".", ","); }
+  var MM={mm:1, cm:10, m:1000}, STD=[1,2,5,10,20,25,50,75,100,125,200,250,500,1000];
+  var E={n:50, uPlan:"cm", uReel:"m", dernier:"plan", rUr:"m", rUp:"cm", liste:[]};
+  try{ var g=JSON.parse(localStorage.getItem("outils:echelle")||"null"); if(g) for(var k in g) E[k]=g[k]; }catch(e){}
+  function garder(){ try{ localStorage.setItem("outils:echelle", JSON.stringify(E)); }catch(e){} }
+  function txtLong(mm, u){ return fr(mm/MM[u], u==="m" ? 3 : u==="cm" ? 2 : 1)+" "+u; }
+  function txtEch(n){ return "1/"+fr(n, n<10 ? 2 : 1); }
+  function segs(id, val){ Array.prototype.forEach.call($(id).children, function(b){ b.setAttribute("aria-checked", b.dataset.u===val ? "true" : "false"); }); }
+  function peindre(){
+    if(document.activeElement!==$("echN")) $("echN").value=fr(E.n, 2);
+    Array.prototype.forEach.call($("echPuces").children, function(b){ b.classList.toggle("on", Number(b.dataset.n)===E.n); });
+    $("echRappel").innerHTML="1 cm sur le plan = <b>"+txtLong(10*E.n, E.n>=100 ? "m" : "cm")+"</b> en réel<br>1 m en réel = <b>"+txtLong(1000/E.n, "mm")+"</b> sur le plan";
+    $("echPlanU").textContent=E.uPlan; $("echReelU").textContent=E.uReel; segs("echSegPlan", E.uPlan); segs("echSegReel", E.uReel);
+    $("refReelU").textContent=E.rUr; $("refPlanU").textContent=E.rUp; segs("refSegReel", E.rUr); segs("refSegPlan", E.rUp);
+    convertir(); reference(); liste();
+  }
+  /* plan → réel ou réel → plan, selon la case tapée en dernier */
+  var RES=null;
+  function convertir(){
+    var vp=lire($("echPlan").value), vr=lire($("echReel").value); RES=null;
+    if(E.dernier==="plan" && vp>=0){ var mmR=vp*MM[E.uPlan]*E.n; if(document.activeElement!==$("echReel")) $("echReel").value=fr(mmR/MM[E.uReel], E.uReel==="m" ? 3 : 1); RES={plan:vp*MM[E.uPlan], reel:mmR}; }
+    else if(E.dernier==="reel" && vr>=0){ var mmP=vr*MM[E.uReel]/E.n; if(document.activeElement!==$("echPlan")) $("echPlan").value=fr(mmP/MM[E.uPlan], E.uPlan==="cm" ? 2 : 1); RES={plan:mmP, reel:vr*MM[E.uReel]}; }
+    if(!RES){ $("echGrand").textContent="—"; $("echGrandU").textContent=""; $("echFormule").textContent="Tapez une longueur sur le plan, ou la longueur réelle : l'autre se calcule."; $("echGarder").hidden=true; return; }
+    if(E.dernier==="plan"){ $("echGrand").textContent=fr(RES.reel/MM[E.uReel], E.uReel==="m" ? 3 : 1); $("echGrandU").textContent=E.uReel+" en réel"; }
+    else { $("echGrand").textContent=fr(RES.plan/MM[E.uPlan], E.uPlan==="cm" ? 2 : 1); $("echGrandU").textContent=E.uPlan+" sur le plan"; }
+    $("echFormule").textContent=txtLong(RES.plan, E.uPlan)+" sur le plan × "+fr(E.n, 2)+" = "+txtLong(RES.reel, E.uReel)+" en réel, au "+txtEch(E.n)+".";
+    $("echGarder").hidden=false;
+  }
+  function liste(){
+    var h=$("echListe"); h.textContent="";
+    E.liste.forEach(function(m, i){
+      var d=document.createElement("div"); d.className="ech-ligne";
+      var s=document.createElement("span"); s.innerHTML="<b>"+txtLong(m.plan, m.uPlan)+"</b> sur le plan = <b>"+txtLong(m.reel, m.uReel)+"</b> · "+txtEch(m.n);
+      var x=document.createElement("button"); x.type="button"; x.textContent="×"; x.setAttribute("aria-label", "Retirer cette mesure");
+      x.addEventListener("click", function(){ E.liste.splice(i, 1); garder(); liste(); });
+      d.appendChild(s); d.appendChild(x); h.appendChild(d);
+    });
+  }
+  /* l'échelle d'après une cote connue et ce qu'elle mesure sur le papier */
+  var REF=null;
+  function reference(){
+    var r=lire($("refReel").value)*MM[E.rUr], pl=lire($("refPlan").value)*MM[E.rUp]; REF=null;
+    if(!(r>0 && pl>0)){ $("refGrand").textContent="—"; $("refExpl").textContent="Tapez la cote et ce qu'elle mesure sur le plan."; $("refActions").hidden=true; return; }
+    var n=r/pl, proche=STD.reduce(function(a, b){ return Math.abs(Math.log(b/n)) < Math.abs(Math.log(a/n)) ? b : a; }), ecart=(n/proche-1)*100;
+    REF={n:Math.round(n*100)/100, proche:proche};
+    $("refGrand").textContent=txtEch(n);
+    var t=txtLong(r, E.rUr)+" mesurés "+txtLong(pl, E.rUp)+" sur le plan : 1 cm y vaut "+txtLong(10*n, n>=100 ? "m" : "cm")+".";
+    if(Math.abs(ecart)<0.5) t+=" C'est le "+txtEch(proche)+".";
+    else if(Math.abs(ecart)<15) t+=" Proche du "+txtEch(proche)+" ("+(ecart>0?"+":"")+fr(ecart, 1)+" %) : le plan a sans doute été réduit ou agrandi à l'impression ; gardez l'échelle exacte pour mesurer dessus.";
+    $("refExpl").textContent=t;
+    $("refActions").hidden=false;
+    $("refExacte").textContent="Travailler au "+txtEch(REF.n);
+    $("refArrondie").hidden=Math.abs(ecart)<0.5 || Math.abs(ecart)>=15;
+    $("refArrondie").textContent="Arrondir au "+txtEch(proche);
+  }
+  function prendre(n){ E.n=n; garder(); peindre(); $("echPlan").focus(); }
+  $("echPuces").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; E.n=Number(b.dataset.n); garder(); peindre(); });
+  $("echN").addEventListener("input", function(){ var n=lire(this.value); if(n>0){ E.n=n; garder(); peindre(); } });
+  $("echPlan").addEventListener("input", function(){ E.dernier="plan"; garder(); convertir(); });
+  $("echReel").addEventListener("input", function(){ E.dernier="reel"; garder(); convertir(); });
+  [["echSegPlan","uPlan"],["echSegReel","uReel"],["refSegReel","rUr"],["refSegPlan","rUp"]].forEach(function(c){
+    $(c[0]).addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; E[c[1]]=b.dataset.u; garder(); peindre(); });
+  });
+  ["refReel","refPlan"].forEach(function(id){ $(id).addEventListener("input", reference); });
+  $("refExacte").addEventListener("click", function(){ if(REF) prendre(REF.n); });
+  $("refArrondie").addEventListener("click", function(){ if(REF) prendre(REF.proche); });
+  $("echGarder").addEventListener("click", function(){ if(!RES) return; E.liste.unshift({plan:RES.plan, reel:RES.reel, n:E.n, uPlan:E.uPlan, uReel:E.uReel}); E.liste=E.liste.slice(0, 30); garder(); liste(); });
+  peindre();
 })();
 </script>
 </body>
