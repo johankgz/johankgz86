@@ -187,6 +187,8 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel span{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .barre-sel button{flex:0 0 auto;min-height:40px;border-radius:999px;border:0;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
+.barre-sel .bs-act{padding:0 14px;background:#2A313A;color:var(--ink)}
+.barre-sel .bs-act[hidden],.barre-sel .bs-supp[hidden]{display:none}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
 .barre-sel button[hidden]{display:none}
@@ -279,6 +281,8 @@ body.clair #scene{background:#FFFFFF}
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
+  <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
+  <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90°">Tourner 90°</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
 </div>
 
@@ -366,6 +370,7 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="cote"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8v8M21 8v8M3 12h18M5.5 14.5l3-5M15.5 14.5l3-5"/></svg></i>Cote</button>
     <button type="button" data-o="gtexte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20 12 4l7 16M8 14h8"/></svg></i>Texte</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
+    <button type="button" data-o="selection"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><path d="M9.5 9.5h5v5h-5z" stroke-dasharray="2 1.6"/></svg></i>Sélection</button>
   </div>
   <div class="reglages">
     <span class="groupe" id="grpEp"><span class="lab">Épaisseur</span>
@@ -386,6 +391,7 @@ body.clair #scene{background:#FFFFFF}
       <span class="seg" id="segTailleG" role="group" aria-label="Taille du texte" hidden><button type="button" data-f="0.8">A−</button><button type="button" data-f="1.25">A+</button></span>
     </span>
     <button class="bt" id="btDupliquerD" type="button" hidden>Dupliquer</button>
+    <button class="bt" id="btToutD" type="button" hidden title="Sélectionner tout le dessin (Ctrl+A)">Tout sélectionner</button>
     <button class="bt" id="btTournerD" type="button" hidden>Tourner 90°</button>
     <span class="groupe" id="grpHautD" hidden><span class="lab" id="labHautD">Hauteur</span><input class="champ-cm" id="dsHaut" type="text" inputmode="decimal" aria-label="Hauteur en cm"><span class="lab" id="labAllD" hidden>allège</span><input class="champ-cm" id="dsAllege" type="text" inputmode="decimal" aria-label="Hauteur d'allège en cm" hidden><span class="lab">cm</span></span>
     <span class="groupe" id="grpLong" hidden><span class="lab">Longueur</span><input class="champ-rep" id="dsLong" type="text" inputmode="decimal" aria-label="Longueur du mur en cm"><span class="lab">cm</span>
@@ -919,6 +925,7 @@ function peindre(){
   var cible = VISEE ? VISEE : SURVOL;
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
+  peindreGroupe(c2);
   if(ZONE_ACTIF && !IMPRIME) peindreZone(c2);
 }
 function peindreSymboles(c){
@@ -1089,6 +1096,11 @@ cv.addEventListener("pointerdown", function(e){
     else if(p[0]>=rz.x0 && p[0]<=rz.x1 && p[1]>=rz.y0 && p[1]<=rz.y1) G.zoneBase=[MEP.zone.cx, MEP.zone.cy];
     return;
   }
+  if(MODE==="dessin" && OUTIL_D==="selection" && !REF && vueD()==="dessus"){
+    var rg=grpTaille(GRP) ? grpEcran(GRP) : null;
+    if(rg && p[0]>=rg.x0 && p[0]<=rg.x1 && p[1]>=rg.y0 && p[1]<=rg.y1){ G.grp=true; G.grpD=[0,0]; return; }
+    G.rect=versPlan(p[0], p[1]); return;
+  }
   if(MODE==="dessin"){
     if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
@@ -1129,6 +1141,17 @@ cv.addEventListener("pointermove", function(e){
     V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demander(); return;
   }
   /* un tracé glissé : le début est posé dès que le doigt part, la fin suit le doigt, avec la loupe */
+  if(G.grp || G.rect){
+    if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>6) G.bouge=true;
+    if(!G.bouge) return;
+    if(G.grp){
+      /* le groupe glisse au centimètre */
+      var pasG=10/DESSIN_MM, dv=[Math.round((p[0]-G.depart[0])/V.k/pasG)*pasG, Math.round(-(p[1]-G.depart[1])/V.k/pasG)*pasG];
+      if(!G.garde){ garderTout(); G.garde=true; }
+      grpTranslater(GRP, [dv[0]-G.grpD[0], dv[1]-G.grpD[1]]); G.grpD=dv;
+    } else RECT_SEL=[G.rect, versPlan(p[0], p[1])];
+    demander(); return;
+  }
   if(G.zone){
     var dxz=p[0]-G.depart[0], dyz=p[1]-G.depart[1];
     if(G.zoneCoin){
@@ -1209,6 +1232,21 @@ function lacher(e){
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
   if(G.zone){ G=null; majZone(); demander(); return; }
+  if(G.grp || G.rect){
+    if(e.type!=="pointercancel"){
+      if(G.grp && G.garde){ enregistrerD(); enregistrerSymb(); }
+      else if(G.rect && G.bouge && RECT_SEL){ var ng=grpDeRect(RECT_SEL[0], RECT_SEL[1]); GRP=grpTaille(ng) ? ng : null; if(!GRP) toast("Rien dans le cadre : entourez entièrement les murs et les meubles.", 2500); }
+      else if(!G.bouge){
+        /* un toucher : l'élément sous le doigt, seul ; ailleurs, plus rien de sélectionné */
+        var cib=objetSous(versPlan(p[0], p[1]));
+        GRP=null;
+        if(cib && cib.t==="ouv"){ var ov=DESSIN.ouv.filter(function(x){ return x.id===cib.id; })[0]; cib = ov ? {t:"mur", id:ov.mur} : null; }
+        if(!cib){ var si=symboleSous(p); if(si>=0){ GRP=grpNeuf(); GRP.symb.push(SYMB[si]); } }
+        if(cib){ var gg=grpNeuf(), oo=(cib.t==="mur" ? murDe(cib.id) : cib.t==="mob" ? mobDe(cib.id) : cib.t==="geo" ? geoDe(cib.id) : DESSIN.textes.filter(function(t){ return t.id===cib.id; })[0]); if(oo){ ({mur:gg.murs, mob:gg.mob, geo:gg.geo, texte:gg.textes})[cib.t].push(oo); GRP=gg; } }
+      }
+    }
+    RECT_SEL=null; G=null; majDessin(); majBarreSel(); demander(); return;
+  }
   if(MODE==="dessin"){
     if(G.geo!=null || G.geoH){
       if(e.type!=="pointercancel"){
@@ -1265,6 +1303,17 @@ cv.addEventListener("wheel", function(e){
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
+  var champ=/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"");
+  if(MODE==="dessin" && !champ && (e.ctrlKey||e.metaKey)){
+    var k=String(e.key).toLowerCase();
+    if(k==="c"){ var gc=grpTaille(GRP) ? GRP : grpDeSel(); if(grpTaille(gc)){ e.preventDefault(); PRESSE=grpCopier(gc); toast("Copié ("+grpTaille(gc)+" élément"+(grpTaille(gc)>1?"s":"")+") : Ctrl+V pour coller.", 2200); } return; }
+    if(k==="x"){ var gx=grpTaille(GRP) ? GRP : grpDeSel(); if(grpTaille(gx)){ e.preventDefault(); PRESSE=grpCopier(gx); GRP=gx; supprimerGrp(); } return; }
+    if(k==="v"){ if(PRESSE){ e.preventDefault(); garderTout(); var src=JSON.parse(PRESSE), gtmp=grpColler(PRESSE, [0,0]), dec=decalageCopie(gtmp); grpTranslater(gtmp, dec); apresCollage(gtmp, "Collé : glissez-le à sa place."); } return; }
+    if(k==="d"){ e.preventDefault(); dupliquerSel(); return; }
+    if(k==="a"){ e.preventDefault(); OUTIL_D="selection"; GRP=grpTout(); if(!grpTaille(GRP)) GRP=null; D_SEL=null; majDessin(); majBarreSel(); demander(); return; }
+  }
+  if(MODE==="dessin" && grpTaille(GRP) && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerGrp(); return; }
+  if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
@@ -1406,7 +1455,7 @@ function basculerMode(m){
   $("bas").hidden = !PLAN || m!=="cote"; $("basSymb").hidden = !PLAN || m!=="symb"; $("basDessin").hidden = !PLAN || m!=="dessin";
   $("btSymb").classList.toggle("on", m==="symb"); $("btSymb").setAttribute("aria-pressed", m==="symb"?"true":"false");
   $("btDessin").classList.toggle("on", m==="dessin"); $("btDessin").setAttribute("aria-pressed", m==="dessin"?"true":"false");
-  D_PT=null; if(m!=="dessin") D_SEL=null;
+  D_PT=null; if(m!=="dessin"){ D_SEL=null; GRP=null; }
   if(m==="dessin") majDessin();
   if(m!=="symb") $("quantites").hidden=true;
   majBarreSel();
@@ -1583,14 +1632,147 @@ function majBarreSel(){
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
+  var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && !!objetSel();
+  if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
+  $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = gA || !!nG || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
-$("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; majDessin(); } majBarreSel(); demander(); });
+$("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; GRP=null; majDessin(); } majBarreSel(); demander(); });
+$("bsDup").addEventListener("click", function(){ dupliquerSel(); });
+$("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; garderTout(); grpTourner(GRP); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); });
+
+/* ---------- la sélection d'un groupe : une pièce entière, d'un coup ----------
+   L'outil Sélection : un cadre glissé autour de la pièce prend ses murs (et
+   leurs portes et fenêtres), ses meubles, ses formes, ses noms et ses
+   symboles ; on les glisse ensemble, on les duplique, les tourne ou les
+   supprime. Ctrl+C / Ctrl+V / Ctrl+D copient, collent et dupliquent aussi
+   un élément seul (un mur, un meuble…). */
+var GRP=null, PRESSE=null, RECT_SEL=null;
+function grpNeuf(){ return {murs:[], mob:[], geo:[], textes:[], symb:[]}; }
+function grpTaille(g){ return g ? g.murs.length+g.mob.length+g.geo.length+g.textes.length+g.symb.length : 0; }
+function garderTout(){ HISTO_D.push(JSON.stringify({__groupe:true, d:DESSIN, s:SYMB})); if(HISTO_D.length>100) HISTO_D.shift(); }
+function grpDeRect(a, b){
+  var x0=Math.min(a[0],b[0]), x1=Math.max(a[0],b[0]), y0=Math.min(a[1],b[1]), y1=Math.max(a[1],b[1]), g=grpNeuf();
+  function dans(q){ return q[0]>=x0 && q[0]<=x1 && q[1]>=y0 && q[1]<=y1; }
+  DESSIN.murs.forEach(function(m){ if(dans(m.a) && dans(m.b)) g.murs.push(m); });
+  mobs().forEach(function(o){ if(coinsMob(o).every(dans)) g.mob.push(o); });
+  geosVue().forEach(function(o){ var pts=o.t==="rond" ? [[o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]] : o.pts; if(pts.every(dans)) g.geo.push(o); });
+  DESSIN.textes.forEach(function(t){ if(dans([t.x, t.y])) g.textes.push(t); });
+  SYMB.forEach(function(o){ if(dans([o.x, o.y])) g.symb.push(o); });
+  return g;
+}
+function grpTout(){ var g=grpNeuf(); g.murs=DESSIN.murs.slice(); g.mob=mobs().slice(); g.geo=geosVue().slice(); g.textes=DESSIN.textes.slice(); g.symb=SYMB.slice(); return g; }
+function grpDeSel(){
+  var o=objetSel(); if(!o || !D_SEL || D_SEL.t==="ouv") return null;
+  var g=grpNeuf(); ({mur:g.murs, mob:g.mob, geo:g.geo, texte:g.textes})[D_SEL.t].push(o); return g;
+}
+function grpPoints(g){
+  var pts=[];
+  g.murs.forEach(function(m){ coinsMur(m).forEach(function(q){ pts.push(q); }); });
+  g.mob.forEach(function(o){ coinsMob(o).forEach(function(q){ pts.push(q); }); });
+  g.geo.forEach(function(o){ if(o.t==="rond"){ pts.push([o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]); } else o.pts.forEach(function(q){ pts.push(q); }); });
+  g.textes.forEach(function(t){ pts.push([t.x, t.y]); });
+  g.symb.forEach(function(o){ pts.push([o.x-o.r, o.y-o.r], [o.x+o.r, o.y+o.r]); });
+  return pts;
+}
+function grpBoite(g){
+  var pts=grpPoints(g); if(!pts.length) return null;
+  var b={x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity};
+  pts.forEach(function(q){ b.x0=Math.min(b.x0,q[0]); b.x1=Math.max(b.x1,q[0]); b.y0=Math.min(b.y0,q[1]); b.y1=Math.max(b.y1,q[1]); });
+  return b;
+}
+function grpTranslater(g, d){
+  g.murs.forEach(function(m){ m.a=[m.a[0]+d[0], m.a[1]+d[1]]; m.b=[m.b[0]+d[0], m.b[1]+d[1]]; });
+  g.mob.forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
+  g.geo.forEach(function(o){ o.pts=o.pts.map(function(q){ return [q[0]+d[0], q[1]+d[1]]; }); });
+  g.textes.forEach(function(t){ t.x+=d[0]; t.y+=d[1]; });
+  g.symb.forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
+}
+/* un quart de tour autour du centre du groupe, sens inverse des aiguilles */
+function grpTourner(g){
+  var b=grpBoite(g); if(!b) return;
+  var c=[(b.x0+b.x1)/2, (b.y0+b.y1)/2], pas=10/DESSIN_MM;
+  c=[Math.round(c[0]/pas)*pas, Math.round(c[1]/pas)*pas];
+  function f(q){ return [c[0]-(q[1]-c[1]), c[1]+(q[0]-c[0])]; }
+  g.murs.forEach(function(m){ m.a=f(m.a); m.b=f(m.b); });
+  g.mob.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+90)%360; });
+  g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+90)%360; });
+  g.textes.forEach(function(t){ var q=f([t.x, t.y]); t.x=q[0]; t.y=q[1]; });
+  g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+90)%360; });
+}
+/* la copie d'un groupe : ses murs avec leurs portes et fenêtres */
+function grpCopier(g){
+  var ids={}; g.murs.forEach(function(m){ ids[m.id]=1; });
+  return JSON.stringify({murs:g.murs, ouv:DESSIN.ouv.filter(function(o){ return ids[o.mur]; }), mob:g.mob, geo:g.geo, textes:g.textes, symb:g.symb, mm:DESSIN_MM});
+}
+function grpColler(txt, d){
+  var c=JSON.parse(txt), k=(c.mm||DESSIN_MM)/DESSIN_MM, g=grpNeuf(), corr={};
+  function sc(q){ return [q[0]*k+d[0], q[1]*k+d[1]]; }
+  c.murs.forEach(function(m){ var n=JSON.parse(JSON.stringify(m)); n.id=idD(); corr[m.id]=n.id; n.a=sc(m.a); n.b=sc(m.b); n.ep=m.ep*k; DESSIN.murs.push(n); g.murs.push(n); });
+  c.ouv.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); n.mur=corr[o.mur]; n.l=o.l*k; DESSIN.ouv.push(n); });
+  c.mob.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; n.l=o.l*k; n.p=o.p*k; DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(n); g.mob.push(n); });
+  c.geo.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); n.pts=o.pts.map(sc); if(n.r) n.r=o.r*k; DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(n); g.geo.push(n); });
+  c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
+  c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; SYMB.push(n); g.symb.push(n); });
+  return g;
+}
+/* où poser la copie : une pièce juste à côté (sa largeur et 50 cm de plus), un élément seul un peu en biais */
+function decalageCopie(g){
+  var b=grpBoite(g), pas=10/DESSIN_MM;
+  if(b && (g.murs.length>1 || grpTaille(g)>3)){ var dx=Math.ceil(((b.x1-b.x0)+500/DESSIN_MM)/pas)*pas; return [dx, 0]; }
+  var d=Math.round(tailleDefaut(30)*DESSIN_MM/10)*10/DESSIN_MM; return [d, -d];
+}
+function dupliquerSel(){
+  var g = grpTaille(GRP) ? GRP : grpDeSel(); if(!grpTaille(g)) return;
+  garderTout();
+  var n=grpColler(grpCopier(g), decalageCopie(g));
+  apresCollage(n, "Dupliqué : glissez la copie à sa place.");
+}
+function apresCollage(n, msg){
+  enregistrerD(); enregistrerSymb();
+  if(grpTaille(n)===1 && !n.symb.length){ var t=n.murs.length ? "mur" : n.mob.length ? "mob" : n.geo.length ? "geo" : "texte"; D_SEL={t:t, id:(n.murs[0]||n.mob[0]||n.geo[0]||n.textes[0]).id}; GRP=null; if(OUTIL_D==="selection") OUTIL_D="choisir"; }
+  else { OUTIL_D="selection"; GRP=n; D_SEL=null; }
+  majDessin(); majBarreSel(); demander(); toast(msg, 2500);
+}
+function supprimerGrp(){
+  var g=GRP; if(!grpTaille(g)) return;
+  garderTout();
+  var ids={}; g.murs.forEach(function(m){ ids[m.id]=1; });
+  DESSIN.murs=DESSIN.murs.filter(function(m){ return !ids[m.id]; }); DESSIN.ouv=DESSIN.ouv.filter(function(o){ return !ids[o.mur]; });
+  DESSIN.mob=mobs().filter(function(o){ return g.mob.indexOf(o)<0; }); DESSIN.geo=geos().filter(function(o){ return g.geo.indexOf(o)<0; });
+  DESSIN.textes=DESSIN.textes.filter(function(t){ return g.textes.indexOf(t)<0; }); SYMB=SYMB.filter(function(o){ return g.symb.indexOf(o)<0; });
+  GRP=null; enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Supprimé. « Annuler » le remet.", 2500);
+}
+function grpEcran(g){ var b=grpBoite(g); if(!b) return null; var a=versEcran(b.x0, b.y1), c=versEcran(b.x1, b.y0); return {x0:a[0]-8, y0:a[1]-8, x1:c[0]+8, y1:c[1]+8}; }
+function peindreGroupe(c){
+  if(MODE!=="dessin" || IMPRIME) return;
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0);
+  if(RECT_SEL){
+    var a=versEcran(RECT_SEL[0][0], RECT_SEL[0][1]), b=versEcran(RECT_SEL[1][0], RECT_SEL[1][1]);
+    c.fillStyle="rgba(59,130,246,.12)"; c.strokeStyle="#3B82F6"; c.lineWidth=1.5; c.setLineDash([6,4]);
+    c.fillRect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
+    c.strokeRect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
+  }
+  if(grpTaille(GRP)){
+    c.setLineDash([]); c.strokeStyle="#FB923C"; c.lineWidth=2;
+    function poly(pts){ c.beginPath(); pts.forEach(function(q, i){ var e=versEcran(q[0], q[1]); if(i) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.closePath(); c.stroke(); }
+    GRP.murs.forEach(function(m){ poly(coinsMur(m)); });
+    GRP.mob.forEach(function(o){ poly(coinsMob(o)); });
+    GRP.geo.forEach(function(o){ if(o.t==="rond"){ var e=versEcran(o.pts[0][0], o.pts[0][1]); c.beginPath(); c.arc(e[0], e[1], o.r*V.k, 0, 2*Math.PI); c.stroke(); } else poly(o.pts); });
+    GRP.symb.forEach(function(o){ var e=versEcran(o.x, o.y); c.beginPath(); c.arc(e[0], e[1], Math.max(8, o.r*V.k*1.2), 0, 2*Math.PI); c.stroke(); });
+    GRP.textes.forEach(function(t){ var e=versEcran(t.x, t.y); c.strokeRect(e[0]-20, e[1]-10, 40, 20); });
+    var r=grpEcran(GRP);
+    if(r){ c.setLineDash([7,5]); c.lineWidth=1.5; c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); }
+  }
+  c.restore();
+}
+$("btToutD").addEventListener("click", function(){ GRP=grpTout(); if(!grpTaille(GRP)) GRP=null; D_SEL=null; majDessin(); majBarreSel(); demander(); });
+$("btDupliquerD").addEventListener("click", function(){ dupliquerSel(); });
 function telecharger(blob, nom){
   /* dans l'appli installée, un PDF s'ouvre avec sa barre OK au lieu de remplacer la page */
   if(/\.pdf$/i.test(nom||"") && window.Visionneuse && Visionneuse.installee()){ Visionneuse.pdf(blob, nom); return; }
@@ -1614,7 +1796,7 @@ function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
 function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir",
+var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", choisir:"Choisir", selection:"Sélection",
   trait:"Trait", poly:"Polyligne", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
@@ -1952,7 +2134,11 @@ function supprimerD(){
   else DESSIN.textes=DESSIN.textes.filter(function(x){ return x.id!==o.id; });
   D_SEL=null; enregistrerD(); majDessin();
 }
-function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=GEO_EC.pts[GEO_EC.pts.length-1]; majDessin(); return; } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); return; } if(!HISTO_D.length) return; DESSIN=normD(JSON.parse(HISTO_D.pop())); D_SEL=null; enregistrerD(); majDessin(); }
+function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=GEO_EC.pts[GEO_EC.pts.length-1]; majDessin(); return; } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); return; } if(!HISTO_D.length) return;
+  var h=JSON.parse(HISTO_D.pop());
+  /* une action sur un groupe garde aussi les symboles : Annuler les remet ensemble */
+  if(h && h.__groupe){ DESSIN=normD(h.d); SYMB=h.s; enregistrerSymb(); } else DESSIN=normD(h);
+  D_SEL=null; GRP=null; enregistrerD(); majDessin(); majBarreSel(); }
 /* ---------- le panneau du dessin ---------- */
 function majDessin(){
   var o=objetSel(), t=D_SEL && D_SEL.t;
@@ -1962,6 +2148,7 @@ function majDessin(){
   if(OUTIL_D==="mur" || OUTIL_D==="cloison") det = D_PT ? "Touchez la fin du mur"+(garderOutil() ? ", ou glissez depuis ce point. Toucher le même point, ou « Terminer », arrête le tracé." : ".") : "Glissez du début à la fin du mur, ou touchez le début puis la fin. Deux doigts déplacent le plan.";
   else if(OUTIL_D==="piece") det="Tapez largeur × longueur × hauteur, puis touchez le coin intérieur en haut à gauche de la pièce.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
+  else if(OUTIL_D==="selection") det = grpTaille(GRP) ? grpTaille(GRP)+" élément"+(grpTaille(GRP)>1?"s":"")+" sélectionné"+(grpTaille(GRP)>1?"s":"")+" : glissez-les pour les déplacer ; Dupliquer et Tourner dans la barre, Supprimer dans le panneau. Ctrl+C / Ctrl+V sur un ordinateur." : "Glissez un cadre autour de la pièce (murs, portes, meubles, formes, textes, symboles), ou touchez un élément.";
   else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier.";
   else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
   else if(GEO_OUTILS[OUTIL_D]){
@@ -2025,7 +2212,7 @@ function majDessin(){
   if(OUTIL_D==="objet") $("selMob").value=CHOIX_MOB;
   $("grpMob").hidden = t!=="mob"; $("btTournerD").hidden = t!=="mob" && t!=="geo";
   if(t==="mob") [["mobL", o.l*DESSIN_MM], ["mobP", o.p*DESSIN_MM], ["mobH", o.h], ["mobZ", o.z||0]].forEach(function(v){ if(document.activeElement!==$(v[0])) $(v[0]).value=cm(v[1]); });
-  $("btSuppD").disabled = !o;
+  $("btSuppD").disabled = !o && !grpTaille(GRP);
   $("btTerminer").hidden = !D_PT;
   $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : "Terminer le mur";
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT && !GEO_EC;
@@ -2042,7 +2229,7 @@ function modifierSel(fn){ var o=objetSel(); if(!o) return; garderD(); fn(o); enr
 /* deux familles d'outils : le plan (murs, ouvertures, pièces, mobilier) et le dessin technique */
 var FAM_D=lire("dwg:famD", "");
 /* en Face et en Côté, le plan n'offre que le mobilier (les murs se tracent de dessus) */
-function outilVue(o){ return VUE_D==="dessus" || FAM_D!=="plan" || o==="objet" || o==="choisir"; }
+function outilVue(o){ if(o==="selection") return VUE_D==="dessus"; return VUE_D==="dessus" || FAM_D!=="plan" || o==="objet" || o==="choisir"; }
 function majVues(){
   var aide = VUE_D==="face" ? "vue de face : la hauteur vers le haut" : VUE_D==="cote" ? "vue de côté : la profondeur vers la droite" : "";
   ["segVueD","segVueS"].forEach(function(id){ Array.prototype.forEach.call($(id).children, function(b){ b.classList.toggle("on", b.dataset.v===VUE_D); }); });
@@ -2054,7 +2241,7 @@ function majFamille(){
   majVues();
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button[data-o]"), function(b){
     var o=b.dataset.o, dansDessin=!!GEO_OUTILS[o];
-    b.classList.toggle("hors-fam", o!=="choisir" && (FAM_D==="dessin") !== dansDessin);
+    b.classList.toggle("hors-fam", o!=="choisir" && o!=="selection" && (FAM_D==="dessin") !== dansDessin);
     b.classList.toggle("hors-vue", !outilVue(o));
   });
   Array.prototype.forEach.call($("segFamD").children, function(b){ b.classList.toggle("on", b.dataset.f===FAM_D); });
@@ -2089,7 +2276,7 @@ function choisirVue(v){
 $("btPerspD").addEventListener("click", function(){ $("btVue3d").click(); });
 $("outilsD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
-  OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; majDessin();
+  OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; if(OUTIL_D!=="selection") GRP=null; majDessin(); majBarreSel();
 });
 [["pcL","l"],["pcP","p"],["pcH","h"]].forEach(function(c){
   $(c[0]).addEventListener("input", function(){
@@ -2162,7 +2349,7 @@ $("btRenommer").addEventListener("click", function(){
   modifierSel(function(x){ x.s=String(s).trim(); });
 });
 function cm(mm){ return String(Math.round(mm)/10).replace(".", ","); }
-$("btSuppD").addEventListener("click", supprimerD);
+$("btSuppD").addEventListener("click", function(){ if(grpTaille(GRP)) supprimerGrp(); else supprimerD(); });
 $("btDefaireD").addEventListener("click", defaireD);
 $("btTerminer").addEventListener("click", function(){ if(GEO_EC){ terminerGeo(); return; } D_PT=null; majDessin(); });
 $("btAccrD").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majDessin(); });
@@ -2580,12 +2767,6 @@ function tournerGeo(o){
   var c=centreG(o);
   transformerG(o, function(q){ var dx=q[0]-c[0], dy=q[1]-c[1]; return [c[0]-dy, c[1]+dx]; });
   if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+90)%360;
-}
-function dupliquerGeo(){
-  var o=objetSel(); if(!o || D_SEL.t!=="geo") return;
-  var d=Math.round(tailleDefaut(30)*DESSIN_MM/10)*10/DESSIN_MM, x=JSON.parse(JSON.stringify(o));
-  x.id=idD(); transformerG(x, function(q){ return [q[0]+d, q[1]-d]; });
-  garderD(); DESSIN.geo.push(x); D_SEL={t:"geo", id:x.id}; enregistrerD(); majDessin();
 }
 /* un coin de rectangle qu'on tire : le coin opposé reste, le rectangle garde ses axes */
 function tirerCoinRect(o, i, p){
@@ -3298,7 +3479,8 @@ function majGeoPanneau(o, t){
     if(document.activeElement!==$("g3H")) $("g3H").value=cm(geoSel.h3||0);
     if(document.activeElement!==$("g3Z")) $("g3Z").value=cm(geoSel.z3||0);
   }
-  $("btDupliquerD").hidden = !geoSel;
+  $("btDupliquerD").hidden = !(D_SEL && D_SEL.t!=="ouv" && objetSel()) && !grpTaille(GRP);
+  $("btToutD").hidden = OUTIL_D!=="selection";
 }
 (function(){
   function garderStyle(){ try{ localStorage.setItem("dwg:styleG", JSON.stringify(STYLE_G)); }catch(e){} }
@@ -3315,7 +3497,7 @@ function majGeoPanneau(o, t){
     var b=e.target.closest("button"); if(!b) return; var f=Number(b.dataset.f);
     modifierSel(function(o){ if(o.h) o.h*=f; if(o.fl) o.fl*=f; });
   });
-  $("btDupliquerD").addEventListener("click", dupliquerGeo);
+
   $("btSaisieG").addEventListener("click", saisirGeo);
   ["gL","gH"].forEach(function(id){ $(id).addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); if(id==="gL" && GEO_EC && GEO_EC.t==="rect" && !$("gH").value) $("gH").focus(); else saisirGeo(); } }); });
   function dims(){
@@ -3438,7 +3620,7 @@ function ouvrirVierge(id, neuf){
   var v=listeVierges().filter(function(z){ return z.id===id; })[0]; if(!v) return;
   VUE_D="dessus";
   PLAN={vierge:true, id:id, nom:v.nom, groupes:{}, textes:[], calques:{}, pts:[], grille:{}, cel:1000, minx:0, miny:0, maxx:12000, maxy:9000, nb:0};
-  COTES=[]; A_PT=null; D_PT=null; D_SEL=null; HISTO_D=[]; HISTO_S=[]; SEL=-1;
+  COTES=[]; A_PT=null; D_PT=null; D_SEL=null; GRP=null; HISTO_D=[]; HISTO_S=[]; SEL=-1;
   DESSIN_MM=1; ECHELLE_SRC="vierge"; FICHIER_CLE="dwg:echelle:vierge:"+id;
   DESSIN_CLE="dwg:dessin:vierge:"+id; SYMB_CLE="dwg:symboles:vierge:"+id;
   try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
@@ -4596,7 +4778,7 @@ function ouvrirFichier(f){
         var d=deduireEchelle(u, P.cotesPlan, Math.max(P.maxx-P.minx, P.maxy-P.miny));
         FICHIER_CLE="dwg:echelle:"+f.name+":"+f.size;
         SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
-        DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; D_PT=null;
+        DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; GRP=null; D_PT=null;
         try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
         try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
   SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
@@ -4749,7 +4931,7 @@ redim(); majBas();
 /* pour les essais */
 window.__dwg={projectionG:projectionG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
-  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage};
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, grp:function(){ return GRP; }};
 })();
 </script>
 </body>
