@@ -694,8 +694,9 @@ async function traiter(req) {
   if (action === "societes-publiques") {
     /* liste des sociétés proposées à la connexion */
     const liste = await lireSocietes();
-    return json({ societes: liste.filter((s) => s.actif !== false)
-      .map((s) => ({ code: s.code, nom: s.nom, demo: !!s.demo })) });
+    /* la démonstration est fermée : elle n'est plus proposée */
+    return json({ societes: liste.filter((s) => s.actif !== false && !s.demo && s.code !== SOCIETE_DEMO.code)
+      .map((s) => ({ code: s.code, nom: s.nom, demo: false })) });
   }
 
   if (action === "connexion") {
@@ -704,6 +705,8 @@ async function traiter(req) {
     const code = String(d.societe || SOCIETE_DEPART.code).trim().toLowerCase();
     const id = String(d.identifiant || "").trim().toLowerCase();
     const mdp = String(d.motdepasse || "");
+    /* l'accès de démonstration est fermé : ses identifiants étaient publics */
+    if (code === SOCIETE_DEMO.code) return json({ erreur: "L'accès de démonstration est fermé. Demandez un accès." }, 403);
     const v = await verifier(code, id, mdp);
     if (!v) return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401);
     const p = v.personne;
@@ -719,6 +722,8 @@ async function traiter(req) {
     return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
   }
   if (!personne) return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
+  /* une session de démonstration encore ouverte ne vaut plus rien */
+  if (personne.societe === SOCIETE_DEMO.code) return json({ erreur: "L'accès de démonstration est fermé." }, 401);
   const bureau = personne.role === "bureau" || personne.role === "admin";
   const admin = personne.role === "admin" || personne.proprietaire;
 
