@@ -263,7 +263,9 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="v3Fermer" type="button" aria-label="Revenir au plan">✕</button>
     <b>3D</b>
     <span class="seg" id="v3Vue" role="group" aria-label="Point de vue"><button type="button" data-v="persp">Perspective</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="visite">Visite</button></span>
-    <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button><button type="button" data-g="objet" title="Glisser un meuble, une forme ou un symbole">Objet</button></span>
+    <span class="seg" id="v3Geste" role="group" aria-label="Un doigt pour"><button type="button" data-g="tourner">Tourner</button><button type="button" data-g="deplacer">Déplacer</button><button type="button" data-g="objet" title="Glisser un meuble, une forme ou un symbole">Objet</button><button type="button" data-g="coter" title="Coter : touchez deux points, accrochés aux coins et aux arêtes">Coter</button></span>
+    <span class="seg" id="v3CoteAxe" role="group" aria-label="La cote mesure" hidden><button type="button" data-a="libre" title="La distance entre les deux points">Directe</button><button type="button" data-a="ortho" title="Seulement selon l'axe dominant : longueur, profondeur ou hauteur">Ortho</button></span>
+    <button class="bt" id="v3CotesEff" type="button" hidden title="Retirer les cotes posées en 3D">Effacer les cotes</button>
     <span class="seg" id="v3Axe" role="group" aria-label="L'objet glisse" hidden><button type="button" data-a="plat">À plat</button><button type="button" data-a="haut">En hauteur</button></span>
     <span class="seg" id="v3Rendu" role="group" aria-label="Rendu"><button type="button" data-r="trait" title="Comme un dessin d'architecte : les arêtes en traits, les faces cachées">Trait</button><button type="button" data-r="ombre" title="Les volumes ombrés, en couleurs">Ombré</button></span>
     <button class="bt" id="v3Recentrer" type="button" title="Voir tout le dessin">Recentrer</button>
@@ -1339,6 +1341,7 @@ cv.addEventListener("wheel", function(e){
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
+  if(e.key==="Escape" && V3 && V3.coteA && !$("vue3d").hidden){ V3.coteA=null; majVisee3D(); return; }
   var champ=/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"");
   if(MODE==="dessin" && !champ && (e.ctrlKey||e.metaKey)){
     var k=String(e.key).toLowerCase();
@@ -3752,7 +3755,7 @@ function initV3(THREE){
     if(!V3){
       var cv3=$("v3Canvas");
       var r=new THREE.WebGLRenderer({canvas:cv3, antialias:true, preserveDrawingBuffer:true});
-      V3={THREE:THREE, renderer:r, scene:null, camera:new THREE.PerspectiveCamera(50, 1, 0.02, 400), cam:{az:-0.6, el:0.75, dist:12, cible:[0,0,0]},
+      V3={THREE:THREE, renderer:r, scene:null, coteAxe:lire("dwg:coteAxe3d","libre")==="ortho" ? "ortho" : "libre", camera:new THREE.PerspectiveCamera(50, 1, 0.02, 400), cam:{az:-0.6, el:0.75, dist:12, cible:[0,0,0]},
           ortho:new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 200), etiquettes:[], murs3:[], mode:"persp", transp:false, style:lire("dwg:rendu3d","trait")==="ombre" ? "ombre" : "trait", cotes:lire("dwg:cotes3d","0")==="1", plafond:lire("dwg:plafond3d","1")==="1", textures:{}};
       brancherGestes3D();
       window.addEventListener("resize", function(){ if(!$("vue3d").hidden){ taille3D(); rendu3D(); } });
@@ -3847,6 +3850,7 @@ function construire3D(){
   if(V3.scene){ try{ liberer3D(V3.scene); }catch(e){} V3.scene=null; }
   var D0=DESSIN, ed=etendue3D();
   V3.alertes = (window.SymbolesElec && VOLS) ? alertesVolumes() : {par:{}, liste:[]};
+  V3.cotesListe=(D0.cotes3d||[]).slice(); V3.accroches=null;
   DESSIN=dessinEnMm(D0, DESSIN_MM);      /* axes(), trous(), morceaux() lisent DESSIN */
   try{ construire3Dmm(ed); } finally { DESSIN=D0; }
 }
@@ -3991,6 +3995,7 @@ function construire3Dmm(ed){
     }
   }
   if(V3.style==="trait") enTrait3D(sc);
+  cotes3D(sc);
   sc.updateMatrixWorld(true);     /* pour les rayons de visibilité, avant le premier rendu */
   V3.scene=sc;
 }
@@ -4201,6 +4206,15 @@ function majPivot3D(){
 }
 function rendu3D(){
   if(!V3 || !V3.scene) return;
+  if(V3.provisoire && V3.provisoire.length){
+    /* les repères de visée : 6 px à l'écran, quelle que soit la distance */
+    var camR=ortho3D(V3.mode) ? V3.ortho : V3.camera, hR=$("v3Canvas").clientHeight||600;
+    V3.provisoire.forEach(function(o){ if(!o.userData.ecran) return;
+      var px;
+      if(ortho3D(V3.mode)) px=(V3.ortho.top-V3.ortho.bottom)/hR;
+      else { var dR=V3.camera.position.distanceTo(o.position); px=2*dR*Math.tan(V3.camera.fov*Math.PI/360)/hR; }
+      o.scale.setScalar(o.userData.ecran*px); });
+  }
   var c=V3.cam, cam=V3.camera, t=c.cible, ce=Math.cos(c.el), fac=1;
   if(V3.mode==="face" || V3.mode==="cote"){
     /* face et côté : sans perspective, comme les vues d'un dessin industriel */
@@ -4403,6 +4417,115 @@ function poserObjet3D(ob){
   }
   construire3D(); majBarre3D(); rendu3D(); demander();
 }
+/* ---------- les cotes en 3D ----------
+   Le geste Coter : on touche un premier point puis un second ; chacun
+   s'accroche, du plus fort au plus faible, au coin d'un volume (carré),
+   au milieu d'une arête (triangle), n'importe où le long d'une arête
+   (croix), sinon à la face touchée. « Ortho » ne garde que l'axe dominant
+   (longueur, profondeur ou hauteur). La cote reste dans le dessin, se voit
+   en perspective comme de face, et part au PDF avec la perspective. */
+var C3_RAYON={coin:16, milieu:13, arete:10};
+function accroches3D(){
+  if(V3.accroches) return V3.accroches;
+  var T=V3.THREE, coins=[], aretes=[], vu={};
+  V3.scene.updateMatrixWorld(true);
+  V3.scene.traverse(function(o){
+    if(!o.isMesh || o.isInstancedMesh || !o.visible || o===V3.pivot || !o.geometry || !o.geometry.attributes.position) return;
+    if(o.name==="plafond" || o.name==="plafond-voile") return;          /* le plafond n'est qu'un décor : on cote les murs */
+    if(o.material && o.material.transparent && o.material.opacity<0.4) return;
+    var t=o.geometry.type; if(t==="PlaneGeometry" && !(o.material && o.material.map)) return;   /* le sol, le halo */
+    var eg=new T.EdgesGeometry(o.geometry, 25), pa=eg.attributes.position, m=o.matrixWorld;
+    for(var i=0;i<pa.count;i+=2){
+      var a=new T.Vector3().fromBufferAttribute(pa, i).applyMatrix4(m), b=new T.Vector3().fromBufferAttribute(pa, i+1).applyMatrix4(m);
+      aretes.push([a, b]);
+      [a, b].forEach(function(q){ var k=q.x.toFixed(4)+","+q.y.toFixed(4)+","+q.z.toFixed(4); if(!vu[k]){ vu[k]=1; coins.push(q); } });
+    }
+    eg.dispose();
+  });
+  V3.accroches={coins:coins, aretes:aretes};
+  return V3.accroches;
+}
+function versEcran3D(q){
+  var cam=camera3D(), r=$("v3Canvas").getBoundingClientRect(), v=q.clone().project(cam);
+  return {x:(v.x+1)/2*r.width, y:(1-v.y)/2*r.height, z:v.z};
+}
+/* le point visé, accroché */
+function viser3D(sx, sy){
+  var T=V3.THREE, A=accroches3D(), best=null, bd=C3_RAYON.coin;
+  A.coins.forEach(function(q){ var e=versEcran3D(q); if(e.z>1) return; var d=Math.hypot(e.x-sx, e.y-sy); if(d<bd){ bd=d; best={p:q.clone(), genre:"coin"}; } });
+  if(best) return best;
+  bd=C3_RAYON.milieu;
+  A.aretes.forEach(function(s2){ var mq=s2[0].clone().add(s2[1]).multiplyScalar(0.5), e=versEcran3D(mq); if(e.z>1) return; var d=Math.hypot(e.x-sx, e.y-sy); if(d<bd){ bd=d; best={p:mq, genre:"milieu"}; } });
+  if(best) return best;
+  bd=C3_RAYON.arete;
+  A.aretes.forEach(function(s2){
+    var ea=versEcran3D(s2[0]), eb=versEcran3D(s2[1]); if(ea.z>1 || eb.z>1) return;
+    var dx=eb.x-ea.x, dy=eb.y-ea.y, l2=dx*dx+dy*dy; if(l2<4) return;
+    var t=Math.max(0, Math.min(1, ((sx-ea.x)*dx+(sy-ea.y)*dy)/l2)), d=Math.hypot(ea.x+t*dx-sx, ea.y+t*dy-sy);
+    if(d<bd){ bd=d; best={p:s2[0].clone().lerp(s2[1], t), genre:"arete"}; }
+  });
+  if(best) return best;
+  var q=pointVise3D(sx, sy); return q ? {p:q, genre:"face"} : null;
+}
+/* Ortho : le second point ne s'écarte du premier que selon l'axe dominant */
+function contraindre3D(a, b){
+  if((V3.coteAxe||"libre")!=="ortho") return b;
+  var d=b.clone().sub(a), ax=Math.abs(d.x), ay=Math.abs(d.y), az=Math.abs(d.z), q=a.clone();
+  if(ax>=ay && ax>=az) q.x=b.x; else if(ay>=az) q.y=b.y; else q.z=b.z;
+  return q;
+}
+function texteLongueur3D(a, b){ var mm=a.distanceTo(b)*1000; return formater(mm/DESSIN_MM); }
+/* une cote : la ligne de cote, deux traits de rappel obliques aux bouts, la longueur au milieu */
+function dessinerCote3D(sc, a, b, provisoire){
+  var T=V3.THREE, col=provisoire ? 0xF97316 : (V3.style==="trait" && !CLAIR ? 0xFBBF24 : 0xC2410C);
+  var mat=new T.LineBasicMaterial({color:col, depthTest:false, transparent:true}), grp=new T.Group();
+  grp.add(new T.Line(new T.BufferGeometry().setFromPoints([a, b]), mat));
+  /* les tirets à 45° des plans d'archi, dans un plan qui contient la cote */
+  var u=b.clone().sub(a); var L=u.length(); if(L>1e-6){
+    u.normalize(); var n=Math.abs(u.y)<0.9 ? new T.Vector3(0,1,0) : new T.Vector3(1,0,0), w=n.clone().cross(u).normalize(), t=Math.min(0.04, L*0.08);
+    var dir=u.clone().add(w).normalize().multiplyScalar(t);
+    [a, b].forEach(function(q){ grp.add(new T.Line(new T.BufferGeometry().setFromPoints([q.clone().sub(dir), q.clone().add(dir)]), mat)); });
+  }
+  grp.renderOrder=12; grp.children.forEach(function(c){ c.renderOrder=12; });
+  sc.add(grp);
+  var et=texteSprite(texteLongueur3D(a, b), 0.032, provisoire ? "rgba(234,88,12,.95)" : "rgba(31,41,51,.88)", true);
+  et.center.set(0.5, -0.25); et.position.copy(a.clone().add(b).multiplyScalar(0.5)); sc.add(et);
+  return grp;
+}
+function cotes3D(sc){
+  var T=V3.THREE;
+  (V3.cotesListe||[]).forEach(function(c){ dessinerCote3D(sc, new T.Vector3(c.a[0], c.a[1], c.a[2]), new T.Vector3(c.b[0], c.b[1], c.b[2]), false); });
+}
+/* le repère du point visé, et la cote en cours */
+function majVisee3D(){
+  if(!V3 || !V3.scene) return;
+  var T=V3.THREE, sc=V3.scene;
+  if(V3.provisoire){ V3.provisoire.forEach(function(o){ sc.remove(o); }); }
+  V3.provisoire=[];
+  var avant=sc.children.length;
+  var v=V3.viseCote;
+  if(V3.geste==="coter" && v){
+    var col=v.genre==="coin" ? 0x2563EB : v.genre==="milieu" ? 0x16A34A : v.genre==="arete" ? 0x9333EA : 0x6B7280;
+    var mk=new T.Mesh(new T.SphereGeometry(1, 12, 8), new T.MeshBasicMaterial({color:col, depthTest:false}));
+    mk.renderOrder=13; mk.position.copy(v.p); mk.userData.ecran=6; sc.add(mk);
+    if(V3.coteA){ dessinerCote3D(sc, V3.coteA, contraindre3D(V3.coteA, v.p), true); }
+  }
+  if(V3.geste==="coter" && V3.coteA && !v){ var mA=new T.Mesh(new T.SphereGeometry(1, 12, 8), new T.MeshBasicMaterial({color:0xF97316, depthTest:false})); mA.renderOrder=13; mA.position.copy(V3.coteA); mA.userData.ecran=6; sc.add(mA); }
+  for(var i=avant;i<sc.children.length;i++) V3.provisoire.push(sc.children[i]);
+  demander3D();
+}
+function toucherCote3D(sx, sy){
+  var v=viser3D(sx, sy); if(!v) return;
+  if(!V3.coteA){ V3.coteA=v.p.clone(); V3.viseCote=v; majVisee3D(); toast("Premier point ("+({coin:"coin", milieu:"milieu d'arête", arete:"sur l'arête", face:"sur la face"})[v.genre]+") : touchez le second.", 2200); return; }
+  var b=contraindre3D(V3.coteA, v.p);
+  if(V3.coteA.distanceTo(b)<0.0005){ V3.coteA=null; majVisee3D(); return; }
+  garderD(); DESSIN.cotes3d=DESSIN.cotes3d||[];
+  var r=function(q){ return [Math.round(q.x*1e5)/1e5, Math.round(q.y*1e5)/1e5, Math.round(q.z*1e5)/1e5]; };
+  DESSIN.cotes3d.push({a:r(V3.coteA), b:r(b)});
+  var txt=texteLongueur3D(V3.coteA, b);
+  V3.coteA=null; V3.viseCote=null; enregistrerD(); construire3D(); majBarre3D(); majVisee3D(); rendu3D();
+  toast("Cote : "+txt+".", 2200);
+}
 function brancherGestes3D(){
   var cv3=$("v3Canvas"), D3={}, g=null, dernier=null;
   function pos3(e){ var r=cv3.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
@@ -4419,6 +4542,12 @@ function brancherGestes3D(){
     var p=pos3(e);
     g={p:p, p0:p, t0:Date.now(), bouge:false, glisse:e.button===2 || e.button===1 || e.shiftKey || V3.geste==="deplacer" || V3.mode==="face" || V3.mode==="cote"};
     if(V3.geste==="objet" && !e.button && !e.shiftKey) g.objet=debutObjet3D(p);
+    if(V3.geste==="coter" && !e.button && !e.shiftKey){ g.coter=true; g.glisse=V3.mode!=="persp" || false; }
+  });
+  /* à la souris, le point visé se montre avant le toucher */
+  cv3.addEventListener("pointermove", function(e){
+    if(g || !V3 || V3.geste!=="coter" || e.pointerType!=="mouse") return;
+    var p=pos3(e); V3.viseCote=viser3D(p[0], p[1]); majVisee3D();
   });
   cv3.addEventListener("pointermove", function(e){
     if(!g || !D3[e.pointerId]) return;
@@ -4444,10 +4573,11 @@ function brancherGestes3D(){
   function fin(e){
     if(g && g.objet && e.type!=="pointercancel" && g.bouge){ var ob=g.objet; delete D3[e.pointerId]; g=null; poserObjet3D(ob); return; }
     if(g && g.objet && g.bouge){ g.objet.objs.forEach(function(o, i){ o.position.copy(g.objet.base[i]); }); demander3D(); }
-    var tape = g && !g.pince && !g.bouge && Date.now()-g.t0 < 350, p=D3[e.pointerId];
+    var tape = g && !g.pince && !g.bouge && Date.now()-g.t0 < 350, p=D3[e.pointerId], coter = g && g.coter;
     delete D3[e.pointerId];
     if(!Object.keys(D3).length) g=null; else if(g && g.pince) g=null;
     if(!tape || !p || e.type==="pointercancel") return;
+    if(coter){ dernier=null; toucherCote3D(p[0], p[1]); return; }
     /* double-toucher : le pivot passe sur le point touché */
     if(dernier && Date.now()-dernier.t < 400 && Math.hypot(p[0]-dernier.p[0], p[1]-dernier.p[1]) < 30){
       dernier=null;
@@ -4489,9 +4619,13 @@ function majBarre3D(){
   Array.prototype.forEach.call($("v3Geste").children, function(b){ b.classList.toggle("on", b.dataset.g===(V3.geste||"tourner")); if(b.dataset.g==="tourner") b.hidden=plat3; });
   $("v3Geste").hidden = V3.mode==="visite";
   $("v3Axe").hidden = V3.geste!=="objet" || V3.mode!=="persp";
+  $("v3CoteAxe").hidden = V3.geste!=="coter";
+  Array.prototype.forEach.call($("v3CoteAxe").children, function(b){ b.classList.toggle("on", b.dataset.a===(V3.coteAxe||"libre")); });
+  $("v3CotesEff").hidden = !(DESSIN.cotes3d && DESSIN.cotes3d.length);
   Array.prototype.forEach.call($("v3Axe").children, function(b){ b.classList.toggle("on", b.dataset.a===(V3.axe||"plat")); });
   var tactile = window.matchMedia && window.matchMedia("(hover:none)").matches;
-  $("v3Aide").textContent = V3.geste==="objet" && V3.mode!=="visite" ? "Objet : glissez un meuble, une forme ou un symbole ("+(V3.mode==="persp" && V3.axe==="haut" ? "en hauteur" : plat3 ? "dans la vue" : "à plat")+") · il s'aimante aux autres et au sol"
+  $("v3Aide").textContent = V3.geste==="coter" && V3.mode!=="visite" ? "Coter : touchez un premier point, puis un second · ils s'accrochent au coin (bleu), au milieu d'une arête (vert), le long d'une arête (violet) · zoomez pour viser juste · Échap annule"
+    : V3.geste==="objet" && V3.mode!=="visite" ? "Objet : glissez un meuble, une forme ou un symbole ("+(V3.mode==="persp" && V3.axe==="haut" ? "en hauteur" : plat3 ? "dans la vue" : "à plat")+") · il s'aimante aux autres et au sol"
     : V3.mode==="visite" ? "Un doigt : regarder autour · deux doigts : avancer"
     : (V3.mode==="face" || V3.mode==="cote") ? (V3.mode==="face" ? "Vue de face" : "Vue de côté")+", sans perspective · glisser : déplacer · "+(tactile ? "deux doigts : zoomer" : "molette : zoomer")
     : tactile ? (V3.geste==="deplacer" ? "Un doigt : déplacer" : "Un doigt : tourner")+" · deux doigts : zoomer, déplacer · double-toucher : pivot ici"
@@ -4501,6 +4635,12 @@ $("btVue3d").addEventListener("click", ouvrir3D);
 $("v3Fermer").addEventListener("click", fermer3D);
 $("v3Geste").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.geste=b.dataset.g; majBarre3D(); });
 $("v3Axe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.axe=b.dataset.a; majBarre3D(); });
+$("v3CoteAxe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !V3) return; V3.coteAxe=b.dataset.a; garder("dwg:coteAxe3d", V3.coteAxe); majBarre3D(); majVisee3D(); });
+$("v3CotesEff").addEventListener("click", function(){
+  if(!V3 || !(DESSIN.cotes3d||[]).length) return;
+  if(!window.confirm("Retirer les "+DESSIN.cotes3d.length+" cote"+(DESSIN.cotes3d.length>1?"s":"")+" posée"+(DESSIN.cotes3d.length>1?"s":"")+" en 3D ?")) return;
+  garderD(); DESSIN.cotes3d=[]; V3.coteA=null; enregistrerD(); construire3D(); majBarre3D(); rendu3D();
+});
 $("v3Recentrer").addEventListener("click", function(){ if(!V3) return; cadrer3D(V3.mode); rendu3D(); });
 $("v3Plus").addEventListener("click", function(){ zoomBouton3D(1/1.35); });
 $("v3Moins").addEventListener("click", function(){ zoomBouton3D(1.35); });
