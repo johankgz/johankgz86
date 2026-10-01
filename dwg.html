@@ -2322,7 +2322,7 @@ function choisirVue(v){
   majFamille();
   if(MODE==="symb"){ ARME_S=true; majSymb(); } else majDessin();
   demander();
-  var quoi = MODE==="symb" ? "posez les symboles à leur hauteur, contre le mur du fond" : FAM_D==="plan" ? "posez le mobilier, contre le mur du fond, à la hauteur touchée" : "dessinez ce qu'on voit de "+(VUE_D==="face" ? "devant" : "côté")+". Les autres vues sont en gris";
+  var quoi = MODE==="symb" ? "posez les symboles à leur hauteur, contre le mur du fond" : FAM_D==="plan" ? "posez le mobilier, contre le mur du fond, à la hauteur touchée" : "dessinez ce qu'on voit de "+(VUE_D==="face" ? "devant" : "côté")+". Les formes des autres vues s'y voient aussi";
   toast(VUE_D==="face" ? "Vue de face : "+quoi+"." : VUE_D==="cote" ? "Vue de côté : "+quoi+"." : "Vue de dessus.", 3500);
 }
 ["segVueD","segVueS"].forEach(function(id){ $(id).addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) choisirVue(b.dataset.v); }); });
@@ -2876,11 +2876,13 @@ function dansPoly(p, poly){
 /* ---------- dessiner ---------- */
 function peindreGeo(c, E, coulTrait, orange){
   var l=geosVue(), vue=vueD();
-  /* les formes des autres vues, projetées, en gris : on dessine « en face » de ce qui existe */
-  if(!IMPRIME || vue!=="dessus") geos().forEach(function(o){
+  /* les formes des autres vues, projetées, dessinées comme les autres (leur couleur, leur
+     épaisseur, en trait plein) : on dessine « en face » de ce qui existe */
+  geos().forEach(function(o){
     if(vueDe(o)===vue) return;
     var selA=!IMPRIME && D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id;
-    c.save(); c.strokeStyle = selA ? orange : CLAIR || IMPRIME ? "rgba(60,70,80,.45)" : "rgba(201,209,217,.38)"; c.lineWidth=selA ? 2 : 1; c.setLineDash(selA ? [] : [5,4]);
+    c.save(); c.lineCap="round"; c.lineJoin="round";
+    c.strokeStyle = selA ? orange : (COULEURS_G[o.coul] || coulTrait); c.lineWidth=selA ? Math.max(2, largeurG(o)) : largeurG(o); tirets(o);
     projectionG(o, vue).forEach(function(tr){ c.beginPath(); tr.forEach(function(q, i){ var P=E(q); if(i) c.lineTo(P[0],P[1]); else c.moveTo(P[0],P[1]); }); c.stroke(); });
     c.restore();
   });
