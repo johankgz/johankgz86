@@ -503,6 +503,25 @@ nav#nav button svg{stroke-width:1.9}
 .pv-case b{font-size:22px;font-weight:750;letter-spacing:-.02em;line-height:1.1;color:var(--ink)}
 .pv-case span{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
 .pv-case small{font-size:11.5px;color:var(--ink-3);min-height:14px}
+/* le reste à faire du chantier : toutes les tâches de ses points */
+.reste-tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}
+.reste-tete h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
+.reste-tete span{font-size:12.5px;font-weight:600;color:var(--ink-3)}
+.rt-ligne{display:flex;align-items:flex-start;gap:11px;padding:8px 0;border-top:1px solid var(--rule)}
+.rt-ligne:first-child{border-top:0}
+.rt-case{flex:0 0 auto;width:24px;height:24px;min-height:24px;margin-top:1px;border:2px solid var(--ink-3);border-radius:7px;
+  background:none;display:grid;place-items:center;padding:0;cursor:pointer}
+.rt-case svg{width:14px;height:14px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.rt-case.on{background:var(--ink);border-color:var(--ink)}
+.rt-case.on svg{opacity:1}
+.rt-case:disabled{opacity:.5}
+.rt-corps{flex:1;min-width:0}
+.rt-corps b{display:block;font-size:14.5px;font-weight:600;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}
+.rt-ligne.fait .rt-corps b{font-weight:500;color:var(--ink-3);text-decoration:line-through}
+.rt-corps small{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
+.rt-urgent{color:var(--danger)!important;font-weight:700}
+.reste-faits{display:block;width:100%;margin:6px 0 2px;padding:9px 0 3px;border:0;border-top:1px solid var(--rule);background:none;
+  font:600 13px/1.3 inherit;font-family:inherit;color:var(--ink-2);text-align:left;cursor:pointer}
 .avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
 .avancement h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
 .avancement .valeur{font-size:22px;font-weight:750;letter-spacing:-.02em;color:var(--data);font-variant-numeric:tabular-nums}
@@ -940,6 +959,14 @@ header{overflow-anchor:none}
         <p class="hint" id="av_note"></p>
       </div>
     </div>
+  </div>
+
+  <div class="block reste" id="reste" hidden>
+    <div class="reste-tete"><h2>Reste à faire</h2><span id="resteNb"></span></div>
+    <div id="resteListe"></div>
+    <button type="button" class="reste-faits" id="resteFaitsBtn" aria-expanded="false" hidden></button>
+    <div id="resteFaits" hidden></div>
+    <p class="hint" style="margin:8px 0 0">Les tâches de tous les points de chantier. Cochez ici ce qui est fait : le point suivant le reprend.</p>
   </div>
 
   <div class="block" id="loc" hidden>
@@ -1656,6 +1683,78 @@ $("av_curseur").addEventListener("change", function(){
     });
 });
 
+/* ---------- le reste à faire du chantier ---------- */
+var RESTE_FAITS_OUVERTS=false;
+function ligneReste(t){
+  var l=document.createElement("div"); l.className="rt-ligne"+(t.fait?" fait":"");
+  var c=document.createElement("button"); c.type="button"; c.className="rt-case"+(t.fait?" on":"");
+  c.setAttribute("aria-pressed", t.fait?"true":"false");
+  c.setAttribute("aria-label", (t.fait?"Décocher ":"Cocher ")+t.texte);
+  c.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
+  c.addEventListener("click", function(){ cocherReste(t, !t.fait, c); });
+  var corps=document.createElement("div"); corps.className="rt-corps";
+  var b=document.createElement("b"); b.textContent=t.texte; corps.appendChild(b);
+  var m=document.createElement("small");
+  var bouts=[];
+  if(t.point) bouts.push(String(t.point).replace(/^Le point de chantier/, "Le point"));
+  if(!t.fait && t.qui) bouts.push("pour "+t.qui+(t.quand ? " le "+frDate(t.quand) : ""));
+  else if(!t.fait && t.quand) bouts.push("pour le "+frDate(t.quand));
+  if(t.fait) bouts.push("faite"+(t.faitPar ? " par "+t.faitPar : "")+(t.faitLe ? " le "+frDate(t.faitLe) : ""));
+  m.textContent=bouts.join(" · ");
+  if(!t.fait && t.prio==="Urgent"){ var u=document.createElement("span"); u.className="rt-urgent"; u.textContent="Urgent · "; m.insertBefore(u, m.firstChild); }
+  corps.appendChild(m);
+  l.appendChild(c); l.appendChild(corps);
+  return l;
+}
+function peindreReste(){
+  var liste=(CHANTIER && CHANTIER.reste) || [];
+  var bloc=$("reste");
+  if(!liste.length){ bloc.hidden=true; return; }
+  bloc.hidden=false;
+  var ouvertes=liste.filter(function(t){ return !t.fait; });
+  var faites=liste.filter(function(t){ return t.fait; })
+    .sort(function(a, b){ return String(b.faitLe||"").localeCompare(String(a.faitLe||"")); });
+  /* l'urgent d'abord, puis par date demandée, puis dans l'ordre des points */
+  ouvertes.sort(function(a, b){
+    var ua=a.prio==="Urgent"?0:1, ub=b.prio==="Urgent"?0:1;
+    if(ua!==ub) return ua-ub;
+    if((a.quand||"")!==(b.quand||"")) return (a.quand||"9999").localeCompare(b.quand||"9999");
+    return String(a.cree||"").localeCompare(String(b.cree||""));
+  });
+  $("resteNb").textContent = ouvertes.length ? ouvertes.length+" à faire" : "tout est fait";
+  var hote=$("resteListe"); hote.textContent="";
+  if(!ouvertes.length){
+    var v=document.createElement("p"); v.className="hint"; v.style.margin="4px 0";
+    v.textContent="Plus rien à faire sur ce chantier.";
+    hote.appendChild(v);
+  }
+  ouvertes.forEach(function(t){ hote.appendChild(ligneReste(t)); });
+  var bt=$("resteFaitsBtn"), zf=$("resteFaits");
+  bt.hidden=!faites.length;
+  bt.textContent=(RESTE_FAITS_OUVERTS ? "▾ " : "▸ ")+faites.length+(faites.length>1 ? " tâches faites" : " tâche faite");
+  bt.setAttribute("aria-expanded", RESTE_FAITS_OUVERTS ? "true" : "false");
+  zf.hidden=!RESTE_FAITS_OUVERTS || !faites.length;
+  zf.textContent="";
+  if(RESTE_FAITS_OUVERTS) faites.forEach(function(t){ zf.appendChild(ligneReste(t)); });
+}
+$("resteFaitsBtn").addEventListener("click", function(){ RESTE_FAITS_OUVERTS=!RESTE_FAITS_OUVERTS; peindreReste(); });
+function cocherReste(t, fait, bouton){
+  bouton.disabled=true;
+  fetch(API+"?action=reste-cocher", {method:"POST",
+    headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, id:t.id, fait:fait})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      bouton.disabled=false;
+      if(!res.ok){ toast(res.d.erreur || "Non enregistré."); return; }
+      Object.keys(t).forEach(function(k){ if(!(k in res.d.tache)) delete t[k]; });
+      Object.assign(t, res.d.tache);
+      peindreReste();
+      toast(fait ? "Fait : « "+t.texte.slice(0, 40)+(t.texte.length>40 ? "…" : "")+" »." : "Remise à faire.");
+    })
+    .catch(function(){ bouton.disabled=false; toast("Pas de réseau : rien n'a changé."); });
+}
+
 /* ---------- chargement ---------- */
 function charger(){
   fetch(API+"?action=liste", {headers:{"x-auth":SESSION.jeton}})
@@ -1681,7 +1780,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreRefModif(); peindrePv();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindrePv();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){

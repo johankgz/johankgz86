@@ -596,6 +596,50 @@ function memeNom(a, b) {
   const p = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
   return !!a && p(a) === p(b);
 }
+/* Le reste à faire du chantier : les tâches de tous ses points, au même
+   endroit. Chaque tâche a son identifiant ; un point la reprend, la coche,
+   la corrige — la version la plus récente (maj) l'emporte. Sur la page du
+   chantier, on la coche aussi directement. */
+const ID_TACHE = /^[A-Za-z0-9_-]{1,40}$/;
+function fusionnerReste(c, liste, retires, origine) {
+  const reste = Array.isArray(c.reste) ? c.reste : [];
+  const maintenant = new Date().toISOString();
+  for (const t of (Array.isArray(liste) ? liste : [])) {
+    const id = String((t && t.id) || "");
+    const texte = String((t && t.texte) || "").trim().slice(0, 400);
+    if (!ID_TACHE.test(id) || !texte) continue;
+    const maj = String(t.maj || maintenant).slice(0, 30);
+    const fait = !!t.fait;
+    const champs = { texte, prio: String(t.prio || "").slice(0, 20), qui: String(t.qui || "").trim().slice(0, 80),
+      quand: /^\d{4}-\d{2}-\d{2}$/.test(String(t.quand || "")) ? t.quand : "" };
+    const ancien = reste.find((x) => x.id === id);
+    if (!ancien) {
+      reste.push({ id, ...champs, fait, maj, cree: maintenant, point: origine.titre, pointId: origine.pointId, auteur: origine.auteur,
+        ...(fait ? { faitPar: origine.auteur, faitLe: maintenant, faitDans: origine.titre } : {}) });
+      continue;
+    }
+    if (maj < String(ancien.maj || "")) continue;           /* déjà plus récent sur le site */
+    Object.assign(ancien, champs, { maj });
+    if (fait && !ancien.fait) Object.assign(ancien, { fait: true, faitPar: origine.auteur, faitLe: maintenant, faitDans: origine.titre });
+    if (!fait && ancien.fait) { ancien.fait = false; delete ancien.faitPar; delete ancien.faitLe; delete ancien.faitDans; }
+  }
+  const sortis = new Set((Array.isArray(retires) ? retires : []).map(String).filter((x) => ID_TACHE.test(x)));
+  let garde = reste.filter((x) => !sortis.has(x.id));
+  /* au plus 300 : les plus anciennes faites partent d'abord */
+  if (garde.length > 300) {
+    const faites = garde.filter((x) => x.fait).sort((a, b) => String(a.faitLe || "").localeCompare(String(b.faitLe || "")));
+    const trop = new Set(faites.slice(0, garde.length - 300).map((x) => x.id));
+    garde = garde.filter((x) => !trop.has(x.id)).slice(-300);
+  }
+  c.reste = garde;
+}
+async function rappelFait(store, ref, id, qui) {
+  const cleR = "taches/point-" + slug(ref) + "-" + slug(id) + ".json";
+  try {
+    const t = await store.get(cleR, { type: "json" });
+    if (t && !t.faite) { t.faite = true; t.faitePar = qui; t.faiteLe = new Date().toISOString(); await store.setJSON(cleR, t); }
+  } catch { /* pas de rappel pour cette tâche */ }
+}
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
@@ -1193,6 +1237,9 @@ async function traiter(req) {
     }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
+    if (point && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
+      fusionnerReste(c, d.reste, d.retires, { titre: entree.titre, pointId: String(d.pointId || ""), auteur: personne.nom });
+    }
     c.maj = new Date().toISOString();
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
@@ -1224,15 +1271,31 @@ async function traiter(req) {
         const qui = String(t.qui || "").trim();
         const quand = String(t.quand || "").slice(0, 10);
         if (!qui || !quand) continue;                    /* sans qui ni quand, pas de rappel */
-        const id = "taches/" + quand + "-" + slug(qui) + "-" + slug(String(t.texte || "").slice(0, 40))
-          + "-" + Date.now().toString(36) + ".json";
+        /* une tâche du point a son identifiant : un seul rappel, repris d'un point à l'autre */
+        const stable = point && ID_TACHE.test(String(t.id || ""));
+        const id = stable
+          ? "taches/point-" + slug(ref) + "-" + slug(t.id) + ".json"
+          : "taches/" + quand + "-" + slug(qui) + "-" + slug(String(t.texte || "").slice(0, 40))
+            + "-" + Date.now().toString(36) + ".json";
+        let avant = null;
+        if (stable) { try { avant = await store.get(id, { type: "json" }); } catch { avant = null; } }
+        if (avant && avant.faite) continue;              /* cochée ailleurs entre-temps */
         try {
           await store.setJSON(id, {
             texte: String(t.texte || ""), prio: t.prio || "", qui, quand,
             chantier: ref, client: d.client || "", auteur: personne.nom,
-            cree: new Date().toISOString(), faite: false
+            cree: (avant && avant.cree) || new Date().toISOString(), faite: false,
+            ...(stable ? { reste: { ref, id: String(t.id) }, notifie: (avant && avant.quand === quand && avant.notifie) || "" } : {})
           });
         } catch { /* la publication reste valable */ }
+      }
+    }
+
+    /* une tâche cochée dans le point : son rappel s'arrête */
+    if (point && Array.isArray(d.reste)) {
+      for (const t of d.reste) {
+        if (!t || !t.fait || !ID_TACHE.test(String(t.id || ""))) continue;
+        await rappelFait(store, ref, t.id, personne.nom);
       }
     }
 
@@ -1849,6 +1912,18 @@ async function traiter(req) {
     t.faitePar = personne.nom;
     t.faiteLe = new Date().toISOString();
     await store.setJSON(cle, t);
+    /* le rappel d'une tâche d'un point : cochée aussi dans le reste à faire du chantier */
+    if (t.reste && t.reste.ref && t.reste.id) {
+      try {
+        const idx = await lireIndex();
+        const c = idx.chantiers[t.reste.ref];
+        const it = c && (c.reste || []).find((x) => x.id === t.reste.id);
+        if (it && !it.fait) {
+          Object.assign(it, { fait: true, faitPar: personne.nom, faitLe: t.faiteLe, faitDans: "accueil", maj: t.faiteLe });
+          await store.setJSON(INDEX, idx);
+        }
+      } catch { /* la tâche est faite, la liste suivra */ }
+    }
     /* un rappel de to-do list : « Fait » coche aussi la ligne dans sa liste */
     if (t.todo && t.item) {
       const cleL = cleNotes(t.auteurListe || t.qui);
@@ -1907,11 +1982,40 @@ async function traiter(req) {
       .map((f) => ({ titre: f.titre || "", numero: f.visite || "", date: f.date || "", auteur: f.auteur || "" }))
       .sort((x, y) => (parseInt(x.numero, 10) || 0) - (parseInt(y.numero, 10) || 0) || String(x.date).localeCompare(String(y.date)));
     return json({
-      ref, client: c.client || "", equipe, points, numeroSuivant,
+      ref, client: c.client || "", equipe, points, numeroSuivant, reste: c.reste || [],
       auteur: (c.fichiers[0] || {}).auteur || "",
       personnes: comptes.map((u) => ({ nom: u.nom, role: u.role })),
       peutModifier: bureau
     });
+  }
+
+  /* ---------- le reste à faire du chantier : cocher, décocher ---------- */
+  if (action === "reste-cocher") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = slug(d.ref || "").toUpperCase();
+    const id = String(d.id || "");
+    if (!ID_TACHE.test(id)) return json({ erreur: "Tâche introuvable." }, 404);
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const membre = (c.equipe || []).indexOf(personne.nom) >= 0 || bureau
+      || c.fichiers.some((f) => voit(personne, f, c));
+    if (!membre) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const it = (c.reste || []).find((x) => x.id === id);
+    if (!it) return json({ erreur: "Tâche introuvable." }, 404);
+    const maintenant = new Date().toISOString();
+    if (d.fait) Object.assign(it, { fait: true, faitPar: personne.nom, faitLe: maintenant, faitDans: "chantier" });
+    else { it.fait = false; delete it.faitPar; delete it.faitLe; delete it.faitDans; }
+    it.maj = maintenant;
+    await store.setJSON(INDEX, idx);
+    if (it.fait) await rappelFait(store, ref, id, personne.nom);
+    else {
+      /* décochée : son rappel repart */
+      const cleR = "taches/point-" + slug(ref) + "-" + slug(id) + ".json";
+      try { const t = await store.get(cleR, { type: "json" }); if (t && t.faite) { t.faite = false; delete t.faitePar; delete t.faiteLe; await store.setJSON(cleR, t); } } catch { /* pas de rappel */ }
+    }
+    return json({ ok: true, tache: it });
   }
 
   if (action === "equipe-dossier-enregistrer") {
@@ -2104,6 +2208,7 @@ async function traiter(req) {
         avancementPar: c.avancementPar || "",
         avancementLe: c.avancementLe || "",
         equipe: c.equipe || [],
+        reste: c.reste || [],
         fichiers: visibles });
     }
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
