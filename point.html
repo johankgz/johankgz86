@@ -124,6 +124,12 @@ textarea{min-height:112px;resize:vertical;line-height:1.5}
 .chip.on.multi{background:var(--accent)}
 #tab-pv .chip.on{background:var(--solar);color:#20180A;box-shadow:0 4px 14px -6px rgba(242,160,7,.75)}
 .legend{font-size:13.5px;font-weight:500;color:var(--ink-2);margin:0 0 8px}
+.ce-point{display:grid;grid-template-columns:96px 1fr;gap:0 12px}
+.ce-point input#c_num{text-align:center;font-weight:700}
+#ch_objet{margin-top:-4px}
+#ch_objet .chip{font-size:13px;padding-top:7px;padding-bottom:7px;min-height:0}
+.points-avant{margin:2px 0 0;font-size:12.5px;color:var(--ink-3);line-height:1.5}
+.points-avant b{color:var(--ink-2);font-weight:600}
 .hint{font-size:13px;color:var(--ink-3);margin:8px 0 0;line-height:1.4}
 .err{font-size:13.5px;color:var(--danger);margin:8px 0 0}
 .ok{font-size:13.5px;color:var(--ok);margin:8px 0 0}
@@ -750,6 +756,16 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
+    <h2>Ce point</h2>
+    <div class="ce-point">
+      <label class="f"><span>N°</span><input type="text" inputmode="numeric" id="c_num" placeholder="1" maxlength="4"></label>
+      <label class="f"><span>Objet</span><input type="text" id="c_objet" placeholder="Suite RDV sur site, réunion…" maxlength="80"></label>
+    </div>
+    <div class="chips" id="ch_objet"></div>
+    <p class="points-avant" id="pointsAvant" hidden></p>
+  </div>
+
+  <div class="block">
     <h2>Destinataire</h2>
     <div class="choix-pub" id="choixPublication">
       <button type="button" class="opt on" data-pub="dossier">
@@ -1044,9 +1060,17 @@ function blank(){
     taches:[],           /* {texte, fait, prio, quand, qui} */
     etatChantier:"", resteObjet:"", resteNote:"",
     photos:[], notes:"",
-    destinataires:[], dest:""
+    destinataires:[], dest:"",
+    id:uid(),            /* un point = une publication : republier le même point le met à jour */
+    numero:"", numAuto:true, objet:""
   };
 }
+/* « Point chantier 2 — Suite RDV sur site » */
+function titrePoint(){
+  var n=String(S.numero||"").trim(), o=String(S.objet||"").trim();
+  return (n ? "Point chantier "+n : "Le point de chantier") + (o ? " — "+o : "");
+}
+function titreCourt(){ var n=String(S.numero||"").trim(); return n ? "Point chantier "+n : "Le point de chantier"; }
 function blankPrefs(){
   return {societe:"", socTel:"", socWeb:"",
     socAdr:"", socLegal:"", logo:null};
@@ -1090,6 +1114,7 @@ function refAffaire(){
 function refreshHeader(){
   var r=[];
   if(refAffaire()) r.push(refAffaire());
+  if(String(S.numero||"").trim()) r.push("n° "+String(S.numero).trim());
   var n=S.lignes.reduce(function(a,l){ return a+(l.qte>0?1:0); },0);
   if(n) r.push(n+" article"+(n>1?"s":""));
   var restantes=(S.taches||[]).filter(function(t){ return !t.fait; }).length;
@@ -1328,7 +1353,7 @@ function stepNav(name){
 /* ---------- formulaire ---------- */
 var FIELDS=[["r_note","resteNote"],
   ["c_client","chantier.client"],["c_ref","chantier.ref"],["c_adresse","chantier.adresse"],
-  ["c_date","date"],["notes","notes"],];
+  ["c_date","date"],["notes","notes"],["c_num","numero"],["c_objet","objet"],];
 function getPath(p){ var a=p.split("."); return a.length===1?S[a[0]]:S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[0]][a[1]]=v; }
 function paintForm(){
@@ -1337,9 +1362,33 @@ function paintForm(){
   chips("ch_etat", ETATS_CHANTIER,
     function(o){ return S.etatChantier===o; },
     function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); renderResume(); refreshHeader(); });
+  peindreObjets(); peindrePointsAvant();
   renderTaches(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
 }
 var ETATS_CHANTIER=["Pas commencé","En cours","Presque fini","Terminé","À l'arrêt"];
+var OBJETS_POINT=["Suite RDV sur site","Réunion de chantier","Visite client","Avant réception","Fin de journée"];
+function peindreObjets(){
+  chips("ch_objet", OBJETS_POINT,
+    function(o){ return String(S.objet||"").trim()===o; },
+    function(o){ S.objet=(String(S.objet||"").trim()===o)?"":o; $("c_objet").value=S.objet; save(); renderResume(); });
+}
+/* les points déjà publiés dans ce dossier, sous le numéro */
+var POINTS_DOSSIER={ref:"", liste:[]};
+function peindrePointsAvant(){
+  var el=$("pointsAvant"); if(!el) return;
+  var l=(POINTS_DOSSIER.ref && memeRefDossier(POINTS_DOSSIER.ref)) ? POINTS_DOSSIER.liste : [];
+  el.textContent="";
+  if(!l.length){ el.hidden=true; return; }
+  el.hidden=false;
+  el.appendChild(document.createTextNode(l.length===1 ? "Déjà dans le dossier : " : l.length+" points déjà dans le dossier, dont : "));
+  l.slice(-3).forEach(function(p, i){
+    if(i) el.appendChild(document.createTextNode(" · "));
+    var b=document.createElement("b"); b.textContent=p.titre || "Le point de chantier";
+    el.appendChild(b);
+    if(p.date) el.appendChild(document.createTextNode(" ("+frDate(p.date).slice(0,5)+")"));
+  });
+}
+function memeRefDossier(r){ return String(r||"").toUpperCase().replace(/[^A-Z0-9]+/g,"-")===String(refAffaire()||"").toUpperCase().replace(/[^A-Z0-9]+/g,"-"); }
 function chips(host, opts, get, set){
   var box=$(host); box.textContent="";
   opts.forEach(function(o){
@@ -1357,7 +1406,8 @@ function renderResume(){
   var host=$("resume"); if(!host) return;
   host.textContent="";
   var restantes=tachesRestantes().length;
-  [["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
+  [["Ce point", titrePoint()],
+   ["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
    ["Où j'en suis", S.etatChantier || ((S.resteNote||"").trim() ? "noté" : "à renseigner")],
    ["Reste à faire", S.taches.length ? restantes + " sur " + S.taches.length : "rien"],
    ["Photos", String(S.photos.length)],
@@ -1453,7 +1503,8 @@ function deposerPhotos(auto){
   /* tout est lu maintenant : après la publication, le formulaire se vide pendant l'envoi */
   var ref=refAffaire(), client=nomClient(), adresse=adresseTravaux(), date=dateFiche()||aujourdhui();
   var versDossier = (typeof PUB_MODE === "undefined") || PUB_MODE === "dossier", dest = versDossier ? [] : destinataires().slice();
-  var qui = "point-" + ((SESSION && SESSION.nom) || S.auteur || "moi");
+  var qui = "point-" + (S.id || (SESSION && SESSION.nom) || S.auteur || "moi");
+  var titreP = titrePoint();
   var dossier = nomFichier(ref);
   var fichiers = liste.map(function(p, i){
     var num = String(i+1).padStart(2,"0");
@@ -1478,7 +1529,7 @@ function deposerPhotos(auto){
         var corps = {
           pdf: b64, type:"photos", suiviId: qui + (k ? "-" + (k+1) : ""),
           chantier: ref, client: client, adresse: adresse, date: date, destinataires: dest,
-          titre: "Photos · Le point du " + date.split("-").reverse().join("/") + " (" + liste.length + ")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")
+          titre: "Photos · " + titreP + " du " + date.split("-").reverse().join("/") + " (" + liste.length + ")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")
         };
         if(versDossier) corps.dossier = true;
         fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
@@ -1711,19 +1762,21 @@ function publierRapport(meta){
     effacerMarques();
     var msg = res.d.remplace
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
-                             : "Visite remplacée par cette nouvelle version.")
-      : "Rapport publié.";
+                             : titrePoint()+" mis à jour (version "+res.d.versions+").")
+      : titrePoint()+" publié.";
     var prevenus = res.d.prevenus || [];
     el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
                                         : " Disponible pour " + meta.destinataires.join(", ") + ".")
       + (prevenus.length ? " " + prevenus.join(", ") + (prevenus.length>1 ? " ont été prévenus" : " a été prévenu") + " par e-mail." : "");
     /* les photos partent dans le dossier du chantier, lues avant que le formulaire se vide */
     var photos=photosApresPublication(el);
+    S.numAuto=false; save();      /* publié : son numéro ne bouge plus */
     deposerFiche(res.d.cle, el);
     if(versDossier){
       photos.then(function(){
-        reinitialiserFormulaire("Point publié. Formulaire vidé pour un nouveau point.");
-        el.textContent += "  ·  Formulaire vidé pour un nouveau point.";
+        /* le chantier reste : le point suivant prend le numéro d'après */
+        var suivant=pointSuivant();
+        el.textContent += "  ·  Formulaire vidé pour le point suivant : " + suivant + " (même chantier).";
       });
     } else {
       toast("Rapport publié.");
@@ -1964,9 +2017,9 @@ function buildPdf(){
       tx=M+lw+7;
     }
     setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Le point de chantier", tx, 19);
+    doc.text(titreCourt(), tx, 19);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous="Travaux du "+frDate(S.date);
+    var sous=(String(S.objet||"").trim() ? String(S.objet).trim()+"  ·  " : "")+"Travaux du "+frDate(S.date);
     if(refAffaire()) sous += "     "+refAffaire();
     doc.text(sous, tx, 25);
     var soc=(P&&P.societe)||"";
@@ -2006,7 +2059,7 @@ function buildPdf(){
   var bc = urgentes ? AMBER : ACC;
   setFill(bc); doc.roundedRect(M, y, CW, 11, 0.8, 0.8, "F");
   doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  doc.text("Le point de chantier" + (S.etatChantier ? "  -  " + S.etatChantier : ""), M+5, y+7.2);
+  doc.text(titreCourt() + (S.etatChantier ? "  -  " + S.etatChantier : ""), M+5, y+7.2);
   var resteCount=tachesRestantes().filter(function(t){ return (t.texte||"").trim(); }).length;
   if(resteCount){
     doc.text(resteCount + " tâche" + (resteCount>1?"s":"")
@@ -2015,6 +2068,7 @@ function buildPdf(){
   setText(INK); y+=16;
 
   h2("Travaux", 45);
+  kv("Objet du point", S.objet);
   kv("Client", S.chantier.client);
   kv("Référence travaux", S.chantier.ref);
   kv("Adresse", S.chantier.adresse);
@@ -2123,7 +2177,7 @@ function buildPdf(){
   footer();
   return doc;
 }
-function pdfName(){ return "Point-"+(refAffaire()||"chantier")+"-"+S.date+".pdf"; }
+function pdfName(){ return "Point"+(String(S.numero||"").trim() ? "-"+String(S.numero).trim() : "")+"-"+(refAffaire()||"chantier")+"-"+S.date+".pdf"; }
 function dl(blob, name){
   /* dans l'appli installée, un PDF s'ouvre avec sa barre OK au lieu de remplacer la page */
   if(/\.pdf$/i.test(name||"") && window.Visionneuse && Visionneuse.installee()){ Visionneuse.pdf(blob, name); return; }
@@ -2150,7 +2204,7 @@ function ficheCharger(d, f){
 
 /* ---------- envoi e-mail ---------- */
 function mailSubject(){
-  return "Le point de chantier — "+(S.chantier.client||"chantier")
+  return titrePoint()+" — "+(S.chantier.client||"chantier")
     +(refAffaire()?" ("+refAffaire()+")":"")+" — "+frDate(S.date);
 }
 function mailBody(){
@@ -2168,7 +2222,7 @@ function mailBody(){
 }
 function messagePartage(){
   return ["Bonjour,", "",
-    "Le point de chantier du " + frDate(S.date)
+    titrePoint() + " du " + frDate(S.date)
       + (S.chantier.client ? " — " + S.chantier.client : "") + ".",
     "", (SESSION&&SESSION.nom)||"", (P&&P.societe)||""].join("\n");
 }
@@ -2200,7 +2254,12 @@ function bindAll(){
   $("btnPartage").addEventListener("click", partagerRapport);
   FIELDS.forEach(function(f){
     var el=$(f[0]);
-    el.addEventListener("input", function(){ setPath(f[1], el.value); save(); });
+    el.addEventListener("input", function(){
+      if(f[0]==="c_num"){ el.value=el.value.replace(/[^0-9]/g,""); S.numAuto=!el.value; }
+      setPath(f[1], el.value); save();
+      if(f[0]==="c_objet") peindreObjets();
+      if(f[0]==="c_ref"){ peindrePointsAvant(); clearTimeout(window.__refT); window.__refT=setTimeout(function(){ try{ equipeDuDossier(); }catch(e){} }, 900); }
+    });
     el.addEventListener("change", renderResume);
   });
   document.querySelectorAll("[data-dictee]").forEach(function(b){
@@ -2237,9 +2296,9 @@ function bindAll(){
     publierRapport({
       taches: S.taches.filter(function(t){ return !t.fait && t.qui && t.quand && (t.texte||"").trim(); }),
       chantier: refAffaire(), client: S.chantier.client, adresse: S.chantier.adresse,
-      type: APP_TYPE, date: S.date, visite: "",
+      type: APP_TYPE, date: S.date, visite: String(S.numero||"").trim(),
       etape: etatCourt(),
-      titre: "Le point de chantier"
+      titre: titrePoint(), pointId: S.id || ""
     });
   });
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
@@ -2256,6 +2315,24 @@ function reinitialiserFormulaire(msg){
   S=blank(); S.auteur=(SESSION&&SESSION.nom)||"";
   save(); paintForm(); showTab("travaux");
   toast(msg);
+}
+/* après une publication dans le dossier : une fiche neuve pour le même
+   chantier, numérotée à la suite. Le point publié reste dans le dossier. */
+function pointSuivant(){
+  var ch={ref:S.chantier.ref, client:S.chantier.client, adresse:S.chantier.adresse};
+  var n=parseInt(S.numero, 10), pub={titre:titrePoint(), numero:String(S.numero||""), date:S.date};
+  if(memeRefDossier(POINTS_DOSSIER.ref)){
+    POINTS_DOSSIER.liste=POINTS_DOSSIER.liste.filter(function(p){ return p.titre!==pub.titre || p.date!==pub.date; });
+    POINTS_DOSSIER.liste.push(pub);
+  } else POINTS_DOSSIER={ref:refAffaire(), liste:[pub]};
+  S=blank(); S.auteur=(SESSION&&SESSION.nom)||"";
+  S.chantier=ch;
+  S.numero=String(numeroApres(POINTS_DOSSIER.liste));
+  ecrireFiche(); refreshHeader(); paintForm(); showTab("travaux");
+  try{ basculePub("dossier"); }catch(e){}
+  toast("Publié. Nouveau point prêt : "+titrePoint()+".");
+  try{ equipeDuDossier(); }catch(e){}
+  return titrePoint();
 }
 
 /* ---------- retour aux rapports quand on vient de la liste ---------- */
@@ -2835,10 +2912,33 @@ function equipeDuDossier(){
     .then(function(d){
       var gens=(d.equipe||[]).filter(Boolean);
       el.textContent = gens.length ? "visible par "+gens.join(", ") : "vous serez seul à le voir";
+      numeroterPoint(ref, d.numeroSuivant || 1, d.points || null);
     })
     .catch(function(){
       el.textContent = "dossier nouveau : l'équipe sera constituée à la publication";
+      numeroterPoint(ref, 1, null);
     });
+}
+/* le numéro d'après : le plus grand numéro, ou le nombre de points s'ils n'en ont pas */
+function numeroApres(liste){
+  return Math.max(liste.length, Math.max.apply(null, [0].concat(liste.map(function(p){ return parseInt(p.numero, 10) || 0; })))) + 1;
+}
+/* le numéro proposé : celui d'après les points du dossier, tant qu'on ne l'a pas tapé.
+   Sans réponse du serveur (points null), on garde ce qu'on sait déjà sur l'appareil. */
+function numeroterPoint(ref, suivant, points){
+  if(!memeRefDossier(ref)) return;
+  var connus = memeRefDossier(POINTS_DOSSIER.ref) ? POINTS_DOSSIER.liste : [];
+  if(points) POINTS_DOSSIER={ref:ref, liste:points.slice()};
+  else points = connus;
+  suivant = Math.max(suivant || 1, numeroApres(points), connus.length ? numeroApres(connus) : 1);
+  /* ce point-ci, déjà publié puis rouvert, garde son numéro */
+  var dejaLa = String(S.numero||"") && points.some(function(p){ return p.numero===String(S.numero) && p.titre===titrePoint() && p.date===S.date; });
+  if(S.numAuto!==false && !dejaLa && String(S.numero||"")!==String(suivant)){
+    S.numero=String(suivant); S.numAuto=true;
+    var c=$("c_num"); if(c) c.value=S.numero;
+    save(); renderResume();
+  }
+  peindrePointsAvant();
 }
 function basculePub(mode, force){
   PUB_MODE = mode;

@@ -31,7 +31,7 @@ function libelleDocument(entree) {
     : entree.type === "carnet" ? "Carnet d'échantillons"
     : entree.type === "memoire" ? "Mémoire technique"
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
-    : entree.type === "point" ? "Le point de chantier"
+    : entree.type === "point" ? (entree.titre || "Le point de chantier")
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "sav" ? (entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
     : entree.type === "reception" ? "Procès-verbal de réception"
@@ -1109,7 +1109,10 @@ async function traiter(req) {
       : reception
       ? "reception-" + slug(d.date || jourParis()) + ".pdf"
       : point
-      ? "point-" + slug(d.date || jourParis()) + "-" + slug(personne.nom) + ".pdf"
+      /* chaque point a son identifiant : deux points le même jour ne
+         s'écrasent plus ; republier le même point le met à jour. Les
+         anciens, sans identifiant, gardent un point par jour et par personne. */
+      ? "point-" + slug(d.date || jourParis()) + "-" + slug(d.pointId || personne.nom) + ".pdf"
       : photos
       ? "photos-" + slug(d.date || jourParis()) + "-" + slug(d.suiviId || personne.nom) + ".zip"
       : commande
@@ -1897,8 +1900,14 @@ async function traiter(req) {
       || c.fichiers.some((f) => voit(personne, f, c));
     if (!membre) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const comptes = await lireComptes(personne.societe);
+    /* les points déjà publiés : le suivant prend le numéro d'après */
+    const pts = c.fichiers.filter((f) => f.type === "point");
+    const numeroSuivant = Math.max(pts.length, ...pts.map((f) => parseInt(f.visite, 10) || 0)) + 1;
+    const points = pts.filter((f) => voit(personne, f, c))
+      .map((f) => ({ titre: f.titre || "", numero: f.visite || "", date: f.date || "", auteur: f.auteur || "" }))
+      .sort((x, y) => (parseInt(x.numero, 10) || 0) - (parseInt(y.numero, 10) || 0) || String(x.date).localeCompare(String(y.date)));
     return json({
-      ref, client: c.client || "", equipe,
+      ref, client: c.client || "", equipe, points, numeroSuivant,
       auteur: (c.fichiers[0] || {}).auteur || "",
       personnes: comptes.map((u) => ({ nom: u.nom, role: u.role })),
       peutModifier: bureau
