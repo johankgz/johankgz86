@@ -13,6 +13,9 @@
    léger (qui ouvre une connexion neuve), puis renvoie la même demande,
    jusqu'à trois fois. Un petit bandeau dit ce qui se passe. Les vraies
    réponses du serveur (refus, erreur de saisie) passent telles quelles.
+   Hors connexion pour de bon, un envoi (publier, déposer, enregistrer)
+   attend le retour du réseau aussi longtemps qu'il faut, page ouverte,
+   puis part tout seul ; les lectures, elles, sont servies par sw.js.
    ===================================================================== */
 (function(){
   if(window.__reseauFiable || !window.fetch) return;
@@ -56,6 +59,18 @@
       } else setTimeout(ok, ms);
     });
   }
+  function estEnvoi(entree, options){
+    var m = (options && options.method) || (entree && typeof entree !== "string" && entree.method) || "GET";
+    return String(m).toUpperCase() !== "GET";
+  }
+  /* sans limite : le temps qu'il faut pour que le réseau revienne */
+  function attendreReseau(){
+    return new Promise(function(ok){
+      if(navigator.onLine !== false){ ok(); return; }
+      var go = function(){ window.removeEventListener("online", go); setTimeout(ok, 800); };
+      window.addEventListener("online", go);
+    });
+  }
   function reveiller(){
     return brut(location.origin + "/api/rapports?action=ping&t=" + Date.now(), {cache:"no-store"})
       .then(function(){}, function(){});
@@ -80,14 +95,19 @@
 
   window.fetch = function(entree, options){
     if(!versLeSite(entree) || !renvoyable(entree, options)) return brut.apply(this, arguments);
-    var soi = this, essai = 0;
+    var soi = this, essai = 0, attendu = false;
     function tenter(){
       return brut.call(soi, entree, options).then(function(r){
         if(reponseDeRelais(r) && essai < ATTENTES.length) return encore(r);
-        if(essai) dire("");
+        if(essai || attendu) dire("");
         return r;
       }, function(err){
         if(err && err.name === "AbortError") throw err;             /* annulé exprès */
+        if(navigator.onLine === false && estEnvoi(entree, options)){
+          dire("Hors ligne : l'envoi partira dès le retour du réseau. Gardez l'appli ouverte.");
+          attendu = true;
+          return attendreReseau().then(reveiller).then(function(){ essai = 0; dire("Réseau revenu : envoi en cours…"); return tenter(); });
+        }
         if(essai < ATTENTES.length) return encore(null, err);
         dire("");
         throw err;
