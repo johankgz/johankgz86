@@ -282,7 +282,7 @@ body.clair #scene{background:#FFFFFF}
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
-  <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90°">Tourner 90°</button>
+  <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
 </div>
 
@@ -1313,6 +1313,15 @@ document.addEventListener("keydown", function(e){
     if(k==="a"){ e.preventDefault(); OUTIL_D="selection"; GRP=grpTout(); if(!grpTaille(GRP)) GRP=null; D_SEL=null; majDessin(); majBarreSel(); demander(); return; }
   }
   if(MODE==="dessin" && grpTaille(GRP) && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerGrp(); return; }
+  /* R : un quart de tour de la sélection (ou de l'élément choisi), Maj+R dans l'autre sens */
+  if(MODE==="dessin" && !champ && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key==="r" || e.key==="R")){
+    var gt = grpTaille(GRP) ? GRP : grpDeSel();
+    if(grpTaille(gt)){
+      e.preventDefault(); garderTout(); grpTourner(gt, e.shiftKey); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander();
+      toast(e.shiftKey ? "Tourné de 90° (sens des aiguilles)." : "Tourné de 90°. Maj+R : dans l'autre sens.", 1800);
+    }
+    return;
+  }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
@@ -1693,17 +1702,18 @@ function grpTranslater(g, d){
   g.textes.forEach(function(t){ t.x+=d[0]; t.y+=d[1]; });
   g.symb.forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
 }
-/* un quart de tour autour du centre du groupe, sens inverse des aiguilles */
-function grpTourner(g){
+/* un quart de tour autour du centre du groupe : sens inverse des aiguilles, ou des aiguilles (horaire) */
+function grpTourner(g, horaire){
   var b=grpBoite(g); if(!b) return;
   var c=[(b.x0+b.x1)/2, (b.y0+b.y1)/2], pas=10/DESSIN_MM;
   c=[Math.round(c[0]/pas)*pas, Math.round(c[1]/pas)*pas];
-  function f(q){ return [c[0]-(q[1]-c[1]), c[1]+(q[0]-c[0])]; }
+  var da = horaire ? 270 : 90;
+  function f(q){ return horaire ? [c[0]+(q[1]-c[1]), c[1]-(q[0]-c[0])] : [c[0]-(q[1]-c[1]), c[1]+(q[0]-c[0])]; }
   g.murs.forEach(function(m){ m.a=f(m.a); m.b=f(m.b); });
-  g.mob.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+90)%360; });
-  g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+90)%360; });
+  g.mob.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+da)%360; });
+  g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+da)%360; });
   g.textes.forEach(function(t){ var q=f([t.x, t.y]); t.x=q[0]; t.y=q[1]; });
-  g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+90)%360; });
+  g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+da)%360; });
 }
 /* la copie d'un groupe : ses murs avec leurs portes et fenêtres */
 function grpCopier(g){
