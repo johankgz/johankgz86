@@ -133,6 +133,9 @@ body.clair #scene{background:#FFFFFF}
 .mep-corps{flex:1;overflow:auto;padding:10px 12px}
 .mep-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:0 0 10px}
 .mep-ligne[hidden]{display:none}
+.mep-echvues{display:flex;flex-wrap:wrap;gap:6px 12px}
+.mep-echvues label{display:inline-flex;align-items:center;gap:5px;font-size:13px}
+.mep-echvues select{min-height:32px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:13px;padding:0 4px}
 .mep-ligne .lab{width:64px}
 .mep select{min-height:34px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);padding:4px 10px;font-size:13.5px}
 .mep small{flex:1 1 100%;font-size:12px;color:var(--ink3);padding-left:72px}
@@ -441,6 +444,7 @@ body.clair #scene{background:#FFFFFF}
     <div class="mep-ligne"><span class="lab">Vues</span>
       <span class="seg" id="mepVues" role="group" aria-label="Vues sur la feuille"><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="persp">Perspective</button></span>
       <small id="mepVuesAide">une vue, ou plusieurs sur la même feuille</small></div>
+    <div class="mep-ligne" id="mepLigneEchVues" hidden><span class="lab">Échelle par vue</span><span id="mepEchVues" class="mep-echvues"></span></div>
     <div class="mep-ligne" id="mepLigneCadre"><span class="lab">Cadrage</span>
       <span class="seg" id="mepCadre"><button type="button" data-v="plan">Plan entier</button><button type="button" data-v="vue">Vue à l'écran</button><button type="button" data-v="zone">Zone choisie</button></span>
       <button class="bt" id="mepZoneBt" type="button" hidden>Placer la zone sur le plan</button></div>
@@ -4697,7 +4701,7 @@ $("symbL").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blu
    électriques : projet, maître d'ouvrage, indices, logo, titre, niveau,
    n° de chantier, lot, échelle, n° de plan. */
 var ECHELLES=[1,2,5,10,20,25,50,75,100,125,150,200,250,300,400,500,750,1000,1250,1500,2000,2500,5000,10000];
-var MEP={format:"a3", orient:"l", cadre:"plan", echelle:0, vues:null};
+var MEP={format:"a3", orient:"l", cadre:"plan", echelle:0, vues:null, echelles:{}};
 /* les vues de la feuille : une seule (celle à l'écran), ou une planche de plusieurs */
 var ORDRE_VUES=["face","cote","dessus","persp"], NOM_VUES={face:"Vue de face", cote:"Vue de côté", dessus:"Vue de dessus", persp:"Perspective"};
 function vuesMep(){ var v=(MEP.vues||[]).filter(function(x){ return ORDRE_VUES.indexOf(x)>=0; }); return v.length ? ORDRE_VUES.filter(function(x){ return v.indexOf(x)>=0; }) : [vueD()]; }
@@ -4714,12 +4718,26 @@ function cadrageVue(vue){
   var gv=VUE_D, gm=MODE; VUE_D="dessus"; MODE= MODE==="symb" ? "symb" : "dessin";
   try{ var plein=MEP.cadre; MEP.cadre="plan"; var c=cadrage(); MEP.cadre=plein; return c; } finally { VUE_D=gv; MODE=gm; }
 }
+/* l'échelle de chaque vue : la sienne si elle en a une, sinon la commune
+   (celle choisie, ou la plus grande qui fait tenir toutes les vues « communes ») */
+function echelleVue(vue){ var v=(MEP.echelles||{})[vue]; return v>0 ? v : 0; }
 function echellePlanche(cases){
-  var fit=0;
-  cases.forEach(function(k){ if(k.vue==="persp") return; var c=cadrageVue(k.vue); k.c=c; if(c) fit=Math.max(fit, c.w*DESSIN_MM/k.dessin.w, c.h*DESSIN_MM/k.dessin.h); });
-  if(!fit) fit=50;
+  var fit=0, deb=false;
+  cases.forEach(function(k){
+    if(k.vue==="persp") return;
+    var c=cadrageVue(k.vue); k.c=c; if(!c) return;
+    k.fit=Math.max(c.w*DESSIN_MM/k.dessin.w, c.h*DESSIN_MM/k.dessin.h);
+    if(!echelleVue(k.vue)) fit=Math.max(fit, k.fit);
+  });
+  if(!fit) fit=Math.max.apply(null, [50].concat(cases.filter(function(k){ return k.fit; }).map(function(k){ return k.fit; })));
   var n=MEP.echelle>0 ? MEP.echelle : (ECHELLES.filter(function(e){ return e>=fit*0.999; })[0] || Math.ceil(fit));
-  return {n:n, fit:fit, deborde:n<fit*0.999};
+  cases.forEach(function(k){ if(k.vue==="persp") return; k.n=echelleVue(k.vue) || n; if(k.fit && k.n<k.fit*0.999) deb=true; });
+  return {n:n, fit:fit, deborde:deb};
+}
+function textePlancheEchelles(cases){
+  var o=cases.filter(function(k){ return k.vue!=="persp" && k.n; });
+  var tous=o.every(function(k){ return k.n===o[0].n; });
+  return !o.length ? "" : tous ? "Échelle 1/"+o[0].n : "Échelles : "+o.map(function(k){ return ({face:"face", cote:"côté", dessus:"dessus"})[k.vue]+" 1/"+k.n; }).join(", ");
 }
 var JSPDF_URL="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
 var LOGO=null, SOC=null;
@@ -4803,10 +4821,25 @@ function majMep(){
   $("mepZoneBt").hidden = MEP.cadre!=="zone";
   $("mepZoneBt").textContent = MEP.zone ? "Déplacer la zone sur le plan" : "Placer la zone sur le plan";
   if(!PLAN) return;
+  var orthosV=vs.filter(function(x){ return x!=="persp"; });
+  $("mepLigneEchVues").hidden = !(planche() && orthosV.length>1);
+  if(planche() && orthosV.length>1){
+    var hote=$("mepEchVues"); hote.textContent="";
+    orthosV.forEach(function(v){
+      var lab=document.createElement("label"); lab.textContent=({face:"Face", cote:"Côté", dessus:"Dessus"})[v];
+      var sel=document.createElement("select"); sel.dataset.v=v; sel.setAttribute("aria-label", "Échelle de la "+NOM_VUES[v].toLowerCase());
+      [[0,"commune"]].concat([1,2,5,10,20,25,50,75,100,200,500].map(function(n){ return [n, "1/"+n]; })).forEach(function(c){ var o=document.createElement("option"); o.value=String(c[0]); o.textContent=c[1]; sel.appendChild(o); });
+      sel.value=String(echelleVue(v));
+      sel.addEventListener("change", function(){ MEP.echelles=MEP.echelles||{}; MEP.echelles[v]=Number(this.value)||0; majMep(); });
+      lab.appendChild(sel); hote.appendChild(lab);
+    });
+  }
   if(planche()){
-    var gp=gabarit(), ep=echellePlanche(casesPlanche(gp.zone));
+    var gp=gabarit(), cp=casesPlanche(gp.zone), ep=echellePlanche(cp);
     $("mepInfo").textContent=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" : "+vs.length+" vue"+(vs.length>1?"s":"")+" ("+vs.map(function(x){ return NOM_VUES[x].replace("Vue de ","").toLowerCase(); }).join(", ")+")"
-      +(vs.some(function(x){ return x!=="persp"; }) ? " au 1/"+ep.n+(ep.deborde ? " : une vue déborde de sa case." : "") : "")+".";
+      +(orthosV.length ? " — "+textePlancheEchelles(cp).replace(/^É/, "é") : "")+".";
+    var trop=cp.filter(function(k){ return k.fit && k.n && k.n<k.fit*0.999; }).map(function(k){ return ({face:"la face", cote:"le côté", dessus:"le dessus"})[k.vue]; });
+    if(trop.length) $("mepInfo").textContent+=" À cette échelle, "+trop.join(" et ")+" déborde"+(trop.length>1?"nt":"")+" de sa case : seul le centre est imprimé.";
     return;
   }
   var e=echelleMep();
@@ -4823,6 +4856,7 @@ function ouvrirMep(){
   if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0; else if(PLAN && PLAN.vierge) MEP.echelle=50;
   MEP.zone = d.zone && isFinite(d.zone.cx) && isFinite(d.zone.cy) ? {cx:d.zone.cx, cy:d.zone.cy} : null;
   MEP.vues = Array.isArray(d.vues) && d.vues.length ? d.vues : null;
+  MEP.echelles = d.echelles && typeof d.echelles==="object" ? d.echelles : {};
   var ses=null; try{ ses=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
   var defaut={objet:"PLAN ÉLECTRIQUE", indice:"A", date:jourLocal(), dess:(ses && ses.nom)||"", mail:(ses && ses.email)||"", mention:MENTION_PLAN};
   CHAMPS_MEP.forEach(function(c){ $(c[0]).value = d[c[1]]!=null ? d[c[1]] : (defaut[c[1]]||""); });
@@ -4831,7 +4865,7 @@ function ouvrirMep(){
   majMep(); $("quantites").hidden=true; $("mep").hidden=false;
 }
 function lireMep(){
-  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, vues:MEP.vues, legende:$("mepLegende").checked};
+  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, vues:MEP.vues, echelles:MEP.echelles, legende:$("mepLegende").checked};
   MEP.legende=d.legende;
   CHAMPS_MEP.forEach(function(c){ d[c[1]]=$(c[0]).value.trim(); });
   try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess, mail:d.mail, mention:d.mention})); }catch(e){}
@@ -4981,12 +5015,13 @@ function creerPdf(d, logo, soc, imgPersp){
         if(imgPersp) doc.addImage(imgPersp, "PNG", dz.x, dz.y, dz.w, dz.h, undefined, "FAST");
         else texte("Perspective indisponible (3D non chargée).", dz.x+dz.w/2, dz.y+dz.h/2, 8, {a:"center"});
       } else if(k.c){
-        var img=rendrePlan({n:e.n, g:g, c:k.c}, dpi, dz, k.vue);
+        var img=rendrePlan({n:k.n, g:g, c:k.c}, dpi, dz, k.vue);
         doc.addImage(img.toDataURL("image/jpeg", 0.93), "JPEG", dz.x, dz.y, dz.w, dz.h, undefined, "FAST");
       } else texte("Rien de dessiné dans cette vue.", dz.x+dz.w/2, dz.y+dz.h/2, 8, {a:"center"});
       trait(0.25); doc.rect(k.x, k.y, k.w, k.h);
       doc.line(k.x, k.y+6, k.x+k.w, k.y+6);
-      texte(NOM_VUES[k.vue].toUpperCase()+(k.vue!=="persp" ? "   ·   1/"+e.n : ""), k.x+3, k.y+4.3, 7.5, {b:true});
+      texte(NOM_VUES[k.vue].toUpperCase()+(k.vue!=="persp" && k.n ? "   ·   1/"+k.n : ""), k.x+3, k.y+4.3, 7.5, {b:true});
+      if(k.vue!=="persp" && k.c && k.n) barreEchelle(k.x+5, k.y+k.h-6, k.n);   /* chaque vue a sa barre d'échelle */
     });
     if(!orthos){ /* une perspective seule : pas de barre d'échelle */ }
   } else {
@@ -4995,16 +5030,15 @@ function creerPdf(d, logo, soc, imgPersp){
   }
   trait(0.3); doc.rect(z.x, z.y, z.w, z.h);
   /* la barre d'échelle, en bas à gauche du plan : 0 - 1 - 2 … mètres */
-  var mmParM=1000/e.n, pas=[0.1,0.2,0.5,1,2,5,10,20,50,100].filter(function(v){ return v*mmParM>=8; })[0]||100;
-  var bx=z.x+6, by=z.y+z.h-7, nb=4;
-  if(lesCases){ var kb=lesCases.filter(function(k){ return k.vue!=="persp"; }); kb=kb[kb.length-1]; if(kb){ bx=kb.x+5; by=kb.y+kb.h-6; } }
-  if(!lesCases || lesCases.some(function(k){ return k.vue!=="persp"; })){
-  doc.setFillColor(255,255,255); doc.rect(bx-2, by-7.5, nb*pas*mmParM+14, 11, "F");
-  for(var i=0;i<nb;i++){ if(i%2===0){ doc.setFillColor(0,0,0); doc.rect(bx+i*pas*mmParM, by-1.2, pas*mmParM, 1.6, "F"); } }
-  trait(0.2); doc.rect(bx, by-1.2, nb*pas*mmParM, 1.6);
-  for(var j=0;j<=nb;j++) texte(String(Math.round(j*pas*100)/100).replace(".",","), bx+j*pas*mmParM, by-2.4, 6.5, {a:"center"});
-  texte("m", bx+nb*pas*mmParM+2.5, by+0.3, 6.5); texte("Échelle 1/"+e.n, bx, by+3.8, 6.5, {b:true});
+  function barreEchelle(bx, by, n){
+    var mmParM=1000/n, pas=[0.01,0.02,0.05,0.1,0.2,0.5,1,2,5,10,20,50,100].filter(function(v){ return v*mmParM>=8; })[0]||100, nb=4;
+    doc.setFillColor(255,255,255); doc.rect(bx-2, by-7.5, nb*pas*mmParM+14, 11, "F");
+    for(var i=0;i<nb;i++){ if(i%2===0){ doc.setFillColor(0,0,0); doc.rect(bx+i*pas*mmParM, by-1.2, pas*mmParM, 1.6, "F"); } }
+    trait(0.2); doc.rect(bx, by-1.2, nb*pas*mmParM, 1.6);
+    for(var j=0;j<=nb;j++) texte(String(Math.round(j*pas*100)/100).replace(".",","), bx+j*pas*mmParM, by-2.4, 6.5, {a:"center"});
+    texte("m", bx+nb*pas*mmParM+2.5, by+0.3, 6.5); texte("Échelle 1/"+n, bx, by+3.8, 6.5, {b:true});
   }
+  if(!lesCases) barreEchelle(z.x+6, z.y+z.h-7, e.n);
   /* 2. la légende CFO et les quantités : colonne à droite (paysage), bande sous le plan (portrait) */
   var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), k=g.k;
   trait(0.35); doc.rect(g.cadre.x, g.cadre.y, g.cadre.w, g.cadre.h);
@@ -5029,7 +5063,7 @@ function creerPdf(d, logo, soc, imgPersp){
   Cartouche.dessiner(T, {
     societe:socNom, auteur:d.dess, mail:d.mail, date:d.date, indice:d.indice||"A", remarques:d.remarques, mention:d.mention,
     affaire:[String(d.client||"").toUpperCase(), d.ref ? "Réf. "+d.ref : ""],
-    objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), [d.niveau, "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
+    objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), [d.niveau, lesCases ? textePlancheEchelles(lesCases) : "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
     folio:1, total:1
   }, {x0:Cartouche.MARGE_GAUCHE, x1:1400-Cartouche.MARGE_DROITE, y1:P.h/k-Cartouche.MARGE_BAS, logo:Cartouche.choisirLogo(socNom, soc && soc.logo)});
   Cartouche.versPDF(doc, T, k, 0, 0);
