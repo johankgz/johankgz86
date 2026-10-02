@@ -340,7 +340,7 @@ button.act svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width
 .haut svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;
  stroke-linecap:round;stroke-linejoin:round}
 
-input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:none;appearance:none}
+input[type="date"],input[type="time"],input[type="datetime-local"]{min-width:0;width:100%;-webkit-appearance:none;appearance:none}
 .grid2>label{min-width:0}
 
 /* ---------- écrans larges : ordinateur et tablette ---------- */
@@ -468,7 +468,7 @@ body{
    gardent des chiffres tabulaires, donc de largeur égale : une valeur
    qui change ne fait pas danser la ligne. */
 .mono,.ref,.num,.n,.etat,time,
-input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+input[type="number"],input[type="date"],input[type="time"],input[type="datetime-local"],input[type="tel"]{
   font-variant-numeric:tabular-nums;
 }
 
@@ -496,7 +496,7 @@ h1{font-weight:600;letter-spacing:-.03em}
 
 /* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
 input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
-input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="number"],input[type="date"],input[type="time"],input[type="datetime-local"],input[type="url"],
 input[type="password"],
 input:not([type]),textarea,select{
   background:var(--champ-fond);
@@ -726,14 +726,27 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .a-terminer .at-act{display:flex;gap:6px;flex:0 0 auto}
 .a-terminer .at-act .act{min-height:40px;padding:8px 12px}
 .appel-info{margin:0 0 12px;padding:8px 12px;border-radius:var(--r-field,8px);background:var(--field,#f4f4f4)}
+/* les deux fiches du SAV : l'appel au bureau, l'intervention sur place */
+.etapes-sav{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:0 0 14px}
+.etapes-sav .opt{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--rule,#ddd);
+  border-radius:var(--r-field,8px);background:var(--card,#fff);color:var(--ink,#222);font-family:inherit;cursor:pointer}
+.etapes-sav .opt.on{border:2px solid var(--accent,#B4621A);padding:11px 13px;background:var(--accent-soft,#FBEDE0)}
+.etapes-sav .opt b{display:block;font-size:15px;font-weight:700}
+.etapes-sav .opt span{display:block;font-size:12.5px;color:var(--ink-3,#777);margin-top:3px}
+.rappel-appel{border-left:3px solid var(--accent,#B4621A)}
+.rappel-appel .ra-l{display:flex;gap:12px;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--rule,#ddd);font-size:14px}
+.rappel-appel .ra-l:last-child{border-bottom:0}
+.rappel-appel .ra-l span{color:var(--ink-2,#555);flex:0 0 auto}
+.rappel-appel .ra-l b{text-align:right;font-weight:600;white-space:pre-line}
+[data-etape][hidden]{display:none!important}
 </style>
-<link rel="stylesheet" href="./sobre.css?v=20260929c">
+<link rel="stylesheet" href="./sobre.css?v=20261002a">
 <script src="./clavier.js?v=20260930a" defer></script>
 <script src="./horsligne.js?v=20261002a" defer></script>
 </head>
 <body>
 <header>
-  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Intervention SAV</h1>
+  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1 id="titreFiche">Intervention SAV</h1>
     <div class="ref" id="hdrRef"></div>
   </div>
   <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
@@ -752,6 +765,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <span class="par-qui" id="parQui"></span>
   </div>
 
+  <div class="etapes-sav" id="etapeSav" role="group" aria-label="Fiche SAV">
+    <button type="button" class="opt" data-etape-choix="appel"><b>① Réception d'appel</b><span>au bureau : qui appelle, la demande, le rendez-vous</span></button>
+    <button type="button" class="opt" data-etape-choix="intervention"><b>② Intervention</b><span>sur place : constat, travaux, signatures</span></button>
+  </div>
+
   <div class="block a-terminer" id="aTerminer" hidden>
     <h2 id="aTerminerTitre">À terminer</h2>
     <div id="aTerminerListe"></div>
@@ -763,7 +781,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <label class="f"><span>Nom</span><input type="text" id="c_client"></label>
     <div class="grid2">
       <label class="f"><span>Téléphone</span><input type="tel" id="c_tel"></label>
-      <label class="f"><span>Sur place</span><input type="text" id="c_contact" placeholder="Personne rencontrée"></label>
+      <label class="f" data-etape="intervention"><span>Sur place</span><input type="text" id="c_contact" placeholder="Personne rencontrée"></label>
       <label class="f"><span title="Référence travaux ou client">Référence</span><input type="text" id="c_ref"></label>
       <label class="f"><span>N° d'intervention</span><input type="text" id="i_numero"></label>
     </div>
@@ -785,8 +803,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
-    <h2>Intervention</h2>
-    <div class="grid2">
+    <h2 id="titreInter">Intervention</h2>
+    <div class="grid2" data-etape="intervention">
       <label class="f"><span>Date</span><input type="date" id="i_date"></label>
       <label class="f"><span>Arrivée</span><input type="time" id="i_arr"></label>
       <label class="f"><span>Départ</span><input type="time" id="i_dep"></label>
@@ -815,26 +833,55 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 </section>
 
+<section id="tab-appel" hidden>
+  <div class="block">
+    <h2>L'appel</h2>
+    <div class="grid2">
+      <label class="f"><span>Reçu le</span><input type="datetime-local" id="a_le"></label>
+      <label class="f"><span>Pris par</span><input type="text" id="a_par"></label>
+    </div>
+    <label class="f"><span>Qui appelle</span><input type="text" id="a_nom" placeholder="Nom de l'appelant"></label>
+    <p class="legend">L'appelant est</p>
+    <div class="chips" id="ch_qualite"></div>
+    <label class="f"><span>Le rappeler au</span><input type="tel" id="a_tel" placeholder="Si ce n'est pas le numéro du client"></label>
+  </div>
+</section>
+
 <section id="tab-constat" hidden>
+  <div class="block rappel-appel" id="rappelAppel" data-etape="intervention" hidden>
+    <h2>La fiche d'appel</h2>
+    <div id="rappelAppelListe"></div>
+  </div>
+
   <div class="block">
     <h2>Motif de l'appel</h2>
     <textarea id="t_motif" rows="3" placeholder="Ce que le client a signalé."></textarea>
     <div class="row" style="margin-top:10px"><button class="act rec" data-dictee="t_motif">Dicter</button></div>
   </div>
 
-  <div class="block">
+  <div class="block" data-etape="appel">
+    <h2>Ce que le client constate</h2>
+    <div class="chips" id="ch_sympt"></div>
+    <div class="grid2" style="margin-top:12px">
+      <label class="f"><span>Équipement concerné</span><input type="text" id="d_equip" placeholder="Tableau, chauffe-eau, borne…"></label>
+      <label class="f"><span>Marque et modèle</span><input type="text" id="d_marque" placeholder="Si le client le connaît"></label>
+    </div>
+    <label class="f"><span>Code erreur, depuis quand, déjà arrivé ?</span><textarea id="d_detail" rows="2"></textarea></label>
+  </div>
+
+  <div class="block" data-etape="intervention">
     <h2>Constat sur place</h2>
     <textarea id="t_constat" rows="4" placeholder="Ce qui a été trouvé, l'origine de la panne."></textarea>
     <div class="row" style="margin-top:10px"><button class="act rec" data-dictee="t_constat">Dicter</button></div>
   </div>
 
-  <div class="block">
+  <div class="block" data-etape="intervention">
     <h2>Travaux réalisés</h2>
     <textarea id="t_travaux" rows="4" placeholder="Ce qui a été fait pendant l'intervention."></textarea>
     <div class="row" style="margin-top:10px"><button class="act rec" data-dictee="t_travaux">Dicter</button></div>
   </div>
 
-  <div class="block">
+  <div class="block" data-etape="intervention">
     <h2>Matériel posé</h2>
     <div class="grid2">
       <label class="f"><span>Désignation</span><input type="text" id="m_nom" placeholder="Disjoncteur 20 A"></label>
@@ -845,8 +892,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
-    <h2>Photos</h2>
-    <p class="legend">La photo rapide rouvre l'appareil après chaque cliché, pour enchaîner sans revenir à l'écran.</p>
+    <h2 id="titrePhotos">Photos</h2>
+    <p class="legend" data-etape="appel">Les photos que le client envoie (tableau, code erreur, équipement) : le technicien les retrouve avant de partir.</p>
+    <p class="legend" data-etape="intervention">La photo rapide rouvre l'appareil après chaque cliché, pour enchaîner sans revenir à l'écran.</p>
     <div class="tuiles-act">
       <button class="act solid" id="btnPhotoRapide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="m12.8 9.5-2.3 3.4h2.6l-1.9 3.4"/></svg>Photo rapide</button>
       <button class="act blue" id="btnPhoto" title="Depuis la galerie"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h17v13h-17z"/><path d="m3.5 15.5 5-4.5 4 3.5 3-2.5 5 4"/><circle cx="15.5" cy="9" r="1.5"/></svg>Galerie</button>
@@ -855,6 +903,20 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
     <p class="hint" id="q_state"></p>
     <div class="thumbs" id="photos"></div>
+  </div>
+</section>
+
+<section id="tab-rdv" hidden>
+  <div class="block">
+    <h2>Rendez-vous</h2>
+    <div class="grid2">
+      <label class="f"><span>Passage prévu le</span><input type="date" id="r_date"></label>
+      <label class="f"><span>Heure</span><input type="time" id="r_heure"></label>
+    </div>
+    <p class="legend">Créneau</p>
+    <div class="chips" id="ch_creneau"></div>
+    <label class="f"><span>Disponibilités du client</span><textarea id="r_dispo" rows="2" placeholder="Absent le mercredi, joignable après 17 h…"></textarea></label>
+    <label class="f"><span>Accès et consignes</span><textarea id="r_acces" rows="2" placeholder="Code portail, clé chez le gardien, stationnement, animal…"></textarea></label>
   </div>
 </section>
 
@@ -909,6 +971,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <h2>Récapitulatif</h2>
     <div id="resume"></div>
     <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer la fiche</button></div>
+    <p class="hint" id="appelPublieInfo" data-etape="appel" hidden></p>
     <p class="hint" id="pdfInfo"></p>
   </div>
 
@@ -973,7 +1036,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./symboles-elec.js?v=20261002b"></script>
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
-<script src="./une-page.js?v=20260930a"></script>
+<script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
@@ -1190,20 +1253,41 @@ var CHARGES=["Sous garantie","Contrat d'entretien","Facturable","Geste commercia
 var URGENCES=["Normale","Urgente","Sans alimentation"];
 var ETATS=["Résolu","Résolu provisoirement","Non résolu","Devis à établir"];
 var SUITES=["Rien à prévoir","Devis à établir","Retour à planifier","Pièce à commander","Autre entreprise"];
+var QUALITES=["Client","Locataire","Propriétaire","Syndic / agence","Entreprise","Autre"];
+var SYMPTOMES=["Plus de courant","Disjoncteur qui saute","Panne partielle","Échauffement, odeur","Bruit anormal","Code erreur","Ne démarre plus","Fuite","Autre"];
+var CRENEAUX=["Dès que possible","Matin","Après-midi","Journée"];
+/* la fiche commence au bureau (l'appel), le technicien la reprend sur place
+   (l'intervention) : deux fiches, deux PDF, une seule saisie */
+function etapeParDefaut(){ return (SESSION && SESSION.role==="technicien") ? "intervention" : "appel"; }
 var S=null, P=null;
 
 function blank(){
+  var etape=etapeParDefaut();
   return {
+    etape:etape,
     chantier:{client:"", ref:"", adresse:"", tel:"", contact:"", lat:null, lon:null},
-    inter:{date:aujourdhui(), arr:maintenant(), dep:"", numero:"", trajet:"",
+    inter:{date:aujourdhui(), arr:etape==="appel" ? "" : maintenant(), dep:"", numero:"", trajet:"",
            nature:"Dépannage", charge:"", urgence:"Normale",
            motif:"", constat:"", travaux:""},
     materiel:[], photos:[],
     suite:{etat:"", action:"", detail:"", retour:""},
     sig:{client:null, tech:null, nomClient:"", nomTech:"", horodatage:""},
     destinataires:[], dest:"",
-    id:uid(), appel:null, confie:null, brouillon:""
+    demande:blankDemande(),
+    id:uid(), appel:null, confie:null, brouillon:"", appelPublie:""
   };
+}
+function blankDemande(){
+  return {appelant:"", qualite:"", tel:"", symptomes:[], equipement:"", marque:"", detail:"",
+          date:"", heure:"", creneau:"", dispo:"", acces:""};
+}
+/* ce que le bureau a noté au téléphone (les fiches d'avant n'en ont pas) */
+function demande(){
+  if(!S.demande || typeof S.demande!=="object") S.demande=blankDemande();
+  /* complétée sur place : les cases et les puces gardent le même objet */
+  var b=blankDemande(); for(var k in b) if(!(k in S.demande)) S.demande[k]=b[k];
+  if(!Array.isArray(S.demande.symptomes)) S.demande.symptomes=[];
+  return S.demande;
 }
 function blankPrefs(){
   return {societe:"", socTel:"", socWeb:"",
@@ -1346,8 +1430,12 @@ function majEtatSignatures(){
 }
 
 /* ---------- onglets ---------- */
-var TABS=[["client","Client"],["constat","Intervention"],["suite","Suite"],["rapport","Rapport"]];
+var TABS_INTER=[["client","Client"],["constat","Intervention"],["suite","Suite"],["rapport","Rapport"]];
+var TABS_APPEL=[["client","Client"],["appel","Appel"],["constat","Demande"],["rdv","Rendez-vous"],["rapport","Envoi"]];
+var TABS=TABS_INTER;
 var ICONES_ONGLET={
+  appel:'<path d="M6.6 3.5h2.6l1.4 4-1.9 1.3a10 10 0 0 0 6.5 6.5l1.3-1.9 4 1.4v2.6a1.7 1.7 0 0 1-1.9 1.7A15.8 15.8 0 0 1 4.9 5.4 1.7 1.7 0 0 1 6.6 3.5z"/>',
+  rdv:'<path d="M4 6.5h16v13.5H4z"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/><path d="M9 15l2 2 4-4"/>',
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
   pieces:'<path d="M3.5 4.5h17v15h-17z"/><path d="M11 4.5v6M11 14v5.5M3.5 10.5H11M15 19.5v-5h5.5"/><path d="M7 19.5v-2.2"/>',
@@ -1458,7 +1546,10 @@ var FIELDS=[["c_client","chantier.client"],["c_ref","chantier.ref"],["c_adresse"
   ["i_numero","inter.numero"],["i_trajet","inter.trajet"],
   ["t_motif","inter.motif"],["t_constat","inter.constat"],["t_travaux","inter.travaux"],
   ["t_suite","suite.detail"],["i_retour","suite.retour"],
-  ["s_nomClient","sig.nomClient"],["s_nomTech","sig.nomTech"],];
+  ["s_nomClient","sig.nomClient"],["s_nomTech","sig.nomTech"],
+  ["a_nom","demande.appelant"],["a_tel","demande.tel"],["d_equip","demande.equipement"],["d_marque","demande.marque"],
+  ["d_detail","demande.detail"],["r_date","demande.date"],["r_heure","demande.heure"],["r_dispo","demande.dispo"],
+  ["r_acces","demande.acces"]];
 function getPath(p){ var a=p.split("."); return a.length===1?S[a[0]]:S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[0]][a[1]]=v; }
 function chips(host, opts, get, set){
@@ -1485,7 +1576,20 @@ function paintForm(){
     function(o){ S.suite.etat=(S.suite.etat===o)?"":o; save(); majEtat(); renderResume(); });
   chips("ch_suite", SUITES, function(o){ return S.suite.action===o; },
     function(o){ S.suite.action=(S.suite.action===o)?"":o; save(); renderResume(); });
-  majEtat();
+  var D=demande();
+  chips("ch_qualite", QUALITES, function(o){ return D.qualite===o; }, function(o){
+    D.qualite=(D.qualite===o)?"":o;
+    /* c'est le client qui appelle : son nom et son numéro suffisent */
+    if(D.qualite==="Client" && !D.appelant.trim() && S.chantier.client.trim()){ D.appelant=S.chantier.client; $("a_nom").value=D.appelant; }
+    save();
+  });
+  chips("ch_sympt", SYMPTOMES, function(o){ return D.symptomes.indexOf(o)>=0; }, function(o){
+    var i=D.symptomes.indexOf(o); if(i>=0) D.symptomes.splice(i,1); else D.symptomes.push(o); save();
+  });
+  chips("ch_creneau", CRENEAUX, function(o){ return D.creneau===o; }, function(o){ D.creneau=(D.creneau===o)?"":o; save(); });
+  $("a_le").value=appelLocal();
+  $("a_par").value=(S.appel && S.appel.par) || "";
+  majEtat(); majEtape();
   renderMateriel(); renderPhotos(); renderDest(); renderResume(); refreshHeader(); renderConfier(); renderAppel(); renderATerminer();
   $("gpsInfo").textContent = S.chantier.lat!=null
     ? "Position relevée : "+S.chantier.lat.toFixed(5)+", "+S.chantier.lon.toFixed(5) : "";
@@ -1507,7 +1611,18 @@ function refreshHeader(){
 function renderResume(){
   var host=$("resume"); if(!host) return;
   host.textContent="";
-  [["Client", S.chantier.client||refAffaire()||"à renseigner"],
+  var D=demande();
+  (S.etape==="appel" ? [
+   ["Client", S.chantier.client||refAffaire()||"à renseigner"],
+   ["Appelant", texteAppelant()||"à renseigner"],
+   ["Nature", S.inter.nature||"non précisée"],
+   ["Urgence", S.inter.urgence||"non précisée"],
+   ["Motif", (S.inter.motif||"").trim() ? "noté" : "à écrire"],
+   ["Passage prévu", rdvTexte()||"à fixer"],
+   ["Photos du client", String(S.photos.length)],
+   ["Fiche d'appel", S.appelPublie ? "publiée" : "pas encore publiée"]
+  ] : [
+   ["Client", S.chantier.client||refAffaire()||"à renseigner"],
    ["Nature", S.inter.nature||"non précisée"],
    ["Durée sur place", duree()||"à renseigner"],
    ["Matériel posé", String(S.materiel.length)],
@@ -1515,7 +1630,7 @@ function renderResume(){
    ["État à la sortie", S.suite.etat||"à prononcer"],
    ["Suite à donner", S.suite.action||"aucune"],
    ["Signatures", (S.sig.client?"client":"")+(S.sig.client&&S.sig.tech?" et ":"")+(S.sig.tech?"technicien":"") || "aucune"]
-  ].forEach(function(l){
+  ]).forEach(function(l){
     var d=document.createElement("div");
     d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
       +"border-bottom:1px solid var(--rule);font-size:14.5px";
@@ -1792,25 +1907,35 @@ function renderDest(){
 }
 
 /* ---------- publication ---------- */
-function publierRapport(meta){
-  if(!apiPret()) return;
+function publierRapport(meta, opts){
+  opts=opts || {};
+  if(!apiPret()) return Promise.resolve(null);
   var sel=destinataires();
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
-  if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
+  if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return Promise.resolve(null); }
   var doc;
-  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
+  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return Promise.resolve(null); }
   var b64=doc.output("datauristring").split(",")[1];
-  if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
-  var el=$("pubEtat");
+  if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return Promise.resolve(null); }
+  var el=opts.etat || $("pubEtat");
   meta.destinataires = versDossier ? [] : sel.slice();
   if(versDossier) meta.dossier = true;
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
   el.textContent="Publication en cours…";
-  fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(Object.assign({pdf:b64}, meta))})
+  return fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(Object.assign({pdf:b64}, meta))})
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
-    if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return; }
+    if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return null; }
     effacerMarques();
+    if(opts.appel){
+      /* la fiche d'appel reste ouverte : il reste à la confier, ou à y aller */
+      S.appelPublie=res.d.cle; save();
+      el.textContent = (res.d.remplace ? "Fiche d'appel mise à jour" : "Fiche d'appel publiée")
+        + (versDossier ? " dans le dossier." : " pour " + meta.destinataires.join(", ") + ".");
+      deposerFiche(res.d.cle, el);
+      majEtape(); renderResume();
+      return res.d;
+    }
     if(S.brouillon){ S.brouillon=""; save(); setTimeout(chargerATerminer, 300); }
     var msg = res.d.remplace
       ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
@@ -1825,8 +1950,9 @@ function publierRapport(meta){
     } else {
       toast("Rapport publié.");
     }
+    return res.d;
   })
-  .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
+  .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; return null; });
 }
 function deposerFiche(cle, el){
   var donnees;
@@ -1837,6 +1963,111 @@ function deposerFiche(cle, el){
   }
   fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:cle, donnees:donnees})})
     .catch(function(){});
+}
+
+/* ---------- les deux fiches : réception d'appel, intervention ----------
+   Au bureau, on remplit la fiche d'appel : qui appelle, le client, la
+   demande (ce que le client constate, l'équipement), le rendez-vous.
+   Elle se publie dans le dossier (son propre PDF) et se confie au
+   technicien. Sur place, la même fiche passe en intervention : le
+   technicien retrouve en tête tout ce qui a été dit au téléphone, puis
+   écrit son constat, ses travaux, recueille les signatures et publie
+   l'intervention (un second PDF, qui reprend l'appel en résumé). */
+function p2(n){ return String(n).padStart(2,"0"); }
+function appelLocal(){
+  var a=S && S.appel; if(!a || !a.le) return "";
+  var d=new Date(a.le); if(isNaN(d)) return "";
+  return d.getFullYear()+"-"+p2(d.getMonth()+1)+"-"+p2(d.getDate())+"T"+p2(d.getHours())+":"+p2(d.getMinutes());
+}
+function dateAppel(){ var l=appelLocal(); return l ? l.slice(0,10) : aujourdhui(); }
+/* le premier mot écrit pendant l'appel en donne l'heure */
+function tamponAppel(){
+  if(!S || S.etape!=="appel" || S.appel) return;
+  S.appel={par:(SESSION && SESSION.nom) || "", le:new Date().toISOString()};
+  $("a_le").value=appelLocal(); if(!$("a_par").value) $("a_par").value=S.appel.par;
+  save();
+}
+function rdvTexte(){
+  var D=demande(), t=[];
+  if(D.date) t.push(frDate(D.date)+(D.heure ? " à "+D.heure : ""));
+  else if(D.heure) t.push("à "+D.heure);
+  if(D.creneau) t.push(D.creneau.toLowerCase());
+  return t.join(", ").replace(/^./, function(c){ return c.toUpperCase(); });
+}
+function texteAppelant(){
+  var D=demande();
+  return [D.appelant, D.qualite ? "("+D.qualite.toLowerCase()+")" : ""].filter(Boolean).join(" ");
+}
+function lignesAppel(){
+  var D=demande(), l=[];
+  function a(k, v){ if(v && String(v).trim()) l.push([k, String(v).trim()]); }
+  a("Appel", texteAppel(S.appel));
+  a("Appelant", texteAppelant());
+  a("À rappeler au", telPoints(D.tel));
+  a("Le client constate", D.symptomes.join(", "));
+  a("Équipement", [D.equipement, D.marque].filter(Boolean).join(" — "));
+  a("Précisions", D.detail);
+  a("Passage prévu", rdvTexte());
+  a("Disponibilités", D.dispo);
+  a("Accès et consignes", D.acces);
+  if(S.confie && S.confie.par) a("Confiée par", S.confie.par);
+  return l;
+}
+function renderRappelAppel(){
+  var box=$("rappelAppel"), hote=$("rappelAppelListe"); if(!box) return;
+  var l=S.etape==="intervention" ? lignesAppel() : [];
+  /* « Appel du … » seul est déjà dit sous l'en-tête */
+  box.hidden = l.length<2 && !(l.length===1 && l[0][0]!=="Appel");
+  hote.textContent="";
+  l.forEach(function(x){
+    var d=document.createElement("div"); d.className="ra-l";
+    var k=document.createElement("span"); k.textContent=x[0];
+    var v=document.createElement("b"); v.textContent=x[1];
+    d.appendChild(k); d.appendChild(v); hote.appendChild(d);
+  });
+}
+function majEtape(){
+  if(S.etape!=="appel" && S.etape!=="intervention") S.etape=etapeParDefaut();
+  var ap=S.etape==="appel", nouveaux=ap ? TABS_APPEL : TABS_INTER;
+  if(TABS!==nouveaux){
+    TABS=nouveaux; buildNav();
+    if(window.UnePage && UnePage.changer) UnePage.changer(TABS);
+  }
+  document.querySelectorAll("[data-etape]").forEach(function(el){ el.hidden = el.getAttribute("data-etape")!==S.etape; });
+  document.querySelectorAll("#etapeSav [data-etape-choix]").forEach(function(b){
+    var on=b.getAttribute("data-etape-choix")===S.etape;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+  $("titreFiche").textContent = ap ? "Réception d'appel SAV" : "Intervention SAV";
+  $("titreInter").textContent = ap ? "La demande" : "Intervention";
+  $("titrePhotos").textContent = ap ? "Photos envoyées par le client" : "Photos";
+  $("btnPdf").textContent = ap ? "Générer la fiche d'appel" : "Générer la fiche d'intervention";
+  $("btnPublier").textContent = ap ? "Publier la fiche d'appel" : "Publier l'intervention";
+  $("confierIntro").textContent = ap
+    ? "Le technicien reçoit la fiche (et une notification). La fiche d'appel est publiée dans le dossier au même moment. Sur place, il la passe en intervention : tout ce qui a été noté au téléphone l'attend en tête."
+    : "Vous ne pouvez pas y aller : confiez l'intervention à un autre technicien, il la reprend telle quelle.";
+  var info=$("appelPublieInfo");
+  if(info){ info.textContent = S.appelPublie ? "La fiche d'appel est dans le dossier. Republier la met à jour." : ""; if(!S.appelPublie) info.hidden=true; }
+  renderRappelAppel();
+}
+function choisirEtape(e){
+  if(!S || S.etape===e) return;
+  if(e==="intervention"){
+    /* on arrive sur place : la date et l'heure d'arrivée sont celles du moment */
+    if(!S.inter.arr){ S.inter.date=aujourdhui(); S.inter.arr=maintenant(); }
+    if(!S.sig.nomTech) S.sig.nomTech=(SESSION && SESSION.nom) || "";
+  }
+  S.etape=e; save(); paintForm(); showTab("client");
+  toast(e==="appel" ? "Fiche de réception d'appel." : "Fiche d'intervention : l'appel est repris en tête de la partie Intervention.");
+}
+function metaAppel(){
+  return {
+    chantier: refAffaire(), client: S.chantier.client, adresse: adresseTravaux(),
+    lat: S.chantier.lat, lon: S.chantier.lon,
+    type: "sav", savFiche: "appel", savId: S.id, date: dateAppel(), visite: S.inter.numero || "",
+    etape: (S.inter.urgence && S.inter.urgence!=="Normale") ? S.inter.urgence : (S.inter.nature || ""),
+    titre: "Réception d'appel SAV" + (S.inter.numero ? " n° "+S.inter.numero : "")
+  };
 }
 
 /* ---------- SAV en deux temps : l'appel au bureau, la fin sur place ----------
@@ -1883,33 +2114,42 @@ function confierFiche(){
   if(!apiPret()) return;
   if(!CONFIE_A){ toast("Choisissez le technicien."); return; }
   if(!refAffaire()){ toast("Indiquez le client ou la référence."); showTab("client"); return; }
-  if(!String(S.inter.motif||"").trim() && !window.confirm("Aucun motif d'appel n'est écrit (onglet Constat). Confier quand même ?")) return;
+  if(!String(S.inter.motif||"").trim() && !window.confirm("Aucun motif d'appel n'est écrit (partie "+(S.etape==="appel" ? "Demande" : "Intervention")+"). Confier quand même ?")) return;
   if(!S.id) S.id=uid();
   var moi=(SESSION && SESSION.nom) || "";
   S.appel = S.appel || {par:moi, le:new Date().toISOString()};
   S.confie = {a:CONFIE_A, par:moi, le:new Date().toISOString()};
-  var copie; try{ copie=JSON.parse(JSON.stringify(S)); }catch(e){ toast("Fiche illisible."); return; }
-  /* les heures sur place et les signatures sont celles du technicien */
-  copie.inter.arr=""; copie.inter.dep="";
-  copie.sig={client:null, tech:null, nomClient:"", nomTech:CONFIE_A, horodatage:""};
-  copie.brouillon=""; delete copie._modifs;
-  var charge=JSON.stringify(copie);
-  if(charge.length > 5.2*1024*1024){ toast("Fiche trop lourde : retirez quelques photos."); return; }
   var el=$("confierEtat"), b=$("btnConfier"), qui=CONFIE_A;
-  el.textContent="Envoi à "+qui+"…"; b.disabled=true;
-  fetch(apiUrl("deposer-brouillon"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({
-    type:"sav", id:S.id, fiche:charge, chantier:refAffaire(), client:S.chantier.client, adresse:adresseTravaux(),
-    date:S.inter.date, nature:S.inter.nature, urgence:S.inter.urgence, motif:S.inter.motif, destinataires:[qui]})})
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
-    .then(function(res){
-      if(!res.ok){ el.textContent=res.d.erreur || "Envoi refusé."; majBoutonConfier(); return; }
-      CONFIE_A="";
-      reinitialiserFormulaire("Fiche confiée à "+qui+".");
-      $("confierEtat").textContent="Fiche confiée à "+qui+" : elle l'attend dans « À terminer »"
-        +((res.d.prevenus||[]).length ? ", et il a reçu un e-mail" : "")+". Formulaire vidé pour le prochain appel.";
-      chargerATerminer();
-    })
-    .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; majBoutonConfier(); });
+  b.disabled=true;
+  /* au bureau, confier publie aussi la fiche d'appel dans le dossier */
+  var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
+  var avant = (S.etape==="appel" && window.jspdf && (versDossier || destinataires().length))
+    ? publierRapport(metaAppel(), {appel:true, etat:el}) : Promise.resolve(null);
+  avant.then(function(pub){
+    var copie; try{ copie=JSON.parse(JSON.stringify(S)); }catch(e){ toast("Fiche illisible."); majBoutonConfier(); return; }
+    /* les heures sur place et les signatures sont celles du technicien */
+    copie.etape="intervention";
+    copie.inter.arr=""; copie.inter.dep="";
+    copie.sig={client:null, tech:null, nomClient:"", nomTech:qui, horodatage:""};
+    copie.brouillon=""; delete copie._modifs;
+    var charge=JSON.stringify(copie);
+    if(charge.length > 5.2*1024*1024){ toast("Fiche trop lourde : retirez quelques photos."); majBoutonConfier(); return; }
+    el.textContent="Envoi à "+qui+"…";
+    return fetch(apiUrl("deposer-brouillon"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({
+      type:"sav", id:S.id, fiche:charge, chantier:refAffaire(), client:S.chantier.client, adresse:adresseTravaux(),
+      date:S.inter.date, nature:S.inter.nature, urgence:S.inter.urgence, motif:S.inter.motif, destinataires:[qui],
+      appel:S.appel, rdv:rdvTexte()})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ el.textContent=res.d.erreur || "Envoi refusé."; majBoutonConfier(); return; }
+        CONFIE_A="";
+        reinitialiserFormulaire("Fiche confiée à "+qui+".");
+        $("confierEtat").textContent="Fiche confiée à "+qui+" : elle l'attend dans « À terminer »"
+          +((res.d.prevenus||[]).length ? ", et il a reçu un e-mail" : "")
+          +(pub ? ". La fiche d'appel est dans le dossier" : "")+". Formulaire vidé pour le prochain appel.";
+        chargerATerminer();
+      });
+  }).catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; majBoutonConfier(); });
 }
 function chargerATerminer(){
   if(!baseSite() || !jetonSession()) return;
@@ -1947,6 +2187,7 @@ function renderATerminer(){
     s1.appendChild(document.createTextNode([x.nature, x.appel ? "appel du "+texteAppel(x.appel) : ""].filter(Boolean).join(" · ")));
     t.appendChild(b); t.appendChild(s1);
     if(x.motif){ var s2=document.createElement("span"); s2.textContent=x.motif; t.appendChild(s2); }
+    if(x.rdv){ var s4=document.createElement("span"); s4.textContent="Passage prévu : "+x.rdv.charAt(0).toLowerCase()+x.rdv.slice(1); t.appendChild(s4); }
     if(!x.pourMoi){ var s3=document.createElement("span"); s3.textContent="Confiée à "+x.technicien+", pas encore terminée."; t.appendChild(s3); }
     var a=document.createElement("div"); a.className="at-act";
     var ouvrir=document.createElement("button"); ouvrir.type="button"; ouvrir.className="act"+(x.pourMoi ? " blue" : " ghost");
@@ -1980,6 +2221,8 @@ function ouvrirATerminer(x){
       function charger(){
         S=Object.assign(blank(), d);
         S.brouillon=x.cle; if(!S.appel && x.appel) S.appel=x.appel;
+        /* le technicien la termine sur place ; le bureau la rouvre telle qu'au téléphone */
+        S.etape = x.pourMoi ? "intervention" : etapeParDefaut();
         if(!S.confie) S.confie={a:x.technicien, par:(x.appel||{}).par||"", le:x.publie||""};
         if(x.pourMoi){
           S.sig.nomTech=(SESSION && SESSION.nom) || S.sig.nomTech;
@@ -2127,7 +2370,7 @@ function recupererFiche(f){
 var M=14, PW=210, PH=297, CW=PW-2*M;
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var y=M, page=1;
+  var y=M, page=1, APPEL=S.etape==="appel", D=demande();
   var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206];
   var ACC=[180,98,26], ACC_BG=[251,237,224];
   var SOL=[138,90,20], SOL_BG=[250,239,222];
@@ -2271,10 +2514,11 @@ function buildPdf(){
       tx=M+lw+7;
     }
     setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Fiche d'intervention", tx, 19);
+    doc.text(APPEL ? "Réception d'appel SAV" : "Fiche d'intervention", tx, 19);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
     var sous=(S.inter.numero ? "N° "+S.inter.numero+"   " : "")
-      + "Le "+frDate(S.inter.date) + (S.inter.arr ? " à "+S.inter.arr : "");
+      + (APPEL ? (S.appel && S.appel.le ? "Appel du "+texteAppel(S.appel) : "Le "+frDate(aujourdhui()))
+               : "Le "+frDate(S.inter.date) + (S.inter.arr ? " à "+S.inter.arr : ""));
     if(refAffaire()) sous += "     "+refAffaire();
     doc.text(sous, tx, 25);
     var soc=(P&&P.societe)||"";
@@ -2301,14 +2545,82 @@ function buildPdf(){
     footer(); doc.addPage(); page++;
     setFill(INK); doc.rect(0,0,PW,2.2,"F");
     doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.chantier.client||"Intervention"), M, 12);
-    doc.text(frDate(S.inter.date), PW-M, 12, {align:"right"});
+    doc.text((S.chantier.client||(APPEL ? "Réception d'appel" : "Intervention")), M, 12);
+    doc.text(frDate(APPEL ? dateAppel() : S.inter.date), PW-M, 12, {align:"right"});
     setText(INK); y=20;
   }
   function need(h){ if(y+h > PH-22) newPage(); }
 
+  function photosPdf(titre){
+    if(!S.photos.length) return;
+    h2(titre, 80);
+    var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
+    S.photos.forEach(function(p){
+      var hh=Math.min(66, cw*(p.h/p.w));
+      if(ci===0){ need(hh+10); startY=y; rowH=0; }
+      var x=M+ci*(cw+6);
+      try{ doc.addImage(p.data,"JPEG", x, startY, cw, hh); }catch(e){}
+      if(p.legende){
+        doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
+        doc.text(doc.splitTextToSize(p.legende, cw)[0], x, startY+hh+3.8); setText(INK);
+      }
+      rowH=Math.max(rowH, hh+(p.legende?5:0));
+      ci++; if(ci===2){ y=startY+rowH+6; ci=0; }
+    });
+    if(ci){ y=startY+rowH+6; }
+  }
+
   bandeau();
 
+  /* ---------- fiche 1 : la réception de l'appel ---------- */
+  if(APPEL){
+    var urg=S.inter.urgence && S.inter.urgence!=="Normale";
+    setFill(urg ? RED : ACC); doc.roundedRect(M, y, CW, 11, 0.8, 0.8, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
+    doc.text((S.inter.urgence || "Urgence non précisée") + (S.inter.nature ? "   -   "+S.inter.nature : ""), M+5, y+7.2);
+    var rdv=rdvTexte();
+    if(rdv) doc.text(doc.splitTextToSize("Passage "+rdv.charAt(0).toLowerCase()+rdv.slice(1), 80)[0], PW-M-5, y+7.2, {align:"right"});
+    setText(INK); y+=16;
+
+    h2("L'appel", 40);
+    kv("Reçu le", texteAppel(S.appel));
+    kv("Appelant", texteAppelant());
+    kv("À rappeler au", telPoints(D.tel));
+
+    h2("Client et lieu d'intervention", 50);
+    kv("Client", S.chantier.client);
+    kv("Adresse", (S.chantier.adresse||"").replace(/\n/g,", "));
+    kv("Téléphone", telPoints(S.chantier.tel));
+    kv("Référence travaux", S.chantier.ref);
+    kv("N° d'intervention", S.inter.numero);
+
+    h2("La demande", 50);
+    kv("Nature", S.inter.nature);
+    kv("Prise en charge", S.inter.charge);
+    kv("Urgence", S.inter.urgence);
+    kv("Le client constate", D.symptomes.join(", "));
+    kv("Équipement", [D.equipement, D.marque].filter(Boolean).join(" — "));
+    if((S.inter.motif||"").trim()){ y+=1.5; sousTitre("Motif de l'appel"); encadre(S.inter.motif); }
+    if((D.detail||"").trim()){ sousTitre("Précisions"); para(D.detail); }
+
+    if(rempli(rdv, D.dispo.trim(), D.acces.trim())){
+      h2("Rendez-vous", 34, SOL);
+      kv("Passage prévu", rdv);
+      kv("Disponibilités", D.dispo.trim());
+      kv("Accès et consignes", D.acces.trim());
+    }
+    if(S.confie && S.confie.a){
+      h2("Suite donnée", 30);
+      var lc=S.confie.le ? new Date(S.confie.le) : null;
+      kv("Confiée à", S.confie.a + (lc && !isNaN(lc) ? " le "+frDate(lc.getFullYear()+"-"+p2(lc.getMonth()+1)+"-"+p2(lc.getDate()))+" à "+p2(lc.getHours())+":"+p2(lc.getMinutes()) : "")
+        + (S.confie.par ? ", par "+S.confie.par : ""));
+    }
+    photosPdf("Photos envoyées par le client");
+    footer();
+    return doc;
+  }
+
+  /* ---------- fiche 2 : l'intervention ---------- */
   var etat=S.suite.etat||"État non prononcé";
   var bc = S.suite.etat==="Résolu" ? GREEN
          : (S.suite.etat==="Non résolu" ? RED
@@ -2331,6 +2643,18 @@ function buildPdf(){
   kv("Urgence", S.inter.urgence);
   if(S.appel && S.appel.le) kv("Appel reçu", texteAppel(S.appel));
   kv("Technicien", S.sig.nomTech || (SESSION && SESSION.nom) || "");
+
+  /* ce qui a été dit au téléphone, en résumé (la fiche d'appel a son propre PDF) */
+  if(rempli(texteAppelant(), D.tel, D.symptomes, D.equipement, D.marque, D.detail.trim(), rdvTexte(), D.acces.trim())){
+    h2("Réception de l'appel", 40);
+    kv("Appelant", texteAppelant());
+    kv("À rappeler au", telPoints(D.tel));
+    kv("Le client constate", D.symptomes.join(", "));
+    kv("Équipement", [D.equipement, D.marque].filter(Boolean).join(" — "));
+    kv("Précisions", D.detail.trim());
+    kv("Passage prévu", rdvTexte());
+    kv("Accès et consignes", D.acces.trim());
+  }
 
   if((S.inter.motif||"").trim()){
     h2("Motif de l'appel", 34);
@@ -2372,23 +2696,7 @@ function buildPdf(){
     kv("Retour prévu le", S.suite.retour ? frDate(S.suite.retour) : "");
   }
 
-  if(S.photos.length){
-    h2("Photos", 80);
-    var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
-    S.photos.forEach(function(p){
-      var hh=Math.min(66, cw*(p.h/p.w));
-      if(ci===0){ need(hh+10); startY=y; rowH=0; }
-      var x=M+ci*(cw+6);
-      try{ doc.addImage(p.data,"JPEG", x, startY, cw, hh); }catch(e){}
-      if(p.legende){
-        doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-        doc.text(doc.splitTextToSize(p.legende, cw)[0], x, startY+hh+3.8); setText(INK);
-      }
-      rowH=Math.max(rowH, hh+(p.legende?5:0));
-      ci++; if(ci===2){ y=startY+rowH+6; ci=0; }
-    });
-    if(ci){ y=startY+rowH+6; }
-  }
+  photosPdf("Photos");
 
   if(y + 70 > PH-22) newPage();
   h2("Signatures", 70);
@@ -2422,7 +2730,10 @@ function buildPdf(){
   footer();
   return doc;
 }
-function pdfName(){ return "SAV-"+(refAffaire()||"intervention")+"-"+S.inter.date+".pdf"; }
+function pdfName(){
+  return S.etape==="appel" ? "SAV-appel-"+(refAffaire()||"client")+"-"+dateAppel()+".pdf"
+                           : "SAV-"+(refAffaire()||"intervention")+"-"+S.inter.date+".pdf";
+}
 function dl(blob, name){
   /* dans l'appli installée, un PDF s'ouvre avec sa barre OK au lieu de remplacer la page */
   if(/\.pdf$/i.test(name||"") && window.Visionneuse && Visionneuse.installee()){ Visionneuse.pdf(blob, name); return; }
@@ -2986,6 +3297,7 @@ function bindAll(){
   });
   $("btnPublier").addEventListener("click", function(){
     if(!refAffaire()){ toast("Indiquez le client ou le référence travaux."); showTab("client"); return; }
+    if(S.etape==="appel"){ publierRapport(metaAppel(), {appel:true}); return; }
     publierRapport({
       chantier: refAffaire(), client: S.chantier.client, adresse: adresseTravaux(),
       lat: S.chantier.lat, lon: S.chantier.lon,
@@ -2996,6 +3308,22 @@ function bindAll(){
   });
 
   $("btnConfier").addEventListener("click", confierFiche);
+  document.querySelectorAll("#etapeSav [data-etape-choix]").forEach(function(b){
+    b.addEventListener("click", function(){ choisirEtape(b.getAttribute("data-etape-choix")); });
+  });
+  $("a_le").addEventListener("input", function(){
+    var v=$("a_le").value, d=v ? new Date(v) : null;
+    S.appel=S.appel || {par:(SESSION && SESSION.nom) || ""};
+    S.appel.le = d && !isNaN(d) ? d.toISOString() : "";
+    save(); renderAppel();
+  });
+  $("a_par").addEventListener("input", function(){
+    S.appel=S.appel || {le:new Date().toISOString()};
+    S.appel.par=$("a_par").value; save(); renderAppel();
+  });
+  var principal=document.querySelector("main");
+  principal.addEventListener("input", tamponAppel);
+  principal.addEventListener("click", function(e){ if(e.target && e.target.closest && e.target.closest(".chip")) tamponAppel(); });
   $("btnPhotosZip").addEventListener("click", exporterPhotos);
   $("btnPhotosSite").addEventListener("click", deposerPhotos);
   $("btnNew").addEventListener("click", function(){
@@ -3321,7 +3649,7 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
 
 var CLE_FICHE = "sav:courant";
 function ficheVierge(){ var s=blank(); s.sig.nomTech=(SESSION&&SESSION.nom)||""; return s; }
-function ficheRemplie(s){ if(!s) return false; var i=s.inter||{}; return !!(String(i.motif||"").trim() || String(i.constat||"").trim() || String(i.travaux||"").trim() || (s.materiel||[]).length || (s.photos||[]).length); }
+function ficheRemplie(s){ if(!s) return false; var i=s.inter||{}, d=s.demande||{}; return !!(String(i.motif||"").trim() || String(i.constat||"").trim() || String(i.travaux||"").trim() || (s.materiel||[]).length || (s.photos||[]).length || String(d.appelant||"").trim() || (d.symptomes||[]).length); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
 function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }

@@ -33,7 +33,7 @@ function libelleDocument(entree) {
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
     : entree.type === "point" ? (entree.titre || "Le point de chantier")
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
-    : entree.type === "sav" ? (entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
+    : entree.type === "sav" ? (entree.fiche === "appel" ? "Réception d'appel SAV" : entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
     : entree.type === "reception" ? "Procès-verbal de réception"
     : entree.type === "etiquettes" ? "Étiquettes de tableau"
     : entree.type === "photos" ? "Photos du chantier"
@@ -1145,7 +1145,10 @@ async function traiter(req) {
       : autocontrole
       ? "autocontrole-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : sav
-      ? "sav-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
+      /* SAV : la fiche de réception d'appel (une par appel) et la fiche d'intervention */
+      ? (d.savFiche === "appel"
+          ? "sav-appel-" + slug(d.date || jourParis()) + "-" + slug(d.savId || personne.nom) + ".pdf"
+          : "sav-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf")
       : reportage
       ? "reportage-" + slug(d.date || jourParis()) + "-" + slug(d.visite || personne.nom) + ".pdf"
       : etiquettes
@@ -1202,9 +1205,11 @@ async function traiter(req) {
       /* on garde qui a déjà ouvert : le rapport de suivi vit plusieurs visites */
       lectures: (ancien && ancien.lectures) ? ancien.lectures : {}
     };
+    if (sav && d.savFiche === "appel") entree.fiche = "appel";
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
-    /* une intervention SAV confiée, une fois publiée, n'est plus « à terminer » */
-    if (sav && typeof d.brouillon === "string" && /^[^/]+\/sav-a-terminer-[a-z0-9-]+\.json$/i.test(d.brouillon)) {
+    /* une intervention SAV confiée, une fois publiée, n'est plus « à terminer »
+       (la fiche d'appel, elle, la laisse en attente) */
+    if (sav && d.savFiche !== "appel" && typeof d.brouillon === "string" && /^[^/]+\/sav-a-terminer-[a-z0-9-]+\.json$/i.test(d.brouillon)) {
       const refB = d.brouillon.split("/")[0], cB = idx.chantiers[refB];
       const fB = cB && cB.fichiers.find((f) => f.cle === d.brouillon);
       if (fB && (fB.auteur === personne.nom || (fB.destinataires || []).indexOf(personne.nom) >= 0 || bureau)) {
@@ -1232,8 +1237,11 @@ async function traiter(req) {
       (entree.destinataires || []).forEach((n) => equipe.add(nomDuCompte(n, comptesEq)));
       c.equipe = Array.from(equipe).filter(Boolean);
     } else if (!c.equipe || !c.equipe.length) {
-      /* premier document d'un dossier sans relevé : son auteur en est responsable */
-      c.equipe = [entree.auteur].filter(Boolean);
+      /* premier document d'un dossier sans relevé : son auteur en est
+         responsable, sous le nom de son compte */
+      let comptesEq = [];
+      try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
+      c.equipe = [nomDuCompte(entree.auteur, comptesEq)].filter(Boolean);
     }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
@@ -1422,13 +1430,18 @@ async function traiter(req) {
     const avant = c.fichiers.find((f) => f.cle === cle);
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+    /* l'heure de l'appel et qui l'a pris, tels que notés sur la fiche */
+    const appelDe = (a) => {
+      const le = a && typeof a.le === "string" && !isNaN(Date.parse(a.le)) ? new Date(a.le).toISOString() : new Date().toISOString();
+      return { par: court(a && a.par, 80) || personne.nom, le };
+    };
     const entree = {
       cle, titre: "Intervention SAV à terminer", type: "sav", visite: "", etape: court(d.nature, 60),
       date: d.date || jourParis(),
       auteur: avant ? avant.auteur : personne.nom, destinataires: dest, publie: new Date().toISOString(),
       donnees: true, brouillon: true, lectures: {},
-      appel: avant && avant.appel ? avant.appel : { par: personne.nom, le: new Date().toISOString() },
-      urgence: court(d.urgence, 40), motif: court(d.motif, 160), confiePar: personne.nom
+      appel: d.appel ? appelDe(d.appel) : (avant && avant.appel) || appelDe(null),
+      urgence: court(d.urgence, 40), motif: court(d.motif, 160), rdv: court(d.rdv, 80), confiePar: personne.nom
     };
     c.fichiers.push(entree);
     c.maj = new Date().toISOString();
@@ -1458,7 +1471,7 @@ async function traiter(req) {
         const pourMoi = (f.destinataires || []).some(moi), deMoi = moi(f.auteur) || moi(f.confiePar);
         if (!pourMoi && !deMoi && !bureau) return;
         out.push({ cle: f.cle, ref: c.ref, client: c.client, adresse: c.adresse || "", date: f.date, publie: f.publie,
-          technicien: (f.destinataires || [])[0] || "", appel: f.appel || null, urgence: f.urgence || "", motif: f.motif || "",
+          technicien: (f.destinataires || [])[0] || "", appel: f.appel || null, urgence: f.urgence || "", motif: f.motif || "", rdv: f.rdv || "",
           nature: f.etape || "", pourMoi, deMoi });
       });
     });

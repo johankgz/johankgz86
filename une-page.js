@@ -12,6 +12,9 @@
                               premier appel (la page vient de s'ouvrir) ;
                               entree(nom) est rappelée quand on arrive
                               dans une partie en défilant
+   UnePage.changer(TABS)      la fiche change de parties (le SAV passe de
+                              l'appel à l'intervention) : celles qui
+                              sortent se cachent, les nouvelles s'ouvrent
    ===================================================================== */
 (function(){
   var TABS=null, premier=true, pause=0, attente=false, ENTREE=null, COURANTE="";
@@ -59,9 +62,8 @@
       if(cour!==COURANTE){ COURANTE=cour; if(ENTREE) try{ ENTREE(cour); }catch(e){} }
     });
   }
-  function installer(tabs){
-    TABS=tabs; style();
-    document.body.classList.add("une-page");
+  function appliquer(tabs){
+    TABS=tabs;
     tabs.forEach(function(t, i){
       var s=section(t[0]); if(!s) return;
       s.hidden=false; s.dataset.partie=t[1];
@@ -69,8 +71,23 @@
       s.classList.toggle("up-dernier", i===tabs.length-1);
     });
     marges();
+  }
+  function installer(tabs){
+    style();
+    document.body.classList.add("une-page");
+    appliquer(tabs);
     window.addEventListener("scroll", suivre, {passive:true});
     window.addEventListener("resize", function(){ marges(); suivre(); });
+  }
+  function changer(tabs){
+    if(!TABS) return;                         /* pas encore ouverte : aller() prendra ces parties */
+    var noms=tabs.map(function(t){ return t[0]; });
+    TABS.forEach(function(t){
+      var s=section(t[0]); if(!s || noms.indexOf(t[0])>=0) return;
+      s.hidden=true; s.classList.remove("up-suite", "up-dernier");
+    });
+    appliquer(tabs);
+    COURANTE=""; suivre();
   }
   function aller(nom, tabs, entree){
     var etaitPremier=premier;
@@ -91,5 +108,5 @@
     else s.scrollIntoView({block:"start", behavior:"smooth"});
     return false;
   }
-  window.UnePage={aller:aller};
+  window.UnePage={aller:aller, changer:changer};
 })();
