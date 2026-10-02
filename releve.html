@@ -553,6 +553,18 @@ textarea:focus-visible,[tabindex]:focus-visible{
   outline:2px solid var(--data);outline-offset:2px;
 }
 
+/* les raccourcis d'adresse e-mail, sous le champ */
+.mail-dom{margin:-4px 0 14px}
+.mail-dom .md-fourn,.mail-dom .md-ext{display:flex;align-items:center;gap:6px}
+.mail-dom .md-fourn{overflow-x:auto;scrollbar-width:none;padding-bottom:2px;margin-bottom:6px}
+.mail-dom .md-fourn::-webkit-scrollbar{display:none}
+.mail-dom .md-fourn button{flex:0 0 auto}
+.mail-dom .md-aide{font-size:12px;color:var(--ink-3);margin-left:4px}
+@media(min-width:700px){ .mail-dom .md-fourn{flex-wrap:wrap;overflow:visible} }
+.mail-dom button{min-height:32px;padding:4px 11px;border-radius:var(--r-pill);border:1px solid var(--champ-bord);background:#fff;
+  color:var(--ink-2);font:inherit;font-size:13px;font-weight:500;cursor:pointer}
+.mail-dom button.on{background:var(--accent-soft);border-color:rgba(180,83,9,.4);color:var(--accent-fonce);font-weight:600}
+
 /* ---------- pastilles et étiquettes ---------- */
 .chip,.chips label{
   border-radius:var(--r-pill);
@@ -772,7 +784,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <label class="f"><span>Téléphone</span><input type="tel" id="c_tel" autocomplete="off"></label>
       <label class="f"><span>Sur place</span><input type="text" id="c_contact" autocomplete="off" placeholder="Interlocuteur"></label>
     </div>
-    <label class="f"><span>E-mail</span><input type="email" id="c_email" autocomplete="off" inputmode="email" autocapitalize="off" spellcheck="false"></label>
+    <label class="f"><span>E-mail</span><input type="text" id="c_email" autocomplete="off" inputmode="email" autocapitalize="off" spellcheck="false"></label>
+    <div class="mail-dom" id="mailDom" role="group" aria-label="Compléter l'adresse e-mail">
+      <div class="md-fourn"><button type="button" data-d="gmail.com">@gmail</button><button type="button" data-d="icloud.com">@icloud</button><button type="button" data-d="outlook.fr">@outlook</button><button type="button" data-d="hotmail.fr">@hotmail</button><button type="button" data-d="orange.fr">@orange</button><button type="button" data-d="free.fr">@free</button><button type="button" data-d="sfr.fr">@sfr</button><button type="button" data-d="laposte.net">@laposte</button><button type="button" data-d="yahoo.fr">@yahoo</button><button type="button" data-d="wanadoo.fr">@wanadoo</button></div>
+      <div class="md-ext"><button type="button" data-t="com">.com</button><button type="button" data-t="fr">.fr</button><button type="button" data-t="net">.net</button><span class="md-aide">touchez le fournisseur, puis l'extension si besoin</span></div>
+    </div>
   </div>
 
   <div class="block">
@@ -1634,7 +1650,56 @@ var FIELDS = [
 function getPath(p){ var a=p.split("."); return S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); S[a[0]][a[1]]=v; }
 
+/* Un numéro de téléphone écrit avec des points, comme sur un papier à en-tête :
+   06 12 34 56 78, 0612345678 ou 06-12-34-56-78 → 06.12.34.56.78 ; +33 6 12 34 56 78 →
+   +33 6.12.34.56.78. Un numéro qu'on ne reconnaît pas reste tel qu'il a été tapé. */
+function telPoints(t){
+  var s=String(t||"").trim(); if(!s) return "";
+  var c=s.replace(/[\s.\-\/()]/g, "");
+  function pts(d){ return d.replace(/(\d{2})(?=\d)/g, "$1."); }
+  if(/^0\d{9}$/.test(c)) return pts(c);
+  var m=c.match(/^(?:\+|00)33(?:0)?(\d{9})$/);
+  if(m) return "+33 "+m[1].charAt(0)+"."+pts(m[1].slice(1));
+  return s;
+}
+/* L'adresse e-mail en deux touches : le fournisseur (@gmail, @icloud…), puis au besoin
+   l'extension (.com, .fr, .net). Ce qui est déjà tapé avant le @ est gardé. */
+function domaineMail(v){ var i=String(v||"").indexOf("@"); return i<0 ? "" : String(v).slice(i+1).toLowerCase(); }
+function majMailDom(){
+  var d=domaineMail($("c_email").value), fourn=d.split(".")[0], ext=d.indexOf(".")>=0 ? d.split(".").pop() : "";
+  [].forEach.call($("mailDom").querySelectorAll("button"), function(b){
+    var on = b.dataset.d ? b.dataset.d.split(".")[0]===fourn && !!fourn : !!ext && b.dataset.t===ext;
+    b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+function bindMailDom(){
+  var champ=$("c_email");
+  $("mailDom").addEventListener("click", function(e){
+    var b=e.target.closest("button"); if(!b) return;
+    var v=champ.value.trim(), i=v.indexOf("@"), avant=i<0 ? v : v.slice(0, i), d=i<0 ? "" : v.slice(i+1);
+    if(b.dataset.d){
+      /* le fournisseur, avec son extension habituelle (ou celle déjà choisie) */
+      var ext0 = d.indexOf(".")>=0 ? d.split(".").pop() : "";
+      var dom = b.dataset.d;
+      if(ext0 && d.split(".")[0]!==dom.split(".")[0] && /^(com|fr|net)$/.test(ext0) && (dom.split(".")[0]==="outlook" || dom.split(".")[0]==="hotmail" || dom.split(".")[0]==="yahoo")) dom=dom.split(".")[0]+"."+ext0;
+      v=avant+"@"+dom;
+    } else {
+      if(i<0) return;                                  /* une extension seule n'a pas de sens sans fournisseur */
+      var base=d.indexOf(".")>=0 ? d.slice(0, d.lastIndexOf(".")) : d;
+      if(!base) return;
+      v=avant+"@"+base+"."+b.dataset.t;
+    }
+    champ.value=v;
+    champ.dispatchEvent(new Event("input", {bubbles:true}));
+    majMailDom();
+    /* rien avant le @ : le curseur s'y place, pour taper le nom */
+    if(!avant){ try{ champ.focus(); champ.setSelectionRange(0, 0); }catch(er){} }
+  });
+  champ.addEventListener("input", majMailDom);
+  majMailDom();
+}
 function bindFields(){
+  bindMailDom();
   FIELDS.forEach(function(f){
     var el=$(f[0]);
     el.addEventListener("input", function(){
@@ -4290,7 +4355,7 @@ function buildPdf(){
       doc.text(soc, PW-M, 13.5, {align:"right"});
       doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
       var ly=18;
-      [(P&&P.socTel), (P&&P.socWeb), (P&&P.socAdr)].forEach(function(t){
+      [(P&&P.socTel) ? telPoints(P.socTel) : "", (P&&P.socWeb), (P&&P.socAdr)].forEach(function(t){
         if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; }
       });
     }
@@ -4349,6 +4414,7 @@ function buildPdf(){
     }
   }
   function kv(k,v){
+    if(k==="Téléphone") v=telPoints(v);
     if(vide(v)) return;
     v = String(v);
     doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
@@ -4463,7 +4529,7 @@ function buildPdf(){
     doc.text("Votre interlocuteur", M+5, y+6.4);
     doc.setFont("helvetica","bold"); setText(INK);
     var coord = S.meta.ca
-      + (S.meta.caTel ? "     "+S.meta.caTel : "")
+      + (S.meta.caTel ? "     "+telPoints(S.meta.caTel) : "")
       + (S.meta.caMail ? "     "+S.meta.caMail : "");
     doc.text(coord, M+38, y+6.4);
     y+=15;
