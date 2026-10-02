@@ -2181,8 +2181,35 @@ function pointsDessin(){
   pointsAutresVues(vue).forEach(function(q){ out.push(q); });
   if(vue!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vue).forEach(function(q){ out.push(q); }); return out; }
   DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
+  coinsMurs().forEach(function(q){ out.push(q); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   pointsGeo().forEach(function(q){ out.push(q); });
+  return out;
+}
+/* Les vrais coins d'une pièce : là où les faces de deux murs qui se touchent se coupent
+   (le coin intérieur, le coin extérieur, les deux angles d'un départ en T). Les bouts des
+   faces d'un mur ne suffisent pas : à l'angle, ils sont à une demi-épaisseur du coin. */
+var COINS_MURS={cle:"", pts:[]};
+function coinsMurs(){
+  var murs=DESSIN.murs, cle=murs.map(function(m){ return m.a[0]+","+m.a[1]+","+m.b[0]+","+m.b[1]+","+m.ep; }).join(";");
+  if(cle===COINS_MURS.cle) return COINS_MURS.pts;
+  var out=[], vu={};
+  for(var i=0;i<murs.length;i++) for(var j=i+1;j<murs.length;j++){
+    var m=murs[i], o=murs[j], xm=axes(m), xo=axes(o), cr=xm.u[0]*xo.u[1]-xm.u[1]*xo.u[0];
+    if(Math.abs(cr)<0.05) continue;                                  /* parallèles : pas d'angle */
+    /* ils se touchent : un bout de l'un sur l'autre */
+    var tp=null;
+    [[m.a, o], [m.b, o], [o.a, m], [o.b, m]].forEach(function(c){ if(!tp && distSeg(c[0], c[1].a, c[1].b).d <= c[1].ep/2+1) tp=c[0]; });
+    if(!tp) continue;
+    var lim=1.5*Math.max(m.ep, o.ep);
+    [-1,1].forEach(function(sm){ [-1,1].forEach(function(so){
+      var pa=[m.a[0]+xm.n[0]*sm*m.ep/2, m.a[1]+xm.n[1]*sm*m.ep/2], pb=[o.a[0]+xo.n[0]*so*o.ep/2, o.a[1]+xo.n[1]*so*o.ep/2];
+      var w=[pb[0]-pa[0], pb[1]-pa[1]], t=(w[0]*xo.u[1]-w[1]*xo.u[0])/cr, q=[pa[0]+xm.u[0]*t, pa[1]+xm.u[1]*t];
+      if(lng(sub(q, tp))>lim) return;
+      var k=Math.round(q[0]*10)+":"+Math.round(q[1]*10); if(vu[k]) return; vu[k]=1; out.push(q);
+    }); });
+  }
+  COINS_MURS={cle:cle, pts:out};
   return out;
 }
 /* L'accrochage du dessin, du plus fort au plus faible : un bout ou un angle
@@ -5161,7 +5188,7 @@ function majMep(){
     $("mepInfo").textContent=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" : "+vs.length+" vue"+(vs.length>1?"s":"")+" ("+vs.map(function(x){ return NOM_VUES[x].replace("Vue de ","").toLowerCase(); }).join(", ")+")"
       +(orthosV.length ? " — "+textePlancheEchelles(cp).replace(/^É/, "é") : "")+".";
     var trop=cp.filter(function(k){ return k.fit && k.n && k.n<k.fit*0.999; }).map(function(k){ return ({face:"la face", cote:"le côté", dessus:"le dessus"})[k.vue]; });
-    if(trop.length) $("mepInfo").textContent+=" À cette échelle, "+trop.join(" et ")+" déborde"+(trop.length>1?"nt":"")+" de sa case : seul le centre est imprimé.";
+    if(trop.length) $("mepInfo").textContent+=" À cette échelle, "+trop.join(" et ")+(trop.length>1 ? " débordent de leur case : seul leur centre est imprimé" : " déborde de sa case : seul le centre est imprimé")+". Choisissez « Ajustée à la page » ou une échelle par vue pour tout voir.";
     return;
   }
   var e=echelleMep();
