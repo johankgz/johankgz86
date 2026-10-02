@@ -90,6 +90,7 @@ section[hidden]{display:none}
   margin:0 0 14px;padding:0;
 }
 label.f{display:block;margin-bottom:14px}
+label.f[hidden]{display:none}
 label.f > span{display:block;font-size:13.5px;font-weight:500;color:var(--ink-2);margin-bottom:6px}
 input[type=text],input[type=tel],input[type=email],input[type=number],input[type=date],textarea,select{
   width:100%;min-height:var(--tap);padding:12px 14px;font-size:16px;line-height:1.35;
@@ -220,11 +221,11 @@ button.act:disabled{opacity:.4}
 .toast[hidden]{display:none}
 
 /* ---------- plein écran : croquis et implantation ---------- */
-#sketch,#toit,#carte,#irve,#soleil{
+#sketch,#toit,#carte,#irve,#clim,#soleil{
   position:fixed;inset:0;z-index:60;background:#1A1815;display:flex;flex-direction:column;
   padding-top:env(safe-area-inset-top,0px);
 }
-#sketch[hidden],#toit[hidden],#carte[hidden],#irve[hidden],#soleil[hidden]{display:none}
+#sketch[hidden],#toit[hidden],#carte[hidden],#irve[hidden],#clim[hidden],#soleil[hidden]{display:none}
 /* ---------- course du soleil ---------- */
 #soleil .sk-bar button{flex-direction:column;gap:2px;min-width:52px;padding:6px 8px;font-size:9.5px;line-height:1.1}
 .sol-wrap{flex:1 1 auto;min-height:0;position:relative;overflow:hidden}
@@ -283,7 +284,7 @@ button.act:disabled{opacity:.4}
   line-height:1.1;letter-spacing:0}
 .sk-bar button span{max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sk-bar button svg{display:block}
-#carte .sk-bar button,#toit .sk-bar button,#irve .sk-bar button{flex-direction:column;gap:2px;
+#carte .sk-bar button,#toit .sk-bar button,#irve .sk-bar button,#clim .sk-bar button{flex-direction:column;gap:2px;
   min-width:52px;padding:6px 8px;font-size:9.5px;line-height:1.1}
 .sk-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden}
 #sk_canvas{background:#fff;border-radius:var(--r-field);max-width:100%;max-height:100%;touch-action:none;
@@ -627,6 +628,8 @@ nav#nav button[aria-current="true"]{
   font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
 }
 nav#nav button svg{stroke-width:1.9}
+/* huit onglets sur un téléphone étroit : chacun garde la place de son nom, la barre défile */
+@media (max-width:420px){ nav#nav button{min-width:50px;flex:1 0 auto} }
 .avance{margin-top:8px}
 .avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
 .avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
@@ -952,6 +955,75 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       </div>
       <div id="irveList" style="margin-top:12px"></div>
     </div>
+  </div>
+  </div>
+</section>
+
+<!-- 3ter. CLIMATISATION -->
+<section id="tab-clim" hidden>
+  <div class="bascule" id="bascClim">
+    <div class="bascule-txt">
+      <b>Climatisation</b>
+      <span>Activez cette partie si une climatisation ou une pompe à chaleur air-air est prévue.</span>
+    </div>
+    <button type="button" class="switch" id="swClim" role="switch" aria-checked="false" aria-label="Activer la partie climatisation"><span></span></button>
+  </div>
+  <div id="climCorps">
+  <div class="block">
+    <h2>Climatisation</h2>
+    <p class="legend">Type d'installation</p>
+    <div class="chips" data-single="climType">
+      <label class="chip"><input type="radio" name="climType" value="Monosplit">Monosplit</label>
+      <label class="chip"><input type="radio" name="climType" value="Multisplit">Multisplit</label>
+      <label class="chip"><input type="radio" name="climType" value="Gainable">Gainable</label>
+      <label class="chip"><input type="radio" name="climType" value="Console">Console</label>
+    </div>
+    <div class="grid2">
+      <label class="f"><span>Puissance groupe (kW)</span><input type="number" id="t_puissance" inputmode="decimal" min="0" step="0.1" placeholder="3,5"></label>
+      <label class="f"><span>Unités intérieures</span><input type="number" id="t_nbInt" inputmode="numeric" min="0" step="1" placeholder="1"></label>
+    </div>
+    <p class="legend">Alimentation</p>
+    <div class="chips" data-single="climAlim">
+      <label class="chip"><input type="radio" name="climAlim" value="Monophasé">Monophasé</label>
+      <label class="chip"><input type="radio" name="climAlim" value="Triphasé">Triphasé</label>
+    </div>
+    <p class="legend">Longueurs</p>
+    <div class="grid2">
+      <label class="f"><span>Liaison frigorifique (ml)</span><input type="number" id="t_liaison" inputmode="decimal" min="0" step="0.5"></label>
+      <label class="f"><span>Câble d'alimentation (ml)</span><input type="number" id="t_cable" inputmode="decimal" min="0" step="0.5"></label>
+      <label class="f"><span>Câble de liaison int./ext. (ml)</span><input type="number" id="t_cableLiaison" inputmode="decimal" min="0" step="0.5"></label>
+      <label class="f"><span>Évacuation des condensats (ml)</span><input type="number" id="t_condensats" inputmode="decimal" min="0" step="0.5"></label>
+    </div>
+    <p class="legend">Pompe de relevage</p>
+    <div class="chips" data-single="climPompe">
+      <label class="chip"><input type="radio" name="climPompe" value="Oui">Oui</label>
+      <label class="chip"><input type="radio" name="climPompe" value="Non">Non</label>
+    </div>
+    <label class="f" id="climPompeNbWrap" hidden><span>Combien de pompes ?</span><input type="number" id="t_nbPompes" inputmode="numeric" min="1" step="1" placeholder="1"></label>
+    <p class="legend">Pose du groupe extérieur</p>
+    <div class="chips" data-single="climPose">
+      <label class="chip"><input type="radio" name="climPose" value="Au sol">Au sol, sur plots</label>
+      <label class="chip"><input type="radio" name="climPose" value="Support mural">Support mural</label>
+      <label class="chip"><input type="radio" name="climPose" value="En toiture">En toiture</label>
+    </div>
+    <p class="legend">Goulotte (cache-liaison)</p>
+    <div class="chips" data-single="climGoulotte">
+      <label class="chip"><input type="radio" name="climGoulotte" value="Oui">Oui</label>
+      <label class="chip"><input type="radio" name="climGoulotte" value="Non">Non</label>
+    </div>
+    <div class="grid2">
+      <label class="f" id="climGoulotteWrap" hidden><span>Longueur de goulotte (ml)</span><input type="number" id="t_lgGoulotte" inputmode="decimal" min="0" step="0.5"></label>
+      <label class="f"><span>Percements de mur</span><input type="number" id="t_percements" inputmode="numeric" min="0" step="1" placeholder="1"></label>
+    </div>
+    <label class="f"><span>Observations</span><textarea id="t_note" style="min-height:70px" placeholder="Pièces à climatiser, passage des liaisons, protection au tableau, nuisances sonores pour le voisinage…"></textarea></label>
+    <p class="legend">Emplacements</p>
+    <p class="hint" style="margin:-6px 0 10px">Photographiez la façade et le mur de la pièce : le groupe extérieur et l'unité murale se posent sur la photo, à l'échelle réelle.</p>
+    <div class="row">
+      <button class="act solid" id="btnClimExt">Photo du groupe extérieur</button>
+      <button class="act solid" id="btnClimInt">Photo de l'unité murale</button>
+      <input type="file" id="clim_file" accept="image/*" capture="environment" hidden>
+    </div>
+    <div id="climList" style="margin-top:12px"></div>
   </div>
   </div>
 </section>
@@ -1356,6 +1428,21 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   <div class="sk-wrap"><canvas id="irve_canvas"></canvas></div>
 </div>
 
+<div id="clim" hidden>
+  <div class="sk-bar">
+    <span class="title" id="clim_title">Placer le groupe</span>
+    <button type="button" id="clim_cancel">Fermer</button>
+    <button type="button" class="go" id="clim_save">Ajouter au relevé</button>
+  </div>
+  <div class="sk-bar">
+    <div class="mini"><span>Largeur du mur (m)</span><input type="number" id="clim_W" value="4" step="0.1" inputmode="decimal"></div>
+    <button type="button" id="clim_moins">Taille −</button>
+    <button type="button" id="clim_plus">Taille +</button>
+    <button type="button" id="clim_support">Sur support</button>
+  </div>
+  <div class="sk-wrap"><canvas id="clim_canvas"></canvas></div>
+</div>
+
 <div id="toit" hidden>
   <div class="sk-bar">
     <span class="title" id="toit_title">Implantation</span>
@@ -1556,9 +1643,17 @@ function blank(){
         irve:{actif:false,type:"",puissance:"",raccordement:"",delestage:"",badge:"",nbBadges:"",pied:"",longueur:"",note:"",photos:[]},
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
     logistique:{occupe:"",occupNote:"",accessibilite:[],code:"",acces:[],etage:"",toiture:"",stationnement:"",contraintes:""},
+    clim:climVide(),
     conclusion:{synthese:"",points:""}
   };
 }
+/* la climatisation : un groupe extérieur, ses unités intérieures, ce qui les relie */
+function climVide(){
+  return {actif:"non", type:"", puissance:"", nbInt:"", alim:"", liaison:"", cable:"", cableLiaison:"", condensats:"",
+    pompe:"", nbPompes:"", poseExt:"", goulotte:"", lgGoulotte:"", percements:"", note:"", photos:[]};
+}
+/* une fiche d'avant la climatisation n'a pas cette partie : elle la reçoit vide */
+function CL(){ if(!S.clim) S.clim=climVide(); if(!Array.isArray(S.clim.photos)) S.clim.photos=[]; return S.clim; }
 
 var PRESETS = ["Tableau électrique / GTL","Entrée","Séjour","Salon","Cuisine","Chambre 1","Chambre 2","Chambre 3",
   "Salle de bains","Salle d'eau","WC","Couloir / dégagement","Bureau","Buanderie","Cellier","Garage","Combles",
@@ -1746,8 +1841,10 @@ function propagerAlimentation(){
   if(a!=="Monophasé" && a!=="Triphasé") a="";   /* "À définir" ne se reporte pas */
   S.pv.pvAlim = a;                       /* branchement photovoltaïque */
   S.pv.irve.raccordement = a;            /* raccordement de la borne */
+  if(a && !CL().alim) CL().alim = a;     /* et la climatisation, si rien n'est encore choisi */
   repeindreChips("pvAlim");
   repeindreChips("irveRacc");
+  repeindreChips("climAlim");
   var info=$("pvAlimInfo");
   if(info) info.textContent = a ? "Repris des travaux : "+a
     + (S.chantier.puissance ? ", "+S.chantier.puissance+" kVA" : "")
@@ -1757,8 +1854,10 @@ function propagerAlimentation(){
 }
 var IRVE_MAP={irveActif:"actif", irveType:"type", irveRacc:"raccordement",
   irveDelestage:"delestage", irveBadge:"badge", irvePied:"pied"};
+var CLIM_MAP={climType:"type", climAlim:"alim", climPompe:"pompe", climPose:"poseExt", climGoulotte:"goulotte"};
 function assign(key,val){
   if(IRVE_MAP[key]){ S.pv.irve[IRVE_MAP[key]]=val; paintIrve(); return; }
+  if(CLIM_MAP[key]){ CL()[CLIM_MAP[key]]=val; paintClim(); return; }
   if(key==="statut"){ S.meta.statut=val; toggleAccepte(); }
   else if(key==="ca"){ S.meta.ca=val; applyCA(val); }
   else if(["chauffage","exposition","toitureType","pvAlim","reseau","backup"].indexOf(key)>=0){
@@ -1773,6 +1872,7 @@ function assign(key,val){
 }
 function readAssign(key){
   if(IRVE_MAP[key]) return S.pv.irve[IRVE_MAP[key]];
+  if(CLIM_MAP[key]) return CL()[CLIM_MAP[key]];
   if(key==="statut") return S.meta.statut;
   if(key==="ca") return S.meta.ca;
   if(["chauffage","exposition","toitureType","pvAlim","reseau","backup"].indexOf(key)>=0) return S.pv[key];
@@ -1833,6 +1933,7 @@ function paintForm(){
   paintCompa();
   paintAmorti();
   paintIrve();
+  paintClim();
   refreshHeader();
 }
 
@@ -1943,12 +2044,13 @@ function chargerFicheSociete(){
 }
 
 /* ---------- onglets ---------- */
-var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["irve","IRVE"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]];
+var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]];
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
   pieces:'<path d="M3.5 4.5h17v15h-17z"/><path d="M11 4.5v6M11 14v5.5M3.5 10.5H11M15 19.5v-5h5.5"/><path d="M7 19.5v-2.2"/>',
   irve:'<path d="M5 20V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v14"/><path d="M4 20h11"/><path d="M9.8 8.2 8 11.4h2.6L9 14.6"/><path d="M14 10h2.6A1.4 1.4 0 0 1 18 11.4V16a1.5 1.5 0 0 0 3 0v-4.5"/>',
+  clim:'<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.5 3.8 12 6.2l2.5-2.4M9.5 20.2 12 17.8l2.5 2.4M3.6 10.4l3.3-.9-.9-3.3M20.4 13.6l-3.3.9.9 3.3M3.6 13.6l3.3.9-.9 3.3M20.4 10.4l-3.3-.9.9-3.3"/>',
   pv:'<circle cx="17.5" cy="6.5" r="2.6"/><path d="M17.5 1.9v1M17.5 11.1v1M12.9 6.5h1M21.1 6.5h1M14.2 3.2l.7.7M20.1 9.1l.7.7M20.8 3.2l-.7.7M14.9 9.1l-.7.7"/><path d="M3 20.5 5.2 12h8.6l2.2 8.5z"/><path d="M2.6 17.5h14.2M9.5 12v8.5"/>',
   logistique:'<path d="M2.5 7.5h11.5v9H2.5z"/><path d="M14 10.5h3.7l3.3 3.2v2.8H14z"/><circle cx="6.3" cy="18.3" r="1.8"/><circle cx="17.4" cy="18.3" r="1.8"/>',
   conclusion:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.8 14.2l2 2 4.2-4.4"/>',
@@ -3587,7 +3689,9 @@ function irveRendu(){
     toast("Emplacement ajouté au relevé.");
   });
 })();
+var CHAMPS_IRVE=[["i_puissance","puissance"],["i_longueur","longueur"],["i_nbBadges","nbBadges"],["i_note","note"]];
 function paintIrve(){
+  CHAMPS_IRVE.forEach(function(f){ var el=$(f[0]); if(el && document.activeElement!==el) el.value=S.pv.irve[f[1]]||""; });
   var d=$("irveDetail");
   d.hidden = false;                 /* l'onglet entier est déjà commandé par l'interrupteur */
   $("badgeNbWrap").hidden = (S.pv.irve.badge!=="Oui");
@@ -3620,6 +3724,176 @@ function paintIrve(){
     meta.appendChild(sup);
     card.appendChild(meta);
     box.appendChild(card);
+  });
+}
+
+/* ================= climatisation =================
+   Comme la borne : une photo de la façade, le groupe extérieur posé dessus
+   à l'échelle (la largeur du mur donne les mètres) ; une photo du mur de la
+   pièce, l'unité murale de même. Glisser pour placer, Taille − / + pour
+   ajuster, « Sur support » pour un groupe sur console murale. */
+var CLM = {img:null, genre:"ext", x:0.5, y:0.7, taille:1, support:false, editIndex:null};
+var CHAMPS_CLIM=[["t_puissance","puissance"],["t_nbInt","nbInt"],["t_liaison","liaison"],["t_cable","cable"],["t_cableLiaison","cableLiaison"],
+  ["t_condensats","condensats"],["t_nbPompes","nbPompes"],["t_lgGoulotte","lgGoulotte"],["t_percements","percements"],["t_note","note"]];
+function climPuissance(){ var p=parseFloat(String(CL().puissance||"").replace(",", ".")); return isFinite(p) ? p : 0; }
+/* les tailles habituelles, en mètres : un groupe de 2,5 à 3,5 kW fait 80 × 55 cm, un multisplit 95 × 70, au-delà de 10 kW deux ventilateurs */
+function climDims(){
+  var cv=$("clim_canvas"), mur=parseFloat(String($("clim_W").value).replace(",", "."))||4, pxm=cv.width/mur, p=climPuissance(), w, h;
+  if(CLM.genre==="ext"){
+    if(p>10){ w=0.95; h=1.35; } else if(p>5 || CL().type==="Multisplit"){ w=0.95; h=0.70; } else { w=0.80; h=0.55; }
+  } else { if(p>4.5){ w=1.00; h=0.32; } else { w=0.82; h=0.29; } }
+  w*=CLM.taille; h*=CLM.taille;
+  return {pxm:pxm, w:w*pxm, h:h*pxm, wm:w, hm:h, deux:CLM.genre==="ext" && p>10};
+}
+function dessinerGroupeExt(ctx, d, x, ySol){
+  var w=d.w, h=d.h, yH=ySol-h, r=w*0.025;
+  ctx.save();
+  /* le support : deux consoles d'acier sous le groupe, ou deux plots au sol */
+  if(CLM.support){
+    ctx.fillStyle="#3A3F45";
+    [-0.36, 0.36].forEach(function(k){
+      var cx=x+k*w;
+      ctx.beginPath(); ctx.moveTo(cx-w*0.03, ySol); ctx.lineTo(cx+w*0.03, ySol); ctx.lineTo(cx+w*0.03, ySol+h*0.42); ctx.lineTo(cx-w*0.03, ySol+h*0.10); ctx.closePath(); ctx.fill();
+    });
+    ctx.fillRect(x-w*0.46, ySol, w*0.92, Math.max(2, h*0.035));
+  } else {
+    ctx.fillStyle="rgba(0,0,0,.30)"; ctx.beginPath(); ctx.ellipse(x, ySol+h*0.07, w*0.55, h*0.06, 0, 0, Math.PI*2); ctx.fill();
+    ctx.fillStyle="#2A2E33"; [-0.36, 0.36].forEach(function(k){ ctx.fillRect(x+k*w-w*0.06, ySol, w*0.12, h*0.07); });
+  }
+  /* le caisson, gris très clair, son ombre sur le mur */
+  ctx.shadowColor="rgba(0,0,0,.45)"; ctx.shadowBlur=w*0.06; ctx.shadowOffsetX=w*0.015; ctx.shadowOffsetY=w*0.02;
+  var g=ctx.createLinearGradient(x-w/2, yH, x+w/2, ySol);
+  g.addColorStop(0, "#F4F5F6"); g.addColorStop(0.6, "#E4E7EA"); g.addColorStop(1, "#C9CED3");
+  ctx.fillStyle=g; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x-w/2, yH, w, h, r); else ctx.rect(x-w/2, yH, w, h); ctx.fill();
+  ctx.shadowColor="transparent";
+  ctx.strokeStyle="rgba(60,68,76,.45)"; ctx.lineWidth=Math.max(1, w*0.004); ctx.stroke();
+  /* le ou les ventilateurs : la grille ronde, à gauche */
+  var nv=d.deux ? 2 : 1;
+  for(var i=0;i<nv;i++){
+    var rr=Math.min(w*0.30, (h/nv)*0.40), cx=x-w*0.12, cy=yH+(h/nv)*(i+0.5);
+    ctx.fillStyle="#2B3036"; ctx.beginPath(); ctx.arc(cx, cy, rr, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(230,234,238,.75)"; ctx.lineWidth=Math.max(0.8, rr*0.025);
+    for(var c=1;c<=4;c++){ ctx.beginPath(); ctx.arc(cx, cy, rr*c/4.2, 0, Math.PI*2); ctx.stroke(); }
+    for(var a=0;a<8;a++){ var an=a/8*Math.PI*2; ctx.beginPath(); ctx.moveTo(cx+Math.cos(an)*rr*0.12, cy+Math.sin(an)*rr*0.12); ctx.lineTo(cx+Math.cos(an)*rr*0.95, cy+Math.sin(an)*rr*0.95); ctx.stroke(); }
+    ctx.fillStyle="#D7DBDF"; ctx.beginPath(); ctx.arc(cx, cy, rr*0.12, 0, Math.PI*2); ctx.fill();
+  }
+  /* à droite : les ouïes, et le capot des vannes en bas */
+  ctx.fillStyle="rgba(80,88,96,.35)";
+  for(var k=0;k<7;k++) ctx.fillRect(x+w*0.25, yH+h*(0.12+k*0.07), w*0.19, Math.max(1, h*0.018));
+  ctx.fillStyle="#D5D9DD"; ctx.fillRect(x+w*0.25, ySol-h*0.24, w*0.19, h*0.18);
+  ctx.strokeStyle="rgba(60,68,76,.4)"; ctx.strokeRect(x+w*0.25, ySol-h*0.24, w*0.19, h*0.18);
+  etiquetteClim(ctx, x, ySol + (CLM.support ? h*0.48 : h*0.12), w);
+  ctx.restore();
+}
+function dessinerUniteMurale(ctx, d, x, yBas){
+  var w=d.w, h=d.h, yH=yBas-h, r=h*0.28;
+  ctx.save();
+  ctx.shadowColor="rgba(0,0,0,.35)"; ctx.shadowBlur=h*0.35; ctx.shadowOffsetY=h*0.12;
+  var g=ctx.createLinearGradient(0, yH, 0, yBas);
+  g.addColorStop(0, "#FFFFFF"); g.addColorStop(0.65, "#F1F3F5"); g.addColorStop(1, "#D9DDE1");
+  ctx.fillStyle=g; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x-w/2, yH, w, h, [r*0.5, r*0.5, r, r]); else ctx.rect(x-w/2, yH, w, h); ctx.fill();
+  ctx.shadowColor="transparent";
+  ctx.strokeStyle="rgba(70,78,86,.40)"; ctx.lineWidth=Math.max(1, w*0.003); ctx.stroke();
+  /* la face avant, le volet de soufflage en bas, l'afficheur à droite */
+  ctx.strokeStyle="rgba(70,78,86,.30)";
+  ctx.beginPath(); ctx.moveTo(x-w*0.47, yH+h*0.62); ctx.lineTo(x+w*0.47, yH+h*0.62); ctx.stroke();
+  ctx.fillStyle="#3A4148"; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x-w*0.44, yH+h*0.74, w*0.88, h*0.11, h*0.05); else ctx.rect(x-w*0.44, yH+h*0.74, w*0.88, h*0.11); ctx.fill();
+  ctx.fillStyle="#2EA3F2"; ctx.beginPath(); ctx.arc(x+w*0.36, yH+h*0.42, Math.max(1.5, h*0.035), 0, Math.PI*2); ctx.fill();
+  etiquetteClim(ctx, x, yBas + h*0.25, w);
+  ctx.restore();
+}
+function etiquetteClim(ctx, x, y, w){
+  var pu=climPuissance(); if(!pu) return;
+  var txt=String(pu).replace(".", ",")+" kW", t=Math.max(9, Math.min(w*0.09, 30));
+  ctx.font="600 "+t+"px -apple-system, Segoe UI, sans-serif";
+  var lw=ctx.measureText(txt).width, ph=t*1.6;
+  ctx.fillStyle="rgba(14,18,24,.78)"; ctx.beginPath(); if(ctx.roundRect) ctx.roundRect(x-lw/2-t*0.5, y, lw+t, ph, ph/2); else ctx.rect(x-lw/2-t*0.5, y, lw+t, ph); ctx.fill();
+  ctx.fillStyle="#fff"; ctx.textBaseline="middle"; ctx.fillText(txt, x-lw/2, y+ph/2);
+}
+function climDessiner(ctx, w, h){
+  var d=climDims();
+  if(CLM.genre==="ext") dessinerGroupeExt(ctx, d, CLM.x*w, CLM.y*h); else dessinerUniteMurale(ctx, d, CLM.x*w, CLM.y*h);
+  return d;
+}
+function climOuvrir(ph, genre, index, etat){
+  var img=new Image();
+  img.onload=function(){
+    var cv=$("clim_canvas"); cv.width=ph.w; cv.height=ph.h;
+    CLM.img=img; CLM.base=ph; CLM.genre=genre; CLM.editIndex=(index==null ? null : index);
+    CLM.x = etat && etat.x!=null ? etat.x : 0.5;
+    CLM.y = etat && etat.y!=null ? etat.y : (genre==="ext" ? 0.75 : 0.35);
+    CLM.taille = etat && etat.taille ? etat.taille : 1;
+    CLM.support = etat ? !!etat.support : CL().poseExt==="Support mural";
+    $("clim_support").hidden = genre!=="ext";
+    $("clim_support").classList.toggle("on", CLM.support);
+    $("clim").hidden=false; climPaint();
+  };
+  img.src=ph.data;
+}
+function climPaint(){
+  var cv=$("clim_canvas"), ctx=cv.getContext("2d");
+  ctx.drawImage(CLM.img, 0, 0, cv.width, cv.height);
+  var d=climDessiner(ctx, cv.width, cv.height);
+  /* le repère de déplacement */
+  ctx.strokeStyle="rgba(80,150,255,.9)"; ctx.setLineDash([6,5]); ctx.lineWidth=Math.max(1.5, cv.width/500);
+  ctx.strokeRect(CLM.x*cv.width-d.w/2-4, CLM.y*cv.height-d.h-4, d.w+8, d.h+8); ctx.setLineDash([]);
+  $("clim_title").textContent=(CLM.genre==="ext" ? "Groupe extérieur" + (CLM.support ? " sur support" : "") : "Unité murale")
+    + ", " + Math.round(d.wm*100) + " × " + Math.round(d.hm*100) + " cm";
+}
+function climRendu(){
+  var cv=$("clim_canvas"), out=document.createElement("canvas"); out.width=cv.width; out.height=cv.height;
+  var ctx=out.getContext("2d"); ctx.drawImage(CLM.img, 0, 0, out.width, out.height); climDessiner(ctx, out.width, out.height);
+  return out;
+}
+(function climBind(){
+  var cv=$("clim_canvas"), drag=false;
+  function pos(e){ var r=cv.getBoundingClientRect(); return [(e.clientX-r.left)/r.width, (e.clientY-r.top)/r.height]; }
+  cv.addEventListener("pointerdown", function(e){ drag=true; try{ cv.setPointerCapture(e.pointerId); }catch(er){} var p=pos(e); CLM.x=p[0]; CLM.y=p[1]; climPaint(); });
+  cv.addEventListener("pointermove", function(e){ if(!drag) return; var p=pos(e); CLM.x=Math.max(0, Math.min(1, p[0])); CLM.y=Math.max(0, Math.min(1, p[1])); climPaint(); });
+  ["pointerup","pointercancel"].forEach(function(ev){ cv.addEventListener(ev, function(){ drag=false; }); });
+  $("clim_plus").addEventListener("click", function(){ CLM.taille=Math.min(3, CLM.taille*1.1); climPaint(); });
+  $("clim_moins").addEventListener("click", function(){ CLM.taille=Math.max(0.3, CLM.taille/1.1); climPaint(); });
+  $("clim_support").addEventListener("click", function(){ CLM.support=!CLM.support; $("clim_support").classList.toggle("on", CLM.support); climPaint(); });
+  $("clim_W").addEventListener("change", climPaint);
+  $("clim_cancel").addEventListener("click", function(){ $("clim").hidden=true; });
+  $("clim_save").addEventListener("click", function(){
+    var out=climRendu();
+    var it={genre:CLM.genre, data:out.toDataURL("image/jpeg", 0.82), w:out.width, h:out.height, support:CLM.support,
+      legende: CLM.genre==="ext" ? "Emplacement du groupe extérieur" : "Emplacement de l'unité murale",
+      base:CLM.base, x:CLM.x, y:CLM.y, taille:CLM.taille, mur:parseFloat(String($("clim_W").value).replace(",", "."))||4};
+    if(CLM.editIndex===null) CL().photos.push(it); else CL().photos[CLM.editIndex]=it;
+    $("clim").hidden=true; save(); paintClim();
+    toast(CLM.genre==="ext" ? "Groupe extérieur ajouté au relevé." : "Unité murale ajoutée au relevé.");
+  });
+  var genreFichier="ext";
+  $("btnClimExt").addEventListener("click", function(){ genreFichier="ext"; $("clim_file").click(); });
+  $("btnClimInt").addEventListener("click", function(){ genreFichier="int"; $("clim_file").click(); });
+  $("clim_file").addEventListener("change", function(){
+    var f=this.files[0]; this.value=""; if(!f) return;
+    compress(f, function(ph){ if(!ph){ toast("Photo illisible."); return; } $("clim_W").value = genreFichier==="ext" ? 4 : 3.5; climOuvrir(ph, genreFichier, null); });
+  });
+  CHAMPS_CLIM.forEach(function(c){ $(c[0]).addEventListener("input", function(){ CL()[c[1]]=this.value; save(); if(c[0]==="t_puissance") paintClim(); }); });
+})();
+function paintClim(){
+  var C=CL();
+  CHAMPS_CLIM.forEach(function(c){ var el=$(c[0]); if(el && document.activeElement!==el) el.value=C[c[1]]||""; });
+  $("climPompeNbWrap").hidden = C.pompe!=="Oui";
+  $("climGoulotteWrap").hidden = C.goulotte!=="Oui";
+  var box=$("climList"); box.textContent="";
+  C.photos.forEach(function(it, idx){
+    var card=document.createElement("div"); card.className="simcard";
+    var im=document.createElement("img"); im.src=it.data; im.alt=it.legende||"Climatisation"; card.appendChild(im);
+    var meta=document.createElement("div"); meta.className="meta";
+    var b=document.createElement("b"); b.textContent = it.genre==="ext" ? "Groupe extérieur"+(it.support ? " sur support" : "") : "Unité murale"; meta.appendChild(b);
+    if(it.base){
+      var maj=document.createElement("button"); maj.className="act ghost"; maj.type="button"; maj.textContent="Replacer"; maj.style.marginLeft="auto";
+      maj.addEventListener("click", function(){ $("clim_W").value=it.mur||4; climOuvrir(it.base, it.genre, idx, {x:it.x, y:it.y, taille:it.taille, support:it.support}); });
+      meta.appendChild(maj);
+    }
+    var sup=document.createElement("button"); sup.className="act danger"; sup.type="button"; sup.textContent="Retirer";
+    if(!it.base) sup.style.marginLeft="auto";
+    sup.addEventListener("click", function(){ C.photos.splice(idx, 1); save(); paintClim(); });
+    meta.appendChild(sup); card.appendChild(meta); box.appendChild(card);
   });
 }
 
@@ -3792,20 +4066,24 @@ function bascule(idBouton, idCorps, lire, ecrire){
     ecrire(lire() ? "non" : "oui");
     save(); peindre();
     if(typeof paintIrve === "function") paintIrve();
+    if(typeof paintClim === "function") paintClim();
   });
   peindre();
   return peindre;
 }
-var peindreIrve=null, peindrePv=null;
+var peindreIrve=null, peindrePv=null, peindreClim=null;
 function initBascules(){
   peindreIrve = bascule("swIrve", "irveCorps",
     function(){ return S.pv.irve.actif === "oui"; },
     function(v){ S.pv.irve.actif = v; });
+  peindreClim = bascule("swClim", "climCorps",
+    function(){ return CL().actif === "oui"; },
+    function(v){ CL().actif = v; });
   peindrePv = bascule("swPv", "pvCorps",
     function(){ return S.pv.actif === "oui"; },
     function(v){ S.pv.actif = v; });
 }
-function rafraichirBascules(){ if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); }
+function rafraichirBascules(){ if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); }
 
 /* ---------- dimensionnement conseillé ---------- */
 var PRODUCTIBLE_DEFAUT = 1150;      /* kWh par kWc et par an, Vendée, sud 30° */
@@ -4223,7 +4501,7 @@ $("irve_file").addEventListener("change", function(){
     irveOuvrir(ph, null);
   });
 });
-[["i_puissance","puissance"],["i_longueur","longueur"],["i_nbBadges","nbBadges"],["i_note","note"]].forEach(function(f){
+CHAMPS_IRVE.forEach(function(f){
   $(f[0]).addEventListener("input", function(){ S.pv.irve[f[1]]=$(f[0]).value; save(); });
 });
 
@@ -4323,7 +4601,7 @@ function buildPdf(){
   var y=M, page=1;
   var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206];
   var ACC=[180,98,26], ACC_BG=[251,237,224];
-  var SOL=[138,90,20], SOL_BG=[250,239,222];
+  var SOL=[138,90,20], SOL_BG=[250,239,222], FROID=[30,96,170], FROID_BG=[228,238,250];
   var GREEN=[94,110,66], AMBER=[232,163,61];
   var theme = ACC, themeBg = ACC_BG;
 
@@ -4385,7 +4663,7 @@ function buildPdf(){
 
   /* ---------- blocs de contenu ---------- */
   function h2(t, est, couleur){
-    theme = couleur || ACC; themeBg = (couleur===SOL) ? SOL_BG : ACC_BG;
+    theme = couleur || ACC; themeBg = (couleur===SOL) ? SOL_BG : (couleur===FROID) ? FROID_BG : ACC_BG;
     if(est && (y + est > PH-22) && y > 45) newPage();
     need(34); y+=4;
     setFill(themeBg); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
@@ -4847,6 +5125,35 @@ function buildPdf(){
     });
   }
 
+  /* ---------- climatisation ---------- */
+  var CC=CL();
+  if(CC.actif==="oui" && rempli(CC.type, CC.puissance, CC.nbInt, CC.alim, CC.liaison, CC.cable, CC.cableLiaison, CC.condensats, CC.pompe, CC.poseExt, CC.goulotte, CC.percements, CC.note, CC.photos)){
+    h2("Climatisation", 60 + CC.photos.length*110, FROID);
+    kv("Type d'installation", CC.type);
+    kv("Puissance du groupe", CC.puissance ? String(CC.puissance).replace(".", ",")+" kW" : "");
+    kv("Unités intérieures", CC.nbInt);
+    kv("Alimentation", CC.alim);
+    var ml=function(v){ return v ? String(v).replace(".", ",")+" ml" : ""; };
+    kv("Liaison frigorifique", ml(CC.liaison));
+    kv("Câble d'alimentation", ml(CC.cable));
+    kv("Câble de liaison int./ext.", ml(CC.cableLiaison));
+    kv("Évacuation des condensats", ml(CC.condensats));
+    kv("Pompe de relevage", CC.pompe==="Oui" ? "Oui"+(CC.nbPompes ? ", "+CC.nbPompes+" pompe"+(Number(CC.nbPompes)>1 ? "s" : "") : "") : CC.pompe);
+    kv("Pose du groupe extérieur", CC.poseExt);
+    kv("Goulotte", CC.goulotte==="Oui" ? "Oui"+(CC.lgGoulotte ? ", "+ml(CC.lgGoulotte) : "") : CC.goulotte);
+    kv("Percements de mur", CC.percements);
+    para(CC.note);
+    CC.photos.forEach(function(it){
+      var hi=Math.min(105, CW*(it.h/it.w)), wi=hi*(it.w/it.h);
+      need(hi+12);
+      var xi=M+(CW-wi)/2;
+      try{ doc.addImage(it.data, "JPEG", xi, y, wi, hi); }catch(e){}
+      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+      doc.text(it.genre==="ext" ? "Emplacement du groupe extérieur"+(it.support ? ", sur support" : "") : "Emplacement de l'unité murale", xi, y+hi+4);
+      setText(INK); y += hi + 9;
+    });
+  }
+
   /* ---------- logistique ---------- */
   var G=S.logistique;
   if(rempli(G.occupe, G.occupNote, G.accessibilite, G.code, G.acces, G.etage, G.toiture, G.stationnement, G.contraintes)){
@@ -4975,6 +5282,9 @@ function toutesLesPhotos(){
   if(S.pv && S.pv.soleil) out.push({data:S.pv.soleil.data, legende:"course du soleil", section:"Toiture"});
   ((S.pv&&S.pv.irve&&S.pv.irve.photos)||[]).forEach(function(it){
     out.push({data:it.data, legende:"emplacement borne", section:"IRVE"});
+  });
+  ((S.clim&&S.clim.photos)||[]).forEach(function(it){
+    out.push({data:it.data, legende:it.genre==="ext" ? "groupe exterieur" : "unite murale", section:"Climatisation"});
   });
   return out;
 }
