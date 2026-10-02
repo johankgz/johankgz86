@@ -1478,7 +1478,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script src="./une-page.js?v=20260930a"></script>
-<script src="./visionneuse.js?v=20260929a"></script>
+<script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -5184,9 +5184,16 @@ function buildPdf(){
 
   /* ---------- pièces ---------- */
   if(S.pieces.length){
-    h2("Relevé par pièce", 45);
+    /* le titre d'une pièce ne reste jamais seul en bas de page : il part avec ses notes ou sa première photo */
+    var debutPiece=function(p){
+      var cwp=(CW-6)/2, ph=(p.photos||[])[0], h=0;
+      if((p.notes||"").trim()) h=Math.min(40, 8+5*doc.splitTextToSize(String(p.notes), CW-4).length);
+      else if(ph) h = ph.croquis ? Math.min(150, CW*(ph.h/ph.w))+10 : Math.min(78, cwp*(ph.h/ph.w))+10;
+      return 12.5 + h;
+    };
+    h2("Relevé par pièce", 15 + (S.pieces.length ? debutPiece(S.pieces[0]) : 0));
     S.pieces.forEach(function(p,idx){
-      need(26);
+      need(Math.max(26, debutPiece(p)));
       setFill(ACC); doc.roundedRect(M, y, CW, 9, 0.8, 0.8, "F");
       doc.setFillColor(255,255,255);
       doc.roundedRect(M+3, y+2, 8, 5, 0.8, 0.8, "F");
@@ -6533,6 +6540,14 @@ function habillerBarres(){
 
 /* ---------- publication : dans le dossier ou à une personne ---------- */
 var PUB_MODE = "dossier";
+/* PUB_AUTO : le mode « à une personne » a été choisi par la fiche, pas par vous (pas encore de référence).
+   Dès qu'une référence se tape, l'équipe du dossier est relue et la publication revient au dossier. */
+var PUB_AUTO = false;
+document.addEventListener("input", function(){
+  if(!PUB_AUTO) return;
+  clearTimeout(window.__pubAutoT);
+  window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
+}, true);
 function equipeDuDossier(){
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
@@ -6543,6 +6558,8 @@ function equipeDuDossier(){
     basculePub("cible", true);
     return;
   }
+  /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
+  if(PUB_AUTO) basculePub("dossier");
   if(!apiPret || !apiPret(true)) { el.textContent = "visible par l'équipe du chantier"; return; }
   fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -6556,6 +6573,7 @@ function equipeDuDossier(){
 }
 function basculePub(mode, force){
   PUB_MODE = mode;
+  PUB_AUTO = !!force;
   var choix=document.getElementById("choixPublication");
   if(choix){
     Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){

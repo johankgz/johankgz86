@@ -974,7 +974,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script src="./une-page.js?v=20260930a"></script>
-<script src="./visionneuse.js?v=20260929a"></script>
+<script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1165,6 +1165,16 @@ function compress(file, cb){
 
 var $ = function(id){ return document.getElementById(id); };
 var toastT;
+/* un téléphone écrit avec des points dans les PDF : 06.12.34.56.78, +33 6.12.34.56.78 (sinon tel qu'il a été tapé) */
+function telPoints(t){
+  var s=String(t||"").trim(); if(!s) return "";
+  var c=s.replace(/[\s.\-\/()]/g, "");
+  function pts(d){ return d.replace(/(\d{2})(?=\d)/g, "$1."); }
+  if(/^0\d{9}$/.test(c)) return pts(c);
+  var m=c.match(/^(?:\+|00)33(?:0)?(\d{9})$/);
+  if(m) return "+33 "+m[1].charAt(0)+"."+pts(m[1].slice(1));
+  return s;
+}
 function toast(msg){
   var t=$("toast"); t.textContent=msg; t.hidden=false;
   clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 2600);
@@ -2151,7 +2161,7 @@ function buildPdf(){
       doc.text(soc, PW-M, 13.5, {align:"right"});
       doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
       var ly=18;
-      [(P&&P.socTel), (P&&P.socWeb), (P&&P.socAdr)].forEach(function(t){
+      [telPoints(P&&P.socTel), (P&&P.socWeb), (P&&P.socAdr)].forEach(function(t){
         if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; }
       });
     }
@@ -2273,7 +2283,7 @@ function buildPdf(){
       doc.text(soc, PW-M, 13.5, {align:"right"});
       doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
       var ly=18;
-      [(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){ if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; } });
+      [telPoints(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){ if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; } });
     }
     setFill(LIGHT); doc.rect(M,31,CW,0.4,"F");
     setText(INK); y=39;
@@ -2312,7 +2322,7 @@ function buildPdf(){
   h2("Client et intervention", 60);
   kv("Client", S.chantier.client);
   kv("Adresse", (S.chantier.adresse||"").replace(/\n/g,", "));
-  kv("Téléphone", S.chantier.tel);
+  kv("Téléphone", telPoints(S.chantier.tel));
   kv("Personne rencontrée", S.chantier.contact);
   kv("Référence travaux", S.chantier.ref);
   kv("Arrivée et départ", [S.inter.arr, S.inter.dep].filter(Boolean).join(" - "));
@@ -3657,6 +3667,14 @@ function habillerBarres(){
 
 /* ---------- publication : dans le dossier ou à une personne ---------- */
 var PUB_MODE = "dossier";
+/* PUB_AUTO : le mode « à une personne » a été choisi par la fiche, pas par vous (pas encore de référence).
+   Dès qu'une référence se tape, l'équipe du dossier est relue et la publication revient au dossier. */
+var PUB_AUTO = false;
+document.addEventListener("input", function(){
+  if(!PUB_AUTO) return;
+  clearTimeout(window.__pubAutoT);
+  window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
+}, true);
 function equipeDuDossier(){
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
@@ -3667,6 +3685,8 @@ function equipeDuDossier(){
     basculePub("cible", true);
     return;
   }
+  /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
+  if(PUB_AUTO) basculePub("dossier");
   if(!apiPret || !apiPret(true)) { el.textContent = "visible par l'équipe du chantier"; return; }
   fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -3680,6 +3700,7 @@ function equipeDuDossier(){
 }
 function basculePub(mode, force){
   PUB_MODE = mode;
+  PUB_AUTO = !!force;
   var choix=document.getElementById("choixPublication");
   if(choix){
     Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){

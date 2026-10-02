@@ -725,7 +725,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script src="./une-page.js?v=20260930a"></script>
-<script src="./visionneuse.js?v=20260929a"></script>
+<script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -872,6 +872,16 @@ function memoirePleine(plein, detail){
 
 var $ = function(id){ return document.getElementById(id); };
 var toastT;
+/* un téléphone écrit avec des points dans les PDF : 06.12.34.56.78, +33 6.12.34.56.78 (sinon tel qu'il a été tapé) */
+function telPoints(t){
+  var s=String(t||"").trim(); if(!s) return "";
+  var c=s.replace(/[\s.\-\/()]/g, "");
+  function pts(d){ return d.replace(/(\d{2})(?=\d)/g, "$1."); }
+  if(/^0\d{9}$/.test(c)) return pts(c);
+  var m=c.match(/^(?:\+|00)33(?:0)?(\d{9})$/);
+  if(m) return "+33 "+m[1].charAt(0)+"."+pts(m[1].slice(1));
+  return s;
+}
 function toast(msg){
   var t=$("toast"); t.textContent=msg; t.hidden=false;
   clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 2600);
@@ -1633,7 +1643,7 @@ function buildPdf(){
       doc.text(soc, PW-M, 13.5, {align:"right"});
       doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
       var ly=18;
-      [(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){
+      [telPoints(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){
         if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; }
       });
     }
