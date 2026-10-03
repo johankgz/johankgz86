@@ -391,6 +391,20 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .nt-etat.off .pt{background:var(--accent)}
 .nt-aide{margin:0 0 12px;padding:0 0 0 20px;font-size:14px;line-height:1.6;color:var(--ink-2)}
 .nt-prefs{margin:14px 0 4px;border-top:1px solid var(--rule)}
+.rv-grille{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;margin-top:10px}
+.rv-grille select,#rdv select{width:100%;min-height:46px;padding:10px 12px;border:1px solid var(--rule);border-radius:var(--r-field,10px);background:var(--field);color:var(--ink);font:inherit}
+.rv-aide{margin:-6px 0 10px;font-size:13.5px;color:var(--ink-2)}
+.rv-aide summary{cursor:pointer;color:var(--accent);font-weight:600}
+.rv-aide ol{margin:8px 0 0;padding-left:20px}
+.rv-url{font-size:12.5px;color:var(--ink-3);word-break:break-all;margin:0 0 6px}
+.rv-btns{display:flex;gap:8px;flex-wrap:wrap}
+.rv-btns .act{width:auto;flex:1 1 auto}
+.rv-rdv{display:flex;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--rule);font-size:14px}
+.rv-rdv:first-child{border-top:0}
+.rv-rdv span{flex:1;min-width:0}
+.rv-rdv small{display:block;color:var(--ink-3)}
+.rv-rdv.annule span{text-decoration:line-through;opacity:.6}
+.rv-rdv .act{width:auto;flex:0 0 auto;min-height:38px;padding:7px 12px}
 .nt-prefs label.bascule{display:flex;align-items:center;gap:12px;margin:0;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer}
 .nt-prefs label.bascule span{flex:1;margin:0;font-size:15px;color:var(--ink)}
 .nt-prefs label.bascule small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
@@ -451,6 +465,57 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
     <label><span>Téléphone</span><input type="tel" id="tel" autocomplete="tel" inputmode="tel"></label>
     <button class="p" id="enrCoord">Enregistrer</button>
     <p class="err" id="errCoord"></p>
+  </div>
+
+  <div class="block" id="rdv">
+    <h2>Rendez-vous en ligne</h2>
+    <p class="legend">Vos clients prennent rendez-vous eux-mêmes sur les créneaux libres de votre agenda Outlook. Le rendez-vous vous arrive par e-mail, avec l'invitation à ouvrir dans Outlook, et s'inscrit au calendrier du site.</p>
+    <div class="nt-prefs" style="margin-top:0">
+      <label class="bascule"><span>Ouvrir ma prise de rendez-vous<small>Le lien ci-dessous, et le bouton « Prendre rendez-vous » sur la page de vos clients</small></span>
+        <input type="checkbox" id="rv_actif" role="switch"></label>
+    </div>
+    <label style="margin-top:14px"><span>Lien de mon agenda Outlook (ICS)</span>
+      <input type="url" id="rv_ics" placeholder="https://outlook.office365.com/owa/calendar/…/calendar.ics" autocapitalize="none" spellcheck="false"></label>
+    <details class="rv-aide"><summary>Où trouver ce lien ?</summary>
+      <ol>
+        <li>Ouvrez Outlook sur le web (outlook.office.com ou outlook.live.com) sur un ordinateur.</li>
+        <li><b>Paramètres</b> (la roue dentée) → <b>Calendrier</b> → <b>Calendriers partagés</b>.</li>
+        <li>Sous <b>Publier un calendrier</b> : choisissez <b>Calendrier</b>, puis <b>Peut afficher quand je suis occupé</b> (les intitulés restent privés), et <b>Publier</b>.</li>
+        <li>Copiez le lien <b>ICS</b> et collez-le ici, puis touchez <b>Tester</b>.</li>
+      </ol>
+    </details>
+    <button type="button" class="act ghost" id="rv_tester" style="width:auto;margin:4px 0 6px">Tester l'agenda</button>
+    <p class="err" id="rv_testEtat"></p>
+    <p class="legend" style="margin-top:12px">Jours</p>
+    <div class="chips" id="rv_jours"></div>
+    <div class="rv-grille">
+      <label><span>De</span><input type="time" id="rv_debut"></label>
+      <label><span>À</span><input type="time" id="rv_fin"></label>
+      <label><span>Pause de</span><input type="time" id="rv_pauseDebut"></label>
+      <label><span>À</span><input type="time" id="rv_pauseFin"></label>
+      <label><span>Durée d'un rendez-vous</span><select id="rv_duree"><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h</option><option value="90">1 h 30</option><option value="120">2 h</option><option value="180">3 h</option></select></label>
+      <label><span>Marge entre deux</span><select id="rv_marge"><option value="0">Aucune</option><option value="15">15 min</option><option value="30">30 min</option><option value="45">45 min</option><option value="60">1 h (trajet)</option></select></label>
+      <label><span>Au plus tôt</span><select id="rv_delai"><option value="2">dans 2 h</option><option value="4">dans 4 h</option><option value="24">le lendemain</option><option value="48">sous 48 h</option><option value="72">sous 3 jours</option></select></label>
+      <label><span>Jusqu'à</span><select id="rv_horizon"><option value="7">1 semaine</option><option value="14">2 semaines</option><option value="21">3 semaines</option><option value="28">4 semaines</option><option value="42">6 semaines</option><option value="60">2 mois</option></select></label>
+    </div>
+    <label><span>Lieu</span><input type="text" id="rv_lieu" placeholder="Visite sur place, chez le client"></label>
+    <label><span>Message d'accueil (facultatif)</span><input type="text" id="rv_intro" placeholder="Une visite d'une heure pour relever votre installation et préparer le devis."></label>
+    <label><span>Invitations envoyées à</span><input type="email" id="rv_email" autocapitalize="none" spellcheck="false" inputmode="email"></label>
+    <button class="p" id="rv_enr">Enregistrer</button>
+    <p class="err" id="rv_err"></p>
+    <div id="rv_liens" hidden>
+      <p class="legend" style="margin-top:16px">Mon lien de prise de rendez-vous</p>
+      <p class="rv-url" id="rv_lien"></p>
+      <div class="rv-btns"><button type="button" class="act blue" id="rv_copier">Copier</button><button type="button" class="act ghost" id="rv_ouvrir">Voir la page</button><button type="button" class="act ghost" id="rv_qr">QR code</button></div>
+      <canvas id="rv_qrCv" hidden style="display:block;margin:10px auto;border-radius:10px;background:#fff"></canvas>
+      <p class="hint" style="margin-top:6px">À mettre dans votre signature d'e-mail, sur votre site ou vos devis. Vos clients l'ont aussi sur leur page.</p>
+      <p class="legend" style="margin-top:14px">Les rendez-vous du site dans Outlook</p>
+      <p class="hint" style="margin:0 0 6px">Outlook → <b>Ajouter un calendrier</b> → <b>S'abonner à partir du web</b>, collez ce lien : les rendez-vous pris sur le site y apparaissent seuls (Outlook le relit toutes les quelques heures ; l'invitation par e-mail, elle, arrive tout de suite).</p>
+      <p class="rv-url" id="rv_flux"></p>
+      <div class="rv-btns"><button type="button" class="act ghost" id="rv_copierFlux">Copier le lien d'abonnement</button></div>
+      <p class="legend" style="margin-top:16px">Mes prochains rendez-vous</p>
+      <div id="rv_liste"></div>
+    </div>
   </div>
 
   <div class="block" id="blocNotif">
@@ -527,6 +592,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 
 </main>
 <script src="./notifications.js?v=1"></script>
+<script src="./qr.js?v=20261003a"></script>
 <script>
 (function(){
 function $(i){ return document.getElementById(i); }
@@ -590,6 +656,73 @@ $("enrCoord").addEventListener("click", function(){
 ["email","tel"].forEach(function(i){
   $(i).addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("enrCoord").click(); });
 });
+
+
+/* ---------- rendez-vous en ligne ---------- */
+var RV=null;
+function rvPoster(action, corps){
+  return fetch(apiUrl(action), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify(corps||{})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); });
+}
+var JOURS_RV=[[1,"Lun"],[2,"Mar"],[3,"Mer"],[4,"Jeu"],[5,"Ven"],[6,"Sam"],[7,"Dim"]];
+function rvPeindre(d){
+  RV=d; var g=d.reglages||{};
+  $("rv_actif").checked=!!g.actif; $("rv_ics").value=g.ics||""; $("rv_email").value=g.email||S.email||"";
+  ["debut","fin","pauseDebut","pauseFin","lieu","intro"].forEach(function(k){ $("rv_"+k).value=g[k]||""; });
+  ["duree","marge","delai","horizon"].forEach(function(k){ if(g[k]!=null) $("rv_"+k).value=String(g[k]); });
+  var box=$("rv_jours"); box.textContent="";
+  JOURS_RV.forEach(function(j){
+    var l=document.createElement("label"); l.className="chip"+((g.jours||[]).indexOf(j[0])>=0 ? " on" : ""); l.textContent=j[1]; l.dataset.j=j[0];
+    l.addEventListener("click", function(e){ e.preventDefault(); l.classList.toggle("on"); });
+    box.appendChild(l);
+  });
+  $("rv_liens").hidden=!d.lien;
+  if(d.lien){ $("rv_lien").textContent=d.lien; $("rv_flux").textContent=d.flux; }
+  var h=$("rv_liste"); h.textContent="";
+  var l=(d.rendezvous||[]);
+  if(!l.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Aucun rendez-vous à venir."; h.appendChild(v); }
+  l.forEach(function(x){
+    var r=document.createElement("div"); r.className="rv-rdv"+(x.annule?" annule":"");
+    var t=document.createElement("span"); t.textContent=x.texte+" — "+x.nom;
+    var sm=document.createElement("small"); sm.textContent=[x.tel, x.adresse, x.motif, x.annule ? "annulé" : ""].filter(Boolean).join(" · "); t.appendChild(sm);
+    r.appendChild(t);
+    if(!x.annule){
+      var b=document.createElement("button"); b.type="button"; b.className="act danger"; b.textContent="Annuler";
+      b.addEventListener("click", function(){
+        var m=window.prompt("Annuler le rendez-vous de "+x.nom+" ("+x.texte+") ?\n\nUn mot pour le client (facultatif) :", "");
+        if(m===null) return;
+        rvPoster("rdv-annuler-pro", {id:x.id, message:m}).then(function(res){ if(res.ok) rvPeindre(res.d); else window.alert(res.d.erreur||"Refusé."); });
+      });
+      r.appendChild(b);
+    }
+    h.appendChild(r);
+  });
+  if(d.lien && d.envoiMail===false){ $("rv_err").className="err"; $("rv_err").textContent="L'envoi d'e-mails n'est pas branché sur ce serveur : les rendez-vous arrivent au calendrier du site et dans le lien d'abonnement Outlook, mais pas par e-mail."; }
+}
+fetch(apiUrl("rdv-reglages"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if(d) rvPeindre(d); }).catch(function(){});
+$("rv_tester").addEventListener("click", function(){
+  var e=$("rv_testEtat"); e.className="err"; e.textContent="Lecture de l'agenda…";
+  rvPoster("rdv-tester", {ics:$("rv_ics").value.trim()}).then(function(res){
+    if(!res.ok){ e.textContent=res.d.erreur||"Agenda illisible."; return; }
+    e.className="err ok"; e.textContent="Agenda lu : "+res.d.occupes+" moment"+(res.d.occupes>1?"s":"")+" occupé"+(res.d.occupes>1?"s":"")+" dans les 3 semaines à venir"+(res.d.prochain ? ", le prochain "+res.d.prochain : "")+".";
+  }).catch(function(){ e.textContent="Pas de réseau."; });
+});
+$("rv_enr").addEventListener("click", function(){
+  var e=$("rv_err"); e.className="err"; e.textContent="Enregistrement…";
+  var corps={actif:$("rv_actif").checked, ics:$("rv_ics").value.trim(), email:$("rv_email").value.trim(),
+    jours:Array.prototype.map.call(document.querySelectorAll("#rv_jours .chip.on"), function(l){ return +l.dataset.j; })};
+  ["debut","fin","pauseDebut","pauseFin","lieu","intro","duree","marge","delai","horizon"].forEach(function(k){ corps[k]=$("rv_"+k).value; });
+  rvPoster("rdv-reglages-enregistrer", corps).then(function(res){
+    if(!res.ok){ e.textContent=res.d.erreur||"Enregistrement refusé."; return; }
+    rvPeindre(res.d); e.className="err ok"; e.textContent=corps.actif ? "Prise de rendez-vous ouverte." : "Enregistré (prise de rendez-vous fermée).";
+  }).catch(function(){ e.textContent="Pas de réseau : réessayez une fois connecté."; });
+});
+function rvCopier(t){ try{ navigator.clipboard.writeText(t).then(function(){ $("rv_err").className="err ok"; $("rv_err").textContent="Lien copié."; }, function(){ window.prompt("Copiez le lien :", t); }); }catch(e){ window.prompt("Copiez le lien :", t); } }
+$("rv_copier").addEventListener("click", function(){ if(RV && RV.lien) rvCopier(RV.lien); });
+$("rv_copierFlux").addEventListener("click", function(){ if(RV && RV.flux) rvCopier(RV.flux); });
+$("rv_ouvrir").addEventListener("click", function(){ if(RV && RV.lien) window.open(RV.lien, "_blank", "noopener"); });
+$("rv_qr").addEventListener("click", function(){ var c=$("rv_qrCv"); c.hidden=!c.hidden; if(!c.hidden && RV && RV.lien) QR.canvas(c, RV.lien, {taille:200}); });
+if(location.hash==="#rdv") setTimeout(function(){ $("rdv").scrollIntoView({block:"start"}); }, 300);
 
 $("k_valider").addEventListener("click", function(){
   var ancien=$("k_vieux").value, neuf=$("k_neuf").value, neuf2=$("k_neuf2").value, e=$("k_err");

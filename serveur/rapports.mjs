@@ -3,6 +3,7 @@ import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
 function jourParis() { return maintenantParis().slice(0, 10); }
@@ -142,17 +143,19 @@ async function prevenir(entree, chantier, auteur, origine, comptes) {
 
 
 /* envoi simple, pour les messages qui ne concernent pas un rapport */
-async function envoyerMail(destinataire, sujet, texte) {
+async function envoyerMail(destinataire, sujet, texte, o = {}) {
   if (!CLE_RESEND || !destinataire) return false;
   try {
     const r = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { "content-type": "application/json", authorization: "Bearer " + CLE_RESEND },
-      body: JSON.stringify({
+      body: JSON.stringify(Object.assign({
         from: EXPEDITEUR, to: [destinataire], subject: sujet, text: texte,
         html: '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial;font-size:15px;color:#121821">'
           + echappe(texte).replace(/\n/g, "<br>") + "</div>"
-      })
+      }, o.replyTo ? { reply_to: o.replyTo } : {},
+      /* une invitation .ics jointe : un clic l'ajoute à l'agenda (Outlook, Google, iPhone) */
+      o.pj ? { attachments: o.pj.map((x) => ({ filename: x.nom, content: Buffer.from(x.texte).toString("base64"), content_type: x.type || "text/calendar" })) } : {}))
     });
     return r.ok;
   } catch { return false; }
@@ -726,15 +729,78 @@ async function circuitsDe(st, c, tableau) {
     return r.length ? r : null;
   } catch { return null; }
 }
+/* qui prend les rendez-vous de ce dossier : quelqu'un de son équipe, sinon quelqu'un du bureau */
+async function rdvDuDossier(societe, c) {
+  let carte = {}; try { carte = (await magasinAnnuaire().get("rdv-societe/" + societe + ".json", { type: "json" })) || {}; } catch { carte = {}; }
+  const actifs = Object.keys(carte).filter((n) => carte[n] && carte[n].actif);
+  const eq = ((c && c.equipe) || []).find((n) => actifs.some((a) => a === n || memeNom(a, n)));
+  const qui = eq ? actifs.find((a) => a === eq || memeNom(a, eq)) : actifs.find((n) => carte[n].role === "bureau" || carte[n].role === "admin") || actifs[0];
+  return qui ? carte[qui].jeton : "";
+}
 function docVisible(f, lien) {
   if (f.brouillon || f.fiche === "appel") return false;
   return (lien.genre === "tableau" ? DOCS_TABLEAU : DOCS_CLIENT).indexOf(f.type) >= 0;
 }
 
+/* =====================================================================
+   RENDEZ-VOUS EN LIGNE, branchés sur l'agenda Outlook
+   ---------------------------------------------------------------------
+   Chacun peut ouvrir sa prise de rendez-vous (Mon compte) : ses jours et
+   heures, la durée d'un rendez-vous, et le lien ICS de son agenda Outlook
+   publié en « occupé / libre ». Le client voit les créneaux libres (son
+   agenda Outlook et les rendez-vous déjà pris sur le site, ôtés), en
+   choisit un : l'invitation part par e-mail, le rendez-vous entre dans le
+   calendrier du site et dans le flux ICS auquel Outlook est abonné.
+   ===================================================================== */
+const JETON_RDV = /^[A-Za-z0-9_-]{16,40}$/;
+const CACHE_AGENDA = new Map();                  /* lien ICS -> {t, evs} : 5 minutes */
+async function lireAgenda(lienIcs, force) {
+  const u = String(lienIcs || "").trim().replace(/^webcal:\/\//i, "https://");
+  if (!/^https?:\/\//i.test(u)) return { evs: [], erreur: "" };
+  const vu = CACHE_AGENDA.get(u);
+  if (!force && vu && Date.now() - vu.t < 300000) return vu;
+  let r = { t: Date.now(), evs: [], erreur: "" };
+  try {
+    const ctl = new AbortController(), minuterie = setTimeout(() => ctl.abort(), 9000);
+    const rep = await fetch(u, { signal: ctl.signal, headers: { accept: "text/calendar, text/plain, */*" } });
+    clearTimeout(minuterie);
+    if (!rep.ok) throw new Error("L'agenda répond " + rep.status + ".");
+    const txt = await rep.text();
+    if (txt.length > 8 * 1024 * 1024) throw new Error("Agenda trop lourd.");
+    if (!/BEGIN:VCALENDAR/i.test(txt)) throw new Error("Ce lien ne donne pas un agenda ICS.");
+    r.evs = lireIcs(txt);
+  } catch (e) {
+    r.erreur = e && e.name === "AbortError" ? "L'agenda ne répond pas." : (e && e.message) || "Agenda illisible.";
+    if (vu && vu.evs && vu.evs.length) r.evs = vu.evs;          /* l'agenda boude : on garde la dernière lecture */
+  }
+  CACHE_AGENDA.set(u, r);
+  return r;
+}
+async function lireRdv(jeton) {
+  if (!JETON_RDV.test(String(jeton || ""))) return null;
+  try { return await magasinAnnuaire().get("rdv/" + jeton + ".json", { type: "json" }); } catch { return null; }
+}
+async function reservationsDe(st, jeton) {
+  try { return (await st.get("rdv/reservations-" + jeton + ".json", { type: "json" })) || []; } catch { return []; }
+}
+/* les créneaux libres : l'agenda Outlook et les rendez-vous du site ôtés */
+async function creneauxDe(R, st) {
+  const maintenant = Date.now(), fin = maintenant + (Math.min(90, +R.horizon || 21) + 2) * 864e5;
+  const ag = await lireAgenda(R.ics);
+  const occ = occupations(ag.evs || [], maintenant - 864e5, fin);
+  (await reservationsDe(st, R.jeton)).filter((x) => !x.annule).forEach((x) => occ.push({ debut: x.debut, fin: x.fin }));
+  return { jours: creneauxLibres({ maintenant, occupes: occ, reglages: R }), erreur: ag.erreur };
+}
+function texteRdv(t) {
+  const c = champsZone(PARIS, t);
+  const JS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"], MS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+  return JS[c.wd] + " " + c.d + " " + MS[c.m - 1] + " " + c.y + " à " + String(c.h).padStart(2, "0") + " h " + String(c.mi).padStart(2, "0");
+}
+
 const LECTURES = new Set(["push-journal", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
-  "liens", "depots-client", "depot-client", "espaces"]);
+  "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -868,7 +934,8 @@ async function traiter(req) {
         dossier: tableau ? { ref: k.ref || lien.ref } : { ref: k.ref || lien.ref, client: k.client || "", adresse: k.adresse || "",
           avancement: c ? avancementDe(c) : 100, etat: c ? etatDossier(c).etat : "archive" },
         circuits, documents: docs,
-        depots: tableau || !c ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" }))
+        depots: tableau || !c ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" })),
+        rdv: await rdvDuDossier(lien.societe, c)
       });
     }
 
@@ -962,6 +1029,107 @@ async function traiter(req) {
       }, contactPush(url.origin), { comptes }).catch(() => {});
       return json({ ok: true });
     }
+  }
+
+  /* ---------- rendez-vous en ligne : les créneaux, la réservation, l'annulation, le flux ICS ---------- */
+  if (action === "rdv-public" || action === "rdv-reserver" || action === "rdv-annuler" || action === "rdv-ics") {
+    let d = {};
+    if (req.method === "POST") { try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); } }
+    if (action === "rdv-ics") {
+      /* le flux auquel Outlook s'abonne : jeton secret, distinct du lien public */
+      const k = String(url.searchParams.get("k") || "");
+      let ref0 = null; try { ref0 = JETON_RDV.test(k) ? await magasinAnnuaire().get("rdv-flux/" + k + ".json", { type: "json" }) : null; } catch { ref0 = null; }
+      const R0 = ref0 && await lireRdv(ref0.jeton);
+      if (!R0) return new Response("Flux inconnu", { status: 404 });
+      const liste = (await reservationsDe(magasinSociete(R0.societe), R0.jeton)).filter((x) => x.fin > Date.now() - 60 * 864e5);
+      const corps = ecrireIcs(liste.map((x) => ({ uid: x.id + "@suivi-travaux-360", debut: x.debut, fin: x.fin, annule: !!x.annule, sequence: x.annule ? 1 : 0,
+        titre: "RDV " + x.nom + (x.motif ? " — " + x.motif.slice(0, 60) : ""), lieu: x.adresse || R0.lieu || "",
+        description: [x.motif, "Tél. " + (x.tel || "—"), x.email ? "E-mail " + x.email : "", x.ref ? "Dossier " + x.ref : ""].filter(Boolean).join("\n") })),
+        { nom: "Rendez-vous du site — " + R0.nom });
+      return new Response(corps, { headers: { "content-type": "text/calendar; charset=utf-8", "cache-control": "no-store" } });
+    }
+    const jr = String(url.searchParams.get("r") || d.r || "");
+    const R = await lireRdv(jr);
+    if (!R || !R.actif) return json({ erreur: "La prise de rendez-vous en ligne n'est pas ouverte. Appelez directement l'entreprise." }, 404);
+    const st = magasinSociete(R.societe);
+    let fiche = null;
+    try { fiche = await magasinAnnuaire().get("fiches/" + R.societe + ".json", { type: "json" }); } catch { fiche = null; }
+    const soc = (await lireSocietes()).find((x) => x.code === R.societe) || {};
+    const societe = { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", logo: (fiche && fiche.logo) || null };
+    /* ouvert depuis le lien du client : son dossier, son nom, son adresse */
+    let dossier = null;
+    const jl = String(url.searchParams.get("j") || d.j || "");
+    if (jl) {
+      const l = await lireLien(jl);
+      if (l && l.societe === R.societe) {
+        const idx = (await st.get(INDEX, { type: "json" })) || { chantiers: {} };
+        const c = idx.chantiers[l.ref];
+        if (c && (c.liens || []).some((x) => x.jeton === jl)) dossier = l.genre === "client" ? { ref: c.ref, client: c.client || "", adresse: c.adresse || "" } : { ref: c.ref, client: "", adresse: "" };
+      }
+    }
+    if (action === "rdv-public") {
+      const cr = await creneauxDe(R, st);
+      return json({ nom: R.nom, societe, duree: R.duree, lieu: R.lieu || "", intro: R.intro || "", jours: cr.jours, dossier });
+    }
+    const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+    const liste = await reservationsDe(st, R.jeton);
+    if (action === "rdv-annuler") {
+      const x = liste.find((y) => y.id === d.id && y.cle === d.k);
+      if (!x) return json({ erreur: "Rendez-vous introuvable." }, 404);
+      if (x.annule) return json({ ok: true, deja: true, debut: x.debut });
+      x.annule = true; x.annuleLe = new Date().toISOString(); x.annulePar = "le client";
+      await st.setJSON("rdv/reservations-" + R.jeton + ".json", liste);
+      if (x.rappel) { try { await st.delete(x.rappel); } catch { /* déjà parti */ } }
+      const annul = ecrireIcs([{ uid: x.id + "@suivi-travaux-360", debut: x.debut, fin: x.fin, annule: true, sequence: 1, titre: "RDV " + x.nom }], { methode: "CANCEL" });
+      envoyerMail(R.email, "Rendez-vous annulé — " + x.nom + ", " + texteRdv(x.debut),
+        x.nom + " a annulé le rendez-vous du " + texteRdv(x.debut) + ".\nTél. " + (x.tel || "—"), { pj: [{ nom: "annulation.ics", texte: annul }] }).catch(() => {});
+      const comptes = await lireComptes(R.societe);
+      prevenirPush(st, magasinAnnuaire(), [R.nom], "documents", { titre: "Rendez-vous annulé", texte: x.nom + " — " + texteRdv(x.debut), url: "./compte.html#rdv", tag: "rdv-" + x.id },
+        contactPush(url.origin), { comptes }).catch(() => {});
+      return json({ ok: true, debut: x.debut });
+    }
+    /* ----- réserver ----- */
+    if (d.site) return json({ ok: true });                                  /* champ piège */
+    if (!envoiPermis("rdv-" + R.jeton + "-" + (req.headers.get("x-forwarded-for") || ""), 6)) return json({ erreur: "Plusieurs rendez-vous viennent d'être pris d'ici. Appelez l'entreprise." }, 429);
+    const nom = court(d.nom, 80), tel = court(d.tel, 40), email = court(d.email, 120), adresse = court(d.adresse, 200), motif = court(d.motif, 600);
+    if (!nom) return json({ erreur: "Indiquez votre nom." }, 400);
+    if (!tel && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ erreur: "Laissez un téléphone ou un e-mail." }, 400);
+    const date = String(d.date || ""), heure = String(d.heure || "");
+    const cr = await creneauxDe(R, st);
+    const jour = cr.jours.find((j) => j.date === date);
+    if (!jour || jour.creneaux.indexOf(heure) < 0) return json({ erreur: "Ce créneau vient d'être pris. Choisissez-en un autre.", jours: cr.jours }, 409);
+    const [y, m, dd] = date.split("-").map(Number), [hh, mi] = heure.split(":").map(Number);
+    const debut = versUtc(PARIS, y, m, dd, hh, mi), fin = debut + (+R.duree || 60) * 60000;
+    const id = Date.now().toString(36) + randomBytes(4).toString("hex"), cle = randomBytes(12).toString("base64url");
+    const x = { id, cle, debut, fin, nom, tel, email, adresse: adresse || (dossier && dossier.adresse) || "", motif, ref: dossier ? dossier.ref : "",
+      origine: dossier ? "lien client" : "lien public", cree: new Date().toISOString() };
+    /* le rendez-vous entre au calendrier du site, rappelé une heure avant */
+    const avant = champsZone(PARIS, debut - 3600e3), jourR = champsZone(PARIS, debut);
+    const rappel = "taches/cal-" + slug(R.nom) + "-rdv" + id + ".json";
+    await st.setJSON(rappel, { texte: "RDV " + heure.replace(":", " h ") + " — " + nom + (tel ? " (" + tel + ")" : "") + (x.adresse ? " — " + x.adresse : "") + (motif ? " : " + motif.slice(0, 120) : ""),
+      prio: "", qui: R.nom, quand: jourR.y + "-" + String(jourR.m).padStart(2, "0") + "-" + String(jourR.d).padStart(2, "0"),
+      heure: String(avant.h).padStart(2, "0") + ":" + String(avant.mi).padStart(2, "0"), rappel: true, cal: true, rdv: id,
+      auteur: "Prise de rendez-vous", cree: x.cree, faite: false, notifie: "" });
+    x.rappel = rappel;
+    liste.push(x);
+    await st.setJSON("rdv/reservations-" + R.jeton + ".json", liste.filter((r) => r.fin > Date.now() - 400 * 864e5));
+    const ev = { uid: id + "@suivi-travaux-360", debut, fin, titre: "RDV " + nom + (motif ? " — " + motif.slice(0, 60) : ""), lieu: x.adresse || R.lieu || "",
+      description: [motif, "Tél. " + (tel || "—"), email ? "E-mail " + email : "", x.ref ? "Dossier " + x.ref : "", "Pris en ligne le " + new Date().toLocaleString("fr-FR", { timeZone: PARIS })].filter(Boolean).join("\n"),
+      organisateur: R.email ? { nom: R.nom, email: R.email } : null, participants: email ? [{ nom, email }] : [] };
+    const lienAnnul = url.origin + "/rdv.html?r=" + encodeURIComponent(R.jeton) + "&annuler=" + id + "&k=" + cle;
+    envoyerMail(R.email, "Nouveau rendez-vous — " + nom + ", " + texteRdv(debut),
+      "Rendez-vous pris en ligne :\n" + texteRdv(debut) + " (" + (R.duree || 60) + " min)\n" + nom + "\nTél. " + (tel || "—") + (email ? "\nE-mail " + email : "")
+      + (x.adresse ? "\nAdresse : " + x.adresse : "") + (motif ? "\n\n" + motif : "") + (x.ref ? "\n\nDossier " + x.ref : "")
+      + "\n\nOuvrez la pièce jointe pour l'ajouter à votre agenda Outlook.", { pj: [{ nom: "rendez-vous.ics", texte: ecrireIcs([ev], { methode: "REQUEST" }) }], replyTo: email || undefined }).catch(() => {});
+    if (email) envoyerMail(email, "Votre rendez-vous avec " + (societe.nom || R.nom) + " — " + texteRdv(debut),
+      "Bonjour " + nom + ",\n\nVotre rendez-vous est confirmé : " + texteRdv(debut) + " (" + (R.duree || 60) + " min), avec " + R.nom + (societe.nom ? ", " + societe.nom : "") + "."
+      + (x.adresse ? "\nAdresse : " + x.adresse : "") + "\n\nUn empêchement ? Annulez ici : " + lienAnnul + (societe.tel ? "\nOu appelez le " + societe.tel : "")
+      + "\n\nLa pièce jointe l'ajoute à votre agenda.", { pj: [{ nom: "rendez-vous.ics", texte: ecrireIcs([Object.assign({}, ev, { organisateur: null, participants: [] })], { methode: "PUBLISH" }) }], replyTo: R.email || undefined }).catch(() => {});
+    const comptes = await lireComptes(R.societe);
+    prevenirPush(st, magasinAnnuaire(), [R.nom], "documents", { titre: "Nouveau rendez-vous", texte: nom + " — " + texteRdv(debut), url: "./compte.html#rdv", tag: "rdv-" + id },
+      contactPush(url.origin), { comptes }).catch(() => {});
+    return json({ ok: true, debut, fin, texte: texteRdv(debut), annulation: lienAnnul,
+      ics: ecrireIcs([Object.assign({}, ev, { organisateur: null, participants: [] })], { methode: "PUBLISH" }) });
   }
 
   const personne = await identifier(req.headers.get("x-auth") || url.searchParams.get("auth"));
@@ -2332,6 +2500,66 @@ async function traiter(req) {
   }
   function membreDe(c) {
     return (c.equipe || []).indexOf(personne.nom) >= 0 || c.fichiers.some((f) => voit(personne, f, c));
+  }
+
+  /* ---------- ma prise de rendez-vous : réglages, essai de l'agenda, mes rendez-vous ---------- */
+  if (action === "rdv-reglages" || action === "rdv-reglages-enregistrer" || action === "rdv-tester" || action === "rdv-annuler-pro") {
+    const a = magasinAnnuaire(), cleDe = "rdv-de/" + personne.societe + "/" + personne.identifiant + ".json";
+    let ptr = null; try { ptr = await a.get(cleDe, { type: "json" }); } catch { ptr = null; }
+    let R = ptr ? await lireRdv(ptr.jeton) : null;
+    const comptes = await lireComptes(personne.societe);
+    const moi = comptes.find((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant) || {};
+    const vue = async () => {
+      if (!R) return { reglages: { actif: false, ics: "", email: moi.email || "", jours: [1, 2, 3, 4, 5], debut: "08:30", fin: "17:30", pauseDebut: "12:00", pauseFin: "13:30",
+        duree: 60, pas: 30, delai: 24, horizon: 21, marge: 0, lieu: "", intro: "" }, rendezvous: [] };
+      const liste = (await reservationsDe(store, R.jeton)).filter((x) => x.fin > Date.now() - 864e5).sort((x, y) => x.debut - y.debut)
+        .map((x) => ({ id: x.id, debut: x.debut, fin: x.fin, nom: x.nom, tel: x.tel, email: x.email, adresse: x.adresse, motif: x.motif, ref: x.ref, annule: !!x.annule, texte: texteRdv(x.debut) }));
+      const { societe: _s, identifiant: _i, ...publics } = R;
+      return { reglages: publics, lien: url.origin + "/rdv.html?r=" + R.jeton, flux: url.origin + "/api/rapports?action=rdv-ics&k=" + R.flux, rendezvous: liste, envoiMail: !!CLE_RESEND };
+    };
+    if (action === "rdv-reglages") return json(await vue());
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    if (action === "rdv-tester") {
+      const ag = await lireAgenda(d.ics, true);
+      if (ag.erreur) return json({ erreur: ag.erreur }, 400);
+      const t0 = Date.now(), occ = occupations(ag.evs, t0, t0 + 21 * 864e5);
+      return json({ ok: true, evenements: ag.evs.length, occupes: occ.length, prochain: occ[0] ? texteRdv(occ[0].debut) : "" });
+    }
+    if (action === "rdv-annuler-pro") {
+      if (!R) return json({ erreur: "Aucun rendez-vous." }, 404);
+      const liste = await reservationsDe(store, R.jeton), x = liste.find((y) => y.id === d.id);
+      if (!x) return json({ erreur: "Rendez-vous introuvable." }, 404);
+      x.annule = true; x.annuleLe = new Date().toISOString(); x.annulePar = personne.nom;
+      await store.setJSON("rdv/reservations-" + R.jeton + ".json", liste);
+      if (x.rappel) { try { await store.delete(x.rappel); } catch { /* déjà parti */ } }
+      if (x.email) envoyerMail(x.email, "Rendez-vous annulé — " + texteRdv(x.debut),
+        "Bonjour " + x.nom + ",\n\nNous devons annuler le rendez-vous du " + texteRdv(x.debut) + ". " + (d.message ? String(d.message).slice(0, 500) + "\n\n" : "")
+        + "Reprenez un créneau ici : " + url.origin + "/rdv.html?r=" + R.jeton + "\n\n" + R.nom, { replyTo: R.email || undefined }).catch(() => {});
+      return json(Object.assign({ ok: true }, await vue()));
+    }
+    /* enregistrer */
+    const txt = (v, n) => String(v || "").trim().slice(0, n), hm = (v, def) => (/^\d{2}:\d{2}$/.test(String(v || "")) ? v : def);
+    const email = txt(d.email, 120);
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ erreur: "Cette adresse e-mail n'a pas l'air complète." }, 400);
+    const icsLien = txt(d.ics, 1000);
+    if (icsLien && !/^(https?|webcal):\/\//i.test(icsLien)) return json({ erreur: "Le lien de l'agenda doit commencer par https:// (ou webcal://)." }, 400);
+    const jours = (Array.isArray(d.jours) ? d.jours : []).map(Number).filter((x) => x >= 1 && x <= 7);
+    const nv = Object.assign(R || { jeton: randomBytes(15).toString("base64url"), flux: randomBytes(18).toString("base64url"), cree: new Date().toISOString() }, {
+      societe: personne.societe, identifiant: personne.identifiant, nom: personne.nom, actif: !!d.actif, ics: icsLien, email: email || moi.email || "",
+      jours: jours.length ? jours : [1, 2, 3, 4, 5], debut: hm(d.debut, "08:30"), fin: hm(d.fin, "17:30"),
+      pauseDebut: d.pauseDebut ? hm(d.pauseDebut, "") : "", pauseFin: d.pauseFin ? hm(d.pauseFin, "") : "",
+      duree: [30, 45, 60, 90, 120, 180].indexOf(+d.duree) >= 0 ? +d.duree : 60, pas: [15, 30, 60].indexOf(+d.pas) >= 0 ? +d.pas : 30,
+      delai: [0, 2, 4, 24, 48, 72].indexOf(+d.delai) >= 0 ? +d.delai : 24, horizon: [7, 14, 21, 28, 42, 60].indexOf(+d.horizon) >= 0 ? +d.horizon : 21,
+      marge: [0, 15, 30, 45, 60].indexOf(+d.marge) >= 0 ? +d.marge : 0, lieu: txt(d.lieu, 120), intro: txt(d.intro, 400), maj: new Date().toISOString() });
+    if (nv.debut >= nv.fin) return json({ erreur: "L'heure de fin doit suivre l'heure de début." }, 400);
+    R = nv;
+    await a.setJSON("rdv/" + R.jeton + ".json", R);
+    await a.setJSON("rdv-flux/" + R.flux + ".json", { jeton: R.jeton });
+    await a.setJSON(cleDe, { jeton: R.jeton });
+    let carte = {}; try { carte = (await a.get("rdv-societe/" + personne.societe + ".json", { type: "json" })) || {}; } catch { carte = {}; }
+    carte[personne.nom] = { jeton: R.jeton, actif: R.actif, role: personne.role };
+    await a.setJSON("rdv-societe/" + personne.societe + ".json", carte);
+    return json(Object.assign({ ok: true }, await vue()));
   }
 
   /* ---------- les espaces clients gardés après l'archivage d'un dossier ---------- */
