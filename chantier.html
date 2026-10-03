@@ -628,9 +628,6 @@ nav#nav a:active svg,nav#nav button:active svg{transform:scale(.92)}
 #client .ligne-qr{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--rule)}
 #client .ligne-qr b{flex:1;min-width:0}
 #client .ligne-qr .act{width:auto;flex:0 0 auto;min-height:40px;padding:8px 12px}
-#client .nouveau-qr{display:flex;gap:8px;margin-top:8px}
-#client .nouveau-qr input{flex:1;min-width:0}
-#client .nouveau-qr .act{width:auto;flex:0 0 auto}
 #client .depot{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--rule);font-size:14px}
 #client .depot span{flex:1;min-width:0}
 #client .depot small{display:block;color:var(--ink-3)}
@@ -1007,15 +1004,12 @@ header{overflow-anchor:none}
 
   <div class="block" id="client" hidden>
     <h2>Le client et les QR codes</h2>
-    <p class="hint" style="margin:0 0 6px">Le lien du client ouvre une page à lui, sans compte : ses documents (PV, DOE, schéma…), l'avancement, l'envoi de fichiers (sa courbe de charge, des photos) et la demande d'intervention, qui arrive au SAV. Le QR code du tableau, collé sur la porte, sert seulement à vous écrire (dépannage, devis, information) : il n'ouvre rien du dossier.</p>
+    <p class="hint" style="margin:0 0 6px">Le lien du client ouvre une page à lui, sans compte : ses documents (PV, DOE, schéma…), l'avancement, l'envoi de fichiers (sa courbe de charge, des photos) et la demande d'intervention, qui arrive au SAV. Le QR code « Nous contacter » est le même pour tous vos clients (à coller sur les tableaux, à mettre sur les devis) : il sert seulement à vous écrire (dépannage, devis, information), n'ouvre aucun dossier, et chaque demande arrive au SAV dans un dossier neuf au nom du client.</p>
     <h3>Lien du client</h3>
     <div id="clientLien"></div>
-    <h3>QR codes des tableaux</h3>
+    <h3>QR code « Nous contacter »</h3>
     <div id="clientQr"></div>
-    <form class="nouveau-qr" id="formQr">
-      <input type="text" id="qrRepere" placeholder="Repère du tableau : TGBT, garage…" autocomplete="off" aria-label="Repère du tableau">
-      <button type="submit" class="act blue">Créer le QR</button>
-    </form>
+    <div id="anciensQr"></div>
     <h3 id="titreDepots" hidden>Reçu du client</h3>
     <div id="clientDepots"></div>
   </div>
@@ -1025,7 +1019,7 @@ header{overflow-anchor:none}
 </main>
 <div class="toast" id="toast" hidden></div>
 <script src="./dossier.js?v=20261003a"></script>
-<script src="./qr.js?v=20261003b"></script>
+<script src="./qr.js?v=20261004a"></script>
 <script>
 (function(){
 "use strict";
@@ -1842,6 +1836,7 @@ function appelLiens(action, corps){
 function chargerLiens(){
   $("client").hidden=false;
   appelLiens("liens").then(function(r){ if(r.ok){ LIENS=r.d.liens||[]; peindreLiens(); } });
+  chargerQrContact();
   appelLiens("depots-client").then(function(r){ if(r.ok){ DEPOTS=r.d.depots||[]; peindreDepots(); } });
 }
 function bouton(txt, cls, fn){ var b=document.createElement("button"); b.type="button"; b.className="act "+(cls||"ghost"); b.textContent=txt; b.addEventListener("click", fn); return b; }
@@ -1860,17 +1855,17 @@ function ficheSociete(){
     .catch(function(){ return {nom:"", tel:""}; });
 }
 function telPointsC(t){ var c=String(t||"").replace(/\D/g, ""); return c.length===10 ? c.replace(/(\d\d)(?=\d)/g, "$1.") : String(t||""); }
-/* l'étiquette du tableau à imprimer : une grande pour la porte, deux petites pour l'intérieur */
+/* l'étiquette « Nous contacter » à imprimer : une grande pour la porte du tableau, deux petites */
 function imprimerEtiquette(l){
   toast("Préparation de l'étiquette…");
   Promise.all([chargerJsPdf(), ficheSociete()]).then(function(x){
     var soc=x[1], doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-    var o={url:l.url, tableau:l.tableau, societe:soc.nom, tel:telPointsC(soc.tel)};
+    var o={url:l.url, societe:soc.nom, tel:telPointsC(soc.tel)};
     QR.etiquette(doc, 20, 20, 60, 86, o);
     QR.etiquette(doc, 95, 20, 40, 57.3, o); QR.etiquette(doc, 145, 20, 40, 57.3, o);
     doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(110,103,92);
-    doc.text("Imprimez à 100 %, sur papier adhésif ou plastifié. Collez la grande sur la porte du tableau, les petites à l'intérieur ou près du compteur.", 20, 118, {maxWidth:170});
-    var blob=doc.output("blob"), nom="QR-"+REF+"-"+String(l.tableau||"tableau").replace(/[^\w-]+/g, "-")+".pdf";
+    doc.text("Imprimez à 100 %, sur papier adhésif ou plastifié. Collez la grande sur la porte du tableau, les petites à l'intérieur ou près du compteur. Le même QR sert pour tous vos clients.", 20, 118, {maxWidth:170});
+    var blob=doc.output("blob"), nom="QR-nous-contacter.pdf";
     if(window.Visionneuse && Visionneuse.installee && Visionneuse.installee()){ Visionneuse.pdf(blob, nom); return; }
     var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nom; a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
@@ -1913,17 +1908,36 @@ function peindreLiens(){
     b.appendChild(bouton("Révoquer", "danger", function(){ revoquer(lc); }));
     h.appendChild(b); h.appendChild(cv);
   }
-  var q=$("clientQr"); q.textContent="";
+  peindreQrContact();
+  /* les QR de tableau d'avant (un par tableau) : ils marchent encore, on peut les couper */
+  var q=$("anciensQr"); q.textContent="";
   var tabs=LIENS.filter(function(l){ return l.genre==="tableau"; });
-  if(!tabs.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Aucun QR code pour l'instant. Donnez le repère du tableau, ou créez-le depuis l'appli Étiquettes."; q.appendChild(v); }
+  if(tabs.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="10px 0 0"; v.textContent="Anciens QR de tableau de ce dossier (ils marchent encore) :"; q.appendChild(v); }
   tabs.forEach(function(l){
     var r=document.createElement("div"); r.className="ligne-qr";
     var b2=document.createElement("b"); b2.textContent="Tableau "+(l.tableau||""); r.appendChild(b2);
-    r.appendChild(bouton("Étiquette", "blue", function(){ imprimerEtiquette(l); }));
     r.appendChild(bouton("Ouvrir", "ghost", function(){ window.open(l.url, "_blank", "noopener"); }));
     r.appendChild(bouton("Révoquer", "danger", function(){ revoquer(l); }));
     q.appendChild(r);
   });
+}
+/* le QR « Nous contacter » de l'entreprise : le même sur tous les dossiers */
+var QR_CONTACT=null;
+function chargerQrContact(){
+  return fetch(API+"?action=qr-contact", {headers:{"x-auth":SESSION.jeton}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(r){ if(r.ok && r.d.lien){ QR_CONTACT=r.d.lien; peindreQrContact(); } })
+    .catch(function(){});
+}
+function peindreQrContact(){
+  var h=$("clientQr"); h.textContent="";
+  if(!QR_CONTACT){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Chargement du QR code…"; h.appendChild(v); return; }
+  var cv=document.createElement("canvas"); cv.className="qr-ecran"; cv.hidden=true;
+  var b=document.createElement("div"); b.className="btns";
+  b.appendChild(bouton("Étiquettes à imprimer", "blue", function(){ imprimerEtiquette(QR_CONTACT); }));
+  b.appendChild(bouton("QR à l'écran", "ghost", function(){ cv.hidden=!cv.hidden; if(!cv.hidden) QR.canvas(cv, QR_CONTACT.url, {taille:220}); }));
+  b.appendChild(bouton("Ouvrir", "ghost", function(){ window.open(QR_CONTACT.url, "_blank", "noopener"); }));
+  h.appendChild(b); h.appendChild(cv);
 }
 function peindreDepots(){
   var h=$("clientDepots"); h.textContent=""; $("titreDepots").hidden=!DEPOTS.length;
@@ -1942,12 +1956,6 @@ function peindreDepots(){
     h.appendChild(r);
   });
 }
-$("formQr").addEventListener("submit", function(e){
-  e.preventDefault();
-  var rep=$("qrRepere").value.trim();
-  if(!rep){ toast("Donnez le repère du tableau."); $("qrRepere").focus(); return; }
-  creerLien("tableau", rep).then(function(l){ if(l){ $("qrRepere").value=""; imprimerEtiquette(l); } });
-});
 
 /* ---------- chargement ---------- */
 function charger(){

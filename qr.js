@@ -226,8 +226,9 @@
     }
     return q;
   }
-  /* l'étiquette à coller sur le tableau : la marque en bandeau, le QR, ce qu'on y trouve,
-     le repère du tableau, l'entreprise et son téléphone. l x h en mm (60 x 86 conseillé). */
+  /* l'étiquette « Nous contacter » (sur les tableaux, les devis, le véhicule) : la marque en
+     bandeau, le QR, « Nous contacter » et le nom de l'entreprise, ce qu'on peut demander,
+     son téléphone. l x h en mm (60 x 86 conseillé). */
   function etiquette(doc, x, y, l, h, o){
     o = o || {};
     var k = l / 60, bande = 13 * k, cx = x + l / 2;
@@ -241,18 +242,19 @@
     var cote = Math.min(l - 14 * k, h - bande - 34 * k), qy = y + bande + 4 * k;
     pdf(doc, o.url || "", cx - cote / 2, qy, cote, {niveau: "Q"});
     var ty = qy + cote + 6 * k;
+    /* « Nous contacter », le nom de l'entreprise, ce qu'on peut demander */
     doc.setTextColor(34, 32, 28); doc.setFont("helvetica", "bold"); doc.setFontSize(11 * k);
-    doc.text("Scannez-moi", cx, ty, {align: "center"});
+    doc.text("Nous contacter", cx, ty, {align: "center"});
+    doc.setFontSize(8.6 * k); doc.setTextColor(180, 98, 26);
+    doc.text(doc.splitTextToSize(o.societe || "", l - 6 * k)[0] || "", cx, ty + 4.6 * k, {align: "center"});
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(110, 103, 92);
-    doc.text("Dépannage  ·  Devis  ·  Information", cx, ty + 4.2 * k, {align: "center"});
-    if(o.tableau){
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8.6 * k); doc.setTextColor(180, 98, 26);
-      doc.text(doc.splitTextToSize("Tableau " + o.tableau, l - 6 * k)[0], cx, ty + 9.6 * k, {align: "center"});
+    doc.text("Dépannage  ·  Devis  ·  Information", cx, ty + 9 * k, {align: "center"});
+    var bas = o.tel || o.web || "";
+    if(bas){
+      doc.setFillColor(226, 220, 206); doc.rect(x + 5 * k, y + h - 9 * k, l - 10 * k, 0.25, "F");
+      doc.setFont("helvetica", "bold"); doc.setFontSize(8 * k); doc.setTextColor(34, 32, 28);
+      doc.text(doc.splitTextToSize(bas, l - 6 * k)[0], cx, y + h - 4.4 * k, {align: "center"});
     }
-    doc.setFillColor(226, 220, 206); doc.rect(x + 5 * k, y + h - 11.5 * k, l - 10 * k, 0.25, "F");
-    doc.setFont("helvetica", "bold"); doc.setFontSize(7.6 * k); doc.setTextColor(34, 32, 28);
-    doc.text(doc.splitTextToSize(o.societe || "", l - 6 * k)[0] || "", cx, y + h - 7.2 * k, {align: "center"});
-    if(o.tel){ doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(110, 103, 92); doc.text(o.tel, cx, y + h - 3.6 * k, {align: "center"}); }
     doc.setTextColor(0, 0, 0);
   }
   racine.QR = {matrice: matrice, canvas: canvas, svg: svg, pdf: pdf, etiquette: etiquette};

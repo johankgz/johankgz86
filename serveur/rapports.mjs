@@ -724,6 +724,7 @@ function rang(f) {
    tableau ne change jamais tant qu'on ne le révoque pas (il est imprimé).
    ===================================================================== */
 const JETON_LIEN = /^[A-Za-z0-9_-]{16,40}$/;
+const QR_CONTACT = "qr-contact.json";       /* le jeton du QR « Nous contacter » de la société */
 const DOCS_CLIENT = ["reception", "doe", "schema", "etiquettes", "autocontrole", "technique", "sav", "reportage"];
 /* le QR collé sur le tableau n'ouvre aucun document du dossier : il sert à joindre l'entreprise */
 const DOCS_TABLEAU = [];
@@ -902,17 +903,41 @@ async function traiter(req) {
     /* un lien n'ouvre que le dossier pour lequel il a été fait : si la référence a resservi, il n'y voit rien */
     if (c && !(c.liens || []).some((l) => l.jeton === jeton)) c = null;
     const tableau = lien.genre === "tableau";
+    /* le QR code de contact de l'entreprise : le même pour tous ses clients, il n'ouvre aucun dossier ;
+       une demande envoyée par lui crée un dossier neuf au nom du client */
+    const contact = lien.genre === "societe";
+    if (contact) {
+      let qc = null;
+      try { qc = await st.get(QR_CONTACT, { type: "json" }); } catch { qc = null; }
+      if (!qc || qc.jeton !== jeton) return json({ erreur: "Ce QR code n'est plus valable. Appelez directement l'entreprise." }, 404);
+      if (action === "lien-fichier") return json({ erreur: "Document introuvable." }, 404);
+      if (action === "lien-depot") return json({ erreur: "Écrivez-nous plutôt par le formulaire, en joignant vos photos." }, 409);
+      if (action === "lien-demande") {
+        const net = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+        const nomC = net(d.nom, 80), adr = net(d.adresse, 200);
+        if (!d.site) {
+          if (!nomC) return json({ erreur: "Indiquez votre nom." }, 400);
+          if (d.sorte !== "info" && !adr) return json({ erreur: "Indiquez l'adresse où intervenir." }, 400);
+          if (!envoiPermis("contact-" + lien.societe, 40)) return json({ erreur: "Beaucoup de demandes viennent d'arriver. Appelez directement l'entreprise." }, 429);
+        }
+        const jourC = jourParis().replace(/-/g, "").slice(2);
+        let refC;
+        do { refC = "DEM-" + jourC + "-" + randomBytes(2).toString("hex").toUpperCase(); } while (idx.chantiers[refC]);
+        c = idx.chantiers[refC] = { ref: refC, client: nomC, adresse: adr, fichiers: [], equipe: [], liens: [],
+          origine: "qr-contact", maj: new Date().toISOString() };
+      }
+    }
     /* le dossier est archivé : son espace client, gardé à part, reste ouvert (documents du client,
        sans dépôt de fichiers) ; à défaut, le QR du tableau garde la demande (dépannage, devis, information) */
     let espace = null;
     if (lien.espace) { try { espace = await st.get("espaces/" + lien.espace + ".json", { type: "json" }); } catch { espace = null; } }
     const archive = !c && tableau && lien.archive ? lien.archive : null;
-    if (!c && !espace && !archive) return json({ erreur: "Ce dossier n'existe plus. Contactez l'entreprise qui a fait les travaux." }, 404);
+    if (!c && !espace && !archive && !contact) return json({ erreur: "Ce dossier n'existe plus. Contactez l'entreprise qui a fait les travaux." }, 404);
     const docsEspace = espace ? (espace.documents || []).filter((f) => docVisible(f, lien)) : [];
     /* une demande ou un envoi sur un dossier archivé : le dossier renaît pour les recevoir
        (sous une autre référence si la sienne a resservi), avec tous les liens de l'espace */
     if (!c && action === "lien-depot") return json({ erreur: "Votre dossier est archivé : envoyez plutôt le fichier à l'entreprise par e-mail." }, 409);
-    if (!c && action === "lien-demande") {
+    if (!c && action === "lien-demande" && !contact) {
       const ref0 = idx.chantiers[lien.ref] ? (lien.ref + "-" + jeton.slice(0, 4)).toUpperCase() : lien.ref;
       const src = espace || archive || {};
       c = idx.chantiers[ref0] = idx.chantiers[ref0] || { ref: ref0, client: src.client || "", adresse: src.adresse || "", fichiers: [], equipe: [],
@@ -937,12 +962,12 @@ async function traiter(req) {
       const circuits = null;
       const k = c || espace || {};
       return json({
-        genre: lien.genre, tableau: lien.tableau || "", archive: !c,
+        genre: lien.genre, tableau: lien.tableau || "", archive: !c && !contact,
         societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
           adresse: (fiche && fiche.adresse) || "", mentions: (fiche && fiche.mentions) || "",
           mediateur: (fiche && fiche.mediateur) || "", logo: (fiche && fiche.logo) || null },
         /* le QR du tableau est collé chez le client, à la vue de tous : ni nom ni adresse */
-        dossier: tableau ? { ref: k.ref || lien.ref } : { ref: k.ref || lien.ref, client: k.client || "", adresse: k.adresse || "",
+        dossier: contact ? null : tableau ? { ref: k.ref || lien.ref } : { ref: k.ref || lien.ref, client: k.client || "", adresse: k.adresse || "",
           avancement: c ? avancementDe(c) : 100, etat: c ? etatDossier(c).etat : "archive" },
         circuits, documents: docs,
         depots: tableau || !c ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" })),
@@ -977,7 +1002,8 @@ async function traiter(req) {
         info: { nature: "Information", titre: "Demande d'information du client", push: "Demande d'information" } }[sorte];
       if (!message) return json({ erreur: sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots." }, 400);
       if (!tel && !/@/.test(String(d.email || ""))) return json({ erreur: "Laissez un téléphone ou un e-mail pour qu'on vous rappelle." }, 400);
-      if (!envoiPermis(jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
+      const ip = String(req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+      if (!envoiPermis(contact ? jeton + "-" + ip : jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
       const photos = (Array.isArray(d.photos) ? d.photos : []).slice(0, 4)
         .filter((ph) => ph && typeof ph.data === "string" && /^data:image\/jpeg;base64,/.test(ph.data) && ph.data.length < 1400000)
         .map((ph) => ({ data: ph.data, w: Number(ph.w) || 0, h: Number(ph.h) || 0, legende: "Envoyée par le client" }));
@@ -992,8 +1018,8 @@ async function traiter(req) {
           motif: message, constat: "", travaux: "" },
         materiel: [], photos, suite: { etat: "", action: "", detail: "", retour: "" },
         sig: { client: null, tech: null, nomClient: "", nomTech: "", horodatage: "" }, destinataires: [], dest: "",
-        demande: { appelant: nom, qualite: tableau ? "" : "Client", tel, symptomes: [], equipement: tableau ? "Tableau " + (lien.tableau || "électrique") : "",
-          marque: "", detail: [d.email ? "E-mail : " + court(d.email, 120) : "", tableau ? "Demande faite depuis le QR code du tableau." : "Demande faite depuis le lien client."].filter(Boolean).join("\n"),
+        demande: { appelant: nom, qualite: tableau || contact ? "" : "Client", tel, symptomes: [], equipement: tableau ? "Tableau " + (lien.tableau || "électrique") : "",
+          marque: "", detail: [d.email ? "E-mail : " + court(d.email, 120) : "", tableau ? "Demande faite depuis le QR code du tableau." : contact ? "Demande faite depuis le QR code « Nous contacter »." : "Demande faite depuis le lien client."].filter(Boolean).join("\n"),
           date: "", heure: "", creneau: "", dispo: court(d.dispo, 300), acces: "" }
       };
       await st.set(cle, JSON.stringify(fiche), { metadata: { type: "application/json" } });
@@ -2636,6 +2662,32 @@ async function traiter(req) {
   }
 
   /* ---------- liens publics : créer, lister, révoquer ; ce que le client a déposé ---------- */
+  /* ---------- le QR code « Nous contacter » de l'entreprise ----------
+     Un seul pour tous les clients : collé sur les tableaux, imprimé sur les devis ou
+     le véhicule. Il ouvre client.html sans rien d'un dossier, pour une demande de
+     dépannage, de devis ou d'information. Renouveler coupe l'ancien. */
+  if (action === "qr-contact" || action === "qr-contact-renouveler") {
+    const a = magasinAnnuaire();
+    let qc = null;
+    try { qc = await store.get(QR_CONTACT, { type: "json" }); } catch { qc = null; }
+    if (action === "qr-contact-renouveler") {
+      if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+      if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+      if (qc && qc.jeton) {
+        const ancien = await lireLien(qc.jeton);
+        if (ancien) await a.setJSON("liens/" + qc.jeton + ".json", Object.assign(ancien, { actif: false, revoque: new Date().toISOString(), revoquePar: personne.nom }));
+      }
+      qc = null;
+    }
+    if (!qc || !qc.jeton || !(await lireLien(qc.jeton))) {
+      const jeton = randomBytes(15).toString("base64url"), cree = new Date().toISOString();
+      await a.setJSON("liens/" + jeton + ".json", { jeton, societe: personne.societe, genre: "societe", cree, par: personne.nom, actif: true });
+      qc = { jeton, cree, par: personne.nom };
+      await store.setJSON(QR_CONTACT, qc);
+    }
+    return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton } });
+  }
+
   if (action === "lien-creer" || action === "liens" || action === "lien-revoquer" || action === "depots-client" || action === "depot-client") {
     let d = {};
     if (req.method === "POST") { try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); } }

@@ -137,6 +137,7 @@ textarea{min-height:96px;resize:vertical}
         <label class="f"><span id="d_messageLib">Ce qui se passe</span><textarea id="d_message" placeholder="Le disjoncteur saute quand je lance le four, une prise ne marche plus…"></textarea></label>
         <label class="case" id="d_urgentLab"><input type="checkbox" id="d_urgent"><span>C'est urgent : plus de courant, odeur de brûlé, étincelles. <b>En cas de danger, coupez le disjoncteur général.</b></span></label>
         <label class="f"><span>Votre nom</span><input type="text" id="d_nom" autocomplete="name"></label>
+        <label class="f" id="d_adresseLab" hidden><span id="d_adresseLib">Adresse où intervenir</span><input type="text" id="d_adresse" autocomplete="street-address" placeholder="N°, rue, code postal, ville"></label>
         <label class="f"><span>Téléphone</span><input type="tel" id="d_tel" autocomplete="tel"></label>
         <label class="f"><span>E-mail (facultatif)</span><input type="email" id="d_email" autocomplete="email"></label>
         <label class="f"><span>Vos disponibilités (facultatif)</span><input type="text" id="d_dispo" placeholder="En semaine après 17 h, le samedi matin…"></label>
@@ -146,7 +147,7 @@ textarea{min-height:96px;resize:vertical}
         </div>
         <input type="file" id="fichierPhotos" accept="image/*" multiple hidden>
         <div class="vignettes" id="vignettes"></div>
-        <p class="hint" style="margin-top:0">À remplir : votre demande, et un téléphone ou un e-mail pour qu'on vous recontacte.</p>
+        <p class="hint" style="margin-top:0" id="d_requis">À remplir : votre demande, et un téléphone ou un e-mail pour qu'on vous recontacte.</p>
         <button type="submit" class="btn" id="btnEnvoyer" style="width:100%">Envoyer la demande</button>
         <p class="hint mention" id="d_rgpd"></p>
         <div id="demandeEtat" style="margin-top:12px" role="status" aria-live="polite"></div>
@@ -186,13 +187,20 @@ textarea{min-height:96px;resize:vertical}
   var ICONE_DOC = '<svg viewBox="0 0 24 24"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/></svg>';
 
   function peindre(){
-    var S = D.societe || {}, tableau = D.genre === "tableau";
+    var S = D.societe || {}, tableau = D.genre === "tableau", contact = D.genre === "societe";
     $("socNom").textContent = S.nom || "Suivi travaux 360";
     $("socSous").textContent = [telPoints(S.tel), S.web].filter(Boolean).join("  ·  ");
     if(S.logo && S.logo.data){ $("logo").src = S.logo.data; $("logo").hidden = false; }
-    document.title = (tableau ? "Tableau électrique" : "Votre dossier") + " — " + (S.nom || "Suivi travaux 360");
+    document.title = (contact ? "Nous contacter" : tableau ? "Tableau électrique" : "Votre dossier") + " — " + (S.nom || "Suivi travaux 360");
     if(S.tel){ var a = $("btnAppeler"); a.href = "tel:" + String(S.tel).replace(/[^\d+]/g, ""); a.hidden = false; a.lastChild.textContent = "Appeler " + (S.nom || "l'entreprise"); }
-    if(tableau){
+    if(contact){
+      /* le QR code « Nous contacter », le même pour tous les clients : rien d'un dossier */
+      $("titre").textContent = "Nous contacter";
+      $("sousTitre").textContent = (S.nom || "L'entreprise") + " : un dépannage, un devis, une question ? "
+        + "Écrivez-nous ici, votre demande arrive directement à l'entreprise, qui vous recontacte.";
+      $("d_adresseLab").hidden = false;
+      $("d_requis").textContent = "À remplir : votre nom, l'adresse (sauf pour une simple question), votre demande, et un téléphone ou un e-mail pour qu'on vous recontacte.";
+    } else if(tableau){
       $("titre").textContent = "Tableau électrique" + (D.tableau ? " — " + D.tableau : "");
       $("sousTitre").textContent = "Installé par " + (S.nom || "l'entreprise") + ". Une panne, un projet de travaux, une question : "
         + "écrivez-nous ici, votre demande arrive directement à l'entreprise, qui vous recontacte.";
@@ -228,7 +236,7 @@ textarea{min-height:96px;resize:vertical}
     var session = null; try{ session = JSON.parse(localStorage.getItem("outils:session") || "null"); }catch(e){}
     if(session && session.jeton && D.dossier && D.dossier.ref){ $("cartePro").hidden = false; $("btnPro").href = "./chantier.html?ref=" + encodeURIComponent(D.dossier.ref); }
     $("pied").textContent = (S.adresse ? S.adresse + "  ·  " : "") + "Page personnelle : ne la partagez qu'avec les personnes concernées.";
-    if(tableau) $("pied").textContent = S.adresse || "";
+    if(tableau || contact) $("pied").textContent = S.adresse || "";
     /* qui reçoit les données, et le médiateur de l'entreprise pour un litige de consommation */
     var qui = S.nom || "l'entreprise";
     var lienConf = ' <a href="./confidentialite.html#pour-les-societes" target="_blank" rel="noopener">En savoir plus</a>';
@@ -292,10 +300,14 @@ textarea{min-height:96px;resize:vertical}
     e.preventDefault();
     var etat = $("demandeEtat"), b = $("btnEnvoyer");
     var corps = {message: $("d_message").value, nom: $("d_nom").value, tel: $("d_tel").value, email: $("d_email").value,
-      dispo: $("d_dispo").value, urgent: $("d_urgent").checked, site: $("d_site").value, photos: PHOTOS, sorte: sorte()};
+      dispo: $("d_dispo").value, urgent: $("d_urgent").checked, site: $("d_site").value, photos: PHOTOS, sorte: sorte(),
+      adresse: $("d_adresse").value};
+    var contact = D && D.genre === "societe";
     var envoyee = TEXTES_SORTE[corps.sorte][2];
     etat.textContent = "";
     if(!corps.message.trim()){ etat.innerHTML = '<p class="err-msg">' + (corps.sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots.") + '</p>'; return; }
+    if(contact && !corps.nom.trim()){ etat.innerHTML = '<p class="err-msg">Indiquez votre nom.</p>'; $("d_nom").focus(); return; }
+    if(contact && corps.sorte !== "info" && !corps.adresse.trim()){ etat.innerHTML = '<p class="err-msg">Indiquez l\'adresse où intervenir.</p>'; $("d_adresse").focus(); return; }
     if(!corps.tel.trim() && corps.email.indexOf("@") < 1){ etat.innerHTML = '<p class="err-msg">Laissez un téléphone ou un e-mail pour qu\'on vous rappelle.</p>'; return; }
     b.disabled = true; b.textContent = "Envoi…";
     poster("lien-demande", corps).then(function(r){
