@@ -403,6 +403,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       </div>
       <label class="f"><span>Adresse</span><input type="text" id="fs_adresse"></label>
       <label class="f"><span>Mentions de pied de page</span><input type="text" id="fs_mentions" placeholder="SIRET, qualifications, RGE…"></label>
+      <label class="f"><span>Médiateur de la consommation</span><input type="text" id="fs_mediateur" placeholder="Nom du médiateur et son site, par ex. Médiateur XYZ — www.exemple.fr"></label>
+      <p class="hint" style="margin-top:-4px">Obligatoire si vous travaillez pour des particuliers (art. L.612-1 du Code de la consommation). Il s'affiche sur les pages envoyées à vos clients (lien client, QR code, rendez-vous).</p>
       <div class="row"><button class="act" id="fs_enr">Enregistrer l'en-tête</button><span class="hint" id="fs_etat" style="margin:0"></span></div>
     </div>
   </div>
@@ -581,7 +583,7 @@ function chargerFiche(nomSoc){
     .then(function(d){
       var f=d.fiche||{};
       $("fs_nom").value=f.nom||d.nom||nomSoc||""; $("fs_tel").value=f.tel||""; $("fs_web").value=f.web||"";
-      $("fs_adresse").value=f.adresse||""; $("fs_mentions").value=f.mentions||"";
+      $("fs_adresse").value=f.adresse||""; $("fs_mentions").value=f.mentions||""; $("fs_mediateur").value=f.mediateur||"";
       FICHE_LOGO=f.logo||null; peindreLogoFiche();
       $("fs_etat").textContent = f.maj ? "Réglé le " + new Date(f.maj).toLocaleDateString("fr-FR") + (f.par ? " par " + f.par : "") : "Pas encore réglé.";
       $("ficheSoc").hidden=false;
@@ -608,7 +610,7 @@ function chargerFiche(nomSoc){
   });
   $("fs_enr").addEventListener("click", function(){
     var corps={nom:$("fs_nom").value, tel:$("fs_tel").value, web:$("fs_web").value, adresse:$("fs_adresse").value,
-      mentions:$("fs_mentions").value, logo:FICHE_LOGO};
+      mentions:$("fs_mentions").value, mediateur:$("fs_mediateur").value, logo:FICHE_LOGO};
     $("fs_etat").textContent="Enregistrement…";
     fetch(api("societe-fiche-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
@@ -857,5 +859,6 @@ $("btnSociete").addEventListener("click", function(){
 peindreApplis();
 charger();
 </script>
+<script src="./pied.js?v=20261003a" defer></script>
 </body>
 </html>

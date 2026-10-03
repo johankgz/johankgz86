@@ -81,6 +81,8 @@ textarea{min-height:96px;resize:vertical}
 .pub b em{font-style:normal;color:#F3A15A}
 .pub span{display:block;font-size:13px;opacity:.85;margin-top:4px}
 .pied{text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:14px}
+.mention{font-size:12.5px;margin-top:10px}
+.mention a{color:inherit}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -119,8 +121,9 @@ textarea{min-height:96px;resize:vertical}
         <a class="btn ghost" href="https://mon-compte-particulier.enedis.fr/" target="_blank" rel="noopener">Mon espace Enedis</a>
       </div>
       <input type="file" id="fichierDepot" multiple accept=".csv,.txt,.xlsx,.pdf,image/*" hidden>
-      <p class="hint" id="depotEtat"></p>
+      <p class="hint" id="depotEtat" role="status" aria-live="polite"></p>
       <ul class="depots" id="listeDepots" style="margin:4px 0 0;padding-left:18px"></ul>
+      <p class="hint mention" id="depotRgpd"></p>
     </section>
 
     <section class="carte" id="demande">
@@ -143,8 +146,10 @@ textarea{min-height:96px;resize:vertical}
         </div>
         <input type="file" id="fichierPhotos" accept="image/*" multiple hidden>
         <div class="vignettes" id="vignettes"></div>
+        <p class="hint" style="margin-top:0">À remplir : votre demande, et un téléphone ou un e-mail pour qu'on vous recontacte.</p>
         <button type="submit" class="btn" id="btnEnvoyer" style="width:100%">Envoyer la demande</button>
-        <div id="demandeEtat" style="margin-top:12px"></div>
+        <p class="hint mention" id="d_rgpd"></p>
+        <div id="demandeEtat" style="margin-top:12px" role="status" aria-live="polite"></div>
       </form>
     </section>
 
@@ -159,6 +164,7 @@ textarea{min-height:96px;resize:vertical}
       <span>Vos travaux suivis de bout en bout : relevé, chantier, réception, dépannage.</span>
     </div>
     <p class="pied" id="pied"></p>
+    <p class="pied" id="piedMediateur" hidden></p>
   </div>
 </div>
 
@@ -223,6 +229,17 @@ textarea{min-height:96px;resize:vertical}
     if(session && session.jeton && D.dossier && D.dossier.ref){ $("cartePro").hidden = false; $("btnPro").href = "./chantier.html?ref=" + encodeURIComponent(D.dossier.ref); }
     $("pied").textContent = (S.adresse ? S.adresse + "  ·  " : "") + "Page personnelle : ne la partagez qu'avec les personnes concernées.";
     if(tableau) $("pied").textContent = S.adresse || "";
+    /* qui reçoit les données, et le médiateur de l'entreprise pour un litige de consommation */
+    var qui = S.nom || "l'entreprise";
+    var lienConf = ' <a href="./confidentialite.html#pour-les-societes" target="_blank" rel="noopener">En savoir plus</a>';
+    var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); };
+    $("d_rgpd").innerHTML = "Votre demande, vos coordonnées et vos photos sont transmises à <b>" + esc(qui) + "</b>, qui en est responsable et s'en sert uniquement pour y répondre. "
+      + "Suivi travaux 360 les héberge pour son compte, en France. Vous pouvez demander à " + esc(qui) + " d'y accéder, de les corriger ou de les effacer." + lienConf;
+    $("depotRgpd").innerHTML = "Les fichiers envoyés vont dans votre dossier chez <b>" + esc(qui) + "</b>, qui en est responsable. Ils sont effacés du site quand le dossier est archivé." + lienConf;
+    if(S.mediateur){
+      $("piedMediateur").hidden = false;
+      $("piedMediateur").textContent = "En cas de litige de consommation avec " + qui + ", vous pouvez recourir gratuitement au médiateur de la consommation : " + S.mediateur + ".";
+    }
   }
   function peindreDepots(){
     var l = $("listeDepots"); l.textContent = "";
@@ -332,5 +349,6 @@ textarea{min-height:96px;resize:vertical}
     .catch(function(){ $("etat").textContent = "Pas de réseau. Réessayez dans un instant."; });
 })();
 </script>
+<script src="./pied.js?v=20261003a" defer></script>
 </body>
 </html>

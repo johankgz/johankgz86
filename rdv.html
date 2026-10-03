@@ -38,6 +38,9 @@ header .sous{font-size:12.5px;color:var(--ink-3)}
 h1{margin:0 0 4px;font-size:22px;letter-spacing:-.02em}
 h2{margin:0 0 10px;font-size:16.5px}
 .hint{font-size:13.5px;color:var(--ink-3);margin:4px 0 10px}
+.mention{font-size:12.5px;margin-top:10px}
+.mention a{color:inherit}
+.pied{text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:14px}
 .jours{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 10px;scroll-snap-type:x mandatory;-webkit-overflow-scrolling:touch}
 .jour{flex:0 0 auto;scroll-snap-align:start;min-width:72px;padding:9px 10px;border-radius:12px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;text-align:center;cursor:pointer}
 .jour b{display:block;font-size:18px}
@@ -90,8 +93,10 @@ textarea{min-height:84px;resize:vertical}
         <label class="f"><span>Adresse des travaux</span><input type="text" id="f_adresse" autocomplete="street-address"></label>
         <label class="f"><span>L'objet du rendez-vous</span><textarea id="f_motif" placeholder="Devis de rénovation, borne de recharge, dépannage…"></textarea></label>
         <label class="piege" aria-hidden="true">Site<input type="text" id="f_site" tabindex="-1" autocomplete="off"></label>
+        <p class="hint" style="margin-top:0">À remplir : votre nom, et un téléphone ou un e-mail.</p>
         <button class="btn" type="submit" id="btnReserver">Confirmer le rendez-vous</button>
-        <div id="formEtat"></div>
+        <p class="hint mention" id="f_rgpd"></p>
+        <div id="formEtat" role="status" aria-live="polite"></div>
       </form>
     </section>
 
@@ -106,10 +111,12 @@ textarea{min-height:84px;resize:vertical}
     <h1>Annuler le rendez-vous</h1>
     <p class="hint" id="annulTexte">Vous allez annuler votre rendez-vous.</p>
     <button class="btn" type="button" id="btnAnnuler">Oui, annuler</button>
-    <div id="annulEtat"></div>
+    <div id="annulEtat" role="status" aria-live="polite"></div>
   </section>
 
   <div class="pub"><b>Suivi travaux <em>360</em></b><span>Vos travaux suivis de bout en bout : relevé, chantier, réception, dépannage.</span></div>
+  <p class="pied" id="pied" hidden></p>
+  <p class="pied" id="piedMediateur" hidden></p>
 </div>
 <script>
 (function(){
@@ -129,6 +136,15 @@ textarea{min-height:84px;resize:vertical}
     s = s || {};
     $("socNom").textContent = s.nom || "Suivi travaux 360"; $("socSous").textContent = telPoints(s.tel);
     if(s.logo && s.logo.data){ $("logo").src = s.logo.data; $("logo").hidden = false; }
+    var qui = s.nom || "l'entreprise";
+    var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); };
+    $("f_rgpd").innerHTML = "Vos coordonnées et l'objet du rendez-vous sont transmis à <b>" + esc(qui) + "</b>, qui en est responsable et s'en sert pour ce rendez-vous. "
+      + "Ils sont effacés 400 jours après la date du rendez-vous. Suivi travaux 360 les héberge pour son compte, en France. Vous pouvez demander à " + esc(qui)
+      + " d'y accéder, de les corriger ou de les effacer. <a href=\"./confidentialite.html#pour-les-societes\" target=\"_blank\" rel=\"noopener\">En savoir plus</a>";
+    var id = [s.adresse, s.mentions].filter(Boolean).join("  ·  ");
+    if(id){ $("pied").hidden = false; $("pied").textContent = qui + "  ·  " + id; }
+    if(s.mediateur){ $("piedMediateur").hidden = false;
+      $("piedMediateur").textContent = "En cas de litige de consommation avec " + qui + ", vous pouvez recourir gratuitement au médiateur de la consommation : " + s.mediateur + "."; }
   }
   function peindreJours(){
     var h = $("jours"); h.textContent = "";
@@ -223,5 +239,6 @@ textarea{min-height:84px;resize:vertical}
   charger();
 })();
 </script>
+<script src="./pied.js?v=20261003a" defer></script>
 </body>
 </html>

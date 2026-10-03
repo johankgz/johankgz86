@@ -44,7 +44,7 @@ const TYPES = {
   ".txt": "text/plain; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webp": "image/webp",
-  ".woff2": "font/woff2", ".woff": "font/woff"
+  ".woff2": "font/woff2", ".woff": "font/woff", ".wasm": "application/wasm"
 };
 
 /* les fonctions du site, à leur adresse */
@@ -55,7 +55,7 @@ const ROUTES = [
 ];
 
 /* jamais de fichier hors du site, ni le dossier des données, ni le dépôt */
-const INTERDITS = [".git", ".claude", "node_modules", "donnees", "serveur", "prive", "analyseur-plans", "serveur.mjs", "package-lock.json"];
+const INTERDITS = [".git", ".claude", "node_modules", "donnees", "serveur", "prive", "conformite", "analyseur-plans", "serveur.mjs", "package-lock.json"];
 
 function fichierDemande(chemin) {
   let propre;
@@ -79,7 +79,7 @@ function versRequete(req) {
 }
 /* Compresser le texte : sur un réseau mobile, une page de 300 Ko en
    pèse 60. Les images, PDF et ZIP sont déjà compressés, on n'y touche pas. */
-const COMPRESSIBLE = /^(text\/|application\/(json|javascript|manifest\+json|xml)|image\/svg)/;
+const COMPRESSIBLE = /^(text\/|application\/(json|javascript|manifest\+json|xml|wasm)|image\/svg)/;
 function accepteGzip(req) { return /\bgzip\b/.test(String(req.headers["accept-encoding"] || "")); }
 async function repondre(req, res, reponse) {
   const entetes = {};
@@ -109,7 +109,7 @@ async function fichierPret(fichier) {
   const brut = await fs.readFile(fichier);
   const type = TYPES[path.extname(fichier).toLowerCase()] || "application/octet-stream";
   const pret = { cle, brut, type, etag: 'W/"' + cle + '"', gz: (brut.length > 1400 && COMPRESSIBLE.test(type)) ? zlib.gzipSync(brut, { level: 9 }) : null };
-  if (brut.length < 8 * 1024 * 1024) CACHE_FICHIERS.set(fichier, pret);
+  if (brut.length < 16 * 1024 * 1024) CACHE_FICHIERS.set(fichier, pret);     /* la bibliothèque DWG (9 Mo) aussi : compressée une fois */
   return pret;
 }
 

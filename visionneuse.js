@@ -16,7 +16,7 @@
                                   installée, sinon le téléchargement
    ===================================================================== */
 (function(){
-  var PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+  var PDFJS = "./vendor/pdfjs-3.11.174/";
   var chargement = null, ouverte = null;
 
   function installee(){

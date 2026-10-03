@@ -1187,6 +1187,19 @@ body.connexion .ciel{display:none}
 .invite-notif button{min-height:36px;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;font-family:inherit;cursor:pointer;box-shadow:none}
 .invite-notif .in-oui{background:#EA7A1E;color:#fff;border:0}
 .invite-notif .in-non{background:none;color:var(--ink-3);border:1px solid var(--rule)}
+/* conditions d'utilisation : la case à cocher avant d'entrer, jamais cochée d'avance */
+#fenCgu{position:fixed;inset:0;z-index:200;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+#fenCgu[hidden]{display:none}
+#fenCgu .boite{background:var(--card,#fff);color:var(--ink,#0C1119);border-radius:16px;max-width:460px;width:100%;padding:22px 20px 18px;box-shadow:0 18px 50px rgba(0,0,0,.3)}
+#fenCgu h2{font-size:19px;margin:0 0 8px}
+#fenCgu p{font-size:14.5px;line-height:1.5;margin:0 0 10px;color:var(--ink-2,#333)}
+#fenCgu ul{font-size:14px;line-height:1.45;margin:0 0 12px;padding-left:20px;color:var(--ink-2,#333)}
+#fenCgu label.coche{display:flex;gap:10px;align-items:flex-start;font-size:14.5px;margin:12px 0 14px;cursor:pointer}
+#fenCgu label.coche input{width:20px;height:20px;margin:1px 0 0;flex:none;accent-color:var(--accent,#B45309)}
+#fenCgu a{color:var(--accent-fonce,#92400E)}
+#fenCgu button.p:disabled{opacity:.5;cursor:not-allowed}
+#fenCgu .sortir{display:block;margin:10px auto 0;background:none;border:0;color:var(--ink-2,#333);text-decoration:underline;font:inherit;font-size:14px;cursor:pointer}
+#fenCgu .err{min-height:1em}
 </style>
 <script src="./clavier.js?v=20260930a" defer></script>
 <script src="./horsligne.js?v=20261002a" defer></script>
@@ -1200,6 +1213,23 @@ body.connexion .ciel{display:none}
   <svg class="ciel-ville p-pres" viewBox="0 0 2800 1000" preserveAspectRatio="xMinYMax meet" id="cielVille"></svg>
   <svg class="ciel-reseaux" id="cielReseaux" aria-hidden="true"></svg>
   <div class="ciel-voile"></div>
+</div>
+<div id="fenCgu" role="dialog" aria-modal="true" aria-labelledby="fenCguT" hidden>
+  <div class="boite">
+    <h2 id="fenCguT">Conditions d'utilisation</h2>
+    <p>Avant d'utiliser Suivi travaux 360, lisez et acceptez les conditions générales d'utilisation. En bref :</p>
+    <ul>
+      <li>votre compte est personnel, votre mot de passe reste secret ;</li>
+      <li>les données des chantiers appartiennent à votre entreprise, qui en est responsable ;</li>
+      <li>liens clients et QR codes ne se donnent qu'aux personnes concernées ;</li>
+      <li>les calculs proposés sont des aides : ils ne remplacent ni la NF C 15-100 ni votre contrôle.</li>
+    </ul>
+    <p><a href="./cgu.html" target="_blank" rel="noopener">Lire les conditions générales d'utilisation</a> · <a href="./confidentialite.html" target="_blank" rel="noopener">Confidentialité</a></p>
+    <label class="coche"><input type="checkbox" id="cguCoche"> <span>J'ai lu et j'accepte les conditions générales d'utilisation.</span></label>
+    <button class="p" id="cguOk" disabled>Accepter et continuer</button>
+    <p class="err" id="cguErr" role="alert"></p>
+    <button class="sortir" id="cguSortir" type="button">Refuser et me déconnecter</button>
+  </div>
 </div>
 <main>
 
@@ -1232,7 +1262,7 @@ body.connexion .ciel{display:none}
       <label><span>Identifiant</span><input type="text" id="u" autocapitalize="none" autocomplete="username" spellcheck="false"></label>
       <label><span>Mot de passe</span><input type="password" id="p" autocomplete="current-password"></label>
       <button class="p" id="go">Se connecter</button>
-      <p class="err" id="err"></p>
+      <p class="err" id="err" role="alert"></p>
       <button class="lien" id="btnDemande">Demander un accès</button>
       <p class="hint">Les identifiants sont délivrés par Johan Klughertz.</p>
     </div>
@@ -1244,19 +1274,20 @@ body.connexion .ciel{display:none}
       <label><span>Nouveau mot de passe</span><input type="password" id="m_neuf" autocomplete="new-password"></label>
       <label><span>Répétez-le</span><input type="password" id="m_neuf2" autocomplete="new-password"></label>
       <button class="p" id="m_valider">Enregistrer</button>
-      <p class="err" id="m_err"></p>
+      <p class="err" id="m_err" role="alert"></p>
       <p class="hint">Huit caractères au minimum.</p>
     </div>
 
     <div class="block" id="blocDemande" hidden>
       <h1 style="font-size:19px;margin-bottom:12px">Demander un accès</h1>
-      <label><span>Nom et prénom</span><input type="text" id="d_nom"></label>
-      <label><span>Fonction</span><input type="text" id="d_fonction" placeholder="Chargé d'affaires, technicien…"></label>
-      <label><span>Adresse e-mail</span><input type="email" id="d_email" autocapitalize="none" spellcheck="false"></label>
-      <label><span>Téléphone</span><input type="tel" id="d_tel"></label>
-      <label><span>Message</span><textarea id="d_msg" placeholder="Société, besoin, outils concernés…"></textarea></label>
+      <label><span>Nom et prénom (obligatoire)</span><input type="text" id="d_nom" autocomplete="name" required aria-required="true"></label>
+      <label><span>Fonction (facultatif)</span><input type="text" id="d_fonction" placeholder="Chargé d'affaires, technicien…"></label>
+      <label><span>Adresse e-mail (obligatoire)</span><input type="email" id="d_email" autocapitalize="none" spellcheck="false" autocomplete="email" required aria-required="true"></label>
+      <label><span>Téléphone (facultatif)</span><input type="tel" id="d_tel" autocomplete="tel"></label>
+      <label><span>Message (facultatif)</span><textarea id="d_msg" placeholder="Société, besoin, outils concernés…"></textarea></label>
       <button class="p" id="d_envoi">Envoyer la demande</button>
-      <p class="err" id="d_err"></p>
+      <p class="err" id="d_err" role="alert"></p>
+      <p class="hint">Ces informations sont reçues par l'éditeur de Suivi travaux 360, uniquement pour répondre à votre demande et vous ouvrir un accès. Elles sont effacées au plus tard 3 ans après le dernier contact. Vous pouvez y accéder, les corriger ou les faire effacer : voir la <a href="./confidentialite.html">politique de confidentialité</a>.</p>
     </div>
     <p class="signature"><b>© 2026 Johan Klughertz. Tous droits réservés</b><span>Du relevé à la réception, un seul outil.</span><span class="version">Vers. 1.5</span></p>
   </div>
@@ -1291,6 +1322,7 @@ body.connexion .ciel{display:none}
         <button type="button" class="bul-pli" id="bulPli" aria-expanded="true" aria-controls="bulJours" title="Replier la météo" aria-label="Replier la météo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
       </div>
       <div class="bul-jours" id="bulJours" hidden></div>
+      <p class="bul-credit" id="bulCredit" hidden style="margin:2px 0 0;font-size:11px;opacity:.8;text-align:right">Météo : Open-Meteo.com (CC BY 4.0)</p>
     </div>
 
     <div class="tableau" id="tableau" hidden></div>
@@ -1788,7 +1820,7 @@ function bulletin(lieu){
     $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24"'+(st.icone==="soleil" ? ' class="tourne"' : '')+'>'+ICONES_METEO[st.icone]+'</svg>';
     $("bulTemp").textContent = now.temp + "°";
     $("bulCiel").textContent = st.ciel;
-    $("bulMeteo").hidden = false;
+    $("bulMeteo").hidden = false; $("bulCredit").hidden = false;
     peindreJours(m.jours);
   });
 }
@@ -1926,7 +1958,40 @@ function rafraichirDroits(s){
     })
     .catch(function(){});
 }
+/* ---------- conditions d'utilisation ----------
+   Le serveur dit si la version en vigueur a été acceptée par ce compte.
+   Sinon la fenêtre couvre l'accueil : la case est vide, le bouton reste
+   grisé tant qu'elle n'est pas cochée. */
+var CGU_VERSION="";
+function verifierCgu(s){
+  if(!s || !s.jeton || s.demo) return;
+  lireMoi(s).then(function(x){
+    if(!x || !x.ok || !x.d || x.d.cguAJour!==false) return;
+    CGU_VERSION=x.d.cguVersion||"";
+    $("cguCoche").checked=false; $("cguOk").disabled=true; $("cguErr").textContent="";
+    $("fenCgu").hidden=false;
+    $("cguCoche").focus();
+  }).catch(function(){});
+}
+$("cguCoche").addEventListener("change", function(){ $("cguOk").disabled=!this.checked; });
+$("cguOk").addEventListener("click", function(){
+  var s=session(); if(!s || !$("cguCoche").checked) return;
+  $("cguErr").textContent="Enregistrement…";
+  fetch(apiUrl("cgu-accepter"), {method:"POST", headers:{"Content-Type":"application/json", "x-auth":s.jeton},
+    body:JSON.stringify({accepte:true, version:CGU_VERSION})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ $("cguErr").textContent=res.d.erreur||"Acceptation refusée."; return; }
+      MOI_P=null; $("fenCgu").hidden=true; $("cguErr").textContent="";
+    })
+    .catch(function(){ $("cguErr").textContent="Pas de réseau."; });
+});
+$("cguSortir").addEventListener("click", function(){
+  try{ localStorage.removeItem("outils:session"); }catch(e){}
+  location.reload();
+});
 function menu(s){
+  verifierCgu(s);
   document.body.classList.remove("connexion");
   $("ciel").hidden=false; peindreCiel();
   $("vueConnexion").hidden=true; $("vueMenu").hidden=false;
@@ -2054,7 +2119,7 @@ function bandeauPublic(){
     $("bulCielP").textContent = st.ciel;
     $("bulMinMaxP").textContent = m.jours.map(function(j, i){
       return nomJour(j.date, i)+" "+j.max+"° / "+j.min+"°";
-    }).join("   ·   ");
+    }).join("   ·   ") + "   ·   Météo Open-Meteo.com";
     $("bulMeteoP").hidden = false;
   });
 }
@@ -3455,5 +3520,6 @@ if(s && s.jeton){
     .catch(function(){});
 }
 </script>
+<script src="./pied.js?v=20261003a" defer></script>
 </body>
 </html>

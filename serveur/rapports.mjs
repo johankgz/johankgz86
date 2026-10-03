@@ -62,6 +62,19 @@ let DERNIER_TIC = 0;
    chaque ouverture serait lourd ; on les garde tant que la fiche ne
    change pas. */
 const CACHE_TS = new Map();
+let DERNIERE_PURGE = 0;
+const DUREE_DEMANDES = 3 * 365.25 * 24 * 3600 * 1000;
+export async function purgerDemandesAcces(maintenant) {
+  const t = maintenant || Date.now();
+  const store = getStore("rapports");
+  const res = await store.list({ prefix: "demandes/" });
+  let n = 0;
+  for (const b of (res.blobs || [])) {
+    const quand = Number((/^demandes\/(\d{12,})-/.exec(b.key) || [])[1]);
+    if (quand && t - quand > DUREE_DEMANDES) { try { await store.delete(b.key); n++; } catch { /* suivante */ } }
+  }
+  return n;
+}
 async function tic(force) {
   if (!force && Date.now() - DERNIER_TIC < 50000) return 0;
   DERNIER_TIC = Date.now();
@@ -75,6 +88,12 @@ async function tic(force) {
         try { lots.push({ store, dus: await repererRappelsDus(store), code: soc.code }); } catch { /* société suivante */ }
       }
     } catch { /* on réessaiera */ }
+    /* les demandes d'accès s'effacent 3 ans après leur arrivée (politique de confidentialité) ;
+       la date est au début de la clé, une fois par jour suffit */
+    if (Date.now() - DERNIERE_PURGE > 24 * 3600 * 1000) {
+      DERNIERE_PURGE = Date.now();
+      try { await purgerDemandesAcces(); } catch { /* demain */ }
+    }
   });
   let n = 0;
   for (const l of lots) {
@@ -246,6 +265,9 @@ async function lireComptes(code) {
 async function ecrireComptes(code, comptes) {
   await magasinAnnuaire().setJSON("comptes-" + code + ".json", comptes);
 }
+/* version des conditions générales d'utilisation (cgu.html) : la changer
+   quand le texte change, chacun les réacceptera à sa prochaine visite */
+const CGU_VERSION = "2026-10-03";
 const DUREE_SESSION = 3 * 24 * 60 * 60 * 1000;   /* trois jours : deux reconnexions par semaine */
 
 /* =====================================================================
@@ -484,14 +506,14 @@ function personneDuCompte(code, u) {
   return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
     societe: code, proprietaire: proprio, applis: applisValides(u.applis),
     identifiant: String(u.identifiant).trim().toLowerCase(),
-    aChanger };
+    aChanger, cgu: (u.cgu && u.cgu.version) || "" };
 }
 function personneDuProprietaire(code) {
   /* le secours entre avec le mot de passe écrit dans le code : la
      première chose à faire est d'en poser un vrai. */
   return { nom: PROPRIETAIRE.nom, role: "admin", proprietaire: true, societe: code,
     email: PROPRIETAIRE.email, applis: [], identifiant: PROPRIETAIRE.identifiant,
-    aChanger: true };
+    aChanger: true, cgu: "" };
 }
 /* le secours du propriétaire : ouvert tant que son compte n'existe pas,
    ou existe sans aucun mot de passe. Un mot de passe posé le referme. */
@@ -863,7 +885,8 @@ async function traiter(req) {
     const soc = liste.find((x) => x.code === code) || {};
     return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: p.applis || [],
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
-      proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger });
+      proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger,
+      cguVersion: CGU_VERSION, cguAJour: p.cgu === CGU_VERSION });
   }
 
   /* ---------- liens publics : la page du client, le QR du tableau ---------- */
@@ -916,7 +939,8 @@ async function traiter(req) {
       return json({
         genre: lien.genre, tableau: lien.tableau || "", archive: !c,
         societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
-          adresse: (fiche && fiche.adresse) || "", logo: (fiche && fiche.logo) || null },
+          adresse: (fiche && fiche.adresse) || "", mentions: (fiche && fiche.mentions) || "",
+          mediateur: (fiche && fiche.mediateur) || "", logo: (fiche && fiche.logo) || null },
         /* le QR du tableau est collé chez le client, à la vue de tous : ni nom ni adresse */
         dossier: tableau ? { ref: k.ref || lien.ref } : { ref: k.ref || lien.ref, client: k.client || "", adresse: k.adresse || "",
           avancement: c ? avancementDe(c) : 100, etat: c ? etatDossier(c).etat : "archive" },
@@ -1047,7 +1071,9 @@ async function traiter(req) {
     let fiche = null;
     try { fiche = await magasinAnnuaire().get("fiches/" + R.societe + ".json", { type: "json" }); } catch { fiche = null; }
     const soc = (await lireSocietes()).find((x) => x.code === R.societe) || {};
-    const societe = { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", logo: (fiche && fiche.logo) || null };
+    const societe = { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", logo: (fiche && fiche.logo) || null,
+      adresse: (fiche && fiche.adresse) || "", web: (fiche && fiche.web) || "", mentions: (fiche && fiche.mentions) || "",
+      mediateur: (fiche && fiche.mediateur) || "" };
     /* ouvert depuis le lien du client : son dossier, son nom, son adresse */
     let dossier = null;
     const jl = String(url.searchParams.get("j") || d.j || "");
@@ -1181,7 +1207,26 @@ async function traiter(req) {
   if (action === "moi") {
     return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
       proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,
-      metier: "", ville: "", societe: personne.societe });
+      metier: "", ville: "", societe: personne.societe,
+      cguVersion: CGU_VERSION, cguAJour: personne.cgu === CGU_VERSION });
+  }
+
+  /* ---------- conditions d'utilisation : acceptées une fois par version ----------
+     La case est cochée par la personne elle-même, jamais d'avance ; on garde
+     la version et la date, qui suivent le compte (même remis à zéro). */
+  if (action === "cgu-accepter") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    if (d.accepte !== true || d.version !== CGU_VERSION) {
+      return json({ erreur: "Cochez la case pour accepter les conditions en vigueur.", cguVersion: CGU_VERSION }, 400);
+    }
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant);
+    if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
+    comptes[i] = { ...comptes[i], cgu: { version: CGU_VERSION, le: new Date().toISOString() } };
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, cguVersion: CGU_VERSION });
   }
 
   if (action === "equipe") {
@@ -1391,7 +1436,7 @@ async function traiter(req) {
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const txt = (v, n) => String(v || "").trim().slice(0, n);
     const fiche = { nom: txt(d.nom, 120), tel: txt(d.tel, 60), web: txt(d.web, 160), adresse: txt(d.adresse, 200),
-      mentions: txt(d.mentions, 300), maj: new Date().toISOString(), par: personne.nom, logo: null };
+      mentions: txt(d.mentions, 300), mediateur: txt(d.mediateur, 300), maj: new Date().toISOString(), par: personne.nom, logo: null };
     if (d.logo && typeof d.logo.data === "string" && /^data:image\/(png|jpeg);base64,/.test(d.logo.data)) {
       if (d.logo.data.length > 400000) return json({ erreur: "Logo trop lourd." }, 400);
       fiche.logo = { data: d.logo.data, w: Number(d.logo.w) || 0, h: Number(d.logo.h) || 0 };

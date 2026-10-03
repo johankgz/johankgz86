@@ -17,14 +17,15 @@ var COQUILLE = "coquille-1", CDN = "bibliotheques-1", DONNEES = "donnees-1", REG
 var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html", "/client.html", "/rdv.html", "/commande.html", "/compte.html", "/dwg.html",
   "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/photos.html", "/plans.html", "/point.html",
   "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
-  "/technique.html", "/utilitaires.html"];
+  "/technique.html", "/utilitaires.html",
+  "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html"];
 var FICHIERS = ["/annotation.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/horsligne.js",
-  "/notifications.js", "/reseau.js", "/sobre.js", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/sobre.css",
+  "/notifications.js", "/reseau.js", "/sobre.js", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/sobre.css", "/pied.js", "/legal.css",
   "/manifest.webmanifest", "/polices/jakarta-var.woff2", "/icone-120.png", "/icone-152.png", "/icone-167.png",
   "/icone-180.png", "/icone-192.png", "/icone-512.png", "/entete-contact.png", "/entete-societe.png"];
-var BIBLIOTHEQUES = ["https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js",
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"];
+/* les bibliothèques sont servies par le site lui-même (vendor/), plus par des CDN */
+var BIBLIOTHEQUES = [];
+FICHIERS.push("/vendor/jspdf-2.5.1/jspdf.umd.min.js", "/vendor/pdfjs-3.11.174/pdf.min.js", "/vendor/pdfjs-3.11.174/pdf.worker.min.js");
 var HOTES_CDN = /^(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 /* lectures du site qu'on garde (pas les appels de service) */
 var SANS_CACHE = /^(ping|tic|push-cle|push-etat|push-journal)$/;

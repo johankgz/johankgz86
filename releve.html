@@ -17,7 +17,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>Relevé technique — Suivi travaux 360</title>
 
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <style>
 :root{
   --bg:#F4F1EA;
@@ -1444,6 +1444,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <button type="button" id="carte_chercher">Chercher</button>
   </div>
   <div class="sk-wrap"><canvas id="carte_canvas"></canvas></div>
+  <p class="carte-credit" style="margin:4px 12px 8px;font-size:11.5px;opacity:.85;text-align:right">Recherche d'adresses : © les contributeurs d'OpenStreetMap (Nominatim)</p>
 </div>
 
 <div id="soleil" hidden>
@@ -3234,7 +3235,7 @@ window.CourseSoleil = {position:positionSoleil, journee:journeeSoleil, instant:s
 /* ================= carte aérienne déplaçable ================= */
 var MAP = {lat:null, lon:null, zoom:19, source:"ign", cache:{}, echec:{}, pret:false, mode:"aerienne"};
 var MAP_MAX = {plan:19, ign:21, esri:19};
-var MAP_NOM = {plan:"IGN, plan des rues", ign:"IGN, orthophotographie", esri:"Esri, Maxar"};
+var MAP_NOM = {plan:"© IGN, plan des rues", ign:"© IGN, orthophotographie", esri:"© Esri, Maxar, Earthstar Geographics"};
 
 function mapTailleCanvas(){
   var c = Math.min(window.innerWidth - 24, window.innerHeight - 190, 560);
@@ -4251,13 +4252,13 @@ $("btnPvgis").addEventListener("click", function(){
   $("pvgisState").textContent="Interrogation de PVGIS…";
   var direct = pvgisUrl(a, "v5_3");
   /* d'abord le relais du site, sur /api/pvgis comme le reste du site (il
-     essaie lui-même les versions de PVGIS) ; puis PVGIS en direct et un
-     relais public, en dernier recours. Jamais d'adresse qui commence
-     par un point : o2switch la refuse. */
+     essaie lui-même les versions de PVGIS) ; puis PVGIS en direct (service
+     de la Commission européenne). Plus de relais public tiers : la position
+     de la maison du client ne part pas chez un inconnu. Jamais d'adresse
+     qui commence par un point : o2switch la refuse. */
   var routes = [
     "/api/pvgis?"+direct.split("?")[1],
-    direct,
-    "https://api.allorigins.win/raw?url="+encodeURIComponent(direct)
+    direct
   ];
   var raisons=[];
   (function tryRoute(i){
@@ -4290,7 +4291,7 @@ $("btnPvgis").addEventListener("click", function(){
       }
       var quoi = (e && e.name==="AbortError") ? "délai dépassé"
         : (/load failed|failed to fetch|networkerror/i.test((e && e.message) || "") ? "bloqué par le navigateur" : ((e && e.message) || "erreur"));
-      raisons.push((i===0 ? "relais du site" : (i===1 ? "PVGIS en direct" : "relais public"))+" : "+quoi);
+      raisons.push((i===0 ? "relais du site" : "PVGIS en direct")+" : "+quoi);
       tryRoute(i+1);
     });
   })(0);
@@ -7131,5 +7132,6 @@ function majDebordChantier(){
 
 })();
 </script>
+<script src="./pied.js?v=20261003a" defer></script>
 </body>
 </html>
