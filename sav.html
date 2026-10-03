@@ -2081,7 +2081,7 @@ function texteAppel(a){
   if(!a || !a.le) return "";
   var d=new Date(a.le), h=isNaN(d) ? "" : String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
   return frDate(isNaN(d) ? a.le : d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"))
-    + (h ? " à "+h : "") + (a.par ? ", pris par "+a.par : "");
+    + (h ? " à "+h : "") + (a.par === "Demande en ligne" ? ", demande faite en ligne par le client" : a.par ? ", pris par "+a.par : "");
 }
 function renderAppel(){
   var el=$("appelInfo"); if(!el || !S) return;
@@ -2182,23 +2182,24 @@ function renderATerminer(){
     var l=document.createElement("div"); l.className="at-ligne";
     var t=document.createElement("div"); t.className="at-txt";
     var b=document.createElement("b"); b.textContent=x.client || x.ref;
+    if(x.demandeClient){ var tg=document.createElement("em"); tg.className="at-urg"; tg.style.cssText="font-style:normal;font-size:11px;letter-spacing:.06em;text-transform:uppercase;margin-left:8px;color:var(--accent)"; tg.textContent="Demande en ligne"; b.appendChild(tg); }
     var s1=document.createElement("span");
     if(x.urgence && x.urgence!=="Normale"){ var u=document.createElement("em"); u.className="at-urg"; u.style.fontStyle="normal"; u.textContent=x.urgence+" · "; s1.appendChild(u); }
     s1.appendChild(document.createTextNode([x.nature, x.appel ? "appel du "+texteAppel(x.appel) : ""].filter(Boolean).join(" · ")));
     t.appendChild(b); t.appendChild(s1);
     if(x.motif){ var s2=document.createElement("span"); s2.textContent=x.motif; t.appendChild(s2); }
     if(x.rdv){ var s4=document.createElement("span"); s4.textContent="Passage prévu : "+x.rdv.charAt(0).toLowerCase()+x.rdv.slice(1); t.appendChild(s4); }
-    if(!x.pourMoi){ var s3=document.createElement("span"); s3.textContent="Confiée à "+x.technicien+", pas encore terminée."; t.appendChild(s3); }
+    if(!x.pourMoi){ var s3=document.createElement("span"); s3.textContent = x.demandeClient ? "Le client l'a envoyée depuis son lien ou le QR code du tableau : prenez l'appel, puis confiez-la." : "Confiée à "+x.technicien+", pas encore terminée."; t.appendChild(s3); }
     var a=document.createElement("div"); a.className="at-act";
     var ouvrir=document.createElement("button"); ouvrir.type="button"; ouvrir.className="act"+(x.pourMoi ? " blue" : " ghost");
-    ouvrir.textContent = x.pourMoi ? "Terminer" : "Ouvrir";
+    ouvrir.textContent = x.pourMoi ? "Terminer" : x.demandeClient ? "Prendre" : "Ouvrir";
     ouvrir.addEventListener("click", function(){ ouvrirATerminer(x); });
     a.appendChild(ouvrir);
     if(!x.pourMoi){
       var ret=document.createElement("button"); ret.type="button"; ret.className="act ghost"; ret.textContent="Retirer";
       ret.title="Retirer cette intervention confiée";
       ret.addEventListener("click", function(){
-        if(!window.confirm("Retirer l'intervention de « "+(x.client || x.ref)+" » confiée à "+x.technicien+" ?\n\nElle disparaît de sa liste « À terminer ».")) return;
+        if(!window.confirm(x.demandeClient ? "Retirer la demande en ligne de « "+(x.client || x.ref)+" » ?" : "Retirer l'intervention de « "+(x.client || x.ref)+" » confiée à "+x.technicien+" ?\n\nElle disparaît de sa liste « À terminer ».")) return;
         ret.disabled=true;
         fetch(apiUrl("brouillon-supprimer")+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":jetonSession()}})
           .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
@@ -2223,7 +2224,7 @@ function ouvrirATerminer(x){
         S.brouillon=x.cle; if(!S.appel && x.appel) S.appel=x.appel;
         /* le technicien la termine sur place ; le bureau la rouvre telle qu'au téléphone */
         S.etape = x.pourMoi ? "intervention" : etapeParDefaut();
-        if(!S.confie) S.confie={a:x.technicien, par:(x.appel||{}).par||"", le:x.publie||""};
+        if(!S.confie && x.technicien) S.confie={a:x.technicien, par:(x.appel||{}).par||"", le:x.publie||""};
         if(x.pourMoi){
           S.sig.nomTech=(SESSION && SESSION.nom) || S.sig.nomTech;
           /* on arrive sur place : la date et l'heure d'arrivée sont celles du jour */
@@ -2233,7 +2234,7 @@ function ouvrirATerminer(x){
         try{ basculePub("dossier"); }catch(e){}
         showTab(x.pourMoi ? "constat" : "client");
         try{ peindreNavChantier(); }catch(e){}
-        toast(x.pourMoi ? "Intervention reprise : complétez le constat, les travaux et les signatures, puis publiez." : "Fiche ouverte : modifiez-la, puis confiez-la de nouveau ou publiez-la.");
+        toast(x.pourMoi ? "Intervention reprise : complétez le constat, les travaux et les signatures, puis publiez." : x.demandeClient ? "Demande du client ouverte : rappelez-le, fixez le passage, puis confiez la fiche." : "Fiche ouverte : modifiez-la, puis confiez-la de nouveau ou publiez-la.");
       }
       if(ficheRemplie(S) && S.brouillon!==x.cle){
         mettreDeCote().then(function(etat){

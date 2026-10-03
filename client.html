@@ -1,0 +1,323 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow">
+<meta name="referrer" content="no-referrer">
+<meta name="theme-color" content="#F4F1EA">
+<title>Suivi travaux 360</title>
+<link rel="icon" href="./icone-192.png">
+<link rel="apple-touch-icon" href="./icone-180.png">
+<!--
+  client.html — ce que voit le client, sans compte
+  Ouverte par le lien envoyé au client, ou par le QR code collé sur son
+  tableau électrique. Le jeton (?j=…) ne donne accès qu'à son dossier.
+-->
+<style>
+@font-face{font-family:"Jakarta";src:url("./polices/jakarta-var.woff2") format("woff2");font-weight:200 800;font-display:swap}
+:root{
+  --bg:#F4F1EA; --card:#FFFFFF; --ink:#1F1D1A; --ink-2:#4A463F; --ink-3:#7A7468; --rule:rgba(31,29,26,.10);
+  --accent:#B4621A; --accent-soft:#FBEDE0; --accent-vif:#D9772A; --ok:#5E6E42; --danger:#A6291F; --field:#F4F1EA;
+  --ombre:0 1px 2px rgba(31,29,26,.06),0 6px 22px rgba(31,29,26,.06); --r:14px;
+}
+@media (prefers-color-scheme:dark){
+  :root{ --bg:#16181B; --card:#202328; --ink:#ECEAE5; --ink-2:#C9C5BC; --ink-3:#9A958B; --rule:rgba(255,255,255,.10);
+    --accent:#E08A3C; --accent-soft:rgba(224,138,60,.14); --field:#2A2E34; --ombre:0 1px 2px rgba(0,0,0,.3); }
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:"Jakarta",-apple-system,"Segoe UI",Roboto,sans-serif;
+  font-size:16px;line-height:1.45;-webkit-text-size-adjust:100%}
+a{color:var(--accent)}
+.page{max-width:640px;margin:0 auto;padding:16px 16px calc(28px + env(safe-area-inset-bottom,0px))}
+header.marque{display:flex;align-items:center;gap:12px;padding:6px 2px 16px}
+header.marque img{max-height:44px;max-width:120px;object-fit:contain;border-radius:6px;background:#fff}
+header.marque .nom{font-weight:750;font-size:18px;letter-spacing:-.01em}
+header.marque .sous{font-size:12.5px;color:var(--ink-3)}
+.carte{background:var(--card);border-radius:var(--r);box-shadow:var(--ombre);padding:16px;margin-bottom:12px}
+.carte h2{margin:0 0 10px;font-size:16.5px;letter-spacing:-.01em;display:flex;align-items:center;gap:8px}
+.carte h2 svg{width:20px;height:20px;fill:none;stroke:var(--accent);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+.tete h1{margin:0 0 4px;font-size:22px;letter-spacing:-.02em}
+.tete p{margin:0;color:var(--ink-2)}
+.hint{font-size:13.5px;color:var(--ink-3);margin:4px 0 10px}
+.barre{height:8px;border-radius:8px;background:var(--field);overflow:hidden;margin:12px 0 4px}
+.barre i{display:block;height:100%;background:var(--accent);border-radius:8px}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:46px;padding:11px 16px;border:0;border-radius:12px;
+  background:var(--accent);color:#fff;font:inherit;font-weight:650;text-decoration:none;cursor:pointer}
+.btn.ghost{background:var(--accent-soft);color:var(--accent)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.rangee{display:flex;gap:10px;flex-wrap:wrap}
+.rangee .btn{flex:1 1 150px}
+.docs a{display:flex;align-items:center;gap:12px;padding:11px 0;border-top:1px solid var(--rule);color:var(--ink);text-decoration:none}
+.docs a:first-child{border-top:0}
+.docs a b{display:block;font-weight:600}
+.docs a span{display:block;font-size:12.5px;color:var(--ink-3)}
+.docs a svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:var(--accent);stroke-width:1.7}
+.circuits h3{margin:12px 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.circuits ol{margin:0;padding:0;list-style:none;counter-reset:c}
+.circuits li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--rule);counter-increment:c}
+.circuits li::before{content:counter(c);min-width:26px;height:26px;border-radius:7px;background:var(--accent-soft);color:var(--accent);
+  font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
+label.f{display:block;margin:0 0 12px}
+label.f span{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
+input[type=text],input[type=tel],input[type=email],textarea{width:100%;min-height:46px;padding:11px 13px;border:1px solid var(--rule);border-radius:11px;
+  background:var(--field);color:var(--ink);font:inherit}
+textarea{min-height:96px;resize:vertical}
+.case{display:flex;gap:10px;align-items:flex-start;margin:4px 0 14px;font-size:14.5px}
+.case input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--danger);flex:0 0 auto}
+.piege{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.vignettes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
+.vignettes img{width:72px;height:72px;object-fit:cover;border-radius:10px}
+.etat{padding:14px 2px;color:var(--ink-2)}
+.ok-msg{background:rgba(94,110,66,.12);color:var(--ok);border-radius:11px;padding:12px 14px;font-weight:600}
+.err-msg{background:rgba(166,41,31,.10);color:var(--danger);border-radius:11px;padding:12px 14px}
+.depots li{font-size:13.5px;color:var(--ink-2);padding:4px 0}
+.pub{margin-top:22px;padding:18px 16px;border-radius:var(--r);background:linear-gradient(135deg,#22201C,#3A2A1B 60%,#B4621A);color:#F4EEE6;text-align:center}
+.pub b{display:block;font-size:20px;letter-spacing:-.02em}
+.pub b em{font-style:normal;color:#F3A15A}
+.pub span{display:block;font-size:13px;opacity:.85;margin-top:4px}
+.pied{text-align:center;font-size:11.5px;color:var(--ink-3);margin-top:14px}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="page">
+  <header class="marque" id="marque">
+    <img id="logo" alt="" hidden>
+    <div><div class="nom" id="socNom">Suivi travaux 360</div><div class="sous" id="socSous"></div></div>
+  </header>
+
+  <p class="etat" id="etat">Chargement…</p>
+
+  <div id="contenu" hidden>
+    <section class="carte tete" id="carteTete">
+      <h1 id="titre"></h1>
+      <p id="sousTitre"></p>
+      <div id="avance" hidden><div class="barre"><i id="avanceBarre"></i></div><p class="hint" id="avanceTxt"></p></div>
+      <div class="rangee" style="margin-top:14px">
+        <a class="btn" id="btnAppeler" hidden><svg viewBox="0 0 24 24"><path d="M6.6 3.5h2.6l1.4 4-1.9 1.3a10 10 0 0 0 6.5 6.5l1.3-1.9 4 1.4v2.6a1.7 1.7 0 0 1-1.9 1.7A15.8 15.8 0 0 1 4.9 5.4 1.7 1.7 0 0 1 6.6 3.5z"/></svg>Appeler</a>
+        <a class="btn ghost" href="#demande"><svg viewBox="0 0 24 24"><path d="M12 3.4 21 19.6H3z"/><path d="M12 9.6v4.3M12 16.8h.01"/></svg>Signaler un problème</a>
+      </div>
+    </section>
+
+    <section class="carte circuits" id="carteCircuits" hidden>
+      <h2><svg viewBox="0 0 24 24"><path d="M3.5 5.5h17v13h-17z"/><path d="M3.5 9.5h17"/><path d="M7 9.5v9M11 9.5v9M15 9.5v9"/></svg>Les circuits du tableau</h2>
+      <p class="hint">Avant d'intervenir sur un circuit, coupez son disjoncteur, puis vérifiez que le courant est bien coupé.</p>
+      <div id="listeCircuits"></div>
+    </section>
+
+    <section class="carte" id="carteDocs" hidden>
+      <h2><svg viewBox="0 0 24 24"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>Documents</h2>
+      <div class="docs" id="listeDocs"></div>
+    </section>
+
+    <section class="carte" id="carteDepot" hidden>
+      <h2><svg viewBox="0 0 24 24"><path d="M12 15.5v-11M7.5 9 12 4.5 16.5 9M4.5 17v3.5h15V17"/></svg>Nous envoyer un fichier</h2>
+      <p class="hint">Votre courbe de charge Linky (téléchargée dans votre espace Enedis, « Mes mesures », consommation horaire, en CSV ou Excel), des photos, une facture… Elle arrive directement dans votre dossier.</p>
+      <div class="rangee">
+        <button type="button" class="btn" id="btnDeposer"><svg viewBox="0 0 24 24"><path d="M12 15.5v-11M7.5 9 12 4.5 16.5 9M4.5 17v3.5h15V17"/></svg>Choisir un fichier</button>
+        <a class="btn ghost" href="https://mon-compte-particulier.enedis.fr/" target="_blank" rel="noopener">Mon espace Enedis</a>
+      </div>
+      <input type="file" id="fichierDepot" multiple accept=".csv,.txt,.xlsx,.pdf,image/*" hidden>
+      <p class="hint" id="depotEtat"></p>
+      <ul class="depots" id="listeDepots" style="margin:4px 0 0;padding-left:18px"></ul>
+    </section>
+
+    <section class="carte" id="demande">
+      <h2><svg viewBox="0 0 24 24"><path d="M12 3.4 21 19.6H3z"/><path d="M12 9.6v4.3M12 16.8h.01"/></svg>Demander une intervention</h2>
+      <form id="formDemande" novalidate>
+        <label class="f"><span>Ce qui se passe</span><textarea id="d_message" placeholder="Le disjoncteur saute quand je lance le four, une prise ne marche plus…"></textarea></label>
+        <label class="case"><input type="checkbox" id="d_urgent"><span>C'est urgent : plus de courant, odeur de brûlé, étincelles. <b>En cas de danger, coupez le disjoncteur général.</b></span></label>
+        <label class="f"><span>Votre nom</span><input type="text" id="d_nom" autocomplete="name"></label>
+        <label class="f"><span>Téléphone</span><input type="tel" id="d_tel" autocomplete="tel"></label>
+        <label class="f"><span>E-mail (facultatif)</span><input type="email" id="d_email" autocomplete="email"></label>
+        <label class="f"><span>Vos disponibilités (facultatif)</span><input type="text" id="d_dispo" placeholder="En semaine après 17 h, le samedi matin…"></label>
+        <label class="piege" aria-hidden="true">Site<input type="text" id="d_site" tabindex="-1" autocomplete="off"></label>
+        <div class="rangee" style="margin-bottom:10px">
+          <button type="button" class="btn ghost" id="btnPhotos"><svg viewBox="0 0 24 24"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>Ajouter des photos</button>
+        </div>
+        <input type="file" id="fichierPhotos" accept="image/*" multiple hidden>
+        <div class="vignettes" id="vignettes"></div>
+        <button type="submit" class="btn" id="btnEnvoyer" style="width:100%">Envoyer la demande</button>
+        <div id="demandeEtat" style="margin-top:12px"></div>
+      </form>
+    </section>
+
+    <section class="carte" id="cartePro" hidden>
+      <h2>Accès entreprise</h2>
+      <p class="hint">Vous êtes connecté au site de l'entreprise : le dossier complet (relevé, suivi, SAV) est à un clic.</p>
+      <a class="btn ghost" id="btnPro">Ouvrir le dossier</a>
+    </section>
+
+    <div class="pub">
+      <b>Suivi travaux <em>360</em></b>
+      <span>Vos travaux suivis de bout en bout : relevé, chantier, réception, dépannage.</span>
+    </div>
+    <p class="pied" id="pied"></p>
+  </div>
+</div>
+
+<script src="./courbe-charge.js?v=20261003a"></script>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var J = "";
+  try{ J = new URLSearchParams(location.search).get("j") || ""; }catch(e){}
+  var API = location.origin + "/api/rapports?action=";
+  var D = null, PHOTOS = [];
+  function frDate(d){ if(!d) return ""; var a = String(d).slice(0, 10).split("-"); return a.length === 3 ? a[2] + "/" + a[1] + "/" + a[0] : d; }
+  function telPoints(t){ var c = String(t || "").replace(/\D/g, ""); return c.length === 10 ? c.replace(/(\d\d)(?=\d)/g, "$1.") : String(t || ""); }
+  function poster(action, corps){
+    return fetch(API + action, {method: "POST", headers: {"content-type": "application/json"}, body: JSON.stringify(Object.assign({j: J}, corps))})
+      .then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); });
+  }
+  var ICONE_DOC = '<svg viewBox="0 0 24 24"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/></svg>';
+
+  function peindre(){
+    var S = D.societe || {}, tableau = D.genre === "tableau";
+    $("socNom").textContent = S.nom || "Suivi travaux 360";
+    $("socSous").textContent = [telPoints(S.tel), S.web].filter(Boolean).join("  ·  ");
+    if(S.logo && S.logo.data){ $("logo").src = S.logo.data; $("logo").hidden = false; }
+    document.title = (tableau ? "Tableau électrique" : "Votre dossier") + " — " + (S.nom || "Suivi travaux 360");
+    if(S.tel){ var a = $("btnAppeler"); a.href = "tel:" + String(S.tel).replace(/[^\d+]/g, ""); a.hidden = false; a.lastChild.textContent = "Appeler " + (S.nom || "l'entreprise"); }
+    if(tableau){
+      $("titre").textContent = "Tableau électrique" + (D.tableau ? " — " + D.tableau : "");
+      $("sousTitre").textContent = "Installé et suivi par " + (S.nom || "l'entreprise") + ". Scannez ce QR code pour retrouver les circuits, les documents, et demander un dépannage.";
+    } else {
+      var k = D.dossier || {};
+      $("titre").textContent = k.client ? "Bonjour " + k.client : "Votre dossier";
+      $("sousTitre").textContent = [k.adresse, k.ref ? "Dossier " + k.ref : ""].filter(Boolean).join("  ·  ");
+      if(k.avancement > 0){
+        $("avance").hidden = false; $("avanceBarre").style.width = k.avancement + "%";
+        $("avanceTxt").textContent = "Travaux avancés à " + k.avancement + " %.";
+      }
+      $("carteDepot").hidden = false;
+      peindreDepots();
+    }
+    /* les circuits du tableau */
+    var C = D.circuits || [];
+    $("carteCircuits").hidden = !C.length;
+    var lc = $("listeCircuits"); lc.textContent = "";
+    C.forEach(function(r){
+      if(C.length > 1){ var h = document.createElement("h3"); h.textContent = r.nom; lc.appendChild(h); }
+      var ol = document.createElement("ol");
+      r.cases.forEach(function(t){ var li = document.createElement("li"); li.appendChild(document.createTextNode(t)); ol.appendChild(li); });
+      lc.appendChild(ol);
+    });
+    /* les documents */
+    var docs = D.documents || [];
+    $("carteDocs").hidden = !docs.length;
+    var ld = $("listeDocs"); ld.textContent = "";
+    docs.forEach(function(f){
+      var a = document.createElement("a");
+      a.href = API + "lien-fichier&j=" + encodeURIComponent(J) + "&cle=" + encodeURIComponent(f.cle); a.target = "_blank"; a.rel = "noopener";
+      a.innerHTML = ICONE_DOC;
+      var t = document.createElement("div"), b = document.createElement("b"), s = document.createElement("span");
+      b.textContent = f.titre; s.textContent = [f.etape && f.type !== "sav" ? f.etape : "", f.date ? "du " + frDate(f.date) : ""].filter(Boolean).join(", ");
+      t.appendChild(b); t.appendChild(s); a.appendChild(t); ld.appendChild(a);
+    });
+    /* quelqu'un de l'entreprise, connecté sur cet appareil */
+    var session = null; try{ session = JSON.parse(localStorage.getItem("outils:session") || "null"); }catch(e){}
+    if(session && session.jeton && D.dossier && D.dossier.ref){ $("cartePro").hidden = false; $("btnPro").href = "./chantier.html?ref=" + encodeURIComponent(D.dossier.ref); }
+    $("pied").textContent = (S.adresse ? S.adresse + "  ·  " : "") + "Page personnelle : ne la partagez qu'avec les personnes concernées.";
+    if(tableau) $("pied").textContent = S.adresse || "";
+  }
+  function peindreDepots(){
+    var l = $("listeDepots"); l.textContent = "";
+    (D.depots || []).slice(-8).reverse().forEach(function(x){
+      var li = document.createElement("li");
+      li.textContent = x.nom + (x.resume ? " — " + x.resume : "") + ", reçu le " + frDate(x.le);
+      l.appendChild(li);
+    });
+  }
+
+  /* ---------- photos : réduites sur le téléphone avant l'envoi ---------- */
+  function reduire(f, max){
+    return new Promise(function(ok){
+      var u = URL.createObjectURL(f), im = new Image();
+      im.onload = function(){
+        var r = Math.min(1, max / Math.max(im.width, im.height)), cv = document.createElement("canvas");
+        cv.width = Math.round(im.width * r); cv.height = Math.round(im.height * r);
+        cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u);
+        ok({data: cv.toDataURL("image/jpeg", 0.8), w: cv.width, h: cv.height});
+      };
+      im.onerror = function(){ URL.revokeObjectURL(u); ok(null); };
+      im.src = u;
+    });
+  }
+  $("btnPhotos").addEventListener("click", function(){ $("fichierPhotos").click(); });
+  $("fichierPhotos").addEventListener("change", function(){
+    var fs = Array.prototype.slice.call(this.files).slice(0, 4 - PHOTOS.length); this.value = "";
+    Promise.all(fs.map(function(f){ return reduire(f, 1400); })).then(function(l){
+      l.filter(Boolean).forEach(function(p){ PHOTOS.push(p); });
+      var v = $("vignettes"); v.textContent = "";
+      PHOTOS.forEach(function(p){ var im = document.createElement("img"); im.src = p.data; im.alt = ""; v.appendChild(im); });
+      $("btnPhotos").disabled = PHOTOS.length >= 4;
+    });
+  });
+
+  /* ---------- la demande d'intervention ---------- */
+  $("formDemande").addEventListener("submit", function(e){
+    e.preventDefault();
+    var etat = $("demandeEtat"), b = $("btnEnvoyer");
+    var corps = {message: $("d_message").value, nom: $("d_nom").value, tel: $("d_tel").value, email: $("d_email").value,
+      dispo: $("d_dispo").value, urgent: $("d_urgent").checked, site: $("d_site").value, photos: PHOTOS};
+    etat.textContent = "";
+    if(!corps.message.trim()){ etat.innerHTML = '<p class="err-msg">Décrivez en quelques mots ce qui se passe.</p>'; return; }
+    if(!corps.tel.trim() && corps.email.indexOf("@") < 1){ etat.innerHTML = '<p class="err-msg">Laissez un téléphone ou un e-mail pour qu\'on vous rappelle.</p>'; return; }
+    b.disabled = true; b.textContent = "Envoi…";
+    poster("lien-demande", corps).then(function(r){
+      b.disabled = false; b.textContent = "Envoyer la demande";
+      if(!r.ok){ etat.innerHTML = ""; var p = document.createElement("p"); p.className = "err-msg"; p.textContent = r.d.erreur || "Envoi refusé."; etat.appendChild(p); return; }
+      $("formDemande").reset(); PHOTOS = []; $("vignettes").textContent = ""; $("btnPhotos").disabled = false;
+      etat.innerHTML = '<p class="ok-msg">Demande envoyée. L\'entreprise vous rappelle pour fixer le passage.</p>';
+    }).catch(function(){ b.disabled = false; b.textContent = "Envoyer la demande"; etat.innerHTML = '<p class="err-msg">Pas de réseau. Réessayez dans un instant.</p>'; });
+  });
+
+  /* ---------- déposer un fichier : la courbe de charge est lue ici, avant l'envoi ---------- */
+  $("btnDeposer").addEventListener("click", function(){ $("fichierDepot").click(); });
+  function lireDataUrl(f){ return new Promise(function(ok, ko){ var r = new FileReader(); r.onload = function(){ ok(r.result); }; r.onerror = ko; r.readAsDataURL(f); }); }
+  function deposer(f){
+    var etat = $("depotEtat"), nom = f.name || "fichier";
+    etat.textContent = "Envoi de « " + nom + " »…";
+    var tableur = /\.(csv|txt|xlsx)$/i.test(nom);
+    var p = tableur && window.CourbeCharge
+      ? CourbeCharge.lire(f).then(function(c){
+          var a = CourbeCharge.analyser(c, {});
+          var resume = a ? a.jours + " jours de mesures, " + String(Math.round(a.annuel)).replace(/\B(?=(\d{3})+(?!\d))/g, " ") + " kWh par an" : "";
+          return poster("lien-depot", {genre: "courbe", nom: nom, courbe: c, resume: resume}).then(function(r){ r.resume = resume; return r; });
+        }, function(){ return null; })
+      : Promise.resolve(null);
+    return p.then(function(r){
+      if(r) return r;
+      if(/^image\//.test(f.type)) return reduire(f, 2000).then(function(ph){ return poster("lien-depot", {genre: "photo", nom: nom, data: ph && ph.data}); });
+      if(f.size > 4.5 * 1024 * 1024) return {ok: false, d: {erreur: "Fichier trop lourd (4,5 Mo au plus)."}};
+      return lireDataUrl(f).then(function(u){
+        var type = f.type || (/\.csv$/i.test(nom) ? "text/csv" : /\.xlsx$/i.test(nom) ? "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" : "");
+        return poster("lien-depot", {genre: "fichier", nom: nom, data: String(u).replace(/^data:[^;]*;/, "data:" + type + ";")});
+      });
+    }).then(function(r){
+      if(!r.ok){ etat.textContent = r.d.erreur || "Envoi refusé."; return; }
+      etat.textContent = "« " + nom + " » est arrivé dans votre dossier" + (r.resume ? " : courbe de charge lue, " + r.resume : "") + ". Merci !";
+      D.depots = (D.depots || []).concat([{nom: nom, le: new Date().toISOString(), resume: r.resume || ""}]); peindreDepots();
+    }).catch(function(){ etat.textContent = "Pas de réseau. Réessayez dans un instant."; });
+  }
+  $("fichierDepot").addEventListener("change", function(){
+    var fs = Array.prototype.slice.call(this.files); this.value = "";
+    fs.reduce(function(p, f){ return p.then(function(){ return deposer(f); }); }, Promise.resolve());
+  });
+
+  /* ---------- ouverture ---------- */
+  if(!J){ $("etat").textContent = "Lien incomplet. Scannez de nouveau le QR code, ou ouvrez le lien reçu par e-mail."; return; }
+  fetch(API + "lien&j=" + encodeURIComponent(J)).then(function(r){ return r.json().then(function(d){ return {ok: r.ok, d: d}; }); })
+    .then(function(r){
+      if(!r.ok){ $("etat").textContent = r.d.erreur || "Lien introuvable."; return; }
+      D = r.d; $("etat").hidden = true; $("contenu").hidden = false; peindre();
+    })
+    .catch(function(){ $("etat").textContent = "Pas de réseau. Réessayez dans un instant."; });
+})();
+</script>
+</body>
+</html>

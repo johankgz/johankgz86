@@ -617,6 +617,21 @@ nav#nav a:active svg,nav#nav button:active svg{transform:scale(.92)}
 #loc{margin-top:14px}
 #loc .coord{font-size:12.5px;color:var(--ink-3);margin:2px 0 12px;font-variant-numeric:tabular-nums}
 #loc .btns{display:flex;gap:8px;flex-wrap:wrap}
+/* le lien du client et les QR codes des tableaux */
+#client .btns{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 4px}
+#client .btns .act{flex:1 1 auto;min-width:120px}
+#client h3{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:18px 0 6px}
+#client .lien-url{font-size:12.5px;color:var(--ink-3);word-break:break-all;margin:2px 0 0}
+#client .qr-ecran{display:block;margin:10px auto 2px;border-radius:10px;background:#fff}
+#client .ligne-qr{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--rule)}
+#client .ligne-qr b{flex:1;min-width:0}
+#client .ligne-qr .act{width:auto;flex:0 0 auto;min-height:40px;padding:8px 12px}
+#client .nouveau-qr{display:flex;gap:8px;margin-top:8px}
+#client .nouveau-qr input{flex:1;min-width:0}
+#client .nouveau-qr .act{width:auto;flex:0 0 auto}
+#client .depot{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--rule);font-size:14px}
+#client .depot span{flex:1;min-width:0}
+#client .depot small{display:block;color:var(--ink-3)}
 #loc .btns .act{flex:1 1 auto;min-width:140px}
 
 .vide{color:var(--ink-3);font-size:14.5px;text-align:center;padding:22px 10px}
@@ -980,11 +995,27 @@ header{overflow-anchor:none}
     <p class="hint" id="loc_etat" style="margin-top:10px"></p>
   </div>
 
+  <div class="block" id="client" hidden>
+    <h2>Le client et les QR codes</h2>
+    <p class="hint" style="margin:0 0 6px">Le lien du client ouvre une page à lui, sans compte : ses documents (PV, DOE, schéma…), l'avancement, l'envoi de fichiers (sa courbe de charge, des photos) et la demande d'intervention, qui arrive au SAV. Le QR code du tableau, collé sur la porte, donne les circuits, le schéma et le dépannage.</p>
+    <h3>Lien du client</h3>
+    <div id="clientLien"></div>
+    <h3>QR codes des tableaux</h3>
+    <div id="clientQr"></div>
+    <form class="nouveau-qr" id="formQr">
+      <input type="text" id="qrRepere" placeholder="Repère du tableau : TGBT, garage…" autocomplete="off" aria-label="Repère du tableau">
+      <button type="submit" class="act blue">Créer le QR</button>
+    </form>
+    <h3 id="titreDepots" hidden>Reçu du client</h3>
+    <div id="clientDepots"></div>
+  </div>
+
   <h2 class="sec" style="margin:24px 0 10px">Documents du dossier</h2>
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
 <script src="./dossier.js?v=20261001a"></script>
+<script src="./qr.js?v=20261003a"></script>
 <script>
 (function(){
 "use strict";
@@ -1755,6 +1786,124 @@ function cocherReste(t, fait, bouton){
     .catch(function(){ bouton.disabled=false; toast("Pas de réseau : rien n'a changé."); });
 }
 
+/* ---------- le lien du client et les QR codes des tableaux ---------- */
+var LIENS=[], DEPOTS=[];
+function appelLiens(action, corps){
+  var o = corps ? {method:"POST", headers:{"content-type":"application/json", "x-auth":SESSION.jeton}, body:JSON.stringify(Object.assign({ref:REF}, corps))}
+                : {headers:{"x-auth":SESSION.jeton}};
+  return fetch(API+"?action="+action+(corps ? "" : "&ref="+encodeURIComponent(REF)), o)
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); });
+}
+function chargerLiens(){
+  $("client").hidden=false;
+  appelLiens("liens").then(function(r){ if(r.ok){ LIENS=r.d.liens||[]; peindreLiens(); } });
+  appelLiens("depots-client").then(function(r){ if(r.ok){ DEPOTS=r.d.depots||[]; peindreDepots(); } });
+}
+function bouton(txt, cls, fn){ var b=document.createElement("button"); b.type="button"; b.className="act "+(cls||"ghost"); b.textContent=txt; b.addEventListener("click", fn); return b; }
+function chargerJsPdf(){
+  if(window.jspdf) return Promise.resolve();
+  return new Promise(function(ok, ko){
+    var s=document.createElement("script"); s.src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    s.onload=function(){ ok(); }; s.onerror=function(){ ko(new Error("PDF")); }; document.head.appendChild(s);
+  });
+}
+var FICHE_SOC=null;
+function ficheSociete(){
+  if(FICHE_SOC) return Promise.resolve(FICHE_SOC);
+  return fetch(API+"?action=societe-fiche", {headers:{"x-auth":SESSION.jeton}}).then(function(r){ return r.json(); })
+    .then(function(d){ FICHE_SOC={nom:(d.fiche && d.fiche.nom) || d.nom || "", tel:(d.fiche && d.fiche.tel) || ""}; return FICHE_SOC; })
+    .catch(function(){ return {nom:"", tel:""}; });
+}
+function telPointsC(t){ var c=String(t||"").replace(/\D/g, ""); return c.length===10 ? c.replace(/(\d\d)(?=\d)/g, "$1.") : String(t||""); }
+/* l'étiquette du tableau à imprimer : une grande pour la porte, deux petites pour l'intérieur */
+function imprimerEtiquette(l){
+  toast("Préparation de l'étiquette…");
+  Promise.all([chargerJsPdf(), ficheSociete()]).then(function(x){
+    var soc=x[1], doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"});
+    var o={url:l.url, tableau:l.tableau, societe:soc.nom, tel:telPointsC(soc.tel)};
+    QR.etiquette(doc, 20, 20, 60, 86, o);
+    QR.etiquette(doc, 95, 20, 40, 57.3, o); QR.etiquette(doc, 145, 20, 40, 57.3, o);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(110,103,92);
+    doc.text("Imprimez à 100 %, sur papier adhésif ou plastifié. Collez la grande sur la porte du tableau, les petites à l'intérieur ou près du compteur.", 20, 118, {maxWidth:170});
+    var blob=doc.output("blob"), nom="QR-"+REF+"-"+String(l.tableau||"tableau").replace(/[^\w-]+/g, "-")+".pdf";
+    if(window.Visionneuse && Visionneuse.installee && Visionneuse.installee()){ Visionneuse.pdf(blob, nom); return; }
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nom; a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+  }).catch(function(){ toast("Le module PDF ne se charge pas : vérifiez le réseau."); });
+}
+function envoyerLien(l){
+  var t="Bonjour"+(CHANTIER && CHANTIER.client ? " "+CHANTIER.client : "")+",\n\nVoici votre espace pour suivre vos travaux, retrouver vos documents, nous envoyer un fichier ou demander une intervention :\n"+l.url+"\n\nGardez ce lien pour vous : il ouvre votre dossier sans mot de passe.";
+  if(navigator.share){ navigator.share({title:"Votre dossier", text:t}).catch(function(){}); return; }
+  copier(l.url);
+}
+function copier(t){
+  try{ navigator.clipboard.writeText(t).then(function(){ toast("Lien copié."); }, function(){ window.prompt("Copiez le lien :", t); }); }
+  catch(e){ window.prompt("Copiez le lien :", t); }
+}
+function revoquer(l){
+  if(!window.confirm(l.genre==="tableau" ? "Révoquer le QR code du tableau « "+l.tableau+" » ?\n\nL'étiquette collée ne mènera plus à rien : il faudra en imprimer une nouvelle." : "Révoquer le lien du client ?\n\nIl ne pourra plus ouvrir son espace avec l'ancien lien.")) return;
+  appelLiens("lien-revoquer", {jeton:l.jeton}).then(function(r){ if(!r.ok){ toast(r.d.erreur||"Refusé."); return; } LIENS=r.d.liens||[]; peindreLiens(); toast("Lien révoqué."); });
+}
+function creerLien(genre, tableau){
+  return appelLiens("lien-creer", {genre:genre, tableau:tableau||"", client:(CHANTIER&&CHANTIER.client)||""}).then(function(r){
+    if(!r.ok){ toast(r.d.erreur||"Refusé."); return null; }
+    LIENS=r.d.liens||[]; peindreLiens(); return r.d.lien;
+  }).catch(function(){ toast("Pas de réseau."); return null; });
+}
+function peindreLiens(){
+  var h=$("clientLien"); h.textContent="";
+  var lc=LIENS.filter(function(l){ return l.genre==="client"; })[0];
+  if(!lc){
+    var p=document.createElement("div"); p.className="btns";
+    p.appendChild(bouton("Créer le lien du client", "blue", function(){ creerLien("client").then(function(l){ if(l) toast("Lien créé : envoyez-le au client."); }); }));
+    h.appendChild(p);
+  } else {
+    var u=document.createElement("p"); u.className="lien-url"; u.textContent=lc.url; h.appendChild(u);
+    var b=document.createElement("div"); b.className="btns";
+    var cv=document.createElement("canvas"); cv.className="qr-ecran"; cv.hidden=true;
+    b.appendChild(bouton("Envoyer", "blue", function(){ envoyerLien(lc); }));
+    b.appendChild(bouton("Copier", "ghost", function(){ copier(lc.url); }));
+    b.appendChild(bouton("QR à l'écran", "ghost", function(){ cv.hidden=!cv.hidden; if(!cv.hidden) QR.canvas(cv, lc.url, {taille:220}); }));
+    b.appendChild(bouton("Ouvrir", "ghost", function(){ window.open(lc.url, "_blank", "noopener"); }));
+    b.appendChild(bouton("Révoquer", "danger", function(){ revoquer(lc); }));
+    h.appendChild(b); h.appendChild(cv);
+  }
+  var q=$("clientQr"); q.textContent="";
+  var tabs=LIENS.filter(function(l){ return l.genre==="tableau"; });
+  if(!tabs.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Aucun QR code pour l'instant. Donnez le repère du tableau, ou créez-le depuis l'appli Étiquettes."; q.appendChild(v); }
+  tabs.forEach(function(l){
+    var r=document.createElement("div"); r.className="ligne-qr";
+    var b2=document.createElement("b"); b2.textContent="Tableau "+(l.tableau||""); r.appendChild(b2);
+    r.appendChild(bouton("Étiquette", "blue", function(){ imprimerEtiquette(l); }));
+    r.appendChild(bouton("Ouvrir", "ghost", function(){ window.open(l.url, "_blank", "noopener"); }));
+    r.appendChild(bouton("Révoquer", "danger", function(){ revoquer(l); }));
+    q.appendChild(r);
+  });
+}
+function peindreDepots(){
+  var h=$("clientDepots"); h.textContent=""; $("titreDepots").hidden=!DEPOTS.length;
+  DEPOTS.forEach(function(x){
+    var r=document.createElement("div"); r.className="depot";
+    var s=document.createElement("span"); s.textContent=(x.genre==="courbe" ? "Courbe de charge : " : x.genre==="photo" ? "Photo : " : "")+x.nom;
+    var sm=document.createElement("small"); sm.textContent=[x.resume, "reçu le "+new Date(x.le).toLocaleDateString("fr-FR")].filter(Boolean).join(" · "); s.appendChild(sm);
+    r.appendChild(s);
+    if(x.genre!=="courbe") r.appendChild(bouton("Ouvrir", "ghost", function(){
+      fetch(API+"?action=depot-client&ref="+encodeURIComponent(REF)+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":SESSION.jeton}})
+        .then(function(rr){ if(!rr.ok) throw 0; return rr.blob(); })
+        .then(function(b){ var u=URL.createObjectURL(b); window.open(u, "_blank"); setTimeout(function(){ URL.revokeObjectURL(u); }, 60000); })
+        .catch(function(){ toast("Fichier introuvable."); });
+    }));
+    else { var i=document.createElement("small"); i.textContent="dans le relevé, partie Conso"; i.style.color="var(--ink-3)"; r.appendChild(i); }
+    h.appendChild(r);
+  });
+}
+$("formQr").addEventListener("submit", function(e){
+  e.preventDefault();
+  var rep=$("qrRepere").value.trim();
+  if(!rep){ toast("Donnez le repère du tableau."); $("qrRepere").focus(); return; }
+  creerLien("tableau", rep).then(function(l){ if(l){ $("qrRepere").value=""; imprimerEtiquette(l); } });
+});
+
 /* ---------- chargement ---------- */
 function charger(){
   fetch(API+"?action=liste", {headers:{"x-auth":SESSION.jeton}})
@@ -1780,7 +1929,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindrePv();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){

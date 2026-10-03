@@ -33,7 +33,7 @@ function libelleDocument(entree) {
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
     : entree.type === "point" ? (entree.titre || "Le point de chantier")
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
-    : entree.type === "sav" ? (entree.fiche === "appel" ? "Réception d'appel SAV" : entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
+    : entree.type === "sav" ? (entree.fiche === "appel" ? "Réception d'appel SAV" : entree.demandeClient ? "Demande d'intervention du client" : entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
     : entree.type === "reception" ? "Procès-verbal de réception"
     : entree.type === "etiquettes" ? "Étiquettes de tableau"
     : entree.type === "photos" ? "Photos du chantier"
@@ -684,9 +684,44 @@ function rang(f) {
    ses photos, une lecture et une publication) liraient la même version,
    et la seconde effacerait ce que la première venait d'ajouter. Les
    lectures, elles, ne s'attendent pas. */
+/* =====================================================================
+   LIENS PUBLICS : le lien du client et le QR code du tableau
+   ---------------------------------------------------------------------
+   Un jeton de 20 caractères, tiré au hasard, ouvre client.html sans
+   compte : la page n'y voit que ce dossier, et seulement les documents
+   faits pour le client (PV, DOE, schéma, étiquettes, mise en service,
+   documents techniques, interventions SAV). Le lien du client permet en
+   plus de déposer des fichiers (sa courbe de charge, des photos) ; le
+   QR du tableau montre les circuits du tableau. Les deux permettent de
+   demander une intervention : elle arrive au bureau comme une fiche de
+   réception d'appel SAV, à prendre. Un jeton se révoque ; celui d'un
+   tableau ne change jamais tant qu'on ne le révoque pas (il est imprimé).
+   ===================================================================== */
+const JETON_LIEN = /^[A-Za-z0-9_-]{16,40}$/;
+const DOCS_CLIENT = ["reception", "doe", "schema", "etiquettes", "autocontrole", "technique", "sav", "reportage"];
+const DOCS_TABLEAU = ["schema", "etiquettes", "doe", "autocontrole"];
+async function lireLien(jeton) {
+  if (!JETON_LIEN.test(String(jeton || ""))) return null;
+  let l = null;
+  try { l = await magasinAnnuaire().get("liens/" + jeton + ".json", { type: "json" }); } catch { l = null; }
+  return l && l.actif !== false ? l : null;
+}
+/* au plus quelques envois par heure et par lien : une page ouverte à tous ne doit pas inonder le bureau */
+const ENVOIS_LIEN = new Map();
+function envoiPermis(jeton, max) {
+  const t = Date.now(), l = (ENVOIS_LIEN.get(jeton) || []).filter((x) => t - x < 3600000);
+  if (l.length >= max) { ENVOIS_LIEN.set(jeton, l); return false; }
+  l.push(t); ENVOIS_LIEN.set(jeton, l); return true;
+}
+function docVisible(f, lien) {
+  if (f.brouillon || f.fiche === "appel") return false;
+  return (lien.genre === "tableau" ? DOCS_TABLEAU : DOCS_CLIENT).indexOf(f.type) >= 0;
+}
+
 const LECTURES = new Set(["push-journal", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche"]);
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
+  "liens", "depots-client", "depot-client"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -761,6 +796,142 @@ async function traiter(req) {
     return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: p.applis || [],
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
       proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger });
+  }
+
+  /* ---------- liens publics : la page du client, le QR du tableau ---------- */
+  if (action === "lien" || action === "lien-fichier" || action === "lien-demande" || action === "lien-depot") {
+    let d = {};
+    if (req.method === "POST") { try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); } }
+    const jeton = String(url.searchParams.get("j") || d.j || "");
+    const lien = await lireLien(jeton);
+    if (!lien) return json({ erreur: "Ce lien n'est plus valable. Demandez-en un nouveau à l'entreprise." }, 404);
+    const st = magasinSociete(lien.societe);
+    const idx = (await st.get(INDEX, { type: "json" })) || { chantiers: {} };
+    const c = idx.chantiers[lien.ref];
+    if (!c) return json({ erreur: "Ce dossier n'existe plus." }, 404);
+    const tableau = lien.genre === "tableau";
+
+    if (action === "lien") {
+      let fiche = null;
+      try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
+      const soc = (await lireSocietes()).find((x) => x.code === lien.societe) || {};
+      const docs = c.fichiers.filter((f) => docVisible(f, lien))
+        .map((f) => ({ cle: f.cle, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" }));
+      /* les circuits du tableau : la dernière planche d'étiquettes publiée pour ce repère */
+      let circuits = null;
+      if (tableau) {
+        const etiq = c.fichiers.filter((f) => f.type === "etiquettes" && !f.brouillon
+          && (!lien.tableau || slug(f.etape || "") === slug(lien.tableau) || !f.etape))
+          .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0];
+        if (etiq) {
+          try {
+            const fe = JSON.parse(await st.get(etiq.cle.replace(/\.pdf$/, ".json"), { type: "text" }));
+            circuits = (fe.rangees || []).map((r) => ({ nom: String(r.nom || ""),
+              cases: (r.cases || []).map((x) => String(x.texte || "").trim()).filter(Boolean) })).filter((r) => r.cases.length);
+          } catch { circuits = null; }
+        }
+      }
+      return json({
+        genre: lien.genre, tableau: lien.tableau || "",
+        societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
+          adresse: (fiche && fiche.adresse) || "", logo: (fiche && fiche.logo) || null },
+        /* le QR du tableau est collé chez le client, à la vue de tous : ni nom ni adresse */
+        dossier: tableau ? { ref: c.ref } : { ref: c.ref, client: c.client || "", adresse: c.adresse || "",
+          avancement: avancementDe(c), etat: etatDossier(c).etat },
+        circuits, documents: docs,
+        depots: tableau ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" }))
+      });
+    }
+
+    if (action === "lien-fichier") {
+      const cle = String(url.searchParams.get("cle") || "");
+      const f = cle.startsWith(c.ref + "/") ? c.fichiers.find((x) => x.cle === cle) : null;
+      if (!f || !docVisible(f, lien)) return json({ erreur: "Document introuvable." }, 404);
+      const blob = await st.get(cle, { type: "arrayBuffer" });
+      if (!blob) return json({ erreur: "Document introuvable." }, 404);
+      return new Response(blob, { headers: { "content-type": typeDuFichier(cle),
+        "content-disposition": 'inline; filename="' + cle.split("/").pop() + '"', "cache-control": "no-store" } });
+    }
+
+    const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+    const comptes = await lireComptes(lien.societe);
+    /* qui prévenir : l'équipe du chantier et le bureau */
+    const prevenus = Array.from(new Set((c.equipe || []).map((n) => nomDuCompte(n, comptes))
+      .concat(comptes.filter((u) => u.role === "bureau" || u.role === "admin").map((u) => u.nom)))).filter(Boolean);
+
+    if (action === "lien-demande") {
+      if (d.site) return json({ ok: true });                                /* champ piège : un robot l'a rempli */
+      const message = court(d.message, 1500), tel = court(d.tel, 40), nom = court(d.nom, 80);
+      if (!message) return json({ erreur: "Décrivez en quelques mots ce qui se passe." }, 400);
+      if (!tel && !/@/.test(String(d.email || ""))) return json({ erreur: "Laissez un téléphone ou un e-mail pour qu'on vous rappelle." }, 400);
+      if (!envoiPermis(jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
+      const photos = (Array.isArray(d.photos) ? d.photos : []).slice(0, 4)
+        .filter((ph) => ph && typeof ph.data === "string" && /^data:image\/jpeg;base64,/.test(ph.data) && ph.data.length < 1400000)
+        .map((ph) => ({ data: ph.data, w: Number(ph.w) || 0, h: Number(ph.h) || 0, legende: "Envoyée par le client" }));
+      const id = "dc" + randomBytes(6).toString("hex");
+      const cle = c.ref + "/sav-a-terminer-" + id + ".json", maintenant = new Date().toISOString(), jour = jourParis();
+      const urgent = !!d.urgent;
+      const fiche = {
+        etape: "appel", id, brouillon: "", appelPublie: "", confie: null,
+        appel: { par: "Demande en ligne", le: maintenant },
+        chantier: { client: c.client || "", ref: c.ref, adresse: c.adresse || "", tel, contact: "", lat: c.lat ?? null, lon: c.lon ?? null },
+        inter: { date: jour, arr: "", dep: "", numero: "", trajet: "", nature: "Dépannage", charge: "", urgence: urgent ? "Urgente" : "Normale",
+          motif: message, constat: "", travaux: "" },
+        materiel: [], photos, suite: { etat: "", action: "", detail: "", retour: "" },
+        sig: { client: null, tech: null, nomClient: "", nomTech: "", horodatage: "" }, destinataires: [], dest: "",
+        demande: { appelant: nom, qualite: tableau ? "" : "Client", tel, symptomes: [], equipement: tableau ? "Tableau " + (lien.tableau || "électrique") : "",
+          marque: "", detail: [d.email ? "E-mail : " + court(d.email, 120) : "", tableau ? "Demande faite depuis le QR code du tableau." : "Demande faite depuis le lien client."].filter(Boolean).join("\n"),
+          date: "", heure: "", creneau: "", dispo: court(d.dispo, 300), acces: "" }
+      };
+      await st.set(cle, JSON.stringify(fiche), { metadata: { type: "application/json" } });
+      const entree = { cle, titre: "Demande d'intervention du client", type: "sav", visite: "", etape: "Dépannage", date: jour,
+        auteur: "Demande en ligne", destinataires: [], publie: maintenant, donnees: true, brouillon: true, demandeClient: true,
+        lectures: {}, appel: fiche.appel, urgence: fiche.inter.urgence, motif: court(message, 160), confiePar: "" };
+      c.fichiers.push(entree); c.maj = maintenant;
+      await st.setJSON(INDEX, idx);
+      try { await prevenir(Object.assign({}, entree, { destinataires: prevenus }), c, "le client (demande en ligne)", url.origin, comptes); } catch { /* le push suffit */ }
+      prevenirPush(st, magasinAnnuaire(), prevenus, "documents", {
+        titre: "Demande d'intervention" + (urgent ? " — urgente" : ""),
+        texte: (c.client || c.ref) + " : " + court(message, 120),
+        url: "./sav.html?terminer=" + encodeURIComponent(cle), tag: "sav-" + id
+      }, contactPush(url.origin), { comptes }).catch(() => {});
+      return json({ ok: true });
+    }
+
+    if (action === "lien-depot") {
+      if (tableau) return json({ erreur: "Ce lien ne reçoit pas de fichiers." }, 403);
+      if (!envoiPermis("depot-" + jeton, 12)) return json({ erreur: "Trop d'envois d'un coup. Réessayez dans une heure." }, 429);
+      const genre = d.genre === "courbe" ? "courbe" : d.genre === "photo" ? "photo" : "fichier";
+      const nom = court(d.nom, 100).replace(/[\\/]/g, "-") || genre;
+      const id = new Date().toISOString().slice(0, 10) + "-" + randomBytes(4).toString("hex");
+      let cle, octets, type, resume = "";
+      if (genre === "courbe") {
+        const k = d.courbe;
+        if (!k || !Array.isArray(k.valeurs) || !(k.pas > 0) || !(k.debut > 0) || k.valeurs.length > 120000) return json({ erreur: "Courbe illisible." }, 400);
+        const propre = { debut: Number(k.debut), pas: Number(k.pas), valeurs: k.valeurs.map((v) => (v == null || !isFinite(v) ? null : Math.round(v))),
+          prm: /^\d{14}$/.test(String(k.prm || "")) ? String(k.prm) : "", unite: court(k.unite, 6), nom, lu: new Date().toISOString() };
+        octets = Buffer.from(JSON.stringify(propre)); type = "application/json";
+        cle = c.ref + "/client/courbe-" + id + ".json"; resume = court(d.resume, 120);
+      } else {
+        const m = /^data:([\w/.+-]+);base64,(.+)$/.exec(String(d.data || ""));
+        if (!m) return json({ erreur: "Fichier illisible." }, 400);
+        octets = Buffer.from(m[2], "base64"); type = m[1];
+        if (octets.length > 4.5 * 1024 * 1024) return json({ erreur: "Fichier trop lourd (4,5 Mo au plus)." }, 413);
+        if (!/^(image\/(jpeg|png)|application\/pdf|text\/(csv|plain)|application\/vnd\.openxmlformats-officedocument\.spreadsheetml\.sheet)$/.test(type)) return json({ erreur: "Type de fichier non accepté (photo, PDF, CSV ou Excel)." }, 415);
+        const ext = { "image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf", "text/csv": "csv", "text/plain": "txt" }[type] || "xlsx";
+        cle = c.ref + "/client/" + genre + "-" + id + "." + ext;
+      }
+      await st.set(cle, octets, { metadata: { type } });
+      c.depots = (c.depots || []).concat([{ cle, genre, nom, le: new Date().toISOString(), resume, taille: octets.length, type }]).slice(-60);
+      c.maj = new Date().toISOString();
+      await st.setJSON(INDEX, idx);
+      prevenirPush(st, magasinAnnuaire(), (c.equipe || []).map((n) => nomDuCompte(n, comptes)), "documents", {
+        titre: genre === "courbe" ? "Courbe de charge reçue" : "Fichier reçu du client",
+        texte: (c.client || c.ref) + " : " + nom + (resume ? " (" + resume + ")" : ""),
+        url: "./chantier.html?ref=" + encodeURIComponent(c.ref), tag: "depot-" + c.ref
+      }, contactPush(url.origin), { comptes }).catch(() => {});
+      return json({ ok: true });
+    }
   }
 
   const personne = await identifier(req.headers.get("x-auth") || url.searchParams.get("auth"));
@@ -1214,7 +1385,7 @@ async function traiter(req) {
       const fB = cB && cB.fichiers.find((f) => f.cle === d.brouillon);
       if (fB && (fB.auteur === personne.nom || (fB.destinataires || []).indexOf(personne.nom) >= 0 || bureau)) {
         cB.fichiers = cB.fichiers.filter((f) => f.cle !== d.brouillon);
-        if (refB !== ref && !cB.fichiers.length) delete idx.chantiers[refB];
+        if (refB !== ref && !cB.fichiers.length && !(cB.liens || []).length) delete idx.chantiers[refB];
         try { await store.delete(d.brouillon); } catch { /* rien à retirer */ }
         entree.appel = fB.appel || null;
       }
@@ -1418,7 +1589,7 @@ async function traiter(req) {
     /* une fiche déjà confiée ailleurs (le dossier a changé de référence) : on la déplace */
     Object.values(idx.chantiers).forEach((c0) => {
       const avant = (c0.fichiers || []).find((f) => f.brouillon && f.type === "sav" && f.cle !== cle && f.cle.endsWith("/sav-a-terminer-" + id + ".json"));
-      if (avant) { c0.fichiers = c0.fichiers.filter((f) => f !== avant); store.delete(avant.cle).catch(() => {}); if (!c0.fichiers.length) delete idx.chantiers[c0.ref]; }
+      if (avant) { c0.fichiers = c0.fichiers.filter((f) => f !== avant); store.delete(avant.cle).catch(() => {}); if (!c0.fichiers.length && !(c0.liens || []).length) delete idx.chantiers[c0.ref]; }
     });
     await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
     const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: d.adresse || "", fichiers: [] };
@@ -1469,10 +1640,12 @@ async function traiter(req) {
       (c.fichiers || []).forEach((f) => {
         if (f.type !== "sav" || !f.brouillon) return;
         const pourMoi = (f.destinataires || []).some(moi), deMoi = moi(f.auteur) || moi(f.confiePar);
-        if (!pourMoi && !deMoi && !bureau) return;
+        /* une demande faite en ligne par le client : pour le bureau et l'équipe du chantier */
+        const equipe = f.demandeClient && (c.equipe || []).some(moi);
+        if (!pourMoi && !deMoi && !bureau && !equipe) return;
         out.push({ cle: f.cle, ref: c.ref, client: c.client, adresse: c.adresse || "", date: f.date, publie: f.publie,
           technicien: (f.destinataires || [])[0] || "", appel: f.appel || null, urgence: f.urgence || "", motif: f.motif || "", rdv: f.rdv || "",
-          nature: f.etape || "", pourMoi, deMoi });
+          nature: f.etape || "", pourMoi, deMoi, demandeClient: !!f.demandeClient });
       });
     });
     out.sort((a, b) => (a.pourMoi === b.pourMoi ? 0 : a.pourMoi ? -1 : 1) || (b.publie || "").localeCompare(a.publie || ""));
@@ -2108,6 +2281,57 @@ async function traiter(req) {
     return (c.equipe || []).indexOf(personne.nom) >= 0 || c.fichiers.some((f) => voit(personne, f, c));
   }
 
+  /* ---------- liens publics : créer, lister, révoquer ; ce que le client a déposé ---------- */
+  if (action === "lien-creer" || action === "liens" || action === "lien-revoquer" || action === "depots-client" || action === "depot-client") {
+    let d = {};
+    if (req.method === "POST") { try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); } }
+    const ref = String(d.ref || url.searchParams.get("ref") || "").trim();
+    const idx = await lireIndex();
+    let c = idx.chantiers[ref] || idx.chantiers[slug(ref).toUpperCase()];
+    /* le QR d'un tableau s'imprime souvent avant la première publication : le dossier naît avec lui */
+    if (!c && action === "lien-creer" && slug(ref)) {
+      const k = slug(ref).toUpperCase();
+      c = idx.chantiers[k] = { ref: k, client: String(d.client || "").trim().slice(0, 120), adresse: "", fichiers: [],
+        equipe: [nomDuCompte(personne.nom, await lireComptes(personne.societe))].filter(Boolean), maj: new Date().toISOString() };
+    }
+    if (!c) return json({ erreur: "Dossier introuvable : publiez d'abord un document dans ce dossier." }, 404);
+    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const urlDe = (j) => url.origin + "/client.html?j=" + j;
+    const liste = () => (c.liens || []).map((l) => ({ jeton: l.jeton, genre: l.genre, tableau: l.tableau || "", cree: l.cree, par: l.par, url: urlDe(l.jeton) }));
+    if (action === "liens") return json({ liens: liste() });
+    if (action === "lien-creer") {
+      const genre = d.genre === "tableau" ? "tableau" : "client";
+      const tab = String(d.tableau || "").replace(/\s+/g, " ").trim().slice(0, 60);
+      const deja = (c.liens || []).find((l) => l.genre === genre && (genre === "client" || slug(l.tableau || "") === slug(tab)));
+      if (deja) return json({ ok: true, lien: { jeton: deja.jeton, genre, tableau: deja.tableau || "", url: urlDe(deja.jeton) }, liens: liste() });
+      const jeton = randomBytes(15).toString("base64url");
+      const l = { jeton, societe: personne.societe, ref: c.ref, genre, tableau: genre === "tableau" ? tab : "", cree: new Date().toISOString(), par: personne.nom, actif: true };
+      await magasinAnnuaire().setJSON("liens/" + jeton + ".json", l);
+      c.liens = (c.liens || []).concat([{ jeton, genre, tableau: l.tableau, cree: l.cree, par: l.par }]);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, lien: { jeton, genre, tableau: l.tableau, url: urlDe(jeton) }, liens: liste() });
+    }
+    if (action === "lien-revoquer") {
+      const l = (c.liens || []).find((x) => x.jeton === d.jeton);
+      if (!l) return json({ erreur: "Lien inconnu." }, 404);
+      const a = magasinAnnuaire(), stocke = await lireLien(l.jeton);
+      if (stocke) await a.setJSON("liens/" + l.jeton + ".json", Object.assign(stocke, { actif: false, revoque: new Date().toISOString(), revoquePar: personne.nom }));
+      c.liens = c.liens.filter((x) => x.jeton !== l.jeton);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, liens: liste() });
+    }
+    if (action === "depots-client") return json({ depots: (c.depots || []).slice().reverse() });
+    if (action === "depot-client") {
+      const cle = String(url.searchParams.get("cle") || "");
+      const x = (c.depots || []).find((y) => y.cle === cle);
+      if (!x) return json({ erreur: "Fichier introuvable." }, 404);
+      const blob = await store.get(cle, { type: "arrayBuffer" });
+      if (!blob) return json({ erreur: "Fichier introuvable." }, 404);
+      return new Response(blob, { headers: { "content-type": x.type || typeDuFichier(cle),
+        "content-disposition": 'inline; filename="' + cle.split("/").pop() + '"', "cache-control": "no-store" } });
+    }
+  }
+
   if (action === "messages") {
     const ref = slug(url.searchParams.get("ref") || "").toUpperCase();
     const idx = await lireIndex();
@@ -2581,6 +2805,11 @@ async function traiter(req) {
     const renomme = (cle) => (String(cle).startsWith(prefixe) ? nouvelle + "/" + String(cle).slice(prefixe.length) : cle);
     c.ref = nouvelle;
     c.fichiers.forEach((f) => { f.cle = renomme(f.cle); });
+    (c.depots || []).forEach((x) => { x.cle = renomme(x.cle); });
+    /* les liens du client et les QR codes imprimés suivent le dossier */
+    for (const l of (c.liens || [])) {
+      try { const st0 = await lireLien(l.jeton); if (st0) await magasinAnnuaire().setJSON("liens/" + l.jeton + ".json", Object.assign(st0, { ref: nouvelle })); } catch { /* lien suivant */ }
+    }
     c.ancienneRef = ancienne;
     c.maj = new Date().toISOString();
     delete idx.chantiers[ancienne];
@@ -2643,7 +2872,7 @@ async function traiter(req) {
       return json({ erreur: "Cette intervention ne vous est pas confiée." }, 403);
     }
     c.fichiers = c.fichiers.filter((x) => x.cle !== cle);
-    if (!c.fichiers.length) delete idx.chantiers[c.ref];
+    if (!c.fichiers.length && !(c.liens || []).length) delete idx.chantiers[c.ref];
     await store.setJSON(INDEX, idx);
     try { await store.delete(cle); } catch { /* rien à retirer */ }
     return json({ ok: true });
@@ -2662,7 +2891,7 @@ async function traiter(req) {
       return json({ erreur: "Ce relevé ne vous appartient pas." }, 403);
     }
     c.fichiers = c.fichiers.filter((x) => x.cle !== cle);
-    if (!c.fichiers.length) delete idx.chantiers[ref];
+    if (!c.fichiers.length && !(c.liens || []).length) delete idx.chantiers[ref];
     else idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
     try { await store.delete(cle); } catch { /* rien à retirer */ }
@@ -2678,7 +2907,7 @@ async function traiter(req) {
     const ref = cle.split("/")[0];
     if (idx.chantiers[ref]) {
       idx.chantiers[ref].fichiers = idx.chantiers[ref].fichiers.filter((f) => f.cle !== cle);
-      if (!idx.chantiers[ref].fichiers.length) delete idx.chantiers[ref];
+      if (!idx.chantiers[ref].fichiers.length && !(idx.chantiers[ref].liens || []).length) delete idx.chantiers[ref];
       await store.setJSON(INDEX, idx);
     }
     return json({ ok: true });

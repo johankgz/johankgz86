@@ -14,11 +14,11 @@
    les essais automatiques, eux, gardent un site sans cache.
    ===================================================================== */
 var COQUILLE = "coquille-1", CDN = "bibliotheques-1", DONNEES = "donnees-1", REGLAGES = "reglages";
-var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html", "/commande.html", "/compte.html", "/dwg.html",
+var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html", "/client.html", "/commande.html", "/compte.html", "/dwg.html",
   "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/photos.html", "/plans.html", "/point.html",
   "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
   "/technique.html", "/utilitaires.html"];
-var FICHIERS = ["/annotation.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/dates.js", "/dossier.js", "/fond.js", "/horsligne.js",
+var FICHIERS = ["/annotation.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/horsligne.js",
   "/notifications.js", "/reseau.js", "/sobre.js", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/sobre.css",
   "/manifest.webmanifest", "/polices/jakarta-var.woff2", "/icone-120.png", "/icone-152.png", "/icone-167.png",
   "/icone-180.png", "/icone-192.png", "/icone-512.png", "/entete-contact.png", "/entete-societe.png"];

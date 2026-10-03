@@ -185,6 +185,10 @@ button.act:disabled{opacity:.4}
 .charge-constat{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:14px;line-height:1.4}
 .charge-constat:last-child{border-bottom:0}
 .charge-constat b{flex:0 0 auto;min-width:118px;color:var(--ink-2);font-weight:600}
+.charge-recue{display:flex;align-items:center;gap:10px;padding:10px 12px;margin-top:8px;border-radius:var(--r-field);background:var(--accent-soft)}
+.charge-recue span{flex:1;min-width:0;font-size:14px}
+.charge-recue small{display:block;color:var(--ink-3)}
+.charge-recue .act{width:auto;flex:0 0 auto;min-height:40px;padding:8px 12px}
 .pvres .top{
   display:flex;flex-wrap:wrap;gap:4px;padding:16px;color:#fff;
   background:linear-gradient(135deg,#16233A 0%,#B4621A 100%);
@@ -929,6 +933,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
     <input type="file" id="charge_file" accept=".csv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
     <p class="hint" id="chargeEtat"></p>
+    <div id="chargeRecues"></div>
   </div>
 
   <div class="block" id="chargeBlocAbo">
@@ -2172,7 +2177,7 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
-  if(name==="charge" && CK().courbe) paintCharge();     /* les courbes se dessinent à la largeur de l'écran */
+  if(name==="charge"){ if(CK().courbe) paintCharge(); if(CK().actif==="oui") chargerCourbesRecues(); }     /* les courbes se dessinent à la largeur de l'écran */
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -4088,7 +4093,59 @@ function importerCharge(f){
     toast("Fichier non reconnu.");
   });
 }
+/* le lien du client (client.html) : il y dépose sa courbe, elle arrive ici toute seule */
+function lienClient(){
+  if(!baseSite() || !jetonSession() || !refAffaire()) return Promise.resolve(null);
+  return fetch(apiUrl("lien-creer"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({ref:refAffaire(), genre:"client", client:S.client.nom})})
+    .then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ return d && d.lien ? d.lien.url : null; }).catch(function(){ return null; });
+}
+var COURBES_RECUES=[];
+function chargerCourbesRecues(){
+  if(!baseSite() || !jetonSession() || !refAffaire()) return;
+  prechargerLienClient();
+  fetch(apiUrl("depots-client")+"&ref="+encodeURIComponent(refAffaire()), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ COURBES_RECUES=((d && d.depots) || []).filter(function(x){ return x.genre==="courbe"; }); peindreCourbesRecues(); })
+    .catch(function(){});
+}
+function peindreCourbesRecues(){
+  var h=$("chargeRecues"); if(!h) return; h.textContent="";
+  var K=CK(), utilisee = K.courbe && K.courbe.depot;
+  COURBES_RECUES.slice(0, 3).forEach(function(x){
+    var r=document.createElement("div"); r.className="charge-recue";
+    var sp=document.createElement("span"); sp.textContent="Envoyée par le client : "+x.nom;
+    var sm=document.createElement("small"); sm.textContent=[x.resume, "le "+frDateCourte(Date.parse(x.le))].filter(Boolean).join(", "); sp.appendChild(sm);
+    r.appendChild(sp);
+    var b=document.createElement("button"); b.type="button"; b.className="act "+(utilisee===x.cle ? "ghost" : "blue");
+    b.textContent = utilisee===x.cle ? "Utilisée" : "Utiliser"; b.disabled = utilisee===x.cle;
+    b.addEventListener("click", function(){
+      b.disabled=true; b.textContent="Lecture…";
+      fetch(apiUrl("depot-client")+"&ref="+encodeURIComponent(refAffaire())+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":jetonSession()}})
+        .then(function(rr){ if(!rr.ok) throw 0; return rr.json(); })
+        .then(function(c){
+          c.depot=x.cle; c.nom=x.nom; var KK=CK(); KK.courbe=c; KK.actif="oui";
+          if(c.prm && !String(S.chantier.pdl||"").trim()){ S.chantier.pdl=c.prm; var pd=$("s_pdl"); if(pd) pd.value=c.prm; }
+          save(); if(peindreCharge) peindreCharge(); paintCharge(); peindreCourbesRecues(); toast("Courbe du client chargée.");
+        })
+        .catch(function(){ b.disabled=false; b.textContent="Utiliser"; toast("Courbe introuvable."); });
+    });
+    r.appendChild(b); h.appendChild(r);
+  });
+}
+/* le partage du téléphone veut le geste de l'utilisateur : le lien est cherché à l'avance */
+var LIEN_CLIENT_URL=null;
+function prechargerLienClient(){
+  if(LIEN_CLIENT_URL || !baseSite() || !jetonSession() || !refAffaire()) return;
+  fetch(apiUrl("liens")+"&ref="+encodeURIComponent(refAffaire()), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ var l=((d && d.liens) || []).filter(function(x){ return x.genre==="client"; })[0]; if(l) LIEN_CLIENT_URL=l.url; })
+    .catch(function(){});
+}
 function demanderCharge(){
+  if(LIEN_CLIENT_URL){ demanderChargeAvec(LIEN_CLIENT_URL); return; }
+  lienClient().then(function(url){ LIEN_CLIENT_URL=url; demanderChargeAvec(url); });
+}
+function demanderChargeAvec(url){
   var nom=(S.client.nom||"").trim(), moi=(SESSION && SESSION.nom) || "", soc=(P && P.societe) || S.meta.societe || "";
   var prm=String(S.chantier.pdl||"").trim();
   var t="Bonjour"+(nom ? " "+nom : "")+",\n\n"
@@ -4096,10 +4153,14 @@ function demanderCharge(){
     +"1. Connectez-vous sur mon-compte-particulier.enedis.fr (ou créez votre compte avec le numéro de PRM"+(prm ? " "+prm : "")+" inscrit sur votre facture d'électricité).\n"
     +"2. Dans « Mes mesures », choisissez la consommation horaire (courbe de charge). Si elle n'est pas encore activée, activez-la : elle s'enregistre à partir de ce jour.\n"
     +"3. Téléchargez les 12 derniers mois, au format CSV ou Excel.\n"
-    +"4. Envoyez-nous le fichier en réponse à ce message.\n\n"
+    +(url ? "4. Déposez le fichier sur votre espace, il nous arrive directement :\n"+url+"\n   (ou envoyez-le en réponse à ce message)\n\n" : "4. Envoyez-nous le fichier en réponse à ce message.\n\n")
     +"Merci,\n"+[moi, soc].filter(Boolean).join("\n");
   var sujet="Votre courbe de charge Linky";
-  if(navigator.share){ navigator.share({title:sujet, text:t}).catch(function(){}); return; }
+  var repli=function(){
+    if((S.client.email||"").indexOf("@")>0){ location.href="mailto:"+encodeURIComponent(S.client.email)+"?subject="+encodeURIComponent(sujet)+"&body="+encodeURIComponent(t); return; }
+    window.prompt("Copiez le message pour le client :", t);
+  };
+  if(navigator.share){ navigator.share({title:sujet, text:t}).catch(function(e){ if(e && e.name==="NotAllowedError") repli(); }); return; }
   if((S.client.email||"").indexOf("@")>0){ location.href="mailto:"+encodeURIComponent(S.client.email)+"?subject="+encodeURIComponent(sujet)+"&body="+encodeURIComponent(t); return; }
   try{ navigator.clipboard.writeText(t).then(function(){ toast("Message copié : collez-le dans un e-mail ou un SMS."); }); }
   catch(e){ toast("Partage indisponible sur cet appareil."); }
@@ -4306,7 +4367,7 @@ function bascule(idBouton, idCorps, lire, ecrire){
     save(); peindre();
     if(typeof paintIrve === "function") paintIrve();
     if(typeof paintClim === "function") paintClim();
-    if(typeof paintCharge === "function") paintCharge();
+    if(typeof paintCharge === "function"){ paintCharge(); if(CK().actif==="oui") chargerCourbesRecues(); }
   });
   peindre();
   return peindre;
