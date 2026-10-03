@@ -178,6 +178,13 @@ button.act:disabled{opacity:.4}
   font-size:15.5px;font-weight:700;font-variant-numeric:tabular-nums;white-space:nowrap;
 }
 .pvres{border-radius:var(--r-field);overflow:hidden;box-shadow:var(--shadow)}
+.charge-cv{display:block;width:100%;height:196px}
+.charge-leg i{display:inline-block;width:12px;height:3px;border-radius:2px;margin:0 6px 2px 10px;vertical-align:middle}
+.charge-leg i:first-child{margin-left:0}
+.charge-leg i.hc{height:10px;background:rgba(30,96,170,.14)}
+.charge-constat{display:flex;gap:10px;padding:8px 0;border-bottom:1px solid var(--rule);font-size:14px;line-height:1.4}
+.charge-constat:last-child{border-bottom:0}
+.charge-constat b{flex:0 0 auto;min-width:118px;color:var(--ink-2);font-weight:600}
 .pvres .top{
   display:flex;flex-wrap:wrap;gap:4px;padding:16px;color:#fff;
   background:linear-gradient(135deg,#16233A 0%,#B4621A 100%);
@@ -903,6 +910,54 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 </section>
 
 <!-- 3bis. PHOTOVOLTAÏQUE -->
+<section id="tab-charge" hidden>
+  <div class="bascule" id="bascCharge">
+    <div class="bascule-txt">
+      <b>Courbe de charge</b>
+      <span>Activez cette partie pour analyser la consommation réelle du compteur Linky du client.</span>
+    </div>
+    <button type="button" class="switch" id="swCharge" role="switch" aria-checked="false" aria-label="Activer la partie courbe de charge"><span></span></button>
+  </div>
+  <div id="chargeCorps">
+  <div class="block">
+    <h2>Récupérer la courbe</h2>
+    <p class="hint">La courbe de charge est la consommation du compteur Linky demi-heure par demi-heure. Le client la télécharge dans son espace Enedis (Mes mesures, consommation horaire), en CSV ou Excel, puis vous l'envoie. Ou bien faites-le avec lui sur place, depuis son téléphone. Si la courbe n'a jamais été activée sur son compte, il faut l'activer : elle se remplit à partir de ce jour.</p>
+    <div class="tuiles-act">
+      <button class="act solid" id="btnChargeFichier" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5v-11M7.5 9 12 4.5 16.5 9M4.5 17v3.5h15V17"/></svg>Importer le fichier</button>
+      <button class="act ghost" id="btnChargeDemander" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 3.5 2.8 11.2l7.5 2.6 2.6 7.2z"/><path d="M21 3.5 10.3 13.8"/></svg>Demander au client</button>
+      <button class="act ghost" id="btnChargeEnedis" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M13 4.5h6.5V11M19.5 4.5 11 13"/><path d="M17 14v5.5H4.5V7H10"/></svg>Espace Enedis</button>
+    </div>
+    <input type="file" id="charge_file" accept=".csv,.txt,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+    <p class="hint" id="chargeEtat"></p>
+  </div>
+
+  <div class="block" id="chargeBlocAbo">
+    <h2>Abonnement</h2>
+    <p class="legend">Puissance souscrite (kVA)</p>
+    <div class="chips" id="chargeAbo"></div>
+    <div class="grid2">
+      <label class="f"><span>Heures creuses de</span><input type="time" id="k_hcDebut"></label>
+      <label class="f"><span>à</span><input type="time" id="k_hcFin"></label>
+    </div>
+  </div>
+
+  <div class="block" id="chargeBlocAnalyse" hidden>
+    <h2>Ce que dit la courbe</h2>
+    <div id="chargeChiffres"></div>
+    <p class="legend" style="margin-top:16px">Une journée moyenne (puissance, en kW)</p>
+    <canvas id="chargeProfil" class="charge-cv"></canvas>
+    <p class="hint charge-leg"><i style="background:#B4621A"></i>En semaine <i style="background:#1E60AA"></i>Le week-end <i class="hc"></i>Heures creuses</p>
+    <p class="legend" style="margin-top:14px">Jour par jour (kWh)</p>
+    <canvas id="chargeJours" class="charge-cv"></canvas>
+    <div id="chargeConstats" style="margin-top:12px"></div>
+    <div class="tuiles-act" style="margin-top:6px">
+      <button class="act ghost" id="btnChargeVersPv" type="button">Reporter dans le photovoltaïque</button>
+      <button class="act ghost" id="btnChargeRetirer" type="button">Retirer la courbe</button>
+    </div>
+  </div>
+  </div>
+</section>
+
 <section id="tab-irve" hidden>
   <div class="bascule" id="bascIrve">
     <div class="bascule-txt">
@@ -1478,6 +1533,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20260927b"></script>
 <script src="./une-page.js?v=20261002a"></script>
+<script src="./courbe-charge.js?v=20261003a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
@@ -1644,6 +1700,7 @@ function blank(){
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
     logistique:{occupe:"",occupNote:"",accessibilite:[],code:"",acces:[],etage:"",toiture:"",stationnement:"",contraintes:""},
     clim:climVide(),
+    charge:chargeVide(),
     conclusion:{synthese:"",points:""}
   };
 }
@@ -1652,6 +1709,9 @@ function climVide(){
   return {actif:"non", type:"", puissance:"", nbInt:"", alim:"", liaison:"", cable:"", cableLiaison:"", condensats:"",
     pompe:"", nbPompes:"", poseExt:"", goulotte:"", lgGoulotte:"", percements:"", note:"", photos:[]};
 }
+/* la courbe de charge du compteur : le fichier du client, posé sur une grille régulière (courbe-charge.js) */
+function chargeVide(){ return {actif:"non", hcDebut:"22:00", hcFin:"06:00", courbe:null}; }
+function CK(){ if(!S.charge) S.charge=chargeVide(); return S.charge; }
 /* une fiche d'avant la climatisation n'a pas cette partie : elle la reçoit vide */
 function CL(){ if(!S.clim) S.clim=climVide(); if(!Array.isArray(S.clim.photos)) S.clim.photos=[]; return S.clim; }
 
@@ -1934,6 +1994,7 @@ function paintForm(){
   paintAmorti();
   paintIrve();
   paintClim();
+  paintCharge();
   refreshHeader();
 }
 
@@ -2044,12 +2105,13 @@ function chargerFicheSociete(){
 }
 
 /* ---------- onglets ---------- */
-var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]];
+var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]];
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
   pieces:'<path d="M3.5 4.5h17v15h-17z"/><path d="M11 4.5v6M11 14v5.5M3.5 10.5H11M15 19.5v-5h5.5"/><path d="M7 19.5v-2.2"/>',
   irve:'<path d="M5 20V6a2 2 0 0 1 2-2h5a2 2 0 0 1 2 2v14"/><path d="M4 20h11"/><path d="M9.8 8.2 8 11.4h2.6L9 14.6"/><path d="M14 10h2.6A1.4 1.4 0 0 1 18 11.4V16a1.5 1.5 0 0 0 3 0v-4.5"/>',
+  charge:'<path d="M3.5 3.5v17h17"/><path d="M6 15.5c1.6 0 2-6 3.6-6s1.8 4.5 3.3 4.5 1.9-8 3.5-8 1.6 5 3.1 5"/>',
   clim:'<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.5 3.8 12 6.2l2.5-2.4M9.5 20.2 12 17.8l2.5 2.4M3.6 10.4l3.3-.9-.9-3.3M20.4 13.6l-3.3.9.9 3.3M3.6 13.6l3.3.9-.9 3.3M20.4 10.4l-3.3-.9.9-3.3"/>',
   pv:'<circle cx="17.5" cy="6.5" r="2.6"/><path d="M17.5 1.9v1M17.5 11.1v1M12.9 6.5h1M21.1 6.5h1M14.2 3.2l.7.7M20.1 9.1l.7.7M20.8 3.2l-.7.7M14.9 9.1l-.7.7"/><path d="M3 20.5 5.2 12h8.6l2.2 8.5z"/><path d="M2.6 17.5h14.2M9.5 12v8.5"/>',
   logistique:'<path d="M2.5 7.5h11.5v9H2.5z"/><path d="M14 10.5h3.7l3.3 3.2v2.8H14z"/><circle cx="6.3" cy="18.3" r="1.8"/><circle cx="17.4" cy="18.3" r="1.8"/>',
@@ -2110,6 +2172,7 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
+  if(name==="charge" && CK().courbe) paintCharge();     /* les courbes se dessinent à la largeur de l'écran */
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -3897,6 +3960,182 @@ function paintClim(){
   });
 }
 
+/* ================= courbe de charge du compteur =================
+   Le fichier que le client télécharge chez Enedis (ou chez son fournisseur),
+   lu par courbe-charge.js. On en tire la consommation réelle, la pointe,
+   le talon, une journée type, la marge sur l'abonnement (borne, clim) et,
+   avec PVGIS, l'autoconsommation calculée demi-heure par demi-heure. */
+var ANALYSE_CHARGE=null;
+function frDateCourte(t){ var d=new Date(t); return String(d.getDate()).padStart(2,"0")+"/"+String(d.getMonth()+1).padStart(2,"0")+"/"+d.getFullYear(); }
+function frHeure(t){ var d=new Date(t); return String(d.getHours()).padStart(2,"0")+"h"+String(d.getMinutes()).padStart(2,"0"); }
+function kwFr(w, dec){ var f=Math.pow(10, dec==null ? 1 : dec); return (Math.round(w/1000*f)/f).toString().replace(".", ","); }
+function analyseCharge(){
+  var K=CK();
+  if(!K.courbe || !window.CourbeCharge){ ANALYSE_CHARGE=null; return null; }
+  try{ ANALYSE_CHARGE=CourbeCharge.analyser(K.courbe, {souscrite:S.chantier.puissance, hcDebut:K.hcDebut, hcFin:K.hcFin}); }
+  catch(e){ ANALYSE_CHARGE=null; }
+  return ANALYSE_CHARGE;
+}
+function autoconsoCharge(){
+  var K=CK(), g=S.pv.pvgis;
+  if(!K.courbe || !g || !g.months || !window.CourbeCharge) return null;
+  return CourbeCharge.autoconso(K.courbe, g.months, S.client.lat, S.client.lon);
+}
+/* ce que la courbe dit, en phrases : à l'écran et dans le PDF */
+function constatsCharge(a){
+  var K=CK(), l=[];
+  if(!a) return l;
+  l.push(["Période", "du "+frDateCourte(a.debut)+" au "+frDateCourte(a.fin)+", "+a.jours+" jour"+(a.jours>1?"s":"")
+    +(a.pas<1440 ? ", une mesure toutes les "+a.pas+" min" : ", une valeur par jour")+(a.couverture<0.97 ? " ("+Math.round((1-a.couverture)*100)+" % de mesures manquantes)" : "")]);
+  l.push(["Consommation", nbFr(a.annuel)+" kWh par an"+(a.couvreAn ? ", mesurés" : ", estimés d'après "+a.jours+" jours de mesure")
+    +" ; "+(Math.round(a.parJour*10)/10).toString().replace(".", ",")+" kWh par jour en moyenne"]);
+  if(a.detail){
+    l.push(["Pointe", kwFr(a.pointe.w)+" kW le "+frDateCourte(a.pointe.t)+" à "+frHeure(a.pointe.t)+" (moyenne sur "+a.pas+" min : les appels de quelques secondes vont plus haut)"]);
+    if(a.talon!=null) l.push(["Talon", kwFr(a.talon, 2)+" kW en continu, jour et nuit (veilles, froid, VMC, box…), soit "+nbFr(a.talon*8.76)+" kWh par an"]);
+    if(a.partHc!=null) l.push(["Heures creuses", Math.round(a.partHc*100)+" % de la consommation entre "+a.hcDebut+" et "+a.hcFin]);
+  }
+  if(a.souscrite && a.detail){
+    var t=Math.round(a.pointe.w/(a.souscrite*1000)*100)+" % de l'abonnement de "+String(a.souscrite).replace(".", ",")+" kVA à la pointe";
+    if(a.depassements) t+=", "+a.depassements+" demi-heure"+(a.depassements>1?"s":"")+" au-dessus de 90 %";
+    l.push(["Abonnement", t]);
+  }
+  if(a.abonnementConseille){
+    var c=a.abonnementConseille, sc=a.souscrite;
+    l.push(["Abonnement conseillé", c+" kVA"+(sc ? (c<sc ? " : l'abonnement actuel pourrait baisser" : c>sc ? " : l'abonnement actuel est juste, à augmenter" : " : l'abonnement actuel convient") : "")+" (pointe + 30 %)"]);
+  } else if(a.detail && a.pointeKw*1.3>36) l.push(["Abonnement conseillé", "au-delà de 36 kVA : tarif jaune ou bleu+ à étudier"]);
+  if(a.dispoNuit!=null){
+    var b=CourbeCharge.borne(a);
+    l.push(["Borne de recharge", "marge la nuit : "+kwFr(Math.max(0, a.dispoNuit))+" kW"
+      +(b ? " : une borne de "+b+" passe sans délestage en heures creuses" : " : délestage indispensable, ou abonnement à augmenter")]);
+  }
+  if(a.dispo!=null) l.push(["Marge en pointe", kwFr(Math.max(0, a.dispo))+" kW disponibles au plus fort de la journée (climatisation, nouveaux appareils)"]);
+  var ac=autoconsoCharge();
+  if(ac) l.push(["Solaire", "avec "+String(S.pv.pvgis.kwc).replace(".", ",")+" kWc (PVGIS) : "+Math.round(ac.taux)+" % de la production consommée sur place, "+Math.round(ac.couverture)+" % de la consommation couverte, calculés demi-heure par demi-heure"]);
+  return l;
+}
+function paintCharge(){
+  var K=CK();
+  var abo=$("chargeAbo"); if(!abo) return;
+  abo.textContent="";
+  CourbeCharge.ABONNEMENTS.forEach(function(v){
+    var lab=document.createElement("label"); lab.className="chip"+(String(S.chantier.puissance)===String(v) ? " on" : "");
+    lab.textContent=v;
+    lab.addEventListener("click", function(e){
+      e.preventDefault();
+      S.chantier.puissance = String(S.chantier.puissance)===String(v) ? "" : String(v);
+      var sp=$("s_puissance"); if(sp) sp.value=S.chantier.puissance;
+      save(); paintCharge();
+    });
+    abo.appendChild(lab);
+  });
+  if(document.activeElement!==$("k_hcDebut")) $("k_hcDebut").value=K.hcDebut||"";
+  if(document.activeElement!==$("k_hcFin")) $("k_hcFin").value=K.hcFin||"";
+  var a=analyseCharge(), bloc=$("chargeBlocAnalyse");
+  var etat=$("chargeEtat");
+  if(!K.courbe){ bloc.hidden=true; etat.textContent="Aucune courbe pour l'instant."; return; }
+  etat.textContent="Fichier « "+(K.courbe.nom||"courbe de charge")+" »"+(K.courbe.prm ? ", PRM "+K.courbe.prm : "")
+    +", importé le "+frDateCourte(Date.parse(K.courbe.lu)||Date.now())+".";
+  bloc.hidden=!a;
+  if(!a) return;
+  var ch=$("chargeChiffres"); ch.textContent="";
+  var card=document.createElement("div"); card.className="pvres";
+  var top=document.createElement("div"); top.className="top";
+  [[nbFr(a.annuel)+" kWh", a.couvreAn ? "par an" : "par an, estimés"],
+   a.detail ? [kwFr(a.pointe.w)+" kW", "pointe"] : null,
+   a.detail && a.talon!=null ? [kwFr(a.talon, 2)+" kW", "talon"] : null,
+   a.partHc!=null ? [Math.round(a.partHc*100)+" %", "en heures creuses"] : null].filter(Boolean).forEach(function(x){
+    var cell=document.createElement("div"); cell.className="cell";
+    var b=document.createElement("b"); b.textContent=x[0];
+    var sp=document.createElement("span"); sp.textContent=x[1];
+    cell.appendChild(b); cell.appendChild(sp); top.appendChild(cell);
+  });
+  card.appendChild(top); ch.appendChild(card);
+  var cvP=$("chargeProfil"), lgP=document.querySelector(".charge-leg");
+  cvP.hidden=!a.detail; lgP.hidden=!a.detail; cvP.previousElementSibling.hidden=!a.detail;
+  if(!$("tab-charge").hidden && !$("chargeCorps").hidden){
+    if(a.detail) CourbeCharge.dessinerProfil(cvP, a);
+    CourbeCharge.dessinerJours($("chargeJours"), a);
+  }
+  var ct=$("chargeConstats"); ct.textContent="";
+  constatsCharge(a).forEach(function(x){
+    var d=document.createElement("div"); d.className="charge-constat";
+    var b=document.createElement("b"); b.textContent=x[0];
+    var sp=document.createElement("span"); sp.textContent=x[1];
+    d.appendChild(b); d.appendChild(sp); ct.appendChild(d);
+  });
+  if(!a.detail){
+    var p=document.createElement("p"); p.className="hint";
+    p.textContent="Ce fichier donne la consommation jour par jour. Pour la pointe, le talon et la journée type, il faut la courbe de charge (une mesure toutes les 30 minutes).";
+    ct.appendChild(p);
+  }
+  if(!S.pv.pvgis){
+    var q=document.createElement("p"); q.className="hint";
+    q.textContent="Lancez la simulation PVGIS dans la partie PV : l'autoconsommation sera calculée sur cette courbe.";
+    ct.appendChild(q);
+  }
+}
+function importerCharge(f){
+  var etat=$("chargeEtat");
+  etat.textContent="Lecture de « "+f.name+" »…";
+  CourbeCharge.lire(f).then(function(c){
+    var K=CK(); K.courbe=c; K.actif="oui";
+    if(c.prm && !String(S.chantier.pdl||"").trim()){ S.chantier.pdl=c.prm; var pd=$("s_pdl"); if(pd) pd.value=c.prm; }
+    save(); if(peindreCharge) peindreCharge(); paintCharge();
+    var a=ANALYSE_CHARGE;
+    toast(a ? "Courbe lue : "+a.jours+" jours, "+nbFr(a.annuel)+" kWh par an." : "Courbe lue.");
+  }).catch(function(e){
+    etat.textContent=(e && e.message) || "Fichier illisible.";
+    toast("Fichier non reconnu.");
+  });
+}
+function demanderCharge(){
+  var nom=(S.client.nom||"").trim(), moi=(SESSION && SESSION.nom) || "", soc=(P && P.societe) || S.meta.societe || "";
+  var prm=String(S.chantier.pdl||"").trim();
+  var t="Bonjour"+(nom ? " "+nom : "")+",\n\n"
+    +"Pour étudier votre installation au plus juste, pouvez-vous nous envoyer la courbe de charge de votre compteur Linky ?\n\n"
+    +"1. Connectez-vous sur mon-compte-particulier.enedis.fr (ou créez votre compte avec le numéro de PRM"+(prm ? " "+prm : "")+" inscrit sur votre facture d'électricité).\n"
+    +"2. Dans « Mes mesures », choisissez la consommation horaire (courbe de charge). Si elle n'est pas encore activée, activez-la : elle s'enregistre à partir de ce jour.\n"
+    +"3. Téléchargez les 12 derniers mois, au format CSV ou Excel.\n"
+    +"4. Envoyez-nous le fichier en réponse à ce message.\n\n"
+    +"Merci,\n"+[moi, soc].filter(Boolean).join("\n");
+  var sujet="Votre courbe de charge Linky";
+  if(navigator.share){ navigator.share({title:sujet, text:t}).catch(function(){}); return; }
+  if((S.client.email||"").indexOf("@")>0){ location.href="mailto:"+encodeURIComponent(S.client.email)+"?subject="+encodeURIComponent(sujet)+"&body="+encodeURIComponent(t); return; }
+  try{ navigator.clipboard.writeText(t).then(function(){ toast("Message copié : collez-le dans un e-mail ou un SMS."); }); }
+  catch(e){ toast("Partage indisponible sur cet appareil."); }
+}
+/* la courbe nourrit la partie PV : la consommation de l'année, ses douze mois, l'autoconsommation */
+function chargeVersPv(){
+  var a=analyseCharge(); if(!a){ toast("Importez d'abord la courbe."); return; }
+  S.pv.conso=String(Math.round(a.annuel));
+  S.pv.consoMois=a.douze.map(function(v){ return String(v); });
+  var ac=autoconsoCharge();
+  if(ac) S.pv.tauxAuto=String(Math.round(ac.taux));
+  if(S.pv.actif!=="oui") S.pv.actif="oui";
+  save(); paintForm();
+  var n=a.douzeMesure.filter(Boolean).length;
+  toast("Reporté dans le PV : "+nbFr(a.annuel)+" kWh par an, "+(n===12 ? "les douze mois mesurés" : n+" mois mesurés, les autres estimés")+(ac ? ", autoconsommation "+Math.round(ac.taux)+" %" : "")+".");
+}
+(function lierCharge(){
+  $("btnChargeFichier").addEventListener("click", function(){ $("charge_file").click(); });
+  $("charge_file").addEventListener("change", function(){ var f=this.files[0]; this.value=""; if(f) importerCharge(f); });
+  $("btnChargeDemander").addEventListener("click", demanderCharge);
+  $("btnChargeEnedis").addEventListener("click", function(){ window.open("https://mon-compte-particulier.enedis.fr/", "_blank", "noopener"); });
+  $("btnChargeVersPv").addEventListener("click", chargeVersPv);
+  $("btnChargeRetirer").addEventListener("click", function(){
+    if(!window.confirm("Retirer la courbe de charge de ce relevé ?")) return;
+    CK().courbe=null; save(); paintCharge();
+  });
+  ["k_hcDebut","k_hcFin"].forEach(function(id){
+    $(id).addEventListener("change", function(){ CK()[id==="k_hcDebut" ? "hcDebut" : "hcFin"]=$(id).value; save(); paintCharge(); });
+  });
+  var sp=$("s_puissance"); if(sp) sp.addEventListener("input", function(){ setTimeout(paintCharge, 0); });
+  var rt; window.addEventListener("resize", function(){ clearTimeout(rt); rt=setTimeout(function(){ if(ANALYSE_CHARGE) paintCharge(); }, 200); });
+})();
+/* pour les essais automatiques : la fiche, la courbe et le PDF, vus de l'extérieur */
+window.__releve={fiche:function(){ return S; }, save:function(){ save(); }, paintCharge:function(){ paintCharge(); },
+  pdf:function(){ return buildPdf(); }, charge:function(){ return CK(); }};
+
 function paintSimuls(){
   var box=$("simulList"); box.textContent="";
   (S.pv.simuls||[]).forEach(function(it, idx){
@@ -4067,12 +4306,16 @@ function bascule(idBouton, idCorps, lire, ecrire){
     save(); peindre();
     if(typeof paintIrve === "function") paintIrve();
     if(typeof paintClim === "function") paintClim();
+    if(typeof paintCharge === "function") paintCharge();
   });
   peindre();
   return peindre;
 }
-var peindreIrve=null, peindrePv=null, peindreClim=null;
+var peindreIrve=null, peindrePv=null, peindreClim=null, peindreCharge=null;
 function initBascules(){
+  peindreCharge = bascule("swCharge", "chargeCorps",
+    function(){ return CK().actif === "oui"; },
+    function(v){ CK().actif = v; });
   peindreIrve = bascule("swIrve", "irveCorps",
     function(){ return S.pv.irve.actif === "oui"; },
     function(v){ S.pv.irve.actif = v; });
@@ -4083,7 +4326,7 @@ function initBascules(){
     function(){ return S.pv.actif === "oui"; },
     function(v){ S.pv.actif = v; });
 }
-function rafraichirBascules(){ if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); }
+function rafraichirBascules(){ if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); if(peindreCharge) peindreCharge(); }
 
 /* ---------- dimensionnement conseillé ---------- */
 var PRODUCTIBLE_DEFAUT = 1150;      /* kWh par kWc et par an, Vendée, sud 30° */
@@ -4848,6 +5091,27 @@ function buildPdf(){
     kv("Puissance souscrite", CH.puissance ? CH.puissance+" kVA" : "");
     kv("N° PDL ou PRM", CH.pdl);
     kv("Compteur GTL", CH.gtl);
+  }
+
+  /* ---------- courbe de charge ---------- */
+  var KC=CK(), AC=KC.actif==="oui" && KC.courbe ? analyseCharge() : null;
+  if(AC){
+    h2("Courbe de charge du compteur", 120);
+    if(KC.courbe.prm && KC.courbe.prm!==String(S.chantier.pdl||"").trim()) kv("PRM du fichier", KC.courbe.prm);
+    constatsCharge(AC).forEach(function(x){ kv(x[0], x[1]); });
+    var gx=M+12, gl=CW-16;
+    if(AC.detail){
+      need(64); y+=2; sousTitre("Une journée moyenne (kW)");
+      y+=3; CourbeCharge.pdfProfil(doc, gx, y, gl, 40, AC, {gris:GREY, c1:ACC, c2:FROID}); y+=52;
+      doc.setFont("helvetica","bold"); doc.setFontSize(7.5);
+      setFill(ACC); doc.rect(gx, y-1.8, 5, 1, "F"); setText(INK); doc.text("En semaine", gx+7, y-0.8);
+      setFill(FROID); doc.rect(gx+30, y-1.8, 5, 1, "F"); doc.text("Le week-end", gx+37, y-0.8);
+      setFill([232,240,250]); doc.rect(gx+62, y-3, 5, 3.4, "F"); doc.text("Heures creuses", gx+69, y-0.8);
+      y+=6;
+    }
+    need(58); sousTitre("Jour par jour (kWh)");
+    y+=3; CourbeCharge.pdfJours(doc, gx, y, gl, 34, AC, {gris:GREY, c1:ACC}); y+=42;
+    setText(INK);
   }
 
   /* ---------- photovoltaïque ---------- */
