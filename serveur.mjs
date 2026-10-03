@@ -11,8 +11,6 @@
    Réglages, tous facultatifs :
      PORT              port d'écoute, 8080 par défaut
      DONNEES_DOSSIER   où ranger les données, ./donnees par défaut
-     RESEND_API_KEY    clé Resend, pour les e-mails de publication
-     EXPEDITEUR        expéditeur des e-mails
      PLAN_ANALYSE_URL  adresse de l'analyseur de plans (facultatif)
      PLAN_ANALYSE_CLE  sa clé partagée
      PUSH_CONTACT      contact signé dans les notifications (facultatif :
@@ -164,6 +162,5 @@ serveur.listen(PORT, () => {
   console.log("Outils de chantier");
   console.log("  site      http://localhost:" + PORT);
   console.log("  données   " + dossierDonnees());
-  console.log("  e-mails   " + (process.env.RESEND_API_KEY ? "activés" : "désactivés (RESEND_API_KEY absente)"));
   console.log("Arrêter : Ctrl+C");
 });

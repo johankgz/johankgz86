@@ -10,9 +10,6 @@ function jourParis() { return maintenantParis().slice(0, 10); }
 
 const INDEX = "_index";
 
-/* ---------------- notification par e-mail (Resend) ---------------- */
-const CLE_RESEND = process.env.RESEND_API_KEY || "";
-const EXPEDITEUR = process.env.EXPEDITEUR || "Outils de travaux <onboarding@resend.dev>";
 
 function echappe(t) {
   return String(t || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -106,81 +103,7 @@ async function tic(force) {
   }
   return n;
 }
-async function prevenir(entree, chantier, auteur, origine, comptes) {
-  if (!CLE_RESEND) return [];
-  /* Qui prévenir ? Les personnes désignées quand il y en a. Sinon —
-     publication « dans le dossier » — toute l'équipe du chantier, sauf
-     celui qui vient de publier : il sait déjà. */
-  const vises = entree.destinataires || [];
-  /* les noms écrits sur les fiches renvoient aux comptes (nom exact, sans accents, prénom seul…) */
-  const moi = nomDuCompte(auteur, comptes);
-  const noms = (vises.length ? vises : ((chantier && chantier.equipe) || []))
-    .map((n) => nomDuCompte(n, comptes)).filter((n) => n && (vises.length || n !== moi));
-  const cibles = (comptes || []).filter(
-    (u) => noms.indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0
-  );
-  if (!cibles.length) return [];
-
-  const quoi = libelleDocument(entree);
-  const titre = chantier.client || chantier.ref;
-  const lien = origine + "/rapports.html";
-
-  const html =
-    '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;font-size:15px;color:#121821;line-height:1.5">' +
-    '<p style="margin:0 0 14px"><b>' + echappe(quoi) + '</b> déposé par ' + echappe(auteur) + '.</p>' +
-    '<table style="border-collapse:collapse;margin:0 0 18px">' +
-    '<tr><td style="padding:3px 18px 3px 0;color:#6B7583">Chantier</td><td><b>' + echappe(titre) + '</b></td></tr>' +
-    '<tr><td style="padding:3px 18px 3px 0;color:#6B7583">Référence</td><td>' + echappe(chantier.ref) + '</td></tr>' +
-    (chantier.adresse ? '<tr><td style="padding:3px 18px 3px 0;color:#6B7583">Adresse</td><td>' + echappe(chantier.adresse) + '</td></tr>' : '') +
-    '<tr><td style="padding:3px 18px 3px 0;color:#6B7583">Date</td><td>' + echappe(frDate(entree.date)) + '</td></tr>' +
-    (entree.etape ? '<tr><td style="padding:3px 18px 3px 0;color:#6B7583">Détail</td><td>' + echappe(entree.etape) + '</td></tr>' : '') +
-    '</table>' +
-    '<p style="margin:0 0 20px"><a href="' + lien + '" style="display:inline-block;background:#1B57D6;color:#fff;' +
-    'text-decoration:none;padding:12px 20px;border-radius:12px;font-weight:600">Ouvrir le rapport</a></p>' +
-    '<p style="margin:0;color:#98A1AE;font-size:12.5px">Message automatique du site de suivi de travaux.<br>' +
-    '© 2026 Johan Klughertz. Tous droits réservés.</p></div>';
-
-  const texte = quoi + " déposé par " + auteur + ".\n"
-    + "Travaux : " + titre + " (" + chantier.ref + ")\n"
-    + "Date : " + frDate(entree.date) + "\n\n" + lien;
-
-  const envois = cibles.map((u) =>
-    fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: "Bearer " + CLE_RESEND },
-      body: JSON.stringify({
-        from: EXPEDITEUR,
-        to: [u.email],
-        subject: quoi + " — " + titre + (chantier.ref ? " (" + chantier.ref + ")" : ""),
-        html,
-        text: texte
-      })
-    }).then((r) => (r.ok ? u.nom : null)).catch(() => null)
-  );
-  const resultats = await Promise.all(envois);
-  return resultats.filter(Boolean);
-}
-
-
-/* envoi simple, pour les messages qui ne concernent pas un rapport */
-async function envoyerMail(destinataire, sujet, texte, o = {}) {
-  if (!CLE_RESEND || !destinataire) return false;
-  try {
-    const r = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { "content-type": "application/json", authorization: "Bearer " + CLE_RESEND },
-      body: JSON.stringify(Object.assign({
-        from: EXPEDITEUR, to: [destinataire], subject: sujet, text: texte,
-        html: '<div style="font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial;font-size:15px;color:#121821">'
-          + echappe(texte).replace(/\n/g, "<br>") + "</div>"
-      }, o.replyTo ? { reply_to: o.replyTo } : {},
-      /* une invitation .ics jointe : un clic l'ajoute à l'agenda (Outlook, Google, iPhone) */
-      o.pj ? { attachments: o.pj.map((x) => ({ filename: x.nom, content: Buffer.from(x.texte).toString("base64"), content_type: x.type || "text/calendar" })) } : {}))
-    });
-    return r.ok;
-  } catch { return false; }
-}
-
+/* plus d'e-mails : on prévient sur le téléphone (notifications) et dans l'appli */
 function json(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
@@ -780,15 +703,6 @@ async function demandeDeContact(st, lien, jeton, d, req, url) {
     titre: "Demande de contact — " + quoi, texte: nom + " : " + message.replace(/\s+/g, " ").slice(0, 120),
     url: "./demandes.html?id=" + encodeURIComponent(id), tag: "contact-" + id
   }, contactPush(url.origin), { comptes }).catch(() => {});
-  const texte = [quoi + " — demande reçue par le QR code « Nous contacter »", "",
-    "Nom : " + nom, tel ? "Téléphone : " + tel : "", email ? "E-mail : " + email : "", adresse ? "Adresse : " + adresse : "",
-    dem.dispo ? "Disponibilités : " + dem.dispo : "", photos.length ? photos.length + " photo(s) jointe(s) sur le site" : "", "", message, "",
-    "Ouvrir : " + url.origin + "/demandes.html?id=" + encodeURIComponent(id)].filter((x, i, a) => x || (a[i - 1] && a[i - 1] !== "")).join("\n");
-  for (const u of qui) {
-    if (u.email && u.email.indexOf("@") > 0) {
-      try { await envoyerMail(u.email, "Demande de contact — " + quoi + " — " + nom, texte, email ? { replyTo: email } : {}); } catch { /* la notification suffit */ }
-    }
-  }
   return json({ ok: true });
 }
 /* les demandes traitées depuis plus d'un an s'effacent */
@@ -919,17 +833,13 @@ async function traiter(req) {
       const store = getStore("rapports");
       const cle = "demandes/" + Date.now() + "-" + slug(nom) + ".json";
       await store.setJSON(cle, demande);
-    } catch { /* la demande part quand même par e-mail */ }
-    const dest = PROPRIETAIRE.email || "";
-    if (dest) {
-      await envoyerMail(dest, "Demande d'accès au site — " + nom,
-        [nom + (demande.fonction ? " (" + demande.fonction + ")" : ""),
-         "E-mail : " + email,
-         demande.tel ? "Téléphone : " + demande.tel : "",
-         "", demande.message || "(pas de message)",
-         "", "Pour créer le compte : ajoutez une ligne dans serveur/equipe.mjs."
-        ].filter(Boolean).join("\n"));
-    }
+    } catch { /* tant pis */ }
+    /* le gestionnaire la voit sur son accueil (« Demandes d'accès ») et reçoit une notification */
+    try {
+      prevenirPush(magasinSociete(SOCIETE_DEPART.code), magasinAnnuaire(), [PROPRIETAIRE.nom], "documents", {
+        titre: "Demande d'accès au site", texte: nom + (demande.fonction ? " (" + demande.fonction + ")" : "") + " — " + email,
+        url: "./index.html", tag: "acces-" + Date.now() }, contactPush(url.origin), { comptes: await lireComptes(SOCIETE_DEPART.code) }).catch(() => {});
+    } catch { /* la demande est gardée */ }
     return json({ ok: true });
   }
 
@@ -1087,7 +997,6 @@ async function traiter(req) {
         lectures: {}, appel: fiche.appel, urgence: fiche.inter.urgence, motif: court(message, 160), confiePar: "" };
       c.fichiers.push(entree); c.maj = maintenant;
       await st.setJSON(INDEX, idx);
-      try { await prevenir(Object.assign({}, entree, { destinataires: prevenus }), c, "le client (demande en ligne)", url.origin, comptes); } catch { /* le push suffit */ }
       prevenirPush(st, magasinAnnuaire(), prevenus, "documents", {
         titre: SORTES.push + (urgent ? " — urgente" : ""),
         texte: (c.client || c.ref) + " : " + court(message, 120),
@@ -1183,9 +1092,6 @@ async function traiter(req) {
       x.annule = true; x.annuleLe = new Date().toISOString(); x.annulePar = "le client";
       await st.setJSON("rdv/reservations-" + R.jeton + ".json", liste);
       if (x.rappel) { try { await st.delete(x.rappel); } catch { /* déjà parti */ } }
-      const annul = ecrireIcs([{ uid: x.id + "@suivi-travaux-360", debut: x.debut, fin: x.fin, annule: true, sequence: 1, titre: "RDV " + x.nom }], { methode: "CANCEL" });
-      envoyerMail(R.email, "Rendez-vous annulé — " + x.nom + ", " + texteRdv(x.debut),
-        x.nom + " a annulé le rendez-vous du " + texteRdv(x.debut) + ".\nTél. " + (x.tel || "—"), { pj: [{ nom: "annulation.ics", texte: annul }] }).catch(() => {});
       const comptes = await lireComptes(R.societe);
       prevenirPush(st, magasinAnnuaire(), [R.nom], "documents", { titre: "Rendez-vous annulé", texte: x.nom + " — " + texteRdv(x.debut), url: "./compte.html#rdv", tag: "rdv-" + x.id },
         contactPush(url.origin), { comptes }).catch(() => {});
@@ -1218,16 +1124,8 @@ async function traiter(req) {
     await st.setJSON("rdv/reservations-" + R.jeton + ".json", liste.filter((r) => r.fin > Date.now() - 400 * 864e5));
     const ev = { uid: id + "@suivi-travaux-360", debut, fin, titre: "RDV " + nom + (motif ? " — " + motif.slice(0, 60) : ""), lieu: x.adresse || R.lieu || "",
       description: [motif, "Tél. " + (tel || "—"), email ? "E-mail " + email : "", x.ref ? "Dossier " + x.ref : "", "Pris en ligne le " + new Date().toLocaleString("fr-FR", { timeZone: PARIS })].filter(Boolean).join("\n"),
-      organisateur: R.email ? { nom: R.nom, email: R.email } : null, participants: email ? [{ nom, email }] : [] };
+      organisateur: null, participants: [] };
     const lienAnnul = url.origin + "/rdv.html?r=" + encodeURIComponent(R.jeton) + "&annuler=" + id + "&k=" + cle;
-    envoyerMail(R.email, "Nouveau rendez-vous — " + nom + ", " + texteRdv(debut),
-      "Rendez-vous pris en ligne :\n" + texteRdv(debut) + " (" + (R.duree || 60) + " min)\n" + nom + "\nTél. " + (tel || "—") + (email ? "\nE-mail " + email : "")
-      + (x.adresse ? "\nAdresse : " + x.adresse : "") + (motif ? "\n\n" + motif : "") + (x.ref ? "\n\nDossier " + x.ref : "")
-      + "\n\nOuvrez la pièce jointe pour l'ajouter à votre agenda Outlook.", { pj: [{ nom: "rendez-vous.ics", texte: ecrireIcs([ev], { methode: "REQUEST" }) }], replyTo: email || undefined }).catch(() => {});
-    if (email) envoyerMail(email, "Votre rendez-vous avec " + (societe.nom || R.nom) + " — " + texteRdv(debut),
-      "Bonjour " + nom + ",\n\nVotre rendez-vous est confirmé : " + texteRdv(debut) + " (" + (R.duree || 60) + " min), avec " + R.nom + (societe.nom ? ", " + societe.nom : "") + "."
-      + (x.adresse ? "\nAdresse : " + x.adresse : "") + "\n\nUn empêchement ? Annulez ici : " + lienAnnul + (societe.tel ? "\nOu appelez le " + societe.tel : "")
-      + "\n\nLa pièce jointe l'ajoute à votre agenda.", { pj: [{ nom: "rendez-vous.ics", texte: ecrireIcs([Object.assign({}, ev, { organisateur: null, participants: [] })], { methode: "PUBLISH" }) }], replyTo: R.email || undefined }).catch(() => {});
     const comptes = await lireComptes(R.societe);
     prevenirPush(st, magasinAnnuaire(), [R.nom], "documents", { titre: "Nouveau rendez-vous", texte: nom + " — " + texteRdv(debut), url: "./compte.html#rdv", tag: "rdv-" + id },
       contactPush(url.origin), { comptes }).catch(() => {});
@@ -1777,7 +1675,6 @@ async function traiter(req) {
 
     let prevenus = [];
     if (!photos) {
-      try { prevenus = await prevenir(entree, c, entree.auteur, url.origin, await lireComptes(personne.societe)); } catch { prevenus = []; }
       /* et sur le téléphone, sans faire attendre la publication */
       lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
         titre: libelleDocument(entree),
@@ -1963,7 +1860,6 @@ async function traiter(req) {
     await store.setJSON(INDEX, idx);
     let prevenus = [];
     const comptes = await lireComptes(personne.societe);
-    try { prevenus = await prevenir(entree, c, personne.nom, url.origin, comptes); } catch { prevenus = []; }
     prevenirPush(store, magasinAnnuaire(), dest, "documents", {
       titre: "SAV à terminer" + (entree.urgence && entree.urgence !== "Normale" ? " — " + entree.urgence : ""),
       texte: (c.client || ref) + (entree.motif ? " : " + entree.motif : "") + " — confié par " + personne.nom,
@@ -2020,9 +1916,6 @@ async function traiter(req) {
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
     let prevenus = [];
-    try { prevenus = await prevenir(
-      { titre: d.titre || "Relevé à poursuivre", destinataires: dest, date: d.date || "", type: "releve" },
-      { ref, client: d.client || "" }, personne.nom, url.origin, await lireComptes(personne.societe)); } catch { prevenus = []; }
     return json({ ok: true, ref, cle, prevenus });
   }
 
@@ -2637,7 +2530,7 @@ async function traiter(req) {
       const liste = (await reservationsDe(store, R.jeton)).filter((x) => x.fin > Date.now() - 864e5).sort((x, y) => x.debut - y.debut)
         .map((x) => ({ id: x.id, debut: x.debut, fin: x.fin, nom: x.nom, tel: x.tel, email: x.email, adresse: x.adresse, motif: x.motif, ref: x.ref, annule: !!x.annule, texte: texteRdv(x.debut) }));
       const { societe: _s, identifiant: _i, ...publics } = R;
-      return { reglages: publics, lien: url.origin + "/rdv.html?r=" + R.jeton, flux: url.origin + "/api/rapports?action=rdv-ics&k=" + R.flux, rendezvous: liste, envoiMail: !!CLE_RESEND };
+      return { reglages: publics, lien: url.origin + "/rdv.html?r=" + R.jeton, flux: url.origin + "/api/rapports?action=rdv-ics&k=" + R.flux, rendezvous: liste };
     };
     if (action === "rdv-reglages") return json(await vue());
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -2654,9 +2547,6 @@ async function traiter(req) {
       x.annule = true; x.annuleLe = new Date().toISOString(); x.annulePar = personne.nom;
       await store.setJSON("rdv/reservations-" + R.jeton + ".json", liste);
       if (x.rappel) { try { await store.delete(x.rappel); } catch { /* déjà parti */ } }
-      if (x.email) envoyerMail(x.email, "Rendez-vous annulé — " + texteRdv(x.debut),
-        "Bonjour " + x.nom + ",\n\nNous devons annuler le rendez-vous du " + texteRdv(x.debut) + ". " + (d.message ? String(d.message).slice(0, 500) + "\n\n" : "")
-        + "Reprenez un créneau ici : " + url.origin + "/rdv.html?r=" + R.jeton + "\n\n" + R.nom, { replyTo: R.email || undefined }).catch(() => {});
       return json(Object.assign({ ok: true }, await vue()));
     }
     /* enregistrer */
@@ -2890,20 +2780,8 @@ async function traiter(req) {
     fil.lectures[personne.nom] = message.id;
     await store.setJSON(cleMessages(ref), fil);
 
-    /* on prévient l'équipe par e-mail */
     const comptes = await lireComptes(personne.societe);
-    const vises = (c.equipe || []).map((n) => nomDuCompte(n, comptes)).filter((n) => n && n !== personne.nom);
-    const cibles = comptes.filter((u) => vises.indexOf(u.nom) >= 0 && u.email && u.email.indexOf("@") > 0);
-    let prevenus = [];
-    if (cibles.length) {
-      const lien = url.origin + "/rapports.html";
-      const sujet = "Message — " + (c.client || ref);
-      const corpsMail = personne.nom + " a écrit sur le chantier " + (c.client || ref) + " :\n\n"
-        + (texte || "(photo)") + "\n\nRépondre ici : " + lien + "\n\nSuivi travaux 360";
-      for (const u of cibles) {
-        if (await envoyerMail(u.email, sujet, corpsMail)) prevenus.push(u.nom);
-      }
-    }
+    const prevenus = [];
     prevenirPush(store, magasinAnnuaire(), c.equipe || [], "messages", {
       titre: "Message — " + (c.client || ref),
       texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : "une photo"),

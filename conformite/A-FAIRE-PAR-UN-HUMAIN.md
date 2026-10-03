@@ -14,8 +14,6 @@ Le site affiche chaque information manquante en **surligné jaune** : `[À COMPL
 ## 2. Prestataires
 - [ ] o2switch : dénomination, adresse, téléphone ; durée de conservation des journaux ; sauvegardes et leur rotation
 - [ ] Certificat HTTPS actif sur le domaine (cPanel o2switch → SSL/TLS, AutoSSL)
-- [ ] Resend (États-Unis) : vérifier les clauses contractuelles types / Data Privacy Framework et la durée des journaux,
-      ou passer à un prestataire d'e-mails européen
 - [ ] Open-Meteo et CARTO : pays des serveurs
 
 ## 3. Contrats avec les abonnés

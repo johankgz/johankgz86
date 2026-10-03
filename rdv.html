@@ -14,7 +14,7 @@
   ?r=… : la prise de rendez-vous d'une personne (Mon compte) ; ses créneaux
   libres tiennent compte de son agenda Outlook et des rendez-vous déjà pris.
   ?j=… en plus : ouvert depuis le lien du client, son dossier est repris.
-  ?annuler=…&k=… : le lien d'annulation reçu par e-mail.
+  ?annuler=…&k=… : le lien d'annulation donné à la confirmation.
 -->
 <style>
 @font-face{font-family:"Jakarta";src:url("./polices/jakarta-var.woff2") format("woff2");font-weight:200 800;font-display:swap}
@@ -89,7 +89,7 @@ textarea{min-height:84px;resize:vertical}
       <form id="form" novalidate>
         <label class="f"><span>Votre nom</span><input type="text" id="f_nom" autocomplete="name"></label>
         <label class="f"><span>Téléphone</span><input type="tel" id="f_tel" autocomplete="tel"></label>
-        <label class="f"><span>E-mail (pour recevoir la confirmation)</span><input type="email" id="f_email" autocomplete="email"></label>
+        <label class="f"><span>E-mail (facultatif)</span><input type="email" id="f_email" autocomplete="email"></label>
         <label class="f"><span>Adresse des travaux</span><input type="text" id="f_adresse" autocomplete="street-address"></label>
         <label class="f"><span>L'objet du rendez-vous</span><textarea id="f_motif" placeholder="Devis de rénovation, borne de recharge, dépannage…"></textarea></label>
         <label class="piege" aria-hidden="true">Site<input type="text" id="f_site" tabindex="-1" autocomplete="off"></label>
@@ -206,7 +206,10 @@ textarea{min-height:84px;resize:vertical}
       }
       ICS = r.d.ics || "";
       $("okTexte").textContent = "Rendez-vous confirmé : " + r.d.texte + ", avec " + D.nom + ".";
-      $("okMail").textContent = corps.email ? "Une confirmation part à " + corps.email + ", avec le lien pour annuler en cas d'empêchement." : "Notez-le : vous n'avez pas laissé d'e-mail pour recevoir la confirmation.";
+      /* pas d'e-mail : le lien pour annuler est donné ici, à garder */
+      var m = $("okMail"); m.textContent = "Un empêchement ? Gardez ce lien pour annuler : ";
+      var la = document.createElement("a"); la.href = r.d.annulation; la.textContent = "annuler mon rendez-vous"; m.appendChild(la);
+      m.appendChild(document.createTextNode(". Ajoutez aussi le rendez-vous à votre agenda : le lien y figure."));
       document.querySelectorAll(".carte").forEach(function(c){ c.hidden = c.id !== "carteOk"; });
       $("carteOk").hidden = false; window.scrollTo({top: 0, behavior: "smooth"});
     }).catch(function(){ b.disabled = false; b.textContent = "Confirmer le rendez-vous"; erreur("Pas de réseau. Réessayez dans un instant."); });
@@ -217,7 +220,7 @@ textarea{min-height:84px;resize:vertical}
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
   });
 
-  /* ---------- le lien d'annulation reçu par e-mail ---------- */
+  /* ---------- le lien d'annulation (donné à la confirmation) ---------- */
   var annul = Q.get("annuler"), k = Q.get("k");
   if(annul && k){
     $("etat").hidden = true; $("carteAnnul").hidden = false;

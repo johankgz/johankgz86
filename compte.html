@@ -469,7 +469,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 
   <div class="block" id="rdv">
     <h2>Rendez-vous en ligne</h2>
-    <p class="legend">Vos clients prennent rendez-vous eux-mêmes sur les créneaux libres de votre agenda Outlook. Le rendez-vous vous arrive par e-mail, avec l'invitation à ouvrir dans Outlook, et s'inscrit au calendrier du site.</p>
+    <p class="legend">Vos clients prennent rendez-vous eux-mêmes sur les créneaux libres de votre agenda Outlook. Le rendez-vous vous arrive en notification, s'inscrit au calendrier du site, et dans Outlook par le lien d'abonnement ci-dessous.</p>
     <div class="nt-prefs" style="margin-top:0">
       <label class="bascule"><span>Ouvrir ma prise de rendez-vous<small>Le lien ci-dessous, et le bouton « Prendre rendez-vous » sur la page de vos clients</small></span>
         <input type="checkbox" id="rv_actif" role="switch"></label>
@@ -500,7 +500,6 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
     </div>
     <label><span>Lieu</span><input type="text" id="rv_lieu" placeholder="Visite sur place, chez le client"></label>
     <label><span>Message d'accueil (facultatif)</span><input type="text" id="rv_intro" placeholder="Une visite d'une heure pour relever votre installation et préparer le devis."></label>
-    <label><span>Invitations envoyées à</span><input type="email" id="rv_email" autocapitalize="none" spellcheck="false" inputmode="email"></label>
     <button class="p" id="rv_enr">Enregistrer</button>
     <p class="err" id="rv_err"></p>
     <div id="rv_liens" hidden>
@@ -667,7 +666,7 @@ function rvPoster(action, corps){
 var JOURS_RV=[[1,"Lun"],[2,"Mar"],[3,"Mer"],[4,"Jeu"],[5,"Ven"],[6,"Sam"],[7,"Dim"]];
 function rvPeindre(d){
   RV=d; var g=d.reglages||{};
-  $("rv_actif").checked=!!g.actif; $("rv_ics").value=g.ics||""; $("rv_email").value=g.email||S.email||"";
+  $("rv_actif").checked=!!g.actif; $("rv_ics").value=g.ics||"";
   ["debut","fin","pauseDebut","pauseFin","lieu","intro"].forEach(function(k){ $("rv_"+k).value=g[k]||""; });
   ["duree","marge","delai","horizon"].forEach(function(k){ if(g[k]!=null) $("rv_"+k).value=String(g[k]); });
   var box=$("rv_jours"); box.textContent="";
@@ -689,15 +688,13 @@ function rvPeindre(d){
     if(!x.annule){
       var b=document.createElement("button"); b.type="button"; b.className="act danger"; b.textContent="Annuler";
       b.addEventListener("click", function(){
-        var m=window.prompt("Annuler le rendez-vous de "+x.nom+" ("+x.texte+") ?\n\nUn mot pour le client (facultatif) :", "");
-        if(m===null) return;
-        rvPoster("rdv-annuler-pro", {id:x.id, message:m}).then(function(res){ if(res.ok) rvPeindre(res.d); else window.alert(res.d.erreur||"Refusé."); });
+        if(!window.confirm("Annuler le rendez-vous de "+x.nom+" ("+x.texte+") ?\n\nPensez à prévenir le client"+(x.tel ? " : "+x.tel : "")+".")) return;
+        rvPoster("rdv-annuler-pro", {id:x.id}).then(function(res){ if(res.ok) rvPeindre(res.d); else window.alert(res.d.erreur||"Refusé."); });
       });
       r.appendChild(b);
     }
     h.appendChild(r);
   });
-  if(d.lien && d.envoiMail===false){ $("rv_err").className="err"; $("rv_err").textContent="L'envoi d'e-mails n'est pas branché sur ce serveur : les rendez-vous arrivent au calendrier du site et dans le lien d'abonnement Outlook, mais pas par e-mail."; }
 }
 fetch(apiUrl("rdv-reglages"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.ok ? r.json() : null; }).then(function(d){ if(d) rvPeindre(d); }).catch(function(){});
 $("rv_tester").addEventListener("click", function(){
@@ -709,7 +706,7 @@ $("rv_tester").addEventListener("click", function(){
 });
 $("rv_enr").addEventListener("click", function(){
   var e=$("rv_err"); e.className="err"; e.textContent="Enregistrement…";
-  var corps={actif:$("rv_actif").checked, ics:$("rv_ics").value.trim(), email:$("rv_email").value.trim(),
+  var corps={actif:$("rv_actif").checked, ics:$("rv_ics").value.trim(),
     jours:Array.prototype.map.call(document.querySelectorAll("#rv_jours .chip.on"), function(l){ return +l.dataset.j; })};
   ["debut","fin","pauseDebut","pauseFin","lieu","intro","duree","marge","delai","horizon"].forEach(function(k){ corps[k]=$("rv_"+k).value; });
   rvPoster("rdv-reglages-enregistrer", corps).then(function(res){

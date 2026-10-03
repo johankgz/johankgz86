@@ -40,8 +40,6 @@ Réglages, tous facultatifs :
 |---|---|---|
 | `PORT` | port d'écoute | `8080` |
 | `DONNEES_DOSSIER` | où ranger les données | `./donnees` |
-| `RESEND_API_KEY` | clé Resend, pour les e-mails de publication | vide, pas d'e-mail |
-| `EXPEDITEUR` | expéditeur des e-mails | `onboarding@resend.dev` |
 
 ---
 
@@ -84,7 +82,6 @@ After=network.target
 WorkingDirectory=/opt/outils
 Environment=PORT=8080
 Environment=DONNEES_DOSSIER=/var/outils-donnees
-Environment=RESEND_API_KEY=...
 ExecStart=/usr/bin/node serveur.mjs
 Restart=always
 User=outils

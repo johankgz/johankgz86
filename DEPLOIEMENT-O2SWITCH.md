@@ -71,8 +71,6 @@ Sur la même page, section **Environment variables**, ajoutez :
 | Nom | Valeur |
 |---|---|
 | `DONNEES_DOSSIER` | `/home/VOTRECOMPTE/outils-donnees` |
-| `RESEND_API_KEY` | votre clé Resend, si vous voulez les e-mails de publication |
-| `EXPEDITEUR` | `Outils de travaux <contact@votredomaine.fr>` |
 
 `PORT` est fourni par l'hébergeur : ne le renseignez pas.
 
