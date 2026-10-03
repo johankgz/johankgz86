@@ -2733,6 +2733,27 @@ function peindreDemandesClient(){
   host.insertBefore(n, host.firstChild);
   host.hidden=false;
 }
+/* les demandes reçues par le QR code « Nous contacter » : pour la personne choisie (secrétariat…) */
+var CONTACTS_A_TRAITER=[];
+function demandesContact(s){
+  fetch(apiUrl("contacts"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ CONTACTS_A_TRAITER=(d.demandes||[]).filter(function(x){ return !x.traitee; }); peindreContacts(); })
+    .catch(function(){ CONTACTS_A_TRAITER=[]; });
+}
+function peindreContacts(){
+  var host=$("notifs"); if(!host) return;
+  var vieux=host.querySelector(".demande-contact"); if(vieux) vieux.remove();
+  var l=CONTACTS_A_TRAITER; if(!l.length){ host.hidden=!host.children.length; return; }
+  var x=l[0], urg=l.some(function(i){ return i.urgent; });
+  var SORTE={sav:"dépannage", devis:"demande de devis", info:"question"};
+  var n=notif(urg ? "rge demande-contact" : "amb demande-contact", String(l.length),
+    l.length>1 ? l.length+" demandes de contact à traiter" : "Une demande de contact ("+(SORTE[x.sorte]||"demande")+(x.urgent ? ", urgente" : "")+")",
+    x.nom+(x.message ? " — "+String(x.message).replace(/\s+/g, " ").slice(0, 90) : "")+(l.length>1 ? " (la plus récente)" : ""),
+    "./demandes.html"+(l.length>1 ? "" : "?id="+encodeURIComponent(x.id)));
+  host.insertBefore(n, host.firstChild);
+  host.hidden=false;
+}
 function peindreSavATerminer(){
   var host=$("notifs"); if(!host) return;
   var vieux=host.querySelector(".sav-a-terminer"); if(vieux) vieux.remove();
@@ -2750,6 +2771,7 @@ function charger(s){
   DERNIER_CHARGEMENT=Date.now();
   relevesEnCours(s);
   savATerminer(s);
+  demandesContact(s);
   messagesNonLus(s);
   SESSION_COURANTE=s;
   fetch(apiUrl("liste"), {headers:{"x-auth":s.jeton}})
@@ -2911,6 +2933,7 @@ function peindreNotifs(s, ch, relances){
     "Rien de déposé depuis trois semaines", "./rapports.html"));
   peindreSavATerminer();
   peindreDemandesClient();       /* la liste vient d'être refaite : les demandes des clients y reviennent */
+  peindreContacts();
   host.hidden = !host.children.length;
 }
 /* ---------- la cloche des chantiers ----------

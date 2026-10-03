@@ -93,6 +93,7 @@ async function tic(force) {
     if (Date.now() - DERNIERE_PURGE > 24 * 3600 * 1000) {
       DERNIERE_PURGE = Date.now();
       try { await purgerDemandesAcces(); } catch { /* demain */ }
+      try { for (const soc of await lireSocietes()) await purgerContacts(magasinSociete(soc.code)); } catch { /* demain */ }
     }
   });
   let n = 0;
@@ -734,6 +735,69 @@ async function lireLien(jeton) {
   try { l = await magasinAnnuaire().get("liens/" + jeton + ".json", { type: "json" }); } catch { l = null; }
   return l && l.actif !== false ? l : null;
 }
+/* ---------- les demandes reçues par le QR code « Nous contacter » ----------
+   Pas de SAV, pas de dossier : une demande, rangée à part (contacts/), pour la
+   personne choisie dans Équipe (le secrétariat…), à défaut les administrateurs.
+   Elle la lit dans « Demandes de contact » et la marque traitée. */
+const CONTACTS = "contacts/";
+const SORTES_CONTACT = { sav: "Dépannage", devis: "Demande de devis", info: "Question" };
+async function destinatairesContact(st, societe) {
+  let qc = null; try { qc = await st.get(QR_CONTACT, { type: "json" }); } catch { qc = null; }
+  const comptes = await lireComptes(societe);
+  const choisi = qc && qc.destinataire ? comptes.find((u) => u.nom === qc.destinataire) : null;
+  return { comptes, qui: choisi ? [choisi] : comptes.filter((u) => u.role === "admin"), choisi: choisi ? choisi.nom : "" };
+}
+async function demandeDeContact(st, lien, jeton, d, req, url) {
+  const net = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
+  if (d.site) return json({ ok: true });                                  /* champ piège : un robot l'a rempli */
+  const sorte = SORTES_CONTACT[d.sorte] ? d.sorte : "sav";
+  const nom = net(d.nom, 80), adresse = net(d.adresse, 200), tel = net(d.tel, 40), email = net(d.email, 120);
+  const message = String(d.message || "").trim().slice(0, 1500);
+  if (!message) return json({ erreur: sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots." }, 400);
+  if (!nom) return json({ erreur: "Indiquez votre nom." }, 400);
+  if (sorte !== "info" && !adresse) return json({ erreur: "Indiquez l'adresse où intervenir." }, 400);
+  if (!tel && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return json({ erreur: "Laissez un téléphone ou un e-mail pour qu'on vous rappelle." }, 400);
+  const ip = String(req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
+  if (!envoiPermis(jeton + "-" + ip, 5) || !envoiPermis("contact-" + lien.societe, 40)) {
+    return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
+  }
+  const photos = (Array.isArray(d.photos) ? d.photos : []).slice(0, 4)
+    .filter((ph) => ph && typeof ph.data === "string" && /^data:image\/jpeg;base64,/.test(ph.data) && ph.data.length < 1400000)
+    .map((ph) => ({ data: ph.data, w: Number(ph.w) || 0, h: Number(ph.h) || 0 }));
+  const recue = new Date().toISOString(), id = recue.replace(/[^\d]/g, "").slice(0, 14) + "-" + randomBytes(4).toString("hex");
+  const urgent = sorte === "sav" && !!d.urgent;
+  const dem = { id, sorte, urgent, nom, tel, email, adresse, message, dispo: net(d.dispo, 300), photos, recue, traitee: null };
+  await st.setJSON(CONTACTS + id + ".json", dem);
+  const { comptes, qui } = await destinatairesContact(st, lien.societe);
+  const quoi = SORTES_CONTACT[sorte] + (urgent ? " urgent" : "");
+  prevenirPush(st, magasinAnnuaire(), qui.map((u) => u.nom), "documents", {
+    titre: "Demande de contact — " + quoi, texte: nom + " : " + message.replace(/\s+/g, " ").slice(0, 120),
+    url: "./demandes.html?id=" + encodeURIComponent(id), tag: "contact-" + id
+  }, contactPush(url.origin), { comptes }).catch(() => {});
+  const texte = [quoi + " — demande reçue par le QR code « Nous contacter »", "",
+    "Nom : " + nom, tel ? "Téléphone : " + tel : "", email ? "E-mail : " + email : "", adresse ? "Adresse : " + adresse : "",
+    dem.dispo ? "Disponibilités : " + dem.dispo : "", photos.length ? photos.length + " photo(s) jointe(s) sur le site" : "", "", message, "",
+    "Ouvrir : " + url.origin + "/demandes.html?id=" + encodeURIComponent(id)].filter((x, i, a) => x || (a[i - 1] && a[i - 1] !== "")).join("\n");
+  for (const u of qui) {
+    if (u.email && u.email.indexOf("@") > 0) {
+      try { await envoyerMail(u.email, "Demande de contact — " + quoi + " — " + nom, texte, email ? { replyTo: email } : {}); } catch { /* la notification suffit */ }
+    }
+  }
+  return json({ ok: true });
+}
+/* les demandes traitées depuis plus d'un an s'effacent */
+async function purgerContacts(st, maintenant) {
+  const t = maintenant || Date.now();
+  const res = await st.list({ prefix: CONTACTS });
+  let n = 0;
+  for (const b of (res.blobs || [])) {
+    let x = null; try { x = await st.get(b.key, { type: "json" }); } catch { x = null; }
+    const quand = x && x.traitee && Date.parse(x.traitee.le);
+    if (quand && t - quand > 365 * 24 * 3600 * 1000) { try { await st.delete(b.key); n++; } catch { /* suivante */ } }
+  }
+  return n;
+}
+
 /* au plus quelques envois par heure et par lien : une page ouverte à tous ne doit pas inonder le bureau */
 const ENVOIS_LIEN = new Map();
 function envoiPermis(jeton, max) {
@@ -809,7 +873,7 @@ function texteRdv(t) {
   return JS[c.wd] + " " + c.d + " " + MS[c.m - 1] + " " + c.y + " à " + String(c.h).padStart(2, "0") + " h " + String(c.mi).padStart(2, "0");
 }
 
-const LECTURES = new Set(["push-journal", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
+const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages"]);
@@ -912,20 +976,7 @@ async function traiter(req) {
       if (!qc || qc.jeton !== jeton) return json({ erreur: "Ce QR code n'est plus valable. Appelez directement l'entreprise." }, 404);
       if (action === "lien-fichier") return json({ erreur: "Document introuvable." }, 404);
       if (action === "lien-depot") return json({ erreur: "Écrivez-nous plutôt par le formulaire, en joignant vos photos." }, 409);
-      if (action === "lien-demande") {
-        const net = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
-        const nomC = net(d.nom, 80), adr = net(d.adresse, 200);
-        if (!d.site) {
-          if (!nomC) return json({ erreur: "Indiquez votre nom." }, 400);
-          if (d.sorte !== "info" && !adr) return json({ erreur: "Indiquez l'adresse où intervenir." }, 400);
-          if (!envoiPermis("contact-" + lien.societe, 40)) return json({ erreur: "Beaucoup de demandes viennent d'arriver. Appelez directement l'entreprise." }, 429);
-        }
-        const jourC = jourParis().replace(/-/g, "").slice(2);
-        let refC;
-        do { refC = "DEM-" + jourC + "-" + randomBytes(2).toString("hex").toUpperCase(); } while (idx.chantiers[refC]);
-        c = idx.chantiers[refC] = { ref: refC, client: nomC, adresse: adr, fichiers: [], equipe: [], liens: [],
-          origine: "qr-contact", maj: new Date().toISOString() };
-      }
+      if (action === "lien-demande") return await demandeDeContact(st, lien, jeton, d, req, url);
     }
     /* le dossier est archivé : son espace client, gardé à part, reste ouvert (documents du client,
        sans dépôt de fichiers) ; à défaut, le QR du tableau garde la demande (dépannage, devis, information) */
@@ -1002,8 +1053,7 @@ async function traiter(req) {
         info: { nature: "Information", titre: "Demande d'information du client", push: "Demande d'information" } }[sorte];
       if (!message) return json({ erreur: sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots." }, 400);
       if (!tel && !/@/.test(String(d.email || ""))) return json({ erreur: "Laissez un téléphone ou un e-mail pour qu'on vous rappelle." }, 400);
-      const ip = String(req.headers.get("x-forwarded-for") || "").split(",")[0].trim();
-      if (!envoiPermis(contact ? jeton + "-" + ip : jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
+      if (!envoiPermis(jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
       const photos = (Array.isArray(d.photos) ? d.photos : []).slice(0, 4)
         .filter((ph) => ph && typeof ph.data === "string" && /^data:image\/jpeg;base64,/.test(ph.data) && ph.data.length < 1400000)
         .map((ph) => ({ data: ph.data, w: Number(ph.w) || 0, h: Number(ph.h) || 0, legende: "Envoyée par le client" }));
@@ -1018,8 +1068,8 @@ async function traiter(req) {
           motif: message, constat: "", travaux: "" },
         materiel: [], photos, suite: { etat: "", action: "", detail: "", retour: "" },
         sig: { client: null, tech: null, nomClient: "", nomTech: "", horodatage: "" }, destinataires: [], dest: "",
-        demande: { appelant: nom, qualite: tableau || contact ? "" : "Client", tel, symptomes: [], equipement: tableau ? "Tableau " + (lien.tableau || "électrique") : "",
-          marque: "", detail: [d.email ? "E-mail : " + court(d.email, 120) : "", tableau ? "Demande faite depuis le QR code du tableau." : contact ? "Demande faite depuis le QR code « Nous contacter »." : "Demande faite depuis le lien client."].filter(Boolean).join("\n"),
+        demande: { appelant: nom, qualite: tableau ? "" : "Client", tel, symptomes: [], equipement: tableau ? "Tableau " + (lien.tableau || "électrique") : "",
+          marque: "", detail: [d.email ? "E-mail : " + court(d.email, 120) : "", tableau ? "Demande faite depuis le QR code du tableau." : "Demande faite depuis le lien client."].filter(Boolean).join("\n"),
           date: "", heure: "", creneau: "", dispo: court(d.dispo, 300), acces: "" }
       };
       await st.set(cle, JSON.stringify(fiche), { metadata: { type: "application/json" } });
@@ -2685,7 +2735,48 @@ async function traiter(req) {
       qc = { jeton, cree, par: personne.nom };
       await store.setJSON(QR_CONTACT, qc);
     }
-    return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton } });
+    return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton },
+      destinataire: qc.destinataire || "" });
+  }
+  if (action === "qr-contact-destinataire") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const nom = String(d.nom || "").trim();
+    if (nom && !(await lireComptes(personne.societe)).some((u) => u.nom === nom)) return json({ erreur: "Compte inconnu." }, 400);
+    let qc = null; try { qc = await store.get(QR_CONTACT, { type: "json" }); } catch { qc = null; }
+    if (!qc) return json({ erreur: "Ouvrez d'abord le QR code." }, 404);
+    qc.destinataire = nom;
+    await store.setJSON(QR_CONTACT, qc);
+    return json({ ok: true, destinataire: nom });
+  }
+
+  /* ---------- les demandes de contact : pour la personne choisie, et les administrateurs ---------- */
+  if (action === "contacts" || action === "contact" || action === "contact-traitee") {
+    const { choisi } = await destinatairesContact(store, personne.societe);
+    const sienne = choisi ? (choisi === personne.nom || memeNom(choisi, personne.nom)) : false;
+    if (!admin && !sienne) return json({ erreur: "Les demandes de contact vont à " + (choisi || "l'administrateur") + "." }, 403);
+    if (action === "contacts") {
+      const out = [];
+      try {
+        const res = await store.list({ prefix: CONTACTS });
+        for (const b of (res.blobs || [])) {
+          let x = null; try { x = await store.get(b.key, { type: "json" }); } catch { x = null; }
+          if (x) out.push({ ...x, photos: (x.photos || []).length });
+        }
+      } catch { /* aucune */ }
+      out.sort((a, b) => String(b.recue).localeCompare(String(a.recue)));
+      return json({ demandes: out, aTraiter: out.filter((x) => !x.traitee).length, destinataire: choisi });
+    }
+    const id = String(url.searchParams.get("id") || "").replace(/[^\w-]/g, "");
+    let x = null; try { x = id ? await store.get(CONTACTS + id + ".json", { type: "json" }) : null; } catch { x = null; }
+    if (!x) return json({ erreur: "Demande introuvable." }, 404);
+    if (action === "contact") return json({ demande: x });
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    let d = {}; try { d = await req.json(); } catch { d = {}; }
+    x.traitee = d.traitee === false ? null : { le: new Date().toISOString(), par: personne.nom };
+    await store.setJSON(CONTACTS + id + ".json", x);
+    return json({ ok: true, traitee: x.traitee });
   }
 
   if (action === "lien-creer" || action === "liens" || action === "lien-revoquer" || action === "depots-client" || action === "depot-client") {

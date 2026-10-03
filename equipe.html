@@ -409,7 +409,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <div class="row"><button class="act" id="fs_enr">Enregistrer l'en-tête</button><span class="hint" id="fs_etat" style="margin:0"></span></div>
 
       <p class="legend" style="margin-top:20px">QR code « Nous contacter »</p>
-      <p class="hint" style="margin:-4px 0 12px">Le même pour tous vos clients : collez-le sur les tableaux, mettez-le sur vos devis, factures, cartes ou sur le véhicule. En le scannant, on vous écrit (dépannage, devis, question) ; chaque demande arrive au SAV dans un dossier neuf au nom du client. Il n'ouvre aucun dossier. L'étiquette porte « Nous contacter » et le nom de la société ci-dessus.</p>
+      <p class="hint" style="margin:-4px 0 12px">Le même pour tous vos clients : collez-le sur les tableaux, mettez-le sur vos devis, factures, cartes ou sur le véhicule. En le scannant, on vous écrit (dépannage, devis, question). La demande ne crée ni SAV ni dossier : elle arrive à la personne choisie ci-dessous (notification, e-mail, et la page « Demandes de contact »). Il n'ouvre aucun dossier. L'étiquette porte « Nous contacter » et le nom de la société ci-dessus.</p>
+      <label class="f" style="margin-bottom:12px"><span>Les demandes arrivent à</span><select id="qrc_dest"><option value="">Les administrateurs</option></select></label>
       <canvas id="qrc_vue" hidden style="display:block;margin:0 auto 8px;border-radius:10px;background:#fff"></canvas>
       <p class="hint" id="qrc_url" style="word-break:break-all;text-align:center"></p>
       <div class="row" style="flex-wrap:wrap;gap:8px">
@@ -614,10 +615,19 @@ function chargerQrContact(neuf){
     .then(function(r){
       if(!r.ok){ $("qrc_etat").textContent=r.d.erreur||"Refusé."; return; }
       QRC=r.d.lien; $("qrc_url").textContent=QRC.url;
+      remplirDestinataires(r.d.destinataire||"");
       var cv=$("qrc_vue"); cv.hidden=false; QR.canvas(cv, QRC.url, {taille:180});
       $("qrc_etat").textContent = neuf ? "Nouveau QR code : l'ancien ne mène plus à rien, réimprimez les étiquettes." : "Créé le "+new Date(QRC.cree).toLocaleDateString("fr-FR")+(QRC.par ? " par "+QRC.par : "")+".";
     })
     .catch(function(){ $("qrc_etat").textContent="Pas de réseau."; });
+}
+function remplirDestinataires(choisi){
+  fetch(api("equipe"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); }).then(function(d){
+    var sel=$("qrc_dest"); sel.textContent="";
+    var o0=document.createElement("option"); o0.value=""; o0.textContent="Les administrateurs"; sel.appendChild(o0);
+    (d.personnes||[]).forEach(function(p){ var o=document.createElement("option"); o.value=p.nom; o.textContent=p.nom+(p.role==="admin" ? " (administrateur)" : p.role==="bureau" ? " (bureau)" : ""); sel.appendChild(o); });
+    sel.value=choisi||"";
+  }).catch(function(){});
 }
 function chargerJsPdfE(){
   if(window.jspdf) return Promise.resolve();
@@ -656,6 +666,13 @@ function telechargerQ(blob, nom){
     catch(e){ window.prompt("Copiez le lien :", QRC.url); }
   });
   $("qrc_ouvrir").addEventListener("click", function(){ if(QRC) window.open(QRC.url, "_blank", "noopener"); });
+  $("qrc_dest").addEventListener("change", function(){
+    var nom=this.value;
+    fetch(api("qr-contact-destinataire"), {method:"POST", headers:tetes(), body:JSON.stringify({nom:nom})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(r){ $("qrc_etat").textContent = r.ok ? "Les demandes arrivent maintenant à "+(nom||"les administrateurs")+"." : (r.d.erreur||"Refusé."); })
+      .catch(function(){ $("qrc_etat").textContent="Pas de réseau."; });
+  });
   $("qrc_neuf").addEventListener("click", function(){
     if(!window.confirm("Renouveler le QR code « Nous contacter » ?\n\nL'ancien ne mènera plus à rien : toutes les étiquettes déjà collées seront à refaire.")) return;
     chargerQrContact(true);
