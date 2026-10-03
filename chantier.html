@@ -489,6 +489,8 @@ nav#nav button svg{stroke-width:1.9}
 .entete-chantier .ref-edit{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px}
 .entete-chantier .ref-edit input{flex:1 1 120px;min-width:0;text-transform:uppercase;font-weight:700;letter-spacing:.04em}
 .entete-chantier .ref-edit .act{width:auto;flex:0 0 auto;min-height:44px;padding:8px 14px}
+.entete-chantier .nom-edit input{text-transform:none;font-weight:600;letter-spacing:0}
+.entete-chantier #c_nomModif{margin-left:6px}
 .entete-chantier .ref-aide{flex:1 1 100%;margin:0;font-size:12.5px;color:var(--ink-3)}
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
@@ -929,7 +931,15 @@ header{overflow-anchor:none}
       <button type="button" class="ref-modif" id="c_refModif" hidden aria-label="Modifier la référence du chantier" title="Modifier la référence">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
       <h2 id="c_client">Chargement…</h2>
+      <button type="button" class="ref-modif" id="c_nomModif" hidden aria-label="Renommer le chantier" title="Renommer le chantier">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
     </div>
+    <form class="ref-edit nom-edit" id="c_nomEdit" hidden>
+      <input id="c_nomChamp" type="text" autocomplete="off" maxlength="120" aria-label="Nouveau nom du chantier">
+      <button type="submit" class="act primary">Valider</button>
+      <button type="button" class="act ghost" id="c_nomAnnuler">Annuler</button>
+      <p class="ref-aide">Le nouveau nom s'affiche partout sur le site (listes, chantier, page du client). Les documents déjà faits gardent le leur.</p>
+    </form>
     <form class="ref-edit" id="c_refEdit" hidden>
       <input id="c_refChamp" type="text" autocomplete="off" autocapitalize="characters" maxlength="40" aria-label="Nouvelle référence du chantier">
       <button type="submit" class="act primary">Valider</button>
@@ -1014,7 +1024,7 @@ header{overflow-anchor:none}
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./dossier.js?v=20261001a"></script>
+<script src="./dossier.js?v=20261003a"></script>
 <script src="./qr.js?v=20261003a"></script>
 <script>
 (function(){
@@ -1108,6 +1118,12 @@ var TOUT_PUBLIER_DEMANDE=(function(){
 var toastT;
 /* la référence se corrige tant qu'aucun relevé technique n'est publié :
    le PDF du relevé porte la référence, il ne doit pas la contredire */
+function peindreNomModif(){
+  var b=$("c_nomModif"); if(!b || !CHANTIER) return;
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
+  b.hidden = !(bureau || membre) || !$("c_nomEdit").hidden;
+}
 function peindreRefModif(){
   var b=$("c_refModif"); if(!b || !CHANTIER) return;
   var releve=(CHANTIER.fichiers||[]).some(function(f){ return f.type==="releve" && !f.brouillon; });
@@ -1139,6 +1155,35 @@ document.addEventListener("click", function(e){
     var c=$("c_refChamp"); c.value=CHANTIER ? CHANTIER.ref : REF; c.focus(); c.select();
   }
   if(e.target.closest && e.target.closest("#c_refAnnuler")){ $("c_refEdit").hidden=true; peindreRefModif(); }
+  if(e.target.closest && e.target.closest("#c_nomModif")){
+    $("c_nomEdit").hidden=false; $("c_nomModif").hidden=true;
+    var n=$("c_nomChamp"); n.value=CHANTIER ? (CHANTIER.client||"") : ""; n.focus(); n.select();
+  }
+  if(e.target.closest && e.target.closest("#c_nomAnnuler")){ $("c_nomEdit").hidden=true; peindreNomModif(); }
+});
+document.addEventListener("submit", function(e){
+  if(e.target.id!=="c_nomEdit") return;
+  e.preventDefault();
+  var nom=$("c_nomChamp").value.replace(/\s+/g, " ").trim();
+  if(!nom){ toast("Donnez le nom du chantier."); return; }
+  if(nom===(CHANTIER.client||"")){ $("c_nomEdit").hidden=true; peindreNomModif(); return; }
+  var bt=e.target.querySelector("button[type=submit]"); bt.disabled=true;
+  fetch(API+"?action=renommer-client", {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, client:nom})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      bt.disabled=false;
+      if(!res.ok){ toast(res.d.erreur || "Nom non modifié."); return; }
+      CHANTIER.client=res.d.client;
+      $("c_client").textContent=res.d.client; document.title=res.d.client+" — Chantier";
+      try{
+        var cour=JSON.parse(sessionStorage.getItem("chantier:courant")||"null");
+        if(cour && cour.ref===CHANTIER.ref){ cour.client=res.d.client; sessionStorage.setItem("chantier:courant", JSON.stringify(cour)); }
+      }catch(er){}
+      $("c_nomEdit").hidden=true; peindreNomModif();
+      toast("Chantier renommé.");
+    })
+    .catch(function(){ bt.disabled=false; toast("Pas de réseau : nom non modifié."); });
 });
 document.addEventListener("submit", function(e){
   if(e.target.id!=="c_refEdit") return;
@@ -1929,7 +1974,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindrePv(); chargerLiens();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindreNomModif(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){

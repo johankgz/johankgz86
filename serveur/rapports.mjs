@@ -713,6 +713,19 @@ function envoiPermis(jeton, max) {
   if (l.length >= max) { ENVOIS_LIEN.set(jeton, l); return false; }
   l.push(t); ENVOIS_LIEN.set(jeton, l); return true;
 }
+/* les circuits d'un tableau : la dernière planche d'étiquettes publiée pour ce repère */
+async function circuitsDe(st, c, tableau) {
+  const etiq = (c.fichiers || []).filter((f) => f.type === "etiquettes" && !f.brouillon
+    && (!tableau || slug(f.etape || "") === slug(tableau) || !f.etape))
+    .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0];
+  if (!etiq) return null;
+  try {
+    const fe = JSON.parse(await st.get(etiq.cle.replace(/\.pdf$/, ".json"), { type: "text" }));
+    const r = (fe.rangees || []).map((x) => ({ nom: String(x.nom || ""),
+      cases: (x.cases || []).map((k) => String(k.texte || "").trim()).filter(Boolean) })).filter((x) => x.cases.length);
+    return r.length ? r : null;
+  } catch { return null; }
+}
 function docVisible(f, lien) {
   if (f.brouillon || f.fiche === "appel") return false;
   return (lien.genre === "tableau" ? DOCS_TABLEAU : DOCS_CLIENT).indexOf(f.type) >= 0;
@@ -807,9 +820,32 @@ async function traiter(req) {
     if (!lien) return json({ erreur: "Ce lien n'est plus valable. Demandez-en un nouveau à l'entreprise." }, 404);
     const st = magasinSociete(lien.societe);
     const idx = (await st.get(INDEX, { type: "json" })) || { chantiers: {} };
-    const c = idx.chantiers[lien.ref];
-    if (!c) return json({ erreur: "Ce dossier n'existe plus." }, 404);
+    let c = idx.chantiers[lien.ref];
+    /* un lien n'ouvre que le dossier pour lequel il a été fait : si la référence a resservi, il n'y voit rien */
+    if (c && !(c.liens || []).some((l) => l.jeton === jeton)) c = null;
     const tableau = lien.genre === "tableau";
+    /* le dossier est archivé : le QR du tableau reste valable, sans les documents partis avec l'archive */
+    const archive = !c && tableau && lien.archive ? lien.archive : null;
+    if (!c && !archive) return json({ erreur: "Ce dossier n'existe plus. Contactez l'entreprise qui a fait les travaux." }, 404);
+
+    if (action === "lien" && archive) {
+      let fiche = null;
+      try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
+      const soc = (await lireSocietes()).find((x) => x.code === lien.societe) || {};
+      return json({ genre: "tableau", tableau: lien.tableau || "", archive: true,
+        societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
+          adresse: (fiche && fiche.adresse) || "", logo: (fiche && fiche.logo) || null },
+        dossier: { ref: lien.ref }, circuits: archive.circuits || null, documents: [], depots: [] });
+    }
+    if (action === "lien-fichier" && archive) return json({ erreur: "Document archivé : demandez-le à l'entreprise." }, 404);
+    if (action === "lien-demande" && archive) {
+      /* une demande sur un tableau archivé : le dossier renaît pour la recevoir (sous une autre référence si la sienne a resservi) */
+      const ref0 = idx.chantiers[lien.ref] ? (lien.ref + "-" + jeton.slice(0, 4)).toUpperCase() : lien.ref;
+      c = idx.chantiers[ref0] = idx.chantiers[ref0] || { ref: ref0, client: archive.client || "", adresse: archive.adresse || "", fichiers: [], equipe: [],
+        liens: [], maj: new Date().toISOString() };
+      if (!c.liens.some((l) => l.jeton === jeton)) c.liens.push({ jeton, genre: "tableau", tableau: lien.tableau || "", cree: lien.cree, par: lien.par });
+      if (ref0 !== lien.ref) await magasinAnnuaire().setJSON("liens/" + jeton + ".json", Object.assign(lien, { ref: ref0 }));
+    }
 
     if (action === "lien") {
       let fiche = null;
@@ -819,18 +855,7 @@ async function traiter(req) {
         .map((f) => ({ cle: f.cle, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" }));
       /* les circuits du tableau : la dernière planche d'étiquettes publiée pour ce repère */
       let circuits = null;
-      if (tableau) {
-        const etiq = c.fichiers.filter((f) => f.type === "etiquettes" && !f.brouillon
-          && (!lien.tableau || slug(f.etape || "") === slug(lien.tableau) || !f.etape))
-          .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0];
-        if (etiq) {
-          try {
-            const fe = JSON.parse(await st.get(etiq.cle.replace(/\.pdf$/, ".json"), { type: "text" }));
-            circuits = (fe.rangees || []).map((r) => ({ nom: String(r.nom || ""),
-              cases: (r.cases || []).map((x) => String(x.texte || "").trim()).filter(Boolean) })).filter((r) => r.cases.length);
-          } catch { circuits = null; }
-        }
-      }
+      if (tableau) circuits = (await circuitsDe(st, c, lien.tableau)) || (lien.archive && lien.archive.circuits) || null;
       return json({
         genre: lien.genre, tableau: lien.tableau || "",
         societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
@@ -1350,7 +1375,7 @@ async function traiter(req) {
 
     const idx = await lireIndex();
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
-    if (d.client) c.client = d.client;
+    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse) c.adresse = d.adresse;
     const pos = positionValide(d.lat, d.lon);
     if (pos) { c.lat = pos.lat; c.lon = pos.lon; }
@@ -1593,7 +1618,7 @@ async function traiter(req) {
     });
     await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
     const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: d.adresse || "", fichiers: [] };
-    if (d.client) c.client = d.client;
+    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse && !c.adresse) c.adresse = d.adresse;
     /* un dossier né de l'appel : celui qui l'a pris en est le responsable,
        le technicien pourra publier « dans le dossier » */
@@ -1665,7 +1690,7 @@ async function traiter(req) {
     await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
     const idx = await lireIndex();
     const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: "", fichiers: [] };
-    if (d.client) c.client = d.client;
+    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     c.fichiers.push({
       cle, titre: d.titre || "Relevé à poursuivre", type: "releve", visite: "", etape: "",
@@ -2773,6 +2798,29 @@ async function traiter(req) {
      technique n'est publié (son PDF porte l'ancienne référence) ; depuis
      le relevé lui-même (avecReleve), qui va être republié avec la
      nouvelle, c'est permis. */
+  /* ---------- changer le nom du chantier (le client) ----------
+     Le nom affiché partout sur le site : listes, page du chantier, page du
+     client. Il ne bouge plus ensuite quand une appli republie avec l'ancien :
+     les PDF déjà faits gardent le nom qu'ils portaient. */
+  if (action === "renommer-client") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const idx = await lireIndex();
+    const c = idx.chantiers[String(d.ref || "").trim()];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const nom = String(d.client || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (!nom) return json({ erreur: "Donnez le nom du chantier." }, 400);
+    if (nom !== c.client) {
+      c.ancienNom = c.client || "";
+      c.client = nom;
+      c.clientFixe = { le: new Date().toISOString(), par: personne.nom };
+      c.maj = new Date().toISOString();
+      await store.setJSON(INDEX, idx);
+    }
+    return json({ ok: true, client: c.client });
+  }
+
   if (action === "renommer-chantier") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -2849,15 +2897,34 @@ async function traiter(req) {
     const idx = await lireIndex();
     const c = idx.chantiers[ref];
     if (!c) return json({ erreur: "Chantier introuvable." }, 404);
+    /* les liens : celui du client s'éteint ; le QR collé sur le tableau reste valable, il garde les
+       circuits et la demande de dépannage (les documents, eux, partent avec l'archive) */
+    const a = magasinAnnuaire();
+    let qrGardes = 0, liensCoupes = 0;
+    for (const l of (c.liens || [])) {
+      const st0 = await lireLien(l.jeton);
+      if (!st0) continue;
+      if (st0.genre === "tableau") {
+        st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom,
+          circuits: (await circuitsDe(store, c, st0.tableau)) || (st0.archive && st0.archive.circuits) || null };
+        qrGardes++;
+      } else { st0.actif = false; st0.revoque = new Date().toISOString(); st0.revoquePar = personne.nom + " (dossier supprimé)"; liensCoupes++; }
+      await a.setJSON("liens/" + l.jeton + ".json", st0);
+    }
     let n = 0;
     for (const f of c.fichiers) {
       await store.delete(f.cle);
       await store.delete(f.cle.replace(/\.pdf$/, ".json"));
       n++;
     }
+    /* ce que le client a envoyé, et tout ce qui reste rangé sous la référence */
+    try {
+      const res = await store.list({ prefix: ref + "/" });
+      for (const b of (res.blobs || [])) { try { await store.delete(b.key); } catch { /* suivant */ } }
+    } catch { /* rien d'autre */ }
     delete idx.chantiers[ref];
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, supprimes: n });
+    return json({ ok: true, supprimes: n, qrGardes, liensCoupes });
   }
 
   if (action === "brouillon-supprimer" && url.searchParams.get("cle")) {

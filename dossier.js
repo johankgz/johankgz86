@@ -144,7 +144,9 @@ function archiver(c, bouton){
     return new Promise(function(res){ setTimeout(res, 1200); });
   }).then(function(){
     if(!window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\n"
-      + "Supprimer maintenant ce dossier du site ?")){
+      + "Supprimer maintenant ce dossier du site ?\n\n"
+      + "Le lien du client sera coupé. Les QR codes collés sur les tableaux restent valables : "
+      + "ils gardent les circuits et la demande de dépannage, sans les documents.")){
       bouton.textContent="Archiver"; bouton.disabled=false;
       return null;
     }
