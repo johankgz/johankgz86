@@ -2843,6 +2843,7 @@ async function traiter(req) {
         avancementLe: c.avancementLe || "",
         equipe: c.equipe || [],
         reste: c.reste || [],
+        note: c.note || null,
         fichiers: visibles });
     }
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
@@ -3191,6 +3192,23 @@ async function traiter(req) {
       await store.setJSON(INDEX, idx);
     }
     return json({ ok: true, client: c.client });
+  }
+
+  /* une note courte sous l'adresse : « pas d'électricité sur place », « parking au fond à gauche »… */
+  if (action === "note-chantier") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const idx = await lireIndex();
+    const c = idx.chantiers[String(d.ref || "").trim()];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const texte = String(d.note || "").replace(/\s+/g, " ").trim();
+    if (texte.length > 150) return json({ erreur: "150 caractères au plus." }, 400);
+    if (texte) c.note = { texte, le: new Date().toISOString(), par: personne.nom };
+    else delete c.note;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, note: c.note || null });
   }
 
   if (action === "renommer-chantier") {

@@ -494,6 +494,18 @@ nav#nav button svg{stroke-width:1.9}
 .entete-chantier .ref-aide{flex:1 1 100%;margin:0;font-size:12.5px;color:var(--ink-3)}
 .entete-chantier h2{margin:0;font-size:18px;font-weight:700;letter-spacing:-.025em;flex:1;min-width:0}
 .entete-chantier .adr{margin:8px 0 0;font-size:13.5px;color:var(--ink-3);line-height:1.5}
+/* la note du chantier : une information courte et importante, sous l'adresse */
+.note-chantier{display:flex;align-items:flex-start;gap:10px;margin:10px 0 0;padding:9px 10px 9px 12px;border-radius:10px;
+  background:#FFF4DC;border:1px solid #F1D49A;color:#5A3A00}
+.note-chantier[hidden],.note-ajout[hidden]{display:none}
+.note-chantier > svg{flex:0 0 auto;width:18px;height:18px;margin-top:2px;fill:none;stroke:#B7791F;stroke-width:2;stroke-linecap:round}
+.note-chantier p{flex:1;min-width:0;margin:0;font-size:14.5px;font-weight:600;line-height:1.4;overflow-wrap:anywhere}
+.note-chantier small{display:block;margin-top:2px;font-size:11.5px;font-weight:500;color:#7A5A1E}
+.note-chantier .ref-modif{margin-left:0;border-color:#E6C27A;color:#7A5A1E}
+.note-ajout{display:inline-flex;margin:10px 0 0;padding:6px 10px;min-height:0;border:1px dashed var(--rule,#D5DBE1);border-radius:9px;
+  background:transparent;color:var(--ink-3);font:inherit;font-size:13px;font-weight:600;cursor:pointer;width:auto}
+.entete-chantier .note-edit textarea{flex:1 1 100%;min-width:0;min-height:60px;resize:vertical;font:inherit;font-size:15px;padding:10px 12px}
+.entete-chantier .note-edit .ref-aide{text-align:right}
 .pv-resume{padding:14px 16px}
 .pv-resume[hidden]{display:none}
 .pv-tete{display:flex;align-items:center;gap:8px;margin-bottom:10px}
@@ -944,6 +956,20 @@ header{overflow-anchor:none}
       <p class="ref-aide">Possible tant qu'aucun relevé technique n'est publié : tous les documents du dossier suivent.</p>
     </form>
     <p class="adr" id="c_adresse"></p>
+    <div class="note-chantier" id="c_note" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.01"/></svg>
+      <p><span id="c_noteTexte"></span><small id="c_noteQui"></small></p>
+      <button type="button" class="ref-modif" id="c_noteModif" aria-label="Modifier la note" title="Modifier la note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
+    </div>
+    <button type="button" class="note-ajout" id="c_noteAjout" hidden>+ Ajouter une note</button>
+    <form class="ref-edit note-edit" id="c_noteEdit" hidden>
+      <textarea id="c_noteChamp" maxlength="150" rows="2" aria-label="Note du chantier" aria-describedby="c_noteCompte" placeholder="Pas d'électricité sur place, parking au fond à gauche…"></textarea>
+      <p class="ref-aide" id="c_noteCompte">0 / 150</p>
+      <button type="submit" class="act primary">Valider</button>
+      <button type="button" class="act ghost" id="c_noteAnnuler">Annuler</button>
+      <button type="button" class="act ghost" id="c_noteEffacer">Effacer la note</button>
+    </form>
   </div>
 
   <div class="block pv-resume" id="pvResume" hidden>
@@ -1116,6 +1142,45 @@ function peindreNomModif(){
   var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
   b.hidden = !(bureau || membre) || !$("c_nomEdit").hidden;
 }
+/* la note du chantier */
+function peindreNote(){
+  if(!CHANTIER) return;
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var peut=bureau || (CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
+  var n=CHANTIER.note, edit=!$("c_noteEdit").hidden;
+  $("c_note").hidden = !n || !n.texte || edit;
+  $("c_noteModif").hidden = !peut;
+  $("c_noteAjout").hidden = !!(n && n.texte) || !peut || edit;
+  if(n && n.texte){
+    $("c_noteTexte").textContent=n.texte;
+    $("c_noteQui").textContent=[n.par, n.le ? "le "+new Date(n.le).toLocaleDateString("fr-FR") : ""].filter(Boolean).join(", ");
+  }
+}
+function compteNote(){ $("c_noteCompte").textContent=$("c_noteChamp").value.length+" / 150"; }
+function ouvrirNote(){
+  $("c_noteEdit").hidden=false; $("c_noteChamp").value=(CHANTIER.note && CHANTIER.note.texte)||""; compteNote();
+  $("c_noteEffacer").hidden=!(CHANTIER.note && CHANTIER.note.texte);
+  peindreNote(); $("c_noteChamp").focus();
+}
+function enregistrerNote(texte){
+  var bt=$("c_noteEdit").querySelector("button[type=submit]"); bt.disabled=true;
+  return fetch(API+"?action=note-chantier", {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, note:texte})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      bt.disabled=false;
+      if(!res.ok){ toast(res.d.erreur || "Note non enregistrée."); return; }
+      CHANTIER.note=res.d.note; $("c_noteEdit").hidden=true; peindreNote();
+      toast(res.d.note ? "Note enregistrée." : "Note effacée.");
+    })
+    .catch(function(){ bt.disabled=false; toast("Pas de réseau : note non enregistrée."); });
+}
+$("c_noteAjout").addEventListener("click", ouvrirNote);
+$("c_noteModif").addEventListener("click", ouvrirNote);
+$("c_noteAnnuler").addEventListener("click", function(){ $("c_noteEdit").hidden=true; peindreNote(); });
+$("c_noteEffacer").addEventListener("click", function(){ enregistrerNote(""); });
+$("c_noteChamp").addEventListener("input", compteNote);
+$("c_noteEdit").addEventListener("submit", function(e){ e.preventDefault(); enregistrerNote($("c_noteChamp").value.replace(/\s+/g, " ").trim()); });
 function peindreRefModif(){
   var b=$("c_refModif"); if(!b || !CHANTIER) return;
   var releve=(CHANTIER.fichiers||[]).some(function(f){ return f.type==="releve" && !f.brouillon; });
@@ -1934,7 +1999,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindreNomModif(); peindrePv(); chargerLiens();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindreNomModif(); peindreNote(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){
