@@ -734,7 +734,7 @@ function docVisible(f, lien) {
 const LECTURES = new Set(["push-journal", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
-  "liens", "depots-client", "depot-client"]);
+  "liens", "depots-client", "depot-client", "espaces"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -824,54 +824,59 @@ async function traiter(req) {
     /* un lien n'ouvre que le dossier pour lequel il a été fait : si la référence a resservi, il n'y voit rien */
     if (c && !(c.liens || []).some((l) => l.jeton === jeton)) c = null;
     const tableau = lien.genre === "tableau";
-    /* le dossier est archivé : le QR du tableau reste valable, sans les documents partis avec l'archive */
+    /* le dossier est archivé : son espace client, gardé à part, reste ouvert (documents du client,
+       circuits) ; à défaut, le QR du tableau garde au moins les circuits et le dépannage */
+    let espace = null;
+    if (lien.espace) { try { espace = await st.get("espaces/" + lien.espace + ".json", { type: "json" }); } catch { espace = null; } }
     const archive = !c && tableau && lien.archive ? lien.archive : null;
-    if (!c && !archive) return json({ erreur: "Ce dossier n'existe plus. Contactez l'entreprise qui a fait les travaux." }, 404);
-
-    if (action === "lien" && archive) {
-      let fiche = null;
-      try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
-      const soc = (await lireSocietes()).find((x) => x.code === lien.societe) || {};
-      return json({ genre: "tableau", tableau: lien.tableau || "", archive: true,
-        societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
-          adresse: (fiche && fiche.adresse) || "", logo: (fiche && fiche.logo) || null },
-        dossier: { ref: lien.ref }, circuits: archive.circuits || null, documents: [], depots: [] });
-    }
-    if (action === "lien-fichier" && archive) return json({ erreur: "Document archivé : demandez-le à l'entreprise." }, 404);
-    if (action === "lien-demande" && archive) {
-      /* une demande sur un tableau archivé : le dossier renaît pour la recevoir (sous une autre référence si la sienne a resservi) */
+    if (!c && !espace && !archive) return json({ erreur: "Ce dossier n'existe plus. Contactez l'entreprise qui a fait les travaux." }, 404);
+    const docsEspace = espace ? (espace.documents || []).filter((f) => docVisible(f, lien)) : [];
+    /* une demande ou un envoi sur un dossier archivé : le dossier renaît pour les recevoir
+       (sous une autre référence si la sienne a resservi), avec tous les liens de l'espace */
+    if (!c && action === "lien-depot") return json({ erreur: "Votre dossier est archivé : envoyez plutôt le fichier à l'entreprise par e-mail." }, 409);
+    if (!c && action === "lien-demande") {
       const ref0 = idx.chantiers[lien.ref] ? (lien.ref + "-" + jeton.slice(0, 4)).toUpperCase() : lien.ref;
-      c = idx.chantiers[ref0] = idx.chantiers[ref0] || { ref: ref0, client: archive.client || "", adresse: archive.adresse || "", fichiers: [], equipe: [],
+      const src = espace || archive || {};
+      c = idx.chantiers[ref0] = idx.chantiers[ref0] || { ref: ref0, client: src.client || "", adresse: src.adresse || "", fichiers: [], equipe: [],
         liens: [], maj: new Date().toISOString() };
-      if (!c.liens.some((l) => l.jeton === jeton)) c.liens.push({ jeton, genre: "tableau", tableau: lien.tableau || "", cree: lien.cree, par: lien.par });
-      if (ref0 !== lien.ref) await magasinAnnuaire().setJSON("liens/" + jeton + ".json", Object.assign(lien, { ref: ref0 }));
+      const jetons = espace && Array.isArray(espace.liens) ? espace.liens : [jeton];
+      for (const jt of jetons) {
+        const l0 = jt === jeton ? lien : await lireLien(jt);
+        if (!l0) continue;
+        if (!c.liens.some((x) => x.jeton === jt)) c.liens.push({ jeton: jt, genre: l0.genre, tableau: l0.tableau || "", cree: l0.cree, par: l0.par });
+        if (l0.ref !== ref0) await magasinAnnuaire().setJSON("liens/" + jt + ".json", Object.assign(l0, { ref: ref0 }));
+      }
     }
+    let fiche = null;
+    try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
 
     if (action === "lien") {
-      let fiche = null;
-      try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
       const soc = (await lireSocietes()).find((x) => x.code === lien.societe) || {};
-      const docs = c.fichiers.filter((f) => docVisible(f, lien))
-        .map((f) => ({ cle: f.cle, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" }));
-      /* les circuits du tableau : la dernière planche d'étiquettes publiée pour ce repère */
+      const docs = (c ? c.fichiers.filter((f) => docVisible(f, lien))
+        .map((f) => ({ cle: f.cle, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" })) : [])
+        .concat(docsEspace.map((f) => ({ cle: f.cle, titre: f.titre, type: f.type, date: f.date || "", etape: f.etape || "" })));
+      /* les circuits du tableau : la dernière planche publiée, sinon ceux gardés à l'archivage */
       let circuits = null;
-      if (tableau) circuits = (await circuitsDe(st, c, lien.tableau)) || (lien.archive && lien.archive.circuits) || null;
+      if (tableau) circuits = (c && await circuitsDe(st, c, lien.tableau)) || (espace && espace.circuits && espace.circuits[slug(lien.tableau || "")])
+        || (lien.archive && lien.archive.circuits) || null;
+      const k = c || espace || {};
       return json({
-        genre: lien.genre, tableau: lien.tableau || "",
+        genre: lien.genre, tableau: lien.tableau || "", archive: !c,
         societe: { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
           adresse: (fiche && fiche.adresse) || "", logo: (fiche && fiche.logo) || null },
         /* le QR du tableau est collé chez le client, à la vue de tous : ni nom ni adresse */
-        dossier: tableau ? { ref: c.ref } : { ref: c.ref, client: c.client || "", adresse: c.adresse || "",
-          avancement: avancementDe(c), etat: etatDossier(c).etat },
+        dossier: tableau ? { ref: k.ref || lien.ref } : { ref: k.ref || lien.ref, client: k.client || "", adresse: k.adresse || "",
+          avancement: c ? avancementDe(c) : 100, etat: c ? etatDossier(c).etat : "archive" },
         circuits, documents: docs,
-        depots: tableau ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" }))
+        depots: tableau || !c ? [] : (c.depots || []).map((x) => ({ genre: x.genre, nom: x.nom, le: x.le, resume: x.resume || "" }))
       });
     }
 
     if (action === "lien-fichier") {
       const cle = String(url.searchParams.get("cle") || "");
-      const f = cle.startsWith(c.ref + "/") ? c.fichiers.find((x) => x.cle === cle) : null;
-      if (!f || !docVisible(f, lien)) return json({ erreur: "Document introuvable." }, 404);
+      const f = (c && cle.startsWith(c.ref + "/") ? c.fichiers.find((x) => x.cle === cle && docVisible(x, lien)) : null)
+        || docsEspace.find((x) => x.cle === cle);
+      if (!f) return json({ erreur: "Document introuvable." }, 404);
       const blob = await st.get(cle, { type: "arrayBuffer" });
       if (!blob) return json({ erreur: "Document introuvable." }, 404);
       return new Response(blob, { headers: { "content-type": typeDuFichier(cle),
@@ -1374,9 +1379,32 @@ async function traiter(req) {
     await store.set(cle, octets, { metadata: { type: typeDuFichier(cle) } });
 
     const idx = await lireIndex();
+    const nouveauDossier = !idx.chantiers[ref];
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
     if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse) c.adresse = d.adresse;
+    /* un dossier archivé qu'on restaure (depuis son ZIP) retrouve les liens de son espace client :
+       le client et les QR des tableaux rouvrent le dossier complet, l'espace mis de côté n'a plus lieu d'être */
+    /* seulement pour une vraie restauration : une autre affaire qui reprendrait la même référence n'hérite de rien */
+    if (nouveauDossier && d.restauration === true && bureau) {
+      try {
+        const ie = (await store.get("espaces/_index.json", { type: "json" })) || {};
+        for (const id of Object.keys(ie).filter((k) => ie[k].ref === ref)) {
+          const e = await store.get("espaces/" + id + ".json", { type: "json" });
+          for (const jt of ((e && e.liens) || [])) {
+            const l = await lireLien(jt);
+            if (!l || l.espace !== id) continue;
+            c.liens = (c.liens || []).filter((x) => x.jeton !== jt).concat([{ jeton: jt, genre: l.genre, tableau: l.tableau || "", cree: l.cree, par: l.par }]);
+            delete l.espace; l.ref = ref;
+            await magasinAnnuaire().setJSON("liens/" + jt + ".json", l);
+          }
+          try { const res = await store.list({ prefix: "espaces/" + id + "/" }); for (const b of (res.blobs || [])) await store.delete(b.key); } catch { /* rien */ }
+          try { await store.delete("espaces/" + id + ".json"); } catch { /* déjà parti */ }
+          delete ie[id];
+        }
+        await store.setJSON("espaces/_index.json", ie);
+      } catch { /* pas d'espace gardé */ }
+    }
     const pos = positionValide(d.lat, d.lon);
     if (pos) { c.lat = pos.lat; c.lon = pos.lon; }
 
@@ -2306,6 +2334,42 @@ async function traiter(req) {
     return (c.equipe || []).indexOf(personne.nom) >= 0 || c.fichiers.some((f) => voit(personne, f, c));
   }
 
+  /* ---------- les espaces clients gardés après l'archivage d'un dossier ---------- */
+  if (action === "espaces" || action === "espace-fermer") {
+    if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
+    let ie = {}; try { ie = (await store.get("espaces/_index.json", { type: "json" })) || {}; } catch { ie = {}; }
+    if (action === "espace-fermer") {
+      let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      const id = String(d.id || "");
+      if (!ie[id]) return json({ erreur: "Espace inconnu." }, 404);
+      let e = null; try { e = await store.get("espaces/" + id + ".json", { type: "json" }); } catch { e = null; }
+      for (const jt of ((e && e.liens) || [])) {
+        const l = await lireLien(jt);
+        /* un lien rattaché depuis à un dossier vivant (demande, restauration) n'est pas coupé */
+        if (!l || l.espace !== id) continue;
+        const idx0 = await lireIndex();
+        if (idx0.chantiers[l.ref] && (idx0.chantiers[l.ref].liens || []).some((x) => x.jeton === jt)) { delete l.espace; }
+        else { l.actif = false; l.revoque = new Date().toISOString(); l.revoquePar = personne.nom + " (espace fermé)"; }
+        await magasinAnnuaire().setJSON("liens/" + jt + ".json", l);
+      }
+      try { const res = await store.list({ prefix: "espaces/" + id + "/" }); for (const b of (res.blobs || [])) { try { await store.delete(b.key); } catch { /* suivant */ } } } catch { /* rien */ }
+      try { await store.delete("espaces/" + id + ".json"); } catch { /* déjà parti */ }
+      delete ie[id];
+      await store.setJSON("espaces/_index.json", ie);
+      return json({ ok: true });
+    }
+    const out = [];
+    for (const id of Object.keys(ie)) {
+      let e = null; try { e = await store.get("espaces/" + id + ".json", { type: "json" }); } catch { e = null; }
+      if (!e) continue;
+      const liens = [];
+      for (const jt of (e.liens || [])) { const l = await lireLien(jt); if (l) liens.push({ genre: l.genre, tableau: l.tableau || "", url: url.origin + "/client.html?j=" + jt }); }
+      out.push({ id, ref: e.ref, client: e.client, cree: e.cree, par: e.par, documents: (e.documents || []).length, liens });
+    }
+    out.sort((x, y) => String(y.cree).localeCompare(String(x.cree)));
+    return json({ espaces: out });
+  }
+
   /* ---------- liens publics : créer, lister, révoquer ; ce que le client a déposé ---------- */
   if (action === "lien-creer" || action === "liens" || action === "lien-revoquer" || action === "depots-client" || action === "depot-client") {
     let d = {};
@@ -2897,18 +2961,43 @@ async function traiter(req) {
     const idx = await lireIndex();
     const c = idx.chantiers[ref];
     if (!c) return json({ erreur: "Chantier introuvable." }, 404);
-    /* les liens : celui du client s'éteint ; le QR collé sur le tableau reste valable, il garde les
-       circuits et la demande de dépannage (les documents, eux, partent avec l'archive) */
+    /* « Garder l'espace du client » : ses documents (PV, DOE, schéma, étiquettes, mise en service,
+       documents techniques, SAV, reportages) sont mis de côté, et tous ses liens restent ouverts.
+       Sinon : le lien du client s'éteint ; le QR collé sur le tableau reste valable, il garde les
+       circuits et la demande de dépannage (les documents, eux, partent avec l'archive). */
     const a = magasinAnnuaire();
-    let qrGardes = 0, liensCoupes = 0;
+    const garder = url.searchParams.get("garder") === "1" && (c.liens || []).length > 0;
+    let qrGardes = 0, liensCoupes = 0, espaceId = "";
+    if (garder) {
+      espaceId = slug(ref).toLowerCase() + "-" + randomBytes(4).toString("hex");
+      const docs = [];
+      for (const f of c.fichiers) {
+        if (f.brouillon || f.fiche === "appel" || DOCS_CLIENT.indexOf(f.type) < 0) continue;
+        const blob = await store.get(f.cle, { type: "arrayBuffer" });
+        if (!blob) continue;
+        const cle2 = "espaces/" + espaceId + "/" + f.cle.split("/").pop();
+        await store.set(cle2, blob, { metadata: { type: typeDuFichier(f.cle) } });
+        docs.push({ cle: cle2, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" });
+      }
+      const circuits = {};
+      for (const l of (c.liens || [])) if (l.genre === "tableau") circuits[slug(l.tableau || "")] = await circuitsDe(store, c, l.tableau);
+      await store.setJSON("espaces/" + espaceId + ".json", { id: espaceId, ref: c.ref, client: c.client || "", adresse: c.adresse || "",
+        cree: new Date().toISOString(), par: personne.nom, documents: docs, circuits, liens: (c.liens || []).map((l) => l.jeton) });
+      let ie = {}; try { ie = (await store.get("espaces/_index.json", { type: "json" })) || {}; } catch { ie = {}; }
+      ie[espaceId] = { ref: c.ref, client: c.client || "", cree: new Date().toISOString(), par: personne.nom, documents: docs.length };
+      await store.setJSON("espaces/_index.json", ie);
+    }
     for (const l of (c.liens || [])) {
       const st0 = await lireLien(l.jeton);
       if (!st0) continue;
-      if (st0.genre === "tableau") {
+      if (garder) { st0.espace = espaceId; qrGardes++; }
+      else if (st0.genre === "tableau") {
         st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom,
           circuits: (await circuitsDe(store, c, st0.tableau)) || (st0.archive && st0.archive.circuits) || null };
         qrGardes++;
       } else { st0.actif = false; st0.revoque = new Date().toISOString(); st0.revoquePar = personne.nom + " (dossier supprimé)"; liensCoupes++; }
+      if (st0.genre === "tableau" && !st0.archive) st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom,
+        circuits: await circuitsDe(store, c, st0.tableau) };
       await a.setJSON("liens/" + l.jeton + ".json", st0);
     }
     let n = 0;
@@ -2924,7 +3013,7 @@ async function traiter(req) {
     } catch { /* rien d'autre */ }
     delete idx.chantiers[ref];
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, supprimes: n, qrGardes, liensCoupes });
+    return json({ ok: true, supprimes: n, qrGardes, liensCoupes, espace: espaceId });
   }
 
   if (action === "brouillon-supprimer" && url.searchParams.get("cle")) {

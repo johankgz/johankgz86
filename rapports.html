@@ -448,6 +448,11 @@ nav#nav button svg{stroke-width:1.9}
 .restaurer{margin:26px 0 0;padding:16px;background:none;
   border:1px dashed var(--champ-bord);box-shadow:none;border-radius:var(--r-card)}
 .restaurer .act.ghost{width:auto}
+.espaces .esp{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--rule)}
+.espaces .esp:first-child{border-top:0}
+.espaces .esp span{flex:1;min-width:0;font-size:14px}
+.espaces .esp small{display:block;color:var(--ink-3);font-size:12px}
+.espaces .esp .act{width:auto;flex:0 0 auto;min-height:38px;padding:7px 12px}
 
 .travaux{overflow:hidden}
 .travaux .head{padding:15px 16px}
@@ -726,6 +731,11 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   </div>
   <div id="liste"></div>
   <p class="hint" id="compteur" style="margin:14px 2px"></p>
+  <div class="restaurer espaces" id="espaces" hidden>
+    <b>Espaces clients gardés après l'archivage</b>
+    <p class="hint">Le dossier est archivé, mais le client garde ses documents et ses liens (et les QR des tableaux, leurs circuits). Restaurer le dossier depuis son ZIP les rattache de nouveau au dossier complet.</p>
+    <div id="espacesListe"></div>
+  </div>
   <div class="restaurer">
     <button class="act ghost" id="btnRestaurer">Restaurer un dossier archivé</button>
     <input type="file" id="fileArchive" accept=".zip,application/zip" hidden>
@@ -990,7 +1000,7 @@ function restaurerArchive(fichier){
         fetch(API+"?action=publier", {method:"POST",
           headers:{"Content-Type":"application/json","x-auth":S.jeton},
           body:JSON.stringify({pdf:octetsEnBase64(d.octets), type:t.type, chantier:ref, client:client,
-            adresse:adresse, date:dateDeNom(base), destinataires:[S.nom], titre:t.titre})})
+            adresse:adresse, date:dateDeNom(base), destinataires:[S.nom], titre:t.titre, restauration:true})})
           .then(function(r){ return r.json().then(function(x){ return {ok:r.ok, d:x}; }); })
           .then(function(res){
             if(!res.ok) throw new Error(res.d.erreur || "refus");
@@ -1051,6 +1061,33 @@ function ouvrirDiscussionDemandee(){
   Dossier.retourDiscussion("./chantier.html?ref="+encodeURIComponent(ref));
   Dossier.ouvrirDiscussion(c);
 }
+/* les espaces clients gardés après l'archivage (bureau) */
+function chargerEspaces(){
+  if(!S || !(S.role==="bureau" || S.role==="admin")) return;
+  fetch(API+"?action=espaces", {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      var l=(d && d.espaces) || [], h=$("espacesListe"); $("espaces").hidden=!l.length; h.textContent="";
+      l.forEach(function(e){
+        var row=document.createElement("div"); row.className="esp";
+        var t=document.createElement("span"); t.textContent=(e.client||e.ref)+" · "+e.ref;
+        var sm=document.createElement("small"); sm.textContent=e.documents+" document"+(e.documents>1?"s":"")+", "+e.liens.length+" lien"+(e.liens.length>1?"s":"")
+          +" · archivé le "+new Date(e.cree).toLocaleDateString("fr-FR")+(e.par ? " par "+e.par : ""); t.appendChild(sm);
+        row.appendChild(t);
+        var lc=e.liens.filter(function(x){ return x.genre==="client"; })[0] || e.liens[0];
+        if(lc){ var o=document.createElement("button"); o.type="button"; o.className="act ghost"; o.textContent="Voir"; o.addEventListener("click", function(){ window.open(lc.url, "_blank", "noopener"); }); row.appendChild(o); }
+        var fe=document.createElement("button"); fe.type="button"; fe.className="act danger"; fe.textContent="Fermer";
+        fe.addEventListener("click", function(){
+          if(!window.confirm("Fermer l'espace de « "+(e.client||e.ref)+" » ?\n\nSes documents sont effacés du site, son lien et les QR des tableaux ne mènent plus à rien.")) return;
+          fe.disabled=true;
+          fetch(API+"?action=espace-fermer", {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify({id:e.id})})
+            .then(function(r){ return r.json(); }).then(function(){ chargerEspaces(); }).catch(function(){ fe.disabled=false; });
+        });
+        row.appendChild(fe); h.appendChild(row);
+      });
+    }).catch(function(){});
+}
+setTimeout(chargerEspaces, 600);
 $("btnRestaurer").addEventListener("click", function(){ $("fileArchive").click(); });
 $("fileArchive").addEventListener("change", function(){
   var f=this.files[0]; this.value="";

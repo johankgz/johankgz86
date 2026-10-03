@@ -143,14 +143,22 @@ function archiver(c, bouton){
     bouton.textContent="Suppression…";
     return new Promise(function(res){ setTimeout(res, 1200); });
   }).then(function(){
-    if(!window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\n"
-      + "Supprimer maintenant ce dossier du site ?\n\n"
-      + "Le lien du client sera coupé. Les QR codes collés sur les tableaux restent valables : "
-      + "ils gardent les circuits et la demande de dépannage, sans les documents.")){
+    /* le client a un lien ou un QR de tableau : on lui garde son espace, ou on supprime tout */
+    return fetch(API+"?action=liens&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+      .then(function(d){
+        var liens=(d && d.liens) || [];
+        if(!liens.length){
+          return window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\nSupprimer maintenant ce dossier du site ?") ? "tout" : null;
+        }
+        return choixArchivage(c, liens);
+      });
+  }).then(function(choix){
+    if(!choix){
       bouton.textContent="Archiver"; bouton.disabled=false;
       return null;
     }
-    return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref),
+    return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
       {headers:{"x-auth":S.jeton}})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
       .then(function(res){
@@ -160,6 +168,39 @@ function archiver(c, bouton){
   }).catch(function(){
     window.alert("Export interrompu. Rien n'a été supprimé.");
     bouton.textContent="Archiver"; bouton.disabled=false;
+  });
+}
+
+/* après l'export : garder l'espace du client (ses documents et ses liens), ou tout supprimer */
+function choixArchivage(c, liens){
+  return new Promise(function(fini){
+    var ov=document.createElement("div");
+    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
+      +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+    var f=document.createElement("div");
+    f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
+      +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+    var nbQr=liens.filter(function(l){ return l.genre==="tableau"; }).length, client=liens.some(function(l){ return l.genre==="client"; });
+    var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
+    h.textContent="Le ZIP est téléchargé. Et l'espace du client ?";
+    var p=document.createElement("p"); p.className="hint"; p.style.margin="0 0 14px";
+    p.textContent=(c.client||c.ref)+" a "+[client ? "un lien client" : "", nbQr ? nbQr+" QR code"+(nbQr>1?"s":"")+" de tableau" : ""].filter(Boolean).join(" et ")
+      +". Vous pouvez lui garder ses documents (PV, DOE, schéma, étiquettes, mise en service, interventions SAV) : ses liens restent ouverts. Le reste du dossier (relevé, suivi, commandes, point, photos) part avec l'archive.";
+    f.appendChild(h); f.appendChild(p);
+    function choix(txt, sous, cls, val){
+      var b=document.createElement("button"); b.type="button"; b.className="act "+cls;
+      b.style.cssText="display:block;width:100%;text-align:left;margin-bottom:10px;padding:12px 14px;min-height:56px";
+      var t=document.createElement("b"); t.style.display="block"; t.textContent=txt;
+      var s2=document.createElement("span"); s2.style.cssText="display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px"; s2.textContent=sous;
+      b.appendChild(t); b.appendChild(s2);
+      b.addEventListener("click", function(){ document.body.removeChild(ov); fini(val); });
+      f.appendChild(b);
+    }
+    choix("Garder l'espace du client", "Ses documents et ses liens restent ; le dossier quitte la liste des chantiers.", "blue", "garder");
+    choix("Tout supprimer", (client ? "Le lien du client est coupé. " : "")+(nbQr ? "Le QR du tableau garde seulement les circuits et le dépannage." : ""), "ghost", "tout");
+    choix("Annuler", "Rien n'est supprimé.", "ghost", null);
+    ov.appendChild(f);
+    document.body.appendChild(ov);
   });
 }
 

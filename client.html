@@ -185,17 +185,20 @@ textarea{min-height:96px;resize:vertical}
     if(tableau){
       $("titre").textContent = "Tableau électrique" + (D.tableau ? " — " + D.tableau : "");
       $("sousTitre").textContent = "Installé et suivi par " + (S.nom || "l'entreprise") + ". "
-        + (D.archive ? "Le dossier des travaux est archivé : les circuits et le dépannage restent ici, les documents sont à demander à l'entreprise."
+        + (D.archive && !(D.documents || []).length ? "Le dossier des travaux est archivé : les circuits et le dépannage restent ici, les documents sont à demander à l'entreprise."
                      : "Scannez ce QR code pour retrouver les circuits, les documents, et demander un dépannage.");
     } else {
       var k = D.dossier || {};
       $("titre").textContent = k.client ? "Bonjour " + k.client : "Votre dossier";
       $("sousTitre").textContent = [k.adresse, k.ref ? "Dossier " + k.ref : ""].filter(Boolean).join("  ·  ");
-      if(k.avancement > 0){
+      if(D.archive){
+        $("avance").hidden = false; $("avanceBarre").style.width = "100%";
+        $("avanceTxt").textContent = "Travaux terminés : votre dossier est archivé chez " + (S.nom || "l'entreprise") + ", vos documents restent ici.";
+      } else if(k.avancement > 0){
         $("avance").hidden = false; $("avanceBarre").style.width = k.avancement + "%";
         $("avanceTxt").textContent = "Travaux avancés à " + k.avancement + " %.";
       }
-      $("carteDepot").hidden = false;
+      $("carteDepot").hidden = !!D.archive;          /* dossier archivé : les fichiers vont par e-mail */
       peindreDepots();
     }
     /* les circuits du tableau */
