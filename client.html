@@ -54,11 +54,6 @@ header.marque .sous{font-size:12.5px;color:var(--ink-3)}
 .docs a b{display:block;font-weight:600}
 .docs a span{display:block;font-size:12.5px;color:var(--ink-3)}
 .docs a svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:var(--accent);stroke-width:1.7}
-.circuits h3{margin:12px 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
-.circuits ol{margin:0;padding:0;list-style:none;counter-reset:c}
-.circuits li{display:flex;gap:10px;padding:7px 0;border-top:1px solid var(--rule);counter-increment:c}
-.circuits li::before{content:counter(c);min-width:26px;height:26px;border-radius:7px;background:var(--accent-soft);color:var(--accent);
-  font-weight:700;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
 label.f{display:block;margin:0 0 12px}
 label.f span{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:5px}
 input[type=text],input[type=tel],input[type=email],textarea{width:100%;min-height:46px;padding:11px 13px;border:1px solid var(--rule);border-radius:11px;
@@ -66,6 +61,14 @@ input[type=text],input[type=tel],input[type=email],textarea{width:100%;min-heigh
 textarea{min-height:96px;resize:vertical}
 .case{display:flex;gap:10px;align-items:flex-start;margin:4px 0 14px;font-size:14.5px}
 .case input{width:22px;height:22px;margin:1px 0 0;accent-color:var(--danger);flex:0 0 auto}
+.sortes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 14px}
+.sortes label{display:block;cursor:pointer}
+.sortes input{position:absolute;opacity:0;pointer-events:none}
+.sortes span{display:block;padding:10px 8px;border:1px solid var(--rule);border-radius:12px;background:var(--field);text-align:center;min-height:62px}
+.sortes b{display:block;font-size:14.5px}
+.sortes small{display:block;font-size:11.5px;color:var(--ink-3);margin-top:2px}
+.sortes input:checked + span{border:2px solid var(--accent);background:var(--accent-soft);padding:9px 7px}
+.sortes input:focus-visible + span{outline:2px solid var(--accent);outline-offset:2px}
 .piege{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
 .vignettes{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .vignettes img{width:72px;height:72px;object-fit:cover;border-radius:10px}
@@ -98,15 +101,10 @@ textarea{min-height:96px;resize:vertical}
       <div class="rangee" style="margin-top:14px">
         <a class="btn" id="btnAppeler" hidden><svg viewBox="0 0 24 24"><path d="M6.6 3.5h2.6l1.4 4-1.9 1.3a10 10 0 0 0 6.5 6.5l1.3-1.9 4 1.4v2.6a1.7 1.7 0 0 1-1.9 1.7A15.8 15.8 0 0 1 4.9 5.4 1.7 1.7 0 0 1 6.6 3.5z"/></svg>Appeler</a>
         <a class="btn" id="btnRdv" hidden><svg viewBox="0 0 24 24"><path d="M4 6.5h16v13.5H4z"/><path d="M4 10.5h16M8.5 4v4M15.5 4v4"/><path d="M9 15l2 2 4-4"/></svg>Prendre rendez-vous</a>
-                <a class="btn ghost" href="#demande"><svg viewBox="0 0 24 24"><path d="M12 3.4 21 19.6H3z"/><path d="M12 9.6v4.3M12 16.8h.01"/></svg>Signaler un problème</a>
+                <a class="btn ghost" href="#demande"><svg viewBox="0 0 24 24"><path d="M12 3.4 21 19.6H3z"/><path d="M12 9.6v4.3M12 16.8h.01"/></svg>Nous écrire</a>
       </div>
     </section>
 
-    <section class="carte circuits" id="carteCircuits" hidden>
-      <h2><svg viewBox="0 0 24 24"><path d="M3.5 5.5h17v13h-17z"/><path d="M3.5 9.5h17"/><path d="M7 9.5v9M11 9.5v9M15 9.5v9"/></svg>Les circuits du tableau</h2>
-      <p class="hint">Avant d'intervenir sur un circuit, coupez son disjoncteur, puis vérifiez que le courant est bien coupé.</p>
-      <div id="listeCircuits"></div>
-    </section>
 
     <section class="carte" id="carteDocs" hidden>
       <h2><svg viewBox="0 0 24 24"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>Documents</h2>
@@ -126,10 +124,15 @@ textarea{min-height:96px;resize:vertical}
     </section>
 
     <section class="carte" id="demande">
-      <h2><svg viewBox="0 0 24 24"><path d="M12 3.4 21 19.6H3z"/><path d="M12 9.6v4.3M12 16.8h.01"/></svg>Demander une intervention</h2>
+      <h2><svg viewBox="0 0 24 24"><path d="M21 3.5 2.8 11.2l7.5 2.6 2.6 7.2z"/><path d="M21 3.5 10.3 13.8"/></svg>Votre demande</h2>
       <form id="formDemande" novalidate>
-        <label class="f"><span>Ce qui se passe</span><textarea id="d_message" placeholder="Le disjoncteur saute quand je lance le four, une prise ne marche plus…"></textarea></label>
-        <label class="case"><input type="checkbox" id="d_urgent"><span>C'est urgent : plus de courant, odeur de brûlé, étincelles. <b>En cas de danger, coupez le disjoncteur général.</b></span></label>
+        <div class="sortes" role="radiogroup" aria-label="Votre demande">
+          <label><input type="radio" name="sorte" value="sav" checked><span><b>Dépannage</b><small>SAV, une panne</small></span></label>
+          <label><input type="radio" name="sorte" value="devis"><span><b>Un devis</b><small>des travaux</small></span></label>
+          <label><input type="radio" name="sorte" value="info"><span><b>Une question</b><small>une information</small></span></label>
+        </div>
+        <label class="f"><span id="d_messageLib">Ce qui se passe</span><textarea id="d_message" placeholder="Le disjoncteur saute quand je lance le four, une prise ne marche plus…"></textarea></label>
+        <label class="case" id="d_urgentLab"><input type="checkbox" id="d_urgent"><span>C'est urgent : plus de courant, odeur de brûlé, étincelles. <b>En cas de danger, coupez le disjoncteur général.</b></span></label>
         <label class="f"><span>Votre nom</span><input type="text" id="d_nom" autocomplete="name"></label>
         <label class="f"><span>Téléphone</span><input type="tel" id="d_tel" autocomplete="tel"></label>
         <label class="f"><span>E-mail (facultatif)</span><input type="email" id="d_email" autocomplete="email"></label>
@@ -185,9 +188,8 @@ textarea{min-height:96px;resize:vertical}
     if(S.tel){ var a = $("btnAppeler"); a.href = "tel:" + String(S.tel).replace(/[^\d+]/g, ""); a.hidden = false; a.lastChild.textContent = "Appeler " + (S.nom || "l'entreprise"); }
     if(tableau){
       $("titre").textContent = "Tableau électrique" + (D.tableau ? " — " + D.tableau : "");
-      $("sousTitre").textContent = "Installé et suivi par " + (S.nom || "l'entreprise") + ". "
-        + (D.archive && !(D.documents || []).length ? "Le dossier des travaux est archivé : les circuits et le dépannage restent ici, les documents sont à demander à l'entreprise."
-                     : "Scannez ce QR code pour retrouver les circuits, les documents, et demander un dépannage.");
+      $("sousTitre").textContent = "Installé par " + (S.nom || "l'entreprise") + ". Une panne, un projet de travaux, une question : "
+        + "écrivez-nous ici, votre demande arrive directement à l'entreprise, qui vous recontacte.";
     } else {
       var k = D.dossier || {};
       $("titre").textContent = k.client ? "Bonjour " + k.client : "Votre dossier";
@@ -204,17 +206,7 @@ textarea{min-height:96px;resize:vertical}
     }
     /* prendre rendez-vous : l'agenda de la personne qui suit le dossier */
     if(D.rdv){ var br = $("btnRdv"); br.href = "./rdv.html?r=" + encodeURIComponent(D.rdv) + "&j=" + encodeURIComponent(J); br.hidden = false; }
-        /* les circuits du tableau */
-    var C = D.circuits || [];
-    $("carteCircuits").hidden = !C.length;
-    var lc = $("listeCircuits"); lc.textContent = "";
-    C.forEach(function(r){
-      if(C.length > 1){ var h = document.createElement("h3"); h.textContent = r.nom; lc.appendChild(h); }
-      var ol = document.createElement("ol");
-      r.cases.forEach(function(t){ var li = document.createElement("li"); li.appendChild(document.createTextNode(t)); ol.appendChild(li); });
-      lc.appendChild(ol);
-    });
-    /* les documents */
+        /* les documents */
     var docs = D.documents || [];
     $("carteDocs").hidden = !docs.length;
     var ld = $("listeDocs"); ld.textContent = "";
@@ -266,21 +258,34 @@ textarea{min-height:96px;resize:vertical}
     });
   });
 
-  /* ---------- la demande d'intervention ---------- */
+  /* ---------- la demande : dépannage, devis ou information ---------- */
+  var TEXTES_SORTE = {
+    sav: ["Ce qui se passe", "Le disjoncteur saute quand je lance le four, une prise ne marche plus…", "Demande envoyée. L'entreprise vous rappelle pour fixer le passage."],
+    devis: ["Les travaux envisagés", "Une borne de recharge, ajouter des prises, refaire le tableau, une climatisation…", "Demande de devis envoyée. L'entreprise vous recontacte pour en parler."],
+    info: ["Votre question", "Votre question, en quelques mots.", "Question envoyée. L'entreprise vous répond au plus vite."]
+  };
+  function sorte(){ var r = document.querySelector('input[name="sorte"]:checked'); return r ? r.value : "sav"; }
+  function majSorte(){
+    var t = TEXTES_SORTE[sorte()];
+    $("d_messageLib").textContent = t[0]; $("d_message").placeholder = t[1];
+    $("d_urgentLab").hidden = sorte() !== "sav"; if(sorte() !== "sav") $("d_urgent").checked = false;
+  }
+  document.querySelectorAll('input[name="sorte"]').forEach(function(r){ r.addEventListener("change", majSorte); });
   $("formDemande").addEventListener("submit", function(e){
     e.preventDefault();
     var etat = $("demandeEtat"), b = $("btnEnvoyer");
     var corps = {message: $("d_message").value, nom: $("d_nom").value, tel: $("d_tel").value, email: $("d_email").value,
-      dispo: $("d_dispo").value, urgent: $("d_urgent").checked, site: $("d_site").value, photos: PHOTOS};
+      dispo: $("d_dispo").value, urgent: $("d_urgent").checked, site: $("d_site").value, photos: PHOTOS, sorte: sorte()};
+    var envoyee = TEXTES_SORTE[corps.sorte][2];
     etat.textContent = "";
-    if(!corps.message.trim()){ etat.innerHTML = '<p class="err-msg">Décrivez en quelques mots ce qui se passe.</p>'; return; }
+    if(!corps.message.trim()){ etat.innerHTML = '<p class="err-msg">' + (corps.sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots.") + '</p>'; return; }
     if(!corps.tel.trim() && corps.email.indexOf("@") < 1){ etat.innerHTML = '<p class="err-msg">Laissez un téléphone ou un e-mail pour qu\'on vous rappelle.</p>'; return; }
     b.disabled = true; b.textContent = "Envoi…";
     poster("lien-demande", corps).then(function(r){
       b.disabled = false; b.textContent = "Envoyer la demande";
       if(!r.ok){ etat.innerHTML = ""; var p = document.createElement("p"); p.className = "err-msg"; p.textContent = r.d.erreur || "Envoi refusé."; etat.appendChild(p); return; }
-      $("formDemande").reset(); PHOTOS = []; $("vignettes").textContent = ""; $("btnPhotos").disabled = false;
-      etat.innerHTML = '<p class="ok-msg">Demande envoyée. L\'entreprise vous rappelle pour fixer le passage.</p>';
+      $("formDemande").reset(); PHOTOS = []; $("vignettes").textContent = ""; $("btnPhotos").disabled = false; majSorte();
+      etat.innerHTML = ""; var ok = document.createElement("p"); ok.className = "ok-msg"; ok.textContent = envoyee; etat.appendChild(ok);
     }).catch(function(){ b.disabled = false; b.textContent = "Envoyer la demande"; etat.innerHTML = '<p class="err-msg">Pas de réseau. Réessayez dans un instant.</p>'; });
   });
 

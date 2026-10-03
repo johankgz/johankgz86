@@ -197,7 +197,7 @@ function choixArchivage(c, liens){
       f.appendChild(b);
     }
     choix("Garder l'espace du client", "Ses documents et ses liens restent ; le dossier quitte la liste des chantiers.", "blue", "garder");
-    choix("Tout supprimer", (client ? "Le lien du client est coupé. " : "")+(nbQr ? "Le QR du tableau garde seulement les circuits et le dépannage." : ""), "ghost", "tout");
+    choix("Tout supprimer", (client ? "Le lien du client est coupé. " : "")+(nbQr ? "Le QR du tableau continue de recevoir les demandes." : ""), "ghost", "tout");
     choix("Annuler", "Rien n'est supprimé.", "ghost", null);
     ov.appendChild(f);
     document.body.appendChild(ov);

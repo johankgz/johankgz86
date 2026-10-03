@@ -34,7 +34,7 @@ function libelleDocument(entree) {
     : entree.type === "doe" ? "Dossier des ouvrages exécutés"
     : entree.type === "point" ? (entree.titre || "Le point de chantier")
     : entree.type === "technique" ? "Document technique" + (entree.visite ? " — " + entree.visite : "")
-    : entree.type === "sav" ? (entree.fiche === "appel" ? "Réception d'appel SAV" : entree.demandeClient ? "Demande d'intervention du client" : entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
+    : entree.type === "sav" ? (entree.fiche === "appel" ? "Réception d'appel SAV" : entree.demandeClient ? (entree.titre || "Demande d'intervention du client") : entree.brouillon ? "Intervention SAV à terminer" : "Intervention SAV")
     : entree.type === "reception" ? "Procès-verbal de réception"
     : entree.type === "etiquettes" ? "Étiquettes de tableau"
     : entree.type === "photos" ? "Photos du chantier"
@@ -694,15 +694,17 @@ function rang(f) {
    compte : la page n'y voit que ce dossier, et seulement les documents
    faits pour le client (PV, DOE, schéma, étiquettes, mise en service,
    documents techniques, interventions SAV). Le lien du client permet en
-   plus de déposer des fichiers (sa courbe de charge, des photos) ; le
-   QR du tableau montre les circuits du tableau. Les deux permettent de
-   demander une intervention : elle arrive au bureau comme une fiche de
+   plus de déposer des fichiers (sa courbe de charge, des photos). Le QR
+   du tableau, lui, n'ouvre rien du dossier : il sert à joindre
+   l'entreprise. Les deux permettent d'envoyer une demande (dépannage,
+   devis, information) : elle arrive au bureau comme une fiche de
    réception d'appel SAV, à prendre. Un jeton se révoque ; celui d'un
    tableau ne change jamais tant qu'on ne le révoque pas (il est imprimé).
    ===================================================================== */
 const JETON_LIEN = /^[A-Za-z0-9_-]{16,40}$/;
 const DOCS_CLIENT = ["reception", "doe", "schema", "etiquettes", "autocontrole", "technique", "sav", "reportage"];
-const DOCS_TABLEAU = ["schema", "etiquettes", "doe", "autocontrole"];
+/* le QR collé sur le tableau n'ouvre aucun document du dossier : il sert à joindre l'entreprise */
+const DOCS_TABLEAU = [];
 async function lireLien(jeton) {
   if (!JETON_LIEN.test(String(jeton || ""))) return null;
   let l = null;
@@ -715,19 +717,6 @@ function envoiPermis(jeton, max) {
   const t = Date.now(), l = (ENVOIS_LIEN.get(jeton) || []).filter((x) => t - x < 3600000);
   if (l.length >= max) { ENVOIS_LIEN.set(jeton, l); return false; }
   l.push(t); ENVOIS_LIEN.set(jeton, l); return true;
-}
-/* les circuits d'un tableau : la dernière planche d'étiquettes publiée pour ce repère */
-async function circuitsDe(st, c, tableau) {
-  const etiq = (c.fichiers || []).filter((f) => f.type === "etiquettes" && !f.brouillon
-    && (!tableau || slug(f.etape || "") === slug(tableau) || !f.etape))
-    .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0];
-  if (!etiq) return null;
-  try {
-    const fe = JSON.parse(await st.get(etiq.cle.replace(/\.pdf$/, ".json"), { type: "text" }));
-    const r = (fe.rangees || []).map((x) => ({ nom: String(x.nom || ""),
-      cases: (x.cases || []).map((k) => String(k.texte || "").trim()).filter(Boolean) })).filter((x) => x.cases.length);
-    return r.length ? r : null;
-  } catch { return null; }
 }
 /* qui prend les rendez-vous de ce dossier : quelqu'un de son équipe, sinon quelqu'un du bureau */
 async function rdvDuDossier(societe, c) {
@@ -891,7 +880,7 @@ async function traiter(req) {
     if (c && !(c.liens || []).some((l) => l.jeton === jeton)) c = null;
     const tableau = lien.genre === "tableau";
     /* le dossier est archivé : son espace client, gardé à part, reste ouvert (documents du client,
-       circuits) ; à défaut, le QR du tableau garde au moins les circuits et le dépannage */
+       sans dépôt de fichiers) ; à défaut, le QR du tableau garde la demande (dépannage, devis, information) */
     let espace = null;
     if (lien.espace) { try { espace = await st.get("espaces/" + lien.espace + ".json", { type: "json" }); } catch { espace = null; } }
     const archive = !c && tableau && lien.archive ? lien.archive : null;
@@ -921,10 +910,8 @@ async function traiter(req) {
       const docs = (c ? c.fichiers.filter((f) => docVisible(f, lien))
         .map((f) => ({ cle: f.cle, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" })) : [])
         .concat(docsEspace.map((f) => ({ cle: f.cle, titre: f.titre, type: f.type, date: f.date || "", etape: f.etape || "" })));
-      /* les circuits du tableau : la dernière planche publiée, sinon ceux gardés à l'archivage */
-      let circuits = null;
-      if (tableau) circuits = (c && await circuitsDe(st, c, lien.tableau)) || (espace && espace.circuits && espace.circuits[slug(lien.tableau || "")])
-        || (lien.archive && lien.archive.circuits) || null;
+      /* le QR du tableau ne montre rien du dossier (ni circuits, ni documents) : il sert à joindre l'entreprise */
+      const circuits = null;
       const k = c || espace || {};
       return json({
         genre: lien.genre, tableau: lien.tableau || "", archive: !c,
@@ -959,7 +946,12 @@ async function traiter(req) {
     if (action === "lien-demande") {
       if (d.site) return json({ ok: true });                                /* champ piège : un robot l'a rempli */
       const message = court(d.message, 1500), tel = court(d.tel, 40), nom = court(d.nom, 80);
-      if (!message) return json({ erreur: "Décrivez en quelques mots ce qui se passe." }, 400);
+      /* ce que demande le client : un dépannage (SAV), un devis, ou une information */
+      const sorte = d.sorte === "devis" ? "devis" : d.sorte === "info" ? "info" : "sav";
+      const SORTES = { sav: { nature: "Dépannage", titre: "Demande d'intervention du client", push: "Demande d'intervention" },
+        devis: { nature: "Demande de devis", titre: "Demande de devis du client", push: "Demande de devis" },
+        info: { nature: "Information", titre: "Demande d'information du client", push: "Demande d'information" } }[sorte];
+      if (!message) return json({ erreur: sorte === "sav" ? "Décrivez en quelques mots ce qui se passe." : "Écrivez votre demande en quelques mots." }, 400);
       if (!tel && !/@/.test(String(d.email || ""))) return json({ erreur: "Laissez un téléphone ou un e-mail pour qu'on vous rappelle." }, 400);
       if (!envoiPermis(jeton, 5)) return json({ erreur: "Plusieurs demandes viennent d'être envoyées. Appelez directement l'entreprise." }, 429);
       const photos = (Array.isArray(d.photos) ? d.photos : []).slice(0, 4)
@@ -967,12 +959,12 @@ async function traiter(req) {
         .map((ph) => ({ data: ph.data, w: Number(ph.w) || 0, h: Number(ph.h) || 0, legende: "Envoyée par le client" }));
       const id = "dc" + randomBytes(6).toString("hex");
       const cle = c.ref + "/sav-a-terminer-" + id + ".json", maintenant = new Date().toISOString(), jour = jourParis();
-      const urgent = !!d.urgent;
+      const urgent = sorte === "sav" && !!d.urgent;
       const fiche = {
         etape: "appel", id, brouillon: "", appelPublie: "", confie: null,
         appel: { par: "Demande en ligne", le: maintenant },
         chantier: { client: c.client || "", ref: c.ref, adresse: c.adresse || "", tel, contact: "", lat: c.lat ?? null, lon: c.lon ?? null },
-        inter: { date: jour, arr: "", dep: "", numero: "", trajet: "", nature: "Dépannage", charge: "", urgence: urgent ? "Urgente" : "Normale",
+        inter: { date: jour, arr: "", dep: "", numero: "", trajet: "", nature: SORTES.nature, charge: "", urgence: urgent ? "Urgente" : "Normale",
           motif: message, constat: "", travaux: "" },
         materiel: [], photos, suite: { etat: "", action: "", detail: "", retour: "" },
         sig: { client: null, tech: null, nomClient: "", nomTech: "", horodatage: "" }, destinataires: [], dest: "",
@@ -981,14 +973,14 @@ async function traiter(req) {
           date: "", heure: "", creneau: "", dispo: court(d.dispo, 300), acces: "" }
       };
       await st.set(cle, JSON.stringify(fiche), { metadata: { type: "application/json" } });
-      const entree = { cle, titre: "Demande d'intervention du client", type: "sav", visite: "", etape: "Dépannage", date: jour,
+      const entree = { cle, titre: SORTES.titre, type: "sav", visite: "", etape: SORTES.nature, date: jour, demandeSorte: sorte,
         auteur: "Demande en ligne", destinataires: [], publie: maintenant, donnees: true, brouillon: true, demandeClient: true,
         lectures: {}, appel: fiche.appel, urgence: fiche.inter.urgence, motif: court(message, 160), confiePar: "" };
       c.fichiers.push(entree); c.maj = maintenant;
       await st.setJSON(INDEX, idx);
       try { await prevenir(Object.assign({}, entree, { destinataires: prevenus }), c, "le client (demande en ligne)", url.origin, comptes); } catch { /* le push suffit */ }
       prevenirPush(st, magasinAnnuaire(), prevenus, "documents", {
-        titre: "Demande d'intervention" + (urgent ? " — urgente" : ""),
+        titre: SORTES.push + (urgent ? " — urgente" : ""),
         texte: (c.client || c.ref) + " : " + court(message, 120),
         url: "./sav.html?terminer=" + encodeURIComponent(cle), tag: "sav-" + id
       }, contactPush(url.origin), { comptes }).catch(() => {});
@@ -1866,7 +1858,7 @@ async function traiter(req) {
         if (!pourMoi && !deMoi && !bureau && !equipe) return;
         out.push({ cle: f.cle, ref: c.ref, client: c.client, adresse: c.adresse || "", date: f.date, publie: f.publie,
           technicien: (f.destinataires || [])[0] || "", appel: f.appel || null, urgence: f.urgence || "", motif: f.motif || "", rdv: f.rdv || "",
-          nature: f.etape || "", pourMoi, deMoi, demandeClient: !!f.demandeClient });
+          nature: f.etape || "", pourMoi, deMoi, demandeClient: !!f.demandeClient, demandeSorte: f.demandeSorte || (f.demandeClient ? "sav" : "") });
       });
     });
     out.sort((a, b) => (a.pourMoi === b.pourMoi ? 0 : a.pourMoi ? -1 : 1) || (b.publie || "").localeCompare(a.publie || ""));
@@ -3192,7 +3184,7 @@ async function traiter(req) {
     /* « Garder l'espace du client » : ses documents (PV, DOE, schéma, étiquettes, mise en service,
        documents techniques, SAV, reportages) sont mis de côté, et tous ses liens restent ouverts.
        Sinon : le lien du client s'éteint ; le QR collé sur le tableau reste valable, il garde les
-       circuits et la demande de dépannage (les documents, eux, partent avec l'archive). */
+       demandes (dépannage, devis, information), sans rien du dossier. */
     const a = magasinAnnuaire();
     const garder = url.searchParams.get("garder") === "1" && (c.liens || []).length > 0;
     let qrGardes = 0, liensCoupes = 0, espaceId = "";
@@ -3207,10 +3199,8 @@ async function traiter(req) {
         await store.set(cle2, blob, { metadata: { type: typeDuFichier(f.cle) } });
         docs.push({ cle: cle2, titre: libelleDocument(f), type: f.type, date: f.date || "", etape: f.etape || "" });
       }
-      const circuits = {};
-      for (const l of (c.liens || [])) if (l.genre === "tableau") circuits[slug(l.tableau || "")] = await circuitsDe(store, c, l.tableau);
       await store.setJSON("espaces/" + espaceId + ".json", { id: espaceId, ref: c.ref, client: c.client || "", adresse: c.adresse || "",
-        cree: new Date().toISOString(), par: personne.nom, documents: docs, circuits, liens: (c.liens || []).map((l) => l.jeton) });
+        cree: new Date().toISOString(), par: personne.nom, documents: docs, liens: (c.liens || []).map((l) => l.jeton) });
       let ie = {}; try { ie = (await store.get("espaces/_index.json", { type: "json" })) || {}; } catch { ie = {}; }
       ie[espaceId] = { ref: c.ref, client: c.client || "", cree: new Date().toISOString(), par: personne.nom, documents: docs.length };
       await store.setJSON("espaces/_index.json", ie);
@@ -3221,11 +3211,10 @@ async function traiter(req) {
       if (garder) { st0.espace = espaceId; qrGardes++; }
       else if (st0.genre === "tableau") {
         st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom,
-          circuits: (await circuitsDe(store, c, st0.tableau)) || (st0.archive && st0.archive.circuits) || null };
+          };
         qrGardes++;
       } else { st0.actif = false; st0.revoque = new Date().toISOString(); st0.revoquePar = personne.nom + " (dossier supprimé)"; liensCoupes++; }
-      if (st0.genre === "tableau" && !st0.archive) st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom,
-        circuits: await circuitsDe(store, c, st0.tableau) };
+      if (st0.genre === "tableau" && !st0.archive) st0.archive = { client: c.client || "", adresse: c.adresse || "", le: new Date().toISOString(), par: personne.nom };
       await a.setJSON("liens/" + l.jeton + ".json", st0);
     }
     let n = 0;

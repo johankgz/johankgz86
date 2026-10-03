@@ -244,7 +244,7 @@
     doc.setTextColor(34, 32, 28); doc.setFont("helvetica", "bold"); doc.setFontSize(11 * k);
     doc.text("Scannez-moi", cx, ty, {align: "center"});
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(110, 103, 92);
-    doc.text("Circuits  ·  Documents  ·  Dépannage", cx, ty + 4.2 * k, {align: "center"});
+    doc.text("Dépannage  ·  Devis  ·  Information", cx, ty + 4.2 * k, {align: "center"});
     if(o.tableau){
       doc.setFont("helvetica", "bold"); doc.setFontSize(8.6 * k); doc.setTextColor(180, 98, 26);
       doc.text(doc.splitTextToSize("Tableau " + o.tableau, l - 6 * k)[0], cx, ty + 9.6 * k, {align: "center"});
