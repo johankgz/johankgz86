@@ -352,7 +352,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 /* ---------- les petits outils ---------- */
 main{max-width:520px}
-.onglets{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
+.onglets{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:4px;padding:4px;margin:0 0 14px;background:var(--g-800);border:1px solid var(--trait-tech);border-radius:12px}
 @media (min-width:560px){ .onglets{grid-template-columns:repeat(7,minmax(0,1fr))} }
 .onglets button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;padding:8px 2px 7px;border:0;
   border-radius:9px;background:none;color:#8A97A6;font-family:inherit;font-size:11px;font-weight:600;cursor:pointer}
@@ -441,6 +441,15 @@ main{max-width:520px}
 .ech-rappel b{color:#E7ECF2;font-variant-numeric:tabular-nums}
 .ech-unites{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:8px}
 .ech-unites .seg{margin-bottom:8px}
+.croix-unites{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:0 0 12px}
+.croix-unites label,.croix-grille label{display:block;margin:0}
+.croix-unites span,.croix-grille label span{display:block;font-size:11px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:#8A97A6;margin-bottom:6px}
+.croix-unites input,.croix-grille input{width:100%;min-height:46px;padding:10px 12px;font-size:17px;border-radius:10px;font-family:inherit}
+.croix-grille{display:grid;grid-template-columns:1fr 22px 1fr;gap:10px 6px;align-items:end}
+.croix-grille input{font-size:22px;font-weight:600;min-height:54px}
+.croix-grille input.calcule{border-color:var(--accent-vif)!important;color:#9A4A0B;background:#FFF4E8}
+.croix-col{font-size:12px;font-weight:700;color:#E7ECF2;text-align:center}
+.croix-fl{font-style:normal;color:#8A97A6;font-size:18px;text-align:center;padding-bottom:15px}
 .ech-liste{display:flex;flex-direction:column;gap:6px;margin-top:12px}
 .ech-liste:empty{display:none}
 .ech-ligne{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:10px;background:#05080C;border:1px solid var(--trait-tech);font-size:13.5px;color:#AEB7BF;font-variant-numeric:tabular-nums}
@@ -582,6 +591,10 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h5a3 3 0 0 1 3 3v4a3 3 0 0 0 3 3h7"/><circle cx="4" cy="7" r="1.6"/><path d="M18 14l3 3-3 3"/></svg>Câble</button>
     <button type="button" role="tab" data-vue="echelle" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 15.5 15.5 2.5l6 6-13 13z"/><path d="M6 12l2 2M9 9l3 3M12 6l2 2"/></svg>Échelle</button>
+    <button type="button" role="tab" data-vue="croix" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6M4 18h6M14 6h6M14 18h6"/><path d="M8.5 9.5l7 5M15.5 9.5l-7 5"/></svg>Produit en croix</button>
+    <button type="button" role="tab" data-vue="qr" aria-selected="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5"/></svg>QR contact</button>
     <button type="button" role="tab" data-vue="surface" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/><path d="M3.5 3v1.5M20.5 3v1.5M3.5 3.8h17" opacity=".6"/></svg>Surface</button>
   </div>
@@ -816,6 +829,54 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
     </div>
   </section>
 
+  <section class="vue" id="vue-croix" hidden>
+    <div class="carte-outil conv">
+      <h2 class="outil-titre">Produit en croix</h2>
+      <p class="conv-aide">Pour mesurer sur un plan : une longueur connue (une cote, la largeur d'une porte) et ce qu'elle mesure à la règle sur le papier ; toute autre mesure se convertit. Remplissez trois cases, la quatrième se calcule. Marche pour n'importe quelle proportion.</p>
+      <div class="croix-unites">
+        <label><span>Unité colonne 1</span><input type="text" id="crU1" value="cm" autocomplete="off" aria-label="Unité de la première colonne (sur le plan)"></label>
+        <label><span>Unité colonne 2</span><input type="text" id="crU2" value="m" autocomplete="off" aria-label="Unité de la deuxième colonne (en réel)"></label>
+      </div>
+      <div class="croix-grille">
+        <span class="croix-col">Sur le plan</span><span></span><span class="croix-col">En réel</span>
+        <label><span>Mesure connue</span><input type="text" id="crA" inputmode="decimal" autocomplete="off" placeholder="7" aria-label="Mesure connue sur le plan"></label>
+        <i class="croix-fl" aria-hidden="true">→</i>
+        <label><span>Correspond à</span><input type="text" id="crB" inputmode="decimal" autocomplete="off" placeholder="3,50" aria-label="Valeur réelle correspondante"></label>
+        <label><span>Ma mesure</span><input type="text" id="crC" inputmode="decimal" autocomplete="off" placeholder="4,2" aria-label="Ma mesure sur le plan"></label>
+        <i class="croix-fl" aria-hidden="true">→</i>
+        <label><span>Résultat</span><input type="text" id="crD" inputmode="decimal" autocomplete="off" placeholder="?" aria-label="Valeur réelle de ma mesure"></label>
+      </div>
+      <div class="conv-res" aria-live="polite">
+        <div class="conv-principal"><b id="crGrand">—</b><span id="crGrandU"></span></div>
+        <p class="conv-formule" id="crFormule">Remplissez trois cases : la quatrième se calcule.</p>
+        <p class="conv-formule" id="crEchelle"></p>
+        <div class="puces" style="justify-content:center">
+          <button type="button" id="crGarder" hidden>Garder cette mesure</button>
+          <button type="button" id="crSuivante" hidden>Mesure suivante</button>
+          <button type="button" id="crVider">Tout effacer</button>
+        </div>
+      </div>
+      <div class="ech-liste" id="crListe"></div>
+    </div>
+  </section>
+
+  <section class="vue" id="vue-qr" hidden>
+    <div class="carte-outil conv">
+      <h2 class="outil-titre">QR code « Nous contacter »</h2>
+      <p class="conv-aide">Le même pour tous vos clients : à coller sur les tableaux, à mettre sur les devis, les factures, les cartes ou le véhicule. En le scannant, on vous envoie une demande (dépannage, devis, question) ; elle arrive à la personne choisie dans Équipe, sans passer par le SAV.</p>
+      <canvas id="qrVue" hidden style="display:block;margin:0 auto 10px;border-radius:12px;background:#fff"></canvas>
+      <p class="conv-formule" id="qrLien" style="word-break:break-all;text-align:center"></p>
+      <div class="puces" id="qrBoutons" hidden style="justify-content:center">
+        <button type="button" id="qrPdf">Étiquettes à imprimer</button>
+        <button type="button" id="qrPng">Image PNG</button>
+        <button type="button" id="qrCopier">Copier le lien</button>
+        <button type="button" id="qrPartager">Partager</button>
+        <button type="button" id="qrOuvrir">Ouvrir</button>
+      </div>
+      <p class="conv-formule" id="qrEtat" style="text-align:center">Chargement…</p>
+    </div>
+  </section>
+
   <section class="vue" id="vue-calcul" hidden>
     <div class="carte-outil" style="text-align:left">
       <div class="ecran"><div class="expr" id="calcExpr"></div><div class="res" id="calcRes">0</div></div>
@@ -842,7 +903,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
 function $(i){ return document.getElementById(i); }
 
 /* ---------- onglets ---------- */
-var VUES=["boussole","niveau","calcul","conversion","cable","echelle","surface"];
+var VUES=["boussole","niveau","calcul","conversion","cable","echelle","surface","croix","qr"];
 function montrer(v){
   if(VUES.indexOf(v)<0) v="boussole";
   VUES.forEach(function(x){ $("vue-"+x).hidden = x!==v; });
@@ -858,6 +919,7 @@ document.querySelectorAll(".onglets button").forEach(function(b){
 var depart=(location.hash||"").slice(1);
 if(!depart){ try{ depart=localStorage.getItem("outils:vue")||""; }catch(e){} }
 montrer(depart);
+window.addEventListener("hashchange", function(){ var v=(location.hash||"").slice(1); if(v) montrer(v); });
 
 /* ---------- capteurs d'orientation ----------
    iPhone : il faut la permission, donnée sur un appui. Android : la
@@ -1550,6 +1612,150 @@ window.__calcul = calculer;
   $("refArrondie").addEventListener("click", function(){ if(REF) prendre(REF.proche); });
   $("echGarder").addEventListener("click", function(){ if(!RES) return; E.liste.unshift({plan:RES.plan, reel:RES.reel, n:E.n, uPlan:E.uPlan, uReel:E.uReel}); E.liste=E.liste.slice(0, 30); garder(); liste(); });
   peindre();
+})();
+</script>
+<script src="./qr.js?v=20261004a"></script>
+<script>
+/* ---------- le produit en croix : trois cases, la quatrième se calcule ----------
+   A (plan) → B (réel), C (plan) → D (réel) : D = B × C ÷ A, et ainsi de suite.
+   La case calculée est celle qu'on n'a pas touchée en dernier. */
+(function(){
+  function $(i){ return document.getElementById(i); }
+  function lire(t){ var x=parseFloat(String(t||"").replace(/\s/g,"").replace(",", ".")); return isFinite(x) ? x : NaN; }
+  function fr(n){ if(!isFinite(n)) return "—"; var a=Math.abs(n), dec = a>=1000 ? 0 : a>=100 ? 1 : a>=10 ? 2 : a>=1 ? 3 : 4;
+    var f=Math.pow(10, dec), s=(Math.round(n*f)/f).toFixed(dec); if(dec>0) s=s.replace(/0+$/,"").replace(/\.$/,""); return s.replace(".", ",").replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  var CH=["crA","crB","crC","crD"], ORDRE=[], CALC="", DERNIER_CALC="", LISTE=[];
+  var LONG={mm:1, cm:10, dm:100, m:1000, km:1e6};
+  try{ var g=JSON.parse(localStorage.getItem("outils:croix")||"null"); if(g){ ["crU1","crU2"].forEach(function(k){ if(g[k]) $(k).value=g[k]; }); LISTE=g.liste||[]; } }catch(e){}
+  function garder(){ try{ localStorage.setItem("outils:croix", JSON.stringify({crU1:$("crU1").value, crU2:$("crU2").value, liste:LISTE})); }catch(e){} }
+  function u(k){ return String($(k).value||"").trim(); }
+  function calculer(){
+    var v={}; CH.forEach(function(k){ v[k] = k===CALC ? NaN : lire($(k).value); });
+    var remplis=CH.filter(function(k){ return isFinite(v[k]); });
+    /* la case à calculer : celle qui manque ; les quatre remplies, on recalcule l'autre
+       mesure (taper le résultat donne la mesure sur le plan, et l'inverse) */
+    var dernier=ORDRE[ORDRE.length-1], cible="";
+    if(remplis.length===3) cible = CH.filter(function(k){ return !isFinite(v[k]); })[0];
+    else if(remplis.length===4) cible = dernier==="crC" ? "crD" : dernier==="crD" ? "crC" : (DERNIER_CALC || "crD");
+    CH.forEach(function(k){ $(k).classList.remove("calcule"); });
+    var r=NaN, formule="";
+    if(cible){
+      var A=v.crA, B=v.crB, C=v.crC, D=v.crD;
+      if(cible==="crD"){ r=B*C/A; formule="Résultat = "+fr(B)+" × "+fr(C)+" ÷ "+fr(A); }
+      if(cible==="crC"){ r=A*D/B; formule="Ma mesure = "+fr(A)+" × "+fr(D)+" ÷ "+fr(B); }
+      if(cible==="crB"){ r=A*D/C; formule="Correspond à = "+fr(A)+" × "+fr(D)+" ÷ "+fr(C); }
+      if(cible==="crA"){ r=B*C/D; formule="Mesure connue = "+fr(B)+" × "+fr(C)+" ÷ "+fr(D); }
+    }
+    if(cible && isFinite(r)){
+      CALC=cible; DERNIER_CALC=cible; $(cible).value=fr(r).replace(/\s/g, ""); $(cible).classList.add("calcule");
+      $("crGrand").textContent=fr(r); $("crGrandU").textContent = cible==="crA"||cible==="crC" ? u("crU1") : u("crU2");
+      $("crFormule").textContent=formule;
+    } else {
+      if(CALC && !cible){ $(CALC).value=""; }
+      CALC=""; $("crGrand").textContent="—"; $("crGrandU").textContent="";
+      $("crFormule").textContent = remplis.length>=3 ? "Une des valeurs vaut zéro : le calcul est impossible." : "Remplissez trois cases : la quatrième se calcule.";
+    }
+    /* le rapport, et l'échelle quand les deux unités sont des longueurs */
+    var A2=lire($("crA").value), B2=lire($("crB").value), u1=u("crU1").toLowerCase(), u2=u("crU2").toLowerCase();
+    var t="";
+    if(isFinite(A2) && isFinite(B2) && A2 && B2){
+      t="1 "+(u("crU1")||"unité")+" = "+fr(B2/A2)+" "+u("crU2");
+      if(LONG[u1] && LONG[u2]){ var n=(B2*LONG[u2])/(A2*LONG[u1]); if(n>=1) t+="  ·  échelle 1/"+fr(n); }
+    }
+    $("crEchelle").textContent=t;
+    var pret = CALC==="crD" || CALC==="crC";
+    $("crGarder").hidden=!pret; $("crSuivante").hidden=!pret;
+  }
+  CH.forEach(function(k){
+    $(k).addEventListener("input", function(){
+      if(k===CALC){ CALC=""; }
+      ORDRE=ORDRE.filter(function(x){ return x!==k; }); ORDRE.push(k);
+      calculer();
+    });
+  });
+  ["crU1","crU2"].forEach(function(k){ $(k).addEventListener("input", function(){ garder(); calculer(); peindreListe(); }); });
+  function peindreListe(){
+    var h=$("crListe"); h.textContent="";
+    LISTE.forEach(function(m, i){
+      var d=document.createElement("div"); d.className="ech-ligne";
+      var s=document.createElement("span"); s.innerHTML="<b></b> "+"sur le plan = <b></b>";
+      s.children[0].textContent=fr(m.c)+" "+m.u1; s.children[1].textContent=fr(m.d)+" "+m.u2;
+      var x=document.createElement("button"); x.type="button"; x.textContent="×"; x.setAttribute("aria-label", "Retirer cette mesure");
+      x.addEventListener("click", function(){ LISTE.splice(i, 1); garder(); peindreListe(); });
+      d.appendChild(s); d.appendChild(x); h.appendChild(d);
+    });
+  }
+  $("crGarder").addEventListener("click", function(){
+    var c=lire($("crC").value), d=lire($("crD").value);
+    if(!isFinite(c) || !isFinite(d)) return;
+    LISTE.unshift({c:c, d:d, u1:u("crU1"), u2:u("crU2")}); LISTE=LISTE.slice(0, 30); garder(); peindreListe();
+  });
+  /* même rapport, nouvelle mesure : on garde la mesure connue et sa valeur réelle */
+  $("crSuivante").addEventListener("click", function(){
+    $("crC").value=""; $("crD").value=""; CALC=""; ORDRE=ORDRE.filter(function(k){ return k==="crA" || k==="crB"; });
+    calculer(); $("crC").focus();
+  });
+  $("crVider").addEventListener("click", function(){ CH.forEach(function(k){ $(k).value=""; }); ORDRE=[]; CALC=""; LISTE=[]; garder(); calculer(); peindreListe(); });
+  peindreListe(); calculer();
+})();
+
+/* ---------- le QR code « Nous contacter » de l'entreprise ---------- */
+(function(){
+  function $(i){ return document.getElementById(i); }
+  var S=null; try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+  var Q=null, SOC={nom:"", tel:"", web:""};
+  function etat(t){ $("qrEtat").textContent=t||""; }
+  function telPoints(t){ var c=String(t||"").replace(/\D/g, ""); return c.length===10 ? c.replace(/(\d\d)(?=\d)/g, "$1.") : String(t||""); }
+  function charger(){
+    if(!S || !S.jeton){ etat("Connectez-vous pour afficher le QR code de votre entreprise."); return; }
+    fetch("/api/rapports?action=qr-contact", {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(r){
+        if(!r.ok || !r.d.lien){ etat(r.d.erreur || "QR code indisponible."); return; }
+        Q=r.d.lien; $("qrLien").textContent=Q.url; $("qrVue").hidden=false; QR.canvas($("qrVue"), Q.url, {taille:220});
+        $("qrBoutons").hidden=false; etat(r.d.destinataire ? "Les demandes arrivent à "+r.d.destinataire+"." : "Les demandes arrivent aux administrateurs (réglable dans Équipe).");
+      })
+      .catch(function(){ etat("Pas de réseau."); });
+    fetch("/api/rapports?action=societe-fiche", {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); })
+      .then(function(d){ var f=d.fiche||{}; SOC={nom:f.nom||d.nom||"", tel:f.tel||"", web:f.web||""}; }).catch(function(){});
+  }
+  function telecharger(blob, nom){
+    if(/\.pdf$/i.test(nom) && window.Visionneuse && Visionneuse.installee && Visionneuse.installee()){ Visionneuse.pdf(blob, nom); return; }
+    var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=nom; document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
+  }
+  function jsPdf(){
+    if(window.jspdf) return Promise.resolve();
+    return new Promise(function(ok, ko){ var s=document.createElement("script"); s.src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"; s.onload=function(){ ok(); }; s.onerror=function(){ ko(new Error("PDF")); }; document.head.appendChild(s); });
+  }
+  $("qrPdf").addEventListener("click", function(){
+    if(!Q) return; etat("Préparation des étiquettes…");
+    jsPdf().then(function(){
+      var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"}), o={url:Q.url, societe:SOC.nom, tel:telPoints(SOC.tel), web:SOC.web};
+      QR.etiquette(doc, 20, 20, 60, 86, o); QR.etiquette(doc, 90, 20, 60, 86, o);
+      for(var i=0;i<6;i++) QR.etiquette(doc, 20+(i%3)*50, 118+Math.floor(i/3)*64, 40, 57.3, o);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(110,103,92);
+      doc.text("Imprimez à 100 %, sur papier adhésif ou plastifié. Le même QR code sert pour tous vos clients.", 20, 252, {maxWidth:170});
+      telecharger(doc.output("blob"), "QR-nous-contacter.pdf"); etat("");
+    }).catch(function(){ etat("Le module PDF ne se charge pas : vérifiez le réseau."); });
+  });
+  $("qrPng").addEventListener("click", function(){
+    if(!Q) return; var cv=document.createElement("canvas"); QR.canvas(cv, Q.url, {taille:1000, fixe:true});
+    cv.toBlob(function(b){ telecharger(b, "QR-nous-contacter.png"); }, "image/png");
+  });
+  $("qrCopier").addEventListener("click", function(){
+    if(!Q) return;
+    try{ navigator.clipboard.writeText(Q.url).then(function(){ etat("Lien copié."); }, function(){ window.prompt("Copiez le lien :", Q.url); }); }
+    catch(e){ window.prompt("Copiez le lien :", Q.url); }
+  });
+  $("qrPartager").addEventListener("click", function(){
+    if(!Q) return;
+    var t="Pour nous contacter (dépannage, devis, question) : "+Q.url;
+    if(navigator.share){ navigator.share({title:"Nous contacter"+(SOC.nom ? " — "+SOC.nom : ""), text:t}).catch(function(){}); return; }
+    try{ navigator.clipboard.writeText(t).then(function(){ etat("Message copié."); }); }catch(e){ window.prompt("Copiez :", t); }
+  });
+  $("qrOuvrir").addEventListener("click", function(){ if(Q) window.open(Q.url, "_blank", "noopener"); });
+  charger();
 })();
 </script>
 <script src="./pied.js?v=20261003a" defer></script>

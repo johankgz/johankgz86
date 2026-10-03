@@ -725,7 +725,13 @@ function rang(f) {
    tableau ne change jamais tant qu'on ne le révoque pas (il est imprimé).
    ===================================================================== */
 const JETON_LIEN = /^[A-Za-z0-9_-]{16,40}$/;
-const QR_CONTACT = "qr-contact.json";       /* le jeton du QR « Nous contacter » de la société */
+const QR_CONTACT = "qr-contact.json";
+/* le lien du client (sa page à lui, par dossier) : coupé tant que l'administrateur ne l'ouvre pas */
+const REGLAGES_CLIENTS = "reglages-clients.json";
+async function lienClientActif(st) {
+  let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
+  return !!(r && r.lienClient);
+}       /* le jeton du QR « Nous contacter » de la société */
 const DOCS_CLIENT = ["reception", "doe", "schema", "etiquettes", "autocontrole", "technique", "sav", "reportage"];
 /* le QR collé sur le tableau n'ouvre aucun document du dossier : il sert à joindre l'entreprise */
 const DOCS_TABLEAU = [];
@@ -970,6 +976,9 @@ async function traiter(req) {
     /* le QR code de contact de l'entreprise : le même pour tous ses clients, il n'ouvre aucun dossier ;
        une demande envoyée par lui crée un dossier neuf au nom du client */
     const contact = lien.genre === "societe";
+    if (lien.genre === "client" && !(await lienClientActif(st))) {
+      return json({ erreur: "Ce lien n'est plus valable. Contactez directement l'entreprise." }, 404);
+    }
     if (contact) {
       let qc = null;
       try { qc = await st.get(QR_CONTACT, { type: "json" }); } catch { qc = null; }
@@ -2738,6 +2747,16 @@ async function traiter(req) {
     return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton },
       destinataire: qc.destinataire || "" });
   }
+  /* ---------- réglages des pages clients (administrateur) ---------- */
+  if (action === "reglages-clients") return json({ lienClient: await lienClientActif(store) });
+  if (action === "reglages-clients-enregistrer") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const r = { lienClient: d.lienClient === true, maj: new Date().toISOString(), par: personne.nom };
+    await store.setJSON(REGLAGES_CLIENTS, r);
+    return json({ ok: true, lienClient: r.lienClient });
+  }
   if (action === "qr-contact-destinataire") {
     if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
@@ -2795,9 +2814,12 @@ async function traiter(req) {
     if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const urlDe = (j) => url.origin + "/client.html?j=" + j;
     const liste = () => (c.liens || []).map((l) => ({ jeton: l.jeton, genre: l.genre, tableau: l.tableau || "", cree: l.cree, par: l.par, url: urlDe(l.jeton) }));
-    if (action === "liens") return json({ liens: liste() });
+    if (action === "liens") return json({ liens: liste(), lienClient: await lienClientActif(store) });
     if (action === "lien-creer") {
       const genre = d.genre === "tableau" ? "tableau" : "client";
+      if (genre === "client" && !(await lienClientActif(store))) {
+        return json({ erreur: "Le lien du client n'est pas activé : l'administrateur peut l'ouvrir dans Équipe.", lienClient: false }, 403);
+      }
       const tab = String(d.tableau || "").replace(/\s+/g, " ").trim().slice(0, 60);
       const deja = (c.liens || []).find((l) => l.genre === genre && (genre === "client" || slug(l.tableau || "") === slug(tab)));
       if (deja) return json({ ok: true, lien: { jeton: deja.jeton, genre, tableau: deja.tableau || "", url: urlDe(deja.jeton) }, liens: liste() });
