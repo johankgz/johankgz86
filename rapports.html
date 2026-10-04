@@ -753,7 +753,7 @@ button.discu.a-lire{border-color:rgba(160,58,51,.45)!important;color:var(--dange
   <div class="sk-bar">
     <button type="button" id="carte_moins">Reculer</button>
     <button type="button" id="carte_plus">Zoomer</button>
-    <button type="button" id="carte_source" title="Changer de fond de carte" aria-haspopup="true" aria-expanded="false">Plan clair</button>
+    <button type="button" id="carte_source" title="Changer de fond de carte" aria-haspopup="true" aria-expanded="false">Plan IGN</button>
     <span class="etat" id="carte_etat" style="margin-left:auto;margin-right:4px"></span>
   </div>
   <div class="sk-bar" id="carte_recherche">
@@ -1137,7 +1137,7 @@ function afficher(chantiers){
    Un fond de carte dessiné en tuiles, une épingle par dossier.
    La position vient du relevé quand elle existe ; sinon on la cherche
    une fois à partir de l'adresse, et le site la retient. */
-var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"clair", cache:{}, echec:{}, echecs:0,
+var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"plan", cache:{}, echec:{}, echecs:0,
              points:[], choisi:null, pose:"", rendu:0, L:0, H:0, dpr:1, essayes:{}, express:""};
 /* Les couches d'images, ce qu'elles savent faire :
      max     le zoom le plus fin où le serveur a des images ; au-delà, on
@@ -1154,7 +1154,6 @@ var CARTE = {lat:46.6, lon:1.9, zoom:6, source:"clair", cache:{}, echec:{}, eche
    filigrane « API KEY REQUIRED » — et comme il répond quand même, rien
    ne permet de le détecter automatiquement. */
 var COUCHES = {
-  clair:   {max:20, retina:"2x", mention:"© OpenStreetMap © CARTO", vide:"#EDEAE4"},
   plan:    {max:19, retina:0,    mention:"© IGN", vide:"#EEF0F2"},
   ortho:   {max:21, retina:1,    mention:"© IGN"},
   express: {max:19, retina:1,    mention:"© IGN Ortho Express"},
@@ -1164,15 +1163,16 @@ var COUCHES = {
 /* Les fonds proposés, dans l'ordre du menu. « secours » : où aller si
    celui-ci ne répond pas. */
 var FONDS = {
-  clair:     {nom:"Plan clair",        detail:"OpenStreetMap, rues et noms bien lisibles", max:20, couches:["clair"],  secours:"plan"},
-  plan:      {nom:"Plan IGN",          detail:"Le plan officiel, très précis en France",  max:19, couches:["plan"],   secours:"clair"},
+  /* (le « plan clair » de CARTO a disparu : CARTO exige désormais une clé, et sans elle
+     marque ses images « API KEY REQUIRED » ; le plan de l'IGN, libre, le remplace) */
+  plan:      {nom:"Plan IGN",          detail:"Le plan officiel, très précis en France",  max:19, couches:["plan"],   secours:"satellite"},
   satellite: {nom:"Satellite IGN",     detail:"Photo aérienne de l'IGN, 20 cm",           max:21, couches:["ortho"],  secours:"monde"},
   recent:    {nom:"Satellite récent",  detail:"Ortho Express de l'IGN, la prise de vue la plus récente", max:21, couches:["express"], secours:"satellite"},
   hybride:   {nom:"Satellite et noms", detail:"Photo IGN avec les noms des lieux",        max:21, couches:["ortho", "noms"], secours:"monde"},
   monde:     {nom:"Satellite Esri",    detail:"Photo mondiale, utile hors de France",     max:19, couches:["esri"],   secours:""}
 };
-var ORDRE_FONDS = ["clair", "plan", "satellite", "recent", "hybride", "monde"];
-function fond(){ return FONDS[CARTE.source] || FONDS.clair; }
+var ORDRE_FONDS = ["plan", "satellite", "recent", "hybride", "monde"];
+function fond(){ return FONDS[CARTE.source] || FONDS.plan; }
 try{
   var fondRetenu=localStorage.getItem("carte:fond");
   if(fondRetenu && FONDS[fondRetenu]) CARTE.source=fondRetenu;
@@ -1181,7 +1181,7 @@ try{
   if(expressRetenu && expressRetenu.couche && Date.now()-expressRetenu.le < 30*864e5) CARTE.express=expressRetenu.couche;
 }catch(e){}
 function nomFond(cle){
-  var f=FONDS[cle]||FONDS.clair;
+  var f=FONDS[cle]||FONDS.plan;
   if(cle === "recent" && CARTE.express){
     var an=(CARTE.express.match(/(\d{4})$/)||[])[1];
     if(an) return f.nom+" ("+an+")";
@@ -1210,14 +1210,6 @@ function pxMonde(x, y, z){
   return [lat, lon];
 }
 function urlsTuile(couche, z, x, y){
-  if(couche === "clair"){
-    /* OpenStreetMap mis en forme par CARTO (« Voyager ») : des couleurs
-       douces, les rues et les noms nets. Les images doubles (@2x) sont
-       faites pour les écrans de téléphone. */
-    var sous="abcd".charAt((x + y) % 4);
-    return "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/".replace("{s}", sous)
-      +z+"/"+x+"/"+y+(CARTE.dpr >= 1.5 ? "@2x" : "")+".png";
-  }
   if(couche === "express"){
     /* l'Ortho Express : l'IGN la reprend chaque année sur toute la
        France, un peu moins soignée que la photo habituelle mais plus
