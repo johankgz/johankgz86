@@ -1522,7 +1522,7 @@ async function traiter(req) {
        On ne garde que les formats qu'un navigateur sait rouvrir. */
     const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp"];
     const ext = technique && FORMATS_TECHNIQUE.indexOf(String(d.ext || "pdf").toLowerCase()) >= 0
-      ? String(d.ext).toLowerCase() : "pdf";
+      ? String(d.ext || "pdf").toLowerCase() : "pdf";
     if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);
 
     const nomFichier = schema

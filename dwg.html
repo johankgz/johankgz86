@@ -20,6 +20,23 @@
    blocs compris ; on cote en deux touches, avec accrochage sur les
    extrémités, milieux et centres, et une loupe sous le doigt.
    ===================================================================== */
+/* ---------- ouvrir un plan déposé sur un chantier ---------- */
+.fen-site{position:fixed;inset:0;z-index:30;background:rgba(5,8,12,.72);display:flex;align-items:flex-start;justify-content:center;padding:calc(12px + env(safe-area-inset-top)) 10px 12px}
+.fen-site[hidden]{display:none}
+.fs-boite{width:min(560px,100%);max-height:100%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:var(--barre);border:1px solid var(--trait);box-shadow:0 18px 40px -14px rgba(0,0,0,.9)}
+.fs-tete{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fs-tete b{font-size:16px}
+.fs-aide{margin:2px 0 0;font-size:13px;color:var(--ink2)}
+#fsCherche{width:100%;min-height:42px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:16px}
+.fs-liste{overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:8px;min-height:60px}
+.fs-chantier{border:1px solid var(--trait);border-radius:12px;padding:8px 10px;background:#0F1318}
+.fs-chantier h3{margin:0 0 6px;font-size:14px;font-weight:700;display:flex;gap:8px;align-items:baseline}
+.fs-chantier h3 span{font-size:12px;font-weight:700;color:var(--cy);letter-spacing:.04em}
+.fs-doc{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:9px 10px;margin-top:4px;border-radius:10px;border:1px solid rgba(255,255,255,.1);background:transparent;color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.fs-doc:hover,.fs-doc:focus-visible{border-color:var(--or);outline:none}
+.fs-doc small{display:block;color:var(--ink3);font-size:12px}
+.fs-doc svg{flex:0 0 auto;width:18px;height:18px;fill:none;stroke:var(--or);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.fs-vide{margin:6px 0;font-size:13.5px;color:var(--ink2);text-align:center}
 :root{--fond:#0B0E12;--barre:#141920;--trait:rgba(255,255,255,.1);--ink:#F2F5F9;--ink2:#AEB7BF;--ink3:#7A8796;--or:#FB923C;--or2:#EA7A1E;--cy:#22D3EE}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--fond);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
@@ -270,12 +287,23 @@ body.clair #scene{background:#FFFFFF}
   <button class="bt" type="button" data-cible="btImage" role="menuitem"><span class="lib">Enregistrer l'image</span></button>
 </div>
 
+<div class="fen-site" id="fenSite" hidden role="dialog" aria-modal="true" aria-labelledby="fenSiteT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenSiteT">Ouvrir un plan</b><button class="bt" type="button" id="fsFermer" aria-label="Fermer">✕</button></div>
+    <button class="bt or" type="button" id="fsAppareil">Un fichier de cet appareil</button>
+    <p class="fs-aide">Ou un document technique déposé sur un chantier (onglet Documents techniques) :</p>
+    <input type="search" id="fsCherche" placeholder="Chercher un chantier, une référence…" autocomplete="off" aria-label="Chercher un chantier">
+    <div class="fs-liste" id="fsListe"><p class="fs-vide">Chargement…</p></div>
+  </div>
+</div>
+
 <div class="accueil" id="accueil">
   <div class="depot" id="depot">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M7.5 16.5h9M7.5 16.5v-2M16.5 16.5v-2M9 12.5h6"/></svg>
     <h1>Ouvrir un plan DWG ou PDF</h1>
     <p>Choisissez un fichier .dwg (AutoCAD R14 à 2018), un plan en PDF ou une image, ou glissez-le ici. Un PDF se met à l'échelle sur une longueur connue (Étalonner). Il est lu sur cet appareil, rien n'est envoyé sur le site. Touchez ensuite deux points du plan pour prendre une cote.</p>
     <button class="bt or" id="btOuvrir2" type="button">Choisir un fichier</button>
+    <button class="bt" id="btChantier2" type="button" hidden style="margin-top:8px">Depuis un chantier (documents techniques)</button>
     <div class="ou">ou</div>
     <button class="bt" id="btVierge" type="button">Partir d'une page vierge</button>
     <p class="petit">Murs, cloisons, portes, fenêtres et noms de pièces, en millimètres, pour une sortie au 1/50 ; puis les symboles.</p>
@@ -5704,8 +5732,75 @@ function ouvrirFichier(f){
     else toast("Ce fichier n'a pas pu être lu ("+(ext==="dxf" ? "DXF non pris en charge par ce lecteur, préférez le DWG" : "version ou fichier non reconnu")+").");
   });
 }
-$("btOuvrir").addEventListener("click", function(){ $("fichier").click(); });
+/* ---------- ouvrir un plan déposé sur un chantier (documents techniques) ----------
+   La liste des chantiers et leurs documents techniques en PDF ; le document est
+   téléchargé depuis le site puis ouvert ici comme un fichier de l'appareil. */
+function sessionPlan(){ try{ var s=JSON.parse(localStorage.getItem("outils:session")||"null"); return s && s.jeton ? s : null; }catch(e){ return null; } }
+var SITE_DOCS=null;
+function ouvrirDuSite(cle, nom){
+  var ses=sessionPlan();
+  if(!ses){ toast("Connectez-vous au site pour ouvrir un document d'un chantier."); return; }
+  $("fenSite").hidden=true;
+  charge("Téléchargement de « "+nom+" »…");
+  fetch(location.origin+"/api/rapports?action=fichier&cle="+encodeURIComponent(cle), {headers:{"x-auth":ses.jeton}})
+    .then(function(r){ if(!r.ok) return r.json().then(function(d){ throw new Error(d.erreur || "Document introuvable."); }, function(){ throw new Error("Document introuvable."); }); return r.blob(); })
+    .then(function(b){
+      var f; try{ f=new File([b], nom, {type:b.type || ""}); }catch(e){ f=b; f.name=nom; }
+      charge(""); ouvrirFichier(f);
+    })
+    .catch(function(e){ charge(""); toast(/fetch|network/i.test(String(e && e.message)) ? "Pas de réseau : le document n'a pas pu être téléchargé." : (e && e.message) || "Document introuvable."); });
+}
+function nomDoc(f){ var n=String(f.cle||"").split("/").pop() || "plan.pdf"; return n; }
+function peindreSite(){
+  var h=$("fsListe"); h.textContent="";
+  if(!SITE_DOCS){ var v0=document.createElement("p"); v0.className="fs-vide"; v0.textContent="Chargement…"; h.appendChild(v0); return; }
+  var q=String($("fsCherche").value||"").trim().toLowerCase();
+  var l=SITE_DOCS.filter(function(c){ return !q || (c.ref+" "+(c.client||"")+" "+(c.adresse||"")+" "+c.docs.map(function(d){ return d.titre||""; }).join(" ")).toLowerCase().indexOf(q)>=0; });
+  if(!l.length){ var v=document.createElement("p"); v.className="fs-vide"; v.textContent = SITE_DOCS.length ? "Aucun chantier ne correspond." : "Aucun plan (PDF ou image) dans les documents techniques de vos chantiers. Déposez-en un dans l'appli Documents techniques."; h.appendChild(v); return; }
+  l.forEach(function(c){
+    var bloc=document.createElement("div"); bloc.className="fs-chantier";
+    var t=document.createElement("h3"); var r=document.createElement("span"); r.textContent=c.ref; t.appendChild(r); t.appendChild(document.createTextNode(c.client||"")); bloc.appendChild(t);
+    c.docs.forEach(function(f){
+      var b=document.createElement("button"); b.type="button"; b.className="fs-doc";
+      b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/></svg><span><b></b><small></small></span>';
+      b.querySelector("b").textContent=f.titre || nomDoc(f);
+      b.querySelector("small").textContent=[f.visite || f.etape || "", f.date ? new Date(f.date).toLocaleDateString("fr-FR") : ""].filter(Boolean).join(" · ");
+      b.addEventListener("click", function(){ ouvrirDuSite(f.cle, nomDoc(f)); });
+      bloc.appendChild(b);
+    });
+    h.appendChild(bloc);
+  });
+}
+function ouvrirFenSite(){
+  var ses=sessionPlan();
+  if(!ses){ $("fichier").click(); return; }
+  $("fenSite").hidden=false; peindreSite();
+  fetch(location.origin+"/api/rapports?action=liste", {headers:{"x-auth":ses.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      SITE_DOCS=(d.chantiers||[]).map(function(c){
+        return {ref:c.ref, client:c.client||"", adresse:c.adresse||"", maj:c.maj||"",
+          docs:(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||""); })};
+      }).filter(function(c){ return c.docs.length; });
+      peindreSite();
+    })
+    .catch(function(){ SITE_DOCS=[]; $("fsListe").innerHTML='<p class="fs-vide">Liste indisponible : pas de réseau.</p>'; });
+  setTimeout(function(){ try{ $("fsCherche").focus(); }catch(e){} }, 50);
+}
+$("btOuvrir").addEventListener("click", ouvrirFenSite);
 $("btOuvrir2").addEventListener("click", function(){ $("fichier").click(); });
+$("btChantier2").hidden=!sessionPlan();
+$("btChantier2").addEventListener("click", ouvrirFenSite);
+$("fsAppareil").addEventListener("click", function(){ $("fenSite").hidden=true; $("fichier").click(); });
+$("fsFermer").addEventListener("click", function(){ $("fenSite").hidden=true; });
+$("fenSite").addEventListener("click", function(e){ if(e.target.id==="fenSite") $("fenSite").hidden=true; });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("fenSite").hidden) $("fenSite").hidden=true; });
+$("fsCherche").addEventListener("input", peindreSite);
+/* venu d'un chantier : dwg.html?cle=REF/technique-….pdf ouvre le document tout de suite */
+(function(){
+  var cle=new URLSearchParams(location.search).get("cle")||"";
+  if(cle && /\.(pdf|jpe?g|png|webp)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop()); }, 50);
+})();
 $("fichier").addEventListener("change", function(){ var f=this.files[0]; this.value=""; ouvrirFichier(f); });
 ["dragenter","dragover"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.add("survol"); }); });
 ["dragleave","drop"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.remove("survol"); }); });

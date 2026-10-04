@@ -1124,6 +1124,16 @@ function carteDossier(c, i, opts){
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
+    /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour prendre des cotes */
+    if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
+      var bCote=document.createElement("a");
+      bCote.className="part"; bCote.textContent="Coter";
+      bCote.href="./dwg.html?cle="+encodeURIComponent(f.cle);
+      bCote.title="Ouvrir ce plan dans l'outil Plan pour prendre des cotes";
+      bCote.setAttribute("aria-label","Prendre des cotes sur "+(f.titre||"ce plan"));
+      bCote.addEventListener("click", function(e){ e.stopPropagation(); });
+      droite.appendChild(bCote);
+    }
     if(bureau){
       var sup=document.createElement("button");
       sup.type="button"; sup.className="sup";
