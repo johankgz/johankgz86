@@ -5505,19 +5505,33 @@ function construirePdf(page, lib){
   return page.getOperatorList().then(function(ol){
     var fn=ol.fnArray, ar=ol.argsArray, ctm=vt.slice(), pile=[], trait="#000000", fond="#000000", chemin=[];
     function bez(p0, c1, c2, p3, out){ for(var k=1;k<=8;k++){ var t=k/8, u=1-t; out.push([u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0], u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]]); } }
+    /* le point courant du tracé survit d'un constructPath à l'autre : pdf.js coupe un même
+       tracé en plusieurs morceaux (traits posés dans un bloc de texte, par exemple). Repartir
+       de zéro à chaque morceau tirait les traits depuis l'origine de la page (le coin en haut
+       à gauche). Un trait sans point de départ connu commence là où il est, il ne part plus de (0,0). */
+    var EC={cur:null, sp:null};
     function lirePath(ops, co){
-      var out=[], cur=null, sp=null, j=0;
+      var out=[], cur=EC.cur, sp=EC.sp, j=0;
+      function ouvrir(p){ cur={pts:[T(ctm, p[0], p[1])], ferme:false, droit:[true], start:[p[0], p[1]]}; out.push(cur); }
       for(var i=0;i<ops.length;i++){
         var o=ops[i];
-        if(o===OPS.moveTo){ cur={pts:[T(ctm, co[j], co[j+1])], ferme:false, droit:[true], start:[co[j], co[j+1]]}; out.push(cur); sp=[co[j], co[j+1]]; j+=2; }
-        else if(o===OPS.lineTo){ if(!cur){ cur={pts:[T(ctm, sp?sp[0]:0, sp?sp[1]:0)], ferme:false, droit:[true]}; out.push(cur); } cur.pts.push(T(ctm, co[j], co[j+1])); cur.droit.push(true); sp=[co[j], co[j+1]]; j+=2; }
+        if(o===OPS.moveTo){ sp=[co[j], co[j+1]]; ouvrir(sp); j+=2; }
+        else if(o===OPS.lineTo){
+          var q=[co[j], co[j+1]]; j+=2;
+          if(!sp){ sp=q; ouvrir(q); continue; }                      /* pas de point courant : on part d'ici */
+          if(!cur) ouvrir(sp);                                        /* après une fermeture : repart du point courant */
+          cur.pts.push(T(ctm, q[0], q[1])); cur.droit.push(true); sp=q;
+        }
         else if(o===OPS.curveTo || o===OPS.curveTo2 || o===OPS.curveTo3){
-          var n = o===OPS.curveTo ? 6 : 4, a=sp||[0,0], c1, c2, p3;
+          var n = o===OPS.curveTo ? 6 : 4, c1, c2, p3;
           if(o===OPS.curveTo){ c1=[co[j],co[j+1]]; c2=[co[j+2],co[j+3]]; p3=[co[j+4],co[j+5]]; }
-          else if(o===OPS.curveTo2){ c1=a; c2=[co[j],co[j+1]]; p3=[co[j+2],co[j+3]]; }
+          else if(o===OPS.curveTo2){ c1=sp; c2=[co[j],co[j+1]]; p3=[co[j+2],co[j+3]]; }
           else { c1=[co[j],co[j+1]]; c2=[co[j+2],co[j+3]]; p3=c2; }
-          j+=n; if(!cur){ cur={pts:[T(ctm, a[0], a[1])], ferme:false, droit:[true]}; out.push(cur); }
-          var tmp=[]; bez(a, c1, c2, p3, tmp); tmp.forEach(function(q, k){ cur.pts.push(T(ctm, q[0], q[1])); cur.droit.push(k===tmp.length-1 ? "fin" : false); }); sp=p3;
+          j+=n;
+          if(!sp){ sp=p3; ouvrir(p3); continue; }
+          if(!c1) c1=sp;
+          if(!cur) ouvrir(sp);
+          var a=sp, tmp=[]; bez(a, c1, c2, p3, tmp); tmp.forEach(function(q2, k){ cur.pts.push(T(ctm, q2[0], q2[1])); cur.droit.push(k===tmp.length-1 ? "fin" : false); }); sp=p3;
         }
         else if(o===OPS.rectangle){
           var x=co[j], y=co[j+1], w=co[j+2], h=co[j+3]; j+=4;
@@ -5525,11 +5539,12 @@ function construirePdf(page, lib){
         }
         else if(o===OPS.closePath){ if(cur){ cur.ferme=true; sp=cur.start||sp; cur=null; } }
       }
+      EC.cur=cur; EC.sp=sp;
       return out;
     }
     function peindreChemin(stroke, fill){
       var cs=stroke ? couleurPdf(trait) : null, cf=fill ? couleurPdf(fond) : null;
-      if(!cs && !cf){ chemin=[]; return; }
+      if(!cs && !cf){ chemin=[]; EC.cur=null; EC.sp=null; return; }
       chemin.forEach(function(sp2){
         var q=sp2.pts; if(q.length<2) return;
         var g=groupe(cs || cf);
@@ -5545,7 +5560,7 @@ function construirePdf(page, lib){
           if(sp2.ferme && q.length>2) P.pts.push((q[0][0]+q[q.length-1][0])/2, (q[0][1]+q[q.length-1][1])/2, 2);
         }
       });
-      chemin=[];
+      chemin=[]; EC.cur=null; EC.sp=null;
     }
     for(var i=0;i<fn.length;i++){
       var o=fn[i], a=ar[i];
@@ -5563,7 +5578,7 @@ function construirePdf(page, lib){
       else if(o===OPS.stroke || o===OPS.closeStroke){ if(o===OPS.closeStroke) chemin.forEach(function(c){ c.ferme=true; }); peindreChemin(true, false); }
       else if(o===OPS.fill || o===OPS.eoFill) peindreChemin(false, true);
       else if(o===OPS.fillStroke || o===OPS.eoFillStroke || o===OPS.closeFillStroke || o===OPS.closeEOFillStroke) peindreChemin(true, true);
-      else if(o===OPS.endPath) chemin=[];
+      else if(o===OPS.endPath){ chemin=[]; EC.cur=null; EC.sp=null; }
       else if(o===OPS.paintImageXObject || o===OPS.paintInlineImageXObject || o===OPS.paintImageMaskXObject || o===OPS.paintJpegXObject) P.images++;
     }
     return page.getTextContent();
