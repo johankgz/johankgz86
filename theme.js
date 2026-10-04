@@ -205,7 +205,7 @@
   /* ce que les règles ne savent pas faire : les fonds animés laissent place à un fond clair uni */
   var css=document.createElement("style"); css.id="themeClair";
   css.textContent=
-    "html.theme-clair{color-scheme:light;background:"+FOND+"}"
+    "html.theme-clair{color-scheme:light}html.theme-attente{background:"+FOND+"}"
     +"html.theme-clair .ciel,html.theme-clair #fondPlan,html.theme-clair .fond-outils{background:"+FOND+"!important}"
     +"html.theme-clair .ciel>*,html.theme-clair #fondPlan>*,html.theme-clair .fond-outils>*{display:none!important}"
     +"html.theme-attente body{visibility:hidden}"
