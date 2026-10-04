@@ -705,11 +705,35 @@ function refsAjoutees(r, dep) {
   }
   return out;
 }
-async function lireRefs(st) {
-  let r = null; try { r = await st.get(REFERENCES, { type: "json" }); } catch { r = null; }
-  if (!r || !Array.isArray(r.colonnes)) r = { colonnes: [], lignes: [], cle: 0, des: 1 };
-  if (!Array.isArray(r.lignes)) r.lignes = [];
-  return r;
+/* une base par personne : references/<identifiant>.json, avec ses partages
+   [{identifiant (ou « * » : toute l'équipe), droit : "lire" | "modifier"}] */
+const REFS_DOSSIER = "references/";
+const idRef = (v) => String(v == null ? "" : v).trim().toLowerCase();
+/* le titulaire de l'ancienne base commune (et de la base rangée) : le premier administrateur */
+function titulaireRefs(comptes) { const a = (comptes || []).find((c) => c.role === "admin"); return a ? idRef(a.identifiant) : ""; }
+function droitRefs(r, proprio, moi) {
+  if (proprio === moi) return "modifier";
+  const ds = (r.partages || []).filter((x) => x.identifiant === moi || x.identifiant === "*").map((x) => x.droit);
+  return ds.includes("modifier") ? "modifier" : ds.includes("lire") ? "lire" : null;
+}
+async function lireRefsDe(st, proprio, titulaire) {
+  let r = null; try { r = await st.get(REFS_DOSSIER + proprio + ".json", { type: "json" }); } catch { r = null; }
+  if (r && Array.isArray(r.colonnes)) {
+    if (!Array.isArray(r.lignes)) r.lignes = [];
+    if (!Array.isArray(r.partages)) r.partages = [];
+    return r;
+  }
+  /* l'ancienne base commune de l'entreprise devient celle de son titulaire */
+  if (proprio && proprio === titulaire) {
+    let anc = null; try { anc = await st.get(REFERENCES, { type: "json" }); } catch { anc = null; }
+    if (anc && Array.isArray(anc.colonnes) && anc.colonnes.length && !anc.migre) {
+      const b = { ...anc, lignes: Array.isArray(anc.lignes) ? anc.lignes : [], partages: [] };
+      await st.setJSON(REFS_DOSSIER + proprio + ".json", b);
+      try { await st.setJSON(REFERENCES, { migre: proprio, le: new Date().toISOString() }); } catch { /* la copie est faite */ }
+      return b;
+    }
+  }
+  return { colonnes: [], lignes: [], cle: 0, des: 1, partages: [] };
 }
 /* des colonnes et des lignes propres : des textes courts, autant de cases que de colonnes */
 function nettoyerRefs(colonnes, lignes) {
@@ -2708,32 +2732,75 @@ async function traiter(req) {
     return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton },
       destinataire: qc.destinataire || "" });
   }
-  /* ---------- les références de l'entreprise ---------- */
-  if (action === "references" || action === "references-depart") {
-    let r = await lireRefs(store);
-    const dep = await refsDepart(personne.societe);
-    if (action === "references-depart") {
-      if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
-      if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
-      if (!dep) return json({ erreur: "Pas de base préparée pour cette entreprise." }, 404);
+  /* ---------- les références : une base par personne, partageable ---------- */
+  /* chacun a sa base ; il la partage, en lecture ou en modification, avec qui il veut
+     (ou toute l'équipe). ?base=identifiant ouvre la base d'un autre, si elle nous est partagée. */
+  let rx = null;
+  if (action === "references" || action === "references-depart" || action === "references-importer" || action === "references-ligne"
+      || action === "references-supprimer" || action === "references-colonnes" || action === "references-partager") {
+    const comptes = await lireComptes(personne.societe);
+    const moi = idRef(personne.identifiant), titulaire = titulaireRefs(comptes);
+    const proprio = idRef(url.searchParams.get("base")) || moi;
+    const compteProprio = comptes.find((c) => idRef(c.identifiant) === proprio);
+    if (proprio !== moi && !compteProprio) return json({ erreur: "Cette base n'existe pas." }, 404);
+    const chemin = REFS_DOSSIER + proprio + ".json";
+    let r = await lireRefsDe(store, proprio, titulaire);
+    const droit = droitRefs(r, proprio, moi);
+    if (!droit) return json({ erreur: "Cette base ne vous est pas partagée." }, 403);
+    const nomProprio = (compteProprio && compteProprio.nom) || personne.nom;
+    const ecrire = (x) => store.setJSON(chemin, x);
+    if (action !== "references" && req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (action !== "references" && droit !== "modifier") return json({ erreur: "Base de " + nomProprio + " en lecture seule." }, 403);
+    if (action === "references-partager") {
+      /* partager sa base (le propriétaire seulement) : lire, modifier, ou rien */
+      if (proprio !== moi) return json({ erreur: "Seul " + nomProprio + " partage sa base." }, 403);
+      let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      const qui = d.identifiant === "*" ? "*" : idRef(d.identifiant);
+      if (qui !== "*" && (qui === moi || !comptes.some((c) => idRef(c.identifiant) === qui))) return json({ erreur: "Compte inconnu." }, 400);
+      const dr = d.droit === "modifier" ? "modifier" : d.droit === "lire" ? "lire" : "";
+      r.partages = (r.partages || []).filter((x) => x.identifiant !== qui);
+      if (dr) r.partages.push({ identifiant: qui, droit: dr, depuis: new Date().toISOString() });
+      await ecrire(r);
+      return json({ ok: true, partages: r.partages });
     }
+    const dep = proprio === titulaire ? await refsDepart(personne.societe) : null;
+    if (action === "references-depart" && proprio !== moi) return json({ erreur: "Seul " + nomProprio + " recharge sa base." }, 403);
+    if (action === "references-depart" && !dep) return json({ erreur: "Pas de base préparée pour ce compte." }, 404);
+    rx = { comptes, moi, titulaire, proprio, chemin, r, droit, dep };
+  }
+  if (action === "references" || action === "references-depart") {
+    const { comptes, moi, titulaire, proprio, chemin, droit, dep } = rx;
+    let r = rx.r;
     /* la base rangée : d'elle-même si rien n'est encore importé, ou si la base est l'import
        brut du même fichier Excel (les références ajoutées depuis à la main sont gardées) ;
        ou à la demande. L'ancienne base est gardée de côté (references-avant.json). */
     if (dep && (action === "references-depart" || (!r.colonnes.length && !r.depart) || (!r.depart && importBrut(r, dep)))) {
-      if (r.colonnes.length) { try { await store.setJSON("references-avant.json", r); } catch {} }
+      if (r.colonnes.length) { try { await store.setJSON("references-avant/" + proprio + ".json", r); } catch {} }
       const ajoutees = r.colonnes.length && action !== "references-depart" ? refsAjoutees(r, dep) : [];
-      r = { colonnes: dep.colonnes, lignes: dep.lignes.concat(ajoutees), cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: action === "references-depart" ? personne.nom : "Base de départ", source: dep.source, depart: dep.version };
-      await store.setJSON(REFERENCES, r);
+      r = { colonnes: dep.colonnes, lignes: dep.lignes.concat(ajoutees), cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: action === "references-depart" ? personne.nom : "Base de départ", source: dep.source, depart: dep.version, partages: r.partages || [] };
+      await store.setJSON(chemin, r);
     }
-    return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "", modifiable: !!admin,
-      departDispo: dep && admin && r.depart !== dep.version ? { version: dep.version, n: dep.lignes.length, source: dep.source } : null });
+    /* les bases qu'on peut ouvrir : la sienne, puis celles qu'on nous partage */
+    const nomDe = (id) => { const c = comptes.find((x) => idRef(x.identifiant) === id); return (c && c.nom) || id; };
+    const bases = [{ identifiant: moi, nom: personne.nom, moi: true, droit: "modifier" }];
+    for (const c of comptes) {
+      const id = idRef(c.identifiant); if (!id || id === moi) continue;
+      let rb = null; try { rb = await store.get(REFS_DOSSIER + id + ".json", { type: "json" }); } catch { rb = null; }
+      if (!rb && id === titulaire) rb = await lireRefsDe(store, id, titulaire);
+      const dr = rb ? droitRefs(rb, id, moi) : null;
+      if (dr) bases.push({ identifiant: id, nom: c.nom || id, droit: dr, n: Array.isArray(rb.lignes) ? rb.lignes.length : 0 });
+    }
+    const aMoi = proprio === moi;
+    return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "",
+      modifiable: droit === "modifier", droit, proprietaire: proprio, nomProprietaire: nomDe(proprio), moi: aMoi, bases,
+      partages: aMoi ? (r.partages || []).map((x) => ({ identifiant: x.identifiant, droit: x.droit, nom: x.identifiant === "*" ? "Toute l'équipe" : nomDe(x.identifiant) })) : undefined,
+      equipe: aMoi ? comptes.filter((c) => idRef(c.identifiant) && idRef(c.identifiant) !== moi).map((c) => ({ identifiant: idRef(c.identifiant), nom: c.nom || c.identifiant, role: c.role || "" })) : undefined,
+      departDispo: dep && aMoi && r.depart !== dep.version ? { version: dep.version, n: dep.lignes.length, source: dep.source } : null });
   }
   if (action === "references-importer" || action === "references-ligne" || action === "references-supprimer" || action === "references-colonnes") {
-    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
-    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    const { chemin, r } = rx;
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
-    const r = await lireRefs(store), maintenant = new Date().toISOString();
+    const maintenant = new Date().toISOString();
     if (action === "references-importer") {
       const n = nettoyerRefs(d.colonnes, d.lignes);
       if (!n.cols.length) return json({ erreur: "Aucune colonne dans le fichier." }, 400);
@@ -2777,14 +2844,14 @@ async function traiter(req) {
       if (lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
       Object.assign(r, { colonnes, lignes, maj: maintenant, par: personne.nom, source: String(d.source || "").slice(0, 200) });
       if (d.mode !== "fusionner") delete r.depart;       /* remplacée par un fichier : la base rangée peut être rechargée */
-      await store.setJSON(REFERENCES, r);
+      await store.setJSON(chemin, r);
       return json({ ok: true, total: lignes.length, stats });
     }
     if (action === "references-colonnes") {
       const nc = r.colonnes.length;
       r.cle = Math.max(0, Math.min(nc - 1, parseInt(d.cle, 10) || 0));
       r.des = d.des === -1 || d.des === "-1" ? -1 : Math.max(0, Math.min(nc - 1, parseInt(d.des, 10) || 0));
-      await store.setJSON(REFERENCES, r);
+      await store.setJSON(chemin, r);
       return json({ ok: true, cle: r.cle, des: r.des });
     }
     const kc = r.cle || 0;
@@ -2812,7 +2879,7 @@ async function traiter(req) {
         if (ou >= 0) r.lignes.splice(ou + 1, 0, ligne); else r.lignes.push(ligne);
       }
       Object.assign(r, { maj: maintenant, par: personne.nom });
-      await store.setJSON(REFERENCES, r);
+      await store.setJSON(chemin, r);
       return json({ ok: true, total: r.lignes.length, ajoutee: ia < 0 });
     }
     /* retirer une référence */
@@ -2820,7 +2887,7 @@ async function traiter(req) {
     r.lignes = r.lignes.filter((l) => cleRef(l[kc]) !== cleRef(d.reference));
     if (r.lignes.length === avantN) return json({ erreur: "Référence introuvable." }, 404);
     Object.assign(r, { maj: maintenant, par: personne.nom });
-    await store.setJSON(REFERENCES, r);
+    await store.setJSON(chemin, r);
     return json({ ok: true, total: r.lignes.length });
   }
   /* ---------- réglages des pages clients (administrateur) ---------- */

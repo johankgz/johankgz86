@@ -437,6 +437,17 @@ main{max-width:520px}
 .rf-copier.fait{background:#15803D;border-color:#15803D;color:#fff}
 .rf-plus{min-height:38px;width:38px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:none;color:#C9D1D9;font-size:18px;cursor:pointer}
 .rf-menu{flex-basis:100%;margin:2px 0 0}
+.rf-bases{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 10px;font-size:12px;color:#8A97A6}
+.rf-bases[hidden]{display:none}
+.rf-bases select{flex:1;min-width:200px;min-height:40px;padding:6px 10px;font-size:14.5px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:var(--g-800);color:#F2F5F9}
+.rf-autre{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 10px;padding:9px 12px;border-radius:12px;background:rgba(96,165,250,.1);border:1px solid rgba(96,165,250,.4);font-size:13px;color:#BFDBFE}
+.rf-autre[hidden]{display:none}
+.rf-autre button{min-height:34px;padding:0 14px;border-radius:999px;border:1px solid rgba(96,165,250,.6);background:rgba(96,165,250,.16);color:#BFDBFE;font-weight:700;cursor:pointer}
+.rf-partage-l{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--trait-tech);font-size:14px;color:#D5DCE4}
+.rf-partage-l:last-child{border-bottom:0}
+.rf-partage-l span{flex:1;min-width:0}
+.rf-partage-l small{color:#8A97A6;margin-left:6px}
+.rf-partage-l select{min-height:38px;padding:4px 8px;font-size:14px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:var(--g-700);color:#F2F5F9}
 .rf-depart{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 0;padding:10px 12px;border-radius:12px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.45);font-size:13px;color:#FDBA74}
 .rf-depart[hidden]{display:none}
 .rf-depart button{min-height:34px;padding:0 14px;border-radius:999px;border:1px solid rgba(251,146,60,.7);background:rgba(251,146,60,.2);color:#FDBA74;font-weight:700;cursor:pointer}
@@ -918,7 +929,9 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
   <section class="vue" id="vue-refs" hidden>
     <div class="carte-outil conv">
       <h2 class="outil-titre">Références</h2>
-      <p class="conv-aide">Vos références d'articles, venues de votre fichier Excel. Cherchez une référence, un mot de la désignation, une marque ; « Copier » la met dans le presse-papiers. Entrée copie le premier résultat.</p>
+      <p class="conv-aide">Vos références d'articles : chacun a sa base, et peut la partager. Cherchez une référence, un mot de la désignation, une marque ; « Copier » la met dans le presse-papiers. Entrée copie le premier résultat.</p>
+      <label class="rf-bases" id="rfBases" hidden><span>Base</span><select id="rfBase" aria-label="Base de références à ouvrir"></select></label>
+      <div class="rf-autre" id="rfAutre" hidden><span id="rfAutreTxt"></span><button type="button" id="rfCopierBase">Copier dans ma base</button></div>
       <div class="conv-saisie"><input type="search" id="rfCherche" autocomplete="off" enterkeyhint="search" placeholder="Référence, désignation, marque…" aria-label="Chercher une référence"></div>
       <div class="rf-reglage"><span>« Copier » copie</span>
         <span class="puces" id="rfCopieMode" role="group" aria-label="Ce que copie le bouton Copier"><button type="button" data-v="code">la référence</button><button type="button" data-v="code-des">référence + désignation</button><button type="button" data-v="ligne">toute la ligne</button></span></div>
@@ -933,6 +946,14 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
           <button type="button" id="rfImporter">Importer un fichier Excel ou CSV</button>
           <button type="button" id="rfAjouter">Ajouter une référence</button>
           <button type="button" id="rfExporter" hidden>Exporter en Excel</button>
+          <button type="button" id="rfPartager" hidden>Partager ma base</button>
+        </div>
+        <div class="rf-panneau" id="rfPartage" hidden>
+          <h3>Partager ma base</h3>
+          <p class="conv-aide">Choisissez qui peut ouvrir votre base : <b>lecture</b> (chercher et copier) ou <b>modification</b> (ajouter, modifier, retirer, importer). Elle reste la vôtre : vous retirez l'accès quand vous voulez.</p>
+          <p class="conv-formule" id="rfPartageResume"></p>
+          <div id="rfPartageListe"></div>
+          <div class="puces"><button type="button" id="rfPartageFermer">Fermer</button></div>
         </div>
         <div class="rf-depart" id="rfDepart" hidden><span id="rfDepartTxt"></span><button type="button" id="rfDepartOk">Charger la base rangée</button></div>
         <input type="file" id="rfFichier" accept=".xlsx,.xlsm,.csv,.txt,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
@@ -1844,24 +1865,28 @@ window.__calcul = calculer;
 })();
 </script>
 <script>
-/* ---------- les références de l'entreprise ----------
-   La base d'articles de l'entreprise, importée de son fichier Excel (.xlsx) ou
-   CSV : on cherche (par référence, désignation, fournisseur… sans accents), et
-   « Copier » met la référence dans le presse-papiers. L'administrateur l'importe à nouveau quand le fichier change
-   (mise à jour : ajoute et modifie, garde le reste ; ou remplacement complet),
-   ajoute, modifie ou retire une référence, et l'exporte en Excel. */
+/* ---------- les références ----------
+   Chacun a sa base d'articles, importée de son fichier Excel (.xlsx) ou CSV : on
+   cherche (par référence, désignation, fournisseur… sans accents), et « Copier »
+   met la référence dans le presse-papiers. Le propriétaire l'importe à nouveau quand
+   le fichier change (mise à jour : ajoute et modifie, garde le reste ; ou remplacement
+   complet), ajoute, modifie ou retire une référence, l'exporte en Excel, et la partage
+   en lecture ou en modification ; on ouvre aussi les bases que les collègues nous partagent. */
 (function(){
   function $(i){ return document.getElementById(i); }
   var S=null; try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
   var B={colonnes:[], lignes:[], cle:0, des:1, modifiable:false}, IDX=[], IMP=null, EDIT=null, IMP_CAT=false, CAT="";
+  /* la base ouverte : la sienne (vide) ou celle d'un collègue qui nous la partage */
+  var BASE=(function(){ try{ return localStorage.getItem("outils:refsBase")||""; }catch(e){ return ""; } })();
+  function choisirBase(id){ BASE=id||""; try{ localStorage.setItem("outils:refsBase", BASE); }catch(e){} CAT=""; $("rfPartage").hidden=true; $("rfForm").hidden=true; $("rfImport").hidden=true; }
   /* la colonne des catégories (« Catégorie », « Famille »…) : des boutons pour parcourir la base sans rien taper */
   function colCat(){ for(var i=0;i<B.colonnes.length;i++) if(/^(categorie|famille|rubrique)/.test(sansAccent(B.colonnes[i]))) return i; return -1; }
   var MODE_COPIE=(function(){ try{ return localStorage.getItem("outils:refsCopie")||"code"; }catch(e){ return "code"; } })();
   var RECENTS=(function(){ try{ var l=JSON.parse(localStorage.getItem("outils:refsRecents")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
   function etat(t){ $("rfEtat").textContent=t||""; }
   function api(action, corps){
-    return fetch("/api/rapports?action="+action, corps ? {method:"POST", headers:{"x-auth":S.jeton, "content-type":"application/json"}, body:JSON.stringify(corps)} : {headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.json().then(function(d){ if(!r.ok) throw new Error(d.erreur || "Erreur "+r.status); return d; }); });
+    return fetch("/api/rapports?action="+action+(BASE ? "&base="+encodeURIComponent(BASE) : ""), corps ? {method:"POST", headers:{"x-auth":S.jeton, "content-type":"application/json"}, body:JSON.stringify(corps)} : {headers:{"x-auth":S.jeton}})
+      .then(function(r){ return r.json().then(function(d){ if(!r.ok){ var er=new Error(d.erreur || "Erreur "+r.status); er.statut=r.status; throw er; } return d; }); });
   }
   function sansAccent(s){ return String(s||"").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
   function nb(n){ return Number(n).toLocaleString("fr-FR"); }
@@ -1870,8 +1895,12 @@ window.__calcul = calculer;
   function charger(apres){
     if(!S || !S.jeton){ etat("Connectez-vous pour voir les références de l'entreprise."); return; }
     if(!apres) etat("Chargement…");
-    api("references").then(function(d){ B=d; indexer(); majEntete(); chercher(); if(apres) etat(apres); })
-      .catch(function(e){ etat(/réseau|fetch/i.test(e.message) ? "Pas de réseau." : e.message); });
+    api("references").then(function(d){ B=d; indexer(); majEntete(); chercher(); if(apres && apres!==true) etat(apres); })
+      .catch(function(e){
+        /* une base qu'on ne nous partage plus : retour à la sienne */
+        if(BASE && (e.statut===403 || e.statut===404)){ var m=e.message; choisirBase(""); charger(m+" Retour à votre base."); return; }
+        etat(/réseau|fetch/i.test(e.message) ? "Pas de réseau." : e.message);
+      });
   }
   function majEntete(){
     var n=B.lignes.length;
@@ -1880,7 +1909,9 @@ window.__calcul = calculer;
     $("rfDepart").hidden=!B.departDispo;
     if(B.departDispo) $("rfDepartTxt").textContent="Votre base rangée est prête : "+nb(B.departDispo.n)+" références ("+B.departDispo.source+").";
     etat(n ? nb(n)+" référence"+(n>1 ? "s" : "")+(B.maj ? " · à jour du "+new Date(B.maj).toLocaleDateString("fr-FR")+(B.par ? " ("+B.par+")" : "") : "")+(B.source ? " · "+B.source : "")
-      : (B.modifiable ? "Aucune référence : importez votre fichier Excel." : "Aucune référence pour l'instant : l'administrateur importe le fichier de l'entreprise."));
+      : (B.moi===false ? "La base de "+B.nomProprietaire+" est vide pour l'instant." : "Votre base est vide : importez votre fichier Excel ou ajoutez une référence."
+        +((B.bases||[]).length>1 ? " Ou ouvrez une base qu'on vous partage, ci-dessus." : "")));
+    majBases();
     /* les colonnes de la référence et de la désignation */
     ["rfColCle","rfColDes"].forEach(function(id, k){
       var s=$(id); s.textContent="";
@@ -1899,6 +1930,62 @@ window.__calcul = calculer;
       b.addEventListener("click", function(){ CAT=c; majEntete(); chercher(); }); box.appendChild(b);
     });
   }
+  /* ---------- les bases : la sienne, celles qu'on nous partage ; partager la sienne ---------- */
+  var DROITS={lire:"lecture", modifier:"modification"};
+  function majBases(){
+    var bases=B.bases||[], sel=$("rfBase"); sel.textContent="";
+    bases.forEach(function(b){
+      var o=document.createElement("option"); o.value=b.moi ? "" : b.identifiant;
+      o.textContent = b.moi ? "Ma base" : "Base de "+b.nom+" · "+DROITS[b.droit]+(b.n!=null ? " ("+nb(b.n)+")" : "");
+      sel.appendChild(o);
+    });
+    sel.value = B.moi===false ? B.proprietaire : "";
+    $("rfBases").hidden = bases.length<2;
+    $("rfAutre").hidden = B.moi!==false;
+    if(B.moi===false) $("rfAutreTxt").textContent="Base de "+B.nomProprietaire+", partagée avec vous en "+DROITS[B.droit]+".";
+    $("rfCopierBase").hidden = B.moi!==false || !B.lignes.length;
+    $("rfPartager").hidden = B.moi===false;
+    if(!$("rfPartage").hidden) majPartage();
+  }
+  function majPartage(){
+    var box=$("rfPartageListe"), parts=B.partages||[]; box.textContent="";
+    function droitDe(id){ for(var i=0;i<parts.length;i++) if(parts[i].identifiant===id) return parts[i].droit; return ""; }
+    var gens=[{identifiant:"*", nom:"Toute l'équipe", role:""}].concat(B.equipe||[]);
+    gens.forEach(function(g){
+      var l=document.createElement("label"); l.className="rf-partage-l";
+      var sp=document.createElement("span"); sp.textContent=g.nom;
+      if(g.role){ var sm=document.createElement("small"); sm.textContent=g.role; sp.appendChild(sm); }
+      l.appendChild(sp);
+      var se=document.createElement("select"); se.setAttribute("aria-label", "Accès de "+g.nom); se.dataset.id=g.identifiant;
+      [["","Pas d'accès"],["lire","Lecture"],["modifier","Modification"]].forEach(function(o){ var op=document.createElement("option"); op.value=o[0]; op.textContent=o[1]; se.appendChild(op); });
+      se.value=droitDe(g.identifiant);
+      se.addEventListener("change", function(){
+        se.disabled=true;
+        api("references-partager", {identifiant:g.identifiant, droit:se.value}).then(function(d){
+          B.partages=d.partages.map(function(x){ var q=gens.filter(function(y){ return y.identifiant===x.identifiant; })[0]; return {identifiant:x.identifiant, droit:x.droit, nom:q ? q.nom : x.identifiant}; });
+          majPartage(); etat(se.value ? g.nom+" : "+DROITS[se.value]+"." : g.nom+" : plus d'accès.");
+        }).catch(function(e){ etat(e.message); se.disabled=false; });
+      });
+      l.appendChild(se); box.appendChild(l);
+    });
+    $("rfPartageResume").textContent = parts.length ? "Partagée avec : "+parts.map(function(x){ return x.nom+" ("+DROITS[x.droit]+")"; }).join(", ")+"." : "Votre base n'est partagée avec personne.";
+  }
+  $("rfBase").addEventListener("change", function(){ choisirBase(this.value); $("rfCherche").value=""; charger(); });
+  $("rfPartager").addEventListener("click", function(){
+    var p=$("rfPartage"); p.hidden=!p.hidden;
+    /* relue d'abord : l'équipe et les partages du moment */
+    if(!p.hidden){ majPartage(); charger(true); try{ p.scrollIntoView({behavior:"smooth", block:"start"}); }catch(e){} }
+  });
+  $("rfPartageFermer").addEventListener("click", function(){ $("rfPartage").hidden=true; });
+  /* reprendre la base d'un collègue dans la sienne (mise à jour : ajoute et modifie, garde le reste) */
+  $("rfCopierBase").addEventListener("click", function(){
+    var src=B, de=B.nomProprietaire;
+    if(!window.confirm("Copier les "+nb(src.lignes.length)+" références de "+de+" dans votre base ? Les vôtres sont gardées, celles qui existent déjà sont mises à jour.")) return;
+    var garde=BASE; BASE="";
+    api("references-importer", {mode:"fusionner", source:"Base de "+de, colonnes:src.colonnes, lignes:src.lignes, cle:src.cle||0, des:src.des!=null ? src.des : 1}).then(function(d){
+      choisirBase(""); charger("Copiées dans votre base : "+nb(d.stats.ajoutees)+" ajoutée"+(d.stats.ajoutees>1 ? "s" : "")+", "+nb(d.stats.modifiees)+" mise"+(d.stats.modifiees>1 ? "s" : "")+" à jour.");
+    }).catch(function(e){ BASE=garde; etat(e.message); });
+  });
   /* ---------- chercher ---------- */
   function chercher(){
     var q=sansAccent($("rfCherche").value).trim(), liste=$("rfListe"), mots=q.split(/\s+/).filter(Boolean), res=[], MAX=150;
