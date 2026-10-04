@@ -6587,6 +6587,7 @@ var PV_OUTILS={pvpan:1, pvchamp:1, pvond:1, pvstr:1, pvchemin:1, pvac:1, pvrj:1}
 var PV_COUL=["#E11D48","#2563EB","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#B45309","#4F46E5"];
 var PV_RHO=0.0225;               /* cuivre, Ω·mm²/m */
 var PV_OW=1000, PV_OH=700;        /* l'onduleur dessiné, en mm (plus large avec plus de MPPT) */
+var PV_ETIQ=[];                  /* les étiquettes placées au dernier dessin (pour les essais) */
 var PV_EC=null;                  /* {t:"str", id} : la string en cours ; {t:"ch", id, pts} : son cheminement en cours */
 var PV_REG=(function(){ var d={o:"portrait", a:0, e:20, p:0};
   try{ var g=JSON.parse(lire("dwg:pvReg", "null")); if(g){ d.o=g.o==="paysage" ? "paysage" : "portrait"; d.a=Number(g.a)||0; d.e=g.e>=0 ? Number(g.e) : 20; d.p=Number(g.p)||0; } }catch(e){}
@@ -7015,6 +7016,66 @@ function peindrePv(c, E, orange, coulTrait){
   }
   if(sel.t==="pvp"){ var ps=pvPan(sel.id); if(ps) selCh=ps.ch; }
   var lwS=Math.max(1.6, 25*k), lwT=Math.max(1.3, 12*k), ecartT=Math.max(2.2, 35*k);
+  /* Les textes ne se chevauchent pas : les éléments fixes (pastilles, repères des panneaux, onduleurs,
+     arrivées) réservent leur place ; chaque étiquette de câble essaie ensuite plusieurs positions le long
+     de son câble, des deux côtés, et prend la première libre (sinon celle qui recouvre le moins). */
+  var OBST=[], ETIQ=[];
+  function reserver(x0, y0, x1, y1){ OBST.push([Math.min(x0, x1), Math.min(y0, y1), Math.max(x0, x1), Math.max(y0, y1)]); }
+  function recouvre(r, sansEcran){
+    var s=0, m = sansEcran ? 0 : 2;
+    for(var i=0;i<OBST.length;i++){ var o=OBST[i], w=Math.min(r[2], o[2]+m)-Math.max(r[0], o[0]-m), hh=Math.min(r[3], o[3]+m)-Math.max(r[1], o[1]-m); if(w>0 && hh>0) s+=w*hh; }
+    if(!IMPRIME && !sansEcran){ var dehors=Math.max(0, -r[0])+Math.max(0, r[2]-W)+Math.max(0, -r[1])+Math.max(0, r[3]-H); s+=dehors*40; }
+    return s;
+  }
+  /* les positions d'un texte le long d'une polyligne (en pixels) : au milieu puis vers les bouts, au-dessus puis au-dessous */
+  function positionsLe(ptsP, tw, th, ecart, premier){
+    var S=ptsP.map(E), segs=[];
+    for(var i=1;i<S.length;i++){ var L=Math.hypot(S[i][0]-S[i-1][0], S[i][1]-S[i-1][1]); if(L>=tw*0.6+6) segs.push({a:S[i-1], b:S[i], L:L, i:i}); }
+    if(!segs.length && S.length>1){ var Lm=0, sm=null; for(i=1;i<S.length;i++){ var L2=Math.hypot(S[i][0]-S[i-1][0], S[i][1]-S[i-1][1]); if(L2>Lm){ Lm=L2; sm={a:S[i-1], b:S[i], L:L2, i:i}; } } if(sm) segs.push(sm); }
+    /* le premier tronçon (propre à la string) d'abord, puis les plus longs */
+    segs.sort(function(p, q){ if(premier){ if(p.i===1) return -1; if(q.i===1) return 1; } return q.L-p.L; });
+    var out=[];
+    segs.forEach(function(sg){
+      var an=Math.atan2(sg.b[1]-sg.a[1], sg.b[0]-sg.a[0]); if(an>Math.PI/2) an-=Math.PI; if(an<-Math.PI/2) an+=Math.PI;
+      var u=[Math.cos(an), Math.sin(an)], nv=[Math.sin(an), -Math.cos(an)];       /* nv : vers le haut du texte */
+      var bw=Math.abs(tw*u[0])+Math.abs(th*nv[0]), bh=Math.abs(tw*u[1])+Math.abs(th*nv[1]), marge=Math.min(0.45, (tw/2+4)/sg.L);
+      [0.5, 0.3, 0.7, 0.15, 0.85, 0.05, 0.95].forEach(function(f){
+        f=Math.max(marge, Math.min(1-marge, f));
+        var px=sg.a[0]+(sg.b[0]-sg.a[0])*f, py=sg.a[1]+(sg.b[1]-sg.a[1])*f;
+        [1, -1].forEach(function(cote){
+          var d=ecart+th/2, cx=px+nv[0]*d*cote, cy=py+nv[1]*d*cote;
+          out.push({x:cx, y:cy, a:an, box:[cx-bw/2, cy-bh/2, cx+bw/2, cy+bh/2]});
+        });
+      });
+      /* un peu plus loin du câble, si tout est pris près de lui */
+      [0.5, 0.25, 0.75].forEach(function(f){
+        f=Math.max(marge, Math.min(1-marge, f));
+        var px=sg.a[0]+(sg.b[0]-sg.a[0])*f, py=sg.a[1]+(sg.b[1]-sg.a[1])*f;
+        [1, -1].forEach(function(cote){
+          var d=ecart+th*1.7, cx=px+nv[0]*d*cote, cy=py+nv[1]*d*cote;
+          out.push({x:cx, y:cy, a:an, box:[cx-bw/2, cy-bh/2, cx+bw/2, cy+bh/2]});
+        });
+      });
+    });
+    return out;
+  }
+  function etiqueter(txt, police, coul, cands, fond, prio){ if(cands.length) ETIQ.push({t:txt, f:police, c:coul, k:cands, fond:fond, p:prio==null ? 1 : prio, n:ETIQ.length}); }
+  function placerEtiquettes(){
+    /* les titres des onduleurs d'abord, puis les câbles, la boucle en dernier */
+    ETIQ.sort(function(a, b){ return a.p-b.p || a.n-b.n; });
+    PV_ETIQ=[];
+    ETIQ.forEach(function(e){
+      var best=null, bs=Infinity;
+      for(var i=0;i<e.k.length;i++){ var s=recouvre(e.k[i].box); if(s<bs){ bs=s; best=e.k[i]; } if(s===0) break; }
+      if(!best) return;
+      /* l'étiquette de la boucle (écran seulement) ne se pose que sur une place libre : sa surface est aussi dans la ligne du bas */
+      if(e.fond && recouvre(best.box, true)>0) return;
+      PV_ETIQ.push({t:e.t, box:best.box, recouvre:recouvre(best.box, true)}); OBST.push(best.box);
+      if(e.fond){ etiquette(c, best.x, best.y, e.t); return; }
+      c.save(); c.translate(best.x, best.y); c.rotate(best.a); c.font=e.f; c.textAlign="center"; c.textBaseline="middle";
+      c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(e.t, 0, 0); c.fillStyle=e.c; c.fillText(e.t, 0, 0); c.restore();
+    });
+  }
   /* l'écart entre le + et le − : celui réglé (2 cm), à l'échelle, et au moins assez pour voir deux fils */
   var demiF=Math.max((P.ecf!=null ? P.ecf : 20)*k/2, lwT*0.9+0.4);
   function chemin(pts){ c.beginPath(); pts.forEach(function(q, i){ var P0=E(q); if(i) c.lineTo(P0[0], P0[1]); else c.moveTo(P0[0], P0[1]); }); }
@@ -7038,7 +7099,9 @@ function peindrePv(c, E, orange, coulTrait){
     var bj=E(pvBoite(p)), tb=Math.max(2, 70*k); c.fillStyle=CLAIR ? "#1E293B" : "#CBD5E1"; c.fillRect(bj[0]-tb/2, bj[1]-tb/2, tb, tb*0.6);
     if(x && fs>=5){
       var ct=E(pvCentre(p)); c.font="700 "+fs.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle";
-      c.fillStyle=CLAIR ? "#0F172A" : "#F8FAFC"; c.fillText(x.s.nom+"."+(x.i+1), ct[0], ct[1]+fs*0.4);
+      var rep2=x.s.nom+"."+(x.i+1), twp=c.measureText(rep2).width;
+      c.fillStyle=CLAIR ? "#0F172A" : "#F8FAFC"; c.fillText(rep2, ct[0], ct[1]+fs*0.4);
+      reserver(ct[0]-twp/2, ct[1]+fs*0.4-fs*0.55, ct[0]+twp/2, ct[1]+fs*0.4+fs*0.55);
     }
   });
   /* les strings */
@@ -7049,7 +7112,14 @@ function peindrePv(c, E, orange, coulTrait){
     /* la boucle d'induction de la string choisie */
     if(choisi && g.n>1){
       chemin(g.B.concat(g.retour.slice(1, -1))); c.closePath(); c.fillStyle=col+"30"; c.fill();
-      if(!IMPRIME){ var cg=[0, 0], pp=g.B.concat(g.retour.slice(1, -1)); pp.forEach(function(q){ cg[0]+=q[0]/pp.length; cg[1]+=q[1]/pp.length; }); var Cg=E(cg); etiquette(c, Cg[0], Cg[1]-fs*1.6, "Boucle "+pvNb(g.aire, 2)+" m²"); }
+      if(!IMPRIME){
+        var tB="Boucle "+pvNb(g.aire, 2)+" m²"; c.font="bold 13px system-ui, sans-serif"; var twB=c.measureText(tB).width+14;
+        /* autour de la boucle (au-dessus, au-dessous, à côté), puis le long des panneaux */
+        var bx=[Infinity, Infinity, -Infinity, -Infinity]; g.B.concat(g.retour).forEach(function(q){ var Q2=E(q); bx[0]=Math.min(bx[0], Q2[0]); bx[1]=Math.min(bx[1], Q2[1]); bx[2]=Math.max(bx[2], Q2[0]); bx[3]=Math.max(bx[3], Q2[1]); });
+        var cxB=(bx[0]+bx[2])/2, cyB=(bx[1]+bx[3])/2, rp=Math.max(IMPRIME ? 2.5 : 6, fs*0.62)*2.6+12;
+        var cB=[[cxB, bx[1]-rp-11], [cxB, bx[3]+rp+11], [bx[0]-twB/2-rp, cyB], [bx[2]+twB/2+rp, cyB], [bx[0]+twB/2, bx[1]-rp-11], [bx[2]-twB/2, bx[1]-rp-11], [cxB, bx[1]-rp-36], [cxB, bx[3]+rp+36]].map(function(q){ return {x:q[0], y:q[1], a:0, box:[q[0]-twB/2, q[1]-11, q[0]+twB/2, q[1]+11]}; });
+        etiqueter(tB, null, null, cB.concat(positionsLe(g.B, twB, 22, 14, false)), true, 2);
+      }
     }
     /* de panneau en panneau (la série) */
     if(g.n>1){ chemin(g.B); c.strokeStyle=col; c.lineWidth=choisi ? lwS*1.5 : lwS; c.setLineDash([]); c.stroke(); }
@@ -7065,15 +7135,10 @@ function peindrePv(c, E, orange, coulTrait){
       cheminEcran(g.tronc, dec-demiF); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
       cheminEcran(g.tronc, dec+demiF); traitMoins(choisi ? lwT*1.5 : lwT);
       if(fs>=5){
-        /* l'étiquette sur le premier tronçon (propre à la string), sinon sur le plus long */
-        var j=1, A=E(g.tronc[0]), Bq=E(g.tronc[1]);
-        if(Math.hypot(Bq[0]-A[0], Bq[1]-A[1])<fs*14){ var lmx=0; for(var jt=1;jt<g.tronc.length;jt++){ var lt=lng(sub(g.tronc[jt], g.tronc[jt-1])); if(lt>lmx){ lmx=lt; j=jt; } } A=E(g.tronc[j-1]); Bq=E(g.tronc[j]); }
-        var ang=Math.atan2(Bq[1]-A[1], Bq[0]-A[0]);
-        if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
-        c.save(); c.translate((A[0]+Bq[0])/2, (A[1]+Bq[1])/2); c.rotate(ang);
-        c.font="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="bottom"; c.fillStyle=col;
-        var lab=s.nom+" · 2 × "+P.sec+" mm² · "+pvNb(g.lm, 0)+" m · MPPT "+(s.m||1)+(qE>1 ? "."+(rE+1) : ""), yl=-Math.abs(dec)-ecartT-2;
-        c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(lab, 0, yl); c.fillText(lab, 0, yl); c.restore();
+        /* l'étiquette du câble : placée plus tard, là où elle ne recouvre rien */
+        var polT="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.font=polT;
+        var lab=s.nom+" · 2 × "+P.sec+" mm² · "+pvNb(g.lm, 0)+" m · MPPT "+(s.m||1)+(qE>1 ? "."+(rE+1) : "");
+        etiqueter(lab, polT, col, positionsLe(g.tronc, c.measureText(lab).width+4, fs*0.85*1.25, Math.abs(dec)+demiF+lwT+2, true), false);
       }
     }
     /* les polarités : le + au premier panneau, le − au dernier */
@@ -7082,6 +7147,7 @@ function peindrePv(c, E, orange, coulTrait){
       var Q=E(b[0]), dx = g.n===1 ? b[3]*rb*1.2 : 0;
       c.beginPath(); c.arc(Q[0]+dx, Q[1]-rb*1.4, rb, 0, Math.PI*2); c.fillStyle=b[2]; c.fill(); if(!CLAIR){ c.strokeStyle="#E5E9EF"; c.lineWidth=1.2; c.stroke(); }
       c.font="700 "+(rb*1.5).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF"; c.fillText(b[1], Q[0]+dx, Q[1]-rb*1.4+rb*0.08);
+      reserver(Q[0]+dx-rb, Q[1]-rb*2.4, Q[0]+dx+rb, Q[1]-rb*0.4);
     });
   });
   /* les câbles de l'onduleur : l'AC jusqu'au tableau, le RJ45 jusqu'à la box */
@@ -7098,14 +7164,16 @@ function peindrePv(c, E, orange, coulTrait){
       if(fs>=5){
         var nomF = L[0]==="ac" ? (o.acNom||"Tableau") : (o.rjNom||"Box internet"); c.textBaseline="top"; c.font="700 "+(fs*0.9).toFixed(1)+"px Helvetica, Arial, sans-serif";
         c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(nomF, F[0], F[1]+hb/2+2); c.fillText(nomF, F[0], F[1]+hb/2+2);
-        /* l'étiquette du câble, sur son plus long tronçon */
-        var jm=1, lmx=0; for(var q2=1;q2<pts.length;q2++){ var ll=lng(sub(pts[q2], pts[q2-1])); if(ll>lmx){ lmx=ll; jm=q2; } }
-        var A2=E(pts[jm-1]), B2=E(pts[jm]), an=Math.atan2(B2[1]-A2[1], B2[0]-A2[0]); if(an>Math.PI/2) an-=Math.PI; if(an<-Math.PI/2) an+=Math.PI;
+        var twF=c.measureText(nomF).width; reserver(F[0]-Math.max(wb/2, twF/2), F[1]-hb/2, F[0]+Math.max(wb/2, twF/2), F[1]+hb/2+2+fs*0.9*1.2);
+        /* l'étiquette du câble : placée plus tard, là où elle ne recouvre rien */
         var labL;
         if(L[0]==="ac"){ var a=pvAc(o); labL="AC · "+a.cable+" · "+pvNb(a.L, 0)+" m · disj. "+a.In+" A · "+pvNb(a.du, 1)+" %"; }
         else { var rr=pvRj(o); labL="RJ45 · Cat 6 · "+pvNb(rr.L, 0)+" m"; }
-        c.save(); c.translate((A2[0]+B2[0])/2, (A2[1]+B2[1])/2); c.rotate(an); c.font="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=L[1];
-        c.strokeText(labL, 0, -ecartT-3); c.fillText(labL, 0, -ecartT-3); c.restore();
+        var polL="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.font=polL;
+        /* le long du câble, sinon à côté de son arrivée */
+        var twL=c.measureText(labL).width+4, thL=fs*0.85*1.25, yA=F[1]+hb/2+2+fs*0.9*1.2+thL/2+2;
+        var pres=[[F[0], yA], [F[0], F[1]-hb/2-thL/2-3], [F[0]-wb/2-twL/2-4, F[1]], [F[0]+wb/2+twL/2+4, F[1]]].map(function(q){ return {x:q[0], y:q[1], a:0, box:[q[0]-twL/2, q[1]-thL/2, q[0]+twL/2, q[1]+thL/2]}; });
+        etiqueter(labL, polL, L[1], positionsLe(pts, twL, thL, lwT*1.9+3, false).concat(pres), false);
       }
     });
   });
@@ -7139,9 +7207,12 @@ function peindrePv(c, E, orange, coulTrait){
       var Q=E(S2[0]); c.fillStyle=S2[2]; c.fillRect(Q[0]-lb/2, Q[1], lb, hb2); c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Q[0]-lb/2, Q[1], lb, hb2);
       if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.textAlign="center"; c.fillStyle=coulTrait; c.fillText(S2[1], Q[0], Q[1]-2); }
     });
-    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT"; c.font="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=choisi ? orange : coulTrait;
-    c.lineWidth=Math.max(2.5, fl*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(labO, A[0]+w/2, A[1]-hb2-3); c.fillText(labO, A[0]+w/2, A[1]-hb2-3);
+    reserver(A[0], A[1], A[0]+w, A[1]+h+hb2);
+    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT", polO="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.font=polO;
+    var twO=c.measureText(labO).width+4, thO=fl*1.25, cxO=A[0]+w/2, candO=[[cxO, A[1]-4-thO/2], [cxO, A[1]+h+hb2+4+thO/2], [A[0]-6-twO/2, A[1]+h/2], [A[0]+w+6+twO/2, A[1]+h/2], [cxO, A[1]-4-thO*1.6]];
+    etiqueter(labO, polO, choisi ? orange : coulTrait, candO.map(function(q){ return {x:q[0], y:q[1], a:0, box:[q[0]-twO/2, q[1]-thO/2, q[0]+twO/2, q[1]+thO/2]}; }), false, 0);
   });
+  placerEtiquettes();
   /* en cours : le champ entre deux coins, la string, le cheminement */
   if(!IMPRIME && MODE==="dessin"){
     if(OUTIL_D==="pvchamp" && D_PT && D_SOURIS){
@@ -7426,7 +7497,7 @@ brancherToit();
 brancherPv();
 
 /* pour les essais */
-window.__dwg={pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={pvEtiquettes:function(){ return PV_ETIQ; }, pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 })();
