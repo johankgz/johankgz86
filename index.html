@@ -6,11 +6,11 @@
 <script src="./dates.js?v=20261001a"></script>
 <link rel="stylesheet" href="./vitrine.css?v=20261004a" data-theme-propre>
 <script>
-/* la vitrine : pour le visiteur qui découvre l'outil. Les équipes (déjà
-   connectées une fois sur cet appareil, code société retenu, ou appli
-   installée) vont droit à la connexion ; ?vitrine la montre toujours,
+/* la vitrine : la page d'accueil de suivitravaux360.com pour qui n'est pas
+   connecté. Seule l'appli installée sur l'écran d'accueil (les équipes)
+   s'ouvre directement sur la connexion ; ?vitrine la montre toujours,
    #connexion jamais. */
-(function(){var h=document.documentElement,v=true;try{var q=location.search+location.hash,s=JSON.parse(localStorage.getItem("outils:session")||"null"),on=!!(s&&s.jeton);if(on)localStorage.setItem("outils:connu","1");var seul=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;v=/vitrine/.test(q)||(!on&&!seul&&localStorage.getItem("outils:connu")!=="1"&&!localStorage.getItem("outils:societe")&&!/connexion/.test(q));}catch(e){}if(v)h.classList.add("vitrine-on");})();
+(function(){var h=document.documentElement,v=true;try{var q=location.search+location.hash,s=JSON.parse(localStorage.getItem("outils:session")||"null"),on=!!(s&&s.jeton);if(on&&location.hash==="#connexion")history.replaceState(null,"",location.pathname+location.search);var seul=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;v=/vitrine/.test(q)||(!on&&!seul&&!/connexion/.test(q));}catch(e){}if(v)h.classList.add("vitrine-on");})();
 </script>
 <script src="./reseau.js?v=20261001a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -2203,7 +2203,7 @@ $("cguOk").addEventListener("click", function(){
 });
 $("cguSortir").addEventListener("click", function(){
   try{ localStorage.removeItem("outils:session"); }catch(e){}
-  location.reload();
+  location.replace("./index.html#connexion");
 });
 function menu(s){
   verifierCgu(s);
@@ -2826,7 +2826,7 @@ function majIdentite(s){
       /* un jeton que le site ne reconnaît plus — mot de passe changé
          ailleurs, compte remis à zéro : on revient à la connexion plutôt
          que de laisser une page vide. */
-      if(r.status===401){ localStorage.removeItem("outils:session"); location.reload(); return Promise.reject(); }
+      if(r.status===401){ localStorage.removeItem("outils:session"); location.replace("./index.html#connexion"); return Promise.reject(); }
       return r.ok && r.d ? r.d : Promise.reject();
     })
     .then(function(d){
