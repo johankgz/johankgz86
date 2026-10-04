@@ -6592,7 +6592,7 @@ var PV_REG=(function(){ var d={o:"portrait", a:0, e:20, p:0};
   return d; })();
 function garderPvReg(){ garder("dwg:pvReg", JSON.stringify(PV_REG)); }
 var PV_MOD_DEF={nom:"Module 425 Wc", wc:425, voc:38.5, vmp:32.2, isc:14, imp:13.2, cv:-0.26, cp:-0.34, l:1134, h:1722};
-var PV_OND_DEF={pac:6000, nm:2, vmax:600, vmin:80, vmpmax:550, imax:16, icc:20, desc:0, ph:"mono", iac:0, acx:0, rjx:0, acNom:"Tableau", rjNom:"Box internet"};
+var PV_OND_DEF={pac:6000, nm:2, npm:1, vmax:600, vmin:80, vmpmax:550, imax:16, icc:20, desc:0, ph:"mono", iac:0, acx:0, rjx:0, acNom:"Tableau", rjNom:"Box internet"};
 /* le câble AC : sections, courants admissibles (cuivre, PVC, mode de pose B, sans facteur de correction), disjoncteurs */
 var PV_SECTIONS=[1.5, 2.5, 4, 6, 10, 16, 25, 35, 50];
 var PV_IZ={mono:[17.5, 24, 32, 41, 57, 76, 101, 125, 151], tri:[15.5, 21, 28, 36, 50, 68, 89, 110, 134]};
@@ -6642,12 +6642,16 @@ function pvPanSous(q){
   }
   return null;
 }
-function pvOndBoite(o){ var w=Math.max(PV_OW, ((o.nm||1)+2)*380)/DESSIN_MM/2, h=PV_OH/DESSIN_MM/2; return [o.x-w, o.y-h, o.x+w, o.y+h]; }
-/* les bornes, toutes sous l'onduleur, de gauche à droite : RJ45, MPPT 1…n, AC */
-function pvBorne(o, i){ var b=pvOndBoite(o), n=Math.max(1, o.nm||1)+2; return [b[0]+(b[2]-b[0])*(i+0.5)/n, b[1]]; }
+/* l'onduleur s'élargit avec ses entrées : chaque MPPT a une ou plusieurs paires + / − (une string par paire) */
+function pvNbEntrees(o){ return Math.max(1, o.nm||1)*Math.max(1, o.npm||1); }
+function pvOndBoite(o){ var w=Math.max(PV_OW, (pvNbEntrees(o)+2)*340)/DESSIN_MM/2, h=PV_OH/DESSIN_MM/2; return [o.x-w, o.y-h, o.x+w, o.y+h]; }
+/* les bornes, toutes sous l'onduleur, de gauche à droite : RJ45, les entrées des MPPT 1…n, AC */
+function pvBorne(o, i){ var b=pvOndBoite(o), n=pvNbEntrees(o)+2; return [b[0]+(b[2]-b[0])*(i+0.5)/n, b[1]]; }
 /* l'entrée d'un MPPT : sous l'onduleur, une par MPPT, de gauche à droite ; le + à gauche, le − à droite */
-function pvEntree(o, m){ var n=Math.max(1, o.nm||1); return pvBorne(o, Math.max(1, Math.min(n, m||1))); }
-function pvSortieAC(o){ return pvBorne(o, Math.max(1, o.nm||1)+1); }
+function pvEntree(o, m, e){ var n=Math.max(1, o.nm||1), q=Math.max(1, o.npm||1), mm=Math.max(1, Math.min(n, m||1)); return pvBorne(o, 1+(mm-1)*q+Math.max(0, Math.min(q-1, e||0))); }
+/* la paire d'entrées d'une string sur son MPPT : dans l'ordre des strings branchées dessus */
+function pvRangEntree(s){ var l=PVD().str.filter(function(x){ return x.ond===s.ond && (x.m||1)===(s.m||1); }); return Math.max(0, l.indexOf(s)); }
+function pvSortieAC(o){ return pvBorne(o, pvNbEntrees(o)+1); }
 function pvSortieRJ(o){ return pvBorne(o, 0); }
 /* un câble de l'onduleur : il descend de sa borne, puis suit son passage */
 function pvLiaison(o, t){ var l=o[t]; if(!(l && l.pts && l.pts.length)) return null; var s=t==="ac" ? pvSortieAC(o) : pvSortieRJ(o); return [s, [s[0], s[1]-400/DESSIN_MM]].concat(l.pts); }
@@ -6683,13 +6687,19 @@ function pvGeo(s){
   if(n>1) g.retour = ret==="direct" ? [B[n-1], B[0]] : [B[n-1]].concat(pvDecaler(B.slice().reverse(), taille*0.1)).concat([B[0]]);
   /* le tronc arrive par en dessous sur l'entrée de son MPPT */
   if(o){
-    var en=pvEntree(o, s.m), bo=pvOndBoite(o), av=[B[0]].concat(s.ch||[]), der=av[av.length-1], sous=en[1]-400/DESSIN_MM, fin=[[en[0], sous], en];
+    var en=pvEntree(o, s.m, pvRangEntree(s)), bo=pvOndBoite(o), av=[B[0]].concat(s.ch||[]), der=av[av.length-1], droite = der[0]>=(bo[0]+bo[2])/2;
+    /* chaque câble a son couloir (20 cm de plus par câble), rangé pour ne pas croiser les autres :
+       par la droite, l'entrée la plus à droite prend le couloir le plus près ; par la gauche, l'inverse */
+    var autres=PVD().str.filter(function(x){ return x!==s && x.ond===o.id; }).map(function(x){ return pvEntree(o, x.m, pvRangEntree(x))[0]; });
+    var rang=autres.filter(function(x){ return droite ? x>en[0]+1e-6 : x<en[0]-1e-6; }).length, pasC=200/DESSIN_MM;
+    var sous=en[1]-400/DESSIN_MM-rang*pasC, fin=[[en[0], sous], en];
     /* venant d'au-dessus, le câble contourne l'onduleur par le côté le plus proche */
-    if(der[1]>sous){ var cote = der[0]<(bo[0]+bo[2])/2 ? bo[0]-300/DESSIN_MM : bo[2]+300/DESSIN_MM; if(der[1]>bo[1]) fin.unshift([cote, der[1]]); fin.splice(fin.length-2, 0, [cote, sous]); }
+    if(der[1]>sous){ var cote = droite ? bo[2]+300/DESSIN_MM+rang*pasC : bo[0]-300/DESSIN_MM-rang*pasC; if(der[1]>bo[1]) fin.unshift([cote, der[1]]); fin.splice(fin.length-2, 0, [cote, sous]); }
     g.tronc=av.concat(fin);
   }
   /* la boucle : l'aller par les panneaux, le retour du − ; le tronc (+ et − côte à côte) n'en ajoute pas */
-  if(n>1) g.aire=pvAire(B.concat(g.retour.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6;
+  /* la surface se compte avec le retour réel : plaqué à 5 cm des panneaux (le dessin l'écarte davantage, pour le voir) */
+  if(n>1){ var rc = ret==="direct" ? g.retour : [B[n-1]].concat(pvDecaler(B.slice().reverse(), 50/DESSIN_MM)).concat([B[0]]); g.aire=pvAire(B.concat(rc.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6; }
   var lt = o ? pvLongueur(g.tronc)*DESSIN_MM/1000+(Number(o.desc)||0) : 0, lr=pvLongueur(g.retour)*DESSIN_MM/1000;
   g.lp=lt; g.lm=lt+lr;
   for(var i=1;i<n;i++){ var d=lng(sub(B[i], B[i-1]))*DESSIN_MM/1000; g.sautMax=Math.max(g.sautMax, d); if(d>2.2) g.sauts++; }
@@ -6718,7 +6728,7 @@ function pvEtude(){
       if((s.m||1)>o.nm) pvAl(c.al, "err", "MPPT "+(s.m||1)+" : l'onduleur n'en a que "+o.nm);
     }
     if(c.du>3) pvAl(c.al, "av", "chute de tension "+pvNb(c.du)+" % (3 % au plus) : section plus forte ou onduleur plus près");
-    if(x.g.aire>2) pvAl(c.al, "av", "boucle de "+pvNb(x.g.aire, 2)+" m² : faites revenir le − le long des panneaux");
+    if(x.g.aire>2) pvAl(c.al, "av", "boucle de "+pvNb(x.g.aire, 2)+" m² : "+(x.g.ret==="direct" ? "faites revenir le − le long des panneaux (Retour : Le long)" : "string longue : rapprochez les deux bouts (en U) ou plaquez le retour du − aux panneaux"));
     if(x.g.sauts) pvAl(c.al, "av", x.g.sauts+" saut"+(x.g.sauts>1 ? "s" : "")+" de plus de 2,2 m entre panneaux : rallonge à prévoir");
   });
   P.ond.forEach(function(o){
@@ -6729,6 +6739,7 @@ function pvEtude(){
       if(l.length && M.imp>o.imax) l.forEach(function(x){ pvAl(x.c.al, "av", "MPPT "+i+" : "+pvNb(M.imp)+" A, au-dessus des "+o.imax+" A (la production sera écrêtée)"); });
       if(l.length && M.isc>o.icc) l.forEach(function(x){ pvAl(x.c.al, "err", "MPPT "+i+" : Isc × 1,25 = "+pvNb(M.isc)+" A, au-dessus des "+o.icc+" A admis"); });
       l.forEach(function(x){ R.wc+=x.c.wc; });
+      if(l.length>Math.max(1, o.npm||1)) l.forEach(function(x){ pvAl(x.c.al, "av", "MPPT "+i+" : "+l.length+" strings pour "+Math.max(1, o.npm||1)+" entrée"+((o.npm||1)>1 ? "s" : "")+" (connecteur en Y ou coffret DC à prévoir)"); });
       R.mppt.push(M);
     }
     R.ratio = o.pac ? R.wc/o.pac : 0;
@@ -6965,7 +6976,12 @@ function pvDepuisToit(t){
 function peindrePv(c, E, orange, coulTrait){
   var P=DESSIN.pv; if(!P || (!P.pan.length && !P.ond.length && !P.str.length && !(OUTIL_D==="pvchamp" && D_PT))) return;
   var k=V.k/DESSIN_MM, m=P.mod, fsBase=Math.min(m.l, m.h)*0.2*k, fs=Math.max(IMPRIME ? 3 : 0, Math.min(fsBase, IMPRIME ? 999 : 15));
-  var plus=CLAIR ? "#DC2626" : "#F87171", moins=CLAIR ? "#1D4ED8" : "#60A5FA", sel=D_SEL||{}, selCh=null;
+  /* les câbles d'une string : toujours le + en rouge, le − en noir (sur l'écran sombre, liseré clair pour le voir) */
+  var plus="#DC2626", moins="#111111", sel=D_SEL||{}, selCh=null;
+  function traitMoins(lw, tirets){
+    if(!CLAIR){ c.save(); c.strokeStyle="rgba(229,233,239,.85)"; c.lineWidth=lw+2.2; c.setLineDash(tirets||[]); c.stroke(); c.restore(); }
+    c.strokeStyle=moins; c.lineWidth=lw; c.setLineDash(tirets||[]); c.stroke(); c.setLineDash([]);
+  }
   if(sel.t==="pvp"){ var ps=pvPan(sel.id); if(ps) selCh=ps.ch; }
   var lwS=Math.max(1.6, 25*k), lwT=Math.max(1.3, 16*k), ecartT=Math.max(2.2, 35*k);
   function chemin(pts){ c.beginPath(); pts.forEach(function(q, i){ var P0=E(q); if(i) c.lineTo(P0[0], P0[1]); else c.moveTo(P0[0], P0[1]); }); }
@@ -7005,18 +7021,21 @@ function peindrePv(c, E, orange, coulTrait){
     /* de panneau en panneau (la série) */
     if(g.n>1){ chemin(g.B); c.strokeStyle=col; c.lineWidth=choisi ? lwS*1.5 : lwS; c.setLineDash([]); c.stroke(); }
     /* le retour du − */
-    if(g.retour.length>1){ chemin(g.retour); c.strokeStyle=moins; c.lineWidth=lwT; c.setLineDash([Math.max(4, 90*k), Math.max(3, 60*k)]); c.stroke(); c.setLineDash([]); }
+    if(g.retour.length>1){ chemin(g.retour); traitMoins(lwT, [Math.max(4, 90*k), Math.max(3, 60*k)]); }
     /* le tronc : + et − ensemble jusqu'à l'onduleur */
     if(g.tronc.length>1){
-      var lo=(parOnd[s.ond]||[s]).filter(function(x){ return (x.m||1)===(s.m||1); }), idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
+      var qE=g.o ? Math.max(1, g.o.npm||1) : 1, rE=Math.min(qE-1, pvRangEntree(s)), lo=(parOnd[s.ond]||[s]).filter(function(x){ return (x.m||1)===(s.m||1) && Math.min(qE-1, pvRangEntree(x))===rE; }), idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
       cheminEcran(g.tronc, dec-ecartT/2); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
-      cheminEcran(g.tronc, dec+ecartT/2); c.strokeStyle=moins; c.stroke();
+      cheminEcran(g.tronc, dec+ecartT/2); traitMoins(choisi ? lwT*1.5 : lwT);
       if(fs>=5){
-        var j=Math.max(1, Math.floor(g.tronc.length/2)), A=E(g.tronc[j-1]), Bq=E(g.tronc[j]), ang=Math.atan2(Bq[1]-A[1], Bq[0]-A[0]);
+        /* l'étiquette sur le premier tronçon (propre à la string), sinon sur le plus long */
+        var j=1, A=E(g.tronc[0]), Bq=E(g.tronc[1]);
+        if(Math.hypot(Bq[0]-A[0], Bq[1]-A[1])<fs*14){ var lmx=0; for(var jt=1;jt<g.tronc.length;jt++){ var lt=lng(sub(g.tronc[jt], g.tronc[jt-1])); if(lt>lmx){ lmx=lt; j=jt; } } A=E(g.tronc[j-1]); Bq=E(g.tronc[j]); }
+        var ang=Math.atan2(Bq[1]-A[1], Bq[0]-A[0]);
         if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
         c.save(); c.translate((A[0]+Bq[0])/2, (A[1]+Bq[1])/2); c.rotate(ang);
         c.font="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="bottom"; c.fillStyle=col;
-        var lab=s.nom+" · 2 × "+P.sec+" mm² · "+pvNb(g.lm, 0)+" m · MPPT "+(s.m||1), yl=-Math.abs(dec)-ecartT-2;
+        var lab=s.nom+" · 2 × "+P.sec+" mm² · "+pvNb(g.lm, 0)+" m · MPPT "+(s.m||1)+(qE>1 ? "."+(rE+1) : ""), yl=-Math.abs(dec)-ecartT-2;
         c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(lab, 0, yl); c.fillText(lab, 0, yl); c.restore();
       }
     }
@@ -7024,7 +7043,7 @@ function peindrePv(c, E, orange, coulTrait){
     var rb=Math.max(IMPRIME ? 2.5 : 6, fs*0.62);
     [[g.B[0], "+", plus, -1], [g.B[g.n-1], "−", moins, 1]].forEach(function(b){
       var Q=E(b[0]), dx = g.n===1 ? b[3]*rb*1.2 : 0;
-      c.beginPath(); c.arc(Q[0]+dx, Q[1]-rb*1.4, rb, 0, Math.PI*2); c.fillStyle=b[2]; c.fill();
+      c.beginPath(); c.arc(Q[0]+dx, Q[1]-rb*1.4, rb, 0, Math.PI*2); c.fillStyle=b[2]; c.fill(); if(!CLAIR){ c.strokeStyle="#E5E9EF"; c.lineWidth=1.2; c.stroke(); }
       c.font="700 "+(rb*1.5).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF"; c.fillText(b[1], Q[0]+dx, Q[1]-rb*1.4+rb*0.08);
     });
   });
@@ -7063,14 +7082,21 @@ function peindrePv(c, E, orange, coulTrait){
     c.fillText("=", A[0]+w*0.27, A[1]+h*0.3); c.fillText("~", A[0]+w*0.73, A[1]+h*0.7);
     var fl=Math.max(IMPRIME ? 2.5 : 10, Math.min(fs*1.1, IMPRIME ? 999 : 15)); c.font="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=choisi ? orange : coulTrait;
     /* les entrées MPPT (dessous) : une borne + et − par MPPT, où s'accrochent les strings ; la sortie AC et la prise RJ45 (dessus) */
-    var nm=Math.max(1, o.nm||1), lb=Math.max(IMPRIME ? 3 : 10, w/(nm+2)*0.55), hb2=Math.max(IMPRIME ? 2 : 7, h*0.16), fm=Math.max(IMPRIME ? 1.6 : 7, Math.min(h*0.15, w/(nm+2)*0.24));
+    var nm=Math.max(1, o.nm||1), npm=Math.max(1, o.npm||1), nE=pvNbEntrees(o), pasE=w/(nE+2), lb=Math.max(IMPRIME ? 3 : 10, pasE*0.62), hb2=Math.max(IMPRIME ? 2 : 7, h*0.16), fm=Math.max(IMPRIME ? 1.6 : 7, Math.min(h*0.14, pasE*npm*0.22));
     for(var mi=1;mi<=nm;mi++){
-      var Ee=E(pvEntree(o, mi)), nb=P.str.filter(function(x){ return x.ond===o.id && (x.m||1)===mi; }).length;
-      c.fillStyle=plus; c.fillRect(Ee[0]-lb/2, Ee[1], lb/2, hb2); c.fillStyle=moins; c.fillRect(Ee[0], Ee[1], lb/2, hb2);
-      c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Ee[0]-lb/2, Ee[1], lb, hb2);
-      c.font="700 "+Math.max(6, hb2*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF";
-      if(hb2>=6){ c.fillText("+", Ee[0]-lb/4, Ee[1]+hb2/2); c.fillText("−", Ee[0]+lb/4, Ee[1]+hb2/2); }
-      if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle = nb ? coulTrait : (CLAIR ? "#9CA3AF" : "#6B7280"); c.fillText("MPPT "+mi, Ee[0], Ee[1]-2); }
+      var nb=P.str.filter(function(x){ return x.ond===o.id && (x.m||1)===mi; }).length;
+      for(var ei=0;ei<npm;ei++){
+        var Ee=E(pvEntree(o, mi, ei)), pris=ei<nb;
+        c.globalAlpha = pris ? 1 : 0.45;
+        c.fillStyle=plus; c.fillRect(Ee[0]-lb/2, Ee[1], lb/2, hb2); c.fillStyle=moins; c.fillRect(Ee[0], Ee[1], lb/2, hb2);
+        c.globalAlpha=1; c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Ee[0]-lb/2, Ee[1], lb, hb2);
+        c.font="700 "+Math.max(6, hb2*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF";
+        if(hb2>=6 && lb>=12){ c.fillText("+", Ee[0]-lb/4, Ee[1]+hb2/2); c.fillText("−", Ee[0]+lb/4, Ee[1]+hb2/2); }
+      }
+      /* le MPPT au-dessus de ses entrées, et un trait qui les regroupe */
+      var g0=E(pvEntree(o, mi, 0)), g1=E(pvEntree(o, mi, npm-1));
+      if(npm>1){ c.strokeStyle=coulTrait; c.lineWidth=1; c.beginPath(); c.moveTo(g0[0]-lb/2, g0[1]-1.5); c.lineTo(g1[0]+lb/2, g1[1]-1.5); c.stroke(); }
+      if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="bottom"; c.fillStyle = nb ? coulTrait : (CLAIR ? "#9CA3AF" : "#6B7280"); c.fillText("MPPT "+mi, (g0[0]+g1[0])/2, g0[1]-3); }
     }
     [[pvSortieAC(o), "AC", coulAc], [pvSortieRJ(o), "RJ45", coulRj]].forEach(function(S2){
       var Q=E(S2[0]); c.fillStyle=S2[2]; c.fillRect(Q[0]-lb/2, Q[1], lb, hb2); c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Q[0]-lb/2, Q[1], lb, hb2);
@@ -7137,10 +7163,10 @@ function dxfPv(g){
   });
   P.ond.forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]], "PV-ONDULEUR", true); poly([[b[0],b[1]],[b[2],b[3]]], "PV-ONDULEUR"); texte([o.x, b[3]+120/k], 180, o.nom+" "+(o.pac/1000)+"kW "+o.nm+" MPPT", "PV-ONDULEUR"); });
 }
-var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",5],["PV-ONDULEUR",7],["PV-TEXTES",7],["PV-AC",30],["PV-RJ45",3]];
+var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",250],["PV-ONDULEUR",7],["PV-TEXTES",7],["PV-AC",30],["PV-RJ45",3]];
 /* ---------- le panneau « Étude PV » ---------- */
 var PV_CHAMPS_MOD=[["nom","Module","t"],["wc","Puissance (Wc)"],["voc","Voc (V)"],["vmp","Vmp (V)"],["isc","Isc (A)"],["imp","Imp (A)"],["cv","Coef. Voc (%/°C)"],["cp","Coef. Pmax (%/°C)"],["l","Largeur (mm)"],["h","Hauteur (mm)"]];
-var PV_CHAMPS_OND=[["nom","Nom","t"],["pac","Puissance AC (W)"],["nm","Nombre de MPPT"],["vmax","Tension DC max (V)"],["vmin","MPPT min (V)"],["vmpmax","MPPT max (V)"],["imax","Courant max / MPPT (A)"],["icc","Icc max / MPPT (A)"],["desc","Longueur DC ajoutée (m)"],
+var PV_CHAMPS_OND=[["nom","Nom","t"],["pac","Puissance AC (W)"],["nm","Nombre de MPPT"],["npm","Entrées (strings) par MPPT"],["vmax","Tension DC max (V)"],["vmin","MPPT min (V)"],["vmpmax","MPPT max (V)"],["imax","Courant max / MPPT (A)"],["icc","Icc max / MPPT (A)"],["desc","Longueur DC ajoutée (m)"],
   ["ph","Raccordement","ph"],["iac","Courant AC max (A, vide : calculé)"],["acx","Longueur AC ajoutée (m)"],["acNom","Arrivée AC","t"],["rjNom","Arrivée RJ45","t"],["rjx","Longueur RJ45 ajoutée (m)"]];
 function pvChamp2(lab, val, type, attr){
   var l=document.createElement("label"); l.appendChild(document.createTextNode(lab));
@@ -7200,14 +7226,14 @@ function pvMateriel(Ep){
   Ep.str.forEach(function(x){ lp+=x.g.lp; lm+=x.g.lm; conn+=1; ral+=x.g.sauts; });
   if(Ep.n) l.push(Ep.n+" × "+P.mod.nom+" ("+P.mod.l+" × "+P.mod.h+" mm)");
   P.ond.forEach(function(o){
-    l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT");
+    l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT"+((o.npm||1)>1 ? " de "+o.npm+" entrées" : ""));
     var a=pvAc(o), r=pvRj(o);
     if(a.pts) l.push("Câble "+a.cable+" ("+o.nom+" → "+(o.acNom||"Tableau")+") : "+pvNb(a.L, 0)+" m, + 10 % : "+pvNb(a.L*1.1, 0)+" m");
     l.push("1 × disjoncteur "+(a.tri ? "4P" : "1P+N")+" "+a.In+" A au tableau pour "+o.nom+" (courbe et différentiel selon la notice de l'onduleur)");
     if(r.pts) l.push("Câble RJ45 Cat 6 ("+o.nom+" → "+(o.rjNom||"Box internet")+") : "+pvNb(r.L, 0)+" m, + 10 % : "+pvNb(r.L*1.1, 0)+" m, 2 connecteurs RJ45");
   });
   if(lp) l.push("Câble solaire "+P.sec+" mm² rouge (+) : "+pvNb(lp, 0)+" m, + 10 % : "+pvNb(lp*1.1, 0)+" m");
-  if(lm) l.push("Câble solaire "+P.sec+" mm² noir ou bleu (−) : "+pvNb(lm, 0)+" m, + 10 % : "+pvNb(lm*1.1, 0)+" m");
+  if(lm) l.push("Câble solaire "+P.sec+" mm² noir (−) : "+pvNb(lm, 0)+" m, + 10 % : "+pvNb(lm*1.1, 0)+" m");
   if(conn) l.push(conn*2+" connecteurs MC4 (une paire + et − par string, côté onduleur)"+(ral ? " ; "+ral+" rallonge"+(ral>1 ? "s" : "")+" et "+ral*2+" connecteurs de plus" : ""));
   return l;
 }
@@ -7218,7 +7244,7 @@ function pvChangerChamp(i){
   else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return;
     if(k==="ph" || k==="acNom" || k==="rjNom"){ garderD(); o[k] = k==="ph" ? (v==="tri" ? "tri" : "mono") : (v || PV_OND_DEF[k]); enregistrerD(); majDessin(); peindreEtude(); return; }
     if(k==="iac" && !v){ garderD(); o.iac=0; enregistrerD(); majDessin(); peindreEtude(); return; }
-    if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
+    if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); if(k==="npm") num=Math.max(1, Math.min(4, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
   enregistrerD(); majDessin(); peindreEtude(i.dataset.pv==="ond" && k==="nom");
 }
 /* ---------- les réglages du panneau du bas ---------- */
@@ -7352,7 +7378,7 @@ function pdfEtudePv(doc, g){
   var mat=pvMateriel(Ep);
   if(mat.length){ ligne("MATÉRIEL", 9, {b:true}); mat.forEach(function(l){ ligne("- "+l, 8, {ind:2}); }); }
   y+=2;
-  ligne("Légende du plan : S1.1, S1.2… l'ordre de câblage des panneaux en série ; pastille rouge + au premier panneau, bleue - au dernier ; trait de couleur : la série de panneau en panneau ; tirets bleus : le retour du - ; double trait rouge et bleu : le + et le - qui cheminent ensemble jusqu'à l'onduleur (boucle d'induction la plus petite possible).", 7.5);
+  ligne("Légende du plan : S1.1, S1.2… l'ordre de câblage des panneaux en série ; pastille rouge + au premier panneau, noire - au dernier ; trait de couleur : la série de panneau en panneau ; tirets noirs : le retour du - ; double trait rouge et noir : le + et le - qui cheminent ensemble jusqu'à l'onduleur (boucle d'induction la plus petite possible).", 7.5);
   ligne("Câble AC : section la plus petite (2,5 mm² au moins) dont le courant admissible (cuivre, PVC, mode de pose B, sans facteur de correction) couvre le disjoncteur, avec 1 % de chute au plus entre l'onduleur et le tableau. À adapter au mode de pose réel, à la température et aux groupements.", 7.5, {c:[90,90,90]});
   ligne("Repères d'étude, à vérifier sur les fiches techniques du module et de l'onduleur et selon le guide UTE C 15-712-1. Longueurs mesurées en plan, sans les montées, sauf les longueurs ajoutées de l'onduleur.", 7.5, {c:[90,90,90]});
 }
