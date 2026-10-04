@@ -93,7 +93,8 @@ body.clair #scene{background:#FFFFFF}
 .groupe{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px}
 .lab{flex:0 0 auto;font-size:11.5px;color:var(--ink3);font-weight:600;margin-left:4px}
 .reglages .bt{min-height:34px;font-size:13px}
-@media (max-width:600px){ .reglages{flex-wrap:wrap;overflow:visible} .reglages .bt{padding:6px 10px} .seg button{padding:6px 10px} }
+@media (max-width:600px){ .reglages{flex-wrap:wrap;overflow:visible} .reglages .bt{padding:6px 10px} .seg button{padding:6px 10px}
+  #grpPvPose,#grpPvStr,#grpToit,#grpToitPv{flex:1 1 100%;flex-wrap:wrap} }
 /* les calques */
 .calques{position:fixed;right:10px;top:calc(62px + env(safe-area-inset-top,0px));bottom:150px;z-index:6;width:min(300px,86vw);display:flex;flex-direction:column;
   background:rgba(20,25,32,.97);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8)}
@@ -149,6 +150,20 @@ body.clair #scene{background:#FFFFFF}
 #listeQuantites li span{flex:1;min-width:0}
 #listeQuantites li b{font-variant-numeric:tabular-nums}
 #listeQuantites li.total{border-top:1px solid var(--trait);font-weight:700;margin-top:4px}
+.etude-pv{width:min(440px,94vw)}
+.ep-corps{overflow:auto;flex:1;padding:8px 12px 14px;font-size:13px;line-height:1.4}
+.ep-corps h3{font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3);margin:14px 0 6px}
+.ep-resume{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.05);margin-bottom:8px}
+.ep-grille{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px}
+.ep-grille label{display:flex;flex-direction:column;gap:2px;font-size:11.5px;color:var(--ink2)}
+.ep-grille input{min-height:34px;padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0B0E12;color:var(--ink);font-size:14px;width:100%;box-sizing:border-box}
+.ep-ond{border:1px solid var(--trait);border-radius:10px;padding:8px 10px;margin:6px 0;display:flex;flex-direction:column;gap:2px}
+.ep-mppt{font-size:12.5px;color:var(--ink2)}
+.ep-str{border-left:5px solid;padding:6px 10px;margin:6px 0;background:rgba(255,255,255,.04);border-radius:6px;font-size:12.5px;display:flex;flex-direction:column;gap:2px}
+.ep-titre{all:unset;cursor:pointer;font-weight:700;font-size:13px}
+.ep-al{font-size:12.5px}.ep-al.err{color:#F87171}.ep-al.av{color:#FBBF24}.ep-ok{color:#4ADE80;font-size:12.5px}
+.ep-mat{margin:0;padding-left:18px}.ep-mat li{margin:2px 0}
+.ep-note{font-size:11.5px;color:var(--ink3)}
 /* le dessin */
 .outils-d button i{background:#FFFFFF}
 .outils-d button i svg{width:26px;height:26px}
@@ -433,7 +448,7 @@ body.clair #scene{background:#FFFFFF}
 </div>
 <div class="bas" id="basDessin" hidden>
   <div class="mesure"><b id="dsInfo">Mur</b><span id="dsDetail">Touchez le début du mur.</span>
-    <span class="seg fam-d" id="segFamD" role="group" aria-label="Famille d'outils"><button type="button" data-f="plan">Plan</button><button type="button" data-f="dessin">Dessin</button></span></div>
+    <span class="seg fam-d" id="segFamD" role="group" aria-label="Famille d'outils"><button type="button" data-f="plan">Plan</button><button type="button" data-f="dessin">Dessin</button><button type="button" data-f="pv">PV</button></span></div>
   <div class="vues-d" id="vuesD" hidden>
     <span class="seg" id="segVueD" role="group" aria-label="Vue où l'on dessine"><button type="button" data-v="dessus">Dessus</button><button type="button" data-v="face">Face</button><button type="button" data-v="cote">Côté</button></span>
     <button class="bt" id="btPerspD" type="button">Perspective</button>
@@ -462,6 +477,11 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="hachure"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16"/><path d="M4 12 12 4M4 20 20 4M12 20l8-8"/></svg></i>Hachure</button>
     <button type="button" data-o="cote"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8v8M21 8v8M3 12h18M5.5 14.5l3-5M15.5 14.5l3-5"/></svg></i>Cote</button>
     <button type="button" data-o="gtexte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20 12 4l7 16M8 14h8"/></svg></i>Texte</button>
+    <button type="button" data-o="pvpan"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="3" width="12" height="18" fill="#1E3A8A" stroke="#1E3A8A"/><path d="M6 9h12M6 15h12M12 3v18" stroke="#93C5FD" stroke-width="1"/></svg></i>Panneau</button>
+    <button type="button" data-o="pvchamp"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6v8H2zM9 4h6v8H9zM16 4h6v8h-6zM2 13h6v8H2zM9 13h6v8H9zM16 13h6v8h-6z" fill="#1E3A8A" stroke="#1E3A8A" stroke-width=".8"/></svg></i>Champ</button>
+    <button type="button" data-o="pvond"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14"/><path d="M3 19 21 5M6 9h4M6 11h4M14 15c1-1.4 2-1.4 3 0s2 1.4 3 0"/></svg></i>Onduleur</button>
+    <button type="button" data-o="pvstr"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="5" height="7"/><rect x="9.5" y="9" width="5" height="7"/><rect x="17" y="9" width="5" height="7"/><path d="M4.5 9V6h7.5v3M12 16v3h7.5v-3" stroke="#DC2626" stroke-width="2"/></svg></i>String</button>
+    <button type="button" data-o="pvchemin"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v7h9v9" stroke="#DC2626" stroke-width="1.8"/><path d="M6.5 4v4.5h9V20" stroke="#1D4ED8" stroke-width="1.8"/><rect x="11" y="18" width="9" height="4" fill="#111"/></svg></i>Cheminement</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
     <button type="button" data-o="selection"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><path d="M9.5 9.5h5v5h-5z" stroke-dasharray="2 1.6"/></svg></i>Sélection</button>
   </div>
@@ -486,9 +506,28 @@ body.clair #scene{background:#FFFFFF}
     </span>
     <span class="groupe" id="grpToitPv" hidden>
       <button class="bt" id="btToitPv" type="button" aria-pressed="false">Panneaux PV</button>
+      <button class="bt" id="btToitEtude" type="button" hidden title="Les panneaux du toit deviennent des champs à câbler (étude PV)">Câbler (étude PV)</button>
       <span class="seg" id="segToitOrient" role="group" aria-label="Pose des panneaux"><button type="button" data-v="portrait">Portrait</button><button type="button" data-v="paysage">Paysage</button></span>
       <span class="seg" id="segToitPans" role="group" aria-label="Pans équipés"><button type="button" data-v="1">1 pan</button><button type="button" data-v="2">2 pans</button></span>
       <span class="lab" id="toitPvNLab">Nombre</span><input class="champ-cm" id="toitPvN" type="text" inputmode="numeric" aria-label="Nombre de panneaux (vide : le maximum)" style="width:70px">
+    </span>
+    <span class="groupe" id="grpPv" hidden><button class="bt or" id="btEtudePv" type="button" title="Module, onduleurs, calculs et matériel">Étude PV</button></span>
+    <span class="groupe" id="grpPvPose" hidden>
+      <span class="seg" id="segPvOrient" role="group" aria-label="Pose des panneaux"><button type="button" data-v="portrait">Portrait</button><button type="button" data-v="paysage">Paysage</button></span>
+      <span class="lab">Angle °</span><input class="champ-cm" id="pvAngle" type="text" inputmode="decimal" aria-label="Angle du champ en degrés" style="width:58px">
+      <span class="lab">Pente du pan °</span><input class="champ-cm" id="pvPente" type="text" inputmode="decimal" aria-label="Pente du pan en degrés" style="width:58px">
+      <span class="lab">Écart</span><input class="champ-cm" id="pvEcart" type="text" inputmode="decimal" aria-label="Écart entre panneaux"><span class="lab u-saisie">cm</span>
+      <button class="bt" id="btPvVoirStr" type="button" hidden>String</button>
+      <button class="bt" id="btPvCabler" type="button" hidden title="Des strings égales, en serpentin, sur les panneaux libres du champ">Câbler le champ</button>
+      <button class="bt" id="btPvSuppChamp" type="button" hidden>Supprimer le champ</button>
+    </span>
+    <span class="groupe" id="grpPvStr" hidden>
+      <span class="seg" id="segPvMppt" role="group" aria-label="Entrée MPPT"></span>
+      <span class="lab">Retour du −</span><span class="seg" id="segPvRet" role="group" aria-label="Retour du câble −"><button type="button" data-v="auto">Auto</button><button type="button" data-v="chaine">Le long</button><button type="button" data-v="direct">Direct</button></span>
+      <button class="bt" id="btPvChemin" type="button" title="Le passage des câbles jusqu'à l'onduleur">Cheminement</button>
+      <button class="bt" id="btPvEffChemin" type="button" hidden>Effacer le cheminement</button>
+      <button class="bt" id="btPvCoul" type="button">Couleur</button>
+      <button class="bt or" id="btPvFin" type="button" hidden>Terminer la string</button>
     </span>
     <span class="groupe" id="grpSaisieG" hidden><span class="lab" id="labGL">Longueur</span><input class="champ-cm" id="gL" type="text" inputmode="decimal" aria-label="Longueur en cm"><span class="lab" id="labGH" hidden>H</span><input class="champ-cm" id="gH" type="text" inputmode="decimal" aria-label="Hauteur en cm" hidden><span class="lab u-saisie">cm</span><button class="bt" id="btSaisieG" type="button">OK</button></span>
     <span class="groupe" id="grpDimG" hidden><span class="lab" id="labDL">Longueur</span><input class="champ-cm" id="dL" type="text" inputmode="decimal" aria-label="Longueur en cm"><span class="lab" id="labDH" hidden>H</span><input class="champ-cm" id="dH" type="text" inputmode="decimal" aria-label="Hauteur en cm" hidden><span class="lab u-saisie">cm</span></span>
@@ -527,6 +566,10 @@ body.clair #scene{background:#FFFFFF}
   <ul id="listeQuantites"></ul>
   <footer class="qt-pied"><button class="bt" id="btBiblio" type="button">Bibliothèque DXF des symboles</button></footer>
 </aside>
+<aside class="calques etude-pv" id="etudePv" hidden aria-label="Étude photovoltaïque">
+  <header><b>Étude photovoltaïque</b><button class="bt" id="epFermer" type="button" aria-label="Fermer">✕</button></header>
+  <div class="ep-corps"><div id="epRes"></div><div id="epParams"></div></div>
+</aside>
 <div class="toast" id="toast" hidden></div>
 
 <div class="barre-zone" id="barreZone" hidden role="toolbar" aria-label="Zone à imprimer">
@@ -554,6 +597,7 @@ body.clair #scene{background:#FFFFFF}
       <select id="mepEchelle"><option value="0">Ajustée à la page</option><option value="1">1/1</option><option value="2">1/2</option><option value="5">1/5</option><option value="10">1/10</option><option value="20">1/20</option><option value="25">1/25</option><option value="50">1/50</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option></select>
       <small id="mepInfo"></small></div>
     <label class="mep-case"><input type="checkbox" id="mepLegende" checked> Légende CFO avec les quantités</label>
+    <label class="mep-case"><input type="checkbox" id="mepEtudePv" checked> Étude photovoltaïque (2e page : strings, calculs, matériel)</label>
     <fieldset><legend>Cartouche (le même que le schéma)</legend>
       <label>Affaire (client)<input id="mepClient" type="text" placeholder="DUPONT MARTIN"></label>
       <label>Réf. chantier<input id="mepRef" type="text" placeholder="A2026-001"></label>
@@ -1214,7 +1258,7 @@ var DOIGTS={}, G=null;
 /* au doigt ou au stylet, ces outils se tracent en glissant : on appuie au
    début, on glisse, on lâche à la fin (le plan se déplace alors à deux doigts).
    Les touchers un par un marchent toujours. */
-var TRACE_GLISSE={mur:1, cloison:1, toit:1, trait:1, poly:1, spline:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1};
+var TRACE_GLISSE={mur:1, cloison:1, toit:1, pvchamp:1, pvstr:1, trait:1, poly:1, spline:1, rect:1, rond:1, ellipse:1, arc:1, triangle:1, fleche:1, hachure:1, cote:1};
 function traceGlisse(e){ return MODE==="dessin" && !REF && (e.pointerType!=="mouse" || (OUTIL_D==="spline" && !e.button && !e.shiftKey)) && !!TRACE_GLISSE[OUTIL_D]; }   /* à la souris, seule la spline se trace en glissant (main levée) ; Maj+glisser déplace le plan */
 /* le début d'un tracé glissé : il prolonge le tracé en cours s'il part de son dernier point, sinon il en commence un */
 /* la fin d'une spline à main levée : le dernier point accroché, les points simplifiés ; revenue à son départ, elle se ferme */
@@ -1273,6 +1317,11 @@ cv.addEventListener("pointerdown", function(e){
       var pv=versPlan(p[0], p[1]), gs=geoSous(pv), autre=false;
       if(!gs && !mobSousV2(pv)){ gs=geoAutreSous(pv); autre=!!gs; }
       if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); G.autre=autre; G.z0=gs.z3||0; return; }
+    }
+    if(OUTIL_D==="choisir" && !REF && vueD()==="dessus" && DESSIN.pv){
+      /* un panneau (son champ) ou un onduleur se glisse */
+      var pq=versPlan(p[0], p[1]), po=pvOndSous(pq), pn=po ? null : pvPanSous(pq), cb = po || (pn ? pvChamp(pn.ch) : null);
+      if(cb){ G.pvd = po ? {t:"pvo", id:po.id} : {t:"pvp", id:pn.id}; G.base=[cb.x, cb.y]; return; }
     }
     if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF){
       var pp=versPlan(p[0], p[1]), sm = vueD()==="dessus" ? mobSous(pp) : mobSousV(pp);
@@ -1336,6 +1385,7 @@ cv.addEventListener("pointermove", function(e){
   if(G.glisse){ var cg=chercherD(p[0],p[1]); D_SOURIS=cg; VISEE={pt:cg.pt, acc:cg.acc, genre:cg.genre, ecran:p};
     /* la spline à main levée : le doigt laisse ses points (tous les 4 px) */
     if(GEO_EC && GEO_EC.libre){ var vp=versPlan(p[0], p[1]), dl=GEO_EC.pts[GEO_EC.pts.length-1]; if(lng(sub(vp, dl))*V.k>=4) GEO_EC.pts.push(vp); }
+    if(OUTIL_D==="pvstr") pvGlisseStr(versPlan(p[0], p[1]));
     demander(); return; }
   if(G.trace && !G.visee) return;          /* pas encore parti : le plan ne bouge pas sous un outil de tracé */
   if(G.visee){ var c = MODE==="dessin" ? chercherD(p[0],p[1]) : chercher(p[0],p[1]); if(MODE==="dessin") D_SOURIS=c; VISEE={pt:c.pt, acc:c.acc, genre:c.genre, ecran:p}; demander(); return; }
@@ -1373,6 +1423,12 @@ cv.addEventListener("pointermove", function(e){
     GEO_EXCLU=og2.id; var ai=aimanter(ptsClesG(og2, [])); GEO_EXCLU=null;
     if(ai){ og2.pts=og2.pts.map(function(q){ return [q[0]+ai.d[0], q[1]+ai.d[1]]; }); D_SOURIS={pt:ai.pt, acc:true, genre:1}; } else D_SOURIS=null;
     D_SEL={t:"geo", id:og2.id}; demander(); return;
+  }
+  if(G.bouge && G.pvd){
+    var cb2 = G.pvd.t==="pvo" ? pvOnd(G.pvd.id) : (pvPan(G.pvd.id) ? pvChamp(pvPan(G.pvd.id).ch) : null); if(!cb2) return;
+    if(!G.garde){ garderD(); G.garde=true; }
+    var pasP=10/DESSIN_MM; cb2.x=G.base[0]+Math.round((p[0]-G.depart[0])/V.k/pasP)*pasP; cb2.y=G.base[1]+Math.round(-(p[1]-G.depart[1])/V.k/pasP)*pasP;
+    D_SEL={t:G.pvd.t, id:G.pvd.id}; demander(); return;
   }
   if(G.bouge && G.mob!=null){
     var om=mobDe(G.mob); if(!om) return;
@@ -1422,6 +1478,10 @@ function lacher(e){
         else if(!G.bouge && G.geo!=null) D_SEL={t:"geo", id:G.geo};
         majDessin();
       }
+      D_SOURIS=null; G=null; demander(); return;
+    }
+    if(G.pvd){
+      if(e.type!=="pointercancel"){ D_SEL={t:G.pvd.t, id:G.pvd.id}; if(G.garde) enregistrerD(); majDessin(); }
       D_SOURIS=null; G=null; demander(); return;
     }
     if(G.mob!=null){
@@ -1497,7 +1557,7 @@ document.addEventListener("keydown", function(e){
     return;
   }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
-  if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } }
+  if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } if(PV_EC){ PV_EC=null; majDessin(); } }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
   if(MODE==="symb" && SEL>=0 && document.activeElement!==$("symbRep")){
@@ -1719,6 +1779,7 @@ function basculerMode(m){
   D_PT=null; if(m!=="dessin"){ D_SEL=null; GRP=null; }
   if(m==="dessin") majDessin();
   if(m!=="symb") $("quantites").hidden=true;
+  if(m!=="dessin") $("etudePv").hidden=true;
   majBarreSel();
   if(m==="symb"){ ARME_S=true; remplirPalette(); placerPalette(); majSymb(); if(!SYMB.length) toast("Choisissez un symbole "+ouSymboles()+", puis touchez le plan pour le poser."); }
   else majBas();
@@ -1889,17 +1950,17 @@ function majBarreSel(){
   if(MODE==="dessin" && D_SEL){
     var o=objetSel();
     if(o) nom = D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)
-      : D_SEL.t==="ouv" ? NOMS_OUTILS[o.type] : D_SEL.t==="texte" ? "« "+o.s+" »" : D_SEL.t==="mob" ? (o.nom || defMob(o.cle).court) : D_SEL.t==="geo" ? nommerG(o) : D_SEL.t==="toit" ? NOMS_TOIT[o.type] : "";
+      : D_SEL.t==="ouv" ? NOMS_OUTILS[o.type] : D_SEL.t==="texte" ? "« "+o.s+" »" : D_SEL.t==="mob" ? (o.nom || defMob(o.cle).court) : D_SEL.t==="geo" ? nommerG(o) : D_SEL.t==="toit" ? NOMS_TOIT[o.type] : D_SEL.t==="pvp" ? (pvStrDe(o.id) ? "Panneau "+pvStrDe(o.id).nom+"."+(pvStrDe(o.id).pans.indexOf(o.id)+1) : "Panneau") : D_SEL.t==="pvo" ? "Onduleur "+o.nom : D_SEL.t==="pvs" ? "String "+o.nom : "";
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
-  var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !!objetSel();
+  var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
   if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || !!nG || (D_SEL && D_SEL.t==="toit") || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = gA || !!nG || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
@@ -2058,7 +2119,7 @@ function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
 function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", choisir:"Choisir", selection:"Sélection",
+var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", choisir:"Choisir", selection:"Sélection",
   trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
@@ -2076,7 +2137,7 @@ function enregistrerD(){
   try{ localStorage.setItem(DESSIN_CLE, JSON.stringify(DESSIN)); }catch(e){ toast("Mémoire de l'appareil pleine : le dessin n'a pas pu être gardé."); }
   if(PLAN && PLAN.vierge) toucherVierge(PLAN.id);
 }
-function dessinVide(){ return !DESSIN.murs.length && !DESSIN.textes.length && !(DESSIN.mob && DESSIN.mob.length) && !(DESSIN.geo && DESSIN.geo.length) && !(DESSIN.toits && DESSIN.toits.length); }
+function dessinVide(){ return !DESSIN.murs.length && !DESSIN.textes.length && !(DESSIN.mob && DESSIN.mob.length) && !(DESSIN.geo && DESSIN.geo.length) && !(DESSIN.toits && DESSIN.toits.length) && pvVide(); }
 function murDe(id){ for(var i=0;i<DESSIN.murs.length;i++) if(DESSIN.murs[i].id===id) return DESSIN.murs[i]; return null; }
 function sub(a,b){ return [a[0]-b[0], a[1]-b[1]]; }
 function lng(v){ return Math.hypot(v[0], v[1]); }
@@ -2222,6 +2283,8 @@ function peindreDessin(c){
   });
   /* les toits et leurs panneaux, par-dessus */
   peindreToits(c, E, orange);
+  /* l'étude photovoltaïque : panneaux, strings, câbles, onduleurs */
+  peindrePv(c, E, orange, coulTrait);
   } else peindreElevation(c, E, fin, coulTrait, orange);
   /* le dessin technique : traits, formes, cotes */
   peindreGeo(c, E, coulTrait, orange);
@@ -2356,6 +2419,7 @@ function toucherD(sx, sy, force){
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
   if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(FOND_ETAPE){ if(vueD()!=="dessus"){ toast("Le fond de plan se règle en vue de dessus."); return; } toucherFond(cible, p); return; }
+  if(PV_OUTILS[OUTIL_D]){ if(vueD()!=="dessus"){ toast("L'étude photovoltaïque se fait en vue de dessus."); return; } toucherPv(cible, p); return; }
   if(GEO_OUTILS[OUTIL_D]){ toucherGeo(cible, p); return; }
   if(vueD()!=="dessus" && OUTIL_D!=="objet" && OUTIL_D!=="choisir"){ toast("Les murs, les portes et les pièces se tracent en vue de dessus."); return; }
   if(OUTIL_D==="toit"){ toucherToit(cible); return; }
@@ -2409,6 +2473,7 @@ function toucherD(sx, sy, force){
 }
 function objetSous(p){
   var best=null, bd=18/V.k;
+  if(vueD()==="dessus" && FAM_D==="pv"){ var pv0=pvSous(p); if(pv0) return pv0; }
   if(vueD()!=="dessus"){ var g0=geoSous(p); if(g0) return {t:"geo", id:g0.id}; var m0=mobSousV(p); if(m0) return {t:"mob", id:m0.id}; var ga=geoAutreSous(p); return ga ? {t:"geo", id:ga.id} : null; }
   DESSIN.textes.forEach(function(t){ var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
   DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
@@ -2416,12 +2481,13 @@ function objetSous(p){
   var gs=geoSous(p) || geoAutreSous(p); if(gs) return {t:"geo", id:gs.id};
   var mb=mobSous(p); if(mb) return {t:"mob", id:mb.id};
   DESSIN.murs.forEach(function(m){ var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
+  if(!best){ var pv1=pvSous(p); if(pv1) best=pv1; }
   if(!best){ var tt=toitSous(p); if(tt) best={t:"toit", id:tt.id}; }
   return best;
 }
 function objetSel(){
   if(!D_SEL) return null;
-  var l = D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : D_SEL.t==="mob" ? mobs() : D_SEL.t==="geo" ? geos() : D_SEL.t==="toit" ? toits() : DESSIN.textes;
+  var l = D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : D_SEL.t==="mob" ? mobs() : D_SEL.t==="geo" ? geos() : D_SEL.t==="toit" ? toits() : D_SEL.t==="pvp" ? PVD().pan : D_SEL.t==="pvo" ? PVD().ond : D_SEL.t==="pvs" ? PVD().str : DESSIN.textes;
   for(var i=0;i<l.length;i++) if(l[i].id===D_SEL.id) return l[i];
   return null;
 }
@@ -2433,6 +2499,7 @@ function supprimerD(){
   else if(D_SEL.t==="mob") DESSIN.mob=mobs().filter(function(x){ return x.id!==o.id; });
   else if(D_SEL.t==="geo") DESSIN.geo=geos().filter(function(x){ return x.id!==o.id; });
   else if(D_SEL.t==="toit") DESSIN.toits=toits().filter(function(x){ return x.id!==o.id; });
+  else if(/^pv/.test(D_SEL.t)) pvSupprimer(D_SEL.t, o);
   else DESSIN.textes=DESSIN.textes.filter(function(x){ return x.id!==o.id; });
   D_SEL=null; enregistrerD(); majDessin();
 }
@@ -2443,6 +2510,7 @@ function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=G
   D_SEL=null; GRP=null; enregistrerD(); majDessin(); majBarreSel(); }
 /* ---------- le panneau du dessin ---------- */
 function majDessin(){
+  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
   var o=objetSel(), t=D_SEL && D_SEL.t;
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button"), function(b){ b.classList.toggle("on", b.dataset.o===OUTIL_D); });
   majFamille();
@@ -2466,6 +2534,7 @@ function majDessin(){
       : T==="spline" ? (nb ? "Point suivant : la courbe passe par chaque point. Le premier point la ferme, le dernier termine." : "Touchez le premier point, ou glissez pour tracer à main levée.")
       : (nb ? "Touchez la fin, ou tapez sa longueur." : "Touchez le début.");
   }
+  else if(PV_OUTILS[OUTIL_D]) det=pvDetailOutil();
   else if(OUTIL_D==="toit") det = D_PT ? "Touchez le coin opposé de l'emprise (le débord s'ajoute autour)." : "Touchez un coin de l'emprise du toit puis le coin opposé, ou « Sur les murs ». Réglez le type, la pente et les panneaux.";
   else det="Touchez un mur, du côté où elle s'ouvre.";
   if(o && t==="mur") det=(o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm, "+(o.h ? "hauteur "+cm(o.h)+" cm." : "jusqu'au plafond.");
@@ -2473,6 +2542,9 @@ function majDessin(){
   if(o && t==="texte") det="« "+o.s+" »";
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
   if(o && t==="toit") det=resumeToit(o)+".";
+  if(o && /^pv/.test(t)){ det=pvDetail(o, t); info = t==="pvp" ? "Panneau" : t==="pvo" ? "Onduleur" : "String"; }
+  if(PV_EC){ var sEc=pvStr(PV_EC.id); if(sEc){ info = PV_EC.t==="ch" ? "Cheminement "+sEc.nom : sEc.nom; if(PV_EC.t==="str") det=sEc.pans.length+" panneau"+(sEc.pans.length>1 ? "x" : "")+" en série. "+pvDetailOutil(); } }
+  majPvPanneau(o, t);
   majToitPanneau(o, t); majFondPanel();
   if(FOND_ETAPE){ info="Fond de plan"; det=$("fpEtat").textContent; }
   if(o && t==="mob") det=(o.nom || defMob(o.cle).nom)+" · "+cm(o.l*DESSIN_MM)+" × "+cm(o.p*DESSIN_MM)+" × "+cm(o.h)+" cm"+((o.z||0) ? ", à "+cm(o.z)+" cm du sol" : "")+". Glissez pour déplacer.";
@@ -2521,34 +2593,36 @@ function majDessin(){
   if(t==="mob") [["mobL", o.l*DESSIN_MM], ["mobP", o.p*DESSIN_MM], ["mobH", o.h], ["mobZ", o.z||0]].forEach(function(v){ if(document.activeElement!==$(v[0])) $(v[0]).value=enUnite(v[1]); });
   $("btSuppD").disabled = !o && !grpTaille(GRP);
   $("btTerminer").hidden = !D_PT;
-  $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="spline" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : "Terminer le mur";
+  $("btTerminer").textContent = GEO_EC ? ((GEO_EC.t==="poly" || GEO_EC.t==="spline" || GEO_EC.t==="hachure") ? "Terminer" : "Annuler la forme") : OUTIL_D==="pvchamp" ? "Annuler le champ" : OUTIL_D==="toit" ? "Annuler le toit" : "Terminer le mur";
   $("btDefaireD").disabled = !HISTO_D.length && !D_PT && !GEO_EC;
   $("btOrthoD").classList.toggle("on", ORTHO_D); $("btOrthoD").setAttribute("aria-pressed", ORTHO_D?"true":"false");
   $("btOrthoD").textContent=NOMS_ANGLE[ANGLE_D];
   $("btOrthoD").title="Touchez pour passer de Ortho 90° (droit) à Ortho 45° (et les diagonales) puis à Angle libre";
   $("btAccrD").classList.toggle("on", ACCR_D); $("btAccrD").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDxfD").disabled = dessinVide() && !SYMB.length;
-  $("btDepuisD").hidden = OUTIL_D==="choisir";
+  $("btDepuisD").hidden = OUTIL_D==="choisir" || !!PV_OUTILS[OUTIL_D];
   majBarreSel();
+  peindreEtude();
   demander();
 }
 function modifierSel(fn){ var o=objetSel(); if(!o) return; garderD(); fn(o); enregistrerD(); majDessin(); }
 /* deux familles d'outils : le plan (murs, ouvertures, pièces, mobilier) et le dessin technique */
 var FAM_D=lire("dwg:famD", "");
 /* en Face et en Côté, le plan n'offre que le mobilier (les murs se tracent de dessus) */
-function outilVue(o){ if(o==="selection") return VUE_D==="dessus"; return VUE_D==="dessus" || FAM_D!=="plan" || o==="objet" || o==="choisir"; }
+function famDe(o){ return GEO_OUTILS[o] ? "dessin" : PV_OUTILS[o] ? "pv" : "plan"; }
+function outilVue(o){ if(o==="selection" || PV_OUTILS[o]) return VUE_D==="dessus"; return VUE_D==="dessus" || FAM_D!=="plan" || o==="objet" || o==="choisir"; }
 function majVues(){
   var aide = VUE_D==="face" ? "vue de face : la hauteur vers le haut" : VUE_D==="cote" ? "vue de côté : la profondeur vers la droite" : "";
   ["segVueD","segVueS"].forEach(function(id){ Array.prototype.forEach.call($(id).children, function(b){ b.classList.toggle("on", b.dataset.v===VUE_D); }); });
   $("vuesAide").textContent=aide;
 }
 function majFamille(){
-  if(!FAM_D) FAM_D = GEO_OUTILS[OUTIL_D] ? "dessin" : "plan";
+  if(!FAM_D) FAM_D = famDe(OUTIL_D);
   $("vuesD").hidden=false;
   majVues();
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button[data-o]"), function(b){
-    var o=b.dataset.o, dansDessin=!!GEO_OUTILS[o];
-    b.classList.toggle("hors-fam", o!=="choisir" && o!=="selection" && (FAM_D==="dessin") !== dansDessin);
+    var o=b.dataset.o;
+    b.classList.toggle("hors-fam", (o==="selection" && FAM_D==="pv") || (o!=="choisir" && o!=="selection" && famDe(o)!==FAM_D));
     b.classList.toggle("hors-vue", !outilVue(o));
   });
   Array.prototype.forEach.call($("segFamD").children, function(b){ b.classList.toggle("on", b.dataset.f===FAM_D); });
@@ -2557,8 +2631,9 @@ $("segFamD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   FAM_D=b.dataset.f; garder("dwg:famD", FAM_D);
   /* l'outil en cours suit la famille (en Face et en Côté, le plan, c'est le mobilier) */
-  if(OUTIL_D!=="choisir" && (FAM_D==="dessin") !== !!GEO_OUTILS[OUTIL_D]){ OUTIL_D = FAM_D==="dessin" ? "trait" : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
-  D_PT=null; GEO_EC=null; majFamille(); majDessin();
+  if(OUTIL_D!=="choisir" && famDe(OUTIL_D)!==FAM_D){ OUTIL_D = FAM_D==="dessin" ? "trait" : FAM_D==="pv" ? (VUE_D!=="dessus" ? "choisir" : "pvchamp") : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
+  if(FAM_D!=="pv"){ $("etudePv").hidden=true; }
+  D_PT=null; GEO_EC=null; PV_EC=null; majFamille(); majDessin();
 });
 function choisirVue(v){
   if(v===VUE_D) return;
@@ -2566,6 +2641,7 @@ function choisirVue(v){
   D_SEL=null; D_PT=null; GEO_EC=null; SEL=-1;
   if(VUE_D!=="dessus"){
     if(FAM_D==="plan"){ if(OUTIL_D!=="choisir" && OUTIL_D!=="objet") OUTIL_D="objet"; }
+    else if(FAM_D==="pv") OUTIL_D="choisir";
     else if(!GEO_OUTILS[OUTIL_D] && OUTIL_D!=="choisir") OUTIL_D="rect";
   }
   /* on regarde là où sont les formes de cette vue (en élévation : les murs, les meubles, les symboles) */
@@ -2583,7 +2659,11 @@ function choisirVue(v){
 $("btPerspD").addEventListener("click", function(){ $("btVue3d").click(); });
 $("outilsD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
-  OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; if(OUTIL_D!=="selection") GRP=null; majDessin(); majBarreSel();
+  var selAvant=D_SEL;
+  OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; PV_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; if(OUTIL_D!=="selection") GRP=null;
+  /* Cheminement, une string choisie : on trace son passage tout de suite */
+  if(OUTIL_D==="pvchemin" && selAvant && (selAvant.t==="pvs" || selAvant.t==="pvp")){ var sc0 = selAvant.t==="pvs" ? pvStr(selAvant.id) : pvStrDe(selAvant.id); if(sc0){ pvDebutChemin(sc0); majBarreSel(); return; } }
+  majDessin(); majBarreSel();
 });
 [["pcL","l"],["pcP","p"],["pcH","h"]].forEach(function(c){
   $(c[0]).addEventListener("input", function(){
@@ -3367,7 +3447,7 @@ var CHOIX_MOB=lire("dwg:mob","lit140"), VOLS=lire("dwg:volumes","1")!=="0";
 function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; for(var j=0;j<MOB.length;j++) if(MOB[j].cle==="pave") return MOB[j]; return MOB[0]; }
 function mobs(){ return (DESSIN && DESSIN.mob) || []; }
 function mobDe(id){ var l=mobs(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
-function normD(D){ D=D||{}; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; D.geo=D.geo||[]; D.toits=D.toits||[]; return D; }
+function normD(D){ D=D||{}; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; D.geo=D.geo||[]; D.toits=D.toits||[]; D.pv=normPv(D.pv); return D; }
 function repereMob(o){ var a=(o.rot||0)*Math.PI/180; return {ux:[Math.cos(a), Math.sin(a)], uy:[-Math.sin(a), Math.cos(a)]}; }
 function versMob(o, lx, ly){ var r=repereMob(o); return [o.x+r.ux[0]*lx+r.uy[0]*ly, o.y+r.ux[1]*lx+r.uy[1]*ly]; }
 function localMob(o, p){ var r=repereMob(o), dx=p[0]-o.x, dy=p[1]-o.y; return [dx*r.ux[0]+dy*r.ux[1], dx*r.uy[0]+dy*r.uy[1]]; }
@@ -3884,7 +3964,7 @@ function majGeoPanneau(o, t){
     if(document.activeElement!==$("g3H")) $("g3H").value=enUnite(geoSel.h3||0);
     if(document.activeElement!==$("g3Z")) $("g3Z").value=enUnite(geoSel.z3||0);
   }
-  $("btDupliquerD").hidden = !(D_SEL && D_SEL.t!=="ouv" && objetSel()) && !grpTaille(GRP);
+  $("btDupliquerD").hidden = !(D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && objetSel()) && !grpTaille(GRP);
   $("btToutD").hidden = OUTIL_D!=="selection";
 }
 (function(){
@@ -3962,6 +4042,7 @@ function dxfDessin(){
   dxfMobilier(g, ligneD);
   dxfGeo(g);
   dxfToits(g);
+  dxfPv(g);
   return L;
 }
 /* les bandeaux LED au DXF : à leurs vraies dimensions, calque de l'éclairage — le ruban,
@@ -3987,7 +4068,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:[["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7],["HACHURES",8],["COTES",7]]});
+    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:PV_CALQUES.concat([["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7],["HACHURES",8],["COTES",7]])});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
@@ -4054,6 +4135,7 @@ function etendueDessin(){
   });
   SYMB.forEach(function(o){ pt([o.x, o.y], o.r*2); });
   toits().forEach(function(t){ contourToit(t).forEach(function(q){ pt(q, 0); }); });
+  if(DESSIN.pv){ DESSIN.pv.pan.forEach(function(p){ pvCoins(p).forEach(function(q){ pt(q, 0); }); }); DESSIN.pv.ond.forEach(function(o){ var b=pvOndBoite(o); pt([b[0], b[1]], 0); pt([b[2], b[3]], 600/DESSIN_MM); }); }
   var fo=PLAN && PLAN.vierge && fondD(); if(fo && fo.vis!==false){ pt([fo.x, fo.y], 0); pt([fo.x+fo.w, fo.y+fo.h], 0); }
   return isFinite(x0) ? {minx:x0, miny:y0, maxx:x1, maxy:y1} : null;
 }
@@ -5304,10 +5386,11 @@ function ouvrirMep(){
   CHAMPS_MEP.forEach(function(c){ $(c[0]).value = d[c[1]]!=null ? d[c[1]] : (defaut[c[1]]||""); });
   $("mepLegende").checked = d.legende!=null ? !!d.legende : true;
   $("mepLegende").disabled = !SYMB.length;
+  $("mepEtudePv").checked = d.etudePv!=null ? !!d.etudePv : true; $("mepEtudePv").disabled = pvVide();
   majMep(); $("quantites").hidden=true; $("mep").hidden=false;
 }
 function lireMep(){
-  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, vues:MEP.vues, echelles:MEP.echelles, legende:$("mepLegende").checked};
+  var d={format:MEP.format, orient:MEP.orient, cadre:MEP.cadre, echelle:MEP.echelle, zone:MEP.zone, vues:MEP.vues, echelles:MEP.echelles, legende:$("mepLegende").checked, etudePv:$("mepEtudePv").checked};
   MEP.legende=d.legende;
   CHAMPS_MEP.forEach(function(c){ d[c[1]]=$(c[0]).value.trim(); });
   try{ localStorage.setItem(cleMep(), JSON.stringify(d)); localStorage.setItem("dwg:mep", JSON.stringify({format:d.format, orient:d.orient, dess:d.dess, mail:d.mail, mention:d.mention})); }catch(e){}
@@ -5518,15 +5601,20 @@ function creerPdf(d, logo, soc, imgPersp){
       trait(0.15); doc.line(x, y+lh, x+cw, y+lh);
     });
   }
-  /* 3. le cartouche : le bandeau du schéma unifilaire, au même rapport */
-  var T=new Cartouche.Trace(), socNom=(soc && soc.nom)||"";
+  /* 3. le cartouche : le bandeau du schéma unifilaire, au même rapport (et la page de l'étude PV) */
+  var avecPv = d.etudePv!==false && !pvVide(), socNom=(soc && soc.nom)||"";
+  function cartouche(folio, total, objet2){
+  var T=new Cartouche.Trace();
   Cartouche.dessiner(T, {
     societe:socNom, auteur:d.dess, mail:d.mail, date:d.date, indice:d.indice||"A", remarques:d.remarques, mention:d.mention,
     affaire:[String(d.client||"").toUpperCase(), d.ref ? "Réf. "+d.ref : ""],
-    objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), [d.niveau, lesCases ? textePlancheEchelles(lesCases) : "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
-    folio:1, total:1
+    objet:[String(d.objet||"PLAN ÉLECTRIQUE").toUpperCase(), objet2 || [d.niveau, lesCases ? textePlancheEchelles(lesCases) : "Échelle 1/"+e.n].filter(Boolean).join(" · ")],
+    folio:folio, total:total
   }, {x0:Cartouche.MARGE_GAUCHE, x1:1400-Cartouche.MARGE_DROITE, y1:P.h/k-Cartouche.MARGE_BAS, logo:Cartouche.choisirLogo(socNom, soc && soc.logo)});
   Cartouche.versPDF(doc, T, k, 0, 0);
+  }
+  cartouche(1, avecPv ? 2 : 1);
+  if(avecPv){ doc.addPage(MEP.format, MEP.orient==="l" ? "landscape" : "portrait"); pdfEtudePv(doc, g); cartouche(2, 2, [d.niveau, "Étude photovoltaïque"].filter(Boolean).join(" · ")); }
   var nom=nomDeBase()+(d.niveau ? "-"+d.niveau : "")+"-ind"+(d.indice||"A")+"-"+(a3?"A3":"A4")+".pdf";
   return {blob:doc.output("blob"), nom:nom.replace(/[^\w.\-À-ÿ]+/g,"-"), n:e.n, deborde:e.deborde, format:a3?"A3":"A4"};
 }
@@ -6410,6 +6498,7 @@ function majToitPanneau(o, t){
   if(document.activeElement!==$("toitHsp")) $("toitHsp").value=enUnite(hspD());
   $("btToitSens").textContent = c.type==="double" ? "Tourner le faîtage" : "Tourner la pente";
   $("segToitPlaf").hidden = c.type==="plat";
+  $("btToitEtude").hidden = !(t==="toit" && c.pv && c.pv.actif);
   Array.prototype.forEach.call($("segToitPlaf").children, function(b){ b.classList.toggle("on", b.dataset.v===(c.plafond==="rampant" ? "rampant" : "plat")); });
   var pv=c.pv||{};
   $("btToitPv").classList.toggle("on", !!pv.actif); $("btToitPv").setAttribute("aria-pressed", pv.actif ? "true" : "false");
@@ -6460,10 +6549,656 @@ function brancherToit(){
 function lireCmU(s){ return lireCm(s)*10; }
 /* le plafond plat de la 3D : absent quand chaque toit laisse voir ses rampants */
 function plafondSousToits(){ var l=toits(); return !l.length || l.some(function(t){ return t.type==="plat" || t.plafond!=="rampant"; }); }
+/* =====================================================================
+   ÉTUDE PHOTOVOLTAÏQUE
+   ---------------------------------------------------------------------
+   Sur le plan importé (DWG, PDF, photo) ou sur une page vierge, la
+   famille « PV » du Dessin : on pose les panneaux (un à un ou par champ)
+   et les onduleurs, puis on relie les panneaux en série (les strings)
+   jusqu'à une entrée MPPT de l'onduleur, en traçant le cheminement des
+   câbles. Le plan montre l'ordre de câblage (S1.1, S1.2…), les
+   polarités, le retour du −, le + et le − qui cheminent ensemble jusqu'à
+   l'onduleur, et la boucle d'induction de la string choisie. L'étude
+   calcule les tensions (Voc à froid, Vmp à chaud), les courants par
+   MPPT, les longueurs de câble, la chute de tension, et signale ce qui
+   sort des limites de l'onduleur. Repères d'étude : à vérifier sur les
+   fiches techniques du module et de l'onduleur.
+   Un champ range ses panneaux sur une grille : son origine, son angle,
+   l'orientation (portrait, paysage), l'écart et la pente du pan (vu en
+   plan, un pan incliné se raccourcit). Un panneau retiré (une cheminée,
+   un velux) laisse son trou dans la grille.
+   ===================================================================== */
+var PV_OUTILS={pvpan:1, pvchamp:1, pvond:1, pvstr:1, pvchemin:1};
+var PV_COUL=["#E11D48","#2563EB","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#B45309","#4F46E5"];
+var PV_RHO=0.0225;               /* cuivre, Ω·mm²/m */
+var PV_OW=700, PV_OH=450;        /* l'onduleur dessiné, en mm */
+var PV_EC=null;                  /* {t:"str", id} : la string en cours ; {t:"ch", id, pts} : son cheminement en cours */
+var PV_REG=(function(){ var d={o:"portrait", a:0, e:20, p:0};
+  try{ var g=JSON.parse(lire("dwg:pvReg", "null")); if(g){ d.o=g.o==="paysage" ? "paysage" : "portrait"; d.a=Number(g.a)||0; d.e=g.e>=0 ? Number(g.e) : 20; d.p=Number(g.p)||0; } }catch(e){}
+  return d; })();
+function garderPvReg(){ garder("dwg:pvReg", JSON.stringify(PV_REG)); }
+var PV_MOD_DEF={nom:"Module 425 Wc", wc:425, voc:38.5, vmp:32.2, isc:14, imp:13.2, cv:-0.26, cp:-0.34, l:1134, h:1722};
+var PV_OND_DEF={pac:6000, nm:2, vmax:600, vmin:80, vmpmax:550, imax:16, icc:20, desc:0};
+function normPv(v){
+  v=v||{}; v.mod=Object.assign({}, PV_MOD_DEF, v.mod||{});
+  v.ch=v.ch||[]; v.pan=v.pan||[]; v.ond=v.ond||[]; v.str=v.str||[];
+  if(v.tmin==null) v.tmin=-10; if(v.tmax==null) v.tmax=70; if(!v.sec) v.sec=6;
+  return v;
+}
+function PVD(){ if(!DESSIN.pv) DESSIN.pv=normPv(null); return DESSIN.pv; }
+function pvTrouver(l, id){ for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
+function pvChamp(id){ return pvTrouver(PVD().ch, id); }
+function pvPan(id){ return pvTrouver(PVD().pan, id); }
+function pvOnd(id){ return pvTrouver(PVD().ond, id); }
+function pvStr(id){ return pvTrouver(PVD().str, id); }
+function pvStrDe(idPan){ var l=PVD().str; for(var i=0;i<l.length;i++) if(l[i].pans.indexOf(idPan)>=0) return l[i]; return null; }
+function pvCoul(s){ return PV_COUL[(s.c||0)%PV_COUL.length]; }
+function pvNb(x, d){ return Number(x).toLocaleString("fr-FR", {maximumFractionDigits:d==null ? 1 : d}); }
+function pvVide(){ var P=DESSIN.pv; return !P || (!P.pan.length && !P.ond.length); }
+/* ---------- la géométrie ---------- */
+function pvRepere(ch){ var a=(ch.a||0)*Math.PI/180; return {u:[Math.cos(a), Math.sin(a)], v:[-Math.sin(a), Math.cos(a)]}; }
+function pvTaille(ch){
+  var m=PVD().mod, pay=ch.o==="paysage", cp=Math.cos((ch.p||0)*Math.PI/180), e=ch.e!=null ? ch.e : 20;
+  return {w:(pay ? m.h : m.l)/DESSIN_MM, h:(pay ? m.l : m.h)*cp/DESSIN_MM, eu:e/DESSIN_MM, ev:e*cp/DESSIN_MM};
+}
+function pvCentre(p){
+  var ch=pvChamp(p.ch); if(!ch) return [0, 0];
+  var R=pvRepere(ch), T=pvTaille(ch), du=p.c*(T.w+T.eu), dv=p.r*(T.h+T.ev);
+  return [ch.x+R.u[0]*du+R.v[0]*dv, ch.y+R.u[1]*du+R.v[1]*dv];
+}
+function pvCoins(p){
+  var ch=pvChamp(p.ch); if(!ch) return [];
+  var R=pvRepere(ch), T=pvTaille(ch), c=pvCentre(p), a=T.w/2, b=T.h/2;
+  return [[-a,-b],[a,-b],[a,b],[-a,b]].map(function(q){ return [c[0]+R.u[0]*q[0]+R.v[0]*q[1], c[1]+R.u[1]*q[0]+R.v[1]*q[1]]; });
+}
+/* la boîte de jonction : vers le haut du panneau, d'où partent son + et son − */
+function pvBoite(p){ var ch=pvChamp(p.ch); if(!ch) return [0, 0]; var R=pvRepere(ch), T=pvTaille(ch), c=pvCentre(p); return [c[0]+R.v[0]*T.h*0.3, c[1]+R.v[1]*T.h*0.3]; }
+function pvLocal(ch, q){ var R=pvRepere(ch), d=[q[0]-ch.x, q[1]-ch.y]; return [d[0]*R.u[0]+d[1]*R.u[1], d[0]*R.v[0]+d[1]*R.v[1]]; }
+function pvPanSous(q){
+  var l=PVD().pan;
+  for(var i=l.length-1;i>=0;i--){
+    var p=l[i], ch=pvChamp(p.ch); if(!ch) continue;
+    var T=pvTaille(ch), lo=pvLocal(ch, q), du=lo[0]-p.c*(T.w+T.eu), dv=lo[1]-p.r*(T.h+T.ev);
+    if(Math.abs(du)<=T.w/2 && Math.abs(dv)<=T.h/2) return p;
+  }
+  return null;
+}
+function pvOndBoite(o){ var w=PV_OW/DESSIN_MM/2, h=PV_OH/DESSIN_MM/2; return [o.x-w, o.y-h, o.x+w, o.y+h]; }
+function pvOndSous(q){ var l=PVD().ond, m=6/V.k; for(var i=l.length-1;i>=0;i--){ var b=pvOndBoite(l[i]); if(q[0]>=b[0]-m && q[0]<=b[2]+m && q[1]>=b[1]-m && q[1]<=b[3]+m) return l[i]; } return null; }
+function pvLongueur(pts){ var L=0; for(var i=1;i<pts.length;i++) L+=lng(sub(pts[i], pts[i-1])); return L; }
+function pvAire(pts){ var a=0; for(var i=0;i<pts.length;i++){ var p=pts[i], q=pts[(i+1)%pts.length]; a+=p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
+function pvDecaler(pts, d){
+  return pts.map(function(q, i){ var a=pts[Math.max(0, i-1)], b=pts[Math.min(pts.length-1, i+1)], t=sub(b, a), L=lng(t)||1; return [q[0]-t[1]/L*d, q[1]+t[0]/L*d]; });
+}
+/* le câblage d'une string : les sauts de panneau en panneau, le retour du −, le tronc (+ et − ensemble) jusqu'à l'onduleur */
+function pvGeo(s){
+  var pans=s.pans.map(pvPan).filter(Boolean), B=pans.map(pvBoite), n=B.length, o=s.ond ? pvOnd(s.ond) : null;
+  var g={B:B, n:n, o:o, ret:"chaine", retour:[], tronc:[], aire:0, lp:0, lm:0, sauts:0, sautMax:0};
+  if(!n) return g;
+  var T=pvTaille(pvChamp(pans[0].ch)), taille=Math.max(T.w, T.h), ret=s.ret||"auto";
+  if(ret==="auto") ret = (n<3 || lng(sub(B[n-1], B[0]))<=1.6*taille) ? "direct" : "chaine";
+  g.ret=ret;
+  if(n>1) g.retour = ret==="direct" ? [B[n-1], B[0]] : [B[n-1]].concat(pvDecaler(B.slice().reverse(), taille*0.1)).concat([B[0]]);
+  if(o) g.tronc=[B[0]].concat(s.ch||[]).concat([[o.x, o.y]]);
+  /* la boucle : l'aller par les panneaux, le retour du − ; le tronc (+ et − côte à côte) n'en ajoute pas */
+  if(n>1) g.aire=pvAire(B.concat(g.retour.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6;
+  var lt = o ? pvLongueur(g.tronc)*DESSIN_MM/1000+(Number(o.desc)||0) : 0, lr=pvLongueur(g.retour)*DESSIN_MM/1000;
+  g.lp=lt; g.lm=lt+lr;
+  for(var i=1;i<n;i++){ var d=lng(sub(B[i], B[i-1]))*DESSIN_MM/1000; g.sautMax=Math.max(g.sautMax, d); if(d>2.2) g.sauts++; }
+  return g;
+}
+/* ---------- les calculs ---------- */
+function pvCalc(s, g){
+  var P=PVD(), m=P.mod, n=g.n;
+  var r={n:n, wc:n*m.wc, voc:n*m.voc*(1+m.cv/100*(P.tmin-25)), vmpC:n*m.vmp*(1+m.cp/100*(P.tmax-25)), vmpF:n*m.vmp*(1+m.cp/100*(P.tmin-25)), vmp:n*m.vmp, du:0, al:[]};
+  r.du = n ? PV_RHO*(g.lp+g.lm)*m.imp/P.sec/(n*m.vmp)*100 : 0;
+  return r;
+}
+function pvAl(l, niv, txt){ l.push({niv:niv, txt:txt}); }
+function pvEtude(){
+  var P=PVD(), m=P.mod, E={str:[], ond:[], n:P.pan.length, wc:P.pan.length*m.wc, err:0, av:0, libres:0};
+  P.str.forEach(function(s){ var g=pvGeo(s); E.str.push({s:s, g:g, c:pvCalc(s, g)}); });
+  var dansStr={}; P.str.forEach(function(s){ s.pans.forEach(function(id){ dansStr[id]=1; }); });
+  E.libres=P.pan.filter(function(p){ return !dansStr[p.id]; }).length;
+  E.str.forEach(function(x){
+    var s=x.s, c=x.c, o=x.g.o;
+    if(!o) pvAl(c.al, "err", "pas reliée à un onduleur");
+    else {
+      if(c.voc>o.vmax) pvAl(c.al, "err", "Voc à "+P.tmin+" °C : "+pvNb(c.voc, 0)+" V, au-dessus des "+o.vmax+" V de l'onduleur");
+      if(c.vmpC<o.vmin) pvAl(c.al, "av", "Vmp à "+P.tmax+" °C : "+pvNb(c.vmpC, 0)+" V, sous la plage MPPT ("+o.vmin+" V)");
+      if(c.vmpF>o.vmpmax) pvAl(c.al, "av", "Vmp à "+P.tmin+" °C : "+pvNb(c.vmpF, 0)+" V, au-dessus de la plage MPPT ("+o.vmpmax+" V)");
+      if((s.m||1)>o.nm) pvAl(c.al, "err", "MPPT "+(s.m||1)+" : l'onduleur n'en a que "+o.nm);
+    }
+    if(c.du>3) pvAl(c.al, "av", "chute de tension "+pvNb(c.du)+" % (3 % au plus) : section plus forte ou onduleur plus près");
+    if(x.g.aire>2) pvAl(c.al, "av", "boucle de "+pvNb(x.g.aire, 2)+" m² : faites revenir le − le long des panneaux");
+    if(x.g.sauts) pvAl(c.al, "av", x.g.sauts+" saut"+(x.g.sauts>1 ? "s" : "")+" de plus de 2,2 m entre panneaux : rallonge à prévoir");
+  });
+  P.ond.forEach(function(o){
+    var R={o:o, mppt:[], wc:0, al:[]};
+    for(var i=1;i<=o.nm;i++){
+      var l=E.str.filter(function(x){ return x.s.ond===o.id && (x.s.m||1)===i; }), M={i:i, l:l, imp:l.length*m.imp, isc:l.length*m.isc*1.25};
+      if(l.length>1 && l.some(function(x){ return x.c.n!==l[0].c.n; })) l.forEach(function(x){ pvAl(x.c.al, "err", "en parallèle sur le MPPT "+i+" avec une string d'une autre longueur"); });
+      if(l.length && M.imp>o.imax) l.forEach(function(x){ pvAl(x.c.al, "av", "MPPT "+i+" : "+pvNb(M.imp)+" A, au-dessus des "+o.imax+" A (la production sera écrêtée)"); });
+      if(l.length && M.isc>o.icc) l.forEach(function(x){ pvAl(x.c.al, "err", "MPPT "+i+" : Isc × 1,25 = "+pvNb(M.isc)+" A, au-dessus des "+o.icc+" A admis"); });
+      l.forEach(function(x){ R.wc+=x.c.wc; });
+      R.mppt.push(M);
+    }
+    R.ratio = o.pac ? R.wc/o.pac : 0;
+    if(R.wc && R.ratio>1.35) pvAl(R.al, "av", "rapport DC/AC "+pvNb(R.ratio, 2)+" : onduleur petit pour ce champ");
+    if(!R.wc) pvAl(R.al, "av", "aucune string raccordée");
+    E.ond.push(R);
+  });
+  E.str.forEach(function(x){ x.c.al.forEach(function(a){ E[a.niv]++; }); });
+  E.ond.forEach(function(R){ R.al.forEach(function(a){ E[a.niv]++; }); });
+  return E;
+}
+function pvEtat(c){ return c.al.some(function(a){ return a.niv==="err"; }) ? "err" : c.al.length ? "av" : "ok"; }
+function pvResumeStr(s){
+  var g=pvGeo(s), c=pvCalc(s, g), o=g.o;
+  return s.nom+" · "+g.n+" panneau"+(g.n>1 ? "x" : "")+" · "+pvNb(c.wc/1000, 2)+" kWc"+(o ? " · "+o.nom+" MPPT "+(s.m||1) : " · pas encore reliée à un onduleur")
+    +" · Voc à "+PVD().tmin+" °C "+pvNb(c.voc, 0)+" V"+(o ? " · câble + "+pvNb(g.lp)+" m, − "+pvNb(g.lm)+" m, chute "+pvNb(c.du)+" %" : "")+(g.n>1 ? " · boucle "+pvNb(g.aire, 2)+" m²" : "");
+}
+/* ---------- poser ---------- */
+function pvNouveauChamp(x, y){ var ch={id:idD(), x:x, y:y, a:PV_REG.a, o:PV_REG.o, e:PV_REG.e, p:PV_REG.p}; PVD().ch.push(ch); return ch; }
+function pvAjouterPan(ch, r, c){ var p={id:idD(), ch:ch.id, r:r, c:c}; PVD().pan.push(p); return p; }
+function pvPanDe(ch, r, c){ var l=PVD().pan; for(var i=0;i<l.length;i++) if(l[i].ch===ch.id && l[i].r===r && l[i].c===c) return l[i]; return null; }
+function pvPansDe(ch){ return PVD().pan.filter(function(p){ return p.ch===ch.id; }); }
+/* un panneau seul : dans le trou ou au bord d'un champ voisin (il prend sa grille), sinon un nouveau champ */
+function pvPoserPan(q){
+  var P=PVD(), sous=pvPanSous(q);
+  if(sous){ D_SEL={t:"pvp", id:sous.id}; majDessin(); return; }
+  /* la case la mieux placée sous le doigt, parmi les champs voisins (le plus près de son centre) */
+  var best=null, bd=Infinity;
+  for(var i=0;i<P.ch.length;i++){
+    var ch=P.ch[i], T=pvTaille(ch), lo=pvLocal(ch, q), c=Math.round(lo[0]/(T.w+T.eu)), r=Math.round(lo[1]/(T.h+T.ev));
+    var du=lo[0]-c*(T.w+T.eu), dv=lo[1]-r*(T.h+T.ev);
+    if(Math.abs(du)>T.w/2+T.eu || Math.abs(dv)>T.h/2+T.ev) continue;
+    if(pvPanDe(ch, r, c)) continue;
+    var voisin=pvPansDe(ch).some(function(p){ return Math.abs(p.r-r)<=1 && Math.abs(p.c-c)<=1; });
+    if(!voisin) continue;
+    var d=Math.hypot(du/T.w, dv/T.h); if(d<bd){ bd=d; best={ch:ch, r:r, c:c}; }
+  }
+  if(best){ garderD(); var np=pvAjouterPan(best.ch, best.r, best.c); D_SEL={t:"pvp", id:np.id}; enregistrerD(); majDessin(); return; }
+  garderD(); var ch2=pvNouveauChamp(q[0], q[1]), p2=pvAjouterPan(ch2, 0, 0); D_SEL={t:"pvp", id:p2.id}; enregistrerD(); majDessin();
+}
+/* le champ entre deux coins : autant de panneaux qu'il en tient, dans l'angle choisi */
+function pvGrilleChamp(a, b){
+  var tmp={x:a[0], y:a[1], a:PV_REG.a, o:PV_REG.o, e:PV_REG.e, p:PV_REG.p}, T=pvTaille(tmp), lo=pvLocal(tmp, b);
+  var nc=Math.max(1, Math.floor((Math.abs(lo[0])+T.eu)/(T.w+T.eu))), nr=Math.max(1, Math.floor((Math.abs(lo[1])+T.ev)/(T.h+T.ev)));
+  var u0=Math.min(0, lo[0]) + (lo[0]<0 ? Math.abs(lo[0])-(nc*(T.w+T.eu)-T.eu) : 0), v0=Math.min(0, lo[1]) + (lo[1]<0 ? Math.abs(lo[1])-(nr*(T.h+T.ev)-T.ev) : 0);
+  var R=pvRepere(tmp), du=u0+T.w/2, dv=v0+T.h/2;
+  return {x:a[0]+R.u[0]*du+R.v[0]*dv, y:a[1]+R.u[1]*du+R.v[1]*dv, nc:nc, nr:nr, T:T, R:R};
+}
+function pvPoserChamp(a, b){
+  var G=pvGrilleChamp(a, b);
+  garderD();
+  var ch=pvNouveauChamp(G.x, G.y), prem=null;
+  for(var r=0;r<G.nr;r++) for(var c=0;c<G.nc;c++){ var p=pvAjouterPan(ch, r, c); if(!prem) prem=p; }
+  D_SEL={t:"pvp", id:prem.id}; enregistrerD(); majDessin();
+  var n=G.nr*G.nc;
+  toast("Champ de "+G.nc+" × "+G.nr+" = "+n+" panneaux, "+pvNb(n*PVD().mod.wc/1000, 2)+" kWc. Retirez un panneau (cheminée, velux) avec Supprimer ; « Câbler le champ » fait les strings.", 7000);
+}
+function pvPoserOnd(q){
+  var P=PVD(); garderD();
+  var o=Object.assign({id:idD(), x:q[0], y:q[1], nom:"OND"+(P.ond.length+1)}, PV_OND_DEF);
+  P.ond.push(o); D_SEL={t:"pvo", id:o.id}; finOutil(); D_SEL={t:"pvo", id:o.id}; enregistrerD(); majDessin();
+  toast(o.nom+" posé : réglez sa puissance, ses MPPT et ses tensions dans « Étude PV ».", 5000);
+}
+function pvNumero(){ var n=0; PVD().str.forEach(function(s){ var k=parseInt(String(s.nom).replace(/\D+/g, ""), 10); if(k>n) n=k; }); return n+1; }
+function pvMpptLibre(o, s){
+  var best=1, bn=Infinity;
+  for(var i=1;i<=o.nm;i++){
+    var l=PVD().str.filter(function(x){ return x!==s && x.ond===o.id && (x.m||1)===i; });
+    var ok=!l.length || l.every(function(x){ return x.pans.length===s.pans.length; });
+    var cout=l.length*2+(ok ? 0 : 10);
+    if(cout<bn){ bn=cout; best=i; }
+  }
+  return best;
+}
+function pvToucherStr(q){
+  var P=PVD(), s = PV_EC && PV_EC.t==="str" ? pvStr(PV_EC.id) : null, o=pvOndSous(q), p=o ? null : pvPanSous(q);
+  if(PV_EC && !s) PV_EC=null;
+  if(o){
+    if(!s){ toast("Touchez d'abord le premier panneau de la string (son +), puis les suivants dans l'ordre du câblage."); return; }
+    garderD(); s.ond=o.id; s.m=pvMpptLibre(o, s); PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin();
+    toast(pvResumeStr(s), 7000); return;
+  }
+  if(!p){ toast(s ? "Touchez le panneau suivant, ou l'onduleur pour finir." : "Touchez le premier panneau de la string (son +)."); return; }
+  var autre=pvStrDe(p.id);
+  if(!s){
+    if(autre){
+      if(autre.pans[autre.pans.length-1]===p.id){ PV_EC={t:"str", id:autre.id}; D_SEL=null; majDessin(); toast(autre.nom+" reprise : touchez les panneaux suivants."); return; }
+      toast("Ce panneau est déjà dans "+autre.nom+" (touchez son dernier panneau pour la prolonger)."); return;
+    }
+    garderD();
+    s={id:idD(), nom:"S"+pvNumero(), c:P.str.length, pans:[p.id], ond:null, m:1, ret:"auto", ch:[]};
+    P.str.push(s); PV_EC={t:"str", id:s.id}; D_SEL=null; enregistrerD(); majDessin(); return;
+  }
+  if(s.pans.indexOf(p.id)>=0) return;
+  if(autre){ toast("Ce panneau est déjà dans "+autre.nom+"."); return; }
+  garderD(); s.pans.push(p.id); enregistrerD(); majDessin();
+}
+/* au doigt, glisser sur les panneaux les ajoute un à un */
+function pvGlisseStr(q){
+  var s = PV_EC && PV_EC.t==="str" ? pvStr(PV_EC.id) : null; if(!s) return;
+  var p=pvPanSous(q); if(!p || s.pans.indexOf(p.id)>=0 || pvStrDe(p.id)) return;
+  s.pans.push(p.id); enregistrerD(); majDessin();
+}
+function pvDebutChemin(s){ PV_EC={t:"ch", id:s.id, pts:[]}; D_SEL=null; OUTIL_D="pvchemin"; majDessin(); toast("Cheminement de "+s.nom+" : touchez les points du passage (gaine, descente, long d'un mur), puis l'onduleur.", 6000); }
+function pvToucherChemin(cible, q){
+  var ec = PV_EC && PV_EC.t==="ch" ? PV_EC : null, s = ec ? pvStr(ec.id) : null;
+  if(!s){
+    var p=pvPanSous(q), sp = p ? pvStrDe(p.id) : pvLigneSous(q);
+    if(!sp){ toast("Touchez d'abord un panneau (ou un câble) de la string à faire cheminer."); return; }
+    pvDebutChemin(sp); return;
+  }
+  var o=pvOndSous(q);
+  if(o){ garderD(); s.ch=ec.pts.slice(); if(s.ond!==o.id){ s.ond=o.id; s.m=pvMpptLibre(o, s); } PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin(); toast(pvResumeStr(s), 6000); return; }
+  ec.pts.push(cible.pt.slice()); majDessin();
+}
+function pvFinir(){
+  if(!PV_EC) return;
+  if(PV_EC.t==="ch"){ var s=pvStr(PV_EC.id); if(s && PV_EC.pts.length){ garderD(); s.ch=PV_EC.pts.slice(); enregistrerD(); } PV_EC=null; if(s) D_SEL={t:"pvs", id:s.id}; }
+  else { var s2=pvStr(PV_EC.id); PV_EC=null; if(s2) D_SEL={t:"pvs", id:s2.id}; }
+  majDessin();
+}
+function toucherPv(cible, p){
+  if(OUTIL_D==="pvpan"){ pvPoserPan(p); return; }
+  if(OUTIL_D==="pvchamp"){
+    if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
+    var a=D_PT; D_PT=null; pvPoserChamp(a, cible.pt); finOutil(); majDessin(); return;
+  }
+  if(OUTIL_D==="pvond"){ pvPoserOnd(cible.pt); return; }
+  if(OUTIL_D==="pvstr"){ pvToucherStr(p); return; }
+  if(OUTIL_D==="pvchemin"){ pvToucherChemin(cible, p); return; }
+}
+/* une string sous le doigt, par ses câbles */
+function pvLigneSous(q){
+  var bd=10/V.k, best=null;
+  PVD().str.forEach(function(s){
+    var g=pvGeo(s);
+    [g.B, g.retour, g.tronc].forEach(function(l){ for(var i=1;i<l.length;i++){ var r=distSeg(q, l[i-1], l[i]); if(r.d<bd){ bd=r.d; best=s; } } });
+  });
+  return best;
+}
+function pvSous(q){
+  if(pvVide()) return null;
+  var o=pvOndSous(q); if(o) return {t:"pvo", id:o.id};
+  var p=pvPanSous(q); if(p) return {t:"pvp", id:p.id};
+  var s=pvLigneSous(q); if(s) return {t:"pvs", id:s.id};
+  return null;
+}
+function pvSupprimer(t, o){
+  var P=PVD();
+  if(t==="pvp"){
+    P.pan=P.pan.filter(function(x){ return x.id!==o.id; });
+    P.str.forEach(function(s){ s.pans=s.pans.filter(function(id){ return id!==o.id; }); });
+    P.str=P.str.filter(function(s){ return s.pans.length; });
+    P.ch=P.ch.filter(function(ch){ return P.pan.some(function(x){ return x.ch===ch.id; }); });
+  } else if(t==="pvo"){ P.ond=P.ond.filter(function(x){ return x.id!==o.id; }); P.str.forEach(function(s){ if(s.ond===o.id){ s.ond=null; s.ch=[]; } }); }
+  else if(t==="pvs") P.str=P.str.filter(function(x){ return x.id!==o.id; });
+  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
+}
+function pvSupprimerChamp(ch){
+  var P=PVD(), ids={}; pvPansDe(ch).forEach(function(p){ ids[p.id]=1; });
+  P.pan=P.pan.filter(function(p){ return !ids[p.id]; });
+  P.str.forEach(function(s){ s.pans=s.pans.filter(function(id){ return !ids[id]; }); });
+  P.str=P.str.filter(function(s){ return s.pans.length; });
+  P.ch=P.ch.filter(function(x){ return x.id!==ch.id; });
+  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
+}
+/* câbler un champ d'un coup : des strings égales, en serpentin (un rang à l'aller, le suivant au retour) */
+function pvCablerChamp(ch){
+  var P=PVD(), m=P.mod, libres=pvPansDe(ch).filter(function(p){ return !pvStrDe(p.id); });
+  if(!libres.length){ toast("Tous les panneaux de ce champ sont déjà câblés."); return; }
+  var o=P.ond[0], vmax=o ? o.vmax : 600, nmax=Math.max(1, Math.floor(vmax/(m.voc*(1+m.cv/100*(P.tmin-25))))), T=libres.length;
+  var ns=Math.ceil(T/nmax), conseil=Math.ceil(T/ns);
+  var r=window.prompt(T+" panneaux libres. Panneaux par string ? ("+nmax+" au plus avec "+(o ? o.nom : "un onduleur 600 V")+" à "+P.tmin+" °C ; "+ns+" string"+(ns>1 ? "s" : "")+" de "+conseil+" conseillée"+(ns>1 ? "s" : "")+")", String(conseil));
+  if(r==null) return;
+  var n=parseInt(r, 10); if(!(n>0)){ toast("Tapez un nombre de panneaux."); return; }
+  var rangs={}; libres.forEach(function(p){ (rangs[p.r]=rangs[p.r]||[]).push(p); });
+  var ordre=[];
+  Object.keys(rangs).map(Number).sort(function(a, b){ return b-a; }).forEach(function(k, i){ rangs[k].sort(function(a, b){ return i%2 ? b.c-a.c : a.c-b.c; }); ordre=ordre.concat(rangs[k]); });
+  garderD();
+  var faites=[];
+  for(var i=0;i<ordre.length;i+=n){
+    var s={id:idD(), nom:"S"+pvNumero(), c:P.str.length, pans:ordre.slice(i, i+n).map(function(p){ return p.id; }), ond:null, m:1, ret:"auto", ch:[]};
+    P.str.push(s); faites.push(s);
+    if(P.ond.length===1){ s.ond=o.id; s.m=pvMpptLibre(o, s); }
+  }
+  PV_EC=null; D_SEL={t:"pvs", id:faites[0].id}; enregistrerD(); majDessin();
+  toast(faites.length+" string"+(faites.length>1 ? "s" : "")+" de "+n+" panneaux"+(T%n ? " (la dernière de "+(T%n)+")" : "")+(P.ond.length===1 ? ", reliées à "+o.nom : " : touchez l'onduleur avec l'outil String pour les relier")+".", 7000);
+}
+/* les panneaux d'un toit (outil Toit) deviennent des champs, pour les câbler */
+function pvDepuisToit(t){
+  var res=panneauxToit(t); if(!res.n){ toast("Ce toit n'a pas de panneaux."); return; }
+  garderD();
+  var P=PVD(), parPan=[];
+  res.liste.forEach(function(q){ var k=parPan.indexOf(q.pn); if(k<0){ parPan.push(q.pn); } });
+  P.mod.l=t.pv.pl||P.mod.l; P.mod.h=t.pv.ph||P.mod.h; P.mod.wc=t.pv.wc||P.mod.wc;
+  parPan.forEach(function(pn){
+    var l=res.liste.filter(function(q){ return q.pn===pn; }), u=[pn.d[1], -pn.d[0]], a=Math.round(Math.atan2(u[1], u[0])*180/Math.PI);
+    var c0=ptPan(pn, (l[0].a0+l[0].a1)/2, (l[0].s0+l[0].s1)/2);
+    var ch={id:idD(), x:c0[0], y:c0[1], a:a, o:t.pv.orient==="paysage" ? "paysage" : "portrait", e:t.pv.ecart!=null ? t.pv.ecart : 20, p:t.type==="plat" ? 0 : t.pente};
+    P.ch.push(ch);
+    var T=pvTaille(ch);
+    l.forEach(function(q){ var cc=ptPan(pn, (q.a0+q.a1)/2, (q.s0+q.s1)/2), lo=pvLocal(ch, cc); pvAjouterPan(ch, Math.round(lo[1]/(T.h+T.ev)), Math.round(lo[0]/(T.w+T.eu))); });
+  });
+  t.pv.actif=false;
+  FAM_D="pv"; garder("dwg:famD", FAM_D); OUTIL_D="pvond"; D_SEL=null; enregistrerD(); majDessin();
+  toast(res.n+" panneaux prêts pour l'étude PV : posez l'onduleur, puis « Câbler le champ » ou l'outil String.", 7000);
+}
+/* ---------- à l'écran et à l'impression ---------- */
+function peindrePv(c, E, orange, coulTrait){
+  var P=DESSIN.pv; if(!P || (!P.pan.length && !P.ond.length && !P.str.length && !(OUTIL_D==="pvchamp" && D_PT))) return;
+  var k=V.k/DESSIN_MM, m=P.mod, fsBase=Math.min(m.l, m.h)*0.2*k, fs=Math.max(IMPRIME ? 3 : 0, Math.min(fsBase, IMPRIME ? 999 : 15));
+  var plus=CLAIR ? "#DC2626" : "#F87171", moins=CLAIR ? "#1D4ED8" : "#60A5FA", sel=D_SEL||{}, selCh=null;
+  if(sel.t==="pvp"){ var ps=pvPan(sel.id); if(ps) selCh=ps.ch; }
+  var lwS=Math.max(1.6, 25*k), lwT=Math.max(1.3, 16*k), ecartT=Math.max(2.2, 35*k);
+  function chemin(pts){ c.beginPath(); pts.forEach(function(q, i){ var P0=E(q); if(i) c.lineTo(P0[0], P0[1]); else c.moveTo(P0[0], P0[1]); }); }
+  function cheminEcran(pts, d){
+    /* une polyligne décalée de d pixels à l'écran (le + et le − côte à côte) */
+    var S=pts.map(E); if(S.length<2) return;
+    var D=S.map(function(q, i){ var a=S[Math.max(0, i-1)], b=S[Math.min(S.length-1, i+1)], tx=b[0]-a[0], ty=b[1]-a[1], L=Math.hypot(tx, ty)||1; return [q[0]-ty/L*d, q[1]+tx/L*d]; });
+    c.beginPath(); D.forEach(function(q, i){ if(i) c.lineTo(q[0], q[1]); else c.moveTo(q[0], q[1]); });
+  }
+  var strDe={}; P.str.forEach(function(s){ s.pans.forEach(function(id, i){ strDe[id]={s:s, i:i}; }); });
+  c.save(); c.lineJoin="round"; c.lineCap="round";
+  /* les panneaux */
+  P.pan.forEach(function(p){
+    var q=pvCoins(p).map(E); if(q.length<4) return;
+    var x=strDe[p.id], choisi=(sel.t==="pvp" && sel.id===p.id), duChamp=selCh && p.ch===selCh;
+    c.beginPath(); c.moveTo(q[0][0], q[0][1]); for(var i=1;i<4;i++) c.lineTo(q[i][0], q[i][1]); c.closePath();
+    c.fillStyle = x ? pvCoul(x.s)+(CLAIR ? "2E" : "40") : (CLAIR ? "rgba(30,58,138,.10)" : "rgba(147,197,253,.14)"); c.fill();
+    c.strokeStyle = choisi ? orange : (CLAIR ? "#1E293B" : "#CBD5E1"); c.lineWidth = choisi ? 2.4 : (duChamp ? 1.6 : 1); c.stroke();
+    if(duChamp && !choisi && !IMPRIME){ c.save(); c.strokeStyle=orange; c.globalAlpha=0.5; c.setLineDash([4, 3]); c.stroke(); c.restore(); }
+    /* la boîte de jonction */
+    var bj=E(pvBoite(p)), tb=Math.max(2, 70*k); c.fillStyle=CLAIR ? "#1E293B" : "#CBD5E1"; c.fillRect(bj[0]-tb/2, bj[1]-tb/2, tb, tb*0.6);
+    if(x && fs>=5){
+      var ct=E(pvCentre(p)); c.font="700 "+fs.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+      c.fillStyle=CLAIR ? "#0F172A" : "#F8FAFC"; c.fillText(x.s.nom+"."+(x.i+1), ct[0], ct[1]+fs*0.4);
+    }
+  });
+  /* les strings */
+  var parOnd={}; P.str.forEach(function(s){ if(s.ond) (parOnd[s.ond]=parOnd[s.ond]||[]).push(s); });
+  P.str.forEach(function(s){
+    var g=pvGeo(s); if(!g.n) return;
+    var col=pvCoul(s), choisi=(sel.t==="pvs" && sel.id===s.id) || (PV_EC && PV_EC.id===s.id);
+    /* la boucle d'induction de la string choisie */
+    if(choisi && g.n>1){
+      chemin(g.B.concat(g.retour.slice(1, -1))); c.closePath(); c.fillStyle=col+"30"; c.fill();
+      if(!IMPRIME){ var cg=[0, 0], pp=g.B.concat(g.retour.slice(1, -1)); pp.forEach(function(q){ cg[0]+=q[0]/pp.length; cg[1]+=q[1]/pp.length; }); var Cg=E(cg); etiquette(c, Cg[0], Cg[1]-fs*1.6, "Boucle "+pvNb(g.aire, 2)+" m²"); }
+    }
+    /* de panneau en panneau (la série) */
+    if(g.n>1){ chemin(g.B); c.strokeStyle=col; c.lineWidth=choisi ? lwS*1.5 : lwS; c.setLineDash([]); c.stroke(); }
+    /* le retour du − */
+    if(g.retour.length>1){ chemin(g.retour); c.strokeStyle=moins; c.lineWidth=lwT; c.setLineDash([Math.max(4, 90*k), Math.max(3, 60*k)]); c.stroke(); c.setLineDash([]); }
+    /* le tronc : + et − ensemble jusqu'à l'onduleur */
+    if(g.tronc.length>1){
+      var lo=parOnd[s.ond]||[s], idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
+      cheminEcran(g.tronc, dec-ecartT/2); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
+      cheminEcran(g.tronc, dec+ecartT/2); c.strokeStyle=moins; c.stroke();
+      if(fs>=5){
+        var j=Math.max(1, Math.floor(g.tronc.length/2)), A=E(g.tronc[j-1]), Bq=E(g.tronc[j]), ang=Math.atan2(Bq[1]-A[1], Bq[0]-A[0]);
+        if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
+        c.save(); c.translate((A[0]+Bq[0])/2, (A[1]+Bq[1])/2); c.rotate(ang);
+        c.font="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="bottom"; c.fillStyle=col;
+        var lab=s.nom+" · 2 × "+P.sec+" mm² · "+pvNb(g.lm, 0)+" m · MPPT "+(s.m||1), yl=-Math.abs(dec)-ecartT-2;
+        c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(lab, 0, yl); c.fillText(lab, 0, yl); c.restore();
+      }
+    }
+    /* les polarités : le + au premier panneau, le − au dernier */
+    var rb=Math.max(IMPRIME ? 2.5 : 6, fs*0.62);
+    [[g.B[0], "+", plus, -1], [g.B[g.n-1], "−", moins, 1]].forEach(function(b){
+      var Q=E(b[0]), dx = g.n===1 ? b[3]*rb*1.2 : 0;
+      c.beginPath(); c.arc(Q[0]+dx, Q[1]-rb*1.4, rb, 0, Math.PI*2); c.fillStyle=b[2]; c.fill();
+      c.font="700 "+(rb*1.5).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF"; c.fillText(b[1], Q[0]+dx, Q[1]-rb*1.4+rb*0.08);
+    });
+  });
+  /* les onduleurs */
+  P.ond.forEach(function(o){
+    var b=pvOndBoite(o), A=E([b[0], b[3]]), B=E([b[2], b[1]]), w=B[0]-A[0], h=B[1]-A[1], choisi=sel.t==="pvo" && sel.id===o.id;
+    c.fillStyle=CLAIR ? "#FFFFFF" : "#111827"; c.fillRect(A[0], A[1], w, h);
+    c.strokeStyle=choisi ? orange : coulTrait; c.lineWidth=choisi ? 2.6 : Math.max(1.4, 20*k); c.strokeRect(A[0], A[1], w, h);
+    c.beginPath(); c.moveTo(A[0], B[1]); c.lineTo(B[0], A[1]); c.stroke();
+    var fo=Math.max(IMPRIME ? 2 : 6, h*0.36); c.font="700 "+fo.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=coulTrait;
+    c.fillText("=", A[0]+w*0.27, A[1]+h*0.3); c.fillText("~", A[0]+w*0.73, A[1]+h*0.7);
+    var fl=Math.max(IMPRIME ? 2.5 : 10, Math.min(fs*1.1, IMPRIME ? 999 : 15)); c.font="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=choisi ? orange : coulTrait;
+    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT"; c.lineWidth=Math.max(2.5, fl*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(labO, A[0]+w/2, A[1]-3); c.fillText(labO, A[0]+w/2, A[1]-3);
+  });
+  /* en cours : le champ entre deux coins, la string, le cheminement */
+  if(!IMPRIME && MODE==="dessin"){
+    if(OUTIL_D==="pvchamp" && D_PT && D_SOURIS){
+      var G=pvGrilleChamp(D_PT, D_SOURIS.pt), tmp={x:G.x, y:G.y, a:PV_REG.a, o:PV_REG.o, e:PV_REG.e, p:PV_REG.p};
+      c.strokeStyle=orange; c.lineWidth=1.4; c.setLineDash([5, 4]);
+      for(var r=0;r<G.nr;r++) for(var cc=0;cc<G.nc;cc++){
+        var du=cc*(G.T.w+G.T.eu), dv=r*(G.T.h+G.T.ev), ctr=[G.x+G.R.u[0]*du+G.R.v[0]*dv, G.y+G.R.u[1]*du+G.R.v[1]*dv], a2=G.T.w/2, b2=G.T.h/2;
+        var qq=[[-a2,-b2],[a2,-b2],[a2,b2],[-a2,b2]].map(function(z){ return E([ctr[0]+G.R.u[0]*z[0]+G.R.v[0]*z[1], ctr[1]+G.R.u[1]*z[0]+G.R.v[1]*z[1]]); });
+        c.beginPath(); c.moveTo(qq[0][0], qq[0][1]); for(var i2=1;i2<4;i2++) c.lineTo(qq[i2][0], qq[i2][1]); c.closePath(); c.stroke();
+      }
+      c.setLineDash([]);
+      var Ms=E(D_SOURIS.pt); etiquette(c, Ms[0], Ms[1]-22, G.nc+" × "+G.nr+" = "+(G.nc*G.nr)+" panneaux · "+pvNb(G.nc*G.nr*m.wc/1000, 2)+" kWc");
+      void tmp;
+    }
+    if(PV_EC && D_SOURIS){
+      var se=pvStr(PV_EC.id);
+      if(se){
+        var ge=pvGeo(se), dep = PV_EC.t==="ch" ? [ge.B[0]].concat(PV_EC.pts) : [ge.B[ge.n-1]];
+        if(PV_EC.t==="ch" && dep.length>1){ chemin(dep); c.strokeStyle=orange; c.lineWidth=2.5; c.stroke(); }
+        chemin([dep[dep.length-1], D_SOURIS.pt]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
+      }
+    }
+  }
+  c.restore();
+}
+/* ---------- le DXF ---------- */
+function dxfPv(g){
+  var P=DESSIN.pv; if(!P || pvVide()) return;
+  var k=DESSIN_MM;
+  function M(q){ return [q[0]*k, q[1]*k]; }
+  function poly(pts, calque, ferme){ g(0,"POLYLINE", 8,calque, 66,1, 10,0,20,0,30,0, 70,ferme ? 1 : 0); pts.forEach(function(q){ var r=M(q); g(0,"VERTEX", 8,calque, 10,r[0],20,r[1],30,0); }); g(0,"SEQEND", 8,calque); }
+  function texte(q, h, s, calque){ var r=M(q); g(0,"TEXT", 8,calque, 10,r[0],20,r[1],30,0, 40,h, 1,String(s), 72,1, 11,r[0],21,r[1],31,0); }
+  var strDe={}; P.str.forEach(function(s){ s.pans.forEach(function(id, i){ strDe[id]=s.nom+"."+(i+1); }); });
+  P.pan.forEach(function(p){ poly(pvCoins(p), "PV-PANNEAUX", true); if(strDe[p.id]) texte(pvCentre(p), Math.min(P.mod.l, P.mod.h)*0.18, strDe[p.id], "PV-TEXTES"); });
+  var off=40/k;
+  P.str.forEach(function(s){
+    var gg=pvGeo(s); if(!gg.n) return;
+    if(gg.n>1) poly(gg.B, "PV-STRINGS");
+    if(gg.retour.length>1) poly(gg.retour, "PV-DC-MOINS");
+    if(gg.tronc.length>1){ poly(pvDecaler(gg.tronc, -off), "PV-DC-PLUS"); poly(pvDecaler(gg.tronc, off), "PV-DC-MOINS"); texte(gg.tronc[Math.floor(gg.tronc.length/2)], 150, s.nom+" 2x"+P.sec+"mm2 "+Math.round(gg.lm)+"m MPPT"+(s.m||1), "PV-TEXTES"); }
+    texte([gg.B[0][0], gg.B[0][1]+250/k], 160, s.nom+" +", "PV-DC-PLUS"); texte([gg.B[gg.n-1][0], gg.B[gg.n-1][1]+250/k], 160, s.nom+" -", "PV-DC-MOINS");
+  });
+  P.ond.forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]], "PV-ONDULEUR", true); poly([[b[0],b[1]],[b[2],b[3]]], "PV-ONDULEUR"); texte([o.x, b[3]+120/k], 180, o.nom+" "+(o.pac/1000)+"kW "+o.nm+" MPPT", "PV-ONDULEUR"); });
+}
+var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",5],["PV-ONDULEUR",7],["PV-TEXTES",7]];
+/* ---------- le panneau « Étude PV » ---------- */
+var PV_CHAMPS_MOD=[["nom","Module","t"],["wc","Puissance (Wc)"],["voc","Voc (V)"],["vmp","Vmp (V)"],["isc","Isc (A)"],["imp","Imp (A)"],["cv","Coef. Voc (%/°C)"],["cp","Coef. Pmax (%/°C)"],["l","Largeur (mm)"],["h","Hauteur (mm)"]];
+var PV_CHAMPS_OND=[["nom","Nom","t"],["pac","Puissance AC (W)"],["nm","Nombre de MPPT"],["vmax","Tension DC max (V)"],["vmin","MPPT min (V)"],["vmpmax","MPPT max (V)"],["imax","Courant max / MPPT (A)"],["icc","Icc max / MPPT (A)"],["desc","Longueur ajoutée (m)"]];
+function pvChamp2(lab, val, type, attr){
+  var l=document.createElement("label"); l.appendChild(document.createTextNode(lab));
+  var i=document.createElement("input"); i.type="text"; if(type!=="t") i.inputMode="decimal"; i.value=type==="t" ? String(val||"") : String(val).replace(".", ",");
+  Object.keys(attr).forEach(function(k){ i.dataset[k]=attr[k]; }); l.appendChild(i); return l;
+}
+function peindreEtude(complet){
+  var as=$("etudePv"); if(!as || as.hidden) return;
+  var P=PVD(), Ep=pvEtude(), res=$("epRes"), par=$("epParams");
+  if(complet || par.dataset.n!==String(P.ond.length)){
+    par.textContent=""; par.dataset.n=String(P.ond.length);
+    var h=document.createElement("h3"); h.textContent="Module"; par.appendChild(h);
+    var gm=document.createElement("div"); gm.className="ep-grille"; PV_CHAMPS_MOD.forEach(function(f){ gm.appendChild(pvChamp2(f[1], P.mod[f[0]], f[2], {pv:"mod", k:f[0]})); }); par.appendChild(gm);
+    h=document.createElement("h3"); h.textContent="Conditions"; par.appendChild(h);
+    var gc=document.createElement("div"); gc.className="ep-grille";
+    gc.appendChild(pvChamp2("Température mini (°C)", P.tmin, "", {pv:"cond", k:"tmin"})); gc.appendChild(pvChamp2("Température cellule maxi (°C)", P.tmax, "", {pv:"cond", k:"tmax"}));
+    gc.appendChild(pvChamp2("Section du câble DC (mm²)", P.sec, "", {pv:"cond", k:"sec"})); par.appendChild(gc);
+    P.ond.forEach(function(o){
+      var hh=document.createElement("h3"); hh.textContent="Onduleur "+o.nom; par.appendChild(hh);
+      var go=document.createElement("div"); go.className="ep-grille"; PV_CHAMPS_OND.forEach(function(f){ go.appendChild(pvChamp2(f[1], o[f[0]], f[2], {pv:"ond", id:o.id, k:f[0]})); }); par.appendChild(go);
+    });
+  }
+  res.textContent="";
+  function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+  var r=el("div", "ep-resume");
+  r.appendChild(el("b", null, Ep.n+" panneau"+(Ep.n>1 ? "x" : "")+" · "+pvNb(Ep.wc/1000, 2)+" kWc"));
+  r.appendChild(el("span", null, Ep.str.length+" string"+(Ep.str.length>1 ? "s" : "")+" · "+P.ond.length+" onduleur"+(P.ond.length>1 ? "s" : "")+(Ep.libres ? " · "+Ep.libres+" panneau"+(Ep.libres>1 ? "x" : "")+" non câblé"+(Ep.libres>1 ? "s" : "") : "")));
+  r.appendChild(el("span", Ep.err ? "ep-al err" : Ep.av ? "ep-al av" : "ep-ok", Ep.err ? Ep.err+" erreur"+(Ep.err>1 ? "s" : "")+(Ep.av ? ", "+Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : "") : Ep.av ? Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : (Ep.str.length ? "Étude cohérente" : "Posez les panneaux, l'onduleur, puis les strings.")));
+  res.appendChild(r);
+  Ep.ond.forEach(function(R){
+    var d=el("div", "ep-ond"); d.appendChild(el("b", null, R.o.nom+" · "+pvNb(R.o.pac/1000)+" kW · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? " · DC/AC "+pvNb(R.ratio, 2) : "")));
+    R.mppt.forEach(function(M){ d.appendChild(el("div", "ep-mppt", "MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+")"; }).join(" // ")+" · "+pvNb(M.imp)+" A" : "libre"))); });
+    R.al.forEach(function(a){ d.appendChild(el("div", "ep-al "+a.niv, a.txt)); });
+    res.appendChild(d);
+  });
+  Ep.str.forEach(function(x){
+    var s=x.s, c=x.c, g=x.g, d=el("div", "ep-str"); d.style.borderLeftColor=pvCoul(s);
+    var t=el("button", "ep-titre", s.nom+" · "+c.n+" panneau"+(c.n>1 ? "x" : "")+" · "+pvNb(c.wc/1000, 2)+" kWc"+(g.o ? " · "+g.o.nom+" MPPT "+(s.m||1) : ""));
+    t.type="button"; t.addEventListener("click", function(){ D_SEL={t:"pvs", id:s.id}; PV_EC=null; majDessin(); });
+    d.appendChild(t);
+    d.appendChild(el("div", null, "Voc "+P.tmin+" °C : "+pvNb(c.voc, 0)+" V · Vmp "+P.tmax+" °C : "+pvNb(c.vmpC, 0)+" V · Vmp "+P.tmin+" °C : "+pvNb(c.vmpF, 0)+" V · Isc "+pvNb(P.mod.isc)+" A"));
+    d.appendChild(el("div", null, (g.o ? "Câble + "+pvNb(g.lp)+" m · − "+pvNb(g.lm)+" m · chute "+pvNb(c.du)+" % · " : "")+"retour du − "+(g.ret==="direct" ? "direct" : "le long des panneaux")+(g.n>1 ? " · boucle "+pvNb(g.aire, 2)+" m²" : "")));
+    var et=pvEtat(c); if(et==="ok") d.appendChild(el("div", "ep-ok", "Conforme aux limites de l'onduleur"));
+    c.al.forEach(function(a){ d.appendChild(el("div", "ep-al "+a.niv, a.txt)); });
+    res.appendChild(d);
+  });
+  var mat=pvMateriel(Ep); if(mat.length){ res.appendChild(el("h3", null, "Matériel")); var ul=el("ul", "ep-mat"); mat.forEach(function(l){ ul.appendChild(el("li", null, l)); }); res.appendChild(ul); }
+  res.appendChild(el("p", "ep-note", "Repères d'étude, à vérifier sur les fiches techniques (module, onduleur) et selon le guide UTE C 15-712-1 ; les longueurs sont mesurées en plan, sans les montées, sauf la longueur ajoutée de l'onduleur."));
+}
+function pvMateriel(Ep){
+  var P=PVD(), l=[], lp=0, lm=0, conn=0, ral=0;
+  Ep.str.forEach(function(x){ lp+=x.g.lp; lm+=x.g.lm; conn+=1; ral+=x.g.sauts; });
+  if(Ep.n) l.push(Ep.n+" × "+P.mod.nom+" ("+P.mod.l+" × "+P.mod.h+" mm)");
+  P.ond.forEach(function(o){ l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT"); });
+  if(lp) l.push("Câble solaire "+P.sec+" mm² rouge (+) : "+pvNb(lp, 0)+" m, + 10 % : "+pvNb(lp*1.1, 0)+" m");
+  if(lm) l.push("Câble solaire "+P.sec+" mm² noir ou bleu (−) : "+pvNb(lm, 0)+" m, + 10 % : "+pvNb(lm*1.1, 0)+" m");
+  if(conn) l.push(conn*2+" connecteurs MC4 (une paire + et − par string, côté onduleur)"+(ral ? " ; "+ral+" rallonge"+(ral>1 ? "s" : "")+" et "+ral*2+" connecteurs de plus" : ""));
+  return l;
+}
+function pvChangerChamp(i){
+  var P=PVD(), v=String(i.value).trim(), k=i.dataset.k, num=parseFloat(v.replace(",", "."));
+  if(i.dataset.pv==="mod"){ if(k!=="nom" && !isFinite(num)) return; garderD(); P.mod[k] = k==="nom" ? (v||PV_MOD_DEF.nom) : num; }
+  else if(i.dataset.pv==="cond"){ if(!isFinite(num)) return; if(k==="sec" && !(num>0)) return; garderD(); P[k]=num; }
+  else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return; if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
+  enregistrerD(); majDessin(); peindreEtude(i.dataset.pv==="ond" && k==="nom");
+}
+/* ---------- les réglages du panneau du bas ---------- */
+function majPvPanneau(o, t){
+  var enPv = !!PV_OUTILS[OUTIL_D] || t==="pvp" || t==="pvo" || t==="pvs" || FAM_D==="pv";
+  $("grpPv").hidden=!enPv; if(!enPv){ $("grpPvPose").hidden=$("grpPvStr").hidden=true; return; }
+  var pan = t==="pvp" ? o : null, ch = pan ? pvChamp(pan.ch) : null, pose = OUTIL_D==="pvpan" || OUTIL_D==="pvchamp" || !!ch;
+  $("grpPvPose").hidden=!pose;
+  if(pose){
+    var R = ch || PV_REG;
+    Array.prototype.forEach.call($("segPvOrient").children, function(b){ b.classList.toggle("on", b.dataset.v===(R.o||"portrait")); });
+    if(document.activeElement!==$("pvAngle")) $("pvAngle").value=String(R.a||0).replace(".", ",");
+    if(document.activeElement!==$("pvPente")) $("pvPente").value=String(R.p||0).replace(".", ",");
+    if(document.activeElement!==$("pvEcart")) $("pvEcart").value=enUnite(R.e!=null ? R.e : 20);
+    var sp = pan ? pvStrDe(pan.id) : null;
+    $("btPvVoirStr").hidden=!sp; if(sp) $("btPvVoirStr").textContent="String "+sp.nom;
+    $("btPvCabler").hidden=!ch; $("btPvSuppChamp").hidden=!ch || pvPansDe(ch).length<2;
+  }
+  var s = t==="pvs" ? o : (PV_EC ? pvStr(PV_EC.id) : null);
+  $("grpPvStr").hidden=!s;
+  if(s){
+    var od = s.ond ? pvOnd(s.ond) : null, seg=$("segPvMppt"); seg.textContent="";
+    seg.hidden=!od;
+    if(od) for(var i=1;i<=od.nm;i++){ var b=document.createElement("button"); b.type="button"; b.dataset.v=String(i); b.textContent="MPPT "+i; b.classList.toggle("on", (s.m||1)===i); seg.appendChild(b); }
+    Array.prototype.forEach.call($("segPvRet").children, function(b){ b.classList.toggle("on", b.dataset.v===(s.ret||"auto")); });
+    $("btPvEffChemin").hidden=!(s.ch && s.ch.length);
+    $("btPvFin").hidden=!PV_EC; $("btPvFin").textContent = PV_EC && PV_EC.t==="ch" ? "Terminer le cheminement" : "Terminer la string";
+    $("btPvChemin").hidden = !!PV_EC;
+  }
+  $("btEtudePv").classList.toggle("on", !$("etudePv").hidden);
+}
+function pvDetail(o, t){
+  if(t==="pvp"){ var sp=pvStrDe(o.id), ch=pvChamp(o.ch), n=ch ? pvPansDe(ch).length : 1; return "Panneau"+(sp ? " "+sp.nom+"."+(sp.pans.indexOf(o.id)+1) : " non câblé")+" · champ de "+n+" panneau"+(n>1 ? "x" : "")+(ch && ch.p ? ", pente "+ch.p+"°" : "")+". Glissez pour déplacer le champ ; Supprimer retire ce panneau seul."; }
+  if(t==="pvo") return o.nom+" · "+pvNb(o.pac/1000)+" kW · "+o.nm+" MPPT · "+o.vmin+"–"+o.vmpmax+" V, "+o.vmax+" V max. Glissez pour le déplacer ; réglages dans « Étude PV ».";
+  if(t==="pvs") return pvResumeStr(o)+".";
+  return "";
+}
+function pvDetailOutil(){
+  if(OUTIL_D==="pvpan") return "Touchez le plan pour poser un panneau ; à côté d'un champ, il prend sa grille (et bouche un trou). Réglez l'orientation, l'angle et la pente avant.";
+  if(OUTIL_D==="pvchamp") return D_PT ? "Touchez le coin opposé du champ : il se remplit de panneaux." : "Touchez un coin du champ de panneaux, puis le coin opposé (ou glissez). L'angle suit celui du pan.";
+  if(OUTIL_D==="pvond") return "Touchez l'endroit de l'onduleur (garage, local technique).";
+  if(OUTIL_D==="pvstr") return PV_EC && PV_EC.t==="str" ? "Touchez les panneaux suivants dans l'ordre du câblage (ou glissez dessus), puis l'onduleur pour finir." : "Touchez le premier panneau de la string (son +), puis les suivants dans l'ordre, puis l'onduleur.";
+  if(OUTIL_D==="pvchemin") return PV_EC && PV_EC.t==="ch" ? "Touchez les points du passage des câbles, puis l'onduleur (ou Terminer)." : "Touchez un panneau de la string à faire cheminer.";
+  return "";
+}
+function modifierChampPv(fn){
+  var o=objetSel(), ch = D_SEL && D_SEL.t==="pvp" && o ? pvChamp(o.ch) : null;
+  if(ch){ garderD(); fn(ch); enregistrerD(); majDessin(); }
+  else { fn(PV_REG); garderPvReg(); majDessin(); }
+}
+function modifierStrPv(fn){ var s = D_SEL && D_SEL.t==="pvs" ? pvStr(D_SEL.id) : (PV_EC ? pvStr(PV_EC.id) : null); if(!s) return; garderD(); fn(s); enregistrerD(); majDessin(); }
+function brancherPv(){
+  $("segPvOrient").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; modifierChampPv(function(c){ c.o=b.dataset.v; }); });
+  $("pvAngle").addEventListener("change", function(){ var v=parseFloat(String(this.value).replace(",", ".")); if(!isFinite(v)){ majDessin(); return; } v=((v%360)+360)%360;
+    modifierChampPv(function(c){ if(c.id){ /* tourner le champ autour de son centre */ var l=pvPansDe(c), g0=[0, 0]; l.forEach(function(p){ var q=pvCentre(p); g0[0]+=q[0]/l.length; g0[1]+=q[1]/l.length; }); c.a=v; var g1=[0, 0]; l.forEach(function(p){ var q=pvCentre(p); g1[0]+=q[0]/l.length; g1[1]+=q[1]/l.length; }); c.x+=g0[0]-g1[0]; c.y+=g0[1]-g1[1]; } else c.a=v; }); });
+  $("pvPente").addEventListener("change", function(){ var v=parseFloat(String(this.value).replace(",", ".")); if(!(v>=0 && v<=75)){ toast("Pente du pan entre 0 et 75°."); majDessin(); return; } modifierChampPv(function(c){ c.p=v; }); });
+  $("pvEcart").addEventListener("change", function(){ var v=lireCm(this.value)*10; if(!(v>=0 && v<=2000)){ majDessin(); return; } modifierChampPv(function(c){ c.e=Math.round(v); }); });
+  $("btPvVoirStr").addEventListener("click", function(){ var o=objetSel(), s = o && D_SEL.t==="pvp" ? pvStrDe(o.id) : null; if(s){ D_SEL={t:"pvs", id:s.id}; majDessin(); } });
+  $("btPvCabler").addEventListener("click", function(){ var o=objetSel(), ch = o && D_SEL.t==="pvp" ? pvChamp(o.ch) : null; if(ch) pvCablerChamp(ch); });
+  $("btPvSuppChamp").addEventListener("click", function(){ var o=objetSel(), ch = o && D_SEL.t==="pvp" ? pvChamp(o.ch) : null; if(!ch) return; if(!window.confirm("Supprimer tout le champ ("+pvPansDe(ch).length+" panneaux) ?")) return; garderD(); pvSupprimerChamp(ch); D_SEL=null; enregistrerD(); majDessin(); });
+  $("segPvMppt").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; modifierStrPv(function(s){ s.m=Number(b.dataset.v); }); });
+  $("segPvRet").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; modifierStrPv(function(s){ s.ret=b.dataset.v; }); });
+  $("btPvChemin").addEventListener("click", function(){ var s = D_SEL && D_SEL.t==="pvs" ? pvStr(D_SEL.id) : null; if(s) pvDebutChemin(s); });
+  $("btPvEffChemin").addEventListener("click", function(){ modifierStrPv(function(s){ s.ch=[]; }); });
+  $("btPvCoul").addEventListener("click", function(){ modifierStrPv(function(s){ s.c=((s.c||0)+1)%PV_COUL.length; }); });
+  $("btPvFin").addEventListener("click", pvFinir);
+  $("btEtudePv").addEventListener("click", function(){ var a=$("etudePv"); a.hidden=!a.hidden; if(!a.hidden){ $("quantites").hidden=true; peindreEtude(true); } majDessin(); });
+  $("epFermer").addEventListener("click", function(){ $("etudePv").hidden=true; majDessin(); });
+  $("epParams").addEventListener("change", function(e){ if(e.target && e.target.dataset && e.target.dataset.pv) pvChangerChamp(e.target); });
+  $("btToitEtude").addEventListener("click", function(){ var t=toitSel(); if(t) pvDepuisToit(t); });
+}
+/* ---------- la page « Étude photovoltaïque » du PDF ---------- */
+function pdfEtudePv(doc, g){
+  var P=PVD(), Ep=pvEtude(), C=g.cadre, x0=C.x+6, x1=C.x+C.w-6, y=C.y+9, yMax=C.y+C.h-4;
+  function asc(s){ return String(s).replace(/−/g, "-").replace(/[“”«»]/g, "\""); }
+  function t(s, x, yy, taille, o){ o=o||{}; doc.setFont("helvetica", o.b ? "bold" : "normal"); doc.setFontSize(taille); var c=o.c||[0,0,0]; doc.setTextColor(c[0], c[1], c[2]); doc.text(asc(s), x, yy, {align:o.a||"left", maxWidth:o.max}); }
+  function rgb(h){ return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)]; }
+  function ligne(s, taille, o){ if(y>yMax) return; o=o||{}; doc.setFontSize(taille); var l=doc.splitTextToSize(asc(s), x1-x0-(o.ind||0)); l.forEach(function(z){ if(y>yMax) return; t(z, x0+(o.ind||0), y, taille, o); y+=taille*0.42; }); }
+  doc.setDrawColor(0,0,0); doc.setLineWidth(0.35); doc.rect(C.x, C.y, C.w, C.h);
+  t("ÉTUDE PHOTOVOLTAÏQUE", x0, y, 13, {b:true}); y+=6;
+  ligne(Ep.n+" panneaux · "+pvNb(Ep.wc/1000, 2)+" kWc · "+Ep.str.length+" strings · "+P.ond.length+" onduleur"+(P.ond.length>1 ? "s" : "")+(Ep.libres ? " · "+Ep.libres+" panneaux non câblés" : "")+" · "+(Ep.err ? Ep.err+" erreur(s)" : "aucune erreur")+(Ep.av ? ", "+Ep.av+" avertissement(s)" : ""), 9, {b:true});
+  y+=1.5;
+  var m=P.mod;
+  ligne("Module : "+m.nom+" · "+m.wc+" Wc · Voc "+pvNb(m.voc)+" V · Vmp "+pvNb(m.vmp)+" V · Isc "+pvNb(m.isc)+" A · Imp "+pvNb(m.imp)+" A · coef. Voc "+pvNb(m.cv, 2)+" %/°C · coef. Pmax "+pvNb(m.cp, 2)+" %/°C · "+m.l+" × "+m.h+" mm", 8);
+  ligne("Hypothèses : température mini "+P.tmin+" °C, cellule maxi "+P.tmax+" °C · câble DC cuivre "+P.sec+" mm² (rho = 0,0225 ohm.mm²/m) · chute de tension avec Imp, aller et retour", 8);
+  y+=1.5;
+  Ep.ond.forEach(function(R){
+    var o=R.o;
+    ligne(o.nom+" : "+pvNb(o.pac/1000)+" kW AC · "+o.nm+" MPPT "+o.vmin+"-"+o.vmpmax+" V · "+o.vmax+" V DC max · "+o.imax+" A / "+o.icc+" A Icc par MPPT · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? ", rapport DC/AC "+pvNb(R.ratio, 2) : ""), 8.5, {b:true});
+    R.mppt.forEach(function(M){ ligne("MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+" panneaux)"; }).join(" en parallèle avec ")+" · "+pvNb(M.imp)+" A" : "libre"), 8, {ind:4}); });
+    R.al.forEach(function(a){ ligne((a.niv==="err" ? "ERREUR : " : "Attention : ")+a.txt, 8, {ind:4, c:a.niv==="err" ? [185,28,28] : [180,83,9]}); });
+  });
+  y+=2;
+  /* le tableau des strings */
+  var cols=[["String",18],["Onduleur",22],["Nb",9],["kWc",12],["Voc "+P.tmin+"°",16],["Vmp "+P.tmax+"°",16],["Vmp "+P.tmin+"°",16],["Isc",11],["Câble +",15],["Câble -",15],["Chute",13],["Boucle",15],["Retour -",22],["État",14]];
+  var tot=cols.reduce(function(s, c){ return s+c[1]; }, 0), f=(x1-x0)/tot, lh=4.6;
+  if(Ep.str.length && y+lh*2<yMax){
+    var xx=x0; doc.setFillColor(235,238,242); doc.rect(x0, y-3.4, x1-x0, lh, "F");
+    cols.forEach(function(c){ t(c[0], xx+1, y, 7.5, {b:true}); xx+=c[1]*f; }); y+=lh;
+    Ep.str.forEach(function(x){
+      if(y>yMax) return;
+      var s=x.s, c=x.c, gg=x.g, et=pvEtat(c), vals=[s.nom, gg.o ? gg.o.nom+" M"+(s.m||1) : "-", String(c.n), pvNb(c.wc/1000, 2), pvNb(c.voc, 0)+" V", pvNb(c.vmpC, 0)+" V", pvNb(c.vmpF, 0)+" V", pvNb(m.isc)+" A",
+        gg.o ? pvNb(gg.lp)+" m" : "-", gg.o ? pvNb(gg.lm)+" m" : "-", gg.o ? pvNb(c.du)+" %" : "-", gg.n>1 ? pvNb(gg.aire, 2)+" m²" : "-", gg.ret==="direct" ? "direct" : "le long", et==="ok" ? "OK" : et==="err" ? "ERREUR" : "à revoir"];
+      var xx2=x0; doc.setFillColor.apply(doc, rgb(pvCoul(s))); doc.rect(x0+0.3, y-2.6, 1.8, 2.8, "F");
+      vals.forEach(function(v, i){ t(v, xx2+(i ? 1 : 3), y, 7.5, {b:i===0, c:i===vals.length-1 ? (et==="ok" ? [21,128,61] : et==="err" ? [185,28,28] : [180,83,9]) : null}); xx2+=cols[i][1]*f; });
+      doc.setDrawColor(200,205,210); doc.setLineWidth(0.15); doc.line(x0, y+1.2, x1, y+1.2); y+=lh;
+    });
+    y+=1;
+    Ep.str.forEach(function(x){ x.c.al.forEach(function(a){ ligne(x.s.nom+" - "+(a.niv==="err" ? "ERREUR : " : "attention : ")+a.txt, 7.8, {c:a.niv==="err" ? [185,28,28] : [180,83,9]}); }); });
+  }
+  y+=2;
+  var mat=pvMateriel(Ep);
+  if(mat.length){ ligne("MATÉRIEL", 9, {b:true}); mat.forEach(function(l){ ligne("- "+l, 8, {ind:2}); }); }
+  y+=2;
+  ligne("Légende du plan : S1.1, S1.2… l'ordre de câblage des panneaux en série ; pastille rouge + au premier panneau, bleue - au dernier ; trait de couleur : la série de panneau en panneau ; tirets bleus : le retour du - ; double trait rouge et bleu : le + et le - qui cheminent ensemble jusqu'à l'onduleur (boucle d'induction la plus petite possible).", 7.5);
+  ligne("Repères d'étude, à vérifier sur les fiches techniques du module et de l'onduleur et selon le guide UTE C 15-712-1. Longueurs mesurées en plan, sans les montées, sauf la longueur ajoutée à l'onduleur.", 7.5, {c:[90,90,90]});
+}
 brancherToit();
+brancherPv();
 
 /* pour les essais */
-window.__dwg={toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 })();
