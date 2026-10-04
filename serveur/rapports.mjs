@@ -683,6 +683,28 @@ async function refsDepart(code) {
   }
   return REFS_DEPART;
 }
+/* la base actuelle est-elle l'import brut du fichier d'origine ? (presque toutes ses références y sont) */
+const refNue = (v) => cleRef(v).replace(/\s+/g, "");
+function importBrut(r, dep) {
+  if (!Array.isArray(dep.anciennes) || !r.lignes.length) return false;
+  const connues = new Set(dep.anciennes.concat(dep.lignes.map((l) => refNue(l[dep.cle]))));
+  const refs = r.lignes.map((l) => refNue(l[r.cle || 0])).filter(Boolean);
+  return refs.length > 0 && refs.filter((x) => connues.has(x)).length >= refs.length * 0.8;
+}
+/* les lignes ajoutées à la main après l'import : remises dans les colonnes de la base rangée */
+function refsAjoutees(r, dep) {
+  const connues = new Set((dep.anciennes || []).concat(dep.lignes.map((l) => refNue(l[dep.cle]))));
+  const sans = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const ou = dep.colonnes.map((c, i) => i === dep.cle ? (r.cle || 0) : i === dep.des ? (r.des != null ? r.des : 1) : r.colonnes.findIndex((x) => sans(x) === sans(c)));
+  const vues = new Set(), out = [];
+  for (const l of r.lignes) {
+    const k = refNue(l[r.cle || 0]);
+    if (!k || connues.has(k) || vues.has(k)) continue;
+    vues.add(k);
+    out.push(ou.map((j) => j >= 0 ? String(l[j] == null ? "" : l[j]) : ""));
+  }
+  return out;
+}
 async function lireRefs(st) {
   let r = null; try { r = await st.get(REFERENCES, { type: "json" }); } catch { r = null; }
   if (!r || !Array.isArray(r.colonnes)) r = { colonnes: [], lignes: [], cle: 0, des: 1 };
@@ -2695,9 +2717,13 @@ async function traiter(req) {
       if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
       if (!dep) return json({ erreur: "Pas de base préparée pour cette entreprise." }, 404);
     }
-    /* la base rangée : d'elle-même si rien n'est encore importé, ou à la demande */
-    if (dep && (action === "references-depart" || (!r.colonnes.length && !r.depart))) {
-      r = { colonnes: dep.colonnes, lignes: dep.lignes, cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: action === "references-depart" ? personne.nom : "Base de départ", source: dep.source, depart: dep.version };
+    /* la base rangée : d'elle-même si rien n'est encore importé, ou si la base est l'import
+       brut du même fichier Excel (les références ajoutées depuis à la main sont gardées) ;
+       ou à la demande. L'ancienne base est gardée de côté (references-avant.json). */
+    if (dep && (action === "references-depart" || (!r.colonnes.length && !r.depart) || (!r.depart && importBrut(r, dep)))) {
+      if (r.colonnes.length) { try { await store.setJSON("references-avant.json", r); } catch {} }
+      const ajoutees = r.colonnes.length && action !== "references-depart" ? refsAjoutees(r, dep) : [];
+      r = { colonnes: dep.colonnes, lignes: dep.lignes.concat(ajoutees), cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: action === "references-depart" ? personne.nom : "Base de départ", source: dep.source, depart: dep.version };
       await store.setJSON(REFERENCES, r);
     }
     return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "", modifiable: !!admin,
