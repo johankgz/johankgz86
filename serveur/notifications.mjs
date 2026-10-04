@@ -23,7 +23,18 @@ import { createECDH, createHmac, createCipheriv, createPrivateKey, createSign,
   generateKeyPairSync, randomBytes } from "node:crypto";
 
 const CLE_VAPID = "push-vapid.json";
-export const PREFS_DEFAUT = { messages: true, documents: true, rappels: true };
+/* la nuit, silence : de 19 h à 7 h (heure de Paris), rien ne sonne ; ce qui arrive
+   attend, et part en un seul résumé à la fin du silence. Réglable dans « Mon compte ». */
+export const PREFS_DEFAUT = { messages: true, documents: true, rappels: true, silence: true, silenceDebut: "19:00", silenceFin: "07:00" };
+export function enSilence(prefs, d = new Date()) {
+  if (!prefs || prefs.silence === false) return false;
+  const hm = maintenantParis(d).slice(11);
+  const a = /^\d\d:\d\d$/.test(prefs.silenceDebut || "") ? prefs.silenceDebut : "19:00";
+  const b = /^\d\d:\d\d$/.test(prefs.silenceFin || "") ? prefs.silenceFin : "07:00";
+  if (a === b) return false;
+  return a < b ? (hm >= a && hm < b) : (hm >= a || hm < b);
+}
+const cleAttente = (nom) => "push/attente/" + nomDeCle(nom) + ".json";
 
 function b64u(buf) {
   return Buffer.from(buf).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -164,6 +175,19 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     const note = (resultat) => journal.push({ le: new Date().toISOString(), genre, pour: nom, ecrit: ecrits.get(nom), titre: String(charge.titre || "").slice(0, 120), resultat, appareils: f.abonnements.length });
     if (!f.abonnements.length) { note("pas-abonne"); return; }
     if (genre !== "essai" && f.prefs[genre] === false) { note("coupe"); return; }
+    if (genre !== "essai" && enSilence(f.prefs, o.maintenant || new Date())) {
+      /* la nuit : on garde, ça partira au réveil */
+      try {
+        const k = cleAttente(nom);
+        let at = null; try { at = await store.get(k, { type: "json" }); } catch { at = null; }
+        at = at && Array.isArray(at.liste) ? at : { nom, liste: [] };
+        at.liste.push({ titre: String(charge.titre || "").slice(0, 120), texte: String(charge.texte || "").slice(0, 200),
+          url: charge.url || "./index.html", tag: charge.tag || "", le: new Date().toISOString() });
+        at.liste = at.liste.slice(-40);
+        await store.setJSON(k, at);
+      } catch { /* tant pis */ }
+      note("nuit"); return;
+    }
     let recu = false, oublies = 0;
     const gardes = [];
     for (const a of f.abonnements) {
@@ -185,6 +209,35 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     } catch { /* le journal n'empêche rien */ }
   }
   return prevenus;
+}
+
+/* ---------- la fin du silence : ce qui a attendu part en une notification ---------- */
+export async function envoyerAttentes(store, annuaire, contact, maintenant = new Date()) {
+  let res = null;
+  try { res = await store.list({ prefix: "push/attente/" }); } catch { return 0; }
+  let n = 0;
+  for (const b of (res.blobs || [])) {
+    let at = null; try { at = await store.get(b.key, { type: "json" }); } catch { at = null; }
+    if (!at || !at.nom || !Array.isArray(at.liste) || !at.liste.length) { try { await store.delete(b.key); } catch { /* rien */ } continue; }
+    const f = await lireAbonne(store, at.nom);
+    if (enSilence(f.prefs, maintenant)) continue;                  /* encore la nuit pour lui */
+    try { await store.delete(b.key); } catch { /* on enverra quand même */ }
+    if (!f.abonnements.length) continue;
+    const l = at.liste;
+    const charge = l.length === 1 ? { titre: l[0].titre, texte: l[0].texte, url: l[0].url, tag: l[0].tag }
+      : { titre: "Pendant la nuit : " + l.length + " notifications",
+          texte: l.slice(-3).reverse().map((x) => x.titre).join(" · ") + (l.length > 3 ? " …" : ""),
+          url: "./index.html", tag: "nuit" };
+    const vapid = await clesVapid(annuaire);
+    for (const a of f.abonnements) { try { await envoyerA(vapid, a, charge, a.contact || contact); } catch { /* suivant */ } }
+    n++;
+    try {
+      const avant = (await store.get("push/journal.json", { type: "json" })) || [];
+      await store.setJSON("push/journal.json", [{ le: new Date().toISOString(), genre: "nuit", pour: at.nom, ecrit: at.nom,
+        titre: charge.titre, resultat: "envoye", appareils: f.abonnements.length }].concat(Array.isArray(avant) ? avant : []).slice(0, 60));
+    } catch { /* le journal n'empêche rien */ }
+  }
+  return n;
 }
 
 /* ---------- l'heure de Paris, pour les rappels ---------- */

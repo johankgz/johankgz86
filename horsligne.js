@@ -57,10 +57,21 @@
      une notification arrive appli fermée (sw.js), l'accueil la remet au
      compte juste à chaque ouverture. iPhone : appli ajoutée à l'écran
      d'accueil et notifications autorisées. */
+  /* la nuit (19 h – 7 h par défaut, réglable dans « Mon compte ») : pas de pastille sur l'icône */
+  function silence(){
+    var r={silence:true, debut:"19:00", fin:"07:00"};
+    try{ var g=JSON.parse(localStorage.getItem("outils:silence")||"null"); if(g) r=g; }catch(e){}
+    if(r.silence===false || r.debut===r.fin) return false;
+    var d=new Date(), hm;
+    try{ hm=new Intl.DateTimeFormat("fr-FR", {timeZone:"Europe/Paris", hour:"2-digit", minute:"2-digit", hourCycle:"h23"}).format(d); }
+    catch(e){ hm=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
+    return r.debut < r.fin ? (hm >= r.debut && hm < r.fin) : (hm >= r.debut || hm < r.fin);
+  }
   function pastille(n){
     n = Math.max(0, parseInt(n, 10) || 0);
     try{
-      if(n && navigator.setAppBadge) navigator.setAppBadge(n).catch(function(){});
+      if(silence()){ if(navigator.clearAppBadge) navigator.clearAppBadge().catch(function(){}); }
+      else if(n && navigator.setAppBadge) navigator.setAppBadge(n).catch(function(){});
       else if(!n && navigator.clearAppBadge) navigator.clearAppBadge().catch(function(){});
     }catch(e){}
     dire({type:"pastille", n:n});

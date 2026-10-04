@@ -408,6 +408,10 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .nt-prefs label.bascule{display:flex;align-items:center;gap:12px;margin:0;padding:12px 0;border-bottom:1px solid var(--rule);cursor:pointer}
 .nt-prefs label.bascule span{flex:1;margin:0;font-size:15px;color:var(--ink)}
 .nt-prefs label.bascule small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.nt-heures{display:flex;gap:14px;align-items:center;padding:10px 0 12px;border-bottom:1px solid var(--rule);font-size:15px}
+.nt-heures[hidden]{display:none}
+.nt-heures label{display:flex;align-items:center;gap:8px;margin:0}
+.nt-heures input{width:auto;min-height:40px;padding:6px 10px}
 .bascule input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:46px;height:28px;min-height:0;padding:0;margin:0;
   border-radius:999px;background:#D5D9DF;border:0;position:relative;cursor:pointer;transition:background .18s ease}
 .bascule input::after{content:"";position:absolute;top:3px;left:3px;width:22px;height:22px;border-radius:50%;background:#fff;
@@ -438,7 +442,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .choix-fond small{display:block;font-size:12.5px;color:var(--ink-3,#6B7480)}
 </style>
 <script src="./clavier.js?v=20260930a" defer></script>
-<script src="./horsligne.js?v=20261002a" defer></script>
+<script src="./horsligne.js?v=20261004a" defer></script>
 </head>
 <body>
 <header>
@@ -534,6 +538,12 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
         <input type="checkbox" id="nt_documents" role="switch"></label>
       <label class="bascule"><span>Rappels et tâches<small>À la date et à l'heure choisies</small></span>
         <input type="checkbox" id="nt_rappels" role="switch"></label>
+      <label class="bascule"><span>Silence la nuit<small>Aucune notification ni pastille sur l'icône pendant ces heures ; ce qui arrive vous attend, en une seule notification à la fin du silence</small></span>
+        <input type="checkbox" id="nt_silence" role="switch"></label>
+      <div class="nt-heures" id="nt_heures">
+        <label>De <input type="time" id="nt_silenceDebut" value="19:00" step="900"></label>
+        <label>à <input type="time" id="nt_silenceFin" value="07:00" step="900"></label>
+      </div>
     </div>
     <div class="nt-actions" id="nt_actions" hidden>
       <button type="button" id="nt_essai">Envoyer un essai</button>
@@ -817,6 +827,11 @@ function ntPeindre(e){
     $("nt_messages").checked = e.prefs.messages!==false;
     $("nt_documents").checked = e.prefs.documents!==false;
     $("nt_rappels").checked = e.prefs.rappels!==false;
+    $("nt_silence").checked = e.prefs.silence!==false;
+    $("nt_silenceDebut").value = e.prefs.silenceDebut || "19:00";
+    $("nt_silenceFin").value = e.prefs.silenceFin || "07:00";
+    $("nt_heures").hidden = e.prefs.silence===false;
+    garderSilence();
   }
 }
 function ntCharger(){
@@ -829,6 +844,23 @@ $("nt_activer").addEventListener("click", function(){
   Notif.activer(S).then(function(){ ntMessage("Notifications activées.", true); ntCharger(); })
     .catch(function(err){ ntMessage(err && err.message ? err.message : "Activation impossible."); ntCharger(); })
     .then(function(){ b.disabled=false; });
+});
+/* le silence de la nuit est aussi gardé sur l'appareil : la pastille de l'icône s'y tient */
+function garderSilence(){
+  try{ localStorage.setItem("outils:silence", JSON.stringify({silence:$("nt_silence").checked, debut:$("nt_silenceDebut").value||"19:00", fin:$("nt_silenceFin").value||"07:00"})); }catch(e){}
+}
+$("nt_silence").addEventListener("change", function(){
+  var box=this; $("nt_heures").hidden=!box.checked; garderSilence();
+  Notif.prefs(S, {silence:box.checked}).then(function(){ ntMessage(box.checked ? "Silence la nuit : activé." : "Silence la nuit : coupé.", true); })
+    .catch(function(){ box.checked=!box.checked; $("nt_heures").hidden=!box.checked; garderSilence(); ntMessage("Pas de réseau : réglage non enregistré."); });
+});
+["silenceDebut","silenceFin"].forEach(function(k){
+  $("nt_"+k).addEventListener("change", function(){
+    var v=this.value; if(!/^\d\d:\d\d$/.test(v)) return;
+    var c={}; c[k]=v; garderSilence();
+    Notif.prefs(S, c).then(function(){ ntMessage("Silence de "+$("nt_silenceDebut").value.replace(":", " h ")+" à "+$("nt_silenceFin").value.replace(":", " h ")+".", true); })
+      .catch(function(){ ntMessage("Pas de réseau : réglage non enregistré."); });
+  });
 });
 ["messages","documents","rappels"].forEach(function(k){
   $("nt_"+k).addEventListener("change", function(){

@@ -4,7 +4,7 @@ import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
 function jourParis() { return maintenantParis().slice(0, 10); }
 
@@ -94,6 +94,8 @@ async function tic(force) {
     }
   });
   let n = 0;
+  /* la fin du silence de la nuit : ce qui a attendu part maintenant */
+  for (const l of lots) { try { n += await envoyerAttentes(l.store, annuaire, contactPush("")); } catch { /* minute suivante */ } }
   for (const l of lots) {
     let comptes = [];
     if (l.dus.length) { try { comptes = await lireComptes(l.code); } catch { comptes = []; } }
@@ -2486,7 +2488,10 @@ async function traiter(req) {
     } else if (action === "push-desabonner") {
       f.abonnements = f.abonnements.filter((x) => x.endpoint !== d.endpoint);
     } else {
-      for (const k of Object.keys(PREFS_DEFAUT)) if (typeof d[k] === "boolean") f.prefs[k] = d[k];
+      for (const k of Object.keys(PREFS_DEFAUT)) {
+        if (typeof PREFS_DEFAUT[k] === "boolean" && typeof d[k] === "boolean") f.prefs[k] = d[k];
+        if (typeof PREFS_DEFAUT[k] === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(d[k] || ""))) f.prefs[k] = d[k];
+      }
     }
     await store.setJSON(cleAbonne(personne.nom), f);
     return json({ ok: true, prefs: f.prefs, appareils: f.abonnements.length });
