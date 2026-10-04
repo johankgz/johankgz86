@@ -422,9 +422,6 @@ main{max-width:520px}
 .puces[hidden]{display:none}
 .puces button{min-height:32px;padding:0 11px;border-radius:999px;border:1px solid rgba(255,255,255,.14);
   background:rgba(255,255,255,.04);color:#AEB7BF;font-family:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
-.rf-reglage{display:flex;align-items:center;gap:8px;margin:-8px 0 8px;font-size:12px;color:#8A97A6}
-.rf-reglage .puces{margin:0;flex-wrap:nowrap}
-.rf-reglage .puces button{min-height:28px;padding:0 10px;font-size:12px}
 #vue-refs .conv-saisie{margin-bottom:12px}
 #vue-refs .conv-aide{margin:2px 0 10px}
 /* les filtres en cascade : une ligne par niveau, qui défile de côté */
@@ -447,8 +444,14 @@ main{max-width:520px}
 .rf-texte b{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:14px;color:#F2F5F9;word-break:break-all}
 .rf-texte span{font-size:13px;line-height:1.3;color:#D5DCE4}
 .rf-texte small{font-size:11px;line-height:1.35;color:#7D8996;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.rf-copier{min-height:34px;min-width:72px;padding:0 12px;border-radius:999px;border:1px solid rgba(251,146,60,.6);background:rgba(251,146,60,.14);color:#FDBA74;font-weight:700;font-size:13px;cursor:pointer}
-.rf-copier.fait{background:#15803D;border-color:#15803D;color:#fff}
+/* toute la ligne se touche pour copier la référence */
+button.rf-texte{appearance:none;-webkit-appearance:none;margin:0;padding:2px 0;border:0;background:none;text-align:left;font:inherit;color:inherit;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.rf-ref{display:flex;align-items:center;gap:8px}
+.rf-ico{flex:none;display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:700;color:#FDBA74;opacity:.75}
+.rf-ico svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.rf-ligne:active{border-color:rgba(251,146,60,.55)}
+.rf-ligne.fait{border-color:#15803D;background:rgba(21,128,61,.14)}
+.rf-ligne.fait .rf-ico{color:#4ADE80;opacity:1}
 .rf-plus{min-height:34px;width:34px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:none;color:#C9D1D9;font-size:18px;cursor:pointer}
 .rf-menu{flex-basis:100%;margin:2px 0 0}
 .rf-bases{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:0 0 10px;font-size:12px;color:#8A97A6}
@@ -943,12 +946,10 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
   <section class="vue" id="vue-refs" hidden>
     <div class="carte-outil conv">
       <h2 class="outil-titre">Références</h2>
-      <p class="conv-aide">Cherchez ou filtrez ; «&nbsp;Copier&nbsp;» met la référence dans le presse-papiers.</p>
+      <p class="conv-aide">Cherchez ou filtrez, puis touchez une référence : elle est copiée.</p>
       <label class="rf-bases" id="rfBases" hidden><span>Base</span><select id="rfBase" aria-label="Base de références à ouvrir"></select></label>
       <div class="rf-autre" id="rfAutre" hidden><span id="rfAutreTxt"></span><button type="button" id="rfCopierBase">Copier dans ma base</button></div>
       <div class="conv-saisie"><input type="search" id="rfCherche" autocomplete="off" enterkeyhint="search" placeholder="Référence, désignation, marque…" aria-label="Chercher une référence"></div>
-      <div class="rf-reglage"><span>Copier :</span>
-        <span class="puces" id="rfCopieMode" role="group" aria-label="Ce que copie le bouton Copier"><button type="button" data-v="code" title="la référence">Réf.</button><button type="button" data-v="code-des" title="référence + désignation">Réf. + désignation</button><button type="button" data-v="ligne" title="toute la ligne">Ligne</button></span></div>
       <div class="rf-filtres" id="rfCats" hidden role="group" aria-label="Filtres"></div>
       <p class="conv-formule rf-etat" id="rfEtat" aria-live="polite">Chargement…</p>
       <p class="rf-info" id="rfInfo"></p>
@@ -1925,7 +1926,6 @@ window.__calcul = calculer;
   function passeFiltres(i, jusqua){ for(var k=0;k<(jusqua==null ? NIV.length : jusqua);k++) if(FILTRE[k]!=null && valeurNiv(i, k)!==FILTRE[k]) return false; return true; }
   function filtreActif(){ return FILTRE.some(function(v){ return v!=null; }); }
   function resumeFiltres(){ return FILTRE.map(function(v, k){ return v==null ? null : (v || "Autres"); }).filter(function(v){ return v!=null; }).join(" › "); }
-  var MODE_COPIE=(function(){ try{ return localStorage.getItem("outils:refsCopie")||"code"; }catch(e){ return "code"; } })();
   var RECENTS=(function(){ try{ var l=JSON.parse(localStorage.getItem("outils:refsRecents")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
   function etat(t){ $("rfEtat").textContent=t||""; }
   function api(action, corps){
@@ -1964,7 +1964,6 @@ window.__calcul = calculer;
       s.value=String(k ? (B.des!=null ? B.des : 1) : (B.cle||0));
     });
     $("rfColonnes").hidden=!B.modifiable || !B.colonnes.length;
-    Array.prototype.forEach.call($("rfCopieMode").children, function(b){ b.classList.toggle("on", b.dataset.v===MODE_COPIE); });
     majFiltres();
   }
   /* les filtres en cascade : un niveau s'affiche quand ceux d'avant sont choisis (ou n'ont qu'une valeur) */
@@ -2094,9 +2093,12 @@ window.__calcul = calculer;
   function ligneVue(i){
     var l=B.lignes[i], cle=B.cle||0, des=B.des!=null ? B.des : 1;
     var d=document.createElement("div"); d.className="rf-ligne";
-    var t=document.createElement("div"); t.className="rf-texte";
-    var b=document.createElement("b"); b.textContent=l[cle]||"—"; t.appendChild(b);
-    if(des>=0 && l[des]){ var s=document.createElement("span"); s.textContent=l[des]; t.appendChild(s); }
+    var t=document.createElement("button"); t.type="button"; t.className="rf-texte rf-copier"; t.setAttribute("aria-label", "Copier "+(l[cle]||""));
+    var rr=document.createElement("span"); rr.className="rf-ref";
+    var b=document.createElement("b"); b.textContent=l[cle]||"—"; rr.appendChild(b);
+    var ic=document.createElement("span"); ic.className="rf-ico"; ic.innerHTML=ICO_COPIE; rr.appendChild(ic);
+    t.appendChild(rr);
+    if(des>=0 && l[des]){ var s=document.createElement("span"); s.className="rf-des"; s.textContent=l[des]; t.appendChild(s); }
     /* la petite ligne : les valeurs seules (gamme, marque, fournisseur), sans ce que les filtres disent déjà */
     var filtrees=NIV.filter(function(n, k){ return n.col>=0 && FILTRE[k]!=null; }).map(function(n){ return n.col; });
     var autres=B.colonnes.map(function(c, j){
@@ -2104,29 +2106,30 @@ window.__calcul = calculer;
       return /^(categorie|famille|rubrique|gamme|serie|collection|marque|fabricant|fournisseur|distributeur)/.test(sansAccent(c)) ? l[j] : c+" : "+l[j];
     }).filter(Boolean);
     if(autres.length){ var sm=document.createElement("small"); sm.textContent=autres.join(" · "); t.appendChild(sm); }
+    t.addEventListener("click", function(){ copier(i, d); });
     d.appendChild(t);
-    var bc=document.createElement("button"); bc.type="button"; bc.className="rf-copier"; bc.textContent="Copier"; bc.setAttribute("aria-label", "Copier "+(l[cle]||""));
-    bc.addEventListener("click", function(){ copier(i, MODE_COPIE, bc); });
-    d.appendChild(bc);
-    var bp=document.createElement("button"); bp.type="button"; bp.className="rf-plus"; bp.textContent="⋯"; bp.setAttribute("aria-label", "Autres actions");
-    bp.addEventListener("click", function(){ menu(i, d); });
-    d.appendChild(bp);
+    /* ⋯ : modifier ou retirer, pour qui peut modifier la base */
+    if(B.modifiable){
+      var bp=document.createElement("button"); bp.type="button"; bp.className="rf-plus"; bp.textContent="⋯"; bp.setAttribute("aria-label", "Modifier ou retirer");
+      bp.addEventListener("click", function(){ menu(i, d); });
+      d.appendChild(bp);
+    }
     return d;
   }
-  function texteCopie(i, mode){
-    var l=B.lignes[i], cle=B.cle||0, des=B.des!=null ? B.des : 1;
-    if(mode==="des") return des>=0 ? l[des] : l[cle];
-    if(mode==="code-des") return des>=0 && l[des] ? l[cle]+"\t"+l[des] : l[cle];
-    if(mode==="ligne") return l.join("\t");
-    return l[cle];
-  }
-  function copier(i, mode, bouton){
-    var t=texteCopie(i, mode)||"", ref=B.lignes[i][B.cle||0];
+  var ICO_COPIE='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8.5" y="8.5" width="11" height="11" rx="2"/><path d="M15.5 8.5V6a1.5 1.5 0 0 0-1.5-1.5H6A1.5 1.5 0 0 0 4.5 6v8A1.5 1.5 0 0 0 6 15.5h2.5"/></svg>';
+  var ICO_OK='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+  /* copier la référence (seulement elle) ; la ligne passe au vert un instant */
+  function copier(i, ligne){
+    var ref=B.lignes[i][B.cle||0], t=String(ref||"");
     function fait(){
       RECENTS=[ref].concat(RECENTS.filter(function(r){ return r!==ref; })).slice(0, 12);
       try{ localStorage.setItem("outils:refsRecents", JSON.stringify(RECENTS)); }catch(e){}
-      if(bouton){ bouton.textContent="Copié ✓"; bouton.classList.add("fait"); setTimeout(function(){ bouton.textContent="Copier"; bouton.classList.remove("fait"); }, 1600); }
-      etat("Copié : "+t.replace(/\t/g, "  ·  "));
+      if(ligne){
+        var ic=ligne.querySelector(".rf-ico");
+        ligne.classList.add("fait"); if(ic) ic.innerHTML=ICO_OK+"Copié";
+        clearTimeout(ligne._t); ligne._t=setTimeout(function(){ ligne.classList.remove("fait"); if(ic) ic.innerHTML=ICO_COPIE; }, 1600);
+      }
+      etat("Copié : "+t);
     }
     function secours(){
       var ta=document.createElement("textarea"); ta.value=t; ta.setAttribute("readonly", ""); ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
@@ -2136,14 +2139,11 @@ window.__calcul = calculer;
     try{ if(navigator.clipboard && navigator.clipboard.writeText){ navigator.clipboard.writeText(t).then(fait, secours); return; } }catch(e){}
     secours();
   }
-  /* les autres actions d'une ligne : copier autrement, modifier, retirer */
+  /* les autres actions d'une ligne : modifier, retirer */
   function menu(i, d){
     var dej=d.querySelector(".rf-menu"); if(dej){ dej.remove(); return; }
     Array.prototype.forEach.call(document.querySelectorAll(".rf-menu"), function(m){ m.remove(); });
     var m=document.createElement("div"); m.className="puces rf-menu";
-    [["code","Copier la référence"],["des","Copier la désignation"],["code-des","Référence + désignation"],["ligne","Toute la ligne"]].forEach(function(o){
-      var b=document.createElement("button"); b.type="button"; b.textContent=o[1]; b.addEventListener("click", function(){ copier(i, o[0], null); m.remove(); }); m.appendChild(b);
-    });
     if(B.modifiable){
       var bm=document.createElement("button"); bm.type="button"; bm.textContent="Modifier"; bm.addEventListener("click", function(){ m.remove(); editer(i); }); m.appendChild(bm);
       var bs=document.createElement("button"); bs.type="button"; bs.textContent="Retirer"; bs.addEventListener("click", function(){
@@ -2400,7 +2400,6 @@ window.__calcul = calculer;
   /* ---------- les colonnes, le mode de copie ---------- */
   $("rfColCle").addEventListener("change", reglerColonnes); $("rfColDes").addEventListener("change", reglerColonnes);
   function reglerColonnes(){ api("references-colonnes", {cle:parseInt($("rfColCle").value, 10), des:parseInt($("rfColDes").value, 10)}).then(function(d){ B.cle=d.cle; B.des=d.des; majEntete(); chercher(); }).catch(function(e){ etat(e.message); }); }
-  $("rfCopieMode").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; MODE_COPIE=b.dataset.v; try{ localStorage.setItem("outils:refsCopie", MODE_COPIE); }catch(er){} majEntete(); });
   var tempo=null;
   $("rfCherche").addEventListener("input", function(){ clearTimeout(tempo); tempo=setTimeout(chercher, 120); });
   $("rfCherche").addEventListener("keydown", function(e){
