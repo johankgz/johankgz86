@@ -914,7 +914,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
   <section class="vue" id="vue-refs" hidden>
     <div class="carte-outil conv">
       <h2 class="outil-titre">Références</h2>
-      <p class="conv-aide">Vos références d'articles, venues de votre fichier Excel. Cherchez une référence, un mot de la désignation, une marque ; « Copier » la met dans le presse-papiers, prête à coller dans Batigest. Entrée copie le premier résultat.</p>
+      <p class="conv-aide">Vos références d'articles, venues de votre fichier Excel. Cherchez une référence, un mot de la désignation, une marque ; « Copier » la met dans le presse-papiers. Entrée copie le premier résultat.</p>
       <div class="conv-saisie"><input type="search" id="rfCherche" autocomplete="off" enterkeyhint="search" placeholder="Référence, désignation, marque…" aria-label="Chercher une référence"></div>
       <div class="rf-reglage"><span>« Copier » copie</span>
         <span class="puces" id="rfCopieMode" role="group" aria-label="Ce que copie le bouton Copier"><button type="button" data-v="code">la référence</button><button type="button" data-v="code-des">référence + désignation</button><button type="button" data-v="ligne">toute la ligne</button></span></div>
@@ -923,7 +923,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <div class="rf-liste" id="rfListe"></div>
       <div class="rf-admin" id="rfAdmin" hidden>
         <h3>Mettre à jour la base</h3>
-        <p class="conv-aide">Importez votre fichier Excel (.xlsx) ou CSV quand il change : « Mettre à jour » ajoute les nouvelles références et modifie celles qui ont changé, sans retirer les autres ; « Remplacer » repart du fichier. Vous pouvez aussi ajouter une référence à la main, ou exporter la base en Excel pour la retravailler.</p>
+        <p class="conv-aide">Importez votre fichier Excel (.xlsx, .xlsm) ou CSV quand il change ; un classeur d'une feuille par famille (Appareillage, Câble, Tableau…) est lu en entier. « Mettre à jour » ajoute les nouvelles références et modifie celles qui ont changé, sans retirer les autres ; « Remplacer » repart du fichier. Vous pouvez aussi ajouter une référence à la main, ou exporter la base en Excel pour la retravailler.</p>
         <div class="puces">
           <button type="button" id="rfImporter">Importer un fichier Excel ou CSV</button>
           <button type="button" id="rfAjouter">Ajouter une référence</button>
@@ -1841,14 +1841,13 @@ window.__calcul = calculer;
 /* ---------- les références de l'entreprise ----------
    La base d'articles de l'entreprise, importée de son fichier Excel (.xlsx) ou
    CSV : on cherche (par référence, désignation, fournisseur… sans accents), et
-   « Copier » met la référence dans le presse-papiers, prête à coller dans
-   Batigest. L'administrateur l'importe à nouveau quand le fichier change
+   « Copier » met la référence dans le presse-papiers. L'administrateur l'importe à nouveau quand le fichier change
    (mise à jour : ajoute et modifie, garde le reste ; ou remplacement complet),
    ajoute, modifie ou retire une référence, et l'exporte en Excel. */
 (function(){
   function $(i){ return document.getElementById(i); }
   var S=null; try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
-  var B={colonnes:[], lignes:[], cle:0, des:1, modifiable:false}, IDX=[], IMP=null, EDIT=null;
+  var B={colonnes:[], lignes:[], cle:0, des:1, modifiable:false}, IDX=[], IMP=null, EDIT=null, IMP_CAT=false;
   var MODE_COPIE=(function(){ try{ return localStorage.getItem("outils:refsCopie")||"code"; }catch(e){ return "code"; } })();
   var RECENTS=(function(){ try{ var l=JSON.parse(localStorage.getItem("outils:refsRecents")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
   function etat(t){ $("rfEtat").textContent=t||""; }
@@ -1938,7 +1937,7 @@ window.__calcul = calculer;
       RECENTS=[ref].concat(RECENTS.filter(function(r){ return r!==ref; })).slice(0, 12);
       try{ localStorage.setItem("outils:refsRecents", JSON.stringify(RECENTS)); }catch(e){}
       if(bouton){ bouton.textContent="Copié ✓"; bouton.classList.add("fait"); setTimeout(function(){ bouton.textContent="Copier"; bouton.classList.remove("fait"); }, 1600); }
-      etat("Copié : "+t.replace(/\t/g, "  ·  ")+" — collez-le dans Batigest (Ctrl+V).");
+      etat("Copié : "+t.replace(/\t/g, "  ·  "));
     }
     function secours(){
       var ta=document.createElement("textarea"); ta.value=t; ta.setAttribute("readonly", ""); ta.style.position="fixed"; ta.style.opacity="0"; document.body.appendChild(ta); ta.select();
@@ -2059,6 +2058,74 @@ window.__calcul = calculer;
     var lignes=L.slice(h+1).map(function(l){ var r=[]; for(var j=0;j<n;j++) r.push(l[j]||""); return r; }).filter(function(r){ return r.some(Boolean); });
     return {colonnes:cols, lignes:lignes};
   }
+  /* Un classeur « catalogue » : plusieurs feuilles (une par famille), et sur chacune des blocs de
+     colonnes MARQUE | RÉFÉRENCE | DÉSIGNATION | FOURNISSEUR, parfois côte à côte (Plexo, Céliane…),
+     parfois sans en-tête à droite du premier ; une ligne d'une seule case est un intertitre (une gamme).
+     Tout est rassemblé en une seule liste : Catégorie (la feuille), Gamme, Marque, Référence,
+     Désignation, Fournisseur. Les feuilles de calcul (sans en-tête RÉFÉRENCE + DÉSIGNATION) sont laissées. */
+  function roleDe(t){ var s=sansAccent(t).replace(/[^a-z ]/g, " ").trim();
+    if(/^marques?\b/.test(s)) return "marque"; if(/^(ref|reference|references|code|code article)\b/.test(s)) return "ref";
+    if(/^(designation|libelle|description)\b/.test(s)) return "des"; if(/^fournisseurs?\b/.test(s)) return "four"; return ""; }
+  /* une vraie référence : sans espace, au moins 4 signes dont un chiffre (« ETAPE 01 » n'en est pas une) */
+  function refProbable(v){ v=String(v||"").trim(); return v.length>=4 && /\d/.test(v) && /^[A-Za-z0-9][A-Za-z0-9\-\/.,_+]*$/.test(v); }
+  function propre(v){ return String(v==null ? "" : v).replace(/\s+/g, " ").trim(); }
+  function catalogue(feuilles){
+    var out=[], vus={}, parFeuille=[];
+    feuilles.forEach(function(fe){
+      var L=fe.lignes, blocs=[], entetes={};
+      /* les en-têtes : une ligne où l'on trouve RÉFÉRENCE et DÉSIGNATION */
+      L.forEach(function(l, r){
+        var roles=l.map(roleDe);
+        if(roles.indexOf("ref")<0 || roles.indexOf("des")<0) return;
+        entetes[r]=1;
+        /* de gauche à droite : une case vide, ou un rôle qui revient (MARQUE après FOURNISSEUR), ferme le bloc */
+        var groupes=[], g=null;
+        roles.concat([""]).forEach(function(ro, j){
+          if(!ro || (g && g.m[ro]!=null)){ if(g) groupes.push(g); g = ro ? {a:j, m:{}} : null; if(!ro) return; }
+          if(!g) g={a:j, m:{}};
+          g.m[ro]=j-g.a; g.b=j;
+        });
+        groupes.forEach(function(gr){
+          if(gr.m.ref==null || gr.m.des==null) return;
+          if(!blocs.some(function(x){ return x.o===gr.a; })) blocs.push({o:gr.a, w:gr.b-gr.a+1, m:gr.m, entete:true, hr:r});
+        });
+      });
+      if(!blocs.length) return;
+      /* les blocs sans en-tête, à droite, sur le même modèle (Plexo, Céliane…) : gardés s'ils ont au moins 3 vraies références */
+      var b0=blocs[0], maxc=0; L.forEach(function(l){ maxc=Math.max(maxc, l.length); });
+      for(var o=Math.max.apply(null, blocs.map(function(x){ return x.o; }))+b0.w; o<maxc; o+=b0.w){
+        if(blocs.some(function(x){ return x.o===o; })) continue;
+        var n=0; L.forEach(function(l){ if(refProbable(l[o+b0.m.ref]) && propre(l[o+b0.m.des])) n++; });
+        if(n>=3) blocs.push({o:o, w:b0.w, m:b0.m, entete:false, hr:b0.hr});
+      }
+      var compte=0;
+      blocs.forEach(function(bl){
+        /* au-dessus de l'en-tête : le titre du bloc (TABLEAU MONO) ; dessous : les intertitres (TABLEAU ÉLECTRIQUE, DOOXIE…) */
+        var marques={}, titre="", section="", m=bl.m;
+        L.forEach(function(l, r){ var v=propre(l[bl.o+(m.marque!=null ? m.marque : -99)]); if(v && !entetes[r]) marques[v.toUpperCase()]=(marques[v.toUpperCase()]||0)+1; });
+        L.forEach(function(l, r){
+          /* l'en-tête de ce bloc seulement : sur la même ligne, un bloc voisin peut avoir une vraie référence */
+          if(bl.entete ? r===bl.hr : roleDe(l[bl.o+m.ref])==="ref") return;
+          var cases=[]; for(var k=0;k<bl.w;k++) cases.push(propre(l[bl.o+k]));
+          var pleines=cases.filter(Boolean);
+          if(!pleines.length) return;
+          var ref=m.ref!=null ? cases[m.ref] : "", des=cases[m.des]||"", mar=m.marque!=null ? cases[m.marque] : "", fou=m.four!=null ? cases[m.four] : "";
+          if(pleines.length===1){
+            /* une seule case : un intertitre (une gamme), sauf une marque seule ou une mention de commande */
+            var t=pleines[0];
+            if(marques[t.toUpperCase()]>1 || refProbable(t) || /\b(ref|reference|commande|devis)\b/i.test(sansAccent(t)) || sansAccent(t)===sansAccent(fe.nom).trim()) return;
+            if(r<bl.hr) titre=t; else section=t; return;
+          }
+          var gamme = bl.entete ? [titre, section].filter(Boolean).join(" · ") : (section || titre);
+          if(!ref && !des) return;
+          var cle=(ref+"|"+des).toUpperCase(); if(vus[cle]) return; vus[cle]=1;
+          out.push([propre(fe.nom), gamme, mar, ref, des, fou]); compte++;
+        });
+      });
+      parFeuille.push(propre(fe.nom)+" ("+compte+")");
+    });
+    return {colonnes:["Catégorie", "Gamme", "Marque", "Référence", "Désignation", "Fournisseur"], lignes:out, nom:"Catalogue : toutes les feuilles", detail:parFeuille};
+  }
   function devinerCle(cols){
     var r=-1, d=-1;
     cols.forEach(function(c, i){ var s=sansAccent(c);
@@ -2074,10 +2141,13 @@ window.__calcul = calculer;
     etat("Lecture de « "+f.name+" »…");
     f.arrayBuffer().then(function(buf){ return ext==="csv" || ext==="txt" ? lireCsv(buf) : lireXlsx(buf); })
       .then(function(feuilles){
+        var cat=feuilles.length>1 ? catalogue(feuilles) : null;
         feuilles=feuilles.map(function(fe){ var t=tableau(fe); t.nom=fe.nom; return t; }).filter(function(t){ return t.colonnes.length; });
+        /* un catalogue en plusieurs feuilles : tout rassemblé, proposé en premier */
+        if(cat && cat.lignes.length && cat.detail.length>1){ feuilles.unshift(cat); IMP_CAT=true; } else IMP_CAT=false;
         if(!feuilles.length) throw new Error("Aucun tableau trouvé dans ce fichier.");
         /* la feuille la plus remplie d'abord */
-        var k=0; feuilles.forEach(function(t, i){ if(t.lignes.length>feuilles[k].lignes.length) k=i; });
+        var k=0; if(!IMP_CAT) feuilles.forEach(function(t, i){ if(t.lignes.length>feuilles[k].lignes.length) k=i; });
         IMP={source:f.name, feuilles:feuilles, f:k}; ouvrirImport(); etat("");
       })
       .catch(function(e){ etat(e.message || "Ce fichier n'a pas pu être lu."); });
@@ -2085,7 +2155,7 @@ window.__calcul = calculer;
   function ouvrirImport(){
     var t=IMP.feuilles[IMP.f], g=devinerCle(t.colonnes), s;
     $("rfImport").hidden=false;
-    s=$("rfFeuille"); s.textContent=""; IMP.feuilles.forEach(function(fe, i){ var o=document.createElement("option"); o.value=String(i); o.textContent=fe.nom+" ("+nb(fe.lignes.length)+" lignes)"; s.appendChild(o); }); s.value=String(IMP.f);
+    s=$("rfFeuille"); s.textContent=""; IMP.feuilles.forEach(function(fe, i){ var o=document.createElement("option"); o.value=String(i); o.textContent=(fe.detail ? fe.nom : "Feuille « "+fe.nom+" » seule")+" ("+nb(fe.lignes.length)+" lignes)"; s.appendChild(o); }); s.value=String(IMP.f);
     $("rfFeuilleL").hidden = IMP.feuilles.length<2;
     ["rfImpCle","rfImpDes"].forEach(function(id, k){
       var se=$(id); se.textContent="";
@@ -2101,7 +2171,7 @@ window.__calcul = calculer;
   function apercu(){
     var t=IMP.feuilles[IMP.f], cle=parseInt($("rfImpCle").value, 10), sans=t.lignes.filter(function(l){ return !l[cle]; }).length;
     var vus={}, doublons=0; t.lignes.forEach(function(l){ var k=String(l[cle]).trim().toUpperCase(); if(!k) return; if(vus[k]) doublons++; vus[k]=1; });
-    $("rfImpResume").textContent="« "+IMP.source+" » : "+nb(t.lignes.length)+" lignes, "+t.colonnes.length+" colonnes ("+t.colonnes.join(", ")+")"
+    $("rfImpResume").textContent="« "+IMP.source+" » : "+(t.detail ? "catalogue de "+t.detail.length+" feuilles ("+t.detail.join(", ")+"), " : "")+nb(t.lignes.length)+" lignes, "+t.colonnes.length+" colonnes ("+t.colonnes.join(", ")+")"
       +(sans ? " · "+sans+" ligne"+(sans>1 ? "s" : "")+" sans référence" : "")+(doublons ? " · "+doublons+" référence"+(doublons>1 ? "s" : "")+" en double (la dernière gagne en mise à jour)" : "");
     var tb=$("rfImpApercu"); tb.textContent="";
     var tr=document.createElement("tr"); t.colonnes.forEach(function(c){ var th=document.createElement("th"); th.textContent=c; tr.appendChild(th); }); tb.appendChild(tr);
