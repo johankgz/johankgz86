@@ -2,6 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<script src="./theme.js?v=20261004a"></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261001a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -575,8 +576,19 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
   </div>
 
   <div class="block">
+    <h2>Apparence</h2>
+    <p class="legend">Clair ou sombre, sur tout le site. Le plan DWG reste sombre, comme un écran de dessin. Réglage propre à cet appareil.</p>
+    <div class="choix-fond" role="radiogroup" aria-label="Apparence">
+      <label><input type="radio" name="theme" value="auto"><span><b>Comme le téléphone</b><small>Clair ou sombre selon les réglages du téléphone, et il suit quand il bascule</small></span></label>
+      <label><input type="radio" name="theme" value="heure"><span><b>Selon l'heure</b><small>Clair de 7 h à 20 h, sombre le soir et la nuit</small></span></label>
+      <label><input type="radio" name="theme" value="clair"><span><b>Toujours clair</b><small>Fonds clairs, pour le plein soleil</small></span></label>
+      <label><input type="radio" name="theme" value="sombre"><span><b>Toujours sombre</b><small>Le châssis graphite, partout</small></span></label>
+    </div>
+  </div>
+
+  <div class="block">
     <h2>Fond d'écran</h2>
-    <p class="legend">L'animation derrière l'accueil, ou un fond uni qui ne bouge pas, sur l'accueil et dans les applis. Réglage propre à cet appareil.</p>
+    <p class="legend">L'animation derrière l'accueil, ou un fond uni qui ne bouge pas, sur l'accueil et dans les applis (en sombre ; en clair, le fond est uni). Réglage propre à cet appareil.</p>
     <div class="choix-fond" role="radiogroup" aria-label="Fond d'écran">
       <label><input type="radio" name="fond" value="reseaux"><span><b>Les réseaux</b><small>Câbles et tuyaux aux couleurs du logo</small></span></label>
       <label><input type="radio" name="fond" value="ville"><span><b>La ville en chantier</b><small>Immeubles, chantier et grue</small></span></label>
@@ -771,6 +783,21 @@ if(S.role==="bureau" || S.role==="admin"){
     }catch(e){}
   });
 }
+
+/* ---------- l'apparence : clair, sombre, comme le téléphone, selon l'heure (theme.js) ---------- */
+(function(){
+  if(!window.theme) return;
+  var v=window.theme.reglage();
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="theme"]'), function(r){
+    r.checked = r.value===v;
+    r.addEventListener("change", function(){
+      window.theme.choisir(r.value);
+      if(typeof toast==="function") toast(r.value==="auto" ? "Le site suit le téléphone : "+(window.theme.clair() ? "clair" : "sombre")+" en ce moment."
+        : r.value==="heure" ? "Clair de 7 h à 20 h, sombre ensuite : "+(window.theme.clair() ? "clair" : "sombre")+" en ce moment."
+        : r.value==="clair" ? "Toujours clair." : "Toujours sombre.");
+    });
+  });
+})();
 
 /* ---------- le fond de l'accueil ---------- */
 (function(){
