@@ -94,7 +94,7 @@ body.clair #scene{background:#FFFFFF}
 .lab{flex:0 0 auto;font-size:11.5px;color:var(--ink3);font-weight:600;margin-left:4px}
 .reglages .bt{min-height:34px;font-size:13px}
 @media (max-width:600px){ .reglages{flex-wrap:wrap;overflow:visible} .reglages .bt{padding:6px 10px} .seg button{padding:6px 10px}
-  #grpPvPose,#grpPvStr,#grpToit,#grpToitPv{flex:1 1 100%;flex-wrap:wrap} }
+  #grpPvPose,#grpPvStr,#grpPvOnd,#grpToit,#grpToitPv{flex:1 1 100%;flex-wrap:wrap} }
 /* les calques */
 .calques{position:fixed;right:10px;top:calc(62px + env(safe-area-inset-top,0px));bottom:150px;z-index:6;width:min(300px,86vw);display:flex;flex-direction:column;
   background:rgba(20,25,32,.97);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8)}
@@ -164,6 +164,8 @@ body.clair #scene{background:#FFFFFF}
 .ep-al{font-size:12.5px}.ep-al.err{color:#F87171}.ep-al.av{color:#FBBF24}.ep-ok{color:#4ADE80;font-size:12.5px}
 .ep-mat{margin:0;padding-left:18px}.ep-mat li{margin:2px 0}
 .ep-note{font-size:11.5px;color:var(--ink3)}
+.ep-grille select{min-height:34px;padding:4px 8px;border-radius:8px;border:1px solid rgba(255,255,255,.2);background:#0B0E12;color:var(--ink);font-size:14px;width:100%}
+.ep-liaison{font-size:12.5px;padding-top:4px;border-top:1px solid var(--trait);margin-top:4px}
 /* le dessin */
 .outils-d button i{background:#FFFFFF}
 .outils-d button i svg{width:26px;height:26px}
@@ -482,6 +484,8 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="pvond"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14"/><path d="M3 19 21 5M6 9h4M6 11h4M14 15c1-1.4 2-1.4 3 0s2 1.4 3 0"/></svg></i>Onduleur</button>
     <button type="button" data-o="pvstr"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="5" height="7"/><rect x="9.5" y="9" width="5" height="7"/><rect x="17" y="9" width="5" height="7"/><path d="M4.5 9V6h7.5v3M12 16v3h7.5v-3" stroke="#DC2626" stroke-width="2"/></svg></i>String</button>
     <button type="button" data-o="pvchemin"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v7h9v9" stroke="#DC2626" stroke-width="1.8"/><path d="M6.5 4v4.5h9V20" stroke="#1D4ED8" stroke-width="1.8"/><rect x="11" y="18" width="9" height="4" fill="#111"/></svg></i>Cheminement</button>
+    <button type="button" data-o="pvac"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M4 9.5 8 5.5"/><path d="M10 7.5h6v9" stroke="#B45309" stroke-width="2.4"/><rect x="13" y="16" width="8" height="5" fill="#111"/></svg></i>Câble AC</button>
+    <button type="button" data-o="pvrj"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M10 7.5h7v8" stroke="#16A34A" stroke-width="2" stroke-dasharray="2.5 2"/><path d="M13.5 15.5h7v5h-7z M15.5 15.5v-1.5h3v1.5" fill="#fff"/></svg></i>RJ45</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
     <button type="button" data-o="selection"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><path d="M9.5 9.5h5v5h-5z" stroke-dasharray="2 1.6"/></svg></i>Sélection</button>
   </div>
@@ -520,6 +524,14 @@ body.clair #scene{background:#FFFFFF}
       <button class="bt" id="btPvVoirStr" type="button" hidden>String</button>
       <button class="bt" id="btPvCabler" type="button" hidden title="Des strings égales, en serpentin, sur les panneaux libres du champ">Câbler le champ</button>
       <button class="bt" id="btPvSuppChamp" type="button" hidden>Supprimer le champ</button>
+    </span>
+    <span class="groupe" id="grpPvOnd" hidden>
+      <span class="seg" id="segPvPh" role="group" aria-label="Raccordement de l'onduleur"><button type="button" data-v="mono">Mono 230 V</button><button type="button" data-v="tri">Tri 400 V</button></span>
+      <button class="bt" id="btPvAc" type="button" title="Le câble de l'onduleur au tableau : section et protection calculées">Câble AC</button>
+      <button class="bt" id="btPvAcEff" type="button" hidden>Effacer le câble AC</button>
+      <button class="bt" id="btPvRj" type="button" title="La liaison réseau de l'onduleur à la box">RJ45</button>
+      <button class="bt" id="btPvRjEff" type="button" hidden>Effacer le RJ45</button>
+      <button class="bt or" id="btPvFinL" type="button" hidden>Terminer le câble</button>
     </span>
     <span class="groupe" id="grpPvStr" hidden>
       <span class="seg" id="segPvMppt" role="group" aria-label="Entrée MPPT"></span>
@@ -2119,7 +2131,7 @@ function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
 function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", choisir:"Choisir", selection:"Sélection",
+var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", pvac:"Câble AC", pvrj:"Liaison RJ45", choisir:"Choisir", selection:"Sélection",
   trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
@@ -2510,7 +2522,7 @@ function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=G
   D_SEL=null; GRP=null; enregistrerD(); majDessin(); majBarreSel(); }
 /* ---------- le panneau du dessin ---------- */
 function majDessin(){
-  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
+  if(PV_EC && !pvEcValide()) PV_EC=null;
   var o=objetSel(), t=D_SEL && D_SEL.t;
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button"), function(b){ b.classList.toggle("on", b.dataset.o===OUTIL_D); });
   majFamille();
@@ -2543,7 +2555,8 @@ function majDessin(){
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
   if(o && t==="toit") det=resumeToit(o)+".";
   if(o && /^pv/.test(t)){ det=pvDetail(o, t); info = t==="pvp" ? "Panneau" : t==="pvo" ? "Onduleur" : "String"; }
-  if(PV_EC){ var sEc=pvStr(PV_EC.id); if(sEc){ info = PV_EC.t==="ch" ? "Cheminement "+sEc.nom : sEc.nom; if(PV_EC.t==="str") det=sEc.pans.length+" panneau"+(sEc.pans.length>1 ? "x" : "")+" en série. "+pvDetailOutil(); } }
+  if(PV_EC && (PV_EC.t==="ac" || PV_EC.t==="rj")){ var oEc=pvOnd(PV_EC.id); if(oEc){ info=(PV_EC.t==="ac" ? "Câble AC " : "RJ45 ")+oEc.nom; det=pvDetailOutil(); } }
+  else if(PV_EC){ var sEc=pvStr(PV_EC.id); if(sEc){ info = PV_EC.t==="ch" ? "Cheminement "+sEc.nom : sEc.nom; if(PV_EC.t==="str") det=sEc.pans.length+" panneau"+(sEc.pans.length>1 ? "x" : "")+" en série. "+pvDetailOutil(); } }
   majPvPanneau(o, t);
   majToitPanneau(o, t); majFondPanel();
   if(FOND_ETAPE){ info="Fond de plan"; det=$("fpEtat").textContent; }
@@ -2662,6 +2675,7 @@ $("outilsD").addEventListener("click", function(e){
   var selAvant=D_SEL;
   OUTIL_D=b.dataset.o; garder("dwg:outil", OUTIL_D); D_PT=null; GEO_EC=null; PV_EC=null; if(OUTIL_D!=="choisir") D_SEL=null; if(OUTIL_D!=="selection") GRP=null;
   /* Cheminement, une string choisie : on trace son passage tout de suite */
+  if((OUTIL_D==="pvac" || OUTIL_D==="pvrj") && selAvant && selAvant.t==="pvo" && pvOnd(selAvant.id)){ pvDebutLiaison(OUTIL_D==="pvac" ? "ac" : "rj", pvOnd(selAvant.id)); majBarreSel(); return; }
   if(OUTIL_D==="pvchemin" && selAvant && (selAvant.t==="pvs" || selAvant.t==="pvp")){ var sc0 = selAvant.t==="pvs" ? pvStr(selAvant.id) : pvStrDe(selAvant.id); if(sc0){ pvDebutChemin(sc0); majBarreSel(); return; } }
   majDessin(); majBarreSel();
 });
@@ -6568,24 +6582,29 @@ function plafondSousToits(){ var l=toits(); return !l.length || l.some(function(
    plan, un pan incliné se raccourcit). Un panneau retiré (une cheminée,
    un velux) laisse son trou dans la grille.
    ===================================================================== */
-var PV_OUTILS={pvpan:1, pvchamp:1, pvond:1, pvstr:1, pvchemin:1};
+var PV_OUTILS={pvpan:1, pvchamp:1, pvond:1, pvstr:1, pvchemin:1, pvac:1, pvrj:1};
 var PV_COUL=["#E11D48","#2563EB","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#B45309","#4F46E5"];
 var PV_RHO=0.0225;               /* cuivre, Ω·mm²/m */
-var PV_OW=700, PV_OH=450;        /* l'onduleur dessiné, en mm */
+var PV_OW=1000, PV_OH=700;        /* l'onduleur dessiné, en mm (plus large avec plus de MPPT) */
 var PV_EC=null;                  /* {t:"str", id} : la string en cours ; {t:"ch", id, pts} : son cheminement en cours */
 var PV_REG=(function(){ var d={o:"portrait", a:0, e:20, p:0};
   try{ var g=JSON.parse(lire("dwg:pvReg", "null")); if(g){ d.o=g.o==="paysage" ? "paysage" : "portrait"; d.a=Number(g.a)||0; d.e=g.e>=0 ? Number(g.e) : 20; d.p=Number(g.p)||0; } }catch(e){}
   return d; })();
 function garderPvReg(){ garder("dwg:pvReg", JSON.stringify(PV_REG)); }
 var PV_MOD_DEF={nom:"Module 425 Wc", wc:425, voc:38.5, vmp:32.2, isc:14, imp:13.2, cv:-0.26, cp:-0.34, l:1134, h:1722};
-var PV_OND_DEF={pac:6000, nm:2, vmax:600, vmin:80, vmpmax:550, imax:16, icc:20, desc:0};
+var PV_OND_DEF={pac:6000, nm:2, vmax:600, vmin:80, vmpmax:550, imax:16, icc:20, desc:0, ph:"mono", iac:0, acx:0, rjx:0, acNom:"Tableau", rjNom:"Box internet"};
+/* le câble AC : sections, courants admissibles (cuivre, PVC, mode de pose B, sans facteur de correction), disjoncteurs */
+var PV_SECTIONS=[1.5, 2.5, 4, 6, 10, 16, 25, 35, 50];
+var PV_IZ={mono:[17.5, 24, 32, 41, 57, 76, 101, 125, 151], tri:[15.5, 21, 28, 36, 50, 68, 89, 110, 134]};
+var PV_DISJ=[10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125];
 function normPv(v){
   v=v||{}; v.mod=Object.assign({}, PV_MOD_DEF, v.mod||{});
-  v.ch=v.ch||[]; v.pan=v.pan||[]; v.ond=v.ond||[]; v.str=v.str||[];
+  v.ch=v.ch||[]; v.pan=v.pan||[]; v.ond=v.ond||[]; v.ond.forEach(function(o){ for(var c in PV_OND_DEF) if(o[c]==null) o[c]=PV_OND_DEF[c]; }); v.str=v.str||[];
   if(v.tmin==null) v.tmin=-10; if(v.tmax==null) v.tmax=70; if(!v.sec) v.sec=6;
   return v;
 }
 function PVD(){ if(!DESSIN.pv) DESSIN.pv=normPv(null); return DESSIN.pv; }
+function pvEcValide(){ return PV_EC && ((PV_EC.t==="ac" || PV_EC.t==="rj") ? !!pvOnd(PV_EC.id) : !!pvStr(PV_EC.id)); }
 function pvTrouver(l, id){ for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
 function pvChamp(id){ return pvTrouver(PVD().ch, id); }
 function pvPan(id){ return pvTrouver(PVD().pan, id); }
@@ -6623,7 +6642,30 @@ function pvPanSous(q){
   }
   return null;
 }
-function pvOndBoite(o){ var w=PV_OW/DESSIN_MM/2, h=PV_OH/DESSIN_MM/2; return [o.x-w, o.y-h, o.x+w, o.y+h]; }
+function pvOndBoite(o){ var w=Math.max(PV_OW, ((o.nm||1)+2)*380)/DESSIN_MM/2, h=PV_OH/DESSIN_MM/2; return [o.x-w, o.y-h, o.x+w, o.y+h]; }
+/* les bornes, toutes sous l'onduleur, de gauche à droite : RJ45, MPPT 1…n, AC */
+function pvBorne(o, i){ var b=pvOndBoite(o), n=Math.max(1, o.nm||1)+2; return [b[0]+(b[2]-b[0])*(i+0.5)/n, b[1]]; }
+/* l'entrée d'un MPPT : sous l'onduleur, une par MPPT, de gauche à droite ; le + à gauche, le − à droite */
+function pvEntree(o, m){ var n=Math.max(1, o.nm||1); return pvBorne(o, Math.max(1, Math.min(n, m||1))); }
+function pvSortieAC(o){ return pvBorne(o, Math.max(1, o.nm||1)+1); }
+function pvSortieRJ(o){ return pvBorne(o, 0); }
+/* un câble de l'onduleur : il descend de sa borne, puis suit son passage */
+function pvLiaison(o, t){ var l=o[t]; if(!(l && l.pts && l.pts.length)) return null; var s=t==="ac" ? pvSortieAC(o) : pvSortieRJ(o); return [s, [s[0], s[1]-400/DESSIN_MM]].concat(l.pts); }
+/* le câble AC : le courant de sortie, le disjoncteur, puis la plus petite section qui le porte avec moins de 1 % de chute */
+function pvAc(o){
+  var tri=o.ph==="tri", U=tri ? 400 : 230, I = o.iac>0 ? Number(o.iac) : o.pac/(tri ? U*Math.sqrt(3) : U);
+  var In=PV_DISJ.filter(function(x){ return x>=I; })[0]||125, pts=pvLiaison(o, "ac");
+  var L = pts ? pvLongueur(pts)*DESSIN_MM/1000+(Number(o.acx)||0) : 0, iz=PV_IZ[tri ? "tri" : "mono"];
+  function du(s){ return (tri ? Math.sqrt(3) : 2)*PV_RHO*L*I/s/U*100; }
+  var k=-1, i;
+  for(i=0;i<PV_SECTIONS.length;i++) if(iz[i]>=In && PV_SECTIONS[i]>=2.5 && du(PV_SECTIONS[i])<=1){ k=i; break; }
+  var un=k>=0;
+  if(k<0) for(i=0;i<PV_SECTIONS.length;i++) if(iz[i]>=In && PV_SECTIONS[i]>=2.5 && du(PV_SECTIONS[i])<=3){ k=i; break; }
+  if(k<0) k=PV_SECTIONS.length-1;
+  var s=PV_SECTIONS[k];
+  return {tri:tri, U:U, I:I, In:In, L:L, pts:pts, s:s, du:du(s), un:un, iz:iz[k], cable:"U-1000 R2V "+(tri ? "5G" : "3G")+String(s).replace(".", ",")+" mm²"};
+}
+function pvRj(o){ var pts=pvLiaison(o, "rj"), L = pts ? pvLongueur(pts)*DESSIN_MM/1000+(Number(o.rjx)||0) : 0; return {pts:pts, L:L}; }
 function pvOndSous(q){ var l=PVD().ond, m=6/V.k; for(var i=l.length-1;i>=0;i--){ var b=pvOndBoite(l[i]); if(q[0]>=b[0]-m && q[0]<=b[2]+m && q[1]>=b[1]-m && q[1]<=b[3]+m) return l[i]; } return null; }
 function pvLongueur(pts){ var L=0; for(var i=1;i<pts.length;i++) L+=lng(sub(pts[i], pts[i-1])); return L; }
 function pvAire(pts){ var a=0; for(var i=0;i<pts.length;i++){ var p=pts[i], q=pts[(i+1)%pts.length]; a+=p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
@@ -6639,7 +6681,13 @@ function pvGeo(s){
   if(ret==="auto") ret = (n<3 || lng(sub(B[n-1], B[0]))<=1.6*taille) ? "direct" : "chaine";
   g.ret=ret;
   if(n>1) g.retour = ret==="direct" ? [B[n-1], B[0]] : [B[n-1]].concat(pvDecaler(B.slice().reverse(), taille*0.1)).concat([B[0]]);
-  if(o) g.tronc=[B[0]].concat(s.ch||[]).concat([[o.x, o.y]]);
+  /* le tronc arrive par en dessous sur l'entrée de son MPPT */
+  if(o){
+    var en=pvEntree(o, s.m), bo=pvOndBoite(o), av=[B[0]].concat(s.ch||[]), der=av[av.length-1], sous=en[1]-400/DESSIN_MM, fin=[[en[0], sous], en];
+    /* venant d'au-dessus, le câble contourne l'onduleur par le côté le plus proche */
+    if(der[1]>sous){ var cote = der[0]<(bo[0]+bo[2])/2 ? bo[0]-300/DESSIN_MM : bo[2]+300/DESSIN_MM; if(der[1]>bo[1]) fin.unshift([cote, der[1]]); fin.splice(fin.length-2, 0, [cote, sous]); }
+    g.tronc=av.concat(fin);
+  }
   /* la boucle : l'aller par les panneaux, le retour du − ; le tronc (+ et − côte à côte) n'en ajoute pas */
   if(n>1) g.aire=pvAire(B.concat(g.retour.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6;
   var lt = o ? pvLongueur(g.tronc)*DESSIN_MM/1000+(Number(o.desc)||0) : 0, lr=pvLongueur(g.retour)*DESSIN_MM/1000;
@@ -6684,6 +6732,9 @@ function pvEtude(){
       R.mppt.push(M);
     }
     R.ratio = o.pac ? R.wc/o.pac : 0;
+    R.ac=pvAc(o); R.rj=pvRj(o);
+    if(R.ac.pts && !R.ac.un) pvAl(R.al, "av", "câble AC : "+pvNb(R.ac.du, 2)+" % de chute en "+String(R.ac.s).replace(".", ",")+" mm² (1 % conseillé) : rapprochez le tableau");
+    if(R.rj.pts && R.rj.L>90) pvAl(R.al, "av", "RJ45 de "+pvNb(R.rj.L, 0)+" m : au-delà de 90 m, un switch ou de la fibre");
     if(R.wc && R.ratio>1.35) pvAl(R.al, "av", "rapport DC/AC "+pvNb(R.ratio, 2)+" : onduleur petit pour ce champ");
     if(!R.wc) pvAl(R.al, "av", "aucune string raccordée");
     E.ond.push(R);
@@ -6796,8 +6847,28 @@ function pvToucherChemin(cible, q){
   if(o){ garderD(); s.ch=ec.pts.slice(); if(s.ond!==o.id){ s.ond=o.id; s.m=pvMpptLibre(o, s); } PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin(); toast(pvResumeStr(s), 6000); return; }
   ec.pts.push(cible.pt.slice()); majDessin();
 }
+function pvDebutLiaison(t, o){
+  PV_EC={t:t, id:o.id, pts:[]}; D_SEL=null; OUTIL_D = t==="ac" ? "pvac" : "pvrj"; majDessin();
+  toast((t==="ac" ? "Câble AC de "+o.nom+" : touchez les points du passage, puis l'emplacement du tableau" : "RJ45 de "+o.nom+" : touchez les points du passage, puis l'emplacement de la box")+" (retouchez le dernier point, ou Terminer).", 6500);
+}
+function pvToucherLiaison(t, cible, q){
+  var ec = PV_EC && PV_EC.t===t ? PV_EC : null, o = ec ? pvOnd(ec.id) : null;
+  if(!o){ var oo=pvOndSous(q); if(!oo){ toast("Touchez d'abord l'onduleur."); return; } pvDebutLiaison(t, oo); return; }
+  var pt=cible.pt, der=ec.pts[ec.pts.length-1];
+  if(der && lng(sub(pt, der))*V.k<18){ pvFinir(); return; }
+  ec.pts.push(pt.slice()); majDessin();
+}
+function pvResumeLiaison(o, t){
+  if(t==="ac"){ var a=pvAc(o); return "Câble AC "+o.nom+" → "+(o.acNom||"Tableau")+" : "+pvNb(a.L)+" m, "+(a.tri ? "tri 400 V" : "mono 230 V")+", "+pvNb(a.I)+" A, disjoncteur "+a.In+" A, "+a.cable+", chute "+pvNb(a.du, 2)+" %"; }
+  var r=pvRj(o); return "RJ45 "+o.nom+" → "+(o.rjNom||"Box internet")+" : "+pvNb(r.L)+" m, câble Cat 6"+(r.L>90 ? " (au-delà de 90 m : un switch ou de la fibre)" : "");
+}
 function pvFinir(){
   if(!PV_EC) return;
+  if(PV_EC.t==="ac" || PV_EC.t==="rj"){
+    var oL=pvOnd(PV_EC.id), tL=PV_EC.t;
+    if(oL && PV_EC.pts.length){ garderD(); oL[tL]={pts:PV_EC.pts.slice()}; enregistrerD(); PV_EC=null; D_SEL={t:"pvo", id:oL.id}; majDessin(); toast(pvResumeLiaison(oL, tL), 7000); return; }
+    PV_EC=null; if(oL) D_SEL={t:"pvo", id:oL.id}; majDessin(); return;
+  }
   if(PV_EC.t==="ch"){ var s=pvStr(PV_EC.id); if(s && PV_EC.pts.length){ garderD(); s.ch=PV_EC.pts.slice(); enregistrerD(); } PV_EC=null; if(s) D_SEL={t:"pvs", id:s.id}; }
   else { var s2=pvStr(PV_EC.id); PV_EC=null; if(s2) D_SEL={t:"pvs", id:s2.id}; }
   majDessin();
@@ -6811,6 +6882,8 @@ function toucherPv(cible, p){
   if(OUTIL_D==="pvond"){ pvPoserOnd(cible.pt); return; }
   if(OUTIL_D==="pvstr"){ pvToucherStr(p); return; }
   if(OUTIL_D==="pvchemin"){ pvToucherChemin(cible, p); return; }
+  if(OUTIL_D==="pvac"){ pvToucherLiaison("ac", cible, p); return; }
+  if(OUTIL_D==="pvrj"){ pvToucherLiaison("rj", cible, p); return; }
 }
 /* une string sous le doigt, par ses câbles */
 function pvLigneSous(q){
@@ -6837,7 +6910,7 @@ function pvSupprimer(t, o){
     P.ch=P.ch.filter(function(ch){ return P.pan.some(function(x){ return x.ch===ch.id; }); });
   } else if(t==="pvo"){ P.ond=P.ond.filter(function(x){ return x.id!==o.id; }); P.str.forEach(function(s){ if(s.ond===o.id){ s.ond=null; s.ch=[]; } }); }
   else if(t==="pvs") P.str=P.str.filter(function(x){ return x.id!==o.id; });
-  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
+  if(PV_EC && !pvEcValide()) PV_EC=null;
 }
 function pvSupprimerChamp(ch){
   var P=PVD(), ids={}; pvPansDe(ch).forEach(function(p){ ids[p.id]=1; });
@@ -6845,7 +6918,7 @@ function pvSupprimerChamp(ch){
   P.str.forEach(function(s){ s.pans=s.pans.filter(function(id){ return !ids[id]; }); });
   P.str=P.str.filter(function(s){ return s.pans.length; });
   P.ch=P.ch.filter(function(x){ return x.id!==ch.id; });
-  if(PV_EC && !pvStr(PV_EC.id)) PV_EC=null;
+  if(PV_EC && !pvEcValide()) PV_EC=null;
 }
 /* câbler un champ d'un coup : des strings égales, en serpentin (un rang à l'aller, le suivant au retour) */
 function pvCablerChamp(ch){
@@ -6935,7 +7008,7 @@ function peindrePv(c, E, orange, coulTrait){
     if(g.retour.length>1){ chemin(g.retour); c.strokeStyle=moins; c.lineWidth=lwT; c.setLineDash([Math.max(4, 90*k), Math.max(3, 60*k)]); c.stroke(); c.setLineDash([]); }
     /* le tronc : + et − ensemble jusqu'à l'onduleur */
     if(g.tronc.length>1){
-      var lo=parOnd[s.ond]||[s], idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
+      var lo=(parOnd[s.ond]||[s]).filter(function(x){ return (x.m||1)===(s.m||1); }), idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
       cheminEcran(g.tronc, dec-ecartT/2); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
       cheminEcran(g.tronc, dec+ecartT/2); c.strokeStyle=moins; c.stroke();
       if(fs>=5){
@@ -6955,6 +7028,31 @@ function peindrePv(c, E, orange, coulTrait){
       c.font="700 "+(rb*1.5).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF"; c.fillText(b[1], Q[0]+dx, Q[1]-rb*1.4+rb*0.08);
     });
   });
+  /* les câbles de l'onduleur : l'AC jusqu'au tableau, le RJ45 jusqu'à la box */
+  var coulAc=CLAIR ? "#92400E" : "#FBBF24", coulRj=CLAIR ? "#15803D" : "#4ADE80";
+  P.ond.forEach(function(o){
+    [["ac", coulAc], ["rj", coulRj]].forEach(function(L){
+      var pts=pvLiaison(o, L[0]); if(!pts) return;
+      chemin(pts); c.strokeStyle=L[1]; c.lineWidth = L[0]==="ac" ? lwT*1.9 : lwT*1.2; c.setLineDash(L[0]==="rj" ? [Math.max(5, 110*k), Math.max(3, 60*k)] : []); c.stroke(); c.setLineDash([]);
+      /* l'arrivée : le tableau ou la box */
+      var f=pts[pts.length-1], F=E(f), wb=Math.max(IMPRIME ? 6 : 26, 500*k), hb=Math.max(IMPRIME ? 4 : 16, 300*k);
+      c.fillStyle=CLAIR ? "#FFFFFF" : "#111827"; c.fillRect(F[0]-wb/2, F[1]-hb/2, wb, hb); c.strokeStyle=L[1]; c.lineWidth=Math.max(1.4, 20*k); c.strokeRect(F[0]-wb/2, F[1]-hb/2, wb, hb);
+      var fe=Math.max(IMPRIME ? 2 : 7, hb*0.42); c.font="700 "+fe.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=L[1];
+      c.fillText(L[0]==="ac" ? "AC" : "RJ45", F[0], F[1]);
+      if(fs>=5){
+        var nomF = L[0]==="ac" ? (o.acNom||"Tableau") : (o.rjNom||"Box internet"); c.textBaseline="top"; c.font="700 "+(fs*0.9).toFixed(1)+"px Helvetica, Arial, sans-serif";
+        c.lineWidth=Math.max(2.5, fs*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(nomF, F[0], F[1]+hb/2+2); c.fillText(nomF, F[0], F[1]+hb/2+2);
+        /* l'étiquette du câble, sur son plus long tronçon */
+        var jm=1, lmx=0; for(var q2=1;q2<pts.length;q2++){ var ll=lng(sub(pts[q2], pts[q2-1])); if(ll>lmx){ lmx=ll; jm=q2; } }
+        var A2=E(pts[jm-1]), B2=E(pts[jm]), an=Math.atan2(B2[1]-A2[1], B2[0]-A2[0]); if(an>Math.PI/2) an-=Math.PI; if(an<-Math.PI/2) an+=Math.PI;
+        var labL;
+        if(L[0]==="ac"){ var a=pvAc(o); labL="AC · "+a.cable+" · "+pvNb(a.L, 0)+" m · disj. "+a.In+" A · "+pvNb(a.du, 1)+" %"; }
+        else { var rr=pvRj(o); labL="RJ45 · Cat 6 · "+pvNb(rr.L, 0)+" m"; }
+        c.save(); c.translate((A2[0]+B2[0])/2, (A2[1]+B2[1])/2); c.rotate(an); c.font="600 "+(fs*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=L[1];
+        c.strokeText(labL, 0, -ecartT-3); c.fillText(labL, 0, -ecartT-3); c.restore();
+      }
+    });
+  });
   /* les onduleurs */
   P.ond.forEach(function(o){
     var b=pvOndBoite(o), A=E([b[0], b[3]]), B=E([b[2], b[1]]), w=B[0]-A[0], h=B[1]-A[1], choisi=sel.t==="pvo" && sel.id===o.id;
@@ -6964,7 +7062,22 @@ function peindrePv(c, E, orange, coulTrait){
     var fo=Math.max(IMPRIME ? 2 : 6, h*0.36); c.font="700 "+fo.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=coulTrait;
     c.fillText("=", A[0]+w*0.27, A[1]+h*0.3); c.fillText("~", A[0]+w*0.73, A[1]+h*0.7);
     var fl=Math.max(IMPRIME ? 2.5 : 10, Math.min(fs*1.1, IMPRIME ? 999 : 15)); c.font="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=choisi ? orange : coulTrait;
-    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT"; c.lineWidth=Math.max(2.5, fl*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(labO, A[0]+w/2, A[1]-3); c.fillText(labO, A[0]+w/2, A[1]-3);
+    /* les entrées MPPT (dessous) : une borne + et − par MPPT, où s'accrochent les strings ; la sortie AC et la prise RJ45 (dessus) */
+    var nm=Math.max(1, o.nm||1), lb=Math.max(IMPRIME ? 3 : 10, w/(nm+2)*0.55), hb2=Math.max(IMPRIME ? 2 : 7, h*0.16), fm=Math.max(IMPRIME ? 1.6 : 7, Math.min(h*0.15, w/(nm+2)*0.24));
+    for(var mi=1;mi<=nm;mi++){
+      var Ee=E(pvEntree(o, mi)), nb=P.str.filter(function(x){ return x.ond===o.id && (x.m||1)===mi; }).length;
+      c.fillStyle=plus; c.fillRect(Ee[0]-lb/2, Ee[1], lb/2, hb2); c.fillStyle=moins; c.fillRect(Ee[0], Ee[1], lb/2, hb2);
+      c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Ee[0]-lb/2, Ee[1], lb, hb2);
+      c.font="700 "+Math.max(6, hb2*0.85).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle="#FFFFFF";
+      if(hb2>=6){ c.fillText("+", Ee[0]-lb/4, Ee[1]+hb2/2); c.fillText("−", Ee[0]+lb/4, Ee[1]+hb2/2); }
+      if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle = nb ? coulTrait : (CLAIR ? "#9CA3AF" : "#6B7280"); c.fillText("MPPT "+mi, Ee[0], Ee[1]-2); }
+    }
+    [[pvSortieAC(o), "AC", coulAc], [pvSortieRJ(o), "RJ45", coulRj]].forEach(function(S2){
+      var Q=E(S2[0]); c.fillStyle=S2[2]; c.fillRect(Q[0]-lb/2, Q[1], lb, hb2); c.strokeStyle=coulTrait; c.lineWidth=1; c.strokeRect(Q[0]-lb/2, Q[1], lb, hb2);
+      if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.textAlign="center"; c.fillStyle=coulTrait; c.fillText(S2[1], Q[0], Q[1]-2); }
+    });
+    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT"; c.font="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.fillStyle=choisi ? orange : coulTrait;
+    c.lineWidth=Math.max(2.5, fl*0.3); c.strokeStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c.strokeText(labO, A[0]+w/2, A[1]-hb2-3); c.fillText(labO, A[0]+w/2, A[1]-hb2-3);
   });
   /* en cours : le champ entre deux coins, la string, le cheminement */
   if(!IMPRIME && MODE==="dessin"){
@@ -6980,7 +7093,13 @@ function peindrePv(c, E, orange, coulTrait){
       var Ms=E(D_SOURIS.pt); etiquette(c, Ms[0], Ms[1]-22, G.nc+" × "+G.nr+" = "+(G.nc*G.nr)+" panneaux · "+pvNb(G.nc*G.nr*m.wc/1000, 2)+" kWc");
       void tmp;
     }
-    if(PV_EC && D_SOURIS){
+    if(PV_EC && D_SOURIS && (PV_EC.t==="ac" || PV_EC.t==="rj")){
+      var oe=pvOnd(PV_EC.id);
+      if(oe){ var s0=PV_EC.t==="ac" ? pvSortieAC(oe) : pvSortieRJ(oe), dl=[s0, [s0[0], s0[1]-400/DESSIN_MM]].concat(PV_EC.pts); if(dl.length>1){ chemin(dl); c.strokeStyle=orange; c.lineWidth=2.5; c.stroke(); }
+        chemin([dl[dl.length-1], D_SOURIS.pt]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
+        var Mq=E(D_SOURIS.pt); etiquette(c, Mq[0], Mq[1]-22, pvNb((pvLongueur(dl.concat([D_SOURIS.pt])))*DESSIN_MM/1000)+" m"); }
+    }
+    else if(PV_EC && D_SOURIS){
       var se=pvStr(PV_EC.id);
       if(se){
         var ge=pvGeo(se), dep = PV_EC.t==="ch" ? [ge.B[0]].concat(PV_EC.pts) : [ge.B[ge.n-1]];
@@ -7008,14 +7127,24 @@ function dxfPv(g){
     if(gg.tronc.length>1){ poly(pvDecaler(gg.tronc, -off), "PV-DC-PLUS"); poly(pvDecaler(gg.tronc, off), "PV-DC-MOINS"); texte(gg.tronc[Math.floor(gg.tronc.length/2)], 150, s.nom+" 2x"+P.sec+"mm2 "+Math.round(gg.lm)+"m MPPT"+(s.m||1), "PV-TEXTES"); }
     texte([gg.B[0][0], gg.B[0][1]+250/k], 160, s.nom+" +", "PV-DC-PLUS"); texte([gg.B[gg.n-1][0], gg.B[gg.n-1][1]+250/k], 160, s.nom+" -", "PV-DC-MOINS");
   });
+  P.ond.forEach(function(o){
+    var a=pvAc(o), r=pvRj(o);
+    for(var mi=1;mi<=(o.nm||1);mi++){ var en=pvEntree(o, mi); texte([en[0], en[1]-180/k], 110, "MPPT"+mi+" +/-", "PV-ONDULEUR"); }
+    if(a.pts){ poly(a.pts, "PV-AC"); var fa=a.pts[a.pts.length-1]; poly([[fa[0]-250/k,fa[1]-150/k],[fa[0]+250/k,fa[1]-150/k],[fa[0]+250/k,fa[1]+150/k],[fa[0]-250/k,fa[1]+150/k]], "PV-AC", true);
+      texte([fa[0], fa[1]-350/k], 150, (o.acNom||"Tableau")+" - "+a.cable.replace("²", "2")+" "+Math.round(a.L)+"m disj "+a.In+"A", "PV-AC"); }
+    if(r.pts){ poly(r.pts, "PV-RJ45"); var fr=r.pts[r.pts.length-1]; poly([[fr[0]-250/k,fr[1]-150/k],[fr[0]+250/k,fr[1]-150/k],[fr[0]+250/k,fr[1]+150/k],[fr[0]-250/k,fr[1]+150/k]], "PV-RJ45", true);
+      texte([fr[0], fr[1]-350/k], 150, (o.rjNom||"Box")+" - RJ45 Cat6 "+Math.round(r.L)+"m", "PV-RJ45"); }
+  });
   P.ond.forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]], "PV-ONDULEUR", true); poly([[b[0],b[1]],[b[2],b[3]]], "PV-ONDULEUR"); texte([o.x, b[3]+120/k], 180, o.nom+" "+(o.pac/1000)+"kW "+o.nm+" MPPT", "PV-ONDULEUR"); });
 }
-var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",5],["PV-ONDULEUR",7],["PV-TEXTES",7]];
+var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",5],["PV-ONDULEUR",7],["PV-TEXTES",7],["PV-AC",30],["PV-RJ45",3]];
 /* ---------- le panneau « Étude PV » ---------- */
 var PV_CHAMPS_MOD=[["nom","Module","t"],["wc","Puissance (Wc)"],["voc","Voc (V)"],["vmp","Vmp (V)"],["isc","Isc (A)"],["imp","Imp (A)"],["cv","Coef. Voc (%/°C)"],["cp","Coef. Pmax (%/°C)"],["l","Largeur (mm)"],["h","Hauteur (mm)"]];
-var PV_CHAMPS_OND=[["nom","Nom","t"],["pac","Puissance AC (W)"],["nm","Nombre de MPPT"],["vmax","Tension DC max (V)"],["vmin","MPPT min (V)"],["vmpmax","MPPT max (V)"],["imax","Courant max / MPPT (A)"],["icc","Icc max / MPPT (A)"],["desc","Longueur ajoutée (m)"]];
+var PV_CHAMPS_OND=[["nom","Nom","t"],["pac","Puissance AC (W)"],["nm","Nombre de MPPT"],["vmax","Tension DC max (V)"],["vmin","MPPT min (V)"],["vmpmax","MPPT max (V)"],["imax","Courant max / MPPT (A)"],["icc","Icc max / MPPT (A)"],["desc","Longueur DC ajoutée (m)"],
+  ["ph","Raccordement","ph"],["iac","Courant AC max (A, vide : calculé)"],["acx","Longueur AC ajoutée (m)"],["acNom","Arrivée AC","t"],["rjNom","Arrivée RJ45","t"],["rjx","Longueur RJ45 ajoutée (m)"]];
 function pvChamp2(lab, val, type, attr){
   var l=document.createElement("label"); l.appendChild(document.createTextNode(lab));
+  if(type==="ph"){ var se=document.createElement("select"); [["mono","Mono 230 V"],["tri","Tri 400 V"]].forEach(function(v){ var op=document.createElement("option"); op.value=v[0]; op.textContent=v[1]; se.appendChild(op); }); se.value = val==="tri" ? "tri" : "mono"; Object.keys(attr).forEach(function(k){ se.dataset[k]=attr[k]; }); l.appendChild(se); return l; }
   var i=document.createElement("input"); i.type="text"; if(type!=="t") i.inputMode="decimal"; i.value=type==="t" ? String(val||"") : String(val).replace(".", ",");
   Object.keys(attr).forEach(function(k){ i.dataset[k]=attr[k]; }); l.appendChild(i); return l;
 }
@@ -7045,6 +7174,10 @@ function peindreEtude(complet){
   Ep.ond.forEach(function(R){
     var d=el("div", "ep-ond"); d.appendChild(el("b", null, R.o.nom+" · "+pvNb(R.o.pac/1000)+" kW · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? " · DC/AC "+pvNb(R.ratio, 2) : "")));
     R.mppt.forEach(function(M){ d.appendChild(el("div", "ep-mppt", "MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+")"; }).join(" // ")+" · "+pvNb(M.imp)+" A" : "libre"))); });
+    var la=el("div", "ep-liaison");
+    la.appendChild(el("div", null, "AC "+(R.ac.tri ? "tri 400 V" : "mono 230 V")+" · "+pvNb(R.ac.I)+" A → disjoncteur "+R.ac.In+" A · "+R.ac.cable+(R.ac.pts ? " · "+pvNb(R.ac.L)+" m jusqu'à « "+(R.o.acNom||"Tableau")+" » · chute "+pvNb(R.ac.du, 2)+" %" : " · câble à tracer (outil Câble AC)")));
+    la.appendChild(el("div", null, R.rj.pts ? "RJ45 Cat 6 · "+pvNb(R.rj.L)+" m jusqu'à « "+(R.o.rjNom||"Box internet")+" »" : "RJ45 : à tracer (outil RJ45)"));
+    d.appendChild(la);
     R.al.forEach(function(a){ d.appendChild(el("div", "ep-al "+a.niv, a.txt)); });
     res.appendChild(d);
   });
@@ -7066,7 +7199,13 @@ function pvMateriel(Ep){
   var P=PVD(), l=[], lp=0, lm=0, conn=0, ral=0;
   Ep.str.forEach(function(x){ lp+=x.g.lp; lm+=x.g.lm; conn+=1; ral+=x.g.sauts; });
   if(Ep.n) l.push(Ep.n+" × "+P.mod.nom+" ("+P.mod.l+" × "+P.mod.h+" mm)");
-  P.ond.forEach(function(o){ l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT"); });
+  P.ond.forEach(function(o){
+    l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT");
+    var a=pvAc(o), r=pvRj(o);
+    if(a.pts) l.push("Câble "+a.cable+" ("+o.nom+" → "+(o.acNom||"Tableau")+") : "+pvNb(a.L, 0)+" m, + 10 % : "+pvNb(a.L*1.1, 0)+" m");
+    l.push("1 × disjoncteur "+(a.tri ? "4P" : "1P+N")+" "+a.In+" A au tableau pour "+o.nom+" (courbe et différentiel selon la notice de l'onduleur)");
+    if(r.pts) l.push("Câble RJ45 Cat 6 ("+o.nom+" → "+(o.rjNom||"Box internet")+") : "+pvNb(r.L, 0)+" m, + 10 % : "+pvNb(r.L*1.1, 0)+" m, 2 connecteurs RJ45");
+  });
   if(lp) l.push("Câble solaire "+P.sec+" mm² rouge (+) : "+pvNb(lp, 0)+" m, + 10 % : "+pvNb(lp*1.1, 0)+" m");
   if(lm) l.push("Câble solaire "+P.sec+" mm² noir ou bleu (−) : "+pvNb(lm, 0)+" m, + 10 % : "+pvNb(lm*1.1, 0)+" m");
   if(conn) l.push(conn*2+" connecteurs MC4 (une paire + et − par string, côté onduleur)"+(ral ? " ; "+ral+" rallonge"+(ral>1 ? "s" : "")+" et "+ral*2+" connecteurs de plus" : ""));
@@ -7076,13 +7215,24 @@ function pvChangerChamp(i){
   var P=PVD(), v=String(i.value).trim(), k=i.dataset.k, num=parseFloat(v.replace(",", "."));
   if(i.dataset.pv==="mod"){ if(k!=="nom" && !isFinite(num)) return; garderD(); P.mod[k] = k==="nom" ? (v||PV_MOD_DEF.nom) : num; }
   else if(i.dataset.pv==="cond"){ if(!isFinite(num)) return; if(k==="sec" && !(num>0)) return; garderD(); P[k]=num; }
-  else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return; if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
+  else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return;
+    if(k==="ph" || k==="acNom" || k==="rjNom"){ garderD(); o[k] = k==="ph" ? (v==="tri" ? "tri" : "mono") : (v || PV_OND_DEF[k]); enregistrerD(); majDessin(); peindreEtude(); return; }
+    if(k==="iac" && !v){ garderD(); o.iac=0; enregistrerD(); majDessin(); peindreEtude(); return; }
+    if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
   enregistrerD(); majDessin(); peindreEtude(i.dataset.pv==="ond" && k==="nom");
 }
 /* ---------- les réglages du panneau du bas ---------- */
 function majPvPanneau(o, t){
   var enPv = !!PV_OUTILS[OUTIL_D] || t==="pvp" || t==="pvo" || t==="pvs" || FAM_D==="pv";
-  $("grpPv").hidden=!enPv; if(!enPv){ $("grpPvPose").hidden=$("grpPvStr").hidden=true; return; }
+  $("grpPv").hidden=!enPv; if(!enPv){ $("grpPvPose").hidden=$("grpPvStr").hidden=$("grpPvOnd").hidden=true; return; }
+  var ecL = PV_EC && (PV_EC.t==="ac" || PV_EC.t==="rj") ? PV_EC : null, od2 = t==="pvo" ? o : (ecL ? pvOnd(ecL.id) : null);
+  $("grpPvOnd").hidden=!od2;
+  if(od2){
+    Array.prototype.forEach.call($("segPvPh").children, function(b){ b.classList.toggle("on", b.dataset.v===(od2.ph==="tri" ? "tri" : "mono")); });
+    $("btPvAc").hidden=$("btPvRj").hidden=!!ecL; $("btPvFinL").hidden=!ecL;
+    $("btPvAcEff").hidden=!!ecL || !pvLiaison(od2, "ac"); $("btPvRjEff").hidden=!!ecL || !pvLiaison(od2, "rj");
+    $("btPvAc").textContent = pvLiaison(od2, "ac") ? "Retracer le câble AC" : "Câble AC"; $("btPvRj").textContent = pvLiaison(od2, "rj") ? "Retracer le RJ45" : "RJ45";
+  }
   var pan = t==="pvp" ? o : null, ch = pan ? pvChamp(pan.ch) : null, pose = OUTIL_D==="pvpan" || OUTIL_D==="pvchamp" || !!ch;
   $("grpPvPose").hidden=!pose;
   if(pose){
@@ -7110,7 +7260,7 @@ function majPvPanneau(o, t){
 }
 function pvDetail(o, t){
   if(t==="pvp"){ var sp=pvStrDe(o.id), ch=pvChamp(o.ch), n=ch ? pvPansDe(ch).length : 1; return "Panneau"+(sp ? " "+sp.nom+"."+(sp.pans.indexOf(o.id)+1) : " non câblé")+" · champ de "+n+" panneau"+(n>1 ? "x" : "")+(ch && ch.p ? ", pente "+ch.p+"°" : "")+". Glissez pour déplacer le champ ; Supprimer retire ce panneau seul."; }
-  if(t==="pvo") return o.nom+" · "+pvNb(o.pac/1000)+" kW · "+o.nm+" MPPT · "+o.vmin+"–"+o.vmpmax+" V, "+o.vmax+" V max. Glissez pour le déplacer ; réglages dans « Étude PV ».";
+  if(t==="pvo"){ var a=pvAc(o); return o.nom+" · "+pvNb(o.pac/1000)+" kW · "+o.nm+" MPPT · "+o.vmin+"–"+o.vmpmax+" V, "+o.vmax+" V max · AC "+(a.tri ? "tri" : "mono")+" "+pvNb(a.I)+" A, disjoncteur "+a.In+" A, "+a.cable+(a.pts ? ", "+pvNb(a.L)+" m" : "")+(pvRj(o).pts ? " · RJ45 "+pvNb(pvRj(o).L)+" m" : "")+". Glissez pour le déplacer ; réglages dans « Étude PV »."; }
   if(t==="pvs") return pvResumeStr(o)+".";
   return "";
 }
@@ -7119,6 +7269,8 @@ function pvDetailOutil(){
   if(OUTIL_D==="pvchamp") return D_PT ? "Touchez le coin opposé du champ : il se remplit de panneaux." : "Touchez un coin du champ de panneaux, puis le coin opposé (ou glissez). L'angle suit celui du pan.";
   if(OUTIL_D==="pvond") return "Touchez l'endroit de l'onduleur (garage, local technique).";
   if(OUTIL_D==="pvstr") return PV_EC && PV_EC.t==="str" ? "Touchez les panneaux suivants dans l'ordre du câblage (ou glissez dessus), puis l'onduleur pour finir." : "Touchez le premier panneau de la string (son +), puis les suivants dans l'ordre, puis l'onduleur.";
+  if(OUTIL_D==="pvac") return PV_EC && PV_EC.t==="ac" ? "Touchez les points du passage du câble, puis l'emplacement du tableau ; retouchez le dernier point (ou Terminer) pour finir." : "Touchez l'onduleur : le câble AC part de sa sortie ~.";
+  if(OUTIL_D==="pvrj") return PV_EC && PV_EC.t==="rj" ? "Touchez les points du passage, puis l'emplacement de la box ; retouchez le dernier point (ou Terminer) pour finir." : "Touchez l'onduleur : le câble RJ45 part de sa prise réseau.";
   if(OUTIL_D==="pvchemin") return PV_EC && PV_EC.t==="ch" ? "Touchez les points du passage des câbles, puis l'onduleur (ou Terminer)." : "Touchez un panneau de la string à faire cheminer.";
   return "";
 }
@@ -7147,6 +7299,13 @@ function brancherPv(){
   $("epFermer").addEventListener("click", function(){ $("etudePv").hidden=true; majDessin(); });
   $("epParams").addEventListener("change", function(e){ if(e.target && e.target.dataset && e.target.dataset.pv) pvChangerChamp(e.target); });
   $("btToitEtude").addEventListener("click", function(){ var t=toitSel(); if(t) pvDepuisToit(t); });
+  function ondSel(){ return D_SEL && D_SEL.t==="pvo" ? pvOnd(D_SEL.id) : (PV_EC && (PV_EC.t==="ac" || PV_EC.t==="rj") ? pvOnd(PV_EC.id) : null); }
+  $("segPvPh").addEventListener("click", function(e){ var b=e.target.closest("button"), o=ondSel(); if(!b || !o) return; garderD(); o.ph=b.dataset.v; enregistrerD(); majDessin(); peindreEtude(true); toast(pvResumeLiaison(o, "ac"), 5000); });
+  $("btPvAc").addEventListener("click", function(){ var o=ondSel(); if(o) pvDebutLiaison("ac", o); });
+  $("btPvRj").addEventListener("click", function(){ var o=ondSel(); if(o) pvDebutLiaison("rj", o); });
+  $("btPvAcEff").addEventListener("click", function(){ var o=ondSel(); if(!o) return; garderD(); delete o.ac; enregistrerD(); majDessin(); });
+  $("btPvRjEff").addEventListener("click", function(){ var o=ondSel(); if(!o) return; garderD(); delete o.rj; enregistrerD(); majDessin(); });
+  $("btPvFinL").addEventListener("click", pvFinir);
 }
 /* ---------- la page « Étude photovoltaïque » du PDF ---------- */
 function pdfEtudePv(doc, g){
@@ -7167,6 +7326,8 @@ function pdfEtudePv(doc, g){
     var o=R.o;
     ligne(o.nom+" : "+pvNb(o.pac/1000)+" kW AC · "+o.nm+" MPPT "+o.vmin+"-"+o.vmpmax+" V · "+o.vmax+" V DC max · "+o.imax+" A / "+o.icc+" A Icc par MPPT · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? ", rapport DC/AC "+pvNb(R.ratio, 2) : ""), 8.5, {b:true});
     R.mppt.forEach(function(M){ ligne("MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+" panneaux)"; }).join(" en parallèle avec ")+" · "+pvNb(M.imp)+" A" : "libre"), 8, {ind:4}); });
+    ligne("Sortie AC : "+(R.ac.tri ? "tri 400 V" : "mono 230 V")+", "+pvNb(R.ac.I)+" A, disjoncteur "+R.ac.In+" A, câble "+R.ac.cable+(R.ac.pts ? ", "+pvNb(R.ac.L)+" m jusqu'à "+(o.acNom||"Tableau")+", chute "+pvNb(R.ac.du, 2)+" % (Iz "+R.ac.iz+" A, pose B)" : " (longueur à tracer)"), 8, {ind:4});
+    if(R.rj.pts) ligne("Liaison RJ45 Cat 6 : "+pvNb(R.rj.L)+" m jusqu'à "+(o.rjNom||"Box internet"), 8, {ind:4});
     R.al.forEach(function(a){ ligne((a.niv==="err" ? "ERREUR : " : "Attention : ")+a.txt, 8, {ind:4, c:a.niv==="err" ? [185,28,28] : [180,83,9]}); });
   });
   y+=2;
@@ -7192,7 +7353,8 @@ function pdfEtudePv(doc, g){
   if(mat.length){ ligne("MATÉRIEL", 9, {b:true}); mat.forEach(function(l){ ligne("- "+l, 8, {ind:2}); }); }
   y+=2;
   ligne("Légende du plan : S1.1, S1.2… l'ordre de câblage des panneaux en série ; pastille rouge + au premier panneau, bleue - au dernier ; trait de couleur : la série de panneau en panneau ; tirets bleus : le retour du - ; double trait rouge et bleu : le + et le - qui cheminent ensemble jusqu'à l'onduleur (boucle d'induction la plus petite possible).", 7.5);
-  ligne("Repères d'étude, à vérifier sur les fiches techniques du module et de l'onduleur et selon le guide UTE C 15-712-1. Longueurs mesurées en plan, sans les montées, sauf la longueur ajoutée à l'onduleur.", 7.5, {c:[90,90,90]});
+  ligne("Câble AC : section la plus petite (2,5 mm² au moins) dont le courant admissible (cuivre, PVC, mode de pose B, sans facteur de correction) couvre le disjoncteur, avec 1 % de chute au plus entre l'onduleur et le tableau. À adapter au mode de pose réel, à la température et aux groupements.", 7.5, {c:[90,90,90]});
+  ligne("Repères d'étude, à vérifier sur les fiches techniques du module et de l'onduleur et selon le guide UTE C 15-712-1. Longueurs mesurées en plan, sans les montées, sauf les longueurs ajoutées de l'onduleur.", 7.5, {c:[90,90,90]});
 }
 brancherToit();
 brancherPv();
