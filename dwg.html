@@ -538,6 +538,7 @@ body.clair #scene{background:#FFFFFF}
       <span class="lab">Retour du −</span><span class="seg" id="segPvRet" role="group" aria-label="Retour du câble −"><button type="button" data-v="auto">Auto</button><button type="button" data-v="chaine">Le long</button><button type="button" data-v="direct">Direct</button></span>
       <button class="bt" id="btPvChemin" type="button" title="Le passage des câbles jusqu'à l'onduleur">Cheminement</button>
       <button class="bt" id="btPvEffChemin" type="button" hidden>Effacer le cheminement</button>
+      <span class="lab">Écart + / −</span><input class="champ-cm" id="pvEcartFil" type="text" inputmode="decimal" aria-label="Écart entre le fil + et le fil −"><span class="lab u-saisie">cm</span>
       <button class="bt" id="btPvCoul" type="button">Couleur</button>
       <button class="bt or" id="btPvFin" type="button" hidden>Terminer la string</button>
     </span>
@@ -6600,7 +6601,7 @@ var PV_DISJ=[10, 16, 20, 25, 32, 40, 50, 63, 80, 100, 125];
 function normPv(v){
   v=v||{}; v.mod=Object.assign({}, PV_MOD_DEF, v.mod||{});
   v.ch=v.ch||[]; v.pan=v.pan||[]; v.ond=v.ond||[]; v.ond.forEach(function(o){ for(var c in PV_OND_DEF) if(o[c]==null) o[c]=PV_OND_DEF[c]; }); v.str=v.str||[];
-  if(v.tmin==null) v.tmin=-10; if(v.tmax==null) v.tmax=70; if(!v.sec) v.sec=6;
+  if(v.tmin==null) v.tmin=-10; if(v.tmax==null) v.tmax=70; if(!v.sec) v.sec=6; if(v.ecf==null) v.ecf=20;
   return v;
 }
 function PVD(){ if(!DESSIN.pv) DESSIN.pv=normPv(null); return DESSIN.pv; }
@@ -6654,7 +6655,7 @@ function pvRangEntree(s){ var l=PVD().str.filter(function(x){ return x.ond===s.o
 function pvSortieAC(o){ return pvBorne(o, pvNbEntrees(o)+1); }
 function pvSortieRJ(o){ return pvBorne(o, 0); }
 /* un câble de l'onduleur : il descend de sa borne, puis suit son passage */
-function pvLiaison(o, t){ var l=o[t]; if(!(l && l.pts && l.pts.length)) return null; var s=t==="ac" ? pvSortieAC(o) : pvSortieRJ(o); return [s, [s[0], s[1]-400/DESSIN_MM]].concat(l.pts); }
+function pvLiaison(o, t){ var l=o[t]; if(!(l && l.pts && l.pts.length)) return null; var s=t==="ac" ? pvSortieAC(o) : pvSortieRJ(o); return pvOrtho([s, [s[0], s[1]-400/DESSIN_MM]].concat(l.pts)); }
 /* le câble AC : le courant de sortie, le disjoncteur, puis la plus petite section qui le porte avec moins de 1 % de chute */
 function pvAc(o){
   var tri=o.ph==="tri", U=tri ? 400 : 230, I = o.iac>0 ? Number(o.iac) : o.pac/(tri ? U*Math.sqrt(3) : U);
@@ -6673,9 +6674,35 @@ function pvRj(o){ var pts=pvLiaison(o, "rj"), L = pts ? pvLongueur(pts)*DESSIN_M
 function pvOndSous(q){ var l=PVD().ond, m=6/V.k; for(var i=l.length-1;i>=0;i--){ var b=pvOndBoite(l[i]); if(q[0]>=b[0]-m && q[0]<=b[2]+m && q[1]>=b[1]-m && q[1]<=b[3]+m) return l[i]; } return null; }
 function pvLongueur(pts){ var L=0; for(var i=1;i<pts.length;i++) L+=lng(sub(pts[i], pts[i-1])); return L; }
 function pvAire(pts){ var a=0; for(var i=0;i<pts.length;i++){ var p=pts[i], q=pts[(i+1)%pts.length]; a+=p[0]*q[1]-q[0]*p[1]; } return Math.abs(a)/2; }
-function pvDecaler(pts, d){
-  return pts.map(function(q, i){ var a=pts[Math.max(0, i-1)], b=pts[Math.min(pts.length-1, i+1)], t=sub(b, a), L=lng(t)||1; return [q[0]-t[1]/L*d, q[1]+t[0]/L*d]; });
+/* une polyligne décalée de d sur sa gauche, en onglet aux coudes : deux fils parallèles restent à la même distance dans les angles */
+function pvDecalerPts(pts, d){
+  var n=pts.length; if(n<2) return pts.slice();
+  function nrm(a, b){ var t=[b[0]-a[0], b[1]-a[1]], L=Math.hypot(t[0], t[1]); return L>1e-9 ? [-t[1]/L, t[0]/L] : null; }
+  var N=[]; for(var i=0;i<n-1;i++) N.push(nrm(pts[i], pts[i+1]));
+  for(i=0;i<N.length;i++) if(!N[i]) N[i] = N[i-1] || N.filter(Boolean)[0] || [0, 1];
+  return pts.map(function(q, i){
+    var a = i>0 ? N[i-1] : N[0], b = i<n-1 ? N[i] : N[n-2], m=[a[0]+b[0], a[1]+b[1]], L=Math.hypot(m[0], m[1]);
+    if(L<1e-6) return [q[0]+a[0]*d, q[1]+a[1]*d];
+    m=[m[0]/L, m[1]/L]; var cosm=m[0]*a[0]+m[1]*a[1], k=Math.min(4, 1/Math.max(0.25, cosm));
+    return [q[0]+m[0]*d*k, q[1]+m[1]*d*k];
+  });
 }
+function pvDecaler(pts, d){ return pvDecalerPts(pts, d); }
+/* le cheminement en ortho : un coude entre deux points qui ne sont ni alignés à l'horizontale ni à la verticale */
+function pvOrtho(pts){
+  var out=[]; pts.forEach(function(q){
+    var a=out[out.length-1];
+    if(a && Math.abs(q[0]-a[0])>1e-6 && Math.abs(q[1]-a[1])>1e-6){
+      /* le coude dans le sens du tronçon précédent, pour éviter un zigzag */
+      var p0=out[out.length-2], horiz = p0 ? Math.abs(a[1]-p0[1])<1e-6 : Math.abs(q[0]-a[0])>=Math.abs(q[1]-a[1]);
+      out.push(horiz ? [q[0], a[1]] : [a[0], q[1]]);
+    }
+    if(!a || Math.abs(q[0]-a[0])>1e-6 || Math.abs(q[1]-a[1])>1e-6) out.push(q.slice());
+  });
+  return out;
+}
+/* un point tapé, ramené à l'horizontale ou à la verticale du précédent */
+function pvContraindre(a, b){ return Math.abs(b[0]-a[0])>=Math.abs(b[1]-a[1]) ? [b[0], a[1]] : [a[0], b[1]]; }
 /* le câblage d'une string : les sauts de panneau en panneau, le retour du −, le tronc (+ et − ensemble) jusqu'à l'onduleur */
 function pvGeo(s){
   var pans=s.pans.map(pvPan).filter(Boolean), B=pans.map(pvBoite), n=B.length, o=s.ond ? pvOnd(s.ond) : null;
@@ -6684,7 +6711,9 @@ function pvGeo(s){
   var T=pvTaille(pvChamp(pans[0].ch)), taille=Math.max(T.w, T.h), ret=s.ret||"auto";
   if(ret==="auto") ret = (n<3 || lng(sub(B[n-1], B[0]))<=1.6*taille) ? "direct" : "chaine";
   g.ret=ret;
-  if(n>1) g.retour = ret==="direct" ? [B[n-1], B[0]] : [B[n-1]].concat(pvDecaler(B.slice().reverse(), taille*0.1)).concat([B[0]]);
+  var ecf=(PVD().ecf!=null ? PVD().ecf : 20)/DESSIN_MM;
+  /* le retour du − : tout droit en ortho (Direct), ou plaqué le long des panneaux, à l'écart réglé (Le long) */
+  if(n>1) g.retour = ret==="direct" ? pvOrtho([B[n-1], B[0]]) : [B[n-1]].concat(pvDecaler(B.slice().reverse(), ecf)).concat([B[0]]);
   /* le tronc arrive par en dessous sur l'entrée de son MPPT */
   if(o){
     var en=pvEntree(o, s.m, pvRangEntree(s)), bo=pvOndBoite(o), av=[B[0]].concat(s.ch||[]), der=av[av.length-1], droite = der[0]>=(bo[0]+bo[2])/2;
@@ -6695,11 +6724,12 @@ function pvGeo(s){
     var sous=en[1]-400/DESSIN_MM-rang*pasC, fin=[[en[0], sous], en];
     /* venant d'au-dessus, le câble contourne l'onduleur par le côté le plus proche */
     if(der[1]>sous){ var cote = droite ? bo[2]+300/DESSIN_MM+rang*pasC : bo[0]-300/DESSIN_MM-rang*pasC; if(der[1]>bo[1]) fin.unshift([cote, der[1]]); fin.splice(fin.length-2, 0, [cote, sous]); }
-    g.tronc=av.concat(fin);
+    g.tronc=pvOrtho(av.concat(fin));
   }
   /* la boucle : l'aller par les panneaux, le retour du − ; le tronc (+ et − côte à côte) n'en ajoute pas */
   /* la surface se compte avec le retour réel : plaqué à 5 cm des panneaux (le dessin l'écarte davantage, pour le voir) */
-  if(n>1){ var rc = ret==="direct" ? g.retour : [B[n-1]].concat(pvDecaler(B.slice().reverse(), 50/DESSIN_MM)).concat([B[0]]); g.aire=pvAire(B.concat(rc.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6; }
+  /* la surface de la boucle : entre l'aller par les panneaux et le retour du − tel qu'il est posé */
+  if(n>1) g.aire=pvAire(B.concat(g.retour.slice(1, -1)))*DESSIN_MM*DESSIN_MM/1e6;
   var lt = o ? pvLongueur(g.tronc)*DESSIN_MM/1000+(Number(o.desc)||0) : 0, lr=pvLongueur(g.retour)*DESSIN_MM/1000;
   g.lp=lt; g.lm=lt+lr;
   for(var i=1;i<n;i++){ var d=lng(sub(B[i], B[i-1]))*DESSIN_MM/1000; g.sautMax=Math.max(g.sautMax, d); if(d>2.2) g.sauts++; }
@@ -6856,7 +6886,8 @@ function pvToucherChemin(cible, q){
   }
   var o=pvOndSous(q);
   if(o){ garderD(); s.ch=ec.pts.slice(); if(s.ond!==o.id){ s.ond=o.id; s.m=pvMpptLibre(o, s); } PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin(); toast(pvResumeStr(s), 6000); return; }
-  ec.pts.push(cible.pt.slice()); majDessin();
+  var prec = ec.pts.length ? ec.pts[ec.pts.length-1] : pvGeo(s).B[0];
+  ec.pts.push(pvContraindre(prec, cible.pt)); majDessin();
 }
 function pvDebutLiaison(t, o){
   PV_EC={t:t, id:o.id, pts:[]}; D_SEL=null; OUTIL_D = t==="ac" ? "pvac" : "pvrj"; majDessin();
@@ -6865,9 +6896,9 @@ function pvDebutLiaison(t, o){
 function pvToucherLiaison(t, cible, q){
   var ec = PV_EC && PV_EC.t===t ? PV_EC : null, o = ec ? pvOnd(ec.id) : null;
   if(!o){ var oo=pvOndSous(q); if(!oo){ toast("Touchez d'abord l'onduleur."); return; } pvDebutLiaison(t, oo); return; }
-  var pt=cible.pt, der=ec.pts[ec.pts.length-1];
-  if(der && lng(sub(pt, der))*V.k<18){ pvFinir(); return; }
-  ec.pts.push(pt.slice()); majDessin();
+  var s0=t==="ac" ? pvSortieAC(o) : pvSortieRJ(o), der=ec.pts[ec.pts.length-1], prec=der || [s0[0], s0[1]-400/DESSIN_MM], pt=pvContraindre(prec, cible.pt);
+  if(der && lng(sub(cible.pt, der))*V.k<18){ pvFinir(); return; }
+  ec.pts.push(pt); majDessin();
 }
 function pvResumeLiaison(o, t){
   if(t==="ac"){ var a=pvAc(o); return "Câble AC "+o.nom+" → "+(o.acNom||"Tableau")+" : "+pvNb(a.L)+" m, "+(a.tri ? "tri 400 V" : "mono 230 V")+", "+pvNb(a.I)+" A, disjoncteur "+a.In+" A, "+a.cable+", chute "+pvNb(a.du, 2)+" %"; }
@@ -6983,12 +7014,14 @@ function peindrePv(c, E, orange, coulTrait){
     c.strokeStyle=moins; c.lineWidth=lw; c.setLineDash(tirets||[]); c.stroke(); c.setLineDash([]);
   }
   if(sel.t==="pvp"){ var ps=pvPan(sel.id); if(ps) selCh=ps.ch; }
-  var lwS=Math.max(1.6, 25*k), lwT=Math.max(1.3, 16*k), ecartT=Math.max(2.2, 35*k);
+  var lwS=Math.max(1.6, 25*k), lwT=Math.max(1.3, 12*k), ecartT=Math.max(2.2, 35*k);
+  /* l'écart entre le + et le − : celui réglé (2 cm), à l'échelle, et au moins assez pour voir deux fils */
+  var demiF=Math.max((P.ecf!=null ? P.ecf : 20)*k/2, lwT*0.9+0.4);
   function chemin(pts){ c.beginPath(); pts.forEach(function(q, i){ var P0=E(q); if(i) c.lineTo(P0[0], P0[1]); else c.moveTo(P0[0], P0[1]); }); }
   function cheminEcran(pts, d){
     /* une polyligne décalée de d pixels à l'écran (le + et le − côte à côte) */
     var S=pts.map(E); if(S.length<2) return;
-    var D=S.map(function(q, i){ var a=S[Math.max(0, i-1)], b=S[Math.min(S.length-1, i+1)], tx=b[0]-a[0], ty=b[1]-a[1], L=Math.hypot(tx, ty)||1; return [q[0]-ty/L*d, q[1]+tx/L*d]; });
+    var D=pvDecalerPts(S, d);
     c.beginPath(); D.forEach(function(q, i){ if(i) c.lineTo(q[0], q[1]); else c.moveTo(q[0], q[1]); });
   }
   var strDe={}; P.str.forEach(function(s){ s.pans.forEach(function(id, i){ strDe[id]={s:s, i:i}; }); });
@@ -7021,12 +7054,16 @@ function peindrePv(c, E, orange, coulTrait){
     /* de panneau en panneau (la série) */
     if(g.n>1){ chemin(g.B); c.strokeStyle=col; c.lineWidth=choisi ? lwS*1.5 : lwS; c.setLineDash([]); c.stroke(); }
     /* le retour du − */
-    if(g.retour.length>1){ chemin(g.retour); traitMoins(lwT, [Math.max(4, 90*k), Math.max(3, 60*k)]); }
+    if(g.retour.length>1){
+      /* plaqué le long des panneaux : dessiné à l'écart réglé, mais au moins assez pour le distinguer de la série */
+      var rD = g.ret==="direct" ? g.retour : [g.B[g.n-1]].concat(pvDecalerPts(g.B.slice().reverse(), Math.max((P.ecf!=null ? P.ecf : 20)/DESSIN_MM, (lwS+lwT+2)/V.k))).concat([g.B[0]]);
+      chemin(rD); traitMoins(lwT, [Math.max(4, 90*k), Math.max(3, 60*k)]);
+    }
     /* le tronc : + et − ensemble jusqu'à l'onduleur */
     if(g.tronc.length>1){
       var qE=g.o ? Math.max(1, g.o.npm||1) : 1, rE=Math.min(qE-1, pvRangEntree(s)), lo=(parOnd[s.ond]||[s]).filter(function(x){ return (x.m||1)===(s.m||1) && Math.min(qE-1, pvRangEntree(x))===rE; }), idx=lo.indexOf(s), dec=(idx-(lo.length-1)/2)*ecartT*2.6;
-      cheminEcran(g.tronc, dec-ecartT/2); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
-      cheminEcran(g.tronc, dec+ecartT/2); traitMoins(choisi ? lwT*1.5 : lwT);
+      cheminEcran(g.tronc, dec-demiF); c.strokeStyle=plus; c.lineWidth=choisi ? lwT*1.5 : lwT; c.stroke();
+      cheminEcran(g.tronc, dec+demiF); traitMoins(choisi ? lwT*1.5 : lwT);
       if(fs>=5){
         /* l'étiquette sur le premier tronçon (propre à la string), sinon sur le plus long */
         var j=1, A=E(g.tronc[0]), Bq=E(g.tronc[1]);
@@ -7122,7 +7159,7 @@ function peindrePv(c, E, orange, coulTrait){
     if(PV_EC && D_SOURIS && (PV_EC.t==="ac" || PV_EC.t==="rj")){
       var oe=pvOnd(PV_EC.id);
       if(oe){ var s0=PV_EC.t==="ac" ? pvSortieAC(oe) : pvSortieRJ(oe), dl=[s0, [s0[0], s0[1]-400/DESSIN_MM]].concat(PV_EC.pts); if(dl.length>1){ chemin(dl); c.strokeStyle=orange; c.lineWidth=2.5; c.stroke(); }
-        chemin([dl[dl.length-1], D_SOURIS.pt]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
+        chemin([dl[dl.length-1], pvContraindre(dl[dl.length-1], D_SOURIS.pt)]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
         var Mq=E(D_SOURIS.pt); etiquette(c, Mq[0], Mq[1]-22, pvNb((pvLongueur(dl.concat([D_SOURIS.pt])))*DESSIN_MM/1000)+" m"); }
     }
     else if(PV_EC && D_SOURIS){
@@ -7130,7 +7167,7 @@ function peindrePv(c, E, orange, coulTrait){
       if(se){
         var ge=pvGeo(se), dep = PV_EC.t==="ch" ? [ge.B[0]].concat(PV_EC.pts) : [ge.B[ge.n-1]];
         if(PV_EC.t==="ch" && dep.length>1){ chemin(dep); c.strokeStyle=orange; c.lineWidth=2.5; c.stroke(); }
-        chemin([dep[dep.length-1], D_SOURIS.pt]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
+        chemin([dep[dep.length-1], PV_EC.t==="ch" ? pvContraindre(dep[dep.length-1], D_SOURIS.pt) : D_SOURIS.pt]); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([6, 5]); c.stroke(); c.setLineDash([]);
       }
     }
   }
@@ -7145,7 +7182,7 @@ function dxfPv(g){
   function texte(q, h, s, calque){ var r=M(q); g(0,"TEXT", 8,calque, 10,r[0],20,r[1],30,0, 40,h, 1,String(s), 72,1, 11,r[0],21,r[1],31,0); }
   var strDe={}; P.str.forEach(function(s){ s.pans.forEach(function(id, i){ strDe[id]=s.nom+"."+(i+1); }); });
   P.pan.forEach(function(p){ poly(pvCoins(p), "PV-PANNEAUX", true); if(strDe[p.id]) texte(pvCentre(p), Math.min(P.mod.l, P.mod.h)*0.18, strDe[p.id], "PV-TEXTES"); });
-  var off=40/k;
+  var off=(P.ecf!=null ? P.ecf : 20)/2/k;
   P.str.forEach(function(s){
     var gg=pvGeo(s); if(!gg.n) return;
     if(gg.n>1) poly(gg.B, "PV-STRINGS");
@@ -7184,7 +7221,8 @@ function peindreEtude(complet){
     h=document.createElement("h3"); h.textContent="Conditions"; par.appendChild(h);
     var gc=document.createElement("div"); gc.className="ep-grille";
     gc.appendChild(pvChamp2("Température mini (°C)", P.tmin, "", {pv:"cond", k:"tmin"})); gc.appendChild(pvChamp2("Température cellule maxi (°C)", P.tmax, "", {pv:"cond", k:"tmax"}));
-    gc.appendChild(pvChamp2("Section du câble DC (mm²)", P.sec, "", {pv:"cond", k:"sec"})); par.appendChild(gc);
+    gc.appendChild(pvChamp2("Section du câble DC (mm²)", P.sec, "", {pv:"cond", k:"sec"}));
+    gc.appendChild(pvChamp2("Écart entre le + et le − (cm)", P.ecf/10, "", {pv:"cond", k:"ecf"})); par.appendChild(gc);
     P.ond.forEach(function(o){
       var hh=document.createElement("h3"); hh.textContent="Onduleur "+o.nom; par.appendChild(hh);
       var go=document.createElement("div"); go.className="ep-grille"; PV_CHAMPS_OND.forEach(function(f){ go.appendChild(pvChamp2(f[1], o[f[0]], f[2], {pv:"ond", id:o.id, k:f[0]})); }); par.appendChild(go);
@@ -7240,7 +7278,7 @@ function pvMateriel(Ep){
 function pvChangerChamp(i){
   var P=PVD(), v=String(i.value).trim(), k=i.dataset.k, num=parseFloat(v.replace(",", "."));
   if(i.dataset.pv==="mod"){ if(k!=="nom" && !isFinite(num)) return; garderD(); P.mod[k] = k==="nom" ? (v||PV_MOD_DEF.nom) : num; }
-  else if(i.dataset.pv==="cond"){ if(!isFinite(num)) return; if(k==="sec" && !(num>0)) return; garderD(); P[k]=num; }
+  else if(i.dataset.pv==="cond"){ if(!isFinite(num)) return; if(k==="sec" && !(num>0)) return; if(k==="ecf"){ if(!(num>=0 && num<=50)) return; num=Math.round(num*10); } garderD(); P[k]=num; }
   else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return;
     if(k==="ph" || k==="acNom" || k==="rjNom"){ garderD(); o[k] = k==="ph" ? (v==="tri" ? "tri" : "mono") : (v || PV_OND_DEF[k]); enregistrerD(); majDessin(); peindreEtude(); return; }
     if(k==="iac" && !v){ garderD(); o.iac=0; enregistrerD(); majDessin(); peindreEtude(); return; }
@@ -7279,6 +7317,7 @@ function majPvPanneau(o, t){
     if(od) for(var i=1;i<=od.nm;i++){ var b=document.createElement("button"); b.type="button"; b.dataset.v=String(i); b.textContent="MPPT "+i; b.classList.toggle("on", (s.m||1)===i); seg.appendChild(b); }
     Array.prototype.forEach.call($("segPvRet").children, function(b){ b.classList.toggle("on", b.dataset.v===(s.ret||"auto")); });
     $("btPvEffChemin").hidden=!(s.ch && s.ch.length);
+    if(document.activeElement!==$("pvEcartFil")) $("pvEcartFil").value=enUnite(PVD().ecf);
     $("btPvFin").hidden=!PV_EC; $("btPvFin").textContent = PV_EC && PV_EC.t==="ch" ? "Terminer le cheminement" : "Terminer la string";
     $("btPvChemin").hidden = !!PV_EC;
   }
@@ -7319,6 +7358,7 @@ function brancherPv(){
   $("segPvRet").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; modifierStrPv(function(s){ s.ret=b.dataset.v; }); });
   $("btPvChemin").addEventListener("click", function(){ var s = D_SEL && D_SEL.t==="pvs" ? pvStr(D_SEL.id) : null; if(s) pvDebutChemin(s); });
   $("btPvEffChemin").addEventListener("click", function(){ modifierStrPv(function(s){ s.ch=[]; }); });
+  $("pvEcartFil").addEventListener("change", function(){ var v=lireCm(this.value)*10; if(!(v>=0 && v<=500)){ toast("Écart entre 0 et 50 cm."); majDessin(); return; } garderD(); PVD().ecf=Math.round(v); enregistrerD(); majDessin(); peindreEtude(true); toast("Le + et le − à "+cm(PVD().ecf)+" cm l'un de l'autre."); });
   $("btPvCoul").addEventListener("click", function(){ modifierStrPv(function(s){ s.c=((s.c||0)+1)%PV_COUL.length; }); });
   $("btPvFin").addEventListener("click", pvFinir);
   $("btEtudePv").addEventListener("click", function(){ var a=$("etudePv"); a.hidden=!a.hidden; if(!a.hidden){ $("quantites").hidden=true; peindreEtude(true); } majDessin(); });
