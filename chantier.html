@@ -1139,15 +1139,15 @@ var toastT;
    le PDF du relevé porte la référence, il ne doit pas la contredire */
 function peindreNomModif(){
   var b=$("c_nomModif"); if(!b || !CHANTIER) return;
+  /* le nom, la référence et la note : le bureau et l'administrateur, pas les techniciens */
   var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
-  var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
-  b.hidden = !(bureau || membre) || !$("c_nomEdit").hidden;
+  b.hidden = !bureau || !$("c_nomEdit").hidden;
 }
 /* la note du chantier */
 function peindreNote(){
   if(!CHANTIER) return;
   var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
-  var peut=bureau || (CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
+  var peut=!!bureau;
   var n=CHANTIER.note, edit=!$("c_noteEdit").hidden;
   $("c_note").hidden = !n || !n.texte || edit;
   $("c_noteModif").hidden = !peut;
@@ -1186,8 +1186,7 @@ function peindreRefModif(){
   var b=$("c_refModif"); if(!b || !CHANTIER) return;
   var releve=(CHANTIER.fichiers||[]).some(function(f){ return f.type==="releve" && !f.brouillon; });
   var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
-  var membre=(CHANTIER.equipe||[]).indexOf(SESSION && SESSION.nom)>=0;
-  b.hidden = releve || !(bureau || membre);
+  b.hidden = releve || !bureau;
 }
 /* le PV du devis accepté, sans ouvrir le relevé */
 function peindrePv(){

@@ -3434,7 +3434,8 @@ async function traiter(req) {
     const idx = await lireIndex();
     const c = idx.chantiers[String(d.ref || "").trim()];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
-    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    /* le nom, la référence et la note d'un chantier : le bureau et l'administrateur, jamais un technicien */
+    if (!bureau) return json({ erreur: "Réservé au bureau : un technicien ne modifie ni le nom, ni la référence, ni la note d'un chantier." }, 403);
     const nom = String(d.client || "").replace(/\s+/g, " ").trim().slice(0, 120);
     if (!nom) return json({ erreur: "Donnez le nom du chantier." }, 400);
     if (nom !== c.client) {
@@ -3455,7 +3456,8 @@ async function traiter(req) {
     const idx = await lireIndex();
     const c = idx.chantiers[String(d.ref || "").trim()];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
-    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    /* le nom, la référence et la note d'un chantier : le bureau et l'administrateur, jamais un technicien */
+    if (!bureau) return json({ erreur: "Réservé au bureau : un technicien ne modifie ni le nom, ni la référence, ni la note d'un chantier." }, 403);
     const texte = String(d.note || "").replace(/\s+/g, " ").trim();
     if (texte.length > 150) return json({ erreur: "150 caractères au plus." }, 400);
     if (texte) c.note = { texte, le: new Date().toISOString(), par: personne.nom };
@@ -3474,7 +3476,8 @@ async function traiter(req) {
     const idx = await lireIndex();
     const c = idx.chantiers[ancienne];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
-    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    /* le nom, la référence et la note d'un chantier : le bureau et l'administrateur, jamais un technicien */
+    if (!bureau) return json({ erreur: "Réservé au bureau : un technicien ne modifie ni le nom, ni la référence, ni la note d'un chantier." }, 403);
     if (nouvelle === ancienne) return json({ ok: true, ref: ancienne, inchange: true });
     if (idx.chantiers[nouvelle]) return json({ erreur: "La référence " + nouvelle + " est déjà celle d'un autre dossier." }, 409);
     const aUnReleve = c.fichiers.some((f) => f.type === "releve" && !f.brouillon);
