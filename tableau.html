@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261004a"></script>
+<script src="./theme.js?v=20261004b"></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261001a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -451,6 +451,8 @@ main{max-width:1240px}
 </style>
 <script src="./clavier.js?v=20260930a" defer></script>
 <script src="./horsligne.js?v=20261004a" defer></script>
+<script src="./finitions.js?v=20261004a" defer></script>
+<script src="./palette.js?v=20261004a" defer></script>
 </head>
 <body>
 <header>
@@ -538,20 +540,29 @@ function jourLisible(){
 }
 $("jour").textContent=jourLisible();
 
-/* ---------- les cinq cases ---------- */
+/* ---------- les cinq cases ----------
+   Les chiffres montent depuis zéro à la première ouverture (finitions.js),
+   puis s'écrivent sans bruit. */
+function compte(e, n){ if(window.Finitions) Finitions.compter(e, n); else e.textContent=n; }
+/* les jauges, elles, ne se remplissent qu'au premier dessin de la liste */
+var JAUGES_VUES=false;
+function jauge(i, pct){
+  if(window.Finitions && !JAUGES_VUES){ Finitions.remplir(i, pct); setTimeout(function(){ JAUGES_VUES=true; }, 0); }
+  else i.style.width=pct+"%";
+}
 function peindreCases(){
   var n=D.compteurs;
-  $("nEnCours").textContent=n.enCours;
+  compte($("nEnCours"), n.enCours);
   $("sEnCours").textContent = n.finisMois ? pluriel(n.finisMois, "terminé")+" ce mois" : (n.attente ? n.attente+" en attente de réponse" : "tout voir ci-dessous");
-  $("nTs").textContent=n.ts;
+  compte($("nTs"), n.ts);
   $("sTs").textContent = n.ts ? "sur "+pluriel(n.tsChantiers, "chantier") : "rien à chiffrer";
-  $("nCmd").textContent=n.commandes;
+  compte($("nCmd"), n.commandes);
   $("sCmd").textContent = n.commandes ? "la plus ancienne : "+(n.commandeJours ? pluriel(n.commandeJours, "jour") : "aujourd'hui") : "tout est saisi";
-  $("nPt").textContent=n.points;
+  compte($("nPt"), n.points);
   var sp=$("sPt"); sp.textContent=""; sp.className="sous";
   if(n.pointsRetard){ sp.className="retard"; sp.innerHTML=ICO_RETARD; sp.appendChild(document.createTextNode(n.pointsRetard+" en retard")); }
   else sp.textContent = n.points ? "aucun en retard" : "aucun en cours";
-  $("nRel").textContent=n.relances;
+  compte($("nRel"), n.relances);
   $("sRel").textContent = n.relances ? "sans réponse depuis un mois" : (n.attente ? n.attente+" en attente, rien à relancer" : "aucun dossier en attente");
   var total=D.aTraiter.length, retards=D.aTraiter.filter(function(x){ return x.retard; }).length;
   $("resume").textContent = total ? pluriel(total, "chose")+" à traiter"+(retards ? " · "+retards+" en retard" : "") : "Rien n'attend : tout est à jour.";
@@ -702,7 +713,7 @@ function peindreAvancement(){
       : c.joursSansSuivi===1 ? "dernier suivi hier"
       : "dernier suivi il y a "+c.joursSansSuivi+" j");
     nom.appendChild(sm);
-    var b=el("div","barre-tb"); var i=el("i"); i.style.width=c.avancement+"%"; b.appendChild(i);
+    var b=el("div","barre-tb"); var i=el("i"); jauge(i, c.avancement); b.appendChild(i);
     b.setAttribute("role","img"); b.setAttribute("aria-label", c.avancement+" % d'avancement");
     a.appendChild(nom); a.appendChild(b); a.appendChild(el("div","pct", c.avancement+" %"));
     a.title=c.client+" — "+c.avancement+" %"+(c.dernierSuivi ? " · dernier suivi le "+frDate(c.dernierSuivi) : "");

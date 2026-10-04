@@ -188,9 +188,11 @@
   function toutConvertir(){
     var fs=document.styleSheets, i;
     if(html.hasAttribute("data-theme-fixe")) return;
-    for(i=0;i<fs.length;i++) if(VUES.indexOf(fs[i])<0) noterUsages(fs[i]);
+    /* une feuille marquée data-theme-propre porte déjà ses deux versions (vitrine.css) */
+    function propre(f){ return f.ownerNode && f.ownerNode.hasAttribute && f.ownerNode.hasAttribute("data-theme-propre"); }
+    for(i=0;i<fs.length;i++) if(VUES.indexOf(fs[i])<0 && !propre(fs[i])) noterUsages(fs[i]);
     origines();
-    for(i=0;i<fs.length;i++) convertir(fs[i]);
+    for(i=0;i<fs.length;i++) if(!propre(fs[i])) convertir(fs[i]);
   }
   function toutDefaire(){
     for(var i=FAITS.length-1;i>=0;i--){
