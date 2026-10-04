@@ -657,6 +657,36 @@ async function lienClientActif(st) {
   let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
   return !!(r && r.lienClient);
 }       /* le jeton du QR « Nous contacter » de la société */
+/* =====================================================================
+   LES RÉFÉRENCES DE L'ENTREPRISE (onglet Outils)
+   ---------------------------------------------------------------------
+   La base d'articles de l'entreprise, venue de son fichier Excel : les
+   colonnes du fichier telles quelles, la colonne de la référence (celle
+   qu'on copie dans Batigest) et celle de la désignation. Tout le monde la
+   lit ; l'administrateur l'importe (en mettant à jour ou en remplaçant),
+   ajoute, modifie et retire des références.
+   ===================================================================== */
+const REFERENCES = "references.json";
+const REFS_MAX_LIGNES = 30000, REFS_MAX_COLONNES = 60, REFS_MAX_CASE = 1000;
+function cleRef(v) { return String(v == null ? "" : v).trim().toUpperCase(); }
+async function lireRefs(st) {
+  let r = null; try { r = await st.get(REFERENCES, { type: "json" }); } catch { r = null; }
+  if (!r || !Array.isArray(r.colonnes)) r = { colonnes: [], lignes: [], cle: 0, des: 1 };
+  if (!Array.isArray(r.lignes)) r.lignes = [];
+  return r;
+}
+/* des colonnes et des lignes propres : des textes courts, autant de cases que de colonnes */
+function nettoyerRefs(colonnes, lignes) {
+  const cols = (Array.isArray(colonnes) ? colonnes : []).slice(0, REFS_MAX_COLONNES).map((c, i) => String(c == null ? "" : c).trim().slice(0, 120) || "Colonne " + (i + 1));
+  const out = [];
+  for (const l of (Array.isArray(lignes) ? lignes : [])) {
+    if (!Array.isArray(l)) continue;
+    const r = cols.map((_, i) => String(l[i] == null ? "" : l[i]).trim().slice(0, REFS_MAX_CASE));
+    if (r.some((x) => x)) out.push(r);
+    if (out.length > REFS_MAX_LIGNES) break;
+  }
+  return { cols, lignes: out };
+}
 const DOCS_CLIENT = ["reception", "doe", "schema", "etiquettes", "autocontrole", "technique", "sav", "reportage"];
 /* le QR collé sur le tableau n'ouvre aucun document du dossier : il sert à joindre l'entreprise */
 const DOCS_TABLEAU = [];
@@ -2641,6 +2671,95 @@ async function traiter(req) {
     }
     return json({ ok: true, lien: { jeton: qc.jeton, genre: "societe", cree: qc.cree, par: qc.par, url: url.origin + "/client.html?j=" + qc.jeton },
       destinataire: qc.destinataire || "" });
+  }
+  /* ---------- les références de l'entreprise ---------- */
+  if (action === "references") {
+    const r = await lireRefs(store);
+    return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "", modifiable: !!admin });
+  }
+  if (action === "references-importer" || action === "references-ligne" || action === "references-supprimer" || action === "references-colonnes") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const r = await lireRefs(store), maintenant = new Date().toISOString();
+    if (action === "references-importer") {
+      const n = nettoyerRefs(d.colonnes, d.lignes);
+      if (!n.cols.length) return json({ erreur: "Aucune colonne dans le fichier." }, 400);
+      if (n.lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
+      const cle = Math.max(0, Math.min(n.cols.length - 1, parseInt(d.cle, 10) || 0));
+      const des = d.des === -1 || d.des === "-1" ? -1 : Math.max(0, Math.min(n.cols.length - 1, parseInt(d.des, 10) || 0));
+      const stats = { ajoutees: 0, modifiees: 0, identiques: 0, retirees: 0, sansReference: 0 };
+      let colonnes = n.cols, lignes;
+      if (d.mode === "fusionner" && r.colonnes.length) {
+        /* mettre à jour : les colonnes des deux bases (par leur nom), les références nouvelles ajoutées, les autres complétées */
+        colonnes = r.colonnes.slice();
+        n.cols.forEach((c) => { if (!colonnes.some((x) => x.toLowerCase() === c.toLowerCase()) && colonnes.length < REFS_MAX_COLONNES) colonnes.push(c); });
+        const ou = n.cols.map((c) => colonnes.findIndex((x) => x.toLowerCase() === c.toLowerCase()));
+        const ancienneCle = r.colonnes[r.cle || 0], iCle = colonnes.findIndex((x) => x.toLowerCase() === String(n.cols[cle]).toLowerCase());
+        const kCle = iCle >= 0 ? iCle : colonnes.indexOf(ancienneCle);
+        lignes = r.lignes.map((l) => colonnes.map((_, i) => l[i] != null ? l[i] : ""));
+        const index = new Map(); lignes.forEach((l, i) => { const k = cleRef(l[kCle]); if (k) index.set(k, i); });
+        for (const l of n.lignes) {
+          const k = cleRef(l[cle]);
+          if (!k) { stats.sansReference++; continue; }
+          const neuve = colonnes.map(() => ""); l.forEach((v, j) => { if (ou[j] >= 0) neuve[ou[j]] = v; });
+          if (index.has(k)) {
+            const a = lignes[index.get(k)], m = a.map((v, i) => (neuve[i] !== "" ? neuve[i] : v));
+            if (m.join("\u0001") === a.join("\u0001")) stats.identiques++; else { stats.modifiees++; lignes[index.get(k)] = m; }
+          } else { index.set(k, lignes.length); lignes.push(neuve); stats.ajoutees++; }
+        }
+        r.cle = kCle; r.des = des >= 0 ? colonnes.findIndex((x) => x.toLowerCase() === String(n.cols[des]).toLowerCase()) : -1;
+      } else {
+        /* remplacer : la base devient le fichier ; on compte ce qui change par rapport à l'ancienne */
+        const avant = new Map(); r.lignes.forEach((l) => { const k = cleRef(l[r.cle || 0]); if (k) avant.set(k, l.join("\u0001")); });
+        const vus = new Set(); lignes = [];
+        for (const l of n.lignes) {
+          const k = cleRef(l[cle]);
+          if (!k) { stats.sansReference++; lignes.push(l); continue; }
+          vus.add(k); lignes.push(l);
+          if (!avant.has(k)) stats.ajoutees++; else if (avant.get(k) === l.join("\u0001")) stats.identiques++; else stats.modifiees++;
+        }
+        avant.forEach((_, k) => { if (!vus.has(k)) stats.retirees++; });
+        r.cle = cle; r.des = des;
+      }
+      if (lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
+      Object.assign(r, { colonnes, lignes, maj: maintenant, par: personne.nom, source: String(d.source || "").slice(0, 200) });
+      await store.setJSON(REFERENCES, r);
+      return json({ ok: true, total: lignes.length, stats });
+    }
+    if (action === "references-colonnes") {
+      const nc = r.colonnes.length;
+      r.cle = Math.max(0, Math.min(nc - 1, parseInt(d.cle, 10) || 0));
+      r.des = d.des === -1 || d.des === "-1" ? -1 : Math.max(0, Math.min(nc - 1, parseInt(d.des, 10) || 0));
+      await store.setJSON(REFERENCES, r);
+      return json({ ok: true, cle: r.cle, des: r.des });
+    }
+    const kc = r.cle || 0;
+    if (action === "references-ligne") {
+      /* ajouter une référence, ou modifier celle qui avait la référence « ancienne » */
+      if (!r.colonnes.length) {
+        const cols = nettoyerRefs(d.colonnes || ["Référence", "Désignation"], []).cols;
+        Object.assign(r, { colonnes: cols, lignes: [], cle: 0, des: cols.length > 1 ? 1 : -1 });
+      }
+      const ligne = r.colonnes.map((_, i) => String((d.ligne || [])[i] == null ? "" : d.ligne[i]).trim().slice(0, REFS_MAX_CASE));
+      const k = cleRef(ligne[r.cle || 0]);
+      if (!k) return json({ erreur: "La référence est obligatoire." }, 400);
+      const ia = d.ancienne ? r.lignes.findIndex((l) => cleRef(l[r.cle || 0]) === cleRef(d.ancienne)) : -1;
+      const doublon = r.lignes.findIndex((l) => cleRef(l[r.cle || 0]) === k);
+      if (doublon >= 0 && doublon !== ia) return json({ erreur: "La référence « " + ligne[r.cle || 0] + " » existe déjà." }, 409);
+      if (d.ancienne && ia < 0) return json({ erreur: "Référence introuvable (modifiée entre-temps ?)." }, 404);
+      if (ia >= 0) r.lignes[ia] = ligne; else { if (r.lignes.length >= REFS_MAX_LIGNES) return json({ erreur: "Base pleine." }, 413); r.lignes.push(ligne); }
+      Object.assign(r, { maj: maintenant, par: personne.nom });
+      await store.setJSON(REFERENCES, r);
+      return json({ ok: true, total: r.lignes.length, ajoutee: ia < 0 });
+    }
+    /* retirer une référence */
+    const avantN = r.lignes.length;
+    r.lignes = r.lignes.filter((l) => cleRef(l[kc]) !== cleRef(d.reference));
+    if (r.lignes.length === avantN) return json({ erreur: "Référence introuvable." }, 404);
+    Object.assign(r, { maj: maintenant, par: personne.nom });
+    await store.setJSON(REFERENCES, r);
+    return json({ ok: true, total: r.lignes.length });
   }
   /* ---------- réglages des pages clients (administrateur) ---------- */
   if (action === "reglages-clients") return json({ lienClient: await lienClientActif(store) });
