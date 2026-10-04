@@ -669,6 +669,20 @@ async function lienClientActif(st) {
 const REFERENCES = "references.json";
 const REFS_MAX_LIGNES = 30000, REFS_MAX_COLONNES = 60, REFS_MAX_CASE = 1000;
 function cleRef(v) { return String(v == null ? "" : v).trim().toUpperCase(); }
+/* La base de départ de la première société : son fichier Excel, rangé (catégories, gammes,
+   marques, Céliane 2024). Chargée d'elle-même tant que la base est vide, ou sur demande
+   de l'administrateur (« Charger la base rangée »). REFERENCES_DEPART=0 la coupe. */
+let REFS_DEPART = undefined;
+async function refsDepart(code) {
+  if (code !== SOCIETE_DEPART.code || process.env.REFERENCES_DEPART === "0") return null;
+  if (REFS_DEPART === undefined) {
+    try {
+      const { readFile } = await import("node:fs/promises");
+      REFS_DEPART = JSON.parse(await readFile(new URL("./references-depart.json", import.meta.url), "utf8"));
+    } catch { REFS_DEPART = null; }
+  }
+  return REFS_DEPART;
+}
 async function lireRefs(st) {
   let r = null; try { r = await st.get(REFERENCES, { type: "json" }); } catch { r = null; }
   if (!r || !Array.isArray(r.colonnes)) r = { colonnes: [], lignes: [], cle: 0, des: 1 };
@@ -2673,9 +2687,21 @@ async function traiter(req) {
       destinataire: qc.destinataire || "" });
   }
   /* ---------- les références de l'entreprise ---------- */
-  if (action === "references") {
-    const r = await lireRefs(store);
-    return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "", modifiable: !!admin });
+  if (action === "references" || action === "references-depart") {
+    let r = await lireRefs(store);
+    const dep = await refsDepart(personne.societe);
+    if (action === "references-depart") {
+      if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+      if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+      if (!dep) return json({ erreur: "Pas de base préparée pour cette entreprise." }, 404);
+    }
+    /* la base rangée : d'elle-même si rien n'est encore importé, ou à la demande */
+    if (dep && (action === "references-depart" || (!r.colonnes.length && !r.depart))) {
+      r = { colonnes: dep.colonnes, lignes: dep.lignes, cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: action === "references-depart" ? personne.nom : "Base de départ", source: dep.source, depart: dep.version };
+      await store.setJSON(REFERENCES, r);
+    }
+    return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "", modifiable: !!admin,
+      departDispo: dep && admin && r.depart !== dep.version ? { version: dep.version, n: dep.lignes.length, source: dep.source } : null });
   }
   if (action === "references-importer" || action === "references-ligne" || action === "references-supprimer" || action === "references-colonnes") {
     if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
@@ -2724,6 +2750,7 @@ async function traiter(req) {
       }
       if (lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
       Object.assign(r, { colonnes, lignes, maj: maintenant, par: personne.nom, source: String(d.source || "").slice(0, 200) });
+      if (d.mode !== "fusionner") delete r.depart;       /* remplacée par un fichier : la base rangée peut être rechargée */
       await store.setJSON(REFERENCES, r);
       return json({ ok: true, total: lignes.length, stats });
     }
@@ -2748,7 +2775,16 @@ async function traiter(req) {
       const doublon = r.lignes.findIndex((l) => cleRef(l[r.cle || 0]) === k);
       if (doublon >= 0 && doublon !== ia) return json({ erreur: "La référence « " + ligne[r.cle || 0] + " » existe déjà." }, 409);
       if (d.ancienne && ia < 0) return json({ erreur: "Référence introuvable (modifiée entre-temps ?)." }, 404);
-      if (ia >= 0) r.lignes[ia] = ligne; else { if (r.lignes.length >= REFS_MAX_LIGNES) return json({ erreur: "Base pleine." }, 413); r.lignes.push(ligne); }
+      if (ia >= 0) r.lignes[ia] = ligne;
+      else {
+        if (r.lignes.length >= REFS_MAX_LIGNES) return json({ erreur: "Base pleine." }, 413);
+        /* rangée avec les siennes : après la dernière de même catégorie et même gamme (les deux premières colonnes), sinon de même catégorie */
+        const same = (l, n) => l.slice(0, n).every((v, i) => cleRef(v) === cleRef(ligne[i]));
+        let ou = -1;
+        if (r.colonnes.length > 2 && r.cle > 1) { for (let i = r.lignes.length - 1; i >= 0; i--) if (same(r.lignes[i], 2)) { ou = i; break; }
+          if (ou < 0) for (let i = r.lignes.length - 1; i >= 0; i--) if (same(r.lignes[i], 1)) { ou = i; break; } }
+        if (ou >= 0) r.lignes.splice(ou + 1, 0, ligne); else r.lignes.push(ligne);
+      }
       Object.assign(r, { maj: maintenant, par: personne.nom });
       await store.setJSON(REFERENCES, r);
       return json({ ok: true, total: r.lignes.length, ajoutee: ia < 0 });

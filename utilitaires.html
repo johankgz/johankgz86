@@ -425,6 +425,7 @@ main{max-width:520px}
 .rf-reglage{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin:-6px 0 6px;font-size:12px;color:#8A97A6}
 .rf-reglage .puces{margin:0}
 .rf-etat{min-height:1.2em}
+.rf-cats{margin:0 0 4px}
 .rf-info{margin:6px 0 4px;font-size:12px;color:#8A97A6}
 .rf-liste{display:flex;flex-direction:column;gap:6px}
 .rf-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:10px 10px 10px 12px;border-radius:12px;background:var(--g-800);border:1px solid var(--trait-tech)}
@@ -436,6 +437,9 @@ main{max-width:520px}
 .rf-copier.fait{background:#15803D;border-color:#15803D;color:#fff}
 .rf-plus{min-height:38px;width:38px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:none;color:#C9D1D9;font-size:18px;cursor:pointer}
 .rf-menu{flex-basis:100%;margin:2px 0 0}
+.rf-depart{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:10px 0 0;padding:10px 12px;border-radius:12px;background:rgba(251,146,60,.1);border:1px solid rgba(251,146,60,.45);font-size:13px;color:#FDBA74}
+.rf-depart[hidden]{display:none}
+.rf-depart button{min-height:34px;padding:0 14px;border-radius:999px;border:1px solid rgba(251,146,60,.7);background:rgba(251,146,60,.2);color:#FDBA74;font-weight:700;cursor:pointer}
 .rf-admin{margin-top:18px;padding-top:14px;border-top:1px solid var(--trait-tech)}
 .rf-admin h3,.rf-panneau h3{margin:0 0 6px;font-size:14px;color:#F2F5F9}
 .rf-colonnes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px}
@@ -918,6 +922,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <div class="conv-saisie"><input type="search" id="rfCherche" autocomplete="off" enterkeyhint="search" placeholder="Référence, désignation, marque…" aria-label="Chercher une référence"></div>
       <div class="rf-reglage"><span>« Copier » copie</span>
         <span class="puces" id="rfCopieMode" role="group" aria-label="Ce que copie le bouton Copier"><button type="button" data-v="code">la référence</button><button type="button" data-v="code-des">référence + désignation</button><button type="button" data-v="ligne">toute la ligne</button></span></div>
+      <div class="puces rf-cats" id="rfCats" hidden role="group" aria-label="Catégories"></div>
       <p class="conv-formule rf-etat" id="rfEtat" aria-live="polite">Chargement…</p>
       <p class="rf-info" id="rfInfo"></p>
       <div class="rf-liste" id="rfListe"></div>
@@ -929,6 +934,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
           <button type="button" id="rfAjouter">Ajouter une référence</button>
           <button type="button" id="rfExporter" hidden>Exporter en Excel</button>
         </div>
+        <div class="rf-depart" id="rfDepart" hidden><span id="rfDepartTxt"></span><button type="button" id="rfDepartOk">Charger la base rangée</button></div>
         <input type="file" id="rfFichier" accept=".xlsx,.xlsm,.csv,.txt,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv" hidden>
         <div class="rf-colonnes" id="rfColonnes" hidden>
           <label><span>Colonne de la référence</span><select id="rfColCle"></select></label>
@@ -1847,7 +1853,9 @@ window.__calcul = calculer;
 (function(){
   function $(i){ return document.getElementById(i); }
   var S=null; try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
-  var B={colonnes:[], lignes:[], cle:0, des:1, modifiable:false}, IDX=[], IMP=null, EDIT=null, IMP_CAT=false;
+  var B={colonnes:[], lignes:[], cle:0, des:1, modifiable:false}, IDX=[], IMP=null, EDIT=null, IMP_CAT=false, CAT="";
+  /* la colonne des catégories (« Catégorie », « Famille »…) : des boutons pour parcourir la base sans rien taper */
+  function colCat(){ for(var i=0;i<B.colonnes.length;i++) if(/^(categorie|famille|rubrique)/.test(sansAccent(B.colonnes[i]))) return i; return -1; }
   var MODE_COPIE=(function(){ try{ return localStorage.getItem("outils:refsCopie")||"code"; }catch(e){ return "code"; } })();
   var RECENTS=(function(){ try{ var l=JSON.parse(localStorage.getItem("outils:refsRecents")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } })();
   function etat(t){ $("rfEtat").textContent=t||""; }
@@ -1869,6 +1877,8 @@ window.__calcul = calculer;
     var n=B.lignes.length;
     $("rfAdmin").hidden=!B.modifiable;
     $("rfExporter").hidden=!n;
+    $("rfDepart").hidden=!B.departDispo;
+    if(B.departDispo) $("rfDepartTxt").textContent="Votre base rangée est prête : "+nb(B.departDispo.n)+" références ("+B.departDispo.source+").";
     etat(n ? nb(n)+" référence"+(n>1 ? "s" : "")+(B.maj ? " · à jour du "+new Date(B.maj).toLocaleDateString("fr-FR")+(B.par ? " ("+B.par+")" : "") : "")+(B.source ? " · "+B.source : "")
       : (B.modifiable ? "Aucune référence : importez votre fichier Excel." : "Aucune référence pour l'instant : l'administrateur importe le fichier de l'entreprise."));
     /* les colonnes de la référence et de la désignation */
@@ -1880,13 +1890,26 @@ window.__calcul = calculer;
     });
     $("rfColonnes").hidden=!B.modifiable || !B.colonnes.length;
     Array.prototype.forEach.call($("rfCopieMode").children, function(b){ b.classList.toggle("on", b.dataset.v===MODE_COPIE); });
+    var kc=colCat(), cats=[], box=$("rfCats"); box.textContent="";
+    if(kc>=0) B.lignes.forEach(function(l){ if(l[kc] && cats.indexOf(l[kc])<0) cats.push(l[kc]); });
+    if(cats.indexOf(CAT)<0) CAT="";
+    box.hidden = cats.length<2;
+    if(cats.length>=2) [""].concat(cats).forEach(function(c){
+      var b=document.createElement("button"); b.type="button"; b.textContent=c||"Tout"; b.classList.toggle("on", c===CAT);
+      b.addEventListener("click", function(){ CAT=c; majEntete(); chercher(); }); box.appendChild(b);
+    });
   }
   /* ---------- chercher ---------- */
   function chercher(){
     var q=sansAccent($("rfCherche").value).trim(), liste=$("rfListe"), mots=q.split(/\s+/).filter(Boolean), res=[], MAX=150;
     liste.textContent="";
     if(!B.lignes.length) return;
-    if(!mots.length){
+    var kc=colCat();
+    if(!mots.length && CAT && kc>=0){
+      /* une catégorie choisie, rien de tapé : toute la catégorie */
+      for(var c0=0;c0<B.lignes.length;c0++) if(B.lignes[c0][kc]===CAT) res.push(c0);
+      $("rfInfo").textContent=nb(res.length)+" référence"+(res.length>1 ? "s" : "")+" dans « "+CAT+" »"+(res.length>MAX ? " : les "+MAX+" premières, précisez la recherche" : "");
+    } else if(!mots.length){
       /* rien de tapé : les dernières copiées, puis le début de la base */
       var vus={};
       RECENTS.forEach(function(r){ var i=trouver(r); if(i>=0 && !vus[i]){ vus[i]=1; res.push(i); } });
@@ -1897,7 +1920,7 @@ window.__calcul = calculer;
       for(var i=0;i<IDX.length;i++){
         var t=IDX[i], ok=true;
         for(var m=0;m<mots.length;m++) if(t.indexOf(mots[m])<0){ ok=false; break; }
-        if(!ok) continue;
+        if(!ok || (CAT && kc>=0 && B.lignes[i][kc]!==CAT)) continue;
         /* la référence qui commence par ce qu'on tape passe devant */
         (sansAccent(B.lignes[i][cle]).indexOf(mots[0])===0 ? prem : aut).push(i);
       }
@@ -1971,7 +1994,15 @@ window.__calcul = calculer;
     var cols = B.colonnes.length ? B.colonnes : ["Référence", "Désignation", "Fournisseur", "Prix", "Unité"];
     cols.forEach(function(c, j){
       var l=document.createElement("label"); var sp=document.createElement("span"); sp.textContent=c+(j===(B.cle||0) ? " *" : ""); l.appendChild(sp);
-      var inp=document.createElement("input"); inp.type="text"; inp.autocomplete="off"; inp.dataset.i=String(j); inp.value = i!=null ? (B.lignes[i][j]||"") : ""; l.appendChild(inp); g.appendChild(l);
+      var inp=document.createElement("input"); inp.type="text"; inp.autocomplete="off"; inp.dataset.i=String(j); inp.value = i!=null ? (B.lignes[i][j]||"") : ""; l.appendChild(inp);
+      /* les valeurs déjà utilisées (catégories, gammes, marques, fournisseurs) : proposées pour garder la base propre */
+      if(j!==(B.cle||0) && j!==(B.des!=null ? B.des : 1)){
+        var vals=[]; B.lignes.forEach(function(x){ if(x[j] && vals.indexOf(x[j])<0) vals.push(x[j]); });
+        if(vals.length && vals.length<=200){ var dl=document.createElement("datalist"); dl.id="rfListe"+j; vals.sort().forEach(function(v){ var o=document.createElement("option"); o.value=v; dl.appendChild(o); }); l.appendChild(dl); inp.setAttribute("list", dl.id); }
+      }
+      /* une nouvelle référence dans la catégorie affichée */
+      if(i==null && j===colCat() && CAT) inp.value=CAT;
+      g.appendChild(l);
     });
     EDIT.colonnes=cols;
     $("rfFormTitre").textContent = i==null ? "Nouvelle référence" : "Modifier « "+EDIT.ancienne+" »";
@@ -1987,6 +2018,10 @@ window.__calcul = calculer;
   $("rfAnnulerForm").addEventListener("click", function(){ $("rfForm").hidden=true; EDIT=null; });
   $("rfAjouter").addEventListener("click", function(){ editer(null); });
   $("rfImporter").addEventListener("click", function(){ $("rfFichier").click(); });
+  $("rfDepartOk").addEventListener("click", function(){
+    if(B.lignes.length && !window.confirm("Remplacer la base actuelle ("+nb(B.lignes.length)+" références) par la base rangée ("+nb(B.departDispo.n)+" références) ?")) return;
+    api("references-depart", {}).then(function(d){ charger("Base rangée chargée : "+nb(d.lignes.length)+" références."); }).catch(function(e){ etat(e.message); });
+  });
   /* ---------- lire un fichier Excel (.xlsx) ou CSV ---------- */
   function chargerZip(){
     if(window.JSZip) return Promise.resolve(window.JSZip);
