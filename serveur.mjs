@@ -40,6 +40,7 @@ const TYPES = {
   ".json": "application/json; charset=utf-8",
   ".webmanifest": "application/manifest+json; charset=utf-8",
   ".txt": "text/plain; charset=utf-8",
+  ".xml": "application/xml; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webp": "image/webp",
   ".woff2": "font/woff2", ".woff": "font/woff", ".wasm": "application/wasm"
@@ -97,6 +98,11 @@ async function repondre(req, res, reponse) {
    compressées), relues seulement si le fichier change. L'étiquette (ETag)
    permet au navigateur de redemander une page sans la retélécharger :
    « pas changé » tient en quelques octets. */
+/* Ce que Google peut afficher : l'accueil et les pages légales. Toutes les autres
+   pages (les applis, l'aide) portent « noindex » : elles ne sont pas indexées, et
+   celles qui l'étaient déjà sortent des résultats au prochain passage du robot. */
+const PAGES_PUBLIQUES = new Set(["index.html", "mentions-legales.html", "confidentialite.html", "cgu.html", "conditions-abonnement.html", "sous-traitance.html"]);
+
 const CACHE_FICHIERS = new Map();
 async function fichierPret(fichier) {
   const st = await fs.stat(fichier);
@@ -129,6 +135,7 @@ const serveur = http.createServer(async (req, res) => {
         ? "no-cache" : "public, max-age=3600",
       "etag": f.etag
     };
+    if (path.extname(fichier) === ".html" && !PAGES_PUBLIQUES.has(path.relative(RACINE, fichier))) entetes["x-robots-tag"] = "noindex, nofollow";
     if (f.gz) entetes["vary"] = "Accept-Encoding";
     if (String(req.headers["if-none-match"] || "").split(/\s*,\s*/).includes(f.etag)) { res.writeHead(304, entetes); res.end(); return; }
     const gz = f.gz && accepteGzip(req);
