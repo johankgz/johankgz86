@@ -1318,9 +1318,14 @@ async function traiter(req) {
     const c = comptes.find((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant) || {};
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === personne.societe) || {};
+    /* la carte de visite : la société (nom, adresse) vient de sa fiche, à défaut de la société */
+    let fiche = null;
+    try { fiche = await magasinAnnuaire().get("fiches/" + personne.societe + ".json", { type: "json" }); } catch { fiche = null; }
     return json({ nom: personne.nom, identifiant: personne.identifiant, role: personne.role,
       email: c.email || personne.email || "", tel: c.tel || "",
+      fonction: c.fonction || "", adresse: c.adresse || "", carteInverse: !!c.carteInverse,
       societe: personne.societe, societeNom: soc.nom || "", demo: !!soc.demo,
+      carteSociete: { nom: (fiche && fiche.nom) || soc.nom || "", adresse: (fiche && fiche.adresse) || "", web: (fiche && fiche.web) || "" },
       mdpMaj: c.mdpMaj || "" });
   }
 
@@ -1340,9 +1345,14 @@ async function traiter(req) {
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant);
     if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
-    comptes[i] = { ...comptes[i], email, tel };
+    /* la fonction et l'adresse postale (carte de visite) : seulement si elles sont envoyées */
+    const plus = {};
+    if ("fonction" in d) plus.fonction = String(d.fonction || "").trim().slice(0, 80);
+    if ("adresse" in d) plus.adresse = String(d.adresse || "").trim().slice(0, 200);
+    if ("carteInverse" in d) plus.carteInverse = d.carteInverse === true;
+    comptes[i] = { ...comptes[i], email, tel, ...plus };
     await ecrireComptes(personne.societe, comptes);
-    return json({ ok: true, email, tel });
+    return json({ ok: true, email, tel, fonction: comptes[i].fonction || "", adresse: comptes[i].adresse || "", carteInverse: !!comptes[i].carteInverse });
   }
 
   if (action === "moi-societe") {

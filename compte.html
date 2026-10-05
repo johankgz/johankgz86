@@ -449,6 +449,14 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .choix-fond input{width:18px;height:18px;margin:0;accent-color:#EA7A1E}
 .choix-fond b{display:block;font-size:14.5px}
 .choix-fond small{display:block;font-size:12.5px;color:var(--ink-3,#6B7480)}
+/* ---------- la carte de visite (carte.js) ---------- */
+#adresseCarte{width:100%;box-sizing:border-box;min-height:60px;padding:11px 12px;font:inherit;font-size:16px;resize:vertical;color:var(--ink)}
+.carte-apercu{display:flex;gap:14px;align-items:center;margin:4px 0 14px;padding:12px;border-radius:var(--r-field);border:1px solid var(--champ-bord);background:var(--champ-fond)}
+.carte-apercu .carte-qr-grand{width:76px;height:76px;margin:0;top:0;padding:4px}
+.carte-apercu b{display:block;font-size:14.5px}
+.carte-apercu span{display:block;font-size:13.5px;color:var(--ink-2);margin-top:2px}
+.carte-apercu .lien{display:inline;margin-top:4px;padding:0;min-height:0;background:none;border:0;box-shadow:none;color:var(--accent);font-size:13px;font-weight:600;text-decoration:underline;cursor:pointer}
+.carte-apercu small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:4px;line-height:1.4}
 </style>
 <script src="./clavier.js?v=20260930a" defer></script>
 <script src="./horsligne.js?v=20261004a" defer></script>
@@ -475,9 +483,15 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 
   <div class="block" id="blocCoord">
     <h2>Mes coordonnées</h2>
-    <p class="legend">Elles remplissent le bloc « Chargé d'affaires » de vos relevés techniques, et vos collègues les retrouvent quand ils vous choisissent.</p>
+    <p class="legend">Elles remplissent le bloc « Chargé d'affaires » de vos relevés techniques, et vos collègues les retrouvent quand ils vous choisissent. Elles font aussi votre carte de visite en QR code.</p>
     <label><span>Adresse e-mail</span><input type="email" id="email" autocapitalize="none" autocomplete="email" spellcheck="false" inputmode="email"></label>
     <label><span>Téléphone</span><input type="tel" id="tel" autocomplete="tel" inputmode="tel"></label>
+    <label><span>Fonction</span><input type="text" id="fonctionCarte" maxlength="80" autocomplete="organization-title" placeholder="Chargé d'affaires"></label>
+    <label><span>Adresse postale</span><textarea id="adresseCarte" maxlength="200" rows="2" autocomplete="street-address" placeholder="Celle de la société, à défaut"></textarea></label>
+    <div class="carte-apercu" id="carteApercu" hidden>
+      <button type="button" class="carte-qr carte-qr-grand" id="carteApercuQr" aria-label="Ma carte de visite en QR code : l'agrandir"></button>
+      <div><b>Ma carte de visite</b><span id="carteApercuTxt"></span><button type="button" class="lien" id="carteInverser">Inverser prénom et nom</button><small>Le QR code à côté de votre prénom, sur l'accueil : un iPhone ou un Android qui le scanne ajoute le contact.</small></div>
+    </div>
     <button class="p" id="enrCoord">Enregistrer</button>
     <p class="err" id="errCoord"></p>
   </div>
@@ -624,6 +638,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 </main>
 <script src="./notifications.js?v=1"></script>
 <script src="./qr.js?v=20261004a"></script>
+<script src="./carte.js?v=20261005a"></script>
 <script>
 (function(){
 function $(i){ return document.getElementById(i); }
@@ -645,6 +660,24 @@ function peindre(){
 peindre();
 /* ce qu'on sait déjà, même hors réseau */
 $("email").value=S.email||""; $("tel").value=S.tel||"";
+$("fonctionCarte").value=S.fonction||""; $("adresseCarte").value=S.adresse||"";
+var COMPTE=null, INVERSE=!!S.carteInverse;
+/* l'aperçu de la carte de visite : les chargés d'affaires et l'administrateur */
+function peindreCarte(){
+  var bloc=$("carteApercu"); if(!bloc || !window.Carte || !window.QR) return;
+  var bureau = S.role==="bureau" || S.role==="admin" || S.proprietaire;
+  bloc.hidden = !bureau || !!S.demo;
+  if(bloc.hidden) return;
+  var c=Object.assign({}, COMPTE||{}, {email:$("email").value.trim(), tel:$("tel").value.trim(), fonction:$("fonctionCarte").value.trim(), adresse:$("adresseCarte").value.trim(), carteInverse:INVERSE});
+  var i=Carte.infos(S, c);
+  $("carteApercuQr").innerHTML=QR.svg(Carte.vcard(i), {niveau:"L", marge:1});
+  $("carteApercuQr").__infos=i;
+  $("carteApercuTxt").textContent="Prénom : "+(i.prenom||"—")+" · Nom : "+(i.nom||"—")+(i.fonction ? " · "+i.fonction : "")+(i.org ? " · "+i.org : "");
+}
+$("carteApercuQr").addEventListener("click", function(){ if(this.__infos) Carte.ouvrir(this.__infos); });
+$("carteInverser").addEventListener("click", function(){ INVERSE=!INVERSE; peindreCarte(); $("errCoord").className="err"; $("errCoord").textContent="Touchez Enregistrer pour garder ce choix."; });
+["email","tel","fonctionCarte","adresseCarte"].forEach(function(i){ $(i).addEventListener("input", peindreCarte); });
+peindreCarte();
 
 function sortir(){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace("./index.html#connexion"); }
 
@@ -658,19 +691,24 @@ fetch(apiUrl("mon-compte"), {headers:{"x-auth":S.jeton}})
     var d=res.d;
     S.nom=d.nom||S.nom; S.role=d.role||S.role; S.identifiant=d.identifiant||S.identifiant;
     if(d.societeNom) S.societeNom=d.societeNom;
-    S.email=d.email||""; S.tel=d.tel||"";
+    S.email=d.email||""; S.tel=d.tel||""; S.fonction=d.fonction||""; S.adresse=d.adresse||""; S.carteSociete=d.carteSociete||null;
+    COMPTE=d; INVERSE=!!d.carteInverse; S.carteInverse=INVERSE;
     poserSession(S); peindre();
+    if(document.activeElement!==$("fonctionCarte")) $("fonctionCarte").value=S.fonction;
+    if(document.activeElement!==$("adresseCarte")) $("adresseCarte").value=S.adresse;
+    if(d.carteSociete && d.carteSociete.adresse) $("adresseCarte").placeholder=d.carteSociete.adresse;
+    peindreCarte();
     if(document.activeElement!==$("email")) $("email").value=S.email;
     if(document.activeElement!==$("tel")) $("tel").value=S.tel;
     if(d.demo){
-      $("email").disabled=true; $("tel").disabled=true; $("enrCoord").disabled=true;
+      $("email").disabled=true; $("tel").disabled=true; $("fonctionCarte").disabled=true; $("adresseCarte").disabled=true; $("enrCoord").disabled=true;
       $("errCoord").className="err"; $("errCoord").textContent="Démonstration : les coordonnées ne s'enregistrent pas.";
     }
   })
   .catch(function(){});
 
 $("enrCoord").addEventListener("click", function(){
-  var corps={email:$("email").value.trim(), tel:$("tel").value.trim()};
+  var corps={email:$("email").value.trim(), tel:$("tel").value.trim(), fonction:$("fonctionCarte").value.trim(), adresse:$("adresseCarte").value.trim(), carteInverse:INVERSE};
   var e=$("errCoord"); e.className="err";
   if(corps.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(corps.email)){ e.textContent="Cette adresse e-mail n'a pas l'air complète."; return; }
   e.textContent="Enregistrement…";
@@ -679,12 +717,13 @@ $("enrCoord").addEventListener("click", function(){
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
     .then(function(res){
       if(!res.ok){ e.textContent=res.d.erreur||"Enregistrement refusé."; return; }
-      S.email=res.d.email||""; S.tel=res.d.tel||""; poserSession(S);
+      S.email=res.d.email||""; S.tel=res.d.tel||""; S.fonction=res.d.fonction||""; S.adresse=res.d.adresse||""; S.carteInverse=!!res.d.carteInverse; poserSession(S);
+      if(COMPTE){ COMPTE.fonction=S.fonction; COMPTE.adresse=S.adresse; COMPTE.carteInverse=S.carteInverse; } peindreCarte();
       e.className="err ok"; e.textContent="Coordonnées enregistrées.";
     })
     .catch(function(){ e.textContent="Pas de réseau : réessayez une fois connecté."; });
 });
-["email","tel"].forEach(function(i){
+["email","tel","fonctionCarte"].forEach(function(i){
   $(i).addEventListener("keydown", function(ev){ if(ev.key==="Enter") $("enrCoord").click(); });
 });
 
