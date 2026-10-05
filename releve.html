@@ -1376,51 +1376,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
-    <h2>1. Enregistrer le relevé</h2>
-    <p class="hint" style="margin:-8px 0 14px">Le relevé rejoint vos travaux en cours, sur votre compte. Vous le rouvrez quand vous voulez pour le compléter ou le corriger, depuis n'importe quel appareil. Personne n'est prévenu.</p>
-    <button class="act blue" id="btnEnrSite" style="width:100%">Enregistrer le relevé</button>
-    <p class="hint" id="enrEtat"></p>
-  </div>
-
-  <div class="block">
-    <h2>2. Publier</h2>
-    <p class="hint" style="margin:-8px 0 14px">Le relevé part dans l'espace des personnes choisies, avec son PDF, et ses photos dans le dossier du chantier (sous-dossier « Photos du chantier »). Elles peuvent le lire, et le rouvrir pour le poursuivre. Une nouvelle publication remplace la précédente : un seul relevé par dossier, toujours à jour.</p>
-    <div class="choix-pub" id="choixPublication">
-      <button type="button" class="opt on" data-pub="dossier">
-        <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
-      </button>
-      <button type="button" class="opt" data-pub="cible">
-        <b>Seulement à une personne</b><span>vous choisissez qui</span>
-      </button>
-    </div>
-    <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce relevé</p>
-    <div class="chips" id="pubDest"></div>
-    <button class="act solid" id="btnPublier" style="width:100%">Publier le relevé</button>
+    <h2>Publier le relevé</h2>
+    <p class="hint" style="margin:-8px 0 14px">Le relevé part dans le dossier du chantier, avec son PDF, et ses photos dans le sous-dossier « Photos du chantier ». L'équipe du chantier le lit, et le rouvre pour le poursuivre. Une nouvelle publication remplace la précédente : un seul relevé par dossier, toujours à jour.</p>
+    <p class="legend" style="margin-bottom:10px">Dans le dossier : <span id="pubDossierQui">visible par l'équipe du chantier</span></p>
+    <button class="act solid" id="btnPublier" style="width:100%">Publier dans le dossier</button>
     <p class="hint" id="pubEtat"></p>
-  </div>
-
-  <div class="block">
-    <h2>3. Rapport PDF</h2>
-    <p class="legend" id="pdfResume">Nouveau relevé</p>
-    <button class="act" id="btnPdf" style="width:100%">Générer le PDF</button>
-    <button class="act blue" id="btnPartage" style="width:100%;margin-top:10px">Partager le rapport</button>
-    <p class="hint" id="pdfInfo" style="margin:9px 2px 0"></p>
-  </div>
-
-  <div class="block">
-    <h2>Enregistrements</h2>
-    <div class="row">
-      <button class="act ghost" id="btnPhotosZip">Enregistrer les photos</button>
-      <button class="act ghost" id="btnPhotosSite">Enregistrer les photos sur le site</button>
-    </div>
-
-    <p class="legend" style="margin-top:16px">Fichier de travail</p>
-    <div class="row">
-      <button class="act" id="btnExportJson">Enregistrer le relevé (fichier)</button>
-      <button class="act" id="btnImportJson">Ouvrir un fichier</button>
-      <input type="file" id="fileJson" accept=".json,application/json" hidden>
-    </div>
-    <p class="hint" id="jsonEtat">Utile quand un autre corps d'état passe plus tard : vous gardez le relevé de côté, vous le rouvrez le jour venu et vous ajoutez ses pièces sans repartir de zéro. Le fichier contient tout, photos comprises.</p>
   </div>
 </section>
 
@@ -4771,6 +4731,8 @@ function renderRooms(){
 }
 
 /* ---------- en-tête / résumé ---------- */
+/* un élément retiré de l'écran (relevé : seule la publication reste) : rien à brancher */
+function sur(id){ return document.getElementById(id) || {addEventListener:function(){}, click:function(){}, set textContent(v){}, hidden:true}; }
 function refAffaire(){
   if(S.affaire && S.affaire.chantier && S.affaire.chantier.trim()) return S.affaire.chantier.trim().toUpperCase().replace(/\s+/g,"");
   var d=(S.meta.date||"").replace(/-/g,"");
@@ -4781,7 +4743,7 @@ function refreshHeader(){
   $("refAffaire").textContent = refAffaire() || "—";
   var np=S.pieces.length, nph=S.pieces.reduce(function(a,p){return a+p.photos.length;},0);
   var who = S.client.nom || "Client non renseigné";
-  $("pdfResume").textContent = who+" · "+np+" pièce"+(np>1?"s":"")+" · "+nph+" photo"+(nph>1?"s":"")
+  sur("pdfResume").textContent = who+" · "+np+" pièce"+(np>1?"s":"")+" · "+nph+" photo"+(nph>1?"s":"")
     + (S.meta.statut ? " · "+S.meta.statut : "");
 }
 
@@ -4813,7 +4775,7 @@ CHAMPS_IRVE.forEach(function(f){
   $(f[0]).addEventListener("input", function(){ S.pv.irve[f[1]]=$(f[0]).value; save(); });
 });
 
-$("btnEnrSite").addEventListener("click", function(){
+sur("btnEnrSite").addEventListener("click", function(){
   if(!apiPret()) return;
   if(!S.client.nom.trim() && !S.client.tel.trim()){
     toast("Renseignez au moins le nom ou le téléphone du client."); showTab("client"); return;
@@ -4845,7 +4807,7 @@ $("btnEnrSite").addEventListener("click", function(){
     .catch(function(){ el.textContent="Pas de réseau. Le relevé reste sur cet appareil."; });
   });
 });
-$("btnExportJson").addEventListener("click", function(){
+sur("btnExportJson").addEventListener("click", function(){
   var nom = "Releve-" + (refAffaire() || "sans-ref")
     + (S.client.nom ? "-" + S.client.nom.trim().replace(/[^A-Za-zÀ-ÿ0-9]+/g,"-") : "")
     + "-" + (S.meta.date || aujourdhui()) + ".json";
@@ -4855,12 +4817,12 @@ $("btnExportJson").addEventListener("click", function(){
   var a=document.createElement("a");
   a.href=URL.createObjectURL(blob); a.download=nom; a.click();
   setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
-  $("jsonEtat").textContent = "Fichier enregistré : " + nom
+  sur("jsonEtat").textContent = "Fichier enregistré : " + nom
     + ". Rouvrez-le plus tard avec « Ouvrir un fichier » pour compléter le relevé.";
   toast("Relevé enregistré.");
 });
-$("btnImportJson").addEventListener("click", function(){ $("fileJson").click(); });
-$("fileJson").addEventListener("change", function(){
+sur("btnImportJson").addEventListener("click", function(){ sur("fileJson").click(); });
+sur("fileJson").addEventListener("change", function(){
   var f=this.files[0]; this.value="";
   if(!f) return;
   var r=new FileReader();
@@ -4872,7 +4834,7 @@ $("fileJson").addEventListener("change", function(){
     if(!window.confirm("Ouvrir le relevé de " + quoi + " ?\n\nLe relevé en cours sur cet appareil sera remplacé.")) return;
     S = Object.assign(blank(), d);
     save(); paintForm(); showTab("client");
-    $("jsonEtat").textContent = "Relevé de " + quoi + " ouvert.";
+    sur("jsonEtat").textContent = "Relevé de " + quoi + " ouvert.";
     toast("Relevé ouvert.");
   };
   r.readAsText(f);
@@ -4891,8 +4853,8 @@ $("btnConseilLarge").addEventListener("click", function(){
   save(); paintConseil();
   toast(c.large.kwc+" kWc reportés.");
 });
-$("btnPhotosZip").addEventListener("click", exporterPhotos);
-$("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(false); });
+sur("btnPhotosZip").addEventListener("click", exporterPhotos);
+sur("btnPhotosSite").addEventListener("click", function(){ deposerPhotos(false); });
 
 $("btnOpenHaut").addEventListener("click", function(){ ouvrirDepuisSite("releve", "Relevés techniques"); });
 /* repartir de zéro : le bouton « Nouveau », en haut du relevé */
@@ -6197,7 +6159,7 @@ $("btnPublier").addEventListener("click", function(){
   }); });
 });
 
-$("btnPdf").addEventListener("click", function(){
+sur("btnPdf").addEventListener("click", function(){
   if(!ready()) return;
   var doc;
   try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Échec de la génération : "+e.message); return; }
@@ -6235,7 +6197,7 @@ function partagerRapport(){
   var info=$("pdfInfo"); if(info) info.textContent="Relevé enregistré : "+nom;
   toast("Partage indisponible sur cet appareil : document enregistré.");
 }
-$("btnPartage").addEventListener("click", partagerRapport);
+sur("btnPartage").addEventListener("click", partagerRapport);
 
 /* --- envoi par e-mail --- */
 function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
@@ -6878,11 +6840,9 @@ document.addEventListener("input", function(){
 function equipeDuDossier(){
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
-  var choix = document.getElementById("choixPublication");
-  if(!el || !choix) return;
+  if(!el) return;
   if(!ref){
     el.textContent = "renseignez la référence des travaux";
-    basculePub("cible", true);
     return;
   }
   /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
@@ -6913,11 +6873,7 @@ function basculePub(mode, force){
   if(chips) chips.hidden = (mode!=="cible");
 }
 function bindChoixPublication(){
-  var choix=document.getElementById("choixPublication");
-  if(!choix) return;
-  Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){
-    b.addEventListener("click", function(){ basculePub(b.getAttribute("data-pub")); });
-  });
+  /* le relevé ne se publie plus que dans le dossier du chantier */
   basculePub("dossier");
   equipeDuDossier();
 }
