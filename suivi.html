@@ -774,9 +774,22 @@ details.block.sv-societe summary{padding:0}
 .sv-rappel input[type=date],.sv-rappel input[type=time]{min-height:38px;padding:6px 9px;font-size:14px;width:auto!important;flex:0 0 auto}
 .sv-aide{margin:-6px 0 10px!important;font-size:13px}
 /* une rubrique repliée : son titre et le bouton qui l'ouvre */
-.sv-bascule{margin-left:auto;flex:0 0 auto;min-height:32px;padding:4px 12px;border-radius:999px;border:1px solid var(--line,#d9d4c7);
-  background:var(--accent-soft,#fdf3e7);color:var(--accent-fonce,#9a4a0b);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
-.sv-bascule + .aide-i{margin-left:0}
+/* l'interrupteur, comme celui du photovoltaïque dans le relevé */
+.sv-switch{flex:0 0 auto;width:54px;height:32px;min-height:0;border:0;border-radius:999px;background:rgba(140,132,117,.30);
+  padding:3px;cursor:pointer;transition:background .18s ease}
+.sv-switch span{display:block;width:26px;height:26px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s ease}
+.sv-switch[aria-checked="true"]{background:var(--ok,#16A34A)}
+.sv-switch[aria-checked="true"] span{transform:translateX(22px)}
+.sv-switch:active span{width:29px}
+@media (prefers-reduced-motion:reduce){ .sv-switch,.sv-switch span{transition:none} }
+h2 .sv-switch{margin-left:auto}
+h2 .sv-switch + .aide-i{margin-left:0}
+.sv-nb{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--ink-2,#6b6458)}
+.sv-nb + .sv-switch{margin-left:0}
+.sv-option{display:flex;align-items:center;gap:10px;margin-top:14px;cursor:pointer}
+.sv-option b{flex:1;font-size:14px;font-weight:600}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
 /* plus de publication « à une personne » : le choix du destinataire ne s'affiche plus */
 #pubDest[hidden],#legendeDest[hidden]{display:none!important}
 .block.replie > h2{margin-bottom:0;cursor:pointer}
@@ -973,13 +986,16 @@ a.act[hidden]{display:none}
     <div id="ph_grille"></div>
     <p class="hint ph-site" id="ph_site" hidden></p>
     <p class="hint" id="ph_aide">« Modifier » sur une photo l'annote : flèches, cercles, texte, cotes, symboles ; on y revient autant qu'on veut. « Croquis » dessine sur une page blanche, rangée avec les photos.</p>
-    <label class="f" style="margin-top:12px"><span>Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite."></textarea></label>
+    <div class="sv-option" id="noteOption"><b>Note générale</b><button type="button" class="sv-switch" id="noteBascule" role="switch" aria-checked="false" aria-controls="noteCorps" aria-label="Ajouter une note générale"><span></span></button></div>
+    <div id="noteCorps" hidden>
+    <label class="f" style="margin-top:8px"><span class="sr-only">Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite." aria-label="Note générale"></textarea></label>
     <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
+    </div>
   </div>
 
   <div class="block replie" id="sec-plans">
-    <h2>Plans<button type="button" class="sv-bascule" id="plansBascule" aria-expanded="false" aria-controls="plansCorps">Ouvrir</button></h2>
-    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote. La rubrique est fermée d'office : « Ouvrir » la déplie.</p>
+    <h2>Plans<span class="sv-nb" id="plansNb"></span><button type="button" class="sv-switch" id="plansBascule" role="switch" aria-checked="false" aria-controls="plansCorps" aria-label="Afficher les plans"><span></span></button></h2>
+    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote. La rubrique est fermée d'office : l'interrupteur, sur son titre, la déplie.</p>
     <div id="plansCorps" hidden>
     <div id="plans_dossier" class="sv-liste"></div>
     <div id="plansListe" style="margin-top:12px"></div>
@@ -1529,13 +1545,27 @@ function renderPoints(){
 function ouvrirPlans(oui){
   var c=$("plansCorps"), b=$("plansBascule"), sec=$("sec-plans"); if(!c || !b) return;
   c.hidden=!oui; sec.classList.toggle("replie", !oui);
-  b.setAttribute("aria-expanded", oui ? "true" : "false");
+  b.setAttribute("aria-checked", oui ? "true" : "false");
   majBasculePlans();
 }
 function majBasculePlans(){
-  var b=$("plansBascule"); if(!b) return;
+  var e=$("plansNb"); if(!e) return;
   var n=(S.plans||[]).length, ouvert=!$("plansCorps").hidden;
-  b.textContent = ouvert ? "Fermer" : "Ouvrir"+(n ? " · "+n+" plan"+(n>1?"s":"") : "");
+  e.textContent = !ouvert && n ? n+" plan"+(n>1?"s":"") : "";
+}
+/* la note générale : en option ; allumée d'office quand il y en a une */
+function montrerNote(oui){
+  var c=$("noteCorps"), b=$("noteBascule"); if(!c || !b) return;
+  c.hidden=!oui; b.setAttribute("aria-checked", oui ? "true" : "false");
+}
+function basculerNote(){
+  var oui=!!$("noteCorps").hidden;
+  if(!oui && (S.visite.note||"").trim()){
+    if(!window.confirm("Retirer la note générale ?")) return;
+    S.visite.note=""; $("v_note").value=""; save(); renderResume();
+  }
+  montrerNote(oui);
+  if(oui) try{ $("v_note").focus(); }catch(e){}
 }
 function ajouterLigne(cle, champ, rendu){
   var t=$(champ), v=(t.value||"").trim();
@@ -1729,6 +1759,7 @@ function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   habillerBarres();
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
+  montrerNote(!!(S.visite.note||"").trim());
   paintChips();
   paintLien();
   paintAppel();
@@ -3254,6 +3285,7 @@ function bindAll(){
   $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
   /* les plans : fermés d'office, ouverts à la demande */
   $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
+  $("noteOption").addEventListener("click", function(e){ e.preventDefault(); basculerNote(); });
   $("sec-plans").querySelector("h2").addEventListener("click", function(e){ if(!e.target.closest("button")) ouvrirPlans(!!$("plansCorps").hidden); });
   [["ts_texte","ts",renderTs],["rf_texte","reste",renderReste],["pts_texte","points",renderPoints]].forEach(function(x){
     $(x[0]).addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterLigne(x[1], x[0], x[2]); } });
