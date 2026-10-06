@@ -464,8 +464,24 @@ function avancementDe(c) {
   return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
 }
 
+/* Un devis accepté, c'est définitif : posé depuis le chantier (bouton du bureau)
+   ou par un relevé publié au statut « Devis accepté », le dossier ne repasse
+   plus jamais en attente de réponse. */
+function estAccepte(c) {
+  if (!c) return false;
+  if (c.etat === "accepte") return true;
+  const r = dernierReleve(c);
+  return statutAttendu(r && r.etape) === "actif";
+}
 function etatDossier(c) {
   if (!c) return { etat: "actif" };
+  if (estAccepte(c)) {
+    const r = c.etat === "accepte" ? null : dernierReleve(c);
+    return { etat: "actif", accepte: true,
+      accepteLe: c.accepteLe || (r && (r.publie || r.date)) || "",
+      acceptePar: c.acceptePar || (r && r.auteur) || "",
+      accepteAuto: c.etat !== "accepte" };
+  }
   let etat = c.etat === "attente" ? "attente" : (c.etat === "actif" ? "actif" : "");
   let depuis = c.attenteDepuis || "";
   let note = c.attenteNote || "";
@@ -1833,6 +1849,12 @@ async function traiter(req) {
     const idx = await lireIndex();
     const nouveauDossier = !idx.chantiers[ref];
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
+    /* un dossier au devis accepté ne repart pas en attente par un relevé */
+    const dejaAccepte = estAccepte(c);
+    const estReleve = !suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema;
+    if (dejaAccepte && estReleve && statutAttendu(d.etape) === "attente") {
+      return json({ erreur: "Ce dossier est au devis accepté : il ne repasse plus en attente de réponse. Choisissez « Devis accepté » dans le statut du relevé." }, 409);
+    }
     if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse) c.adresse = d.adresse;
     /* un dossier archivé qu'on restaure (depuis son ZIP) retrouve les liens de son espace client :
@@ -1946,7 +1968,12 @@ async function traiter(req) {
     /* Publier un relevé, c'est redire où en est l'affaire : le statut de
        sa conclusion reprend la main sur une mise de côté faite à la main. */
     if (entree.type === "releve" && statutAttendu(entree.etape)) {
-      delete c.etat; delete c.attenteDepuis; delete c.attenteNote;
+      if (dejaAccepte || statutAttendu(entree.etape) === "actif") {
+        /* accepté : définitif */
+        if (c.etat !== "accepte") { c.accepteLe = c.accepteLe || entree.publie; c.acceptePar = c.acceptePar || entree.auteur; }
+        c.etat = "accepte";
+      } else delete c.etat;
+      delete c.attenteDepuis; delete c.attenteNote;
       delete c.attentePar; delete c.relanceLe;
       idx.chantiers[ref] = c;
       await store.setJSON(INDEX, idx);
@@ -2683,7 +2710,7 @@ async function traiter(req) {
       .map((f) => ({ titre: f.titre || "", numero: f.visite || "", date: f.date || "", auteur: f.auteur || "" }))
       .sort((x, y) => (parseInt(x.numero, 10) || 0) - (parseInt(y.numero, 10) || 0) || String(x.date).localeCompare(String(y.date)));
     return json({
-      ref, client: c.client || "", equipe, points, numeroSuivant, reste: c.reste || [],
+      ref, client: c.client || "", equipe, points, numeroSuivant, reste: c.reste || [], accepte: estAccepte(c),
       auteur: (c.fichiers[0] || {}).auteur || "",
       personnes: comptes.map((u) => ({ nom: u.nom, role: u.role })),
       peutModifier: bureau
@@ -3269,7 +3296,7 @@ async function traiter(req) {
        relit pas à chaque ouverture) */
     const pvDe = async (c) => {
       const r = dernierReleve(c);
-      if (!r || statutAttendu(r.etape) !== "actif" || !r.donnees) return null;
+      if (!r || !estAccepte(c) || !r.donnees) return null;
       if (r.pv !== undefined) return r.pv;
       const k = personne.societe + "/" + r.cle, v = r.ficheMaj || r.publie || "";
       const vu = CACHE_PV.get(k);
@@ -3490,7 +3517,16 @@ async function traiter(req) {
     const c = idx.chantiers[ref];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     const maintenant = new Date().toISOString();
-    if (d.etat === "attente") {
+    if (d.etat === "accepte") {
+      /* le devis est accepté : directement depuis le chantier, sans rouvrir le relevé */
+      if (c.etat !== "accepte") { c.accepteLe = maintenant; c.acceptePar = personne.nom; }
+      c.etat = "accepte";
+      delete c.attenteDepuis; delete c.attenteNote;
+      delete c.attentePar; delete c.relanceLe;
+    } else if (estAccepte(c)) {
+      if (d.etat === "attente") return json({ erreur: "Ce dossier est au devis accepté : il ne repasse plus en attente de réponse." }, 409);
+      /* « actif » sur un dossier accepté : il l'est déjà */
+    } else if (d.etat === "attente") {
       /* remettre en attente un dossier déjà en attente, c'est répondre à
          la relance : la date d'origine ne bouge pas, le compteur repart. */
       if (c.etat !== "attente") { c.attenteDepuis = maintenant; c.attentePar = personne.nom; }

@@ -764,6 +764,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 /* la fiche sobre et compacte vient de sobre.css ; ici, ce qui n'est qu'au relevé */
 #tab-pv .chips.tuiles .chip.on{background:#FEF6E4;border-color:var(--solar);color:#6B4A0A}
 .bascule{padding:12px 14px}
+/* un statut que le dossier ne peut plus prendre (devis accepté) */
+.chips label.verrou{opacity:.42;cursor:not-allowed;text-decoration:line-through}
 </style>
 <link rel="stylesheet" href="./sobre.css?v=20261002a">
 <script src="./clavier.js?v=20260930a" defer></script>
@@ -1922,10 +1924,31 @@ function azimutDepuisExposition(){
   $("pvgisState").textContent = "Orientation reprise de l'exposition relevée : "+(lbl?lbl.textContent:a+" °")+".";
   save();
 }
+/* un dossier au devis accepté (posé sur le chantier ou par un relevé) ne repasse plus en attente :
+   les statuts « En attente » se grisent, et un relevé qui les portait passe en « Devis accepté » */
+var DOSSIER_ACCEPTE=false;
+function verrouillerAccepte(oui){
+  DOSSIER_ACCEPTE=!!oui;
+  var box=document.querySelector('[data-single="statut"]'); if(!box) return;
+  box.querySelectorAll("input").forEach(function(i){
+    var attente=/attente/i.test(i.value);
+    i.disabled = DOSSIER_ACCEPTE && attente;
+    i.parentNode.classList.toggle("verrou", i.disabled);
+    i.parentNode.title = i.disabled ? "Devis accepté : le dossier ne repasse plus en attente" : "";
+  });
+  if(DOSSIER_ACCEPTE && /attente/i.test(S.meta.statut||"")){
+    S.meta.statut="Devis accepté"; save();
+    box.querySelectorAll("input").forEach(function(i){ i.checked=(i.value==="Devis accepté"); i.parentNode.classList.toggle("on", i.checked); });
+    toast("Le devis de ce dossier est accepté : le statut passe en « Devis accepté ».");
+  }
+  toggleAccepte();
+}
 function toggleAccepte(){
   var on = (S.meta.statut||"").indexOf("accept")>=0;
   $("blocAccepte").hidden = !on;
-  $("statutHint").textContent = on
+  $("statutHint").textContent = DOSSIER_ACCEPTE
+    ? "Devis accepté sur le chantier : le dossier ne repasse plus en attente de réponse. Renseignez le n° de devis et la référence travaux."
+    : on
     ? "Renseignez le n° de devis et le référence travaux : le technicien les retrouve en tête du rapport."
     : ((S.meta.statut||"").indexOf("rendez-vous")>=0
         ? "Visite à programmer : le relevé sert de fiche de prise de contact."
@@ -6841,7 +6864,20 @@ document.addEventListener("input", function(){
   clearTimeout(window.__pubAutoT);
   window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
 }, true);
+/* le dossier est-il déjà au devis accepté ? (lu une fois par référence) */
+var ACCEPTE_LU="";
+function controlerAccepte(){
+  var ref=(S.affaire && (S.affaire.chantier||"").trim()) ? refAffaire() : "";
+  if(!ref){ if(DOSSIER_ACCEPTE) verrouillerAccepte(false); ACCEPTE_LU=""; return; }
+  if(ref===ACCEPTE_LU || !jetonSession() || !baseSite()) return;
+  ACCEPTE_LU=ref;
+  fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(d){ if(ACCEPTE_LU===ref) verrouillerAccepte(!!d.accepte); })
+    .catch(function(){ ACCEPTE_LU=""; });
+}
 function equipeDuDossier(){
+  try{ controlerAccepte(); }catch(e){}
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
   if(!el) return;
@@ -6880,6 +6916,7 @@ function bindChoixPublication(){
   /* le relevé ne se publie plus que dans le dossier du chantier */
   basculePub("dossier");
   equipeDuDossier();
+  try{ $("a_chantier").addEventListener("change", controlerAccepte); }catch(e){}
 }
 
 /* ---------- démarrage ---------- */

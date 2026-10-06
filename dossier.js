@@ -83,6 +83,13 @@ function nomLisible(f){
   var ext = f.cle.slice(f.cle.lastIndexOf("."));
   return (f.date||"").slice(0,10) + "-" + base + ext;
 }
+(function(){
+  var st=document.createElement("style");
+  st.textContent=".head .etiq-accepte{flex:0 0 auto;background:rgba(21,128,61,.12);color:#15803D;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
+    +".travaux .sous .etiq-accepte{padding:0;background:none;font-size:12px;color:#15803D}"
+    +".actions button.accepte{background:rgba(21,128,61,.12);color:#15803D;border:1px solid rgba(21,128,61,.28);font-weight:700}";
+  (document.head||document.documentElement).appendChild(st);
+})();
 function archiver(c, bouton){
   if(!window.confirm("Exporter tous les documents de " + (c.client||c.ref) + " ("
     + c.fichiers.length + " document" + (c.fichiers.length>1?"s":"")
@@ -1031,6 +1038,13 @@ function carteDossier(c, i, opts){
       + (c.attenteNote ? "  ·  "+c.attenteNote : "");
     sous.appendChild(att);
   }
+  if(c.accepte){
+    var acc=document.createElement("span");
+    acc.className="etiq-accepte";
+    acc.textContent="Devis accepté";
+    acc.title="Devis accepté"+(c.accepteLe ? " le "+new Date(c.accepteLe).toLocaleDateString("fr-FR") : "")+(c.acceptePar ? " par "+c.acceptePar : "");
+    sous.appendChild(acc);
+  }
   head.appendChild(sous);
 
   var fs=document.createElement("div"); fs.className="fichiers";
@@ -1183,6 +1197,26 @@ function carteDossier(c, i, opts){
   var act=null;
   if(bureau){
     act=document.createElement("div"); act.className="actions";
+    /* le devis accepté, posé d'ici, sans rouvrir le relevé ; c'est définitif */
+    var acc2=null;
+    if(!c.accepte){
+      acc2=document.createElement("button"); acc2.type="button"; acc2.className="accepte";
+      acc2.textContent="Devis accepté";
+      acc2.addEventListener("click", function(){
+        if(!window.confirm("Passer « "+(c.client||c.ref)+" » en devis accepté ?\n\n"
+          +"Le dossier devient un chantier actif. Il ne pourra plus repasser en attente de réponse.")) return;
+        acc2.disabled=true; acc2.textContent="…";
+        fetch(API+"?action=chantier-etat", {method:"POST",
+          headers:{"content-type":"application/json", "x-auth":S.jeton},
+          body:JSON.stringify({ref:c.ref, etat:"accepte"})})
+          .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+          .then(function(res){
+            if(!res.ok){ window.alert(res.d.erreur||"Changement refusé."); acc2.disabled=false; acc2.textContent="Devis accepté"; return; }
+            charger();
+          })
+          .catch(function(){ window.alert("Pas de réseau."); acc2.disabled=false; acc2.textContent="Devis accepté"; });
+      });
+    }
     /* mettre de côté un dossier qui n'est qu'au chiffrage : il quitte
        « Mes chantiers » et le site reposera la question dans un mois. */
     var att2=document.createElement("button"); att2.type="button";
@@ -1220,7 +1254,14 @@ function carteDossier(c, i, opts){
          + depuisCombien(c.joursAttente)
          + " · « Archiver » exporte en ZIP puis retire du site")
       : "« Archiver » exporte en ZIP puis retire du site";
-    act.appendChild(att2); act.appendChild(arc); act.appendChild(note);
+    /* accepté : plus de retour en attente de réponse */
+    if(c.accepte){
+      note.textContent = "Devis accepté"+(c.accepteLe ? " le "+new Date(c.accepteLe).toLocaleDateString("fr-FR") : "")
+        +(c.acceptePar ? " par "+c.acceptePar : "")+" · « Archiver » exporte en ZIP puis retire du site";
+    }
+    if(acc2) act.appendChild(acc2);
+    if(!c.accepte) act.appendChild(att2);
+    act.appendChild(arc); act.appendChild(note);
     box.appendChild(act);
   }
 
