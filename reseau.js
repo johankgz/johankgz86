@@ -213,9 +213,46 @@
     }catch(e){}
   }
 
+  /* ---------- les envois en cours ----------
+     window.__envoisEnCours : combien d'envois au site ne sont pas finis.
+     « Tout publier » attend qu'il retombe à zéro (le PDF, puis les photos)
+     avant de dire que c'est fait et de fermer la fiche.
+     Une publication déjà en route (même chantier, même type, même titre,
+     même suivi) n'est pas envoyée une seconde fois : un double appui sur
+     « Publier » reçoit la réponse de la première. */
+  window.__envoisEnCours = 0;
+  var EN_ROUTE = {};
+  function clePublication(entree, options){
+    try{
+      if(!/[?&]action=publier(&|$)/.test(adresse(entree))) return "";
+      var b = options && options.body; if(typeof b !== "string") return "";
+      var d = JSON.parse(b);
+      return [d.chantier, d.type, d.titre, d.suiviId, d.visite, d.date, (d.destinataires || []).join(","), d.dossier ? 1 : 0].join("|");
+    }catch(e){ return ""; }
+  }
+
   window.fetch = function(entree, options){
     if(!versLeSite(entree) || !renvoyable(entree, options)) return brut.apply(this, arguments);
-    var soi = this, essai = 0, attendu = false, rejeton = false;
+    var cle = clePublication(entree, options);
+    if(cle && EN_ROUTE[cle]) return EN_ROUTE[cle].then(function(r){ return r.clone(); });
+    var envoi = estEnvoi(entree, options);
+    if(envoi) window.__envoisEnCours++;
+    var p = envoyer(this, entree, options).then(function(r){
+      if(envoi) window.__envoisEnCours = Math.max(0, window.__envoisEnCours - 1);
+      if(cle) delete EN_ROUTE[cle];
+      return r;
+    }, function(e){
+      if(envoi) window.__envoisEnCours = Math.max(0, window.__envoisEnCours - 1);
+      if(cle) delete EN_ROUTE[cle];
+      throw e;
+    });
+    /* la réponse d'origine n'est jamais lue : chacun en reçoit sa copie */
+    if(cle){ EN_ROUTE[cle] = p; return p.then(function(r){ return r.clone(); }); }
+    return p;
+  };
+
+  function envoyer(soi, entree, options){
+    var essai = 0, attendu = false, rejeton = false;
     var envoi = estEnvoi(entree, options), delai = delaiPour(entree, options);
     function tenter(){
       return avecDelai(soi, entree, options, delai).then(function(r){
@@ -249,5 +286,5 @@
     /* longtemps sans échange, ou retour de veille : on vérifie la connexion avant d'envoyer */
     if(envoi && (aVerifier || Date.now() - dernierEchange > R.calme)) return sonder().then(tenter);
     return tenter();
-  };
+  }
 })();

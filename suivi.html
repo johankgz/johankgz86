@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="./theme.js?v=20261004b"></script>
 <script src="./dates.js?v=20261001a"></script>
-<script src="./reseau.js?v=20261005a"></script>
+<script src="./reseau.js?v=20261006b"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
 <meta name="theme-color" content="#F4F1EA">
@@ -866,6 +866,11 @@ details.block.sv-societe summary{padding:0}
 .sv-go{width:100%;min-height:52px;margin-top:14px;font-size:16px}
 .sv-choix{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);border:1px solid rgba(180,83,9,.25)}
 .sv-choix[hidden]{display:none}
+/* les deux questions (déjà enregistré / reprise du lendemain) : une feuille en bas de l'écran, par-dessus tout */
+#pubChoix,#repriseSuivi{position:fixed;left:0;right:0;bottom:0;z-index:1200;margin:0 auto;max-width:560px;
+  padding:18px 16px calc(16px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;background:var(--card,#fff);
+  border:1px solid var(--rule,#ddd);border-bottom:0;box-shadow:0 -10px 40px rgba(0,0,0,.28)}
+body.choix-ouvert::before{content:"";position:fixed;inset:0;z-index:1190;background:rgba(10,14,20,.5)}
 .sv-choix p{margin:0 0 10px;font-size:14px;font-weight:600;color:var(--ink)}
 .sv-choix .act{width:100%;margin-top:6px}
 a.act{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
@@ -1007,11 +1012,18 @@ a.act[hidden]{display:none}
     <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
     <div class="chips" id="pubDest"></div>
     <button class="act blue sv-go" id="btnPublier">Enregistrer le suivi</button>
-    <div class="sv-choix" id="pubChoix" hidden>
+    <div class="sv-choix" id="pubChoix" hidden role="dialog" aria-modal="true" aria-labelledby="pubChoixTxt">
       <p id="pubChoixTxt"></p>
-      <button type="button" class="act blue" id="pubNouveau">Enregistrer comme nouveau suivi</button>
-      <button type="button" class="act ghost" id="pubMaj">Mettre à jour ce suivi</button>
-      <p class="hint" style="margin:6px 0 0">« Nouveau suivi » garde le précédent dans le dossier. « Mettre à jour » le remplace, pour corriger une faute par exemple.</p>
+      <button type="button" class="act blue" id="pubMaj">Mettre à jour ce suivi</button>
+      <button type="button" class="act ghost" id="pubNouveau">Enregistrer à part, comme un nouveau suivi</button>
+      <button type="button" class="act ghost" id="pubAnnuler">Annuler</button>
+      <p class="hint" style="margin:6px 0 0">« Mettre à jour » remplace la version enregistrée, avec ce que vous avez ajouté. « À part » garde l'ancienne dans le dossier et en ajoute une seconde, avec tout le contenu actuel.</p>
+    </div>
+    <div class="sv-choix" id="repriseSuivi" hidden role="dialog" aria-modal="true" aria-labelledby="repriseTxt">
+      <p id="repriseTxt"></p>
+      <button type="button" class="act blue" id="repriseCompleter">Compléter ce suivi</button>
+      <button type="button" class="act blue" id="repriseNouveau">Commencer un nouveau suivi</button>
+      <p class="hint" style="margin:6px 0 0">« Compléter » : vous finissez le suivi déjà publié, qui sera mis à jour. « Nouveau » : une nouvelle visite, sur une page blanche ; les travaux pas encore chiffrés et les repères pas encore faits sont repris.</p>
     </div>
     <p class="hint" id="pubIntro" style="margin:8px 0 0">Le PDF part dans le dossier du chantier, sous « Suivi de chantier », et les photos sur le site. Les rappels partent au conducteur de travaux.</p>
     <p class="hint" id="pubEtat"></p>
@@ -1304,9 +1316,30 @@ var saveT, saveEnCours=false, saveRedemande=false;
 /* Une écriture à la fois : la fiche entière repart à chaque fois, et sur
    un téléphone chargé de photos cela prend le temps qu'il faut. Ce qui
    arrive pendant est regroupé dans l'écriture suivante. */
+/* ---------- ce qui a été publié ----------
+   Une empreinte du contenu (client, visite, demandes, photos, plans,
+   points) : la fiche la garde à chaque enregistrement (S._sig), et la
+   publication note celle qu'elle a envoyée (S.publie.sig). « Tout
+   publier » ne repropose ainsi que les suivis changés depuis. */
+function sigSuivi(x){
+  if(!x) return "";
+  var leger=function(l){ return (l||[]).map(function(o){
+    var c={}; for(var k in o){ if(k==="data"||k==="photos"||k==="image"||k==="fond") c[k]=Array.isArray(o[k]) ? o[k].map(function(ph){ return String((ph&&ph.data)||ph||"").length+":"+((ph&&ph.legende)||""); }) : String(o[k]||"").length; else c[k]=o[k]; }
+    return c; }); };
+  var t=JSON.stringify({c:x.client, a:x.affaire, v:x.visite, ts:x.ts, pts:leger(x.points), pl:leger(x.plans), ph:leger(x.photos), ca:x.meta && x.meta.ca});
+  var hsh=5381; for(var i=0;i<t.length;i++) hsh=((hsh<<5)+hsh+t.charCodeAt(i))|0;
+  return t.length+"-"+(hsh>>>0).toString(36);
+}
+/* le jour (AAAA-MM-JJ, heure locale) de la dernière publication de ce suivi */
+function jourDePublication(){
+  if(!S || !S.publie) return "";
+  if(S.publie.jour) return S.publie.jour;
+  try{ var d=new Date(S.publie.le); return isNaN(d) ? "" : jourLocal(d); }catch(e){ return ""; }
+}
 function enregistrer(){
   if(saveEnCours){ saveRedemande=true; return; }
   saveEnCours=true;
+  try{ S._sig=sigSuivi(S); }catch(e){}
   var charge;
   try{ charge=JSON.stringify(S); }
   catch(e){ saveEnCours=false; memoirePleine(true, "fiche trop lourde"); return; }
@@ -2101,7 +2134,7 @@ function destinataires(){ if(!S.destinataires) S.destinataires=[]; return S.dest
 function ficheCharger(d, f){
   if(f && f.type==="releve"){ importerReleve(JSON.stringify(d)); showTab("suivi"); return; }
   if(d && d.client && (d.version===2 || d.visite)){
-    S=migrerFiche(d); save(); majDateDuJour(); paintForm(); showTab("suivi");
+    S=migrerFiche(d); save(); majDateDuJour(); paintForm(); showTab("suivi"); proposerReprise();
     toast(d.version===2 ? "Suivi rouvert." : "Ancien suivi : client et chantier repris, le reste repart à neuf.");
   }
   else { importerReleve(JSON.stringify(d)); }
@@ -2442,6 +2475,8 @@ function publierRapport(meta){
   if(versDossier) meta.dossier = true;
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
   el.textContent="Publication en cours…";
+  /* l'empreinte de ce qui part : ce qu'on ajoute pendant l'envoi reste « à publier » */
+  var sigEnvoi = APP_TYPE==="suivi" ? sigSuivi(S) : "";
   fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(Object.assign({pdf:b64}, meta))})
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
@@ -2458,7 +2493,7 @@ function publierRapport(meta){
     if(APP_TYPE==="suivi"){
       /* ce suivi est enregistré : le prochain enregistrement demandera
          s'il s'agit d'un nouveau suivi ou d'une correction de celui-ci */
-      S.publie={cle:res.d.cle, le:new Date().toISOString(), titre:meta.titre||""};
+      S.publie={cle:res.d.cle, le:new Date().toISOString(), titre:meta.titre||"", sig:sigEnvoi, jour:aujourdhui()};
       save();
     }
     deposerFiche(res.d.cle, el);
@@ -2467,7 +2502,7 @@ function publierRapport(meta){
 }
 function deposerFiche(cle, el){
   var donnees;
-  try{ donnees=JSON.stringify(S); }catch(e){ return; }
+  try{ S._sig=sigSuivi(S); donnees=JSON.stringify(S); }catch(e){ return; }
   if(donnees.length > 5.2*1024*1024){
     el.textContent += " Fiche trop lourde pour être rouverte depuis le site.";
     return;
@@ -3017,6 +3052,23 @@ function suiviEnNouveau(){
   save(); paintForm();
 }
 
+/* ---------- le lendemain d'une publication ----------
+   Un suivi publié un autre jour, rouvert : on demande tout de suite si
+   l'on complète celui-là (il sera mis à jour) ou si l'on commence une
+   nouvelle visite sur une page blanche. Sans réponse, rien n'est ajouté
+   par mégarde au suivi de la veille. */
+function fermerReprise(){ var r=$("repriseSuivi"); if(r) r.hidden=true; if($("pubChoix").hidden) document.body.classList.remove("choix-ouvert"); }
+function proposerReprise(){
+  var r=$("repriseSuivi"); if(!r || !S) return;
+  var jour=jourDePublication(), auj=aujourdhui();
+  if(window.__autoPublier || !S.publie || !S.publie.cle || !jour || jour>=auj || S.repriseVue===auj){ if(!r.hidden) fermerReprise(); return; }
+  if(!r.hidden) return;
+  $("repriseTxt").textContent="Ce suivi a été publié le "+frDate(jour)+". Que faites-vous aujourd'hui ?";
+  r.hidden=false;
+  document.body.classList.add("choix-ouvert");
+  try{ $("repriseCompleter").focus({preventScroll:true}); }catch(e){}
+}
+
 /* ---------- un nouveau suivi ----------
    Chaque suivi est indépendant : on garde le client, le chantier et le
    conducteur de travaux, on repart d'une page blanche pour le reste. */
@@ -3165,20 +3217,40 @@ function bindAll(){
     /* Déjà enregistré ? On ne remplace jamais un suivi sans le demander :
        par défaut, c'en est un nouveau et l'ancien reste dans le dossier.
        Depuis « Tout publier » (sans personne pour choisir), aussi. */
+    /* une publication part déjà : un second appui n'en lance pas une autre */
+    if(/en cours/i.test(($("pubEtat")||{}).textContent||"")){ toast("Publication en cours…"); return; }
     if(S.publie && S.publie.cle){
-      if(window.__autoPublier){ suiviEnNouveau(); publierSuivi(); return; }
+      /* depuis « Tout publier » : le même suivi est mis à jour s'il a été publié aujourd'hui ;
+         publié un autre jour, on ne choisit pas à la place de la personne */
+      if(window.__autoPublier){
+        if(jourDePublication()===aujourdhui() || S.completer===S.publie.cle){ publierSuivi(); return; }
+        $("pubEtat").textContent="Non envoyé : ce suivi date du "+frDate(jourDePublication())+". Ouvrez-le pour le compléter ou en commencer un nouveau.";
+        return;
+      }
+      /* « Compléter le suivi du … » choisi à l'ouverture : on met à jour, sans redemander */
+      if(S.completer===S.publie.cle){ publierSuivi(); return; }
       var quand=new Date(S.publie.le);
-      var jourPub=quand.getFullYear()+"-"+String(quand.getMonth()+1).padStart(2,"0")+"-"+String(quand.getDate()).padStart(2,"0");
-      $("pubChoixTxt").textContent = "Ce suivi a déjà été enregistré le "+frDate(jourPub)
+      $("pubChoixTxt").textContent = "Ce suivi a déjà été enregistré le "+frDate(jourDePublication())
         +" à "+String(quand.getHours()).padStart(2,"0")+":"+String(quand.getMinutes()).padStart(2,"0")+".";
       $("pubChoix").hidden=false;
-      $("pubChoix").scrollIntoView({block:"center", behavior:"smooth"});
+      document.body.classList.add("choix-ouvert");
+      try{ $("pubMaj").focus({preventScroll:true}); }catch(e){}
       return;
     }
     publierSuivi();
   });
-  $("pubNouveau").addEventListener("click", function(){ $("pubChoix").hidden=true; suiviEnNouveau(); publierSuivi(); });
-  $("pubMaj").addEventListener("click", function(){ $("pubChoix").hidden=true; publierSuivi(); });
+  function fermerChoix(){ $("pubChoix").hidden=true; document.body.classList.remove("choix-ouvert"); }
+  $("pubNouveau").addEventListener("click", function(){ fermerChoix(); suiviEnNouveau(); publierSuivi(); });
+  $("pubMaj").addEventListener("click", function(){ fermerChoix(); publierSuivi(); });
+  $("pubAnnuler").addEventListener("click", fermerChoix);
+  $("repriseCompleter").addEventListener("click", function(){
+    if(S.publie) S.completer=S.publie.cle;
+    S.repriseVue=aujourdhui(); fermerReprise(); save();
+    toast("Vous complétez le suivi du "+frDate(jourDePublication())+" : il sera mis à jour.");
+  });
+  $("repriseNouveau").addEventListener("click", function(){
+    S.repriseVue=aujourdhui(); fermerReprise(); nouveauSuivi(false); S.repriseVue=aujourdhui(); save();
+  });
   /* le suivi enregistré : ses photos partent sur le site, et un nouveau
      suivi s'ouvre d'un appui */
   window.addEventListener("suivi:publie", function(){
@@ -3545,7 +3617,7 @@ function mettreDeCote(){
   var ref=refFiche();
   if(!S || !ficheRemplie(S)) return Promise.resolve("rien");
   if(!ref) return Promise.resolve("echec");
-  var charge; try{ charge=JSON.stringify(S); }catch(e){ return Promise.resolve("echec"); }
+  var charge; try{ S._sig=sigSuivi(S); charge=JSON.stringify(S); }catch(e){ return Promise.resolve("echec"); }
   var client=(S.chantier && S.chantier.client) || (S.client && S.client.nom) || "";
   return window.storage.set(cleBrouillon(ref), charge).then(function(){
     return lireIndexBrouillons().then(function(ix){
@@ -3628,7 +3700,7 @@ function proposerBrouillons(){
 /* écrit la fiche tout de suite, sans attendre la temporisation de save() */
 function ecrireFiche(){
   try{ clearTimeout(saveT); }catch(e){}
-  var charge; try{ charge=JSON.stringify(S); }catch(e){ return Promise.resolve(); }
+  var charge; try{ S._sig=sigSuivi(S); charge=JSON.stringify(S); }catch(e){ return Promise.resolve(); }
   return window.storage.set(CLE_FICHE, charge).catch(function(){});
 }
 
@@ -3667,6 +3739,7 @@ function ecrireFiche(){
       try{ reprendreDossier(d); }catch(e){}
       try{ peindreNavChantier(); }catch(e){}
       if(onglet){ try{ showTab(onglet); }catch(e){} }
+      try{ proposerReprise(); }catch(e){}
       /* l'adresse est nettoyée : un rechargement ne doit pas tout refaire */
       try{ history.replaceState(null, "", location.pathname); }catch(e){}
       window.__dossierRepris = true;
@@ -3719,7 +3792,15 @@ function ecrireFiche(){
   if(p.get("autoPublier") !== "1") return;
   window.__autoPublier = true;
   if(!window.parent || window.parent === window) return;
+  /* la page du chantier est tenue au courant toutes les 3 s : tant que ce
+     signal arrive, elle attend, même pour un long envoi de photos en 3G */
+  var pouls=setInterval(function(){
+    try{ window.parent.postMessage({source:"publier-tout", encours:true}, "*"); }catch(e){}
+  }, 3000);
+  var dit=false;
   function dire(ok, message){
+    if(dit) return; dit=true;
+    clearInterval(pouls);
     try{ window.parent.postMessage({source:"publier-tout", ok:ok, message:message||""}, "*"); }catch(e){}
   }
   var essais=0;
@@ -3735,25 +3816,32 @@ function ecrireFiche(){
       var el=document.getElementById("pubEtat");
       var avant = el ? el.textContent : "";
       document.getElementById("btnPublier").click();
-      var t=0;
+      /* fini seulement quand le message final est là ET que plus rien ne
+         part (le PDF, puis les photos) depuis une seconde : on ne coupe
+         jamais un envoi en route. Pas de limite courte : 15 min au plus. */
+      var t=0, calme=0;
       var minuteur=setInterval(function(){
         t += 250;
         var maintenant = el ? el.textContent : "";
         var toastEl = document.getElementById("toast");
         var toastTxt = toastEl ? toastEl.textContent : "";
-        if(maintenant && maintenant !== avant && !/publication en cours/i.test(maintenant)){
+        var envois = window.__envoisEnCours || 0;
+        var occupe = envois > 0 || window.PH_SITE_EN_COURS === true || /en cours|…$/i.test(maintenant);
+        if(maintenant && maintenant !== avant && !occupe){
+          if(++calme < 4) return;
           clearInterval(minuteur);
           dire(/publié|mis à jour|remplacé/i.test(maintenant), maintenant);
           return;
         }
-        if(toastTxt && /indiquez|renseignez|ajoutez|prenez|choisissez/i.test(toastTxt)){
+        calme=0;
+        if(!envois && toastTxt && /indiquez|renseignez|ajoutez|prenez|choisissez/i.test(toastTxt)){
           clearInterval(minuteur);
           dire(false, toastTxt);
           return;
         }
-        if(t > 20000){
+        if(t > 15*60000){
           clearInterval(minuteur);
-          dire(false, "Délai dépassé.");
+          dire(false, "Envoi trop long : réessayez avec un meilleur réseau.");
         }
       }, 250);
     }, 700);
@@ -4294,7 +4382,8 @@ function pleinEcranPlan(i){
 }
 /* pour les essais automatiques */
 window.__suivi={etat:function(){ return S; }, buildPdf:function(){ return buildPdf(); }, nouveauSuivi:function(d){ nouveauSuivi(d); },
-  rappelsActifs:function(){ return rappelsActifs(); }, poserStatut:function(it, st){ poserStatut(it, st); save(); rafraichirReperes(); }};
+  rappelsActifs:function(){ return rappelsActifs(); }, poserStatut:function(it, st){ poserStatut(it, st); save(); rafraichirReperes(); },
+  ecrire:function(){ return ecrireFiche(); }, reprise:function(){ proposerReprise(); }};
 function ajouterPlan(f){
   if(!f) return;
   planDepuisBlob(f, f.name)
@@ -4436,6 +4525,7 @@ function start(){
     if(!S.meta.societe) S.meta.societe=P.societe;
     paintForm(); showTab("suivi");
     chargerEquipe();
+    setTimeout(proposerReprise, 0);
   }
   function fini(){ if(--pending===0) go(); }
   try{
@@ -4546,6 +4636,8 @@ function chModifsPour(id){
 }
 document.addEventListener("visibilitychange", function(){
   if(!document.hidden && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF);
+  /* l'appli restée ouverte depuis la veille : la question se pose au retour */
+  if(!document.hidden){ try{ proposerReprise(); }catch(e){} }
 });
 window.addEventListener("pageshow", function(e){ if(e.persisted && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF); });
 (function(){

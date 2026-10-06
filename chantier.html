@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="./theme.js?v=20261004b"></script>
 <script src="./dates.js?v=20261001a"></script>
-<script src="./reseau.js?v=20261005a"></script>
+<script src="./reseau.js?v=20261006b"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F4F1EA">
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
@@ -1541,6 +1541,9 @@ function refAffaireDe(id, S){
 function contenuDe(id, S){
   switch(id){
     case "suivi":
+      /* déjà publié, et rien changé depuis : rien à publier (sauf des photos restées en route) */
+      var photosEnRade = !!(S.photosSite && S.photosSite.erreur);
+      if(S.publie && S.publie.sig && S._sig===S.publie.sig && !photosEnRade) return null;
       var v=S.visite||{};
       var nts=(S.ts||[]).length, nph=(S.photos||[]).length, npt=(S.points||[]).length, npl=(S.plans||[]).length;
       var vif=!!((v.objet||"").trim() || (v.note||"").trim() || (v.type||"").trim() || nts || nph || npt || npl
@@ -1550,7 +1553,8 @@ function contenuDe(id, S){
       if(nts) bouts.push(nts+" TS");
       if(nph) bouts.push(nph+" photo"+(nph>1?"s":""));
       if(npt) bouts.push(npt+" point"+(npt>1?"s":""));
-      return (v.type || "Suivi en cours") + (bouts.length ? " · "+bouts.join(", ") : "");
+      return (v.type || "Suivi en cours") + (bouts.length ? " · "+bouts.join(", ") : "")
+        + (photosEnRade && S.publie && S._sig===S.publie.sig ? " · photos à renvoyer" : "");
     case "commande":
       var n=(S.lignes||[]).length;
       return n ? n+" article"+(n>1?"s":"") : null;
@@ -1711,8 +1715,11 @@ function lancerPublicationsEnSerie(lignes, fini, apres){
     l.ligne.classList.add("encours");
     publierUnDocument(l.doc).then(function(res){
       reussi=!!res.ok;
-      l.etat.textContent = res.ok ? "Publié." : ("Échec : "+res.message);
-      l.etat.style.color = res.ok ? "var(--ok)" : "var(--rouge)";
+      /* publié, mais les photos ne sont pas passées : on le dit, en orange */
+      var sansPhotos = res.ok && /photos? non envoy/i.test(res.message||"");
+      l.etat.textContent = !res.ok ? ("Échec : "+res.message)
+        : sansPhotos ? "Publié, mais photos non envoyées : relancez « Tout publier » quand le réseau revient." : "Publié.";
+      l.etat.style.color = !res.ok ? "var(--rouge)" : sansPhotos ? "var(--accent,#B4621A)" : "var(--ok)";
     }).catch(function(){
       l.etat.textContent="Échec.";
       l.etat.style.color="var(--rouge)";
@@ -1732,15 +1739,30 @@ function publierUnDocument(doc){
   return new Promise(function(resoudre){
     var iframe=document.createElement("iframe");
     iframe.style.cssText="position:fixed;left:-9999px;top:-9999px;width:420px;height:900px;border:0";
-    var fini=false;
-    var minuteur=setTimeout(function(){
+    /* La fiche ouverte en coulisse donne signe de vie toutes les 3 s tant
+       qu'elle envoie (PDF puis photos) : on l'attend, sans la couper au
+       milieu d'un envoi lent. Une minute sans nouvelles, ou un quart
+       d'heure en tout, et on abandonne. */
+    var fini=false, debut=Date.now(), minuteur;
+    function abandon(msg){
       if(fini) return; fini=true;
       nettoyer();
-      resoudre({ok:false, message:"Délai dépassé."});
-    }, 25000);
+      resoudre({ok:false, message:msg});
+    }
+    function guetter(){
+      clearTimeout(minuteur);
+      minuteur=setTimeout(function(){ abandon("Pas de réponse : réessayez avec un meilleur réseau."); }, 60000);
+    }
+    guetter();
     function surMessage(e){
-      if(!e.data || e.data.source!=="publier-tout") return;
-      if(fini) return; fini=true;
+      if(!e.data || e.data.source!=="publier-tout" || e.source!==iframe.contentWindow) return;
+      if(fini) return;
+      if(e.data.encours){
+        if(Date.now()-debut > 16*60000) abandon("Envoi trop long : réessayez avec un meilleur réseau.");
+        else guetter();
+        return;
+      }
+      fini=true;
       clearTimeout(minuteur);
       nettoyer();
       resoudre({ok:!!e.data.ok, message:String(e.data.message||"")});

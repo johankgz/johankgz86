@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="./theme.js?v=20261004b"></script>
 <script src="./dates.js?v=20261001a"></script>
-<script src="./reseau.js?v=20261005a"></script>
+<script src="./reseau.js?v=20261006b"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
 <meta name="theme-color" content="#F4F1EA">
@@ -2304,7 +2304,15 @@ function ecrireFiche(){
   try{ p = new URLSearchParams(location.search); }catch(e){ return; }
   if(p.get("autoPublier") !== "1") return;
   if(!window.parent || window.parent === window) return;
+  /* la page du chantier est tenue au courant toutes les 3 s : tant que ce
+     signal arrive, elle attend, même pour un long envoi de photos en 3G */
+  var pouls=setInterval(function(){
+    try{ window.parent.postMessage({source:"publier-tout", encours:true}, "*"); }catch(e){}
+  }, 3000);
+  var dit=false;
   function dire(ok, message){
+    if(dit) return; dit=true;
+    clearInterval(pouls);
     try{ window.parent.postMessage({source:"publier-tout", ok:ok, message:message||""}, "*"); }catch(e){}
   }
   var essais=0;
@@ -2320,25 +2328,32 @@ function ecrireFiche(){
       var el=document.getElementById("pubEtat");
       var avant = el ? el.textContent : "";
       document.getElementById("btnPublier").click();
-      var t=0;
+      /* fini seulement quand le message final est là ET que plus rien ne
+         part (le PDF, puis les photos) depuis une seconde : on ne coupe
+         jamais un envoi en route. Pas de limite courte : 15 min au plus. */
+      var t=0, calme=0;
       var minuteur=setInterval(function(){
         t += 250;
         var maintenant = el ? el.textContent : "";
         var toastEl = document.getElementById("toast");
         var toastTxt = toastEl ? toastEl.textContent : "";
-        if(maintenant && maintenant !== avant && !/publication en cours/i.test(maintenant)){
+        var envois = window.__envoisEnCours || 0;
+        var occupe = envois > 0 || window.PH_SITE_EN_COURS === true || /en cours|…$/i.test(maintenant);
+        if(maintenant && maintenant !== avant && !occupe){
+          if(++calme < 4) return;
           clearInterval(minuteur);
           dire(/publié|mis à jour|remplacé/i.test(maintenant), maintenant);
           return;
         }
-        if(toastTxt && /indiquez|renseignez|ajoutez|prenez|choisissez/i.test(toastTxt)){
+        calme=0;
+        if(!envois && toastTxt && /indiquez|renseignez|ajoutez|prenez|choisissez/i.test(toastTxt)){
           clearInterval(minuteur);
           dire(false, toastTxt);
           return;
         }
-        if(t > 20000){
+        if(t > 15*60000){
           clearInterval(minuteur);
-          dire(false, "Délai dépassé.");
+          dire(false, "Envoi trop long : réessayez avec un meilleur réseau.");
         }
       }, 250);
     }, 700);
