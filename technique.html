@@ -1414,6 +1414,10 @@ function bindChoixPublication(){
    Chaque document part séparément : il garde son titre et son format,
    et se range dans le dossier comme un rapport. On enchaîne un par un
    pour qu'une coupure de réseau n'emporte pas tout le lot. */
+/* retire de la fiche les documents déjà partis sur le site */
+function viderDeposes(){
+  S.docs=(S.docs||[]).filter(function(d){ return !d.depose; });
+}
 function deposerTout(){
   if(!apiPret()) return;
   if(!refAffaire()){ toast("Indiquez le client ou la référence des travaux."); showTab("dossier"); return; }
@@ -1435,18 +1439,17 @@ function deposerTout(){
   function suivant(k){
     if(k >= liste.length){
       bouton.disabled=false;
-      save(); renderDocs(); renderResume(); majCompteur();
+      /* les documents partis quittent la liste, comme après un relevé ou un
+         rapport : on repart d'une liste vide sur le même chantier. Seuls
+         restent ceux qui ne sont pas partis (sans titre, refusés). */
+      viderDeposes();
+      save(); paintForm();
       var dit = faits ? (faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")
-              + (versDossier ? ", visible par l'équipe du dossier." : ", pour "+sel.join(", ")+".")) : "";
+              + (versDossier ? " dans le dossier." : ", pour "+sel.join(", ")+".")) : "";
       if(echecs.length) dit += (dit?" ":"") + echecs.length + " en échec : " + echecs[0];
       if(sansTitre) dit += " " + sansTitre + " sans titre, laissé"+(sansTitre>1?"s":"")+" de côté.";
       el.textContent = dit || "Rien n'a pu être déposé.";
-      /* Documents techniques garde sa liste après le dépôt, marquée
-         « déposé » ligne par ligne : c'est ce qui permet d'ajouter
-         d'autres documents ensuite sans renvoyer ceux déjà partis. Pas
-         de remise à zéro ici, à la différence des rapports en un coup
-         (reportage, commande…) : ce n'est pas le même geste. */
-      if(faits) toast(faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")+".");
+      if(faits) toast(faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")+(enAttente().length ? "." : ". Liste vidée pour un nouveau dépôt."));
       return;
     }
     var d=liste[k];
@@ -1473,9 +1476,10 @@ function deposerTout(){
       .catch(function(){
         echecs.push("pas de réseau");
         bouton.disabled=false;
+        viderDeposes();
+        save(); paintForm();
         el.textContent = (faits ? faits+" déposé"+(faits>1?"s":"")+", puis le réseau a lâché. " : "Pas de réseau. ")
           + "Les documents restants sont gardés : reprenez une fois connecté.";
-        save(); renderDocs(); renderResume(); majCompteur();
       });
   }
   suivant(0);

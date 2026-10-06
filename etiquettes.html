@@ -1032,11 +1032,13 @@ function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a[2
 var APP_TYPE="etiquettes";
 var S=null, P=null, RANGEE=0;
 
+/* la bande fait 3 cm de haut ; une fiche d'avant (6 à 12 mm) passe à 30 mm */
+function bandeA30(){ if(!(S.hauteur >= 20)) S.hauteur = 30; return S.hauteur; }
 function blank(){
   return {
     chantier:{client:"", ref:"", tableau:""},
     date:aujourdhui(),
-    hauteur:8, module:17.5,
+    hauteur:30, module:17.5,
     rangees:[{id:uid(), nom:"Rangée 1", modules:18, cases:[]}],
     destinataires:[], dest:"", qr:null
   };
@@ -1387,7 +1389,8 @@ function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   try{ paintQr(); }catch(e){}
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
-  chips("ch_hauteur", [6,8,10,12],
+  bandeA30();
+  chips("ch_hauteur", [20,25,30],
     function(o){ return S.hauteur===o; },
     function(o){ S.hauteur=o; save(); renderResume(); });
   chips("ch_module", [17.5,18],
@@ -1423,7 +1426,7 @@ function renderResume(){
    ["Rangées", String(S.rangees.length)],
    ["Modules au total", String(mod)],
    ["Étiquettes", String(totalCases())],
-   ["Format", S.hauteur+" mm de haut, module de "+String(S.module).replace(".",",")+" mm"]
+   ["Format", bandeA30()+" mm de haut, module de "+String(S.module).replace(".",",")+" mm"]
   ].forEach(function(l){
     var d=document.createElement("div");
     d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
@@ -1789,19 +1792,21 @@ function buildPdf(){
     return out;
   }
 
+  bandeA30();
   function texteAjuste(txt, largeur, hauteur){
     /* plus grande taille tenant en une à trois lignes dans la bande */
     var propre = String(txt).replace(/\s+/g," ").trim();
+    var maxL = hauteur >= 20 ? 5 : 3;     /* une bande haute prend plus de lignes */
     for(var t=9; t>=3.4; t-=0.2){
       doc.setFontSize(t);
       var lignes=doc.splitTextToSize(propre, largeur-1.4);
       var lh=t*0.3528;                       /* interligne en mm */
       var motCoupe = lignes.join(" ").replace(/\s+/g," ").trim() !== propre;
       if(motCoupe) continue;                 /* jamais de mot coupé en deux */
-      if(lignes.length<=3 && lignes.length*lh <= hauteur-1.2) return {taille:t, lignes:lignes, lh:lh};
+      if(lignes.length<=maxL && lignes.length*lh <= hauteur-1.2) return {taille:t, lignes:lignes, lh:lh};
     }
     doc.setFontSize(3.8);
-    var l=doc.splitTextToSize(txt, largeur-1.4).slice(0,3);
+    var l=doc.splitTextToSize(txt, largeur-1.4).slice(0, hauteur >= 20 ? 5 : 3);
     return {taille:3.8, lignes:l, lh:3.8*0.3528};
   }
 
