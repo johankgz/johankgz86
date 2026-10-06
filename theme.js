@@ -105,7 +105,35 @@
     if(/shadow$/.test(p)) return "ombre";
     return null;
   }
-  var FN={fond:fond, texte:texte, filet:filet, ombre:ombre};
+  var FN_CLAIR={fond:fond, texte:texte, filet:filet, ombre:ombre}, FN=FN_CLAIR;
+
+  /* ---------- en sombre : les fiches aussi ----------
+     Les fiches blanches deviennent graphite, un cran plus claires que le châssis
+     (les champs un cran encore), les textes foncés deviennent clairs, les filets
+     clairs deviennent sombres. Ce qui doit rester sur du blanc (dessin, signature,
+     aperçu d'un PDF ou d'une étiquette, QR code, impression) ne bouge pas. */
+  function fondNuit(c){
+    var t=hsl(c.r, c.g, c.b), h=t[0], s=t[1], l=t[2];
+    if(c.a>=.6 && l>.8){
+      if(s<.35) return ecrire(rgb(h, s*.45, .175+(1-l)*.55), c.a);           /* blanc → graphite ; gris clair → un peu plus clair */
+      return ecrire(rgb(h, Math.min(s, .55)*.55, .2+(1-l)*.5), c.a);         /* teinte pâle (orange doux, bleu doux) → teinte sombre */
+    }
+    return null;
+  }
+  function texteNuit(c){
+    var t=hsl(c.r, c.g, c.b), l=t[2];
+    if(l>=.5) return null;
+    return ecrire(rgb(t[0], Math.min(1, t[1]*.95), .93-l*.55), c.a);
+  }
+  function filetNuit(c){
+    var t=hsl(c.r, c.g, c.b), s=t[1], l=t[2];
+    if(c.a>=.5 && l>.7) return ecrire(rgb(t[0], s*.5, .3+(1-l)*.25), c.a);
+    if(c.a<.5 && l<.3) return ecrire([255, 255, 255], Math.max(.06, Math.min(.16, c.a*1.1)));
+    return null;
+  }
+  var FN_NUIT={fond:fondNuit, texte:texteNuit, filet:filetNuit, ombre:function(){ return null; }};
+  /* ce qui reste clair, même en sombre */
+  var GARDE_CLAIR=/canvas|signature|\bsig|annot|\ban[-_]|croquis|apercu|aperçu|vignette|\bqr|pdf|visionneuse|papier|feuille-a4|planche|cartouche|\betq|etiq-vue|impression|\bprint\b|toile|ardoise|tableau-blanc|carte-qr/i;
   /* avec var(), le navigateur garde la valeur sur le raccourci (background, border…) et laisse les détails vides */
   var RACCOURCIS=["background", "border", "border-top", "border-right", "border-bottom", "border-left", "border-color", "outline", "border-block", "border-inline", "border-block-start", "border-block-end"];
   function proprietes(st){
@@ -162,7 +190,11 @@
     if(VUES.indexOf(feuille)>=0) return;
     VUES.push(feuille);
     regles(feuille, function(r, genre){
-      if(genre==="media"){ FAITS.push({media:r.media, avant:r.media.mediaText}); r.media.mediaText="not all"; return; }
+      if(genre==="media"){ if(FN===FN_NUIT) return; FAITS.push({media:r.media, avant:r.media.mediaText}); r.media.mediaText="not all"; return; }
+      if(FN===FN_NUIT){
+        if(GARDE_CLAIR.test(r.selectorText||"")) return;
+        for(var pr=r.parentRule; pr; pr=pr.parentRule) if(pr.media && /print/.test(pr.media.mediaText||"")) return;
+      }
       var st=r.style, props=proprietes(st);
       VOILE = st.top==="0px" && st.left==="0px" && (st.right==="0px" || st.bottom==="0px");
       /* un texte blanc sur un fond de couleur (bouton orange, pastille) garde son blanc */
@@ -203,7 +235,7 @@
   }
 
   /* ---------- appliquer ---------- */
-  var html=document.documentElement, CLAIR=false, attente=null;
+  var html=document.documentElement, CLAIR=false, attente=null, FICHES_EN_ATTENTE=false, DEJA=false;
   /* ce que les règles ne savent pas faire : les fonds animés laissent place à un fond clair uni */
   var css=document.createElement("style"); css.id="themeClair";
   css.textContent=
@@ -211,19 +243,45 @@
     +"html.theme-clair .ciel,html.theme-clair #fondPlan,html.theme-clair .fond-outils{background:"+FOND+"!important}"
     +"html.theme-clair .ciel>*,html.theme-clair #fondPlan>*,html.theme-clair .fond-outils>*{display:none!important}"
     +"html.theme-attente body{visibility:hidden}"
-    +"html.theme-sombre{color-scheme:dark}";
+    +"html.theme-sombre{color-scheme:dark}"
+    /* en verre : les fiches laissent voir le fond (sans flou, léger pour l'ordinateur) */
+    +"html.fiches-verre .block,html.fiches-verre .carte,html.fiches-verre .tuile,html.fiches-verre .travaux{background:rgba(22,26,32,.58)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:none!important}";
   (document.head||html).appendChild(css);
   function metaCouleur(){
     var m=document.querySelector('meta[name="theme-color"]'); if(!m) return;
     if(!m.dataset.sombre) m.dataset.sombre=m.getAttribute("content")||"";
     m.setAttribute("content", CLAIR ? FOND : m.dataset.sombre);
   }
+  /* en sombre, les fiches : sombres (par défaut), blanches (comme avant) ou en verre */
+  var CLE_FICHES="site:fiches";
+  function fiches(){ var v=null; try{ v=localStorage.getItem(CLE_FICHES); }catch(e){} return /^(sombres|blanches|verre)$/.test(v||"") ? v : "sombres"; }
+  var FICHES_APPLIQUEES="";
   function appliquer(){
-    var c=veutClair();
-    if(c===CLAIR && (c ? html.classList.contains("theme-clair") : true)) return;
-    CLAIR=c;
+    var c=veutClair(), f=c ? "" : fiches();
+    /* rien n'a changé depuis la dernière fois : on ne refait rien */
+    if(DEJA && c===CLAIR && f===FICHES_APPLIQUEES) return;
+    DEJA=true; CLAIR=c; FICHES_APPLIQUEES=f;
     html.classList.toggle("theme-clair", c);
     html.classList.toggle("theme-sombre", !c);
+    ["sombres","blanches","verre"].forEach(function(x){ html.classList.toggle("fiches-"+x, !c && f===x); });
+    toutDefaire();
+    if(!c){
+      metaCouleur();
+      if(f==="blanches"){ try{ window.dispatchEvent(new CustomEvent("theme", {detail:{clair:c}})); }catch(e){} return; }
+      FN=FN_NUIT;
+      if(document.readyState==="loading"){
+        FICHES_EN_ATTENTE=true;
+        html.classList.add("theme-attente");
+        clearTimeout(attente); attente=setTimeout(function(){ html.classList.remove("theme-attente"); }, 1500);
+        document.addEventListener("DOMContentLoaded", function(){
+          FICHES_EN_ATTENTE=false;
+          try{ if(!CLAIR && FN===FN_NUIT) toutConvertir(); } finally { clearTimeout(attente); html.classList.remove("theme-attente"); }
+        }, {once:true});
+      } else toutConvertir();
+      try{ window.dispatchEvent(new CustomEvent("theme", {detail:{clair:c}})); }catch(e){}
+      return;
+    }
+    FN=FN_CLAIR;
     if(c){
       if(document.readyState==="loading"){
         /* pas encore toutes les feuilles : on cache le temps de les lire (une fraction de seconde) */
@@ -233,18 +291,18 @@
           try{ if(CLAIR) toutConvertir(); } finally { clearTimeout(attente); html.classList.remove("theme-attente"); }
         }, {once:true});
       } else toutConvertir();
-    } else toutDefaire();
+    }
     metaCouleur();
     try{ window.dispatchEvent(new CustomEvent("theme", {detail:{clair:c}})); }catch(e){}
   }
   /* les feuilles ajoutées plus tard (une appli qui pose son style) */
   try{
     new MutationObserver(function(ms){
-      if(!CLAIR || document.readyState==="loading") return;
+      if((!CLAIR && FN!==FN_NUIT) || document.readyState==="loading") return;
       var neuf=false;
       ms.forEach(function(m){ Array.prototype.forEach.call(m.addedNodes, function(n){
         if(n.nodeName==="STYLE") neuf=true;
-        if(n.nodeName==="LINK" && /stylesheet/.test(n.rel)) n.addEventListener("load", function(){ if(CLAIR) toutConvertir(); });
+        if(n.nodeName==="LINK" && /stylesheet/.test(n.rel)) n.addEventListener("load", function(){ if(CLAIR || FN===FN_NUIT) toutConvertir(); });
       }); });
       if(neuf) toutConvertir();
     }).observe(html, {childList:true, subtree:true});
@@ -252,12 +310,14 @@
   if(mq){ try{ mq.addEventListener("change", appliquer); }catch(e){ try{ mq.addListener(appliquer); }catch(e2){} } }
   setInterval(appliquer, 60000);
   document.addEventListener("visibilitychange", function(){ if(!document.hidden) appliquer(); });
-  window.addEventListener("storage", function(e){ if(e.key===CLE) appliquer(); });
+  window.addEventListener("storage", function(e){ if(e.key===CLE || e.key===CLE_FICHES) appliquer(); });
 
   window.theme={
     reglage:reglage,
     clair:function(){ return CLAIR; },
     choisir:function(m){ try{ if(m==="auto") localStorage.removeItem(CLE); else localStorage.setItem(CLE, m); }catch(e){} appliquer(); },
+    fiches:fiches,
+    choisirFiches:function(v){ try{ localStorage.setItem(CLE_FICHES, v); }catch(e){} appliquer(); },
     appliquer:appliquer
   };
   appliquer();

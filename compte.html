@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261004b"></script>
+<script src="./theme.js?v=20261007a"></script>
 <script src="./commun.js?v=20261007a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261007a"></script>
@@ -638,6 +638,12 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
       <label><input type="radio" name="theme" value="clair"><span><b>Toujours clair</b><small>Fonds clairs, pour le plein soleil</small></span></label>
       <label><input type="radio" name="theme" value="sombre"><span><b>Toujours sombre</b><small>Le châssis graphite, partout</small></span></label>
     </div>
+    <p class="legend" style="margin-top:14px">En sombre, les fiches et les tuiles</p>
+    <div class="choix-fond" role="radiogroup" aria-label="Les fiches en sombre">
+      <label><input type="radio" name="fiches" value="sombres"><span><b>Sombres</b><small>Tout suit : fiches graphite, textes clairs</small></span></label>
+      <label><input type="radio" name="fiches" value="verre"><span><b>En verre</b><small>Fiches translucides : le fond d'écran se devine derrière</small></span></label>
+      <label><input type="radio" name="fiches" value="blanches"><span><b>Blanches</b><small>Comme avant : des fiches blanches sur le châssis sombre</small></span></label>
+    </div>
   </div>
 
   <div class="block">
@@ -872,6 +878,15 @@ if(S.role==="bureau" || S.role==="admin"){
       if(typeof toast==="function") toast(r.value==="auto" ? "Le site suit le téléphone : "+(window.theme.clair() ? "clair" : "sombre")+" en ce moment."
         : r.value==="heure" ? "Clair de 7 h à 20 h, sombre ensuite : "+(window.theme.clair() ? "clair" : "sombre")+" en ce moment."
         : r.value==="clair" ? "Toujours clair." : "Toujours sombre.");
+    });
+  });
+  /* en sombre, les fiches : sombres, en verre ou blanches */
+  var f=window.theme.fiches ? window.theme.fiches() : "sombres";
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="fiches"]'), function(r){
+    r.checked = r.value===f;
+    r.addEventListener("change", function(){
+      window.theme.choisirFiches(r.value);
+      if(typeof toast==="function") toast(r.value==="sombres" ? "En sombre, les fiches sont sombres." : r.value==="verre" ? "En sombre, les fiches sont en verre." : "En sombre, les fiches restent blanches.");
     });
   });
 })();

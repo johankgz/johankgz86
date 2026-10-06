@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261004b"></script>
+<script src="./theme.js?v=20261007a"></script>
 <script src="./commun.js?v=20261007a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261007a"></script>
@@ -542,6 +542,12 @@ nav#nav button svg{stroke-width:1.9}
 .ts .ts-chiffre{flex:0 0 auto;min-height:34px;padding:6px 12px;border-radius:999px;border:1px solid #E9D5C1;background:#fff;color:#92400E;
   font:inherit;font-size:13px;font-weight:700;cursor:pointer}
 .ts .ts-chiffre:disabled{opacity:.5}
+/* le reste à faire : fermé d'office, on l'ouvre d'un toucher sur son titre */
+.reste-bascule{width:100%;border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;align-items:center}
+.reste-bascule span{margin-left:auto}
+.reste-bascule .chev{flex:0 0 auto;width:9px;height:9px;border-right:2px solid var(--ink-3);border-bottom:2px solid var(--ink-3);transform:rotate(45deg);margin:-3px 4px 0 4px;transition:transform .2s ease}
+.reste-bascule[aria-expanded="true"] .chev{transform:rotate(-135deg);margin-top:4px}
+.reste-bascule[aria-expanded="false"]{margin-bottom:0}
 .reste-faits{display:block;width:100%;margin:6px 0 2px;padding:9px 0 3px;border:0;border-top:1px solid var(--rule);background:none;
   font:600 13px/1.3 inherit;font-family:inherit;color:var(--ink-2);text-align:left;cursor:pointer}
 .avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -549,17 +555,17 @@ nav#nav button svg{stroke-width:1.9}
 .avancement .valeur{font-size:22px;font-weight:750;letter-spacing:-.02em;color:var(--data);font-variant-numeric:tabular-nums}
 .avancement.fini .valeur{color:var(--ok)}
 .av-corps{display:flex;align-items:center;gap:16px}
-.av-anneau{position:relative;width:104px;height:104px;flex:0 0 auto}
-.av-anneau svg{width:104px;height:104px;transform:rotate(-90deg)}
-.av-anneau circle{fill:none;stroke-width:10}
-.av-anneau .fond{stroke:var(--rule)}
-.av-anneau .plein{stroke:var(--accent);stroke-linecap:round;transition:stroke-dashoffset .9s cubic-bezier(.2,.8,.2,1),stroke .3s ease}
-.avancement.fini .av-anneau .plein{stroke:var(--ok)}
-.av-centre{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
-.av-centre .valeur{font-size:23px!important}
-.av-mot{font-size:8.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-3)}
+/* l'avancement, compact : le titre et le pourcentage sur une ligne, une barre fine dessous */
+.avancement{padding-top:12px;padding-bottom:12px}
+.avancement .tete{align-items:center}
+.avancement .valeur{font-size:17px!important}
+.av-barre{height:6px;margin-top:8px;border-radius:999px;background:rgba(128,128,128,.28);overflow:hidden}
+.av-barre i{display:block;height:100%;width:0;border-radius:inherit;background:var(--accent);transition:width .9s cubic-bezier(.2,.8,.2,1),background .3s ease}
+.avancement.fini .av-barre i{background:var(--ok)}
 .av-droite{flex:1;min-width:0}
-.av-droite h2{margin:0 0 4px}
+.av-droite h2{margin:0}
+.avancement #av_note{margin:6px 0 0;font-size:12px}
+.avancement #av_note:empty{display:none}
 /* Le curseur est dessiné ici plutôt que laissé au téléphone : sur iPhone,
    le remplissage natif ne suit pas le pouce (à 90 %, l'orange dépassait
    le rond, posé vers 80 %). Le pouce se déplace entre son demi-diamètre
@@ -573,7 +579,7 @@ nav#nav button svg{stroke-width:1.9}
 .avancement input[type=range]:focus{outline:none;box-shadow:none;background:transparent}
 .avancement input[type=range]::-webkit-slider-runnable-track{
   height:8px;border-radius:999px;
-  background:linear-gradient(to right,var(--accent) 0,var(--accent) var(--ici),var(--rule) var(--ici),var(--rule) 100%)}
+  background:linear-gradient(to right,var(--accent) 0,var(--accent) var(--ici),rgba(128,128,128,.32) var(--ici),rgba(128,128,128,.32) 100%)}
 .avancement input[type=range]::-webkit-slider-thumb{
   -webkit-appearance:none;appearance:none;width:var(--pouce);height:var(--pouce);margin-top:calc((8px - var(--pouce)) / 2);
   border-radius:50%;background:#fff;border:2px solid var(--accent);box-shadow:0 2px 6px rgba(0,0,0,.25)}
@@ -1001,15 +1007,9 @@ header{overflow-anchor:none}
 
   <div class="block avancement" id="avancement" hidden>
     <div class="av-corps">
-      <div class="av-anneau" id="av_jauge">
-        <svg viewBox="0 0 104 104" aria-hidden="true">
-          <circle class="fond" cx="52" cy="52" r="44"/>
-          <circle class="plein" id="av_rempli" cx="52" cy="52" r="44"/>
-        </svg>
-        <span class="av-centre"><span class="valeur" id="av_valeur">0 %</span><span class="av-mot">avancement</span></span>
-      </div>
       <div class="av-droite">
-        <h2>Avancement du chantier</h2>
+        <div class="tete"><h2>Avancement</h2><span class="valeur" id="av_valeur">0 %</span></div>
+        <div class="av-barre" id="av_jauge" aria-hidden="true"><i id="av_rempli"></i></div>
         <input type="range" id="av_curseur" min="0" max="100" step="5" value="0" hidden
           aria-label="Avancement du chantier, en pourcentage">
         <div class="av-echelle" id="av_echelle" hidden aria-hidden="true">
@@ -1029,10 +1029,12 @@ header{overflow-anchor:none}
     <div id="tsListe"></div>
   </div>
   <div class="block reste" id="reste" hidden>
-    <div class="reste-tete"><h2>Reste à faire</h2><span id="resteNb"></span></div>
+    <button type="button" class="reste-tete reste-bascule" id="resteBascule" aria-expanded="false" aria-controls="resteCorps"><h2>Reste à faire</h2><span id="resteNb"></span><i class="chev" aria-hidden="true"></i></button>
+    <div id="resteCorps" hidden>
     <div id="resteListe"></div>
     <button type="button" class="reste-faits" id="resteFaitsBtn" aria-expanded="false" hidden></button>
     <div id="resteFaits" hidden></div>
+    </div>
     <p class="hint" style="margin:8px 0 0">Les tâches de tous les points de chantier. Cochez ici ce qui est fait : le point suivant le reprend.</p>
   </div>
 
@@ -1800,14 +1802,13 @@ function chargeDuDossier(){
   var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
   return !!bureau && (CHANTIER.equipe||[]).indexOf(SESSION.nom) >= 0;
 }
-var AV_TOUR = 2*Math.PI*44, AV_VU = false;
+var AV_VU = false;
 function afficherAvancement(pct){
   $("av_valeur").textContent = pct+"\u00A0%";
-  var anneau=$("av_rempli");
-  anneau.style.strokeDasharray = AV_TOUR;
-  /* la première fois, l'anneau part de zéro et se remplit */
-  if(!AV_VU){ anneau.style.strokeDashoffset = AV_TOUR; void anneau.getBoundingClientRect(); AV_VU = true; }
-  anneau.style.strokeDashoffset = AV_TOUR*(1-pct/100);
+  var barre=$("av_rempli");
+  /* la première fois, la barre part de zéro et se remplit */
+  if(!AV_VU){ barre.style.width="0"; void barre.getBoundingClientRect(); AV_VU = true; }
+  barre.style.width = pct+"%";
   $("avancement").classList.toggle("fini", pct>=100);
   $("av_curseur").style.setProperty("--pct", String(pct));
 }
@@ -1818,14 +1819,14 @@ function peindreAvancement(){
   afficherAvancement(pct);
   var curseur=$("av_curseur");
   curseur.hidden=!moi;
-  $("av_echelle").hidden=!moi;
+  $("av_echelle").hidden=true;          /* la graduation prenait de la place pour peu */
+  /* le chargé d'affaires a le curseur (qui est sa propre barre) ; les autres, la barre */
+  $("av_jauge").hidden=moi;
   curseur.value=pct;
   var qui = CHANTIER.avancementPar
     ? "Mis à jour par "+CHANTIER.avancementPar+(CHANTIER.avancementLe ? " le "+frDate(CHANTIER.avancementLe) : "")+"."
     : "";
-  $("av_note").textContent = moi
-    ? "Faites glisser pour mettre à jour : c'est enregistré dès que vous relâchez. "+qui
-    : (qui || "Réglé par le chargé d'affaires du dossier.");
+  $("av_note").textContent = qui;
 }
 $("av_curseur").addEventListener("input", function(){ afficherAvancement(parseInt(this.value, 10) || 0); });
 $("av_curseur").addEventListener("change", function(){
@@ -1956,6 +1957,10 @@ function peindreReste(){
   if(RESTE_FAITS_OUVERTS) faites.forEach(function(t){ zf.appendChild(ligneReste(t)); });
 }
 $("resteFaitsBtn").addEventListener("click", function(){ RESTE_FAITS_OUVERTS=!RESTE_FAITS_OUVERTS; peindreReste(); });
+/* fermé à chaque ouverture de la page : c'est vous qui l'ouvrez */
+$("resteBascule").addEventListener("click", function(){
+  var o=$("resteCorps").hidden; $("resteCorps").hidden=!o; this.setAttribute("aria-expanded", o ? "true" : "false");
+});
 function cocherReste(t, fait, bouton){
   bouton.disabled=true;
   fetch(API+"?action=reste-cocher", {method:"POST",
