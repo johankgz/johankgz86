@@ -837,6 +837,8 @@ var SOUS_DOSSIERS={
   commandes:{nom:"Commandes", classe:"sous-dossier dossier-commandes", memo:"rapports:commandes", mot:"commande",
     aFaire:function(f){ return !f.saisie; }, motAFaire:"à saisir",
     ico:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>'},
+  points:{nom:"Le point de chantier", classe:"sous-dossier dossier-points", memo:"rapports:points", mot:"point",
+    ico:'<path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/><path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/>'},
   photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document", exporter:true,
     ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
 };
@@ -844,6 +846,7 @@ var SOUS_DOSSIERS={
 function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
   if(f.type==="commande") return "commandes";
+  if(f.type==="point") return "points";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
   if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";

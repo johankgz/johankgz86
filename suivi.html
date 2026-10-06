@@ -1465,16 +1465,22 @@ function renderReste(){
   host.textContent="";
   S.reste.forEach(function(it){
     var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
-    l.appendChild(caseACocher(it, "Tâche faite : "+(it.texte||""), renderReste));
+    /* chaque retouche est datée : le dossier garde la plus récente (le chantier, un point, un suivi) */
+    l.appendChild(caseACocher(it, "Tâche faite : "+(it.texte||""), function(){ toucherRf(it); renderReste(); }));
     var corps=document.createElement("div"); corps.className="sv-corps";
-    corps.appendChild(champTexte(it, renderResume));
-    if(it.depuis){
+    corps.appendChild(champTexte(it, function(){ toucherRf(it); save(); renderResume(); }));
+    if(it.depuis || it.point){
       var dp=document.createElement("span"); dp.className="sv-depuis";
-      dp.textContent="Notée le "+frDate(it.depuis)+", reprise du suivi précédent";
+      dp.textContent = it.point ? "Du dossier : "+it.point : "Notée le "+frDate(it.depuis)+", reprise du suivi précédent";
       corps.appendChild(dp);
     }
     l.appendChild(corps);
-    l.appendChild(boutonRetirer(S.reste, it, "cette tâche", renderReste));
+    l.appendChild(boutonRetirer(S.reste, it, "cette tâche", function(){
+      /* retirée : elle sort aussi du reste à faire du dossier, à l'enregistrement */
+      if(!Array.isArray(S.resteRetires)) S.resteRetires=[];
+      if(it.id && S.resteRetires.indexOf(it.id)<0) S.resteRetires.push(it.id);
+      save(); renderReste();
+    }));
     host.appendChild(l);
   });
   var b=$("rf_bilan");
@@ -1484,9 +1490,38 @@ function renderReste(){
   }
   renderResume();
 }
+function toucherRf(it){ if(!it.id) it.id=uid(); it.maj=new Date().toISOString(); }
+/* le reste à faire du dossier (celui des points de chantier, de la page du chantier, des
+   autres suivis) : ce qui reste ouvert arrive ici, ce qui a été coché ailleurs se coche ici */
+function reprendreResteDossier(liste){
+  if(!Array.isArray(liste) || !liste.length) return 0;
+  if(!Array.isArray(S.reste)) S.reste=[];
+  var retires=S.resteRetires||[], n=0, change=false;
+  liste.forEach(function(x){
+    if(!x || !x.id || !String(x.texte||"").trim()) return;
+    var t=S.reste.filter(function(y){ return y.id===x.id; })[0];
+    if(!t){
+      if(x.fait || retires.indexOf(x.id)>=0) return;
+      S.reste.push({id:x.id, texte:x.texte, fait:false, maj:x.maj||"", point:x.point||""}); n++; change=true; return;
+    }
+    if(String(x.maj||"") > String(t.maj||"")){ t.fait=!!x.fait; t.texte=x.texte; t.maj=x.maj; change=true; }
+  });
+  if(change){ save(); renderReste(); }
+  return n;
+}
+var RESTE_LU="";
+function lireResteDossier(){
+  var ref=(S.affaire.chantier||"").trim() ? refAffaire() : "";
+  if(!ref || ref===RESTE_LU || !baseSite() || !jetonSession()) return;
+  RESTE_LU=ref;
+  fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(d){ if(RESTE_LU===ref && memeRef(refAffaire(), ref)){ var n=reprendreResteDossier(d.reste||[]); if(n) toast(n+" tâche"+(n>1?"s":"")+" du reste à faire du dossier."); } })
+    .catch(function(){ RESTE_LU=""; });
+}
 function resteAReporter(liste, dateSuivi){
   return (liste||[]).filter(function(it){ return !it.fait && (it.texte||"").trim(); }).map(function(it){
-    return {id:it.id||uid(), texte:it.texte, fait:false, depuis:it.depuis||dateSuivi||""};
+    return {id:it.id||uid(), texte:it.texte, fait:false, depuis:it.depuis||dateSuivi||"", maj:it.maj||"", point:it.point||""};
   });
 }
 function renderPoints(){
@@ -1567,7 +1602,7 @@ function ajouterLigne(cle, champ, rendu){
   var t=$(champ), v=(t.value||"").trim();
   if(!v){ t.focus(); return; }
   if(!S[cle]) S[cle]=[];
-  var it={id:uid(), texte:v, fait:false};
+  var it={id:uid(), texte:v, fait:false, maj:new Date().toISOString()};
   if(cle==="ts") it.qui="";
   if(cle==="points"){ it.rappel=false; it.quand=""; it.heure=""; }
   S[cle].push(it); t.value=""; save(); rendu();
@@ -3211,7 +3246,7 @@ function pageBlanche(){
   var plein = ficheRemplie(S) || (S.client.nom||"").trim() || (S.affaire.chantier||"").trim() || (S.client.adresse||"").trim();
   if(plein && !window.confirm("Commencer un nouveau suivi ?\n\nTout est effacé : client, chantier, photos, plans, listes. Pensez à enregistrer celui-ci avant."))
     return;
-  S=blank(); save(); paintForm(); showTab("suivi");
+  S=blank(); RESTE_LU=""; save(); paintForm(); showTab("suivi");
   /* l'adresse de la page ne remet plus l'ancien chantier au rechargement */
   try{ if(location.search) history.replaceState(null, "", location.pathname); }catch(e){}
   try{ peindreNavChantier(); }catch(e){}
@@ -3231,6 +3266,7 @@ function nouveauSuivi(demander){
   /* les demandes pas encore chiffrées continuent dans le nouveau suivi */
   n.ts=tsAReporter(S.ts, S.visite.date);
   n.reste=resteAReporter(S.reste, S.visite.date);
+  RESTE_LU="";
   var rp=reperesAReporter(S, S.visite.date); n.plans=rp.plans; n.points=rp.points;
   S=n; save(); paintForm(); showTab("suivi");
   if(rp.points.length) toast(rp.points.length+" repère"+(rp.points.length>1?"s":"")+" pas encore fait"+(rp.points.length>1?"s":"")+" repris, avec "+(rp.plans.length>1 ? "leurs plans" : "leur plan")+".");
@@ -3364,7 +3400,13 @@ function bindAll(){
       lat: S.client.lat, lon: S.client.lon,
       type: "suivi", suiviId: S.suiviId, visite: "", date: S.visite.date, auteur: S.meta.ca,
       etape: S.visite.type || "",
-      titre: titreSuivi()
+      titre: titreSuivi(),
+      /* le reste à faire du suivi rejoint celui du dossier, comme celui d'un point de chantier */
+      reste: (S.reste||[]).filter(function(t){ return (t.texte||"").trim(); }).map(function(t){
+        if(!t.id) t.id=uid(); if(!t.maj) t.maj=new Date().toISOString();
+        return {id:t.id, texte:t.texte, fait:!!t.fait, prio:"", qui:"", quand:"", maj:t.maj};
+      }),
+      retires: (S.resteRetires||[]).slice()
     });
   }
   $("btnPublier").addEventListener("click", function(){
@@ -4615,6 +4657,7 @@ document.addEventListener("input", function(){
   window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
 }, true);
 function equipeDuDossier(){
+  try{ lireResteDossier(); }catch(e){}
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
   var choix = document.getElementById("choixPublication");

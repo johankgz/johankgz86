@@ -1973,8 +1973,9 @@ async function traiter(req) {
     }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
-    if (point && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
-      fusionnerReste(c, d.reste, d.retires, { titre: entree.titre, pointId: String(d.pointId || ""), auteur: personne.nom });
+    /* le reste à faire d'un point de chantier, ou d'un suivi, rejoint celui du dossier */
+    if ((point || suivi) && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
+      fusionnerReste(c, d.reste, d.retires, { titre: entree.titre, pointId: String(d.pointId || d.suiviId || ""), auteur: personne.nom });
     }
     c.maj = new Date().toISOString();
     idx.chantiers[ref] = c;
