@@ -1509,11 +1509,24 @@ function reprendreResteDossier(liste){
   if(change){ save(); renderReste(); }
   return n;
 }
+/* les demandes chiffrées depuis le site (page du chantier, tableau de bord) se cochent ici */
+function lireTsChiffres(ref){
+  fetch(apiUrl("ts-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : {}; })
+    .then(function(d){
+      if(!memeRef(refAffaire(), ref)) return;
+      var ch={}; (d.chiffres||[]).forEach(function(x){ ch[x.id]=x; });
+      var n=0;
+      (S.ts||[]).forEach(function(t){ if(!t.fait && t.id && ch[t.id]){ t.fait=true; n++; } });
+      if(n){ save(); renderTs(); toast(n+" demande"+(n>1?"s":"")+" chiffrée"+(n>1?"s":"")+" depuis le site, cochée"+(n>1?"s":"")+" ici."); }
+    }).catch(function(){});
+}
 var RESTE_LU="";
 function lireResteDossier(){
   var ref=(S.affaire.chantier||"").trim() ? refAffaire() : "";
   if(!ref || ref===RESTE_LU || !baseSite() || !jetonSession()) return;
   RESTE_LU=ref;
+  try{ lireTsChiffres(ref); }catch(e){}
   fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
     .then(function(r){ return r.ok ? r.json() : {}; })
     .then(function(d){ if(RESTE_LU===ref && memeRef(refAffaire(), ref)){ var n=reprendreResteDossier(d.reste||[]); if(n) toast(n+" tâche"+(n>1?"s":"")+" du reste à faire du dossier."); } })

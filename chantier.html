@@ -536,6 +536,12 @@ nav#nav button svg{stroke-width:1.9}
 .rt-ligne.fait .rt-corps b{font-weight:500;color:var(--ink-3);text-decoration:line-through}
 .rt-corps small{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
 .rt-urgent{color:var(--danger)!important;font-weight:700}
+/* les travaux supplémentaires pas encore chiffrés, d'un coup d'œil */
+.ts .rt-ligne{align-items:center}
+.ts .ts-pastille{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--accent-vif,#EA7A1E);margin:0 2px}
+.ts .ts-chiffre{flex:0 0 auto;min-height:34px;padding:6px 12px;border-radius:999px;border:1px solid #E9D5C1;background:#fff;color:#92400E;
+  font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.ts .ts-chiffre:disabled{opacity:.5}
 .reste-faits{display:block;width:100%;margin:6px 0 2px;padding:9px 0 3px;border:0;border-top:1px solid var(--rule);background:none;
   font:600 13px/1.3 inherit;font-family:inherit;color:var(--ink-2);text-align:left;cursor:pointer}
 .avancement .tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px}
@@ -1018,6 +1024,10 @@ header{overflow-anchor:none}
     </div>
   </div>
 
+  <div class="block reste ts" id="tsBloc" hidden>
+    <div class="reste-tete"><h2>Travaux supplémentaires à chiffrer</h2><span id="tsNb"></span></div>
+    <div id="tsListe"></div>
+  </div>
   <div class="block reste" id="reste" hidden>
     <div class="reste-tete"><h2>Reste à faire</h2><span id="resteNb"></span></div>
     <div id="resteListe"></div>
@@ -1051,7 +1061,7 @@ header{overflow-anchor:none}
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./dossier.js?v=20261007b"></script>
+<script src="./dossier.js?v=20261007c"></script>
 <script src="./qr.js?v=20261004a"></script>
 <script>
 (function(){
@@ -1869,6 +1879,51 @@ function ligneReste(t){
   l.appendChild(c); l.appendChild(corps);
   return l;
 }
+/* ---------- les travaux supplémentaires à chiffrer : ceux du dernier suivi et des points ----------
+   Sans ouvrir les suivis : la demande, qui l'a faite, depuis quand, d'où elle vient ;
+   le bureau la marque « Chiffré » d'ici (elle quitte alors la liste). */
+var TS_DOSSIER=[], TS_CHIFFRER=false;
+function chargerTs(){
+  if(!CHANTIER) return;
+  fetch(API+"?action=ts-dossier&ref="+encodeURIComponent(CHANTIER.ref), {headers:{"x-auth":SESSION.jeton}})
+    .then(function(r){ return r.ok ? r.json() : {ts:[]}; })
+    .then(function(d){ TS_DOSSIER=d.ts||[]; TS_CHIFFRER=!!d.peutChiffrer; peindreTs(); })
+    .catch(function(){});
+}
+function peindreTs(){
+  var bloc=$("tsBloc"); if(!bloc) return;
+  bloc.hidden=!TS_DOSSIER.length;
+  $("tsNb").textContent=TS_DOSSIER.length ? TS_DOSSIER.length+" à chiffrer" : "";
+  var h=$("tsListe"); h.textContent="";
+  TS_DOSSIER.forEach(function(t){
+    var l=document.createElement("div"); l.className="rt-ligne";
+    var pt=document.createElement("span"); pt.className="ts-pastille"; pt.setAttribute("aria-hidden","true");
+    var c=document.createElement("div"); c.className="rt-corps";
+    var b=document.createElement("b"); b.textContent=t.texte;
+    var sm=document.createElement("small");
+    var d=t.depuis ? String(t.depuis).slice(0,10).split("-").reverse().join("/") : "";
+    sm.textContent=[t.qui ? "Demandée par "+t.qui : "", d ? "le "+d+(t.jours ? " (il y a "+t.jours+" j)" : "") : "", t.origine||""].filter(Boolean).join(" · ");
+    c.appendChild(b); c.appendChild(sm);
+    l.appendChild(pt); l.appendChild(c);
+    if(TS_CHIFFRER){
+      var bt=document.createElement("button"); bt.type="button"; bt.className="ts-chiffre"; bt.textContent="Chiffré";
+      bt.title="Marquer cette demande chiffrée ou validée";
+      bt.addEventListener("click", function(){
+        bt.disabled=true;
+        fetch(API+"?action=ts-chiffre", {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton}, body:JSON.stringify({cle:t.cle, id:t.id})})
+          .then(function(r){ return r.json().then(function(x){ return {ok:r.ok, d:x}; }); })
+          .then(function(res){
+            if(!res.ok){ bt.disabled=false; toast(res.d.erreur||"Non enregistré."); return; }
+            TS_DOSSIER=TS_DOSSIER.filter(function(x){ return x!==t; }); peindreTs();
+            toast("Chiffré : « "+t.texte.slice(0,40)+(t.texte.length>40?"…":"")+" ».");
+          })
+          .catch(function(){ bt.disabled=false; toast("Pas de réseau : rien n'a changé."); });
+      });
+      l.appendChild(bt);
+    }
+    h.appendChild(l);
+  });
+}
 function peindreReste(){
   var liste=(CHANTIER && CHANTIER.reste) || [];
   var bloc=$("reste");
@@ -2029,7 +2084,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); peindreRefModif(); peindreNomModif(); peindreNote(); peindrePv(); chargerLiens();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); chargerTs(); peindreRefModif(); peindreNomModif(); peindreNote(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){

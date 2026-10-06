@@ -997,7 +997,7 @@ function texteRdv(t) {
 const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
-  "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages"]);
+  "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -3328,7 +3328,10 @@ async function traiter(req) {
       const visibles = fichiers.filter((f) => !f.brouillon);
       let pv = null;
       if (visibles.length) { try { pv = await pvDe(c); } catch { pv = null; } }
-      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, pv,
+      /* combien de travaux supplémentaires restent à chiffrer : la pastille de la liste */
+      let nbTs = 0;
+      if (visibles.length) { try { nbTs = (await tsDuDossier(visibles)).length; } catch { nbTs = 0; } }
+      if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, pv, ts: nbTs,
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
         ...etatDossier(c),
@@ -3370,6 +3373,40 @@ async function traiter(req) {
       .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }));
     CACHE_TS.set(k, { v, ts });
     return ts;
+  }
+
+  /* les travaux supplémentaires pas encore chiffrés d'un dossier : ceux de son dernier suivi
+     (ils passent d'un suivi au suivant) et les « Demande client » de ses points de chantier */
+  async function tsDuDossier(visibles) {
+    const out = [];
+    const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees).sort((x, y) =>
+      String(y.date || "").localeCompare(String(x.date || "")) || String(y.publie || "").localeCompare(String(x.publie || "")));
+    if (suivis[0]) for (const t of await tsDuSuivi(suivis[0])) out.push({ ...t, cle: suivis[0].cle, source: "suivi", origine: suivis[0].titre || "Suivi de chantier" });
+    for (const pf of visibles.filter((f) => f.type === "point" && f.donnees)) {
+      for (const t of await tsDuSuivi(pf)) out.push({ ...t, cle: pf.cle, source: "point", origine: pf.titre || "Point de chantier" });
+    }
+    return out;
+  }
+  if (action === "ts-dossier") {
+    const ref = String(url.searchParams.get("ref") || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref] || idx.chantiers[slug(ref).toUpperCase()];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const visibles = c.fichiers.filter((f) => voit(personne, f, c) && !f.brouillon);
+    if (!visibles.length && !bureau) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const ts = (await tsDuDossier(visibles)).map((t) => ({ ...t, jours: joursDepuis(t.depuis) }))
+      .sort((a, b) => String(a.depuis || "").localeCompare(String(b.depuis || "")));
+    /* les demandes chiffrées depuis le site (bureau, tableau de bord) : le suivi resté ouvert
+       sur un téléphone les coche aussi, sans quoi il les republierait « à chiffrer » */
+    const chiffres = [];
+    for (const f of visibles.filter((x) => (x.type === "suivi" || x.type === "point") && x.donnees)) {
+      try {
+        const fiche = JSON.parse(await store.get(f.cle.replace(/\.pdf$/, ".json"), { type: "text" }));
+        const l = f.type === "point" ? fiche.demandes : fiche.ts;
+        for (const t of (Array.isArray(l) ? l : [])) if (t && t.fait && t.chiffreLe && t.id) chiffres.push({ id: String(t.id), par: t.chiffrePar || "", le: t.chiffreLe });
+      } catch { /* fiche illisible */ }
+    }
+    return json({ ref: c.ref, ts, chiffres, peutChiffrer: !!bureau });
   }
 
   if (action === "tableau-bord") {
