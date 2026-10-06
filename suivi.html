@@ -965,7 +965,6 @@ a.act[hidden]{display:none}
 
   <div class="block" id="sec-ts">
     <h2>Travaux supplémentaires</h2>
-    <p class="hint sv-aide">Une ligne par demande, au fil de la visite, et en face qui l'a demandée. La case se coche une fois la demande chiffrée ou validée. Les demandes pas encore chiffrées passent d'un suivi au suivant : la liste suit le chantier jusqu'à la fin.</p>
     <div id="ts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="ts_texte" placeholder="Nouvelle demande…" enterkeyhint="done" aria-label="Nouvelle demande de travaux supplémentaires">
@@ -985,7 +984,6 @@ a.act[hidden]{display:none}
     </div>
     <div id="ph_grille"></div>
     <p class="hint ph-site" id="ph_site" hidden></p>
-    <p class="hint" id="ph_aide">« Modifier » sur une photo l'annote : flèches, cercles, texte, cotes, symboles ; on y revient autant qu'on veut. « Croquis » dessine sur une page blanche, rangée avec les photos.</p>
     <div class="sv-option" id="noteOption"><b>Note générale</b><button type="button" class="sv-switch" id="noteBascule" role="switch" aria-checked="false" aria-controls="noteCorps" aria-label="Ajouter une note générale"><span></span></button></div>
     <div id="noteCorps" hidden>
     <label class="f" style="margin-top:8px"><span class="sr-only">Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite." aria-label="Note générale"></textarea></label>
@@ -995,7 +993,6 @@ a.act[hidden]{display:none}
 
   <div class="block replie" id="sec-plans">
     <h2>Plans<span class="sv-nb" id="plansNb"></span><button type="button" class="sv-switch" id="plansBascule" role="switch" aria-checked="false" aria-controls="plansCorps" aria-label="Afficher les plans"><span></span></button></h2>
-    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote. La rubrique est fermée d'office : l'interrupteur, sur son titre, la déplie.</p>
     <div id="plansCorps" hidden>
     <div id="plans_dossier" class="sv-liste"></div>
     <div id="plansListe" style="margin-top:12px"></div>
@@ -1010,7 +1007,6 @@ a.act[hidden]{display:none}
 
   <div class="block" id="sec-reste">
     <h2>Reste à faire</h2>
-    <p class="hint sv-aide">Ce qu'il reste à faire sur le chantier, une tâche par ligne : cochez-la quand elle est faite. Les tâches pas encore faites passent d'un suivi au suivant, jusqu'à la fin du chantier.</p>
     <div id="rf_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="rf_texte" placeholder="Nouvelle tâche…" enterkeyhint="done" aria-label="Nouvelle tâche à faire">
@@ -1021,7 +1017,6 @@ a.act[hidden]{display:none}
 
   <div class="block" id="sec-points">
     <h2>Points bloquants</h2>
-    <p class="hint sv-aide">Comme une to-do : cochez quand le point est levé. Un rappel revient à la date choisie, sur l'accueil du conducteur de travaux. Un repère posé sur un plan est un point bloquant tant qu'il est rouge : passé « En cours » il devient orange, levé il devient vert, ici comme sur le plan.</p>
     <div id="pts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="pts_texte" placeholder="Nouveau point bloquant…" enterkeyhint="done" aria-label="Nouveau point bloquant">
@@ -1034,7 +1029,7 @@ a.act[hidden]{display:none}
     <div id="resume" hidden></div>
     <div class="choix-pub" id="choixPublication">
       <button type="button" class="opt on" data-pub="dossier">
-        <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
+        <b>Dans le dossier</b>
       </button>
     </div>
     <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
@@ -3207,9 +3202,25 @@ function proposerReprise(){
 }
 
 /* ---------- un nouveau suivi ----------
-   Chaque suivi est indépendant : on garde le client, le chantier et le
-   conducteur de travaux, on repart d'une page blanche pour le reste. */
+   Le bouton « Nouveau » (demander) : une page entièrement blanche, rien n'est gardé
+   (client, chantier, conducteur, listes, photos, plans). Une nouvelle visite du même
+   chantier (le lendemain, ou après l'enregistrement) garde le client, le chantier et
+   le conducteur, et reprend ce qui n'est pas fini. */
+function pageBlanche(){
+  var plein = ficheRemplie(S) || (S.client.nom||"").trim() || (S.affaire.chantier||"").trim() || (S.client.adresse||"").trim();
+  if(plein && !window.confirm("Commencer un nouveau suivi ?\n\nTout est effacé : client, chantier, photos, plans, listes. Pensez à enregistrer celui-ci avant."))
+    return;
+  S=blank(); save(); paintForm(); showTab("suivi");
+  /* l'adresse de la page ne remet plus l'ancien chantier au rechargement */
+  try{ if(location.search) history.replaceState(null, "", location.pathname); }catch(e){}
+  try{ peindreNavChantier(); }catch(e){}
+  try{ equipeDuDossier(); }catch(e){}
+  var b=$("btnSuivant"); if(b) b.remove();
+  $("pubEtat").textContent="";
+  toast("Nouveau suivi : page blanche.");
+}
 function nouveauSuivi(demander){
+  if(demander) return pageBlanche();
   var plein = (S.ts||[]).length || (S.reste||[]).length || (S.photos||[]).length || (S.points||[]).length || (S.plans||[]).length
     || (S.visite.objet||"").trim() || (S.visite.note||"").trim();
   if(demander && plein && !window.confirm("Commencer un nouveau suivi ?\n\nLe client et le chantier sont gardés ; les photos, plans et points repartent à zéro, sauf les travaux pas encore chiffrés, le reste à faire pas encore fait et les repères pas encore faits (avec leur plan). Pensez à enregistrer celui-ci avant."))
