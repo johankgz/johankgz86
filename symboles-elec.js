@@ -262,13 +262,17 @@
     var utiles = o.tous ? LISTE : LISTE.filter(function(s){ return (poses||[]).some(function(p){ return canon(p.cle)===s.cle; }); });
     g(0,"SECTION", 2,"HEADER", 9,"$ACADVER", 1,"AC1009", 9,"$INSBASE", 10,0,20,0,30,0, 0,"ENDSEC");
     g(0,"SECTION", 2,"TABLES");
-    g(0,"TABLE", 2,"LTYPE", 70,1, 0,"LTYPE", 2,"CONTINUOUS", 70,0, 3,"Solid line", 72,65, 73,0, 40,0, 0,"ENDTAB");
+    /* o.ltypes : des types de ligne en plus ([nom, description, [longueurs : + trait, − vide, 0 point]]) */
+    var lt=o.ltypes||[];
+    g(0,"TABLE", 2,"LTYPE", 70,1+lt.length, 0,"LTYPE", 2,"CONTINUOUS", 70,0, 3,"Solid line", 72,65, 73,0, 40,0);
+    lt.forEach(function(t){ var tot=t[2].reduce(function(a,b){ return a+Math.abs(b); }, 0); g(0,"LTYPE", 2,t[0], 70,0, 3,t[1], 72,65, 73,t[2].length, 40,tot); t[2].forEach(function(x){ g(49,x); }); });
+    g(0,"ENDTAB");
     var calques=[["0",7]];
     GROUPES.forEach(function(k){ var c=LISTE.filter(function(s){ return s.groupe===k; })[0]; if(c) calques.push([CALQUES[k], ACI[c.couleur]||7]); });
     calques.push(["ELEC-REPERES",7]);
     (o.calquesExtra||[]).forEach(function(c){ calques.push(c); });
     g(0,"TABLE", 2,"LAYER", 70,calques.length);
-    calques.forEach(function(c){ g(0,"LAYER", 2,c[0], 70,0, 62,c[1], 6,"CONTINUOUS"); });
+    calques.forEach(function(c){ g(0,"LAYER", 2,c[0], 70,0, 62,c[1], 6,c[2]||"CONTINUOUS"); });
     g(0,"ENDTAB", 0,"ENDSEC");
     g(0,"SECTION", 2,"BLOCKS");
     utiles.forEach(function(s){

@@ -7,7 +7,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B0E12">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20261002b"></script>
+<script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
@@ -551,7 +551,7 @@ body.clair #scene{background:#FFFFFF}
     <span class="groupe" id="grpStyleG" hidden>
       <span class="seg" id="segEpG" role="group" aria-label="Épaisseur du trait"><button type="button" data-e="fin">Fin</button><button type="button" data-e="moyen">Moyen</button><button type="button" data-e="epais">Épais</button></span>
       <span class="seg coul-g" id="segCoulG" role="group" aria-label="Couleur"><button type="button" data-c="noir" aria-label="Noir"><i style="background:#1F2933"></i></button><button type="button" data-c="rouge" aria-label="Rouge"><i style="background:#DC2626"></i></button><button type="button" data-c="bleu" aria-label="Bleu"><i style="background:#2563EB"></i></button><button type="button" data-c="vert" aria-label="Vert"><i style="background:#16A34A"></i></button><button type="button" data-c="orange" aria-label="Orange"><i style="background:#EA580C"></i></button></span>
-      <button class="bt" id="btTiretsG" type="button" aria-pressed="false">Tirets</button>
+      <button class="bt" id="btTiretsG" type="button" aria-pressed="false">Tirets</button><button class="bt" id="btPointsG" type="button" aria-pressed="false" title="Pointillés : une ligne de points">Pointillés</button>
       <span class="seg" id="segRempG" role="group" aria-label="Remplissage"><button type="button" data-r="aucun">Vide</button><button type="button" data-r="gris">Gris</button><button type="button" data-r="hach">Hachures</button></span>
       <button class="bt" id="btDoubleG" type="button" aria-pressed="false" hidden>Double flèche</button>
       <span class="seg" id="segTailleG" role="group" aria-label="Taille du texte" hidden><button type="button" data-f="0.8">A−</button><button type="button" data-f="1.25">A+</button></span>
@@ -2956,6 +2956,12 @@ function geosAccroche(){ return geosVue().filter(function(o){ return o.id!==GEO_
 function geoDe(id){ var l=geos(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
 function fermee(o){ return o.t==="rect" || o.t==="rond" || o.t==="ellipse" || o.t==="triangle" || o.t==="hachure" || ((o.t==="poly" || o.t==="spline") && !!o.ferme); }
 function largeurG(o){ var e=EP_G[o.ep]||EP_G.moyen; return PX_MM ? e[1]*PX_MM : e[0]; }
+/* le motif du trait : plein, tirets (o.tir===true) ou pointillés (o.tir==="pts" : des points ronds,
+   espacés selon l'épaisseur, le bout arrondi du trait fait le point) */
+function motifTrait(o, w){
+  if(o.tir==="pts"){ var e=Math.max(w||1, 0.5); return [0.001, PX_MM ? Math.max(1.1*PX_MM, e*3) : Math.max(5, e*3)]; }
+  return o.tir ? (PX_MM ? [3*PX_MM, 2*PX_MM] : [9,6]) : [];
+}
 function ptsRond(o, n){ n=n||64; var c=o.pts[0], out=[]; for(var i=0;i<n;i++){ var a=i/n*Math.PI*2; out.push([c[0]+o.r*Math.cos(a), c[1]+o.r*Math.sin(a)]); } return out; }
 function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.t==="ellipse" ? ptsEllipse(o) : o.t==="arc" ? ptsArc(o) : o.t==="spline" ? ptsSpline(o) : o.pts; }
 /* La spline : une courbe lisse qui passe exactement par chacun de ses points (Catmull-Rom
@@ -3282,7 +3288,7 @@ function peindreGeo(c, E, coulTrait, orange){
     c.restore();
   });
   function chemin(pts, ferme){ c.beginPath(); pts.forEach(function(q, i){ var P=E(q); if(i) c.lineTo(P[0],P[1]); else c.moveTo(P[0],P[1]); }); if(ferme) c.closePath(); }
-  function tirets(o){ c.setLineDash(o.tir ? (PX_MM ? [3*PX_MM, 2*PX_MM] : [9,6]) : []); }
+  function tirets(o){ c.setLineDash(motifTrait(o, c.lineWidth)); }
   function texteTourne(s, P, ang, px, col){
     c.save(); c.translate(P[0], P[1]);
     var a=-ang; if(a>Math.PI/2) a-=Math.PI; if(a<-Math.PI/2) a+=Math.PI;
@@ -3381,10 +3387,15 @@ function lignesHachure(poly, sp){
   }
   return out;
 }
+/* les types de ligne du DXF, à l'échelle du papier : tirets de 3 mm (2 mm de vide), points tous les 1,5 mm */
+function typesLigneDxf(){
+  var mm=(MEP && MEP.echelle>0 ? MEP.echelle : 50)/DESSIN_MM;
+  return [["TIRETS", "Tirets __ __ __", [3*mm, -2*mm]], ["POINTILLES", "Pointilles . . . .", [0, -1.5*mm]]];
+}
 function dxfGeo(g){
   var n=MEP && MEP.echelle>0 ? MEP.echelle : 50, sp=2*n/DESSIN_MM;
   geosVue().forEach(function(o){
-    var cal=o.t==="cote" ? "COTES" : (o.tir ? "DESSIN_TIRETS" : "DESSIN"), col=COUL_DXF[o.coul]||7;
+    var cal=o.t==="cote" ? "COTES" : (o.tir==="pts" ? "DESSIN_POINTILLES" : o.tir ? "DESSIN_TIRETS" : "DESSIN"), col=COUL_DXF[o.coul]||7;
     function ligne(a, b, calq){ g(0,"LINE", 8,calq||cal, 62,col, 10,a[0],20,a[1],30,0, 11,b[0],21,b[1],31,0); }
     function poly(pts, ferme){ g(0,"POLYLINE", 8,cal, 62,col, 66,1, 10,0,20,0,30,0, 70,ferme?1:0); pts.forEach(function(q){ g(0,"VERTEX", 8,cal, 10,q[0],20,q[1],30,0); }); g(0,"SEQEND", 8,cal); }
     function texte(s, p, h, ang){ g(0,"TEXT", 8,cal, 62,col, 10,p[0],20,p[1],30,0, 40,h, 1,String(s).replace(/[\r\n]+/g," "), 50,ang||0, 72,1, 73,2, 11,p[0],21,p[1],31,0); }
@@ -3949,7 +3960,9 @@ function majGeoPanneau(o, t){
   if(montre){
     Array.prototype.forEach.call($("segEpG").children, function(b){ b.classList.toggle("on", b.dataset.e===st.ep); });
     Array.prototype.forEach.call($("segCoulG").children, function(b){ b.classList.toggle("on", b.dataset.c===st.coul); });
-    $("btTiretsG").classList.toggle("on", !!st.tir); $("btTiretsG").setAttribute("aria-pressed", st.tir?"true":"false");
+    var tirG=st.tir===true, ptsG=st.tir==="pts";
+    $("btTiretsG").classList.toggle("on", tirG); $("btTiretsG").setAttribute("aria-pressed", tirG?"true":"false");
+    $("btPointsG").classList.toggle("on", ptsG); $("btPointsG").setAttribute("aria-pressed", ptsG?"true":"false");
     var typ = geoSel ? geoSel.t : OUTIL_D, ferme = geoSel ? fermee(geoSel) : (typ==="rect" || typ==="rond" || typ==="ellipse" || typ==="triangle" || typ==="poly" || typ==="spline");
     $("segRempG").hidden = !ferme || typ==="hachure";
     Array.prototype.forEach.call($("segRempG").children, function(b){ b.classList.toggle("on", b.dataset.r===(st.remp||"aucun")); });
@@ -3957,7 +3970,7 @@ function majGeoPanneau(o, t){
     if(geoSel){ $("btDoubleG").classList.toggle("on", !!geoSel.double); }
     $("segTailleG").hidden = !(geoSel && (geoSel.t==="gtexte" || geoSel.t==="cote" || geoSel.t==="fleche"));
     $("segEpG").hidden = typ==="gtexte";
-    $("btTiretsG").hidden = typ==="gtexte" || typ==="cote";
+    $("btTiretsG").hidden = $("btPointsG").hidden = typ==="gtexte" || typ==="cote";
   }
   /* les cotes exactes de la forme choisie */
   var dim = geoSel && (geoSel.t==="rect" || geoSel.t==="rond" || geoSel.t==="ellipse" || geoSel.t==="trait" || geoSel.t==="fleche");
@@ -3994,7 +4007,9 @@ function majGeoPanneau(o, t){
   $("segEpG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) appliquer("ep", b.dataset.e); });
   $("segCoulG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) appliquer("coul", b.dataset.c); });
   $("segRempG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) appliquer("remp", b.dataset.r); });
-  $("btTiretsG").addEventListener("click", function(){ var o=D_SEL && D_SEL.t==="geo" ? objetSel() : STYLE_G; appliquer("tir", !(o && o.tir)); });
+  /* Tirets et Pointillés : l'un ou l'autre ; retouché, le trait redevient plein */
+  $("btTiretsG").addEventListener("click", function(){ var o=D_SEL && D_SEL.t==="geo" ? objetSel() : STYLE_G; appliquer("tir", !(o && o.tir===true)); });
+  $("btPointsG").addEventListener("click", function(){ var o=D_SEL && D_SEL.t==="geo" ? objetSel() : STYLE_G; appliquer("tir", o && o.tir==="pts" ? false : "pts"); });
   $("btDoubleG").addEventListener("click", function(){ modifierSel(function(o){ o.double=!o.double; }); });
   $("segTailleG").addEventListener("click", function(e){
     var b=e.target.closest("button"); if(!b) return; var f=Number(b.dataset.f);
@@ -4086,7 +4101,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:PV_CALQUES.concat([["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7],["HACHURES",8],["COTES",7]])});
+    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:PV_CALQUES.concat([["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
@@ -4534,7 +4549,7 @@ function geo3D(sc){
   }
   function ligne(pts, z, o, ferme){
     var geo=new THREE.BufferGeometry().setFromPoints(pts.concat(ferme ? [pts[0]] : []).map(function(q){ return Vo(o, q, z); }));
-    var mat = o.tir ? new THREE.LineDashedMaterial({color:couleurTrait(o), dashSize:0.06, gapSize:0.04}) : new THREE.LineBasicMaterial({color:couleurTrait(o)});
+    var mat = o.tir ? new THREE.LineDashedMaterial(o.tir==="pts" ? {color:couleurTrait(o), dashSize:0.008, gapSize:0.025} : {color:couleurTrait(o), dashSize:0.06, gapSize:0.04}) : new THREE.LineBasicMaterial({color:couleurTrait(o)});
     var li=new THREE.Line(geo, mat); if(o.tir) li.computeLineDistances(); sc.add(li); if(V3.geoObjs) V3.geoObjs.push(li);
   }
   function hachures3D(pts, z, o){
@@ -7502,7 +7517,7 @@ brancherPv();
 /* pour les essais */
 window.__dwg={pvEtiquettes:function(){ return PV_ETIQ; }, pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
-  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
+  deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, rendrePlan:function(dpi){ return rendrePlan(echelleMep(), dpi||150); }, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 })();
 </script>
 <script src="./pied.js?v=20261003a" defer></script>
