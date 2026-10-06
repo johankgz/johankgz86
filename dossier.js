@@ -815,8 +815,9 @@ function retenirPli(ref, ouvert){
   try{ sessionStorage.setItem("rapports:pli", JSON.stringify(PLI)); }catch(e){}
 }
 /* Les sous-dossiers d'un dossier : « Suivi de chantier », « Plans »
-   (documents techniques de nature Plan), « Commandes » et « Photos du
-   chantier ». Repliés, avec leur nombre de documents ; les plus récents
+   (documents techniques de nature Plan, et eux seuls), « Documents
+   techniques » (fiches techniques, schémas, notices, autres),
+   « Commandes » et « Photos du chantier ». Repliés, avec leur nombre de documents ; les plus récents
    en premier une fois ouverts. Ouvert ou fermé tient jusqu'à la fin de
    la visite, dossier par dossier. */
 var SOUS_DOSSIERS={
@@ -824,6 +825,8 @@ var SOUS_DOSSIERS={
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
   plans:{nom:"Plans", classe:"sous-dossier dossier-plans", memo:"rapports:plans", mot:"plan",
     ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'},
+  techniques:{nom:"Documents techniques", classe:"sous-dossier dossier-techniques", memo:"rapports:techniques", mot:"document",
+    ico:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>'},
   commandes:{nom:"Commandes", classe:"sous-dossier dossier-commandes", memo:"rapports:commandes", mot:"commande",
     aFaire:function(f){ return !f.saisie; }, motAFaire:"à saisir",
     ico:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>'},
@@ -835,7 +838,7 @@ function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
   if(f.type==="commande") return "commandes";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
-  if(f.type==="technique" && /^plans?$/i.test(String(f.visite||"").trim())) return "plans";
+  if(f.type==="technique") return /^plans?$/i.test(String(f.visite||"").trim()) ? "plans" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";
   return null;
 }
