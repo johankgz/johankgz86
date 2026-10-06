@@ -190,14 +190,20 @@ body.connexion button.lien{color:var(--accent)}
 .ba-droite a.cloche{text-decoration:none}
 /* les bulles rondes gardent leur taille (le doigt), ce sont les libellés qui se replient */
 .barre-actions .ba-droite .cloche{flex:0 0 auto}
-@media (max-width:389px){
-  .barre-actions .btn-outils.todo span:not(.nb){display:none}
-  .barre-actions .btn-outils.todo{padding:0 10px}
-}
-@media (max-width:340px){
-  .barre-actions #btnCal span:not(.nb){display:none}
-  .barre-actions #btnCal{padding:0 10px}
-}
+/* resserrée : la police et les marges d'un petit téléphone, avant de replier un libellé */
+.barre-actions.serre{gap:5px}
+.barre-actions.serre .btn-outils{min-height:36px;padding:0 8px 0 7px;gap:4px;font-size:12.5px;letter-spacing:-.02em}
+.barre-actions.serre .btn-outils svg{width:16px;height:16px}
+.barre-actions.serre .ba-droite .cloche{width:36px;height:36px}
+.barre-actions.serre.repli-1 #btnTodo,.barre-actions.serre.repli-2 #btnCal,.barre-actions.serre.repli-3 #btnOutils{width:36px;height:36px}
+/* quand la ligne manque de place, les libellés se replient un à un (To do list, puis Calendrier,
+   puis Outils) : le bouton devient une bulle ronde, de la taille des autres ; rien ne se chevauche */
+.barre-actions.repli-1 #btnTodo span:not(.nb),
+.barre-actions.repli-2 #btnCal span:not(.nb),
+.barre-actions.repli-3 #btnOutils span:not(.nb){display:none}
+.barre-actions.repli-1 #btnTodo,
+.barre-actions.repli-2 #btnCal,
+.barre-actions.repli-3 #btnOutils{width:44px;height:44px;min-height:0;padding:0;justify-content:center;border-radius:50%}
 .ba-droite .cloche.discu .nb{background:var(--accent-vif,#EA7A1E)}
 .ba-droite .btn-outils.todo{position:relative;margin:0;white-space:nowrap}
 .ba-droite .btn-outils.todo .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;
@@ -207,7 +213,7 @@ body.connexion button.lien{color:var(--accent)}
 
 /* Outils, Calendrier, la to-do list et la cloche : une seule ligne, même sur un petit téléphone */
 .barre-actions{flex-wrap:nowrap}
-.barre-actions .btn-outils{flex:0 1 auto;min-width:0}
+.barre-actions .btn-outils{flex:0 0 auto}
 .barre-actions .btn-outils svg{flex:0 0 auto}
 @media (max-width:480px){
   .barre-actions{gap:6px}
@@ -216,6 +222,7 @@ body.connexion button.lien{color:var(--accent)}
   .barre-actions .btn-outils svg{width:17px;height:17px}
   .barre-actions .ba-droite .cloche{width:38px;height:38px}
   .barre-actions .ba-droite .cloche svg{width:19px;height:19px}
+  .barre-actions.repli-1 #btnTodo,.barre-actions.repli-2 #btnCal,.barre-actions.repli-3 #btnOutils{width:38px;height:38px}
 }
 @media (max-width:380px){
   .barre-actions{gap:5px}
@@ -223,6 +230,7 @@ body.connexion button.lien{color:var(--accent)}
   .barre-actions .btn-outils{min-height:36px;padding:0 8px 0 7px;gap:4px;font-size:12.5px;letter-spacing:-.02em}
   .barre-actions .btn-outils svg{width:16px;height:16px}
   .barre-actions .ba-droite .cloche{width:36px;height:36px}
+  .barre-actions.repli-1 #btnTodo,.barre-actions.repli-2 #btnCal,.barre-actions.repli-3 #btnOutils{width:36px;height:36px}
 }
 .btn-cal{position:relative;white-space:nowrap}
 .btn-cal .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;
@@ -1601,7 +1609,7 @@ body.connexion .ciel{display:none}
       </div>
     </div>
     <div class="barre-actions" id="barreActions">
-    <button type="button" class="btn-outils" id="btnOutils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
+    <button type="button" class="btn-outils" id="btnOutils" aria-label="Outils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
       <span>Outils</span>
     </button>
@@ -3176,6 +3184,7 @@ function peindreNotifs(s, ch, relances){
   nuage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5z"/></svg>';
   var droite=$("baDroite");
   if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(discu); droite.appendChild(nuage); droite.appendChild(cloche); }
+  ajusterBarre();
   peindreDiscu();
   var corps=$("fcCorps"); if(corps){ corps.textContent=""; corps.appendChild(panneau); }
   peindreTodo();
@@ -3783,6 +3792,31 @@ $("m_valider").addEventListener("click", function(){
     });
 });
 $("m_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("m_valider").click(); });
+
+/* la barre Outils · Calendrier · To do list · bulles : d'après la place réelle (largeur, police,
+   compteurs), les libellés se replient un à un jusqu'à ce que tout tienne sur la ligne */
+function ajusterBarre(){
+  var b=$("barreActions"); if(!b || !b.offsetWidth) return;
+  var ETAPES=["serre","repli-1","repli-2","repli-3"];
+  ETAPES.forEach(function(c){ b.classList.remove(c); });
+  /* la largeur des boutons eux-mêmes (les compteurs qui dépassent en haut à droite ne comptent pas) */
+  function besoin(){
+    var l=[$("btnOutils"), $("btnCal")].concat(Array.prototype.slice.call(($("baDroite")||{}).children||[])).filter(function(e){ return e && e.offsetWidth; });
+    var g=parseFloat(getComputedStyle(b).columnGap)||0, w=0;
+    l.forEach(function(e){ w+=e.getBoundingClientRect().width; });
+    return w+g*Math.max(0, l.length-1);
+  }
+  var dispo=b.getBoundingClientRect().width;
+  /* d'abord resserrer (police et marges plus petites), puis replier un libellé à la fois */
+  for(var k=0; k<ETAPES.length && besoin() > dispo+0.5; k++) b.classList.add(ETAPES[k]);
+}
+(function(){
+  var b=$("barreActions"); if(!b) return;
+  try{ new ResizeObserver(function(){ ajusterBarre(); }).observe(b); }catch(e){ window.addEventListener("resize", ajusterBarre); }
+  /* un compteur qui change (23 tâches, 1 alerte) change la place : on revoit la ligne */
+  try{ new MutationObserver(function(){ ajusterBarre(); }).observe(b, {childList:true, subtree:true, characterData:true}); }catch(e){}
+  try{ document.fonts && document.fonts.ready.then(ajusterBarre); }catch(e){}
+})();
 
 /* la recherche Ctrl K (ou d'un toucher), sur ordinateur et tablette */
 (function(){
