@@ -187,6 +187,8 @@ body.connexion button.lien{color:var(--accent)}
   display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--rouge);color:#fff;
   font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .ba-droite .cloche .nb[hidden]{display:none}
+.ba-droite a.cloche{text-decoration:none}
+.ba-droite .cloche.discu .nb{background:var(--accent-vif,#EA7A1E)}
 .ba-droite .btn-outils.todo{position:relative;margin:0;white-space:nowrap}
 .ba-droite .btn-outils.todo .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;
   display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:var(--accent-vif,#EA7A1E);color:#fff;
@@ -1235,7 +1237,7 @@ body.connexion .ciel{display:none}
 <script src="./qr.js?v=20261004a" defer></script>
 <script src="./carte.js?v=20261005a" defer></script>
 <script src="./finitions.js?v=20261004a" defer></script>
-<script src="./palette.js?v=20261004a" defer></script>
+<script src="./palette.js?v=20261006a" defer></script>
 </head>
 <body>
 <!-- ===================== LA VITRINE (avant la connexion) =====================
@@ -2893,12 +2895,27 @@ function rafraichir(e){
     chargerDemandes(SESSION_COURANTE);
     chargerTaches(SESSION_COURANTE);
     chargerListes(SESSION_COURANTE);
+    discussionsNonLues(SESSION_COURANTE);
   }
 }
 document.addEventListener("visibilitychange", rafraichir);
 window.addEventListener("focus", rafraichir);
 window.addEventListener("pageshow", rafraichir);
 
+/* ---------- les discussions de l'équipe : combien de messages non lus ---------- */
+var DISCU_NB=0;
+function discussionsNonLues(s){
+  fetch(apiUrl("discu-non-lus"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ DISCU_NB=d.total||0; peindreDiscu(); })
+    .catch(function(){});
+}
+function peindreDiscu(){
+  var b=$("btnDiscu"); if(!b) return;
+  var nb=b.querySelector(".nb");
+  if(nb){ nb.hidden=!DISCU_NB; nb.textContent=DISCU_NB>99 ? "99+" : String(DISCU_NB); }
+  b.setAttribute("aria-label", DISCU_NB ? "Discussions, "+DISCU_NB+" message"+(DISCU_NB>1?"s":"")+" non lu"+(DISCU_NB>1?"s":"") : "Discussions");
+}
 function messagesNonLus(s){
   fetch(apiUrl("messages-non-lus"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -3026,6 +3043,7 @@ function charger(s){
   savATerminer(s);
   demandesContact(s);
   messagesNonLus(s);
+  discussionsNonLues(s);
   SESSION_COURANTE=s;
   fetch(apiUrl("liste"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.json(); })
@@ -3135,8 +3153,15 @@ function peindreNotifs(s, ch, relances){
   todo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/>'
     +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span>To do list</span><span class="nb" hidden></span>';
   todo.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); location.href="./notes.html"; });
+  /* les discussions de l'équipe : une bulle ronde, comme la cloche, et ses non-lus */
+  var discu=document.createElement("a");
+  discu.className="cloche discu"; discu.id="btnDiscu"; discu.href="./discussions.html";
+  discu.setAttribute("aria-label","Discussions"); discu.title="Discussions";
+  discu.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>'
+    +'<path d="M8 10h8M8 13h5"/></svg><span class="nb" hidden></span>';
   var droite=$("baDroite");
-  if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(cloche); }
+  if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(discu); droite.appendChild(cloche); }
+  peindreDiscu();
   var corps=$("fcCorps"); if(corps){ corps.textContent=""; corps.appendChild(panneau); }
   peindreTodo();
   peindreCloche();

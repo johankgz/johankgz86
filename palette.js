@@ -55,6 +55,7 @@
     ["./dwg.html", "Plan · dessin, cotes et symboles", "", "dwg dxf 3d toiture photovoltaique"],
     ["./knx.html", "Adresses de groupe KNX", "", "domotique ets"],
     ["./notes.html", "To do list et notes", "", "taches"],
+    ["./discussions.html", "Discussions", "", "messages groupe pole equipe photo croquis fichier"],
     ["./plans.html", "Analyse de plan", "", "pdf symboles", "bureau"],
     ["./equipe.html", "Équipe et comptes", "", "utilisateurs societe", "admin"],
     ["./compte.html", "Mon compte", "", "mot de passe apparence theme sombre clair"],

@@ -6,6 +6,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { dossierDonnees } from "./magasin-fichiers.mjs";
 import { zipFlux, fichiersDe } from "./export.mjs";
+import { discussions } from "./discussions.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -1375,6 +1376,14 @@ async function traiter(req) {
   }
   store = magasinSociete(personne.societe);
   if (personne.societe === "demo") { try { await garnirDemo(store); } catch { /* démo vide */ } }
+
+  /* ---------- les discussions de l'équipe (serveur/discussions.mjs) ---------- */
+  if (action.startsWith("discu-")) {
+    const comptesSoc = await lireComptes(personne.societe);
+    const notifier = (noms, charge) => prevenirPush(store, magasinAnnuaire(), noms, "messages", charge, contactPush(url.origin),
+      { comptes: comptesSoc, exclure: [personne.nom] }).catch(() => {});
+    return discussions(action, { req, url, store, personne, json, lireComptes: async () => comptesSoc, notifier });
+  }
 
   async function lireIndex() {
     return (await store.get(INDEX, { type: "json" })) || { chantiers: {} };

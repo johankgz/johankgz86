@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<script src="./theme.js?v=20261004b"></script>
+<script src="./dates.js?v=20261001a"></script>
+<script src="./reseau.js?v=20261006b"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
+<meta name="theme-color" content="#0A0E14">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<title>Discussions — Suivi travaux 360</title>
+<style>
+/* =====================================================================
+   Discussions de l'équipe : à gauche les fils, à droite celui qu'on lit.
+   Sur le téléphone, l'un puis l'autre (« Discussions » pour revenir).
+   ===================================================================== */
+@font-face{font-family:"Plus Jakarta Sans";src:url("./polices/jakarta-var.woff2") format("woff2-variations");font-weight:200 800;font-style:normal;font-display:swap}
+:root{
+  --g-900:#0A0E14;--g-800:#10161F;--g-700:#1A2230;--trait-tech:rgba(255,255,255,.10);
+  --bg:#383E42;--card:#FFFFFF;--field:#EFF1F4;--rule:rgba(10,14,20,.09);
+  --ink:#0C1119;--ink-2:#4B5563;--ink-3:#6B7684;
+  --accent:#B45309;--accent-fonce:#92400E;--accent-vif:#FB923C;--accent-soft:#FDF4EA;
+  --data:#0E7490;--data-vif:#22D3EE;--data-soft:#E7F4F7;
+  --vert:#3F6B52;--vert-soft:#EAF2ED;--rouge:#A03A33;--rouge-soft:#F8EDEB;
+  --sur-fond:#E9ECF2;--sur-fond-2:#AEB7BF;
+  --r:10px;--ombre:0 1px 2px rgba(10,14,20,.05),0 10px 24px -14px rgba(10,14,20,.35);
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  --haut-tete:58px;
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%;height:100%}
+body{margin:0;min-height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45;
+  -webkit-font-smoothing:antialiased;letter-spacing:-.006em}
+button,input,textarea{font-family:inherit}
+button{cursor:pointer}
+a:focus-visible,button:focus-visible,input:focus-visible,textarea:focus-visible,label:focus-within{outline:3px solid var(--accent-vif);outline-offset:2px}
+[hidden]{display:none!important}
+.vh{position:absolute!important;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* ---------- l'en-tête : le châssis graphite ---------- */
+header{position:sticky;top:0;z-index:20;background:var(--g-900);color:#E7ECF2;border-bottom:1px solid var(--trait-tech);
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:10px;min-height:var(--haut-tete)}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%)}
+header a.menu{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);color:#EDF1F6;font-size:13.5px;font-weight:600;text-decoration:none}
+header h1{margin:0;font-size:19px;font-weight:600;color:#F2F5F9;flex:1;min-width:0}
+.b-nouv{display:inline-flex;align-items:center;gap:6px;min-height:40px;padding:0 14px;border-radius:999px;border:0;background:var(--accent-vif);
+  color:#0A0E14;font-size:14px;font-weight:700}
+.b-nouv svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}
+
+/* ---------- la mise en page ---------- */
+main.disc{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;max-width:1180px;margin:0 auto;padding:14px 16px;
+  height:calc(100dvh - var(--haut-tete) - env(safe-area-inset-top,0px))}
+.pan{background:var(--card);border-radius:var(--r);box-shadow:var(--ombre);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+@media (max-width:860px){
+  main.disc{grid-template-columns:minmax(0,1fr);padding:0;gap:0;height:calc(100dvh - var(--haut-tete) - env(safe-area-inset-top,0px))}
+  .pan{border-radius:0;box-shadow:none}
+  body:not(.dans-fil) #vueFil{display:none}
+  body.dans-fil #vueListe{display:none}
+}
+@media (min-width:861px){ .retour{display:none!important} }
+
+/* ---------- la liste des fils ---------- */
+.l-tete{padding:12px 12px 8px;border-bottom:1px solid var(--rule)}
+.l-tete input{width:100%;min-height:42px;padding:9px 12px 9px 36px;border:1px solid var(--rule);border-radius:8px;background:var(--field) no-repeat 11px 50%/16px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B7684' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='M20 20l-3.6-3.6'/%3E%3C/svg%3E");font-size:15px;color:var(--ink)}
+.fils{list-style:none;margin:0;padding:4px 0;overflow-y:auto;flex:1}
+.fils li{margin:0}
+.fils button.f{display:flex;align-items:center;gap:11px;width:100%;padding:11px 14px;border:0;background:none;text-align:left;color:inherit;border-bottom:1px solid var(--rule)}
+.fils button.f:hover{background:#F7F8FA}
+.fils button.f[aria-current="true"]{background:var(--accent-soft)}
+.av{flex:0 0 auto;width:42px;height:42px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:#fff;background:var(--data)}
+.av.groupe{background:var(--g-700)}
+.av svg{width:21px;height:21px;stroke:#fff;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.f .txt{flex:1;min-width:0}
+.f .l1{display:flex;align-items:baseline;gap:8px}
+.f .nom{flex:1;min-width:0;font-size:15px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f .heure{flex:0 0 auto;font-size:12px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.f .l2{display:flex;align-items:center;gap:8px;margin-top:2px}
+.f .ap{flex:1;min-width:0;font-size:13.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.f .nb{flex:0 0 auto;min-width:21px;height:21px;padding:0 6px;border-radius:999px;background:var(--accent);color:#fff;font-size:12px;font-weight:700;display:inline-flex;align-items:center;justify-content:center}
+.f.non-lu .nom,.f.non-lu .ap{color:var(--ink)}
+.vide{padding:28px 18px;text-align:center;color:var(--ink-3);font-size:14.5px}
+.vide b{display:block;color:var(--ink);font-size:16px;margin-bottom:6px}
+.vide .b-nouv{margin-top:14px}
+
+/* ---------- le fil ---------- */
+.fil-tete{display:flex;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--rule);min-height:62px}
+.retour{display:inline-flex;align-items:center;gap:4px;min-height:40px;padding:0 10px 0 6px;border-radius:8px;border:0;background:var(--field);color:var(--ink);font-size:14px;font-weight:600}
+.retour svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.fil-titre{flex:1;min-width:0;border:0;background:none;text-align:left;padding:4px 2px;color:inherit}
+.fil-titre b{display:block;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.fil-titre span{display:block;font-size:12.5px;color:var(--ink-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.b-icone{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:0;background:var(--field);color:var(--ink);display:inline-flex;align-items:center;justify-content:center}
+.b-icone svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.messages{flex:1;overflow-y:auto;padding:14px 14px 8px;background:#F3F5F8;display:flex;flex-direction:column;gap:4px;overscroll-behavior:contain}
+.jour{align-self:center;margin:10px 0 6px;padding:3px 12px;border-radius:999px;background:rgba(10,14,20,.07);color:var(--ink-2);font-size:12px;font-weight:600}
+.info{align-self:center;max-width:90%;margin:6px 0;color:var(--ink-3);font-size:12.5px;text-align:center}
+.m{display:flex;flex-direction:column;align-items:flex-start;max-width:min(78%,560px)}
+.m.moi{align-self:flex-end;align-items:flex-end}
+.m .qui{font-size:12px;font-weight:700;color:var(--data);margin:8px 0 2px 10px}
+.bulle{position:relative;padding:8px 12px 6px;border-radius:14px 14px 14px 4px;background:#fff;box-shadow:0 1px 1px rgba(10,14,20,.08);
+  font-size:15px;white-space:pre-wrap;word-break:break-word;overflow-wrap:anywhere}
+.m.moi .bulle{background:#FFE9D3;border-radius:14px 14px 4px 14px}
+.bulle .q{display:block;margin-top:2px;text-align:right;font-size:11px;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.bulle.retire{font-style:italic;color:var(--ink-3);background:transparent;box-shadow:none;border:1px dashed var(--rule)}
+.bulle a{color:var(--accent-fonce)}
+.bulle .img{display:block;margin:2px -6px 4px;border-radius:10px;overflow:hidden;background:#E6E9EE;cursor:zoom-in;border:0;padding:0;max-width:300px}
+.bulle .img img{display:block;width:100%;height:auto;max-height:340px;object-fit:cover}
+.bulle .pj{display:flex;align-items:center;gap:10px;margin:2px 0 4px;padding:9px 10px;border-radius:10px;background:rgba(10,14,20,.05);min-width:220px;max-width:320px}
+.pj .ico{flex:0 0 auto;width:38px;height:44px;border-radius:6px;background:var(--data);color:#fff;font-size:10px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px;letter-spacing:.03em}
+.pj .ico.pdf{background:#B42318}.pj .ico.xls{background:#3F6B52}.pj .ico.doc{background:#1E5BB8}.pj .ico.dwg{background:#5B5F80}
+.pj .d{flex:1;min-width:0}
+.pj .d b{display:block;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pj .d span{font-size:12px;color:var(--ink-3)}
+.pj .acts{display:flex;gap:6px}
+.pj .acts a{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border-radius:50%;background:#fff;color:var(--ink);text-decoration:none}
+.pj .acts svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.b-retirer{position:absolute;top:-8px;left:-8px;width:28px;height:28px;border-radius:50%;border:1px solid var(--rule);background:#fff;color:var(--rouge);
+  display:none;align-items:center;justify-content:center;box-shadow:var(--ombre);padding:0}
+.b-retirer svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round}
+.m.moi .bulle:hover .b-retirer,.m.moi .bulle.actif .b-retirer,.m.moi .bulle:focus-within .b-retirer{display:inline-flex}
+.vu{font-size:11.5px;color:var(--ink-3);margin:2px 4px 0}
+.plus-ancien{align-self:center;margin:4px 0 8px}
+
+/* ---------- écrire ---------- */
+.attente{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px 0;background:#fff;border-top:1px solid var(--rule)}
+.attente[hidden]{display:none}
+.att{position:relative;display:flex;align-items:center;gap:8px;padding:6px 34px 6px 6px;border-radius:10px;background:var(--field);max-width:100%}
+.att img{width:58px;height:58px;object-fit:cover;border-radius:7px;background:#ddd}
+.att .an{font-size:12.5px;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.att .an small{display:block;font-weight:500;color:var(--ink-3)}
+.att .ann{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--rule);background:#fff;font-size:12.5px;font-weight:600;color:var(--ink)}
+.att .x{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(10,14,20,.08);color:var(--ink);font-size:16px;line-height:1;padding:0}
+.ecrire{display:flex;align-items:flex-end;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid var(--rule)}
+.attente:not([hidden]) + .ecrire{border-top:0}
+.outils{display:flex;gap:2px}
+.outils button,.outils label{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:0;background:none;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.outils button:hover,.outils label:hover{background:var(--field);color:var(--ink)}
+.outils svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.outils input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.ecrire textarea{flex:1;min-width:0;min-height:42px;max-height:140px;padding:10px 14px;border-radius:21px;border:1px solid var(--rule);background:var(--field);
+  font-size:16px;line-height:1.35;resize:none;color:var(--ink)}
+.b-env{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:inline-flex;align-items:center;justify-content:center}
+.b-env:disabled{opacity:.45;cursor:default}
+.b-env svg{width:20px;height:20px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.etat-envoi{font-size:12.5px;color:var(--ink-3);padding:0 14px 6px;background:#fff}
+.etat-envoi.err{color:var(--rouge)}
+.etat-envoi:empty{display:none}
+@media (max-width:420px){ .outils button,.outils label{width:38px} .outils{gap:0} }
+.sans-fil{flex:1;display:flex;align-items:center;justify-content:center;color:var(--ink-3);padding:24px;text-align:center}
+
+/* ---------- les fenêtres : nouvelle discussion, membres ---------- */
+.fen{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,14,20,.55)}
+.fen[hidden]{display:none}
+.boite{width:100%;max-width:520px;max-height:min(88dvh,760px);display:flex;flex-direction:column;background:#fff;border-radius:16px 16px 0 0;box-shadow:0 -10px 40px rgba(0,0,0,.3);overflow:hidden}
+@media (min-width:640px){ .fen{align-items:center} .boite{border-radius:14px} }
+.boite .t{display:flex;align-items:center;gap:8px;padding:14px 16px;border-bottom:1px solid var(--rule)}
+.boite .t b{flex:1;font-size:17px}
+.boite .corps{padding:14px 16px;overflow-y:auto;flex:1}
+.boite .pied{display:flex;gap:8px;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--rule)}
+.boite label.champ{display:block;margin-bottom:14px}
+.boite label.champ span{display:block;font-size:13px;font-weight:600;color:var(--ink-2);margin-bottom:6px}
+.boite input[type=text],.boite input[type=search]{width:100%;min-height:46px;padding:10px 12px;border:1px solid #D8DDE4;border-radius:8px;font-size:16px;color:var(--ink);background:#fff}
+.groupe-t{margin:14px 0 6px;font-size:11px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3)}
+.pers{display:flex;align-items:center;gap:11px;padding:8px 6px;border-radius:8px;cursor:pointer}
+.pers:hover{background:#F7F8FA}
+.pers input{width:22px;height:22px;accent-color:var(--accent);flex:0 0 auto;margin:0}
+.pers .av{width:34px;height:34px;font-size:12.5px}
+.pers .n{flex:1;min-width:0}
+.pers .n b{display:block;font-size:15px}
+.pers .n small{font-size:12.5px;color:var(--ink-3)}
+.pers .r{border:0;background:var(--rouge-soft);color:var(--rouge);min-height:32px;padding:0 12px;border-radius:999px;font-size:13px;font-weight:600}
+.pers .moi-t{font-size:12px;color:var(--ink-3)}
+.btn{flex:1;min-height:46px;border-radius:10px;border:0;background:var(--accent);color:#fff;font-size:15px;font-weight:700}
+.btn:disabled{opacity:.45;cursor:default}
+.btn.g{background:var(--field);color:var(--ink)}
+.btn.rouge{background:var(--rouge-soft);color:var(--rouge)}
+.b-x{width:38px;height:38px;border-radius:50%;border:0;background:var(--field);color:var(--ink);font-size:20px;line-height:1;padding:0}
+.ligne-btn{display:flex;gap:8px;margin-top:10px}
+.note{font-size:13px;color:var(--ink-3);margin:6px 0 0}
+.err-f{color:var(--rouge);font-size:13.5px;margin:8px 0 0;min-height:0}
+.err-f:empty{display:none}
+
+/* ---------- voir une photo en grand ---------- */
+.vis{position:fixed;inset:0;z-index:60;background:rgba(5,8,12,.94);display:flex;flex-direction:column}
+.vis[hidden]{display:none}
+.vis .vb{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;color:#fff}
+.vis .vb b{flex:1;font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vis .vb a,.vis .vb button{min-height:40px;padding:0 14px;border-radius:999px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-size:14px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
+.vis .vi{flex:1;display:flex;align-items:center;justify-content:center;overflow:auto;padding:8px}
+.vis img{max-width:100%;max-height:100%;object-fit:contain}
+.toast{position:fixed;left:50%;bottom:calc(90px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:70;background:var(--g-900);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;max-width:90vw;text-align:center}
+.toast[hidden]{display:none}
+@media (prefers-reduced-motion:no-preference){ .messages{scroll-behavior:smooth} }
+</style>
+<script src="./horsligne.js?v=20261006a" defer></script>
+<script src="./finitions.js?v=20261004a" defer></script>
+<script src="./palette.js?v=20261006a" defer></script>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Discussions</h1>
+  <button type="button" class="b-nouv" id="btnNouvelle"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Nouvelle</span></button>
+</header>
+<main class="disc">
+  <section class="pan" id="vueListe" aria-label="Mes discussions">
+    <div class="l-tete"><label class="vh" for="cherche">Chercher une discussion</label><input type="search" id="cherche" placeholder="Chercher une discussion ou une personne" autocomplete="off"></div>
+    <ul class="fils" id="fils" aria-live="polite"><li class="vide">Chargement…</li></ul>
+  </section>
+  <section class="pan" id="vueFil" aria-label="Discussion">
+    <div class="sans-fil" id="sansFil">Choisissez une discussion, ou créez-en une avec « Nouvelle ».</div>
+    <div class="fil-tete" id="filTete" hidden>
+      <button type="button" class="retour" id="retour"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Discussions</button>
+      <button type="button" class="fil-titre" id="filTitre" aria-label="Voir les membres"><b id="filNom"></b><span id="filMembres"></span></button>
+      <button type="button" class="b-icone" id="btnMembres" aria-label="Membres de la discussion" title="Membres"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.6"/><path d="M16 14.2a5 5 0 0 1 6 4.8"/></svg></button>
+    </div>
+    <div class="messages" id="messages" hidden tabindex="0" aria-label="Messages"></div>
+    <div class="attente" id="attente" hidden aria-label="À envoyer"></div>
+    <div class="etat-envoi" id="etatEnvoi" role="status"></div>
+    <form class="ecrire" id="ecrire" hidden autocomplete="off">
+      <div class="outils">
+        <label title="Prendre une photo" aria-label="Prendre une photo"><input type="file" id="inPhoto" accept="image/*" capture="environment"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg></label>
+        <label title="Photos de la galerie" aria-label="Photos de la galerie"><input type="file" id="inGalerie" accept="image/*" multiple><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="14" rx="2"/><path d="m3.5 16 5-4.5 4 3.5 3-2.5 5 4"/><circle cx="15.5" cy="9" r="1.5"/></svg></label>
+        <button type="button" id="btnCroquis" title="Faire un croquis" aria-label="Faire un croquis"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg></button>
+        <label title="Joindre un fichier" aria-label="Joindre un fichier"><input type="file" id="inFichier" multiple><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.3-8.3a3.3 3.3 0 0 1 4.7 4.7l-8.2 8.2a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/></svg></label>
+      </div>
+      <label class="vh" for="texte">Votre message</label>
+      <textarea id="texte" rows="1" maxlength="4000" placeholder="Message"></textarea>
+      <button type="submit" class="b-env" id="btnEnvoyer" aria-label="Envoyer" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12 20 4l-6 16-2.5-6.5z"/><path d="M11.5 13.5 20 4"/></svg></button>
+    </form>
+  </section>
+</main>
+
+<div class="fen" id="fen" hidden role="dialog" aria-modal="true" aria-labelledby="fenT">
+  <div class="boite">
+    <div class="t"><b id="fenT"></b><button type="button" class="b-x" id="fenX" aria-label="Fermer">×</button></div>
+    <div class="corps" id="fenCorps"></div>
+    <div class="pied" id="fenPied"></div>
+  </div>
+</div>
+<div class="vis" id="vis" hidden role="dialog" aria-modal="true" aria-label="Photo">
+  <div class="vb"><b id="visNom"></b><a id="visDl" href="#" download>Télécharger</a><button type="button" id="visX">Fermer</button></div>
+  <div class="vi"><img id="visImg" alt=""></div>
+</div>
+<div class="toast" id="toast" hidden role="status"></div>
+
+<script src="./annotation.js?v=20261001a"></script>
+<script>
+(function(){
+"use strict";
+var $=function(id){ return document.getElementById(id); };
+var S=null; try{ S=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+if(!S || !S.jeton){ location.replace("./index.html#connexion"); return; }
+var API="/api/rapports?action=";
+var MAX_PIECE=10*1024*1024;
+var ROLES={bureau:"Chargé d'affaires", technicien:"Technicien", admin:"Administrateur"};
+var GROUPES=[["bureau","Chargés d'affaires"],["technicien","Techniciens"],["admin","Administrateurs"]];
+var FILS=[], PERS=[], MOI=S.nom||"", COURANT=null, MSGS=[], LECT={}, ATTENTE=[], ENVOI=false, POLL=null;
+
+function appel(a, o){
+  o=o||{};
+  var init={method:o.corps ? "POST" : "GET", headers:{"x-auth":S.jeton}};
+  if(o.corps){ init.headers["content-type"]="application/json"; init.body=JSON.stringify(o.corps); }
+  return fetch(API+a, init).then(function(r){
+    return r.json().catch(function(){ return {}; }).then(function(d){
+      if(r.status===401){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace("./index.html#connexion"); }
+      return {ok:r.ok, st:r.status, d:d};
+    });
+  });
+}
+function el(t, cls, txt){ var e=document.createElement(t); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
+function svg(d){ return '<svg viewBox="0 0 24 24" aria-hidden="true">'+d+'</svg>'; }
+var toastT; function toast(m){ var t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 2800); }
+function initiales(n){ var p=String(n||"?").trim().split(/\s+/); return ((p[0]||"?")[0]+(p.length>1 ? p[p.length-1][0] : "")).toUpperCase(); }
+var TEINTES=["#0E7490","#B45309","#3F6B52","#5B5F80","#A03A33","#1E5BB8","#8A6524"];
+function teinte(n){ var h=0; String(n||"").split("").forEach(function(c){ h=(h*31+c.charCodeAt(0))|0; }); return TEINTES[Math.abs(h)%TEINTES.length]; }
+function avatar(noms, nom){
+  var a=el("span","av");
+  var autres=(noms||[]).filter(function(n){ return n!==MOI; });
+  if(autres.length===1){ a.textContent=initiales(autres[0]); a.style.background=teinte(autres[0]); }
+  else { a.classList.add("groupe"); a.innerHTML=svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><circle cx="17.5" cy="9" r="2.6"/><path d="M16 14.2a5 5 0 0 1 6 4.8"/>'); }
+  a.setAttribute("aria-hidden","true");
+  return a;
+}
+function jourDe(iso){ var d=new Date(iso); return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate(); }
+function heure(iso){ try{ return new Date(iso).toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"}); }catch(e){ return ""; } }
+function quandCourt(iso){
+  if(!iso) return "";
+  var d=new Date(iso), auj=new Date();
+  if(jourDe(iso)===jourDe(auj.toISOString())) return heure(iso);
+  var hier=new Date(auj); hier.setDate(hier.getDate()-1);
+  if(jourDe(iso)===jourDe(hier.toISOString())) return "hier";
+  if(auj-d < 6*864e5) return d.toLocaleDateString("fr-FR",{weekday:"short"});
+  return d.toLocaleDateString("fr-FR",{day:"2-digit",month:"2-digit"});
+}
+function jourLong(iso){
+  var auj=new Date(), d=new Date(iso), hier=new Date(auj); hier.setDate(hier.getDate()-1);
+  if(jourDe(iso)===jourDe(auj.toISOString())) return "Aujourd'hui";
+  if(jourDe(iso)===jourDe(hier.toISOString())) return "Hier";
+  return d.toLocaleDateString("fr-FR",{weekday:"long",day:"numeric",month:"long",year: d.getFullYear()===auj.getFullYear() ? undefined : "numeric"});
+}
+function taille(o){ return o<1024 ? o+" o" : o<1048576 ? Math.round(o/1024)+" Ko" : (o/1048576).toFixed(o<10485760 ? 1 : 0).replace(".",",")+" Mo"; }
+function urlPiece(m, dl){ return API+"discu-piece&id="+encodeURIComponent(COURANT)+"&m="+encodeURIComponent(m.id)+"&auth="+encodeURIComponent(S.jeton)+(dl ? "&telecharger=1" : ""); }
+function membresTexte(fil){
+  var autres=fil.membres.filter(function(n){ return n!==MOI; });
+  return (autres.length ? "Vous, "+autres.join(", ") : "Vous seul") + " · "+fil.membres.length+" membre"+(fil.membres.length>1?"s":"");
+}
+
+/* =================== la liste =================== */
+function chargerListe(){
+  return appel("discu-liste").then(function(r){
+    if(!r.ok){ $("fils").innerHTML=""; $("fils").appendChild(el("li","vide", r.d.erreur || "Accès refusé.")); return; }
+    FILS=r.d.fils||[]; PERS=r.d.personnes||[]; if(r.d.moi) MOI=r.d.moi;
+    peindreListe();
+  }).catch(function(){ if(!FILS.length){ $("fils").innerHTML=""; $("fils").appendChild(el("li","vide","Pas de réseau.")); } });
+}
+function peindreListe(){
+  var h=$("fils"); h.textContent="";
+  var q=$("cherche").value.trim().toLowerCase();
+  var l=FILS.filter(function(f){ return !q || (f.nom+" "+f.membres.join(" ")).toLowerCase().indexOf(q)>=0; });
+  if(!FILS.length){
+    var v=el("li","vide"); v.appendChild(el("b","","Aucune discussion"));
+    v.appendChild(document.createTextNode("Créez-en une avec les personnes de votre choix : un pôle, une équipe, un collègue."));
+    var b=el("button","b-nouv"); b.type="button"; b.innerHTML=svg('<path d="M12 5v14M5 12h14"/>')+"<span>Nouvelle discussion</span>";
+    b.addEventListener("click", fenNouvelle); v.appendChild(document.createElement("br")); v.appendChild(b);
+    h.appendChild(v); return;
+  }
+  if(!l.length){ h.appendChild(el("li","vide","Aucune discussion ne correspond.")); return; }
+  l.forEach(function(f){
+    var li=el("li"), b=el("button","f"+(f.nonLus ? " non-lu" : "")); b.type="button";
+    b.setAttribute("data-id", f.id);
+    if(f.id===COURANT) b.setAttribute("aria-current","true");
+    b.appendChild(avatar(f.membres, f.nom));
+    var t=el("span","txt"), l1=el("span","l1"), l2=el("span","l2");
+    l1.appendChild(el("span","nom",f.nom)); l1.appendChild(el("span","heure",quandCourt(f.dernier ? f.dernier.quand : f.cree.le)));
+    var ap = f.dernier ? (f.dernier.auteur===MOI ? "Vous : " : f.dernier.auteur.split(" ")[0]+" : ")+f.dernier.apercu : membresTexte(f);
+    l2.appendChild(el("span","ap",ap));
+    if(f.nonLus){ var n=el("span","nb",String(f.nonLus)); n.setAttribute("aria-label", f.nonLus+" non lu"+(f.nonLus>1?"s":"")); l2.appendChild(n); }
+    t.appendChild(l1); t.appendChild(l2); b.appendChild(t);
+    b.addEventListener("click", function(){ ouvrir(f.id); });
+    li.appendChild(b); h.appendChild(li);
+  });
+}
+$("cherche").addEventListener("input", peindreListe);
+
+/* =================== un fil =================== */
+function filCourant(){ return FILS.filter(function(f){ return f.id===COURANT; })[0] || null; }
+function ouvrir(id, sansHisto){
+  if(COURANT!==id){ MSGS=[]; ATTENTE=[]; peindreAttente(); $("texte").value=""; majEnvoyer(); }
+  COURANT=id;
+  document.body.classList.add("dans-fil");
+  $("sansFil").hidden=true; $("filTete").hidden=false; $("messages").hidden=false; $("ecrire").hidden=false;
+  if(!sansHisto){ try{ history.replaceState({fil:id}, "", "./discussions.html?id="+encodeURIComponent(id)); }catch(e){} }
+  var f=filCourant();
+  if(f){ peindreTete(f); f.nonLus=0; peindreListe(); }
+  $("messages").innerHTML='<p class="info">Chargement…</p>';
+  return appel("discu-lire&id="+encodeURIComponent(id)).then(function(r){
+    if(COURANT!==id) return;
+    if(!r.ok){ $("messages").innerHTML=""; $("messages").appendChild(el("p","info", r.d.erreur || "Discussion introuvable.")); $("ecrire").hidden=true; chargerListe(); return; }
+    var i=FILS.findIndex(function(x){ return x.id===id; });
+    if(i<0){ FILS.unshift(r.d.fil); } else { FILS[i]=Object.assign(FILS[i], r.d.fil, {nonLus:0}); }
+    if(r.d.personnes) PERS=r.d.personnes;
+    MSGS=r.d.messages||[]; LECT=r.d.lectures||{};
+    peindreTete(filCourant()); peindreListe(); peindreMessages(true);
+    if(window.matchMedia("(min-width:861px)").matches) $("texte").focus({preventScroll:true});
+  }).catch(function(){ if(COURANT===id){ $("messages").innerHTML='<p class="info">Pas de réseau.</p>'; } });
+}
+function peindreTete(f){ if(!f) return; $("filNom").textContent=f.nom; $("filMembres").textContent=membresTexte(f); document.title=f.nom+" — Discussions"; }
+function fermerFil(){
+  COURANT=null; document.body.classList.remove("dans-fil");
+  $("sansFil").hidden=false; $("filTete").hidden=true; $("messages").hidden=true; $("ecrire").hidden=true; $("attente").hidden=true;
+  document.title="Discussions — Suivi travaux 360";
+  try{ history.replaceState(null, "", "./discussions.html"); }catch(e){}
+  peindreListe();
+}
+$("retour").addEventListener("click", function(){ fermerFil(); chargerListe(); });
+
+function enBas(){ var m=$("messages"); return m.scrollHeight-m.scrollTop-m.clientHeight < 80; }
+function descendre(){ var m=$("messages"); var s=m.style.scrollBehavior; m.style.scrollBehavior="auto"; m.scrollTop=m.scrollHeight; m.style.scrollBehavior=s; }
+function peindreMessages(bas){
+  var h=$("messages"), etaitEnBas=enBas();
+  h.textContent="";
+  if(!MSGS.length){ h.appendChild(el("p","info","Aucun message pour l'instant. Écrivez le premier, ou envoyez une photo, un croquis, un fichier.")); return; }
+  var jour="", precedent=null;
+  MSGS.forEach(function(m){
+    var j=jourDe(m.quand);
+    if(j!==jour){ h.appendChild(el("div","jour",jourLong(m.quand))); jour=j; precedent=null; }
+    if(m.info){ h.appendChild(el("p","info",m.texte)); precedent=null; return; }
+    var moi=m.auteur===MOI;
+    var box=el("div","m"+(moi ? " moi" : "")); box.setAttribute("data-id", m.id);
+    if(!moi && (!precedent || precedent.auteur!==m.auteur)){ var q=el("span","qui",m.auteur); q.style.color=teinte(m.auteur); box.appendChild(q); }
+    var b=el("div","bulle"+(m.supprime ? " retire" : ""));
+    if(m.supprime){ b.textContent="Message retiré"; }
+    else {
+      if(m.piece) b.appendChild(rendrePiece(m));
+      if(m.texte){ var t=el("span","tx"); lier(t, m.texte); b.appendChild(t); }
+      if(moi){
+        var x=el("button","b-retirer"); x.type="button"; x.setAttribute("aria-label","Retirer ce message"); x.title="Retirer ce message";
+        x.innerHTML=svg('<path d="M6 6l12 12M18 6 6 18"/>');
+        x.addEventListener("click", function(e){ e.stopPropagation(); retirer(m); });
+        b.appendChild(x);
+        b.addEventListener("click", function(e){ if(e.target.closest("a,button")) return; b.classList.toggle("actif"); });
+      }
+    }
+    b.appendChild(el("span","q",heure(m.quand)));
+    box.appendChild(b); h.appendChild(box);
+    precedent=m;
+  });
+  /* qui a vu mon dernier message */
+  var dernierMoi=null; for(var i=MSGS.length-1;i>=0;i--){ if(MSGS[i].auteur===MOI && !MSGS[i].info){ dernierMoi=i; break; } }
+  if(dernierMoi!==null){
+    var vus=Object.keys(LECT).filter(function(n){
+      if(n===MOI) return false;
+      var k=MSGS.findIndex(function(x){ return x.id===LECT[n]; });
+      return k>=dernierMoi;
+    });
+    var box2=h.querySelector('.m[data-id="'+MSGS[dernierMoi].id+'"]');
+    if(box2 && vus.length) box2.appendChild(el("span","vu","Vu par "+vus.join(", ")));
+  }
+  if(bas || etaitEnBas) descendre();
+}
+/* les liens d'un message deviennent cliquables (et rien d'autre : le texte reste du texte) */
+function lier(host, txt){
+  var re=/\bhttps?:\/\/[^\s<>"]+/g, i=0, m;
+  while((m=re.exec(txt))){
+    if(m.index>i) host.appendChild(document.createTextNode(txt.slice(i, m.index)));
+    var a=el("a","",m[0]); a.href=m[0]; a.target="_blank"; a.rel="noopener noreferrer"; host.appendChild(a);
+    i=m.index+m[0].length;
+  }
+  if(i<txt.length) host.appendChild(document.createTextNode(txt.slice(i)));
+}
+function rendrePiece(m){
+  var p=m.piece;
+  if(p.genre==="photo" || p.genre==="croquis"){
+    var b=el("button","img"); b.type="button"; b.setAttribute("aria-label", (p.genre==="croquis" ? "Croquis" : "Photo")+" de "+m.auteur+" : voir en grand");
+    var im=el("img"); im.loading="lazy"; im.alt=p.genre==="croquis" ? "Croquis" : "Photo";
+    if(p.w && p.h){ im.width=p.w; im.height=p.h; }
+    im.src=urlPiece(m);
+    b.appendChild(im);
+    b.addEventListener("click", function(){ voir(m); });
+    return b;
+  }
+  var c=el("div","pj"), ext=(p.nom.split(".").pop()||"").toLowerCase();
+  var cls=/^pdf$/.test(ext) ? "pdf" : /^(xls|xlsx|csv)$/.test(ext) ? "xls" : /^(doc|docx|txt)$/.test(ext) ? "doc" : /^(dwg|dxf)$/.test(ext) ? "dwg" : "";
+  c.appendChild(el("span","ico "+cls, (ext||"fic").slice(0,4).toUpperCase()));
+  var d=el("span","d"); d.appendChild(el("b","",p.nom)); d.appendChild(el("span","",taille(p.taille||0))); c.appendChild(d);
+  var acts=el("span","acts");
+  var o=el("a"); o.href=urlPiece(m); o.target="_blank"; o.rel="noopener"; o.title="Ouvrir"; o.setAttribute("aria-label","Ouvrir "+p.nom);
+  o.innerHTML=svg('<path d="M14 4h6v6M20 4l-9 9"/><path d="M19 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1h5"/>');
+  var t=el("a"); t.href=urlPiece(m, true); t.title="Télécharger"; t.setAttribute("aria-label","Télécharger "+p.nom); t.setAttribute("download", p.nom);
+  t.innerHTML=svg('<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19.5h14"/>');
+  acts.appendChild(o); acts.appendChild(t); c.appendChild(acts);
+  return c;
+}
+function voir(m){
+  $("visImg").src=urlPiece(m); $("visImg").alt=m.piece.genre==="croquis" ? "Croquis" : "Photo";
+  $("visNom").textContent=(m.piece.genre==="croquis" ? "Croquis" : "Photo")+" · "+m.auteur+" · "+heure(m.quand);
+  $("visDl").href=urlPiece(m, true); $("visDl").setAttribute("download", m.piece.nom||"photo.jpg");
+  $("vis").hidden=false; $("visX").focus();
+}
+$("visX").addEventListener("click", function(){ $("vis").hidden=true; $("visImg").removeAttribute("src"); });
+function retirer(m){
+  if(!window.confirm("Retirer ce message pour tout le monde ?")) return;
+  appel("discu-message-supprimer", {corps:{id:COURANT, m:m.id}}).then(function(r){
+    if(!r.ok){ toast(r.d.erreur || "Refusé."); return; }
+    var i=MSGS.findIndex(function(x){ return x.id===m.id; }); if(i>=0) MSGS[i]=r.d.message;
+    peindreMessages(false);
+  }).catch(function(){ toast("Pas de réseau."); });
+}
+
+/* ---------- les nouveaux messages arrivent seuls ---------- */
+function suivre(){
+  if(!COURANT || document.hidden || ENVOI) return;
+  var id=COURANT, dernier=MSGS.length ? MSGS[MSGS.length-1].id : "";
+  appel("discu-lire&id="+encodeURIComponent(id)+(dernier ? "&depuis="+encodeURIComponent(dernier) : "")).then(function(r){
+    if(!r.ok || COURANT!==id) return;
+    var neufs=(r.d.messages||[]).filter(function(m){ return !MSGS.some(function(x){ return x.id===m.id; }); });
+    var lectChange=JSON.stringify(r.d.lectures||{})!==JSON.stringify(LECT);
+    LECT=r.d.lectures||LECT;
+    var i=FILS.findIndex(function(x){ return x.id===id; }); if(i>=0 && r.d.fil){ FILS[i]=Object.assign(FILS[i], r.d.fil, {nonLus:0}); peindreTete(FILS[i]); }
+    if(r.d.complet){ MSGS=r.d.messages||[]; peindreMessages(false); return; }
+    if(neufs.length || lectChange){ MSGS=MSGS.concat(neufs); peindreMessages(false); }
+  }).catch(function(){});
+}
+function minuter(){ clearInterval(POLL); POLL=setInterval(function(){ suivre(); }, 4000); }
+setInterval(function(){ if(!document.hidden) chargerListe(); }, 20000);
+document.addEventListener("visibilitychange", function(){ if(!document.hidden){ suivre(); chargerListe(); } });
+
+/* =================== écrire =================== */
+function majEnvoyer(){ $("btnEnvoyer").disabled=ENVOI || (!$("texte").value.trim() && !ATTENTE.length); }
+var ta=$("texte");
+ta.addEventListener("input", function(){ ta.style.height="auto"; ta.style.height=Math.min(140, ta.scrollHeight)+"px"; majEnvoyer(); });
+ta.addEventListener("keydown", function(e){
+  /* sur l'ordinateur, Entrée envoie et Maj+Entrée va à la ligne */
+  if(e.key==="Enter" && !e.shiftKey && !e.isComposing && window.matchMedia("(pointer:fine)").matches){ e.preventDefault(); envoyer(); }
+});
+$("ecrire").addEventListener("submit", function(e){ e.preventDefault(); envoyer(); });
+
+function lireDataUrl(f){ return new Promise(function(ok, ko){ var r=new FileReader(); r.onload=function(){ ok(String(r.result)); }; r.onerror=ko; r.readAsDataURL(f); }); }
+/* une photo est réduite (1 600 px, JPEG) : légère sur le réseau du chantier */
+function photoReduite(f){
+  return lireDataUrl(f).then(function(src){ return new Promise(function(ok, ko){
+    var im=new Image();
+    im.onload=function(){
+      var M=1600, w=im.naturalWidth, h=im.naturalHeight, k=Math.min(1, M/Math.max(w,h));
+      var c=document.createElement("canvas"); c.width=Math.round(w*k); c.height=Math.round(h*k);
+      var x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0,c.width,c.height);
+      ok({data:c.toDataURL("image/jpeg",0.82), w:c.width, h:c.height});
+    };
+    im.onerror=function(){ ko(new Error("image")); };
+    im.src=src;
+  }); });
+}
+function ajouterPhotos(liste, genre){
+  var fs=[].slice.call(liste||[]).filter(function(f){ return /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name); });
+  if(!fs.length) return;
+  $("etatEnvoi").className="etat-envoi"; $("etatEnvoi").textContent="Préparation de la photo…";
+  fs.reduce(function(p, f){
+    return p.then(function(){ return photoReduite(f).then(function(ph){
+      ATTENTE.push({genre:genre||"photo", nom:(f.name||"photo").replace(/\.[^.]+$/,"")+".jpg", type:"image/jpeg", data:ph.data, w:ph.w, h:ph.h});
+    }).catch(function(){ toast("« "+f.name+" » n'est pas une image lisible : joignez-la comme fichier."); }); });
+  }, Promise.resolve()).then(function(){ $("etatEnvoi").textContent=""; peindreAttente(); });
+}
+$("inPhoto").addEventListener("change", function(){ ajouterPhotos(this.files, "photo"); this.value=""; });
+$("inGalerie").addEventListener("change", function(){ ajouterPhotos(this.files, "photo"); this.value=""; });
+$("inFichier").addEventListener("change", function(){
+  var fs=[].slice.call(this.files||[]); this.value="";
+  fs.forEach(function(f){
+    if(f.size>MAX_PIECE){ toast("« "+f.name+" » est trop lourd : 10 Mo au plus."); return; }
+    if(!f.size){ toast("« "+f.name+" » est vide."); return; }
+    lireDataUrl(f).then(function(d){ ATTENTE.push({genre:"fichier", nom:f.name, type:f.type||"", data:d, taille:f.size}); peindreAttente(); })
+      .catch(function(){ toast("Impossible de lire « "+f.name+" »."); });
+  });
+});
+$("btnCroquis").addEventListener("click", function(){
+  if(!window.Annotation){ toast("L'outil de croquis se charge : réessayez."); return; }
+  Annotation.croquis({titre:"Croquis"}).then(function(ph){
+    if(!ph) return;
+    ATTENTE.push({genre:"croquis", nom:"croquis.jpg", type:typeDe(ph.data), data:ph.data, w:ph.w, h:ph.h, annot:ph.annot, fond:ph.fond, croquis:true});
+    peindreAttente();
+  });
+});
+function typeDe(data){ var m=/^data:(image\/[a-z]+)/.exec(data||""); return m ? m[1] : "image/jpeg"; }
+function peindreAttente(){
+  var h=$("attente"); h.textContent="";
+  h.hidden=!ATTENTE.length;
+  ATTENTE.forEach(function(p, i){
+    var c=el("div","att");
+    if(p.genre!=="fichier"){ var im=el("img"); im.src=p.data; im.alt=""; c.appendChild(im); }
+    var n=el("span","an", p.genre==="croquis" ? "Croquis" : p.genre==="photo" ? "Photo" : p.nom);
+    n.appendChild(el("small","", p.genre==="fichier" ? taille(p.taille||0) : "prête à partir"));
+    c.appendChild(n);
+    if(p.genre!=="fichier" && window.Annotation){
+      var a=el("button","ann","Annoter"); a.type="button";
+      a.addEventListener("click", function(){
+        Annotation.photo(p, {titre:p.genre==="croquis" ? "Croquis" : "Photo"}).then(function(r){ if(r){ p.type=typeDe(p.data); peindreAttente(); } });
+      });
+      c.appendChild(a);
+    }
+    var x=el("button","x","×"); x.type="button"; x.setAttribute("aria-label","Retirer "+(p.genre==="fichier" ? p.nom : "cette "+(p.genre==="croquis" ? "esquisse" : "photo")));
+    x.addEventListener("click", function(){ ATTENTE.splice(i,1); peindreAttente(); });
+    c.appendChild(x); h.appendChild(c);
+  });
+  majEnvoyer();
+}
+function envoyer(){
+  if(ENVOI || !COURANT) return;
+  var texte=$("texte").value.trim();
+  if(!texte && !ATTENTE.length) return;
+  ENVOI=true; majEnvoyer();
+  var id=COURANT, lots=ATTENTE.slice(), etat=$("etatEnvoi");
+  /* le texte part avec la première pièce ; chaque pièce suivante fait son message */
+  var envois=lots.length ? lots.map(function(p, k){ return {texte:k===0 ? texte : "", piece:p}; }) : [{texte:texte}];
+  var faits=0;
+  etat.className="etat-envoi"; etat.textContent=envois.length>1 ? "Envoi 1 sur "+envois.length+"…" : (lots.length ? "Envoi…" : "");
+  envois.reduce(function(p, e, k){
+    return p.then(function(){
+      if(envois.length>1) etat.textContent="Envoi "+(k+1)+" sur "+envois.length+"…";
+      var corps={id:id, texte:e.texte};
+      if(e.piece) corps.piece={genre:e.piece.genre, nom:e.piece.nom, type:e.piece.type, data:e.piece.data, w:e.piece.w||0, h:e.piece.h||0};
+      return appel("discu-envoyer", {corps:corps}).then(function(r){
+        if(!r.ok) throw new Error(r.d.erreur || "Envoi refusé.");
+        faits++;
+        if(COURANT===id && !MSGS.some(function(x){ return x.id===r.d.message.id; })) MSGS.push(r.d.message);
+        /* ce qui est parti quitte la zone d'envoi */
+        if(e.piece){ var j=ATTENTE.indexOf(e.piece); if(j>=0) ATTENTE.splice(j,1); }
+        if(k===0 && e.texte){ $("texte").value=""; ta.style.height="auto"; }
+      });
+    });
+  }, Promise.resolve()).then(function(){
+    etat.textContent="";
+  }).catch(function(err){
+    etat.className="etat-envoi err";
+    etat.textContent=(err && err.message && !/fetch|network|réseau/i.test(err.message) ? err.message : "Pas de réseau : rien n'est perdu, réessayez.");
+  }).then(function(){
+    ENVOI=false; peindreAttente();
+    if(COURANT===id){ LECT[MOI]=MSGS.length ? MSGS[MSGS.length-1].id : LECT[MOI]; peindreMessages(true); }
+    var f=FILS.filter(function(x){ return x.id===id; })[0];
+    if(f && faits && MSGS.length){ var d=MSGS[MSGS.length-1]; f.dernier={auteur:MOI, apercu:d.texte || (d.piece ? (d.piece.genre==="fichier" ? "Fichier : "+d.piece.nom : d.piece.genre==="croquis" ? "Croquis" : "Photo") : ""), quand:d.quand}; f.maj=d.quand;
+      FILS.sort(function(a,b){ return String(b.maj||"").localeCompare(String(a.maj||"")); }); peindreListe(); }
+    majEnvoyer();
+  });
+}
+
+/* =================== fenêtres =================== */
+var retourFocus=null;
+function fen(titre){ retourFocus=document.activeElement; $("fenT").textContent=titre; $("fenCorps").textContent=""; $("fenPied").textContent=""; $("fen").hidden=false; return {corps:$("fenCorps"), pied:$("fenPied")}; }
+function fermerFen(){ $("fen").hidden=true; if(retourFocus && retourFocus.focus) try{ retourFocus.focus(); }catch(e){} }
+$("fenX").addEventListener("click", fermerFen);
+$("fen").addEventListener("click", function(e){ if(e.target===$("fen")) fermerFen(); });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ if(!$("vis").hidden){ $("visX").click(); } else if(!$("fen").hidden) fermerFen(); } });
+
+/* une liste de personnes à cocher, rangées par rôle */
+function choixPersonnes(host, exclure, auChange){
+  var coches={}, q=el("input"); q.type="search"; q.placeholder="Chercher un nom"; q.setAttribute("aria-label","Chercher un nom");
+  var zone=el("div");
+  host.appendChild(q); host.appendChild(zone);
+  function peindre(){
+    zone.textContent="";
+    var t=q.value.trim().toLowerCase(), rien=true;
+    GROUPES.concat([["", "Autres"]]).forEach(function(g){
+      var l=PERS.filter(function(p){ return exclure.indexOf(p.nom)<0 && (g[0] ? p.role===g[0] : !ROLES[p.role]) && (!t || p.nom.toLowerCase().indexOf(t)>=0); });
+      if(!l.length) return; rien=false;
+      zone.appendChild(el("p","groupe-t",g[1]));
+      l.forEach(function(p){
+        var lab=el("label","pers"), cb=el("input"); cb.type="checkbox"; cb.checked=!!coches[p.nom];
+        cb.addEventListener("change", function(){ if(cb.checked) coches[p.nom]=true; else delete coches[p.nom]; auChange(Object.keys(coches)); });
+        var a=el("span","av",initiales(p.nom)); a.style.background=teinte(p.nom); a.setAttribute("aria-hidden","true");
+        var n=el("span","n"); n.appendChild(el("b","",p.nom)); n.appendChild(el("small","",ROLES[p.role]||p.role||""));
+        lab.appendChild(cb); lab.appendChild(a); lab.appendChild(n); zone.appendChild(lab);
+      });
+    });
+    if(rien) zone.appendChild(el("p","note", t ? "Personne ne correspond." : "Tout le monde est déjà dans la discussion."));
+  }
+  q.addEventListener("input", peindre);
+  peindre();
+  return function(){ return Object.keys(coches); };
+}
+
+function fenNouvelle(){
+  var f=fen("Nouvelle discussion");
+  var lab=el("label","champ"); lab.appendChild(el("span","","Nom de la discussion (facultatif)"));
+  var nom=el("input"); nom.type="text"; nom.maxLength=80; nom.placeholder="Pôle électricité, Équipe Vendée, Chantier Durand…"; lab.appendChild(nom);
+  f.corps.appendChild(lab);
+  f.corps.appendChild(el("p","groupe-t","Avec qui ?"));
+  var ok=el("button","btn","Créer la discussion"); ok.type="button"; ok.disabled=true;
+  var err=el("p","err-f");
+  var choisis=choixPersonnes(f.corps, [MOI], function(l){ ok.disabled=!l.length; ok.textContent=l.length ? "Créer avec "+l.length+" personne"+(l.length>1?"s":"") : "Créer la discussion"; });
+  f.corps.appendChild(err);
+  var an=el("button","btn g","Annuler"); an.type="button"; an.addEventListener("click", fermerFen);
+  ok.addEventListener("click", function(){
+    ok.disabled=true; err.textContent="";
+    appel("discu-creer", {corps:{nom:nom.value.trim(), membres:choisis()}}).then(function(r){
+      if(!r.ok){ ok.disabled=false; err.textContent=r.d.erreur || "Refusé."; return; }
+      FILS.unshift(r.d.fil); fermerFen(); peindreListe(); ouvrir(r.d.fil.id);
+    }).catch(function(){ ok.disabled=false; err.textContent="Pas de réseau."; });
+  });
+  f.pied.appendChild(an); f.pied.appendChild(ok);
+  setTimeout(function(){ nom.focus(); }, 30);
+}
+$("btnNouvelle").addEventListener("click", function(){ if(!PERS.length) chargerListe().then(fenNouvelle); else fenNouvelle(); });
+
+function fenMembres(){
+  var fil=filCourant(); if(!fil) return;
+  var f=fen("Membres de la discussion");
+  var err=el("p","err-f");
+  function modifier(corps, ok){
+    err.textContent="";
+    return appel("discu-modifier", {corps:Object.assign({id:fil.id}, corps)}).then(function(r){
+      if(!r.ok){ err.textContent=r.d.erreur || "Refusé."; return; }
+      if(r.d.quitte){ FILS=FILS.filter(function(x){ return x.id!==fil.id; }); fermerFen(); fermerFil(); toast("Vous avez quitté la discussion."); return; }
+      var i=FILS.findIndex(function(x){ return x.id===fil.id; }); if(i>=0) FILS[i]=Object.assign(FILS[i], r.d.fil);
+      peindreTete(FILS[i]); peindreListe(); suivre(); if(ok) ok(); else fenMembres();
+    }).catch(function(){ err.textContent="Pas de réseau."; });
+  }
+  /* le nom */
+  var lab=el("label","champ"); lab.appendChild(el("span","","Nom"));
+  var nom=el("input"); nom.type="text"; nom.maxLength=80; nom.value=fil.nom; nom.disabled=!fil.gerer; lab.appendChild(nom);
+  f.corps.appendChild(lab);
+  if(fil.gerer){
+    var rn=el("button","btn g","Renommer"); rn.type="button"; rn.style.flex="0 0 auto"; rn.style.padding="0 16px";
+    rn.addEventListener("click", function(){ if(nom.value.trim() && nom.value.trim()!==fil.nom) modifier({nom:nom.value.trim()}); });
+    var lb=el("div","ligne-btn"); lb.style.marginTop="-6px"; lb.style.marginBottom="10px"; lb.appendChild(rn); f.corps.appendChild(lb);
+  }
+  f.corps.appendChild(el("p","groupe-t", fil.membres.length+" membre"+(fil.membres.length>1?"s":"")));
+  fil.membres.slice().sort(function(a,b){ return a===MOI ? -1 : b===MOI ? 1 : a.localeCompare(b); }).forEach(function(n){
+    var p=PERS.filter(function(x){ return x.nom===n; })[0] || {nom:n, role:""};
+    var row=el("div","pers");
+    var a=el("span","av",initiales(n)); a.style.background=teinte(n); a.setAttribute("aria-hidden","true");
+    var t=el("span","n"); t.appendChild(el("b","",n+(n===MOI ? " (vous)" : ""))); t.appendChild(el("small","",(ROLES[p.role]||p.role||"")+(fil.cree.par===n ? " · a créé la discussion" : "")));
+    row.appendChild(a); row.appendChild(t);
+    if(fil.gerer && n!==MOI){
+      var r=el("button","r","Retirer"); r.type="button";
+      r.addEventListener("click", function(){ if(window.confirm("Retirer "+n+" de la discussion ?")) modifier({retirer:[n]}); });
+      row.appendChild(r);
+    }
+    f.corps.appendChild(row);
+  });
+  /* ajouter */
+  f.corps.appendChild(el("p","groupe-t","Ajouter des personnes"));
+  var aj=el("button","btn","Ajouter"); aj.type="button"; aj.disabled=true;
+  var choisis=choixPersonnes(f.corps, fil.membres, function(l){ aj.disabled=!l.length; aj.textContent=l.length ? "Ajouter "+l.length+" personne"+(l.length>1?"s":"") : "Ajouter"; });
+  var la=el("div","ligne-btn"); la.appendChild(aj); f.corps.appendChild(la);
+  aj.addEventListener("click", function(){ aj.disabled=true; modifier({ajouter:choisis()}); });
+  f.corps.appendChild(err);
+  /* quitter, supprimer */
+  var q=el("button","btn g","Quitter la discussion"); q.type="button";
+  q.addEventListener("click", function(){ if(window.confirm("Quitter « "+fil.nom+" » ? Vous ne recevrez plus ses messages.")) modifier({retirer:[MOI]}); });
+  f.pied.appendChild(q);
+  if(fil.gerer){
+    var s=el("button","btn rouge","Supprimer"); s.type="button";
+    s.addEventListener("click", function(){
+      if(!window.confirm("Supprimer « "+fil.nom+" » pour tout le monde, avec ses messages, photos et fichiers ?")) return;
+      appel("discu-supprimer", {corps:{id:fil.id}}).then(function(r){
+        if(!r.ok){ err.textContent=r.d.erreur || "Refusé."; return; }
+        FILS=FILS.filter(function(x){ return x.id!==fil.id; }); fermerFen(); fermerFil(); toast("Discussion supprimée.");
+      }).catch(function(){ err.textContent="Pas de réseau."; });
+    });
+    f.pied.appendChild(s);
+  }
+}
+$("btnMembres").addEventListener("click", fenMembres);
+$("filTitre").addEventListener("click", fenMembres);
+
+/* =================== départ =================== */
+var depart=null; try{ depart=new URLSearchParams(location.search).get("id"); }catch(e){}
+chargerListe().then(function(){ if(depart) ouvrir(depart, true); });
+minuter();
+window.__discussions={etat:function(){ return {courant:COURANT, fils:FILS, msgs:MSGS, attente:ATTENTE}; }};
+})();
+</script>
+<script src="./pied.js?v=20261003a" defer></script>
+</body>
+</html>
