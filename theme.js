@@ -121,10 +121,14 @@
     return null;
   }
   function texteNuit(c){
-    var t=hsl(c.r, c.g, c.b), l=t[2];
+    var t=hsl(c.r, c.g, c.b), l=t[2], s=t[1];
     if(l>=.5) return null;
-    return ecrire(rgb(t[0], Math.min(1, t[1]*.95), .93-l*.55), c.a);
+    /* une couleur vive (l'orange de la marque, un vert, un rouge) : elle sert aussi de fond
+       aux boutons, sous un texte blanc ; on la garde (à peine éclaircie si elle est très sombre) */
+    if(s>=.4) return VIVE_GARDEE ? null : (l<.32 ? ecrire(rgb(t[0], s, .5), c.a) : null);
+    return ecrire(rgb(t[0], Math.min(1, s*.95), .93-l*.55), c.a);
   }
+  var VIVE_GARDEE=false;     /* une variable (--accent…) : sa couleur vive ne bouge pas du tout */
   function filetNuit(c){
     var t=hsl(c.r, c.g, c.b), s=t[1], l=t[2];
     if(c.a>=.5 && l>.7) return ecrire(rgb(t[0], s*.5, .3+(1-l)*.25), c.a);
@@ -210,7 +214,8 @@
         if(!s || (s==="texte" && fondVif && p.indexOf("--")!==0)) return;
         var v=st.getPropertyValue(p); if(!v || v.indexOf("url(")>=0 && !/gradient/.test(v)) return;
         var v2 = p.indexOf("--")===0 ? v : figer(v, s);
-        var n=recolorer(v2, FN[s]); if(n==null){ if(v2===v) return; n=v2; }
+        VIVE_GARDEE = p.indexOf("--")===0;
+        var n=recolorer(v2, FN[s]); VIVE_GARDEE=false; if(n==null){ if(v2===v) return; n=v2; }
         var prio=st.getPropertyPriority(p);
         FAITS.push({st:st, p:p, avant:v, prio:prio});
         try{ st.setProperty(p, n, prio); }catch(e){}

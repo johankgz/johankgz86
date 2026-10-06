@@ -89,7 +89,7 @@ function nomLisible(f){
     +".travaux .sous .etiq-ts{padding:1px 7px;font-size:11.5px;margin-left:8px}"
     +".travaux .sous > span.etiq-ts::before,.travaux .sous > span.etiq-accepte::before{content:none!important}"
     +".head .etiq-accepte{flex:0 0 auto;background:rgba(21,128,61,.12);color:#15803D;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
-    +".travaux .sous .etiq-accepte{padding:0;background:none;font-size:12px;color:#15803D}"
+    +".travaux .sous .etiq-accepte{padding:0;background:none;font-size:12px;color:#15803D;margin-left:8px}"
     +".actions button.accepte{background:rgba(21,128,61,.12);color:#15803D;border:1px solid rgba(21,128,61,.28);font-weight:700}";
   (document.head||document.documentElement).appendChild(st);
 })();
