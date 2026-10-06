@@ -1379,6 +1379,32 @@ async function traiter(req) {
   store = magasinSociete(personne.societe);
   if (personne.societe === "demo") { try { await garnirDemo(store); } catch { /* démo vide */ } }
 
+  /* ---------- le journal des incidents des appareils (reseau.js) ----------
+     chaque appareil remet ce qui a échoué chez lui : envoi perdu ou refusé,
+     message d'échec affiché, erreur de la page. L'administrateur le lit
+     dans Équipe : on sait ce qui s'est passé sur le téléphone. */
+  if (action === "journal-appareil") {
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const t = (v, n) => String(v == null ? "" : v).slice(0, n);
+    const entrees = (Array.isArray(d.entrees) ? d.entrees : []).slice(-30).map((x) => ({
+      le: t(x.le, 30), qui: personne.nom, page: t(x.page, 60), quoi: t(x.quoi, 20), action: t(x.action, 40),
+      statut: +x.statut || 0, erreur: t(x.erreur, 240), source: t(x.source, 80), essais: +x.essais || 0,
+      duree: +x.duree || 0, taille: +x.taille || 0, enLigne: x.enLigne !== false,
+      appareil: t(d.appareil, 200), ecran: t(d.ecran, 20) }));
+    if (!entrees.length) return json({ ok: true });
+    let l = [];
+    try { l = (await store.get("diagnostic/appareils.json", { type: "json" })) || []; } catch { l = []; }
+    l = (Array.isArray(l) ? l : []).concat(entrees).slice(-400);
+    await store.setJSON("diagnostic/appareils.json", l);
+    return json({ ok: true, notes: entrees.length });
+  }
+  if (action === "journal-appareils") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let l = [];
+    try { l = (await store.get("diagnostic/appareils.json", { type: "json" })) || []; } catch { l = []; }
+    return json({ entrees: (Array.isArray(l) ? l : []).slice(-150).reverse() });
+  }
+
   /* ---------- le Cloud : l'espace de rangement de chacun (serveur/cloud.mjs) ---------- */
   if (action.startsWith("cloud-")) {
     const comptesSoc = await lireComptes(personne.societe);

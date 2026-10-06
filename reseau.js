@@ -36,6 +36,9 @@
   window.__reseauFiable = true;
   var brut = window.fetch;
   var ATTENTES = [1500, 4000, 8000];
+  /* un envoi patiente davantage : le serveur de l'hébergeur, endormi après un moment
+     sans visite, met parfois une vingtaine de secondes à se réveiller */
+  var ATTENTES_ENVOI = [1500, 4000, 8000, 15000, 25000];
   /* les délais (les essais automatiques les raccourcissent) */
   var R = Object.assign({
     lecture: 20000,           /* sans réponse d'une lecture au bout de 20 s : la connexion est morte */
@@ -220,6 +223,92 @@
      Une publication déjà en route (même chantier, même type, même titre,
      même suivi) n'est pas envoyée une seconde fois : un double appui sur
      « Publier » reçoit la réponse de la première. */
+  /* ---------- le journal des incidents ----------
+     Ce qui a échoué sur l'appareil (envoi refusé ou perdu, message
+     d'échec affiché, erreur de la page) est gardé ici, puis remis au
+     site dès qu'un échange passe : l'administrateur le lit dans Équipe,
+     et l'on sait enfin ce qui s'est passé sur le téléphone. */
+  var JOURNAL = "reseau:journal", envoiJournal = false;
+  function actionDe(entree){ var m = /[?&]action=([^&]+)/.exec(adresse(entree)); return m ? decodeURIComponent(m[1]) : ""; }
+  function noter(x){
+    try{
+      x.le = new Date().toISOString(); x.page = location.pathname; x.enLigne = navigator.onLine !== false;
+      var l = JSON.parse(localStorage.getItem(JOURNAL) || "[]"); if(!Array.isArray(l)) l = [];
+      l.push(x); localStorage.setItem(JOURNAL, JSON.stringify(l.slice(-30)));
+    }catch(e){}
+  }
+  window.__noterIncident = noter;
+  function viderJournal(){
+    if(envoiJournal) return;
+    var l; try{ l = JSON.parse(localStorage.getItem(JOURNAL) || "[]"); }catch(e){ l = []; }
+    if(!Array.isArray(l) || !l.length) return;
+    var j = jetonActuel(); if(!j) return;
+    envoiJournal = true;
+    brut(location.origin + "/api/rapports?action=journal-appareil", {method:"POST", credentials:MODE,
+      headers:{"content-type":"application/json", "x-auth":j},
+      body:JSON.stringify({entrees:l, appareil:String(navigator.userAgent||"").slice(0,200), ecran:(screen.width||0)+"x"+(screen.height||0)})})
+      .then(function(r){ if(r.ok){ try{ var reste = JSON.parse(localStorage.getItem(JOURNAL) || "[]").slice(l.length); localStorage.setItem(JOURNAL, JSON.stringify(reste)); }catch(e){} } })
+      .catch(function(){}).then(function(){ envoiJournal = false; });
+  }
+  /* les erreurs de la page */
+  window.addEventListener("error", function(e){ if(e && e.message) noter({quoi:"erreur", erreur:String(e.message).slice(0,200), source:String(e.filename||"").split("/").pop()+":"+(e.lineno||0)}); });
+  window.addEventListener("unhandledrejection", function(e){ var m = e && e.reason && (e.reason.message || e.reason); if(m && !/AbortError|Le site ne répond pas|Failed to fetch|NetworkError|Load failed/.test(String(m))) noter({quoi:"erreur", erreur:String(m).slice(0,200)}); });
+  /* le message d'échec affiché sous « Publier » : ce que la personne a vu */
+  function guetterEtat(){
+    var el = document.getElementById("pubEtat"); if(!el || el.__guette) return; el.__guette = true;
+    var dernier = "";
+    new MutationObserver(function(){
+      var t = (el.textContent || "").trim();
+      if(t && t !== dernier && /pas de réseau|refus|impossible|trop lourd|délai dépassé|échec|erreur|introuvable|non envoy|non dépos/i.test(t)){ dernier = t; noter({quoi:"message", erreur:t.slice(0,240)}); }
+    }).observe(el, {childList:true, characterData:true, subtree:true});
+  }
+  if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", guetterEtat); else guetterEtat();
+
+  /* ---------- ce qui se prépare encore (photos qu'on réduit) ----------
+     Une fiche appelle travailCommence() au début de la préparation d'une
+     photo, et la fonction rendue à la fin. « Publier » attend que tout
+     soit prêt, plutôt que de partir avec une partie des photos. */
+  var TRAVAUX = 0;
+  window.travailCommence = function(){
+    TRAVAUX++; var fait = false, t = setTimeout(fin, 60000);
+    function fin(){ if(fait) return; fait = true; clearTimeout(t); TRAVAUX = Math.max(0, TRAVAUX - 1); }
+    return fin;
+  };
+  window.__travauxEnCours = function(){ return TRAVAUX; };
+  /* « Publier » appuyé trop tôt : on attend les photos et le module PDF, puis il part tout seul */
+  function pageAvecPdf(){ return !!document.querySelector('script[src*="jspdf"]'); }
+  function recharger(){
+    var v = document.querySelector('script[src*="jspdf"]'); if(!v || window.__pdfRecharge) return;
+    window.__pdfRecharge = true;
+    var n = document.createElement("script"); n.src = v.src + (v.src.indexOf("?") < 0 ? "?" : "&") + "r=" + Date.now(); document.head.appendChild(n);
+  }
+  document.addEventListener("click", function(e){
+    var b = e.target && e.target.closest && e.target.closest("#btnPublier");
+    if(!b || b.__libre) return;
+    var photos = TRAVAUX > 0, pdf = pageAvecPdf() && !window.jspdf;
+    if(!photos && !pdf) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    if(b.__attend) return;
+    b.__attend = true;
+    var el = document.getElementById("pubEtat"), t0 = Date.now();
+    (function guetter(){
+      var ph = TRAVAUX > 0, pd = pageAvecPdf() && !window.jspdf;
+      if(!ph && !pd){
+        b.__attend = false; if(el) el.textContent = "";
+        b.__libre = true; try{ b.click(); } finally { b.__libre = false; }
+        return;
+      }
+      if(pd && Date.now() - t0 > 8000) recharger();
+      if(Date.now() - t0 > 60000){
+        b.__attend = false;
+        if(el) el.textContent = pd ? "Le module PDF ne se charge pas : vérifiez la connexion, puis appuyez de nouveau." : "Une photo ne se prépare pas : retirez-la, puis appuyez de nouveau.";
+        return;
+      }
+      if(el) el.textContent = ph ? "Préparation des photos avant l'envoi…" : "Préparation du PDF…";
+      setTimeout(guetter, 250);
+    })();
+  }, true);
+
   window.__envoisEnCours = 0;
   var EN_ROUTE = {};
   function clePublication(entree, options){
@@ -239,6 +328,7 @@
     if(envoi) window.__envoisEnCours++;
     var p = envoyer(this, entree, options).then(function(r){
       if(envoi) window.__envoisEnCours = Math.max(0, window.__envoisEnCours - 1);
+      if(r && r.status < 500) setTimeout(viderJournal, 1500);
       if(cle) delete EN_ROUTE[cle];
       return r;
     }, function(e){
@@ -254,9 +344,11 @@
   function envoyer(soi, entree, options){
     var essai = 0, attendu = false, rejeton = false;
     var envoi = estEnvoi(entree, options), delai = delaiPour(entree, options);
+    var PAS = envoi ? ATTENTES_ENVOI : ATTENTES, debut = Date.now();
     function tenter(){
       return avecDelai(soi, entree, options, delai).then(function(r){
-        if(reponseDeRelais(r) && essai < ATTENTES.length) return encore(r);
+        if(reponseDeRelais(r) && essai < PAS.length) return encore(r);
+        if(envoi && (r.status >= 500 || r.status === 413)) noter({quoi:"reponse", action:actionDe(entree), statut:r.status, essais:essai, duree:Date.now()-debut, taille:taille(options)});
         /* refusé avec un ancien jeton alors qu'une session plus récente est là : on la reprend */
         if(r.status === 401 && !rejeton){
           var vieux = jetonDe(options), neuf = jetonActuel();
@@ -271,16 +363,17 @@
           attendu = true;
           return attendreReseau().then(reveiller).then(function(){ essai = 0; dire("Réseau revenu : envoi en cours…"); return tenter(); });
         }
-        if(essai < ATTENTES.length) return encore(null, err);
+        if(essai < PAS.length) return encore(null, err);
         dire("");
+        if(envoi) noter({quoi:"echec", action:actionDe(entree), erreur:(err && (err.name + " " + (err.message||""))) || "inconnue", essais:essai, duree:Date.now()-debut, taille:taille(options)});
         throw err;
       });
     }
     function encore(r, err){
       var n = essai + 1;
       autreMode();                                     /* une connexion neuve pour le nouvel essai */
-      dire((err && err.name === "DelaiDepasse" ? "Le site ne répond pas" : "Connexion faible") + "… nouvel essai (" + n + "/" + ATTENTES.length + ")");
-      return attendre(ATTENTES[essai]).then(reveiller).then(function(){ essai = n; return tenter(); })
+      dire((err && err.name === "DelaiDepasse" ? "Le site ne répond pas" : (r && r.status >= 500 ? "Le serveur se réveille" : "Connexion faible")) + "… nouvel essai (" + n + "/" + PAS.length + ")");
+      return attendre(PAS[essai]).then(reveiller).then(function(){ essai = n; return tenter(); })
         .catch(function(e){ dire(""); if(r) return r; throw e || err; });
     }
     /* longtemps sans échange, ou retour de veille : on vérifie la connexion avant d'envoyer */

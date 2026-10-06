@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="./theme.js?v=20261004b"></script>
 <script src="./dates.js?v=20261001a"></script>
-<script src="./reseau.js?v=20261006b"></script>
+<script src="./reseau.js?v=20261007a"></script>
 <script src="./qr.js?v=20261004a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#F4F1EA">
@@ -492,6 +492,13 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <p class="err" id="errSauvegarde" role="status"></p>
   </div>
 
+  <div class="block" id="blocIncidents" hidden>
+    <h2>Incidents des appareils</h2>
+    <p class="hint">Ce qui a échoué sur les téléphones et ordinateurs de l'équipe : un envoi perdu ou refusé, un message d'échec affiché, une erreur de la page. Chaque appareil le remet au site dès que la connexion le permet. Utile pour comprendre une publication qui « n'a pas marché ».</p>
+    <button class="act ghost" id="btnIncidents" type="button" style="width:100%">Voir les incidents</button>
+    <div id="listeIncidents" style="margin-top:10px"></div>
+  </div>
+
   <div class="block" id="blocSocietes" hidden>
     <h2>Sociétés du site</h2>
     <div id="listeSocietes"></div>
@@ -573,6 +580,26 @@ function peindreApplis(){
 }
 
 /* ---------- la sauvegarde : un ticket de 5 minutes, puis le ZIP ---------- */
+/* ---------- les incidents des appareils ---------- */
+var LIB_INCIDENT={echec:"Envoi perdu", reponse:"Réponse du serveur", message:"Message affiché", erreur:"Erreur de la page"};
+function voirIncidents(){
+  var h=$("listeIncidents"); h.textContent="Chargement…";
+  fetch(api("journal-appareils"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); }).then(function(d){
+    h.textContent="";
+    var l=d.entrees||[];
+    if(!l.length){ var v=document.createElement("p"); v.className="hint"; v.textContent="Aucun incident : tout est passé."; h.appendChild(v); return; }
+    l.forEach(function(x){
+      var r=document.createElement("div"); r.className="ligne"; r.style.alignItems="flex-start";
+      var t=document.createElement("div"); t.style.flex="1"; t.style.minWidth="0";
+      var b=document.createElement("b"); b.textContent=(LIB_INCIDENT[x.quoi]||x.quoi)+" · "+(x.page||"").replace(/^\//,"").replace(/\.html$/,"")+(x.action ? " · "+x.action : "")+(x.statut ? " · "+x.statut : "");
+      var s2=document.createElement("span"); s2.style.whiteSpace="normal";
+      var quand=""; try{ quand=new Date(x.le).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch(e){}
+      s2.textContent=quand+" · "+x.qui+(x.erreur ? " — "+x.erreur : "")+(x.essais ? " · "+x.essais+" essai"+(x.essais>1?"s":"") : "")+(x.duree ? " · "+Math.round(x.duree/1000)+" s" : "")+(x.enLigne===false ? " · hors ligne" : "")+(x.appareil ? " · "+(/iPhone|iPad/.test(x.appareil) ? "iPhone" : /Android/.test(x.appareil) ? "Android" : /Mac/.test(x.appareil) ? "Mac" : /Windows/.test(x.appareil) ? "Windows" : "autre") : "");
+      t.appendChild(b); t.appendChild(s2); r.appendChild(t); h.appendChild(r);
+    });
+  }).catch(function(){ h.textContent="Pas de réseau."; });
+}
+$("btnIncidents").addEventListener("click", voirIncidents);
 function sauvegarder(tout){
   var e=$("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
   e.className="err"; e.textContent="Préparation du fichier…"; b1.disabled=b2.disabled=true;
@@ -610,6 +637,7 @@ function charger(){
           t.appendChild(b); t.appendChild(s2); r.appendChild(t); i.appendChild(r);
         });
       $("blocSauvegarde").hidden=!!d.demo;
+      $("blocIncidents").hidden=!!d.demo;
       $("btnSauvegardeTout").hidden=!d.proprietaire;
       if(d.proprietaire){
         $("titre").textContent="Comptes et sociétés";
