@@ -7,6 +7,7 @@ import path from "node:path";
 import { dossierDonnees } from "./magasin-fichiers.mjs";
 import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
+import { rangerPhotos } from "./photos-seules.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -1883,6 +1884,21 @@ async function traiter(req) {
       try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
       c.equipe = [nomDuCompte(entree.auteur, comptesEq)].filter(Boolean);
     }
+    /* chaque photo du lot, aussi rangée seule : <REF>/Photos/<date> <titre>/ */
+    if (photos && cle.endsWith(".zip")) {
+      for (const k of ((ancien && ancien.photosSeules) || [])) { try { await store.delete(k); } catch { /* déjà partie */ } }
+      const prises = c.fichiers.filter((f) => f.cle !== cle).flatMap((f) => f.photosSeules || []);
+      /* les lots d'un même reportage (…-2, …-3) vont dans le même dossier ; un autre reportage a le sien */
+      const famille = (k) => String(k).replace(/(-\d+)?\.zip$/i, "");
+      const dossierDe = (k) => String(k).slice(0, String(k).lastIndexOf("/"));
+      const autres = c.fichiers.filter((f) => f.cle !== cle && famille(f.cle) !== famille(cle)).flatMap((f) => (f.photosSeules || []).map(dossierDe));
+      const miens = c.fichiers.filter((f) => f.cle !== cle && famille(f.cle) === famille(cle)).flatMap((f) => (f.photosSeules || []).map(dossierDe));
+      try {
+        entree.photosSeules = miens.length
+          ? await rangerPhotos(store, ref, octets, Object.assign({}, entree, { _dossier: miens[0] }), prises, [])
+          : await rangerPhotos(store, ref, octets, entree, prises, autres);
+      } catch { /* la galerie du lot suffit */ }
+    }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
     if (point && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
@@ -3645,7 +3661,7 @@ async function traiter(req) {
     /* 2. l'index : on rebaptise le dossier et chaque clé */
     const renomme = (cle) => (String(cle).startsWith(prefixe) ? nouvelle + "/" + String(cle).slice(prefixe.length) : cle);
     c.ref = nouvelle;
-    c.fichiers.forEach((f) => { f.cle = renomme(f.cle); });
+    c.fichiers.forEach((f) => { f.cle = renomme(f.cle); if (Array.isArray(f.photosSeules)) f.photosSeules = f.photosSeules.map(renomme); });
     (c.depots || []).forEach((x) => { x.cle = renomme(x.cle); });
     /* les liens du client et les QR codes imprimés suivent le dossier */
     for (const l of (c.liens || [])) {
@@ -3787,6 +3803,9 @@ async function traiter(req) {
     await store.delete(cle.replace(/\.pdf$/, ".json"));
     const idx = await lireIndex();
     const ref = cle.split("/")[0];
+    /* les photos rangées seules partent avec leur lot */
+    const parti = idx.chantiers[ref] && idx.chantiers[ref].fichiers.find((f) => f.cle === cle);
+    for (const k of ((parti && parti.photosSeules) || [])) { try { await store.delete(k); } catch { /* déjà partie */ } }
     if (idx.chantiers[ref]) {
       idx.chantiers[ref].fichiers = idx.chantiers[ref].fichiers.filter((f) => f.cle !== cle);
       if (!idx.chantiers[ref].fichiers.length && !(idx.chantiers[ref].liens || []).length) delete idx.chantiers[ref];

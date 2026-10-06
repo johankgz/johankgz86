@@ -1270,28 +1270,43 @@ function deposerPhotos(fini){
     terminer(false, 0, "Client manquant.");
     return;
   }
-  var blob = creerZip(fichiersPhotos(liste));
-  if(el) el.textContent = "Dépôt des photos…";
-  var fr = new FileReader();
-  fr.onload = function(){
-    var b64 = String(fr.result).split(",")[1];
-    if(b64.length*0.75 > 5.4*1024*1024){
-      terminer(false, 0, "Lot de photos trop lourd."); return;
-    }
-    fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(),
-      body:JSON.stringify({pdf:b64, type:"photos", chantier:refAffaire(), client:nomClient(),
-        adresse:adresseTravaux(), date:dateFiche(), destinataires:destinataires().slice(),
-        dossier: PUB_MODE === "dossier",
-        titre:"Photos des travaux (" + liste.length + ")"})})
-      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-      .then(function(res){
-        if(!res.ok){ terminer(false, 0, res.d.erreur || "Dépôt refusé."); return; }
-        terminer(true, liste.length);
-      })
-      .catch(function(){ terminer(false, 0, "Pas de réseau."); });
-  };
-  fr.readAsDataURL(blob);
+  /* un identifiant propre à ce reportage : deux reportages du même jour
+     ne s'écrasent pas ; redéposer celui-ci remplace ses propres lots */
+  if(!S.lotPhotos){ S.lotPhotos="r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); save(); }
+  /* des lots qui tiennent chacun dans une requête : autant de photos qu'on veut */
+  var fichiers=fichiersPhotos(liste), lots=[], cour=[], poids=0;
+  fichiers.forEach(function(f){
+    if(cour.length && poids+f.octets.length > LOT_PHOTOS){ lots.push(cour); cour=[]; poids=0; }
+    cour.push(f); poids+=f.octets.length;
+  });
+  if(cour.length) lots.push(cour);
+  if(lots.some(function(l){ return l.length===1 && l[0].octets.length > 5.3*1024*1024; })){ terminer(false, 0, "Une photo est trop lourde pour le dépôt."); return; }
+  var faits=0;
+  function envoyer(k){
+    if(k>=lots.length){ terminer(true, liste.length); return; }
+    if(el) el.textContent = lots.length>1 ? "Dépôt des photos ("+(k+1)+" sur "+lots.length+")…" : "Dépôt des photos…";
+    var fr = new FileReader();
+    fr.onload = function(){
+      var b64 = String(fr.result).split(",")[1];
+      fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(),
+        body:JSON.stringify({pdf:b64, type:"photos", chantier:refAffaire(), client:nomClient(),
+          adresse:adresseTravaux(), date:dateFiche(), destinataires:destinataires().slice(),
+          dossier: PUB_MODE === "dossier", suiviId: S.lotPhotos + (k ? "-" + (k+1) : ""),
+          titre:"Photos des travaux (" + liste.length + ")" + (lots.length>1 ? " · partie "+(k+1)+"/"+lots.length : "")})})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+        .then(function(res){
+          if(!res.ok){ terminer(false, 0, res.d.erreur || "Dépôt refusé."); return; }
+          faits++; envoyer(k+1);
+        })
+        .catch(function(){ terminer(false, 0, faits ? "Pas de réseau ("+faits+" lot"+(faits>1?"s":"")+" sur "+lots.length+" déposé"+(faits>1?"s":"")+")." : "Pas de réseau."); });
+    };
+    fr.onerror = function(){ terminer(false, 0, "Lecture des photos impossible."); };
+    fr.readAsDataURL(creerZip(lots[k]));
+  }
+  envoyer(0);
 }
+/* un lot de photos par requête : 4,6 Mo au plus */
+var LOT_PHOTOS=4.6*1024*1024;
 
 /* ---------- destinataires et base de rapports ---------- */
 var EQUIPE_CACHE = null;
@@ -1466,15 +1481,54 @@ function bindChoixPublication(){
 }
 
 /* ---------- publication ---------- */
+/* Le PDF d'un gros reportage dépasserait ce que le site accepte (5,4 Mo) :
+   on y met alors des copies allégées des photos, de plus en plus légères.
+   Les photos d'origine, elles, partent telles quelles, à part. */
+var ALLEGE=null;          /* photo -> copie allégée, pour le PDF seulement */
+function photoPdf(p){ return (ALLEGE && ALLEGE.get(p)) || p.data; }
+function alleger(max, q){
+  return Promise.all(S.photos.map(function(p){
+    return new Promise(function(ok){
+      var im=new Image();
+      im.onload=function(){
+        var w=im.naturalWidth, h=im.naturalHeight, k=Math.min(1, max/Math.max(w,h));
+        var c=document.createElement("canvas"); c.width=Math.max(1,Math.round(w*k)); c.height=Math.max(1,Math.round(h*k));
+        var x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height); x.drawImage(im,0,0,c.width,c.height);
+        ok([p, c.toDataURL("image/jpeg", q)]);
+      };
+      im.onerror=function(){ ok([p, p.data]); };
+      im.src=p.data;
+    });
+  })).then(function(l){ ALLEGE=new Map(l); });
+}
+function pdfLeger(fini){
+  var LIMITE=5.4*1024*1024, etapes=[[1100,0.62],[900,0.55],[720,0.5],[560,0.45]], k=0;
+  ALLEGE=null;
+  function essai(){
+    var doc;
+    try{ doc=buildPdf(); }catch(e){ ALLEGE=null; toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Reportage impossible à générer."); fini(null); return; }
+    var b64=doc.output("datauristring").split(",")[1];
+    if(b64.length*0.75 <= LIMITE){ ALLEGE=null; fini(doc, b64); return; }
+    if(k>=etapes.length){ ALLEGE=null; toast("Reportage trop lourd, même allégé : publiez-le en deux fois."); fini(null); return; }
+    var e=etapes[k++];
+    $("pubEtat").textContent="Préparation du PDF (photos allégées pour le PDF, originales à part)…";
+    alleger(e[0], e[1]).then(essai);
+  }
+  essai();
+}
 function publierRapport(meta){
   if(!apiPret()) return;
   var sel=destinataires();
   var versDossier = PUB_MODE === "dossier";
   if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
-  var doc;
-  try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Reportage impossible à générer."); return; }
-  var b64=doc.output("datauristring").split(",")[1];
-  if(b64.length*0.75 > 5.4*1024*1024){ toast("Reportage trop lourd. Retirez quelques photos."); return; }
+  pdfLeger(function(doc, b64){
+    if(!doc){ $("pubEtat").textContent=""; return; }
+    publierRapportPdf(meta, b64);
+  });
+}
+function publierRapportPdf(meta, b64){
+  var sel=destinataires();
+  var versDossier = PUB_MODE === "dossier";
   var el=$("pubEtat");
   meta.destinataires = versDossier ? [] : sel.slice();
   if(versDossier) meta.dossier = true;
@@ -1748,7 +1802,7 @@ function buildPdf(){
       var haut=y;
       cellules.forEach(function(c, k){
         var xCol=M+k*(cw+6);
-        try{ doc.addImage(c.photo.data, "JPEG", xCol+c.ox, haut, c.w, c.h); }catch(e){}
+        try{ doc.addImage(photoPdf(c.photo), "JPEG", xCol+c.ox, haut, c.w, c.h); }catch(e){}
         doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(ACC);
         doc.text("Photo "+c.num, xCol, haut+c.h+4);
         if(c.lignes.length){

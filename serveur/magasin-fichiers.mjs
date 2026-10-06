@@ -101,8 +101,14 @@ export function magasinFichiers(options) {
     },
 
     async delete(cle) {
-      for (const f of [chemin(magasin, cle), chemin(magasin, cle) + ".metadonnees.json"]) {
+      const f0 = chemin(magasin, cle);
+      for (const f of [f0, f0 + ".metadonnees.json"]) {
         try { await fs.unlink(f); } catch (e) { if (e.code !== "ENOENT") throw e; }
+      }
+      /* un dossier devenu vide s'en va aussi (jamais la racine du magasin) */
+      const racine = path.join(RACINE, magasin);
+      for (let d = path.dirname(f0); d.length > racine.length && d.startsWith(racine + path.sep); d = path.dirname(d)) {
+        try { await fs.rmdir(d); } catch { break; }
       }
     },
 
