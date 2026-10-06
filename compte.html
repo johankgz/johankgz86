@@ -7,6 +7,7 @@
 <script src="./reseau.js?v=20261007a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
+<script src="./fonds-anim.js?v=20261007a"></script>
 <meta name="theme-color" content="#F4F1EA">
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
 <link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
@@ -459,6 +460,13 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .choix-fond input{width:18px;height:18px;margin:0;accent-color:#EA7A1E}
 .choix-fond b{display:block;font-size:14.5px}
 .choix-fond small{display:block;font-size:12.5px;color:var(--ink-3,#6B7480)}
+/* les fonds d'écran : une vignette par fond, en grille */
+.choix-fond.vignettes{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.choix-fond.vignettes label{flex-direction:column;align-items:stretch;gap:6px;padding:6px 6px 9px;position:relative}
+.choix-fond.vignettes canvas,.choix-fond.vignettes .vg-uni{display:block;width:100%;aspect-ratio:16/10;border-radius:7px;background:#23272D}
+.choix-fond.vignettes input{position:absolute;top:12px;left:12px;width:18px;height:18px}
+.choix-fond.vignettes span{padding:0 4px}
+.choix-fond.vignettes label:has(input:checked){border-color:#EA7A1E;box-shadow:0 0 0 2px rgba(234,122,30,.35)}
 /* ---------- la carte de visite (carte.js) ---------- */
 #adresseCarte{width:100%;box-sizing:border-box;min-height:60px;padding:11px 12px;font:inherit;font-size:16px;resize:vertical;color:var(--ink)}
 .carte-apercu{display:flex;gap:14px;align-items:center;margin:4px 0 14px;padding:12px;border-radius:var(--r-field);border:1px solid var(--champ-bord);background:var(--champ-fond)}
@@ -633,11 +641,9 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 
   <div class="block">
     <h2>Fond d'écran</h2>
-    <p class="legend">L'animation derrière l'accueil, ou un fond uni qui ne bouge pas, sur l'accueil et dans les applis (en sombre ; en clair, le fond est uni). Réglage propre à cet appareil.</p>
-    <div class="choix-fond" role="radiogroup" aria-label="Fond d'écran">
-      <label><input type="radio" name="fond" value="reseaux"><span><b>Les réseaux</b><small>Câbles et tuyaux aux couleurs du logo</small></span></label>
-      <label><input type="radio" name="fond" value="ville"><span><b>La ville en chantier</b><small>Immeubles, chantier et grue</small></span></label>
-      <label><input type="radio" name="fond" value="anthracite"><span><b>Anthracite, sans animation</b><small>Un fond uni, partout : rien ne bouge</small></span></label>
+    <p class="legend">L'animation derrière l'accueil, ou un fond uni qui ne bouge pas, sur l'accueil et dans les applis (en sombre ; en clair, le fond est uni). Tous sont légers, même sur un ordinateur : 30 images par seconde au plus, en pause quand la page est cachée. Réglage propre à cet appareil.</p>
+    <div class="choix-fond vignettes" id="choixFonds" role="radiogroup" aria-label="Fond d'écran">
+      <label><input type="radio" name="fond" value="anthracite"><i class="vg-uni" aria-hidden="true"></i><span><b>Anthracite, sans animation</b><small>Un fond uni, partout : rien ne bouge</small></span></label>
     </div>
   </div>
 
@@ -871,10 +877,23 @@ if(S.role==="bureau" || S.role==="admin"){
 
 /* ---------- le fond de l'accueil ---------- */
 (function(){
+  /* les fonds animés (fonds-anim.js), chacun avec sa vignette, avant l'anthracite */
+  var box=document.getElementById("choixFonds"), uni=box && box.firstElementChild;
+  var LISTE=(window.FondsAnim && FondsAnim.LISTE) || [["reseaux","Les réseaux",""],["ville","La ville en chantier",""]];
+  LISTE.forEach(function(f){
+    var l=document.createElement("label");
+    l.innerHTML='<input type="radio" name="fond"><canvas aria-hidden="true"></canvas><span><b></b><small></small></span>';
+    l.querySelector("input").value=f[0]; l.querySelector("b").textContent=f[1]; l.querySelector("small").textContent=f[2];
+    box.insertBefore(l, uni);
+  });
+  function vignettes(){ Array.prototype.forEach.call(box.querySelectorAll("canvas"), function(c){
+    try{ FondsAnim.apercu(c.parentNode.querySelector("input").value, c); }catch(e){} }); }
+  if(window.FondsAnim) requestAnimationFrame(vignettes);
   var v="reseaux";
   try{
+    var a=localStorage.getItem("accueil:fond")||"";
     v = localStorage.getItem("site:fond")==="anthracite" ? "anthracite"
-      : (localStorage.getItem("accueil:fond")==="ville" ? "ville" : "reseaux");
+      : (LISTE.some(function(f){ return f[0]===a; }) ? a : "reseaux");
   }catch(e){}
   Array.prototype.forEach.call(document.querySelectorAll('input[name="fond"]'), function(r){
     r.checked = r.value===v;
@@ -883,8 +902,9 @@ if(S.role==="bureau" || S.role==="admin"){
         if(r.value==="anthracite") localStorage.setItem("site:fond", "anthracite");
         else { localStorage.removeItem("site:fond"); localStorage.setItem("accueil:fond", r.value); }
       }catch(e){}
+      var nom=(LISTE.filter(function(f){ return f[0]===r.value; })[0]||[])[1];
       if(typeof toast==="function") toast(r.value==="anthracite" ? "Fond anthracite, sans animation, sur tout le site."
-        : r.value==="ville" ? "La ville en chantier revient sur l'accueil." : "Les réseaux sur l'accueil.");
+        : "« "+(nom||r.value)+" » sur l'accueil.");
     });
   });
 })();
