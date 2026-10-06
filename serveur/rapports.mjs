@@ -269,6 +269,40 @@ function jetonPour(code, id, compte, date) {
    clé qui lui évite de retaper le code, et qui cesse de valoir dès que
    l'administrateur en tire un nouveau ou le retire. */
 const ESSAIS_KNX = new Map();
+/* ---------- la connexion : pas de mots de passe essayés en boucle ----------
+   Sur un quart d'heure : 6 échecs pour un même compte, ou 20 depuis une même
+   adresse, et la connexion est refusée un quart d'heure, avant même de lire
+   le mot de passe. Une connexion réussie efface les échecs de son compte.
+   L'adresse retenue est la dernière du relais (celle qu'il a vue), pas une
+   valeur choisie par le visiteur. */
+const ESSAIS_CONNEXION = new Map();
+const ESSAIS_FENETRE = 15 * 60 * 1000, ESSAIS_COMPTE = 6, ESSAIS_ADRESSE = 20;
+function adresseDe(req) {
+  const f = String(req.headers.get("x-forwarded-for") || "").split(",").map((x) => x.trim()).filter(Boolean);
+  return f.length ? f[f.length - 1] : (req.headers.get("x-real-ip") || "local");
+}
+function essaisDe(cle) {
+  const e = ESSAIS_CONNEXION.get(cle), now = Date.now();
+  if (!e || now - e.depuis > ESSAIS_FENETRE) return null;
+  return e;
+}
+function connexionBloquee(cles) {
+  const [compte, adresse] = cles;
+  const a = essaisDe(compte), b = essaisDe(adresse);
+  const bloque = (a && a.n >= ESSAIS_COMPTE) ? a : (b && b.n >= ESSAIS_ADRESSE) ? b : null;
+  if (!bloque) return 0;
+  return Math.max(1, Math.ceil((bloque.depuis + ESSAIS_FENETRE - Date.now()) / 60000));
+}
+function noterEchec(cles) {
+  const now = Date.now();
+  if (ESSAIS_CONNEXION.size > 5000) {
+    for (const [k, e] of ESSAIS_CONNEXION) if (now - e.depuis > ESSAIS_FENETRE) ESSAIS_CONNEXION.delete(k);
+  }
+  for (const k of cles) {
+    const e = essaisDe(k);
+    ESSAIS_CONNEXION.set(k, e ? { n: e.n + 1, depuis: e.depuis } : { n: 1, depuis: now });
+  }
+}
 function codeKnx() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";          /* ni 0/O ni 1/I */
   const b = randomBytes(8);
@@ -951,8 +985,14 @@ async function traiter(req) {
     const mdp = String(d.motdepasse || "");
     /* l'accès de démonstration est fermé : ses identifiants étaient publics */
     if (code === SOCIETE_DEMO.code) return json({ erreur: "L'accès de démonstration est fermé. Demandez un accès." }, 403);
+    const cles = ["compte:" + code + "|" + id, "adresse:" + adresseDe(req)];
+    const attente = connexionBloquee(cles);
+    if (attente) {
+      return json({ erreur: "Trop d'essais de connexion. Par sécurité, réessayez dans " + attente + " minute" + (attente > 1 ? "s" : "") + "." }, 429);
+    }
     const v = await verifier(code, id, mdp);
-    if (!v) return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401);
+    if (!v) { noterEchec(cles); return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401); }
+    ESSAIS_CONNEXION.delete(cles[0]);
     const p = v.personne;
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === code) || {};

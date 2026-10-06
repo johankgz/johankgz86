@@ -43,7 +43,8 @@ const TYPES = {
   ".xml": "application/xml; charset=utf-8",
   ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
   ".svg": "image/svg+xml", ".ico": "image/x-icon", ".webp": "image/webp",
-  ".woff2": "font/woff2", ".woff": "font/woff", ".wasm": "application/wasm"
+  ".woff2": "font/woff2", ".woff": "font/woff", ".wasm": "application/wasm",
+  ".pdf": "application/pdf", ".ttf": "font/ttf", ".csv": "text/csv; charset=utf-8"
 };
 
 /* les fonctions du site, à leur adresse */
@@ -117,8 +118,31 @@ async function fichierPret(fichier) {
   return pret;
 }
 
+/* ---------- les protections du navigateur, sur chaque réponse ----------
+   - nosniff : un fichier n'est lu que pour ce qu'il déclare être ;
+   - le site ne s'affiche pas dans le cadre d'un autre site (hameçonnage
+     par superposition) ;
+   - l'adresse complète d'une page (un lien client porte une clé) ne part
+     jamais vers un autre site ;
+   - caméra, micro et position : pour le site lui-même seulement ;
+   - pas de plugin, pas de formulaire envoyé ailleurs, pas de <base> détournée ;
+   - HTTPS imposé pendant 6 mois une fois venu en HTTPS (pas en local). */
+const SECURITE = {
+  "x-content-type-options": "nosniff",
+  "x-frame-options": "SAMEORIGIN",
+  "referrer-policy": "strict-origin-when-cross-origin",
+  "permissions-policy": "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), interest-cohort=()",
+  "content-security-policy": "frame-ancestors 'self'; base-uri 'self'; object-src 'none'; form-action 'self'"
+};
+function proteger(req, res) {
+  for (const k in SECURITE) res.setHeader(k, SECURITE[k]);
+  /* le navigateur n'en tient compte qu'en HTTPS ; en local (essais), on s'abstient */
+  if (!/^(localhost|127\.|\[::1\])/.test(String(req.headers.host || ""))) res.setHeader("strict-transport-security", "max-age=15552000");
+}
+
 const serveur = http.createServer(async (req, res) => {
   const chemin = (req.url || "/").split("?")[0];
+  proteger(req, res);
   try {
     const route = ROUTES.find((r) => r.chemins.includes(chemin));
     if (route) return repondre(req, res, await route.fonction(versRequete(req)));
