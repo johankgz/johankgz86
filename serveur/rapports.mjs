@@ -409,6 +409,8 @@ function aAcces(personne, appli) {
    ce qui marche sur n'importe quel hébergement, et ne peut pas
    se gripper en silence.
    ===================================================================== */
+/* un nom de chantier (le client, la raison sociale) : toujours en majuscules */
+function majuscules(t) { return String(t == null ? "" : t).toLocaleUpperCase("fr-FR"); }
 const RELANCE_JOURS = 30;
 function joursDepuis(iso) {
   if (!iso) return 0;
@@ -1438,7 +1440,12 @@ async function traiter(req) {
   }
 
   async function lireIndex() {
-    return (await store.get(INDEX, { type: "json" })) || { chantiers: {} };
+    const idx = (await store.get(INDEX, { type: "json" })) || { chantiers: {} };
+    /* les noms de chantier (le client) s'écrivent en majuscules, anciens dossiers compris */
+    for (const c of Object.values(idx.chantiers || {})) {
+      if (c && typeof c.client === "string" && c.client !== majuscules(c.client)) c.client = majuscules(c.client);
+    }
+    return idx;
   }
   function trouver(idx, cle) {
     const ref = cle.split("/")[0];
@@ -1529,7 +1536,15 @@ async function traiter(req) {
     let d = {}; try { d = await req.json(); } catch { d = {}; }
     const tout = d.tout === true;
     if (tout && !personne.proprietaire) return json({ erreur: "Réservé au propriétaire du site." }, 403);
-    const ticket = ticketExport({ code: personne.societe, tout, par: personne.nom });
+    /* le propriétaire du site télécharge aussi une autre société, en entier */
+    let code = personne.societe;
+    if (d.code && String(d.code) !== personne.societe) {
+      if (!personne.proprietaire) return json({ erreur: "Réservé au propriétaire du site." }, 403);
+      const soc = (await lireSocietes()).find((x) => x.code === String(d.code));
+      if (!soc) return json({ erreur: "Société introuvable." }, 404);
+      code = soc.code;
+    }
+    const ticket = ticketExport({ code, tout, par: personne.nom });
     return json({ ok: true, url: "/api/rapports?action=export-donnees&ticket=" + encodeURIComponent(ticket) });
   }
 
@@ -1855,7 +1870,7 @@ async function traiter(req) {
     if (dejaAccepte && estReleve && statutAttendu(d.etape) === "attente") {
       return json({ erreur: "Ce dossier est au devis accepté : il ne repasse plus en attente de réponse. Choisissez « Devis accepté » dans le statut du relevé." }, 409);
     }
-    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
+    if (d.client && !c.clientFixe) c.client = majuscules(d.client);     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse) c.adresse = d.adresse;
     /* un dossier archivé qu'on restaure (depuis son ZIP) retrouve les liens de son espace client :
        le client et les QR des tableaux rouvrent le dossier complet, l'espace mis de côté n'a plus lieu d'être */
@@ -2138,8 +2153,8 @@ async function traiter(req) {
       if (avant) { c0.fichiers = c0.fichiers.filter((f) => f !== avant); store.delete(avant.cle).catch(() => {}); if (!c0.fichiers.length && !(c0.liens || []).length) delete idx.chantiers[c0.ref]; }
     });
     await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
-    const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: d.adresse || "", fichiers: [] };
-    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
+    const c = idx.chantiers[ref] || { ref, client: majuscules(d.client || ""), adresse: d.adresse || "", fichiers: [] };
+    if (d.client && !c.clientFixe) c.client = majuscules(d.client);     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse && !c.adresse) c.adresse = d.adresse;
     /* un dossier né de l'appel : celui qui l'a pris en est le responsable,
        le technicien pourra publier « dans le dossier » */
@@ -2209,8 +2224,8 @@ async function traiter(req) {
     const cle = ref + "/releve-a-poursuivre.json";
     await store.set(cle, d.fiche, { metadata: { type: "application/json" } });
     const idx = await lireIndex();
-    const c = idx.chantiers[ref] || { ref, client: d.client || "", adresse: "", fichiers: [] };
-    if (d.client && !c.clientFixe) c.client = d.client;     /* un nom changé sur le site n'est plus écrasé */
+    const c = idx.chantiers[ref] || { ref, client: majuscules(d.client || ""), adresse: "", fichiers: [] };
+    if (d.client && !c.clientFixe) c.client = majuscules(d.client);     /* un nom changé sur le site n'est plus écrasé */
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     c.fichiers.push({
       cle, titre: d.titre || "Relevé à poursuivre", type: "releve", visite: "", etape: "",
@@ -3175,7 +3190,7 @@ async function traiter(req) {
     /* le QR d'un tableau s'imprime souvent avant la première publication : le dossier naît avec lui */
     if (!c && action === "lien-creer" && slug(ref)) {
       const k = slug(ref).toUpperCase();
-      c = idx.chantiers[k] = { ref: k, client: String(d.client || "").trim().slice(0, 120), adresse: "", fichiers: [],
+      c = idx.chantiers[k] = { ref: k, client: majuscules(String(d.client || "").trim().slice(0, 120)), adresse: "", fichiers: [],
         equipe: [nomDuCompte(personne.nom, await lireComptes(personne.societe))].filter(Boolean), maj: new Date().toISOString() };
     }
     if (!c) return json({ erreur: "Dossier introuvable : publiez d'abord un document dans ce dossier." }, 404);
@@ -3670,7 +3685,7 @@ async function traiter(req) {
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     /* le nom, la référence et la note d'un chantier : le bureau et l'administrateur, jamais un technicien */
     if (!bureau) return json({ erreur: "Réservé au bureau : un technicien ne modifie ni le nom, ni la référence, ni la note d'un chantier." }, 403);
-    const nom = String(d.client || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    const nom = majuscules(String(d.client || "").replace(/\s+/g, " ").trim().slice(0, 120));
     if (!nom) return json({ erreur: "Donnez le nom du chantier." }, 400);
     if (nom !== c.client) {
       c.ancienNom = c.client || "";

@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="./theme.js?v=20261004b"></script>
+<script src="./commun.js?v=20261007a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261007a"></script>
 <script src="./qr.js?v=20261004a"></script>
@@ -433,6 +434,22 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
   </div>
 
+  <div class="block" id="blocSauvegarde" hidden>
+    <h2>Tout télécharger</h2>
+    <p class="hint">Un fichier ZIP avec tout ce que la société a sur le site : les chantiers et leurs documents (PDF, photos), les fiches des applis, les références, la fiche société, les comptes (sans les mots de passe) et les liens clients. À garder en lieu sûr (ordinateur, disque externe), par exemple une fois par semaine : il contient les données de vos clients.</p>
+    <button class="p" id="btnSauvegarde" type="button">Tout télécharger de la société (ZIP)</button>
+    <button class="act ghost" id="btnSauvegardeTout" type="button" hidden style="width:100%;margin-top:10px">Tout le site (toutes les sociétés, pour tout restaurer)</button>
+    <p class="err" id="errSauvegarde" role="status"></p>
+  </div>
+
+  <div class="block" id="blocIncidents" hidden>
+    <h2>Journal des problèmes de publication</h2>
+    <p class="hint">Ce qui a échoué sur les téléphones et ordinateurs de l'équipe : un envoi perdu ou refusé, un message d'échec affiché, une erreur de la page. Chaque appareil le remet au site dès que la connexion le permet. Utile pour comprendre une publication qui « n'a pas marché ».</p>
+    <p class="hint" id="resumeIncidents" style="margin:0 0 10px"></p>
+    <button class="act ghost" id="btnIncidents" type="button" style="width:100%">Voir le journal</button>
+    <div id="listeIncidents" style="margin-top:10px"></div>
+  </div>
+
   <div class="block">
     <h2 id="titreListe">Comptes de la société</h2>
     <div id="liste"></div>
@@ -482,21 +499,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <button class="act" id="btnVider">Vider</button>
     </div>
     <p class="err" id="err"></p>
-  </div>
-
-  <div class="block" id="blocSauvegarde" hidden>
-    <h2>Sauvegarde des données</h2>
-    <p class="hint">Un fichier ZIP avec tout ce que la société a sur le site : les chantiers et leurs documents (PDF, photos), les fiches des applis, les références, la fiche société, les comptes (sans les mots de passe) et les liens clients. À garder en lieu sûr (ordinateur, disque externe), par exemple une fois par semaine : il contient les données de vos clients.</p>
-    <button class="p" id="btnSauvegarde" type="button">Télécharger toutes les données</button>
-    <button class="act ghost" id="btnSauvegardeTout" type="button" hidden style="width:100%;margin-top:10px">Tout le site (toutes les sociétés, pour tout restaurer)</button>
-    <p class="err" id="errSauvegarde" role="status"></p>
-  </div>
-
-  <div class="block" id="blocIncidents" hidden>
-    <h2>Incidents des appareils</h2>
-    <p class="hint">Ce qui a échoué sur les téléphones et ordinateurs de l'équipe : un envoi perdu ou refusé, un message d'échec affiché, une erreur de la page. Chaque appareil le remet au site dès que la connexion le permet. Utile pour comprendre une publication qui « n'a pas marché ».</p>
-    <button class="act ghost" id="btnIncidents" type="button" style="width:100%">Voir les incidents</button>
-    <div id="listeIncidents" style="margin-top:10px"></div>
   </div>
 
   <div class="block" id="blocSocietes" hidden>
@@ -600,10 +602,21 @@ function voirIncidents(){
   }).catch(function(){ h.textContent="Pas de réseau."; });
 }
 $("btnIncidents").addEventListener("click", voirIncidents);
-function sauvegarder(tout){
+/* le résumé du journal, dès l'ouverture de la page : combien de problèmes, et le dernier */
+function resumerIncidents(){
+  fetch(api("journal-appareils"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); }).then(function(d){
+    var l=d.entrees||[], sem=l.filter(function(x){ return Date.now()-new Date(x.le).getTime() < 7*864e5; });
+    var e=$("resumeIncidents");
+    if(!l.length){ e.textContent="Aucun problème de publication enregistré."; return; }
+    var der=l[0], quand=""; try{ quand=new Date(der.le).toLocaleString("fr-FR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }catch(x){}
+    e.textContent=sem.length+" problème"+(sem.length>1?"s":"")+" ces 7 derniers jours ("+l.length+" en tout). Le dernier : "+quand+", "+(der.qui||"")+(der.page ? ", "+String(der.page).replace(/^\//,"").replace(/\.html$/,"") : "")+".";
+  }).catch(function(){});
+}
+function sauvegarder(tout, code, bouton){
   var e=$("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
   e.className="err"; e.textContent="Préparation du fichier…"; b1.disabled=b2.disabled=true;
-  fetch(api("export-ticket"), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify({tout:!!tout})})
+  if(bouton){ bouton.disabled=true; bouton.textContent="Préparation…"; setTimeout(function(){ bouton.disabled=false; bouton.textContent="Tout télécharger"; }, 4000); }
+  fetch(api("export-ticket"), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify(code ? {code:code} : {tout:!!tout})})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
     .then(function(res){
       if(!res.ok){ e.textContent=res.d.erreur||"Sauvegarde refusée."; return; }
@@ -638,6 +651,7 @@ function charger(){
         });
       $("blocSauvegarde").hidden=!!d.demo;
       $("blocIncidents").hidden=!!d.demo;
+      if(!d.demo) resumerIncidents();
       $("btnSauvegardeTout").hidden=!d.proprietaire;
       if(d.proprietaire){
         $("titre").textContent="Comptes et sociétés";
@@ -1000,7 +1014,10 @@ function chargerSocietes(){
             {headers:{"x-auth":S.jeton}})
             .then(function(){ chargerSocietes(); }).catch(function(){});
         });
-        r.appendChild(t); r.appendChild(bt);
+        var dl=document.createElement("button"); dl.className="act ghost"; dl.type="button";
+        dl.textContent="Tout télécharger"; dl.title="Toutes les données de "+x.nom+", en un fichier ZIP";
+        dl.addEventListener("click", function(){ sauvegarder(false, x.code, dl); });
+        r.appendChild(t); r.appendChild(dl); r.appendChild(bt);
         host.appendChild(r);
       });
     }).catch(function(){});
