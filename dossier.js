@@ -814,19 +814,28 @@ function retenirPli(ref, ouvert){
   PLI[ref]=ouvert;
   try{ sessionStorage.setItem("rapports:pli", JSON.stringify(PLI)); }catch(e){}
 }
-/* Les sous-dossiers d'un dossier : « Suivi de chantier » et « Photos du
+/* Les sous-dossiers d'un dossier : « Suivi de chantier », « Plans »
+   (documents techniques de nature Plan), « Commandes » et « Photos du
    chantier ». Repliés, avec leur nombre de documents ; les plus récents
    en premier une fois ouverts. Ouvert ou fermé tient jusqu'à la fin de
    la visite, dossier par dossier. */
 var SOUS_DOSSIERS={
   suivi:{nom:"Suivi de chantier", classe:"sous-dossier dossier-suivi", memo:"rapports:suivis", mot:"suivi",
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
+  plans:{nom:"Plans", classe:"sous-dossier dossier-plans", memo:"rapports:plans", mot:"plan",
+    ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'},
+  commandes:{nom:"Commandes", classe:"sous-dossier dossier-commandes", memo:"rapports:commandes", mot:"commande",
+    aFaire:function(f){ return !f.saisie; }, motAFaire:"à saisir",
+    ico:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>'},
   photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document", exporter:true,
     ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
 };
 /* le sous-dossier où range un document, s'il y en a un */
 function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
+  if(f.type==="commande") return "commandes";
+  /* les plans : les documents techniques rangés dans la nature « Plan » */
+  if(f.type==="technique" && /^plans?$/i.test(String(f.visite||"").trim())) return "plans";
   if(f.type==="photos" || f.type==="reportage") return "photos";
   return null;
 }
@@ -913,9 +922,11 @@ function sousDossier(ref, genre){
       return String(y.f.date||"").localeCompare(String(x.f.date||"")) || String(y.f.publie||"").localeCompare(String(x.f.publie||""));
     });
     var neufs=lignes.filter(function(l){ return pasEncoreLu(l.f); }).length;
+    var aFaire=g.aFaire ? lignes.filter(function(l){ return g.aFaire(l.f); }).length : 0;
     tete.innerHTML='<svg class="ds-ico" viewBox="0 0 24 24" aria-hidden="true">'+g.ico+'</svg>'
       +'<span class="ds-nom">'+g.nom+'</span>'
       +(neufs ? '<span class="neuf">'+neufs+' nouveau'+(neufs>1?'x':'')+'</span>' : '')
+      +(aFaire ? '<span class="ds-afaire">'+aFaire+' '+g.motAFaire+'</span>' : '')
       +'<span class="ds-nb">'+lignes.length+'</span>'
       +'<svg class="ds-pli" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
     tete.setAttribute("aria-label", g.nom+", "+lignes.length+" "+g.mot+(lignes.length>1?"s":""));
