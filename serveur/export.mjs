@@ -7,7 +7,7 @@
    fiches (JSON, texte) sont compressées. Noms en UTF-8, dates d'origine.
 
    zipFlux(entrees) -> ReadableStream
-     entrees : [{nom, chemin} | {nom, contenu (Buffer ou texte)}]
+     entrees : [{nom, chemin} | {nom, contenu (Buffer ou texte)} | {nom, lire: async () => Buffer, quand}]
    fichiersDe(dossier, exclure) -> [{nom, chemin}] (récursif)
    ===================================================================== */
 
@@ -70,6 +70,12 @@ export function zipFlux(entrees) {
           if (e.chemin) {
             try { brut = await fs.readFile(e.chemin); quand = (await fs.stat(e.chemin)).mtime; }
             catch { return; }                                   /* effacé entre-temps : on passe */
+          } else if (e.lire) {
+            /* lu au moment de l'écrire : jamais tout en mémoire */
+            try { brut = await e.lire(); } catch { brut = null; }
+            if (!brut) return;
+            brut = Buffer.isBuffer(brut) ? brut : Buffer.from(brut);
+            if (e.quand) quand = new Date(e.quand);
           } else brut = Buffer.isBuffer(e.contenu) ? e.contenu : Buffer.from(String(e.contenu), "utf8");
           const nom = Buffer.from(e.nom.replace(/\\/g, "/"), "utf8");
           const crc = crc32(brut);

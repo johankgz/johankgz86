@@ -8,6 +8,7 @@ import { dossierDonnees } from "./magasin-fichiers.mjs";
 import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
+import { cloud } from "./cloud.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -1377,6 +1378,14 @@ async function traiter(req) {
   }
   store = magasinSociete(personne.societe);
   if (personne.societe === "demo") { try { await garnirDemo(store); } catch { /* démo vide */ } }
+
+  /* ---------- le Cloud : l'espace de rangement de chacun (serveur/cloud.mjs) ---------- */
+  if (action.startsWith("cloud-")) {
+    const comptesSoc = await lireComptes(personne.societe);
+    const notifier = (noms, charge) => prevenirPush(store, magasinAnnuaire(), noms, "documents", charge, contactPush(url.origin),
+      { comptes: comptesSoc, exclure: [personne.nom] }).catch(() => {});
+    return cloud(action, { req, url, store, personne, json, lireComptes: async () => comptesSoc, notifier, zipFlux });
+  }
 
   /* ---------- les discussions de l'équipe (serveur/discussions.mjs) ---------- */
   if (action.startsWith("discu-")) {

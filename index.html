@@ -188,6 +188,16 @@ body.connexion button.lien{color:var(--accent)}
   font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .ba-droite .cloche .nb[hidden]{display:none}
 .ba-droite a.cloche{text-decoration:none}
+/* les bulles rondes gardent leur taille (le doigt), ce sont les libellés qui se replient */
+.barre-actions .ba-droite .cloche{flex:0 0 auto}
+@media (max-width:389px){
+  .barre-actions .btn-outils.todo span:not(.nb){display:none}
+  .barre-actions .btn-outils.todo{padding:0 10px}
+}
+@media (max-width:340px){
+  .barre-actions #btnCal span:not(.nb){display:none}
+  .barre-actions #btnCal{padding:0 10px}
+}
 .ba-droite .cloche.discu .nb{background:var(--accent-vif,#EA7A1E)}
 .ba-droite .btn-outils.todo{position:relative;margin:0;white-space:nowrap}
 .ba-droite .btn-outils.todo .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;
@@ -1237,7 +1247,7 @@ body.connexion .ciel{display:none}
 <script src="./qr.js?v=20261004a" defer></script>
 <script src="./carte.js?v=20261005a" defer></script>
 <script src="./finitions.js?v=20261004a" defer></script>
-<script src="./palette.js?v=20261006a" defer></script>
+<script src="./palette.js?v=20261007a" defer></script>
 </head>
 <body>
 <!-- ===================== LA VITRINE (avant la connexion) =====================
@@ -1595,7 +1605,7 @@ body.connexion .ciel{display:none}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
       <span>Outils</span>
     </button>
-    <button type="button" class="btn-outils btn-cal" id="btnCal" aria-haspopup="dialog" aria-controls="fenCal" aria-expanded="false">
+    <button type="button" class="btn-outils btn-cal" id="btnCal" aria-label="Calendrier" aria-haspopup="dialog" aria-controls="fenCal" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg>
       <span>Calendrier</span><span class="nb" id="calNb" hidden></span>
     </button>
@@ -3149,7 +3159,7 @@ function peindreNotifs(s, ch, relances){
   });
   var todo=document.createElement("button");
   /* la to-do list : une pilule écrite, comme Outils, et son compteur */
-  todo.type="button"; todo.className="btn-outils todo"; todo.id="btnTodo";
+  todo.type="button"; todo.className="btn-outils todo"; todo.id="btnTodo"; todo.setAttribute("aria-label","To do list");
   todo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/>'
     +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span>To do list</span><span class="nb" hidden></span>';
   todo.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); location.href="./notes.html"; });
@@ -3159,8 +3169,13 @@ function peindreNotifs(s, ch, relances){
   discu.setAttribute("aria-label","Discussions"); discu.title="Discussions";
   discu.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>'
     +'<path d="M8 10h8M8 13h5"/></svg><span class="nb" hidden></span>';
+  /* le Cloud : tout ce qu'on range, du téléphone à l'ordinateur */
+  var nuage=document.createElement("a");
+  nuage.className="cloche nuage"; nuage.id="btnCloud"; nuage.href="./cloud.html";
+  nuage.setAttribute("aria-label","Cloud"); nuage.title="Cloud";
+  nuage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5z"/></svg>';
   var droite=$("baDroite");
-  if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(discu); droite.appendChild(cloche); }
+  if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(discu); droite.appendChild(nuage); droite.appendChild(cloche); }
   peindreDiscu();
   var corps=$("fcCorps"); if(corps){ corps.textContent=""; corps.appendChild(panneau); }
   peindreTodo();
