@@ -61,10 +61,20 @@
   function silence(){
     var r={silence:true, debut:"19:00", fin:"07:00"};
     try{ var g=JSON.parse(localStorage.getItem("outils:silence")||"null"); if(g) r=g; }catch(e){}
+    var d=new Date(), hm, jour, n;
+    try{
+      var p=new Intl.DateTimeFormat("en-CA", {timeZone:"Europe/Paris", year:"numeric", month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit", hourCycle:"h23"}).formatToParts(d);
+      var v=function(t){ return (p.filter(function(x){ return x.type===t; })[0]||{}).value||"00"; };
+      jour=v("year")+"-"+v("month")+"-"+v("day"); hm=v("hour")+":"+v("minute");
+    }catch(e){
+      jour=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
+      hm=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2);
+    }
+    /* les vacances, puis les jours de silence (1 = lundi … 7 = dimanche), puis la nuit */
+    if(r.vacances===true && (!r.du || jour>=r.du) && (!r.au || jour<=r.au)) return true;
+    n=new Date(jour+"T12:00:00Z").getUTCDay()||7;
+    if(Array.isArray(r.jours) && r.jours.indexOf(n)>=0) return true;
     if(r.silence===false || r.debut===r.fin) return false;
-    var d=new Date(), hm;
-    try{ hm=new Intl.DateTimeFormat("fr-FR", {timeZone:"Europe/Paris", hour:"2-digit", minute:"2-digit", hourCycle:"h23"}).format(d); }
-    catch(e){ hm=("0"+d.getHours()).slice(-2)+":"+("0"+d.getMinutes()).slice(-2); }
     return r.debut < r.fin ? (hm >= r.debut && hm < r.fin) : (hm >= r.debut || hm < r.fin);
   }
   function pastille(n){

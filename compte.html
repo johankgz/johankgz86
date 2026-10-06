@@ -420,6 +420,16 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .nt-heures{display:flex;gap:14px;align-items:center;padding:10px 0 12px;border-bottom:1px solid var(--rule);font-size:15px}
 .nt-heures[hidden]{display:none}
 .nt-heures label{display:flex;align-items:center;gap:8px;margin:0}
+.nt-jours{padding:12px 0;border-bottom:1px solid var(--rule)}
+.nt-jours-t{display:block;font-size:15px;font-weight:600}
+.nt-jours-t small{display:block;font-weight:400;font-size:13px;color:var(--ink-3);margin-top:2px;line-height:1.4}
+.nt-jours-l{display:flex;gap:6px;margin-top:10px}
+.nt-jours-l button{flex:1;min-width:0;height:44px;padding:0;border-radius:12px;border:1px solid var(--champ-bord);background:var(--champ-fond);color:var(--ink-2);font:700 15px/1 inherit;cursor:pointer}
+.nt-jours-l button[aria-pressed="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+#nt_vacDates label{flex:1 1 0;min-width:0}
+#nt_vacDates input{min-height:40px;padding:6px 8px;width:100%;min-width:0;box-sizing:border-box}
+.nt-vac-etat{margin:8px 0 0;font-size:13.5px;color:var(--accent);font-weight:600}
+.nt-vac-etat[hidden]{display:none}
 .nt-heures input{width:auto;min-height:40px;padding:6px 10px}
 .bascule input{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:46px;height:28px;min-height:0;padding:0;margin:0;
   border-radius:999px;background:#D5D9DF;border:0;position:relative;cursor:pointer;transition:background .18s ease}
@@ -459,7 +469,7 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
 .carte-apercu small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:4px;line-height:1.4}
 </style>
 <script src="./clavier.js?v=20260930a" defer></script>
-<script src="./horsligne.js?v=20261004a" defer></script>
+<script src="./horsligne.js?v=20261006a" defer></script>
 <script src="./finitions.js?v=20261004a" defer></script>
 <script src="./palette.js?v=20261004a" defer></script>
 </head>
@@ -569,6 +579,25 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
         <label>De <input type="time" id="nt_silenceDebut" value="19:00" step="900"></label>
         <label>à <input type="time" id="nt_silenceFin" value="07:00" step="900"></label>
       </div>
+      <div class="nt-jours">
+        <span class="nt-jours-t">Jours de silence<small>Toute la journée : aucune notification ni pastille ; ce qui arrive vous attend, en une seule notification à la fin du silence</small></span>
+        <div class="nt-jours-l" id="nt_jours" role="group" aria-label="Jours de silence">
+          <button type="button" data-j="1" aria-pressed="false" aria-label="Lundi">L</button>
+          <button type="button" data-j="2" aria-pressed="false" aria-label="Mardi">M</button>
+          <button type="button" data-j="3" aria-pressed="false" aria-label="Mercredi">M</button>
+          <button type="button" data-j="4" aria-pressed="false" aria-label="Jeudi">J</button>
+          <button type="button" data-j="5" aria-pressed="false" aria-label="Vendredi">V</button>
+          <button type="button" data-j="6" aria-pressed="false" aria-label="Samedi">S</button>
+          <button type="button" data-j="7" aria-pressed="false" aria-label="Dimanche">D</button>
+        </div>
+      </div>
+      <label class="bascule"><span>Mode vacances<small>Plus aucune notification ni pastille pendant vos congés ; à votre retour, une seule notification résume ce qui est arrivé</small></span>
+        <input type="checkbox" id="nt_vacances" role="switch"></label>
+      <div class="nt-heures" id="nt_vacDates" hidden>
+        <label>Du <input type="date" id="nt_vacDu"></label>
+        <label>au <input type="date" id="nt_vacAu"></label>
+      </div>
+      <p class="nt-vac-etat" id="nt_vacEtat" hidden></p>
     </div>
     <div class="nt-actions" id="nt_actions" hidden>
       <button type="button" id="nt_essai">Envoyer un essai</button>
@@ -861,7 +890,8 @@ if(S.role==="bureau" || S.role==="admin"){
 })();
 
 /* ---------- le journal : ce qui est parti, vers qui, et pourquoi pas ---------- */
-var NT_RES={envoye:["Arrivée sur le téléphone","ok"], "pas-abonne":["Pas de téléphone abonné à ce nom","non"], coupe:["Coupée dans vos réglages","non"],
+var NT_RES={envoye:["Arrivée sur le téléphone","ok"], nuit:["Gardée pour la fin du silence de la nuit","non"],
+  silence:["Gardée : jour de silence","non"], vacances:["Gardée : mode vacances","non"], "pas-abonne":["Pas de téléphone abonné à ce nom","non"], coupe:["Coupée dans vos réglages","non"],
   echec:["Refusée par le service de notification","non"], perime:["Abonnement périmé : réactivez sur le téléphone","non"]};
 var NT_GENRE={messages:"Message", documents:"Document", rappels:"Rappel", essai:"Essai"};
 function ntJournal(){
@@ -907,6 +937,11 @@ function ntPeindre(e){
     $("nt_silenceDebut").value = e.prefs.silenceDebut || "19:00";
     $("nt_silenceFin").value = e.prefs.silenceFin || "07:00";
     $("nt_heures").hidden = e.prefs.silence===false;
+    peindreJours(e.prefs.silenceJours||[]);
+    $("nt_vacances").checked = e.prefs.vacances===true;
+    $("nt_vacDu").value = e.prefs.vacancesDu || "";
+    $("nt_vacAu").value = e.prefs.vacancesAu || "";
+    peindreVacances();
     garderSilence();
   }
 }
@@ -923,8 +958,56 @@ $("nt_activer").addEventListener("click", function(){
 });
 /* le silence de la nuit est aussi gardé sur l'appareil : la pastille de l'icône s'y tient */
 function garderSilence(){
-  try{ localStorage.setItem("outils:silence", JSON.stringify({silence:$("nt_silence").checked, debut:$("nt_silenceDebut").value||"19:00", fin:$("nt_silenceFin").value||"07:00"})); }catch(e){}
+  try{ localStorage.setItem("outils:silence", JSON.stringify({silence:$("nt_silence").checked, debut:$("nt_silenceDebut").value||"19:00", fin:$("nt_silenceFin").value||"07:00",
+    jours:joursChoisis(), vacances:$("nt_vacances").checked, du:$("nt_vacDu").value||"", au:$("nt_vacAu").value||""})); }catch(e){}
 }
+/* ---------- les jours de silence ---------- */
+var NOMS_JOURS=["", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche"];
+function joursChoisis(){
+  return [].slice.call(document.querySelectorAll("#nt_jours button")).filter(function(b){ return b.getAttribute("aria-pressed")==="true"; })
+    .map(function(b){ return +b.getAttribute("data-j"); });
+}
+function peindreJours(l){
+  [].forEach.call(document.querySelectorAll("#nt_jours button"), function(b){ b.setAttribute("aria-pressed", l.indexOf(+b.getAttribute("data-j"))>=0 ? "true" : "false"); });
+}
+[].forEach.call(document.querySelectorAll("#nt_jours button"), function(b){
+  b.addEventListener("click", function(){
+    var avant=joursChoisis();
+    b.setAttribute("aria-pressed", b.getAttribute("aria-pressed")==="true" ? "false" : "true");
+    var l=joursChoisis(); garderSilence();
+    Notif.prefs(S, {silenceJours:l}).then(function(){
+      ntMessage(l.length ? "Silence toute la journée le "+l.map(function(j){ return NOMS_JOURS[j]; }).join(", ")+"." : "Plus de jour de silence.", true);
+    }).catch(function(){ peindreJours(avant); garderSilence(); ntMessage("Pas de réseau : réglage non enregistré."); });
+  });
+});
+/* ---------- le mode vacances ---------- */
+function aujourdhui(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
+function dateFr(v){ if(!v) return ""; var p=v.split("-"); return new Date(+p[0], +p[1]-1, +p[2]).toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long"}); }
+function peindreVacances(){
+  var on=$("nt_vacances").checked, du=$("nt_vacDu").value, au=$("nt_vacAu").value, t=aujourdhui(), e=$("nt_vacEtat");
+  $("nt_vacDates").hidden=!on;
+  e.hidden=!on;
+  if(!on) return;
+  if(au && au<t) e.textContent="Vos vacances sont terminées depuis le "+dateFr(au)+" : les notifications sont revenues. Coupez le mode vacances.";
+  else if(du && du>t) e.textContent="Vacances prévues du "+dateFr(du)+(au ? " au "+dateFr(au)+" inclus" : ", jusqu'à ce que vous coupiez le mode vacances")+".";
+  else e.textContent="En vacances"+(au ? " jusqu'au "+dateFr(au)+" inclus" : " jusqu'à ce que vous coupiez le mode vacances")+" : aucune notification.";
+}
+function envoyerVacances(message){
+  garderSilence(); peindreVacances();
+  return Notif.prefs(S, {vacances:$("nt_vacances").checked, vacancesDu:$("nt_vacDu").value||"", vacancesAu:$("nt_vacAu").value||""})
+    .then(function(){ ntMessage(message, true); })
+    .catch(function(err){ ntMessage(err && err.message && !/réseau|fetch/i.test(err.message) ? err.message : "Pas de réseau : réglage non enregistré."); });
+}
+$("nt_vacances").addEventListener("change", function(){
+  if(this.checked && !$("nt_vacDu").value) $("nt_vacDu").value=aujourdhui();
+  envoyerVacances(this.checked ? "Mode vacances : activé." : "Mode vacances : coupé. Les notifications reprennent.");
+});
+["nt_vacDu","nt_vacAu"].forEach(function(id){
+  $(id).addEventListener("change", function(){
+    if($("nt_vacDu").value && $("nt_vacAu").value && $("nt_vacAu").value < $("nt_vacDu").value){ ntMessage("La fin des vacances est avant leur début."); return; }
+    envoyerVacances("Dates de vacances enregistrées.");
+  });
+});
 $("nt_silence").addEventListener("change", function(){
   var box=this; $("nt_heures").hidden=!box.checked; garderSilence();
   Notif.prefs(S, {silence:box.checked}).then(function(){ ntMessage(box.checked ? "Silence la nuit : activé." : "Silence la nuit : coupé.", true); })

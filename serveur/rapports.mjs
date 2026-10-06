@@ -2630,7 +2630,18 @@ async function traiter(req) {
     } else {
       for (const k of Object.keys(PREFS_DEFAUT)) {
         if (typeof PREFS_DEFAUT[k] === "boolean" && typeof d[k] === "boolean") f.prefs[k] = d[k];
-        if (typeof PREFS_DEFAUT[k] === "string" && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(d[k] || ""))) f.prefs[k] = d[k];
+        if (/^silence(Debut|Fin)$/.test(k) && /^([01]\d|2[0-3]):[0-5]\d$/.test(String(d[k] || ""))) f.prefs[k] = d[k];
+      }
+      /* les jours de silence : 1 (lundi) à 7 (dimanche) */
+      if (Array.isArray(d.silenceJours)) {
+        f.prefs.silenceJours = Array.from(new Set(d.silenceJours.map(Number).filter((n) => Number.isInteger(n) && n >= 1 && n <= 7))).sort();
+      }
+      /* les vacances : du … au … (vide : sans limite de ce côté) */
+      for (const k of ["vacancesDu", "vacancesAu"]) {
+        if (k in d) f.prefs[k] = /^\d{4}-\d\d-\d\d$/.test(String(d[k] || "")) ? d[k] : "";
+      }
+      if (f.prefs.vacancesDu && f.prefs.vacancesAu && f.prefs.vacancesAu < f.prefs.vacancesDu) {
+        return json({ erreur: "La fin des vacances est avant leur début." }, 400);
       }
     }
     await store.setJSON(cleAbonne(personne.nom), f);

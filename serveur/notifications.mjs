@@ -25,14 +25,29 @@ import { createECDH, createHmac, createCipheriv, createPrivateKey, createSign,
 const CLE_VAPID = "push-vapid.json";
 /* la nuit, silence : de 19 h à 7 h (heure de Paris), rien ne sonne ; ce qui arrive
    attend, et part en un seul résumé à la fin du silence. Réglable dans « Mon compte ». */
-export const PREFS_DEFAUT = { messages: true, documents: true, rappels: true, silence: true, silenceDebut: "19:00", silenceFin: "07:00" };
+export const PREFS_DEFAUT = { messages: true, documents: true, rappels: true, silence: true, silenceDebut: "19:00", silenceFin: "07:00",
+  /* des jours entiers de silence (1 = lundi … 7 = dimanche), et le mode vacances (du … au …, au vide : jusqu'à ce qu'on le coupe) */
+  silenceJours: [], vacances: false, vacancesDu: "", vacancesAu: "" };
+/* la raison du silence à cet instant (« vacances », « jour », « nuit »), ou false */
 export function enSilence(prefs, d = new Date()) {
-  if (!prefs || prefs.silence === false) return false;
-  const hm = maintenantParis(d).slice(11);
+  if (!prefs) return false;
+  const paris = maintenantParis(d), jour = paris.slice(0, 10), hm = paris.slice(11);
+  if (prefs.vacances === true) {
+    const du = /^\d{4}-\d\d-\d\d$/.test(prefs.vacancesDu || "") ? prefs.vacancesDu : "";
+    const au = /^\d{4}-\d\d-\d\d$/.test(prefs.vacancesAu || "") ? prefs.vacancesAu : "";
+    if ((!du || jour >= du) && (!au || jour <= au)) return "vacances";
+  }
+  const js = Array.isArray(prefs.silenceJours) ? prefs.silenceJours : [];
+  if (js.length) {
+    const [y, m, j] = jour.split("-").map(Number);
+    const n = new Date(Date.UTC(y, m - 1, j)).getUTCDay() || 7;          /* 1 = lundi … 7 = dimanche */
+    if (js.indexOf(n) >= 0) return "jour";
+  }
+  if (prefs.silence === false) return false;
   const a = /^\d\d:\d\d$/.test(prefs.silenceDebut || "") ? prefs.silenceDebut : "19:00";
   const b = /^\d\d:\d\d$/.test(prefs.silenceFin || "") ? prefs.silenceFin : "07:00";
   if (a === b) return false;
-  return a < b ? (hm >= a && hm < b) : (hm >= a || hm < b);
+  return (a < b ? (hm >= a && hm < b) : (hm >= a || hm < b)) ? "nuit" : false;
 }
 const cleAttente = (nom) => "push/attente/" + nomDeCle(nom) + ".json";
 
@@ -175,18 +190,20 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     const note = (resultat) => journal.push({ le: new Date().toISOString(), genre, pour: nom, ecrit: ecrits.get(nom), titre: String(charge.titre || "").slice(0, 120), resultat, appareils: f.abonnements.length });
     if (!f.abonnements.length) { note("pas-abonne"); return; }
     if (genre !== "essai" && f.prefs[genre] === false) { note("coupe"); return; }
-    if (genre !== "essai" && enSilence(f.prefs, o.maintenant || new Date())) {
-      /* la nuit : on garde, ça partira au réveil */
+    const motif = genre !== "essai" && enSilence(f.prefs, o.maintenant || new Date());
+    if (motif) {
+      /* la nuit, un jour de silence, les vacances : on garde, ça partira à la fin du silence */
       try {
         const k = cleAttente(nom);
         let at = null; try { at = await store.get(k, { type: "json" }); } catch { at = null; }
         at = at && Array.isArray(at.liste) ? at : { nom, liste: [] };
+        at.motif = motif === "vacances" || at.motif === "vacances" ? "vacances" : (motif === "jour" || at.motif === "jour" ? "jour" : "nuit");
         at.liste.push({ titre: String(charge.titre || "").slice(0, 120), texte: String(charge.texte || "").slice(0, 200),
           url: charge.url || "./index.html", tag: charge.tag || "", le: new Date().toISOString() });
-        at.liste = at.liste.slice(-40);
+        at.liste = at.liste.slice(motif === "vacances" ? -200 : -40);
         await store.setJSON(k, at);
       } catch { /* tant pis */ }
-      note("nuit"); return;
+      note(motif === "nuit" ? "nuit" : motif === "jour" ? "silence" : "vacances"); return;
     }
     let recu = false, oublies = 0;
     const gardes = [];
@@ -220,12 +237,12 @@ export async function envoyerAttentes(store, annuaire, contact, maintenant = new
     let at = null; try { at = await store.get(b.key, { type: "json" }); } catch { at = null; }
     if (!at || !at.nom || !Array.isArray(at.liste) || !at.liste.length) { try { await store.delete(b.key); } catch { /* rien */ } continue; }
     const f = await lireAbonne(store, at.nom);
-    if (enSilence(f.prefs, maintenant)) continue;                  /* encore la nuit pour lui */
+    if (enSilence(f.prefs, maintenant)) continue;                  /* encore la nuit, son jour de silence ou ses vacances */
     try { await store.delete(b.key); } catch { /* on enverra quand même */ }
     if (!f.abonnements.length) continue;
     const l = at.liste;
     const charge = l.length === 1 ? { titre: l[0].titre, texte: l[0].texte, url: l[0].url, tag: l[0].tag }
-      : { titre: "Pendant la nuit : " + l.length + " notifications",
+      : { titre: (at.motif === "vacances" ? "Pendant vos vacances : " : at.motif === "jour" ? "Pendant le silence : " : "Pendant la nuit : ") + l.length + " notifications",
           texte: l.slice(-3).reverse().map((x) => x.titre).join(" · ") + (l.length > 3 ? " …" : ""),
           url: "./index.html", tag: "nuit" };
     const vapid = await clesVapid(annuaire);
