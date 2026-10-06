@@ -19,6 +19,7 @@
 
 process.env.DONNEES_DOSSIER = process.env.DONNEES_DOSSIER || "./donnees";
 
+import { Readable } from "node:stream";
 import http from "node:http";
 import { promises as fs } from "node:fs";
 import path from "node:path";
@@ -84,6 +85,14 @@ function accepteGzip(req) { return /\bgzip\b/.test(String(req.headers["accept-en
 async function repondre(req, res, reponse) {
   const entetes = {};
   reponse.headers.forEach((v, k) => { entetes[k] = v; });
+  /* un ZIP (sauvegarde des données) part au fil de l'eau : il ne passe jamais tout entier en mémoire */
+  if (reponse.body && /^application\/zip/.test(entetes["content-type"] || "")) {
+    res.writeHead(reponse.status, entetes);
+    const flux = Readable.fromWeb(reponse.body);
+    flux.on("error", (e) => { console.error("Export interrompu :", e && e.message); res.destroy(e); });
+    flux.pipe(res);
+    return;
+  }
   if (reponse.body) {
     let octets = Buffer.from(await reponse.arrayBuffer());
     if (octets.length > 1400 && accepteGzip(req) && COMPRESSIBLE.test(entetes["content-type"] || "") && !entetes["content-encoding"]) {

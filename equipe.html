@@ -484,6 +484,14 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <p class="err" id="err"></p>
   </div>
 
+  <div class="block" id="blocSauvegarde" hidden>
+    <h2>Sauvegarde des données</h2>
+    <p class="hint">Un fichier ZIP avec tout ce que la société a sur le site : les chantiers et leurs documents (PDF, photos), les fiches des applis, les références, la fiche société, les comptes (sans les mots de passe) et les liens clients. À garder en lieu sûr (ordinateur, disque externe), par exemple une fois par semaine : il contient les données de vos clients.</p>
+    <button class="p" id="btnSauvegarde" type="button">Télécharger toutes les données</button>
+    <button class="act ghost" id="btnSauvegardeTout" type="button" hidden style="width:100%;margin-top:10px">Tout le site (toutes les sociétés, pour tout restaurer)</button>
+    <p class="err" id="errSauvegarde" role="status"></p>
+  </div>
+
   <div class="block" id="blocSocietes" hidden>
     <h2>Sociétés du site</h2>
     <div id="listeSocietes"></div>
@@ -564,6 +572,25 @@ function peindreApplis(){
   });
 }
 
+/* ---------- la sauvegarde : un ticket de 5 minutes, puis le ZIP ---------- */
+function sauvegarder(tout){
+  var e=$("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
+  e.className="err"; e.textContent="Préparation du fichier…"; b1.disabled=b2.disabled=true;
+  fetch(api("export-ticket"), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify({tout:!!tout})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ e.textContent=res.d.erreur||"Sauvegarde refusée."; return; }
+      var a=document.createElement("a"); a.href=res.d.url; a.download=""; a.rel="noopener";
+      document.body.appendChild(a); a.click(); a.remove();
+      e.className="err ok";
+      e.textContent="Le téléchargement commence. Avec beaucoup de photos, il peut prendre quelques minutes : laissez la page ouverte.";
+    })
+    .catch(function(){ e.textContent="Pas de réseau : réessayez une fois connecté."; })
+    .then(function(){ setTimeout(function(){ b1.disabled=b2.disabled=false; }, 3000); });
+}
+$("btnSauvegarde").addEventListener("click", function(){ sauvegarder(false); });
+$("btnSauvegardeTout").addEventListener("click", function(){ sauvegarder(true); });
+
 function charger(){
   fetch(api("moi-societe"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -582,6 +609,8 @@ function charger(){
           var s2=document.createElement("span"); s2.textContent=l[0];
           t.appendChild(b); t.appendChild(s2); r.appendChild(t); i.appendChild(r);
         });
+      $("blocSauvegarde").hidden=!!d.demo;
+      $("btnSauvegardeTout").hidden=!d.proprietaire;
       if(d.proprietaire){
         $("titre").textContent="Comptes et sociétés";
         $("blocSocietes").hidden=false;

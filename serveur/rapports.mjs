@@ -3,6 +3,9 @@ import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { dossierDonnees } from "./magasin-fichiers.mjs";
+import { zipFlux, fichiersDe } from "./export.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -268,6 +271,57 @@ function jetonPour(code, id, compte, date) {
    la base ne garde que l'empreinte. L'appareil qui l'a ouvert reçoit une
    clé qui lui évite de retaper le code, et qui cesse de valoir dès que
    l'administrateur en tire un nouveau ou le retire. */
+/* ---------- « Télécharger toutes les données » ----------
+   L'administrateur demande un ticket (5 minutes, une seule fois) ; le
+   téléchargement se fait avec ce ticket, jamais avec la clé de session
+   dans l'adresse. Le ZIP d'une société : son magasin (dossiers, PDF,
+   photos, fiches, références…), sa fiche, ses comptes (sans les
+   empreintes de mot de passe ni les codes KNX), ses liens clients. Les
+   abonnements aux notifications (adresses des téléphones) n'en sont pas.
+   Le propriétaire du site peut aussi tout prendre : le dossier des
+   données entier, tel quel, à recopier pour tout restaurer. */
+const TICKETS_EXPORT = new Map();
+function ticketExport(info) {
+  const t = randomBytes(24).toString("base64url"), now = Date.now();
+  for (const [k, v] of TICKETS_EXPORT) if (now - v.cree > 5 * 60 * 1000) TICKETS_EXPORT.delete(k);
+  TICKETS_EXPORT.set(t, Object.assign({ cree: now }, info));
+  return t;
+}
+function nomMagasinSociete(code) { return code === SOCIETE_DEPART.code ? "rapports" : "rapports-" + code; }
+async function entreesExport(code, tout) {
+  const racine = dossierDonnees(), jour = jourParis();
+  const lisez = (quoi) => ({ nom: "LISEZ-MOI.txt", contenu: [
+    "Suivi travaux 360 — sauvegarde des données",
+    "Faite le " + jour + (tout ? ", pour tout le site (toutes les sociétés)." : ", pour la société « " + code + " »."),
+    "",
+    quoi,
+    "",
+    "Les PDF, photos et archives ZIP s'ouvrent tels quels. Les fiches (.json) sont les données des applis :",
+    "elles servent à tout restaurer sur le site. Gardez ce fichier en lieu sûr : il contient les données de vos clients."
+  ].join("\r\n") });
+  if (tout) {
+    const l = await fichiersDe(racine, (r) => /\.en-cours-/.test(r), "donnees/");
+    return [lisez("Le dossier « donnees » est la copie exacte du dossier des données du site : pour tout restaurer,\r\nrecopiez son contenu dans le dossier des données (outils-donnees) et relancez le site.")].concat(l);
+  }
+  const mag = nomMagasinSociete(code);
+  const l = await fichiersDe(path.join(racine, mag), (r) => r === "push" || r.startsWith("push/") || /\.en-cours-/.test(r), "societe/");
+  const a = magasinAnnuaire(), plus = [];
+  const comptes = (await lireComptes(code)).map((c) => {
+    const x = Object.assign({}, c); delete x.empreinte; delete x.motdepasse; delete x.provisoire;
+    if (x.knx) x.knx = { actif: !!x.knx.empreinte }; return x;
+  });
+  plus.push({ nom: "annuaire/comptes.json", contenu: JSON.stringify(comptes, null, 2) });
+  try { const f = await a.get("fiches/" + code + ".json", { type: "json" }); if (f) plus.push({ nom: "annuaire/fiche-societe.json", contenu: JSON.stringify(f, null, 2) }); } catch { /* pas de fiche */ }
+  const soc = (await lireSocietes()).find((x) => x.code === code);
+  if (soc) plus.push({ nom: "annuaire/societe.json", contenu: JSON.stringify(soc, null, 2) });
+  const liens = [];
+  for (const e of await fichiersDe(path.join(racine, ANNUAIRE, "liens"))) {
+    try { const v = JSON.parse(await readFile(e.chemin, "utf8")); if (v && v.societe === code) liens.push(Object.assign({ jeton: e.nom.replace(/\.json$/, "") }, v)); } catch { /* illisible */ }
+  }
+  if (liens.length) plus.push({ nom: "annuaire/liens-clients.json", contenu: JSON.stringify(liens, null, 2) });
+  return [lisez("« societe » : les chantiers et leurs documents (PDF, photos, ZIP), les fiches des applis, les références.\r\n« annuaire » : la fiche de la société, ses comptes (sans les mots de passe), ses liens clients.")].concat(l, plus);
+}
+
 const ESSAIS_KNX = new Map();
 /* ---------- la connexion : pas de mots de passe essayés en boucle ----------
    Sur un quart d'heure : 6 échecs pour un même compte, ou 20 depuis une même
@@ -977,6 +1031,19 @@ async function traiter(req) {
       .map((s) => ({ code: s.code, nom: s.nom, demo: false })) });
   }
 
+  if (action === "export-donnees") {
+    const t = String(url.searchParams.get("ticket") || "");
+    const info = TICKETS_EXPORT.get(t);
+    TICKETS_EXPORT.delete(t);                                      /* une seule fois */
+    if (!info || Date.now() - info.cree > 5 * 60 * 1000) {
+      return new Response("Ce lien de téléchargement a expiré : recommencez depuis la page Équipe.", { status: 410, headers: { "content-type": "text/plain; charset=utf-8" } });
+    }
+    const entrees = await entreesExport(info.code, info.tout);
+    const nom = "suivi-travaux-360-donnees-" + (info.tout ? "tout-le-site" : info.code) + "-" + jourParis() + ".zip";
+    return new Response(zipFlux(entrees), { status: 200, headers: {
+      "content-type": "application/zip", "content-disposition": 'attachment; filename="' + nom + '"', "cache-control": "no-store" } });
+  }
+
   if (action === "connexion") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -1393,6 +1460,16 @@ async function traiter(req) {
     comptes[i] = { ...comptes[i], email, tel, ...plus };
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true, email, tel, fonction: comptes[i].fonction || "", adresse: comptes[i].adresse || "", carteInverse: !!comptes[i].carteInverse });
+  }
+
+  if (action === "export-ticket") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d = {}; try { d = await req.json(); } catch { d = {}; }
+    const tout = d.tout === true;
+    if (tout && !personne.proprietaire) return json({ erreur: "Réservé au propriétaire du site." }, 403);
+    const ticket = ticketExport({ code: personne.societe, tout, par: personne.nom });
+    return json({ ok: true, url: "/api/rapports?action=export-donnees&ticket=" + encodeURIComponent(ticket) });
   }
 
   if (action === "moi-societe") {
