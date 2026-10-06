@@ -773,6 +773,14 @@ details.block.sv-societe summary{padding:0}
 .sv-sw[aria-checked="true"] i::after{transform:translateX(16px)}
 .sv-rappel input[type=date],.sv-rappel input[type=time]{min-height:38px;padding:6px 9px;font-size:14px;width:auto!important;flex:0 0 auto}
 .sv-aide{margin:-6px 0 10px!important;font-size:13px}
+/* une rubrique repliée : son titre et le bouton qui l'ouvre */
+.sv-bascule{margin-left:auto;flex:0 0 auto;min-height:32px;padding:4px 12px;border-radius:999px;border:1px solid var(--line,#d9d4c7);
+  background:var(--accent-soft,#fdf3e7);color:var(--accent-fonce,#9a4a0b);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.sv-bascule + .aide-i{margin-left:0}
+/* plus de publication « à une personne » : le choix du destinataire ne s'affiche plus */
+#pubDest[hidden],#legendeDest[hidden]{display:none!important}
+.block.replie > h2{margin-bottom:0;cursor:pointer}
+.block.replie .aide-repliee{display:none!important}
 #ph_grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:12px}
 #ph_grille:empty{display:none}
 .sv-photo{position:relative;border-radius:10px;overflow:hidden;background:#1A1815;box-shadow:var(--ombre-1)}
@@ -934,18 +942,12 @@ a.act[hidden]{display:none}
   <div class="block" id="sec-visite">
     <h2>Objet de la visite</h2>
     <div class="chips" id="ch_objet"></div>
-    <label class="f"><span>Précisions</span><textarea id="v_objet" rows="2" placeholder="Ce qui a motivé la visite, ce qu'on est venu voir…"></textarea></label>
-    <div class="row" style="margin:-6px 0 12px"><button class="act rec" data-dictee="v_objet">Dicter</button></div>
-    <div class="grid2">
-      <label class="f"><span>Date</span><input type="date" id="v_date"></label>
-      <label class="f"><span>Heure</span><input type="time" id="v_heure"></label>
-    </div>
+    <!-- la date et l'heure se posent d'elles-mêmes (le jour de la visite) : gardées, sans champ à l'écran -->
+    <div hidden><input type="date" id="v_date"><input type="time" id="v_heure"><textarea id="v_objet"></textarea></div>
     <p class="legend" title="Il reçoit les rappels des points bloquants">Conducteur de travaux</p>
     <div class="chips" id="ch_ca"></div>
-    <div class="grid2">
-      <label class="f"><span>Téléphone</span><input type="tel" id="m_caTel"></label>
-      <label class="f"><span>E-mail</span><input type="email" id="m_caMail"></label>
-    </div>
+    <!-- son téléphone et son e-mail viennent de son compte (Équipe) -->
+    <div hidden><input type="tel" id="m_caTel"><input type="email" id="m_caMail"></div>
   </div>
 
   <div class="block" id="sec-ts">
@@ -975,9 +977,10 @@ a.act[hidden]{display:none}
     <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
   </div>
 
-  <div class="block" id="sec-plans">
-    <h2>Plans</h2>
-    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote.</p>
+  <div class="block replie" id="sec-plans">
+    <h2>Plans<button type="button" class="sv-bascule" id="plansBascule" aria-expanded="false" aria-controls="plansCorps">Ouvrir</button></h2>
+    <p class="hint sv-aide">Les plans déposés dans « Documents techniques » du chantier. Ajoutez au suivi ceux que vous avez vus, puis dites s'ils sont modifiés : un plan modifié s'annote. La rubrique est fermée d'office : « Ouvrir » la déplie.</p>
+    <div id="plansCorps" hidden>
     <div id="plans_dossier" class="sv-liste"></div>
     <div id="plansListe" style="margin-top:12px"></div>
     <div class="tuiles-act" style="margin-top:10px">
@@ -986,6 +989,18 @@ a.act[hidden]{display:none}
       <input type="file" id="filePlan" accept="image/*,application/pdf" hidden>
       <input type="file" id="filePlanPhoto" accept="image/*" capture="environment" hidden>
     </div>
+    </div>
+  </div>
+
+  <div class="block" id="sec-reste">
+    <h2>Reste à faire</h2>
+    <p class="hint sv-aide">Ce qu'il reste à faire sur le chantier, une tâche par ligne : cochez-la quand elle est faite. Les tâches pas encore faites passent d'un suivi au suivant, jusqu'à la fin du chantier.</p>
+    <div id="rf_liste" class="sv-liste"></div>
+    <div class="sv-ajout">
+      <input type="text" id="rf_texte" placeholder="Nouvelle tâche…" enterkeyhint="done" aria-label="Nouvelle tâche à faire">
+      <button type="button" class="act blue" id="rf_ajout">Ajouter</button>
+    </div>
+    <p class="hint" id="rf_bilan"></p>
   </div>
 
   <div class="block" id="sec-points">
@@ -1000,13 +1015,10 @@ a.act[hidden]{display:none}
 
   <div class="block" id="sec-enregistrer">
     <h2>Enregistrer</h2>
-    <div id="resume"></div>
-    <div class="choix-pub" id="choixPublication" style="margin-top:14px">
+    <div id="resume" hidden></div>
+    <div class="choix-pub" id="choixPublication">
       <button type="button" class="opt on" data-pub="dossier">
         <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
-      </button>
-      <button type="button" class="opt" data-pub="cible">
-        <b>Seulement à une personne</b><span>vous choisissez qui</span>
       </button>
     </div>
     <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
@@ -1070,7 +1082,7 @@ a.act[hidden]{display:none}
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./annotation.js?v=20261001a"></script>
-<script src="./sobre.js?v=20260927b"></script>
+<script src="./sobre.js?v=20261007a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
@@ -1299,7 +1311,7 @@ function blank(){
     affaire:{devis:"",chantier:""},
     visite:{date:aujourdhui(),heure:maintenant(),type:"",objet:"",note:""},
     meta:{ca:"",caTel:"",caMail:"",societe:""},
-    ts:[], photos:[], plans:[], points:[], destinataires:[],
+    ts:[], reste:[], photos:[], plans:[], points:[], destinataires:[],
     dest:""
   };
 }
@@ -1356,9 +1368,11 @@ function enregistrer(){
       if(saveRedemande){ saveRedemande=false; enregistrer(); }
     });
 }
+var saveAttente=false;
 function save(){
   clearTimeout(saveT);
-  saveT=setTimeout(enregistrer, 400);
+  saveAttente=true;
+  saveT=setTimeout(function(){ saveAttente=false; enregistrer(); }, 400);
   refreshHeader();
   try{ planifierPhotosSite(); }catch(e){}
 }
@@ -1431,6 +1445,38 @@ function renderTs(){
   }
   renderResume();
 }
+/* le reste à faire : une tâche par ligne, cochée quand elle est faite ; celles pas encore
+   faites passent d'un suivi au suivant (avec la date où elles ont été notées) */
+function renderReste(){
+  var host=$("rf_liste"); if(!host) return;
+  if(!S.reste) S.reste=[];
+  host.textContent="";
+  S.reste.forEach(function(it){
+    var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
+    l.appendChild(caseACocher(it, "Tâche faite : "+(it.texte||""), renderReste));
+    var corps=document.createElement("div"); corps.className="sv-corps";
+    corps.appendChild(champTexte(it, renderResume));
+    if(it.depuis){
+      var dp=document.createElement("span"); dp.className="sv-depuis";
+      dp.textContent="Notée le "+frDate(it.depuis)+", reprise du suivi précédent";
+      corps.appendChild(dp);
+    }
+    l.appendChild(corps);
+    l.appendChild(boutonRetirer(S.reste, it, "cette tâche", renderReste));
+    host.appendChild(l);
+  });
+  var b=$("rf_bilan");
+  if(b){
+    var n=S.reste.filter(function(x){ return (x.texte||"").trim(); }), faites=n.filter(function(x){ return x.fait; }).length;
+    b.textContent = n.length ? (n.length-faites)+" à faire · "+faites+" faite"+(faites>1?"s":"") : "";
+  }
+  renderResume();
+}
+function resteAReporter(liste, dateSuivi){
+  return (liste||[]).filter(function(it){ return !it.fait && (it.texte||"").trim(); }).map(function(it){
+    return {id:it.id||uid(), texte:it.texte, fait:false, depuis:it.depuis||dateSuivi||""};
+  });
+}
 function renderPoints(){
   var host=$("pts_liste"); if(!host) return;
   host.textContent="";
@@ -1480,9 +1526,21 @@ function renderPoints(){
   });
   renderResume();
 }
+function ouvrirPlans(oui){
+  var c=$("plansCorps"), b=$("plansBascule"), sec=$("sec-plans"); if(!c || !b) return;
+  c.hidden=!oui; sec.classList.toggle("replie", !oui);
+  b.setAttribute("aria-expanded", oui ? "true" : "false");
+  majBasculePlans();
+}
+function majBasculePlans(){
+  var b=$("plansBascule"); if(!b) return;
+  var n=(S.plans||[]).length, ouvert=!$("plansCorps").hidden;
+  b.textContent = ouvert ? "Fermer" : "Ouvrir"+(n ? " · "+n+" plan"+(n>1?"s":"") : "");
+}
 function ajouterLigne(cle, champ, rendu){
   var t=$(champ), v=(t.value||"").trim();
   if(!v){ t.focus(); return; }
+  if(!S[cle]) S[cle]=[];
   var it={id:uid(), texte:v, fait:false};
   if(cle==="ts") it.qui="";
   if(cle==="points"){ it.rappel=false; it.quand=""; it.heure=""; }
@@ -1550,7 +1608,7 @@ function ajouterPhotos(files, cible, apres){
    à la partie correspondante */
 var TABS=[["suivi","Suivi"]];
 var PARTIES={visite:"sec-visite", client:"sec-client", ts:"sec-ts", photos:"sec-photos", plan:"sec-plans", plans:"sec-plans",
-  points:"sec-points", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
+  points:"sec-points", reste:"sec-reste", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -1607,6 +1665,7 @@ function showTab(name){
   sec.hidden=false;
   if(!sec.querySelector(".haut")) boutonHaut(sec);
   var cible = PARTIES[name] && $(PARTIES[name]);
+  if(cible && cible.id==="sec-plans") ouvrirPlans(true);
   if(cible && name!=="visite" && name!=="suivi" && name!=="client") cible.scrollIntoView({block:"start", behavior:"smooth"});
   else window.scrollTo(0,0);
   renderResume();
@@ -1673,7 +1732,7 @@ function paintForm(){
   paintChips();
   paintLien();
   paintAppel();
-  renderTs(); renderPhotos(); renderPlans(); renderPoints();
+  renderTs(); renderReste(); renderPhotos(); renderPlans(); renderPoints();
   paintPieces();
   renderDest();
   refreshHeader();
@@ -1711,8 +1770,10 @@ function paintChips(){
     function(o){ return S.meta.ca===o; },
     function(o){
       S.meta.ca = (S.meta.ca===o) ? "" : o;
-      var a=(P.annuaire||{})[S.meta.ca];
-      if(a){ S.meta.caTel=a.tel||""; S.meta.caMail=a.mail||""; $("m_caTel").value=S.meta.caTel; $("m_caMail").value=S.meta.caMail; }
+      /* son téléphone et son e-mail : ceux de son compte (Équipe), à défaut ceux déjà connus */
+      var a=(P.annuaire||{})[S.meta.ca]||{}, p=(EQUIPE_CACHE||[]).filter(function(x){ return x.nom===S.meta.ca; })[0]||{};
+      S.meta.caTel = S.meta.ca ? (p.tel||a.tel||"") : ""; S.meta.caMail = S.meta.ca ? (p.email||a.mail||"") : "";
+      $("m_caTel").value=S.meta.caTel; $("m_caMail").value=S.meta.caMail; save();
     });
 }
 
@@ -1995,6 +2056,30 @@ function buildPdf(){
     });
     doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
     need(6); doc.text("Case cochée : demande chiffrée ou validée. Les demandes pas encore chiffrées sont reprises au suivi suivant.", M+1, y+1); setText(INK); y+=7;
+  }
+
+  /* ---------- le reste à faire ---------- */
+  var rf=(S.reste||[]).filter(function(x){ return (x.texte||"").trim(); });
+  if(rf.length){
+    h2("Reste à faire", 24);
+    rf.forEach(function(it){
+      doc.setFont("helvetica","normal"); doc.setFontSize(10);
+      var lignes=doc.splitTextToSize(it.texte, CW-12);
+      var h=lignes.length*5+3+(it.depuis ? 4 : 0);
+      need(h+2);
+      caseDessinee(M+2, y, !!it.fait, OK);
+      setText(INK); doc.text(lignes, M+9, y);
+      if(it.depuis){
+        doc.setFontSize(8); setText(GREY);
+        doc.text("notée le "+frDate(it.depuis), M+9, y+lignes.length*5-0.6);
+        doc.setFontSize(10);
+      }
+      y += h;
+      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
+      y += 1.5;
+    });
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+    need(6); doc.text("Case cochée : tâche faite. Les tâches pas encore faites sont reprises au suivi suivant.", M+1, y+1); setText(INK); y+=7;
   }
 
   /* ---------- 4. le reportage photo ---------- */
@@ -2467,6 +2552,11 @@ function publierRapport(meta){
   if(!apiPret()) return;
   var sel=destinataires();
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
+  if(versDossier && !refAffaire()){
+    toast("Renseignez la référence des travaux (ou le client) : le suivi s'enregistre dans son dossier.");
+    var ch=$("a_chantier"); if(ch){ ch.scrollIntoView({block:"center"}); ch.focus(); }
+    return;
+  }
   if(!versDossier && !sel.length){
     toast(TECHNICIEN ? "Choisissez le chargé d'affaires destinataire." : "Choisissez la personne destinataire.");
     return;
@@ -3030,6 +3120,17 @@ function reprendreTsPrecedents(){
           toast(nvx.length+" repère"+(nvx.length>1?"s":"")+" pas encore fait"+(nvx.length>1?"s":"")+" repris du suivi du "+frDate((f.visite||{}).date)+".");
         }
       }catch(e){}
+      /* le reste à faire pas encore fait du suivi précédent ; ce qui a été fait depuis s'en va */
+      try{
+        var faits={}; (f.reste||[]).forEach(function(it){ if(it.fait && it.id) faits[it.id]=true; });
+        S.reste=(S.reste||[]).filter(function(it){ return !(it.depuis && faits[it.id]); });
+        var dejaR={}; S.reste.forEach(function(it){ dejaR[it.id]=true; });
+        var rNeufs=resteAReporter(f.reste, (f.visite||{}).date).filter(function(it){ return !dejaR[it.id]; });
+        if(rNeufs.length){
+          S.reste=rNeufs.concat(S.reste); save(); renderReste();
+          toast(rNeufs.length+" tâche"+(rNeufs.length>1?"s":"")+" du reste à faire reprise"+(rNeufs.length>1?"s":"")+" du suivi du "+frDate((f.visite||{}).date)+".");
+        }
+      }catch(e){}
       var chiffres={};
       (f.ts||[]).forEach(function(it){ if(it.fait && it.id) chiffres[it.id]=true; });
       /* ce qu'on avait reporté ici et qui a été chiffré depuis s'en va */
@@ -3078,14 +3179,15 @@ function proposerReprise(){
    Chaque suivi est indépendant : on garde le client, le chantier et le
    conducteur de travaux, on repart d'une page blanche pour le reste. */
 function nouveauSuivi(demander){
-  var plein = (S.ts||[]).length || (S.photos||[]).length || (S.points||[]).length || (S.plans||[]).length
+  var plein = (S.ts||[]).length || (S.reste||[]).length || (S.photos||[]).length || (S.points||[]).length || (S.plans||[]).length
     || (S.visite.objet||"").trim() || (S.visite.note||"").trim();
-  if(demander && plein && !window.confirm("Commencer un nouveau suivi ?\n\nLe client et le chantier sont gardés ; les photos, plans et points repartent à zéro, sauf les travaux pas encore chiffrés et les repères pas encore faits (avec leur plan). Pensez à enregistrer celui-ci avant."))
+  if(demander && plein && !window.confirm("Commencer un nouveau suivi ?\n\nLe client et le chantier sont gardés ; les photos, plans et points repartent à zéro, sauf les travaux pas encore chiffrés, le reste à faire pas encore fait et les repères pas encore faits (avec leur plan). Pensez à enregistrer celui-ci avant."))
     return;
   var n=blank();
   n.client=S.client; n.affaire=S.affaire; n.meta=S.meta; n.lien=S.lien;
   /* les demandes pas encore chiffrées continuent dans le nouveau suivi */
   n.ts=tsAReporter(S.ts, S.visite.date);
+  n.reste=resteAReporter(S.reste, S.visite.date);
   var rp=reperesAReporter(S, S.visite.date); n.plans=rp.plans; n.points=rp.points;
   S=n; save(); paintForm(); showTab("suivi");
   if(rp.points.length) toast(rp.points.length+" repère"+(rp.points.length>1?"s":"")+" pas encore fait"+(rp.points.length>1?"s":"")+" repris, avec "+(rp.plans.length>1 ? "leurs plans" : "leur plan")+".");
@@ -3149,7 +3251,11 @@ function bindAll(){
   $("btnPlanImport").addEventListener("click", function(){ $("filePlan").click(); });
   $("ts_ajout").addEventListener("click", function(){ ajouterLigne("ts", "ts_texte", renderTs); });
   $("pts_ajout").addEventListener("click", function(){ ajouterLigne("points", "pts_texte", renderPoints); });
-  [["ts_texte","ts",renderTs],["pts_texte","points",renderPoints]].forEach(function(x){
+  $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
+  /* les plans : fermés d'office, ouverts à la demande */
+  $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
+  $("sec-plans").querySelector("h2").addEventListener("click", function(e){ if(!e.target.closest("button")) ouvrirPlans(!!$("plansCorps").hidden); });
+  [["ts_texte","ts",renderTs],["rf_texte","reste",renderReste],["pts_texte","points",renderPoints]].forEach(function(x){
     $(x[0]).addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterLigne(x[1], x[0], x[2]); } });
   });
   $("ph_prendre").addEventListener("click", function(){ $("ph_fichier").click(); });
@@ -3218,7 +3324,7 @@ function bindAll(){
     });
   }
   $("btnPublier").addEventListener("click", function(){
-    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); return; }
+    if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); var ch=$(!S.client.nom.trim() ? "c_nom" : "a_chantier"); if(ch) try{ ch.focus({preventScroll:true}); }catch(e){} return; }
     /* Déjà enregistré ? On ne remplace jamais un suivi sans le demander :
        par défaut, c'en est un nouveau et l'ancien reste dans le dossier.
        Depuis « Tout publier » (sans personne pour choisir), aussi. */
@@ -3604,7 +3710,7 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
 
 var CLE_FICHE = "suivi:courant";
 function ficheVierge(){ var s=blank(); s.meta.societe=(P&&P.societe)||""; return s; }
-function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!(String(v.objet||"").trim() || String(v.note||"").trim() || String(v.type||"").trim() || (s.ts||[]).length || (s.photos||[]).length || (s.plans||[]).length || (s.points||[]).length); }
+function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!(String(v.objet||"").trim() || String(v.note||"").trim() || String(v.type||"").trim() || (s.ts||[]).length || (s.reste||[]).length || (s.photos||[]).length || (s.plans||[]).length || (s.points||[]).length); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
 function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }
@@ -3994,6 +4100,7 @@ function renderPlansDossier(){
   });
 }
 function renderPlans(){
+  try{ majBasculePlans(); }catch(e){}
   var host=$("plansListe"); if(!host) return;
   host.textContent="";
   if(!S.plans) S.plans=[];
@@ -4470,7 +4577,6 @@ function equipeDuDossier(){
   if(!el || !choix) return;
   if(!ref){
     el.textContent = "renseignez la référence des travaux";
-    basculePub("cible", true);
     return;
   }
   /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
@@ -4639,7 +4745,11 @@ function chModifsPour(id){
   if(id===CH_APPLI) return typeof S!=="undefined" && chAModifs(S);
   return !!CH_MODIFS[id];
 }
+/* l'appli quittée juste après une saisie (autre appli, page fermée) : la saisie est gardée tout de suite */
+function enregistrerTout(){ if(saveAttente){ clearTimeout(saveT); saveAttente=false; try{ enregistrer(); }catch(e){} } }
+window.addEventListener("pagehide", enregistrerTout);
 document.addEventListener("visibilitychange", function(){
+  if(document.hidden) enregistrerTout();
   if(!document.hidden && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF);
   /* l'appli restée ouverte depuis la veille : la question se pose au retour */
   if(!document.hidden){ try{ proposerReprise(); }catch(e){} }
