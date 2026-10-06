@@ -838,7 +838,7 @@ function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
   if(f.type==="commande") return "commandes";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
-  if(f.type==="technique") return /^plans?$/i.test(String(f.visite||"").trim()) ? "plans" : "techniques";
+  if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";
   return null;
 }
