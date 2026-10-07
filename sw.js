@@ -15,7 +15,7 @@
    ===================================================================== */
 var COQUILLE = "coquille-1", CDN = "bibliotheques-1", DONNEES = "donnees-1", REGLAGES = "reglages";
 var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html", "/client.html", "/partage.html", "/rdv.html", "/demandes.html", "/commande.html", "/compte.html", "/dwg.html",
-  "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/photos.html", "/plans.html", "/point.html",
+  "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/mesnotes.html", "/photos.html", "/plans.html", "/point.html",
   "/cloud.html", "/discussions.html", "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
   "/technique.html", "/utilitaires.html",
   "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html"];

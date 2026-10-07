@@ -9,6 +9,7 @@ import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
+import { mesnotes, noterChantier } from "./mesnotes.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -41,6 +42,7 @@ function libelleDocument(entree) {
     : entree.type === "reception" ? "Procès-verbal de réception"
     : entree.type === "etiquettes" ? "Étiquettes de tableau"
     : entree.type === "photos" ? "Photos du chantier"
+    : entree.type === "note" ? (entree.titre || "Note")
     : "Relevé technique"
   );
 }
@@ -736,6 +738,7 @@ function rang(f) {
   if (f.type === "reportage") return 2200 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "autocontrole") return 2700 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "schema") return 450 + Number(new Date(f.publie || 0)) / 1e10;
+  if (f.type === "note") return 1250 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "technique") return 500 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "carnet") return 800 + Number(new Date(f.publie || 0)) / 1e10;
   if (f.type === "memoire") return 900 + Number(new Date(f.publie || 0)) / 1e10;
@@ -1006,7 +1009,8 @@ const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichi
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
-  "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip"]);
+  "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
+  "mesnotes-liste", "mesnote", "mesnote-photo-lire"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1448,6 +1452,39 @@ async function traiter(req) {
   }
 
   /* ---------- le Cloud : l'espace de rangement de chacun (serveur/cloud.mjs) ---------- */
+  /* ---------- les notes de la To-do list (serveur/mesnotes.mjs) ;
+     en ranger une dans le dossier d'un chantier : son PDF, sous « Notes » ---------- */
+  if (action === "mesnote-chantier") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const id = String(d.id || "");
+    if (!/^[a-z0-9]{6,32}$/.test(id)) return json({ erreur: "Note introuvable." }, 404);
+    const idx = await lireIndex();
+    const c = idx.chantiers[String(d.ref || "")] || idx.chantiers[slug(d.ref || "")];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!bureau && !membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const octets = Buffer.from(String(d.pdf || ""), "base64");
+    if (!octets.length || octets.subarray(0, 4).toString() !== "%PDF") return json({ erreur: "PDF illisible." }, 400);
+    if (octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Note trop lourde pour le dossier (5,5 Mo au plus) : retirez quelques photos." }, 413);
+    const cle = c.ref + "/note-" + id + ".pdf";
+    const ancien = c.fichiers.find((f) => f.cle === cle);
+    if (ancien && !bureau && ancien.auteur !== personne.nom) return json({ erreur: "Ce document a déjà été publié par " + ancien.auteur + "." }, 409);
+    await store.set(cle, octets, { metadata: { type: "application/pdf" } });
+    const quand = new Date().toISOString();
+    const entree = { cle, titre: "Note — " + (String(d.titre || "").replace(/\s+/g, " ").trim().slice(0, 100) || "sans titre"), type: "note",
+      visite: "", etape: "", date: jourParis(), auteur: personne.nom, destinataires: [], versDossier: true, taille: octets.length,
+      publie: quand, donnees: false, versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {} };
+    c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
+    c.fichiers.push(entree);
+    c.fichiers.sort((a, b) => rang(b) - rang(a));
+    c.maj = quand;
+    if (!c.equipe || !c.equipe.length) c.equipe = [nomDuCompte(personne.nom, await lireComptes(personne.societe))].filter(Boolean);
+    await store.setJSON(INDEX, idx);
+    await noterChantier(store, personne, id, { ref: c.ref, client: c.client || "", cle, le: quand });
+    return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
+  }
+  if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
+
   if (action.startsWith("cloud-")) {
     const comptesSoc = await lireComptes(personne.societe);
     const notifier = (noms, charge) => prevenirPush(store, magasinAnnuaire(), noms, "documents", charge, contactPush(url.origin),
