@@ -148,7 +148,24 @@ button{font:inherit;color:inherit}
 .np-editeur figure.np-photo img{display:block;width:100%;height:auto;border-radius:10px;background:#E3DDD0}
 .np-editeur figure.np-photo.envoi img{opacity:.55}
 .np-editeur figure.np-photo .etq{position:absolute;left:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.9);font-size:12px;color:#8A4A12}
+.np-editeur table.np-tab{border-collapse:collapse;margin:8px 0 14px;width:100%;max-width:600px;table-layout:fixed;background:rgba(255,253,248,.85)}
+.np-editeur table.np-tab td,.np-editeur table.np-tab th{border:1px solid #CFC7B6;padding:6px 8px;vertical-align:top;min-width:50px;overflow-wrap:anywhere}
+.np-editeur table.np-tab tr:first-child td{font-weight:650;background:#F3EEE3}
+.np-editeur figure.np-photo.scan img{border-radius:4px;box-shadow:0 1px 6px rgba(34,32,28,.18);background:#fff}
 .np-encre{position:absolute;left:0;top:0;pointer-events:none}
+/* le scanner : recadrer aux 4 coins, puis couleur, gris ou noir et blanc */
+.np-scan{position:fixed;inset:0;z-index:95;background:#14120F;color:#F4F1EA;display:flex;flex-direction:column}
+.np-scan .sb{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;flex-wrap:wrap}
+.np-scan .sb b{flex:1 1 160px;font-size:16px}
+.np-scan .sb button{min-height:42px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;font-weight:600;cursor:pointer}
+.np-scan .sb button.ok{background:#B4621A;border-color:#B4621A}
+.np-scan .sb button[aria-pressed="true"]{background:#F4F1EA;color:#14120F}
+.np-scan .sz{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:18px;touch-action:none}
+.np-scan canvas{max-width:100%;max-height:100%;display:block}
+.np-scan .coin{position:absolute;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:3px solid #fff;background:rgba(180,98,26,.85);box-shadow:0 2px 8px rgba(0,0,0,.5);touch-action:none;cursor:grab}
+.np-scan svg.cadre{position:absolute;left:0;top:0;width:100%;height:100%;pointer-events:none}
+@media (max-width:560px){.np-scan .sb b,.np-scan #scanModes{flex:1 1 100%}.np-scan .sb button,.np-scan #scanModes button{flex:1 1 auto;padding:0 10px}}
+.np-scan .aide-s{text-align:center;color:#C9C2B3;font-size:13px;padding:0 12px calc(12px + env(safe-area-inset-bottom,0px))}
 .np-page.stylet .np-editeur{cursor:crosshair}
 .np-vide{position:absolute;inset:58px 0 0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#6E675C;font-size:16px;background:#FFFDF8}
 .np-vide button{padding:10px 18px;border-radius:12px;border:0;background:#B4621A;color:#fff;font-weight:700;cursor:pointer}
@@ -240,6 +257,7 @@ button{font:inherit;color:inherit}
         <button type="button" class="np-retour" id="btnRetour"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Notes</button>
         <button type="button" class="np-o" id="oFmt" aria-pressed="false"><span class="aa" aria-hidden="true">Aa</span><span>Texte</span></button>
         <button type="button" class="np-o" id="oCases"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="5" height="5" rx="1.2"/><path d="M4.8 7l1.2 1.2 2-2.4"/><rect x="3.5" y="14.5" width="5" height="5" rx="1.2"/><path d="M11.5 7h9M11.5 17h9"/></svg><span>Cases</span></button>
+        <button type="button" class="np-o" id="oTableau"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 4.5v15M15 4.5v15"/></svg><span>Tableau</span></button>
         <button type="button" class="np-o" id="oPhoto"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg><span>Photo</span></button>
         <button type="button" class="np-o" id="oStylet" aria-pressed="false"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg><span>Stylet</span></button>
         <button type="button" class="np-o" id="oPapier"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="4.5" y="3.5" width="15" height="17" rx="1.5"/><path d="M7.5 8h9M7.5 12h9M7.5 16h9"/></svg><span id="nomPapier">Papier : ligné</span></button>
@@ -260,6 +278,15 @@ button{font:inherit;color:inherit}
         <button type="button" data-cmd="insertUnorderedList">• Puces</button>
         <button type="button" data-cmd="insertOrderedList">1. Numéros</button>
       </div>
+      <div class="np-fmt np-tabbar" id="barreTab" hidden>
+        <b style="font-size:13px;color:#6E675C;margin-right:4px">Tableau</b>
+        <button type="button" data-tab="ligne+">+ Ligne</button>
+        <button type="button" data-tab="colonne+">+ Colonne</button>
+        <button type="button" data-tab="ligne-">− Ligne</button>
+        <button type="button" data-tab="colonne-">− Colonne</button>
+        <span class="sep" aria-hidden="true"></span>
+        <button type="button" data-tab="supprimer" style="color:#A6291F">Supprimer le tableau</button>
+      </div>
       <div class="np-corb" id="barCorbeille" hidden>
         <span id="corbTexte">Cette note est dans « Supprimées récemment ».</span>
         <button type="button" class="ok" id="btnRecuperer">Récupérer</button>
@@ -271,6 +298,12 @@ button{font:inherit;color:inherit}
           <div class="np-editeur" id="editeur" contenteditable="true" spellcheck="true" aria-label="Texte de la note" role="textbox" aria-multiline="true"></div>
           <canvas class="np-encre" id="encre" aria-hidden="true"></canvas>
         </div>
+      </div>
+      <div class="np-vide np-verrou" id="verrouEcran" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true" style="width:44px;height:44px;fill:none;stroke:#8A4A12;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+        <b id="verrouTitre" style="color:#22201C;font-size:18px"></b>
+        <span>Cette note est verrouillée.</span>
+        <button type="button" id="btnDeverrouiller">Déverrouiller</button>
       </div>
       <div class="np-vide" id="aucune" hidden>
         <span>Aucune note ouverte.</span>
@@ -298,6 +331,35 @@ button{font:inherit;color:inherit}
       <input type="search" id="chercheChantier" placeholder="Client, référence, adresse" aria-label="Chercher un chantier">
       <div class="np-ch" id="listeChantiers"></div>
     </div>
+  </div>
+</div>
+<input type="file" id="inScan" accept="image/*" capture="environment" hidden>
+<div class="np-scan" id="scanner" hidden role="dialog" aria-modal="true" aria-label="Scanner un document">
+  <div class="sb">
+    <b id="scanT">Recadrez le document</b>
+    <span id="scanModes" hidden style="display:flex;gap:6px">
+      <button type="button" data-mode="couleur" aria-pressed="false">Couleur</button>
+      <button type="button" data-mode="gris" aria-pressed="false">Gris</button>
+      <button type="button" data-mode="nb" aria-pressed="true">Noir et blanc</button>
+    </span>
+    <button type="button" id="scanAnnuler">Annuler</button>
+    <button type="button" id="scanRetour" hidden>Recadrer</button>
+    <button type="button" class="ok" id="scanSuivant">Suivant</button>
+    <button type="button" class="ok" id="scanAjouter" hidden>Ajouter à la note</button>
+  </div>
+  <div class="sz" id="scanZone"><canvas id="scanCv"></canvas><svg class="cadre" id="scanCadre" aria-hidden="true"></svg></div>
+  <div class="aide-s" id="scanAide">Faites glisser les quatre coins sur ceux de la feuille.</div>
+</div>
+<div class="np-fen" id="fenCode" hidden role="dialog" aria-modal="true" aria-labelledby="fenCodeT">
+  <div class="np-boite" style="max-width:420px">
+    <div class="bt"><b id="fenCodeT">Code des notes</b><button type="button" class="bx" id="fenCodeX" aria-label="Fermer">×</button></div>
+    <form class="bc" id="formCode" style="display:flex;flex-direction:column;gap:10px">
+      <p id="fenCodeTxt" style="margin:0;font-size:14px;color:#4A463F;line-height:1.45"></p>
+      <input type="password" id="code1" autocomplete="off" aria-label="Code" placeholder="Code">
+      <input type="password" id="code2" autocomplete="off" aria-label="Confirmer le code" placeholder="Le même code, une seconde fois" hidden>
+      <p id="fenCodeErr" style="margin:0;color:#A6291F;font-size:13.5px"></p>
+      <button type="submit" style="min-height:46px;border-radius:12px;border:0;background:#B4621A;color:#fff;font-weight:700;font-size:15px;cursor:pointer">Valider</button>
+    </form>
   </div>
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
@@ -355,10 +417,11 @@ function quand(iso, long){
 }
 
 /* ---------- le contenu : ce qu'on accepte dans une note ---------- */
-var BALISES={H1:1,H2:1,P:1,DIV:1,BR:1,B:1,STRONG:1,I:1,EM:1,U:1,UL:1,OL:1,LI:1,FIGURE:1,SPAN:1};
-function figurePhoto(id, src){
-  var f=el("figure","np-photo"); f.setAttribute("contenteditable","false");
+var BALISES={H1:1,H2:1,P:1,DIV:1,BR:1,B:1,STRONG:1,I:1,EM:1,U:1,UL:1,OL:1,LI:1,FIGURE:1,SPAN:1,TABLE:1,TBODY:1,TR:1,TD:1,TH:1};
+function figurePhoto(id, src, scan){
+  var f=el("figure","np-photo"+(scan ? " scan" : "")); f.setAttribute("contenteditable","false");
   if(id) f.setAttribute("data-photo", id);
+  if(scan) f.setAttribute("data-scan","1");
   var im=el("img"); im.alt="Photo"; im.src=src || urlPhoto(id); im.draggable=false;
   f.appendChild(im);
   var e=el("span","etq","Toucher pour annoter"); e.setAttribute("aria-hidden","true"); f.appendChild(e);
@@ -371,10 +434,11 @@ function copier(src, dst){
     var t=n.tagName;
     if(t==="IMG" || t==="SCRIPT" || t==="STYLE") return;
     if(!BALISES[t]){ copier(n, dst); return; }
-    if(t==="FIGURE"){ var id=n.getAttribute("data-photo")||""; if(/^[a-z0-9]{6,32}$/.test(id)) dst.appendChild(figurePhoto(id)); return; }
+    if(t==="FIGURE"){ var id=n.getAttribute("data-photo")||""; if(/^[a-z0-9]{6,32}$/.test(id)) dst.appendChild(figurePhoto(id, null, n.getAttribute("data-scan")==="1")); return; }
     if(t==="SPAN"){ copier(n, dst); return; }
     var e=document.createElement(t==="STRONG" ? "B" : t==="EM" ? "I" : t);
     if(t==="UL" && n.classList.contains("cases")) e.className="cases";
+    if(t==="TABLE") e.className="np-tab";
     if(t==="LI" && n.getAttribute("data-fait")==="1") e.setAttribute("data-fait","1");
     copier(n, e); dst.appendChild(e);
   });
@@ -388,6 +452,7 @@ function serialiser(){
   Array.prototype.forEach.call(c.querySelectorAll("figure"), function(f){
     if(!f.getAttribute("data-photo")){ f.remove(); return; }
     f.textContent=""; f.removeAttribute("contenteditable"); f.removeAttribute("class");
+    if(f.getAttribute("data-scan")!=="1") f.removeAttribute("data-scan");
   });
   return c.innerHTML;
 }
@@ -469,6 +534,7 @@ $("btnSupDossier").addEventListener("click", function(){
 
 /* ---------- la liste ---------- */
 var SVG_ENCRE='<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 30 L7 10 L32 9 L33 29 Z"/><path d="M7 20 Q 12 17 15 20 T 24 19"/><circle cx="27" cy="15" r="2"/></svg>';
+var SVG_CADENAS='<svg viewBox="0 0 24 24" aria-label="verrouillée" role="img" style="width:13px;height:13px;fill:none;stroke:#6E675C;stroke-width:2;stroke-linecap:round;flex:0 0 auto"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
 var SVG_EPINGLE='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px;fill:#B4621A;flex:0 0 auto"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7" stroke="#B4621A" stroke-width="2"/></svg>';
 function peindreListe(){
   var h=$("liste"); h.textContent="";
@@ -485,9 +551,10 @@ function peindreListe(){
     b.setAttribute("aria-current", COUR && COUR.meta.id===n.id ? "true" : "false");
     var tx=el("div","tx"), ti=el("div","ti");
     if(n.epingle) ti.insertAdjacentHTML("beforeend", SVG_EPINGLE);
+    if(n.verrou) ti.insertAdjacentHTML("beforeend", SVG_CADENAS);
     ti.appendChild(el("b","",n.titre||"Nouvelle note")); tx.appendChild(ti);
     var ap=el("div","ap"); ap.appendChild(el("b","", VUE==="corbeille" ? "Effacée dans "+Math.max(0, 30-Math.floor((Date.now()-Date.parse(n.corbeille.le))/864e5))+" j" : quand(n.maj)));
-    ap.appendChild(document.createTextNode("  "+(n.apercu||(n.encre ? "Écriture au stylet" : "Pas d'autre texte")))); tx.appendChild(ap);
+    ap.appendChild(document.createTextNode("  "+(n.verrou ? "Verrouillée" : (n.apercu||(n.encre ? "Écriture au stylet" : "Pas d'autre texte"))))); tx.appendChild(ap);
     if(n.chantier) tx.appendChild(el("div","ch","Rangée · "+(n.chantier.client ? n.chantier.client+" · " : "")+n.chantier.ref));
     b.appendChild(tx);
     if(n.vignette){
@@ -518,6 +585,12 @@ function peindreInfo(){
   dos.appendChild(sel); h.appendChild(dos);
   h.appendChild(el("span","", "modifiée "+quand(m.maj, true)));
   if(m.chantier) h.appendChild(el("span","rangee","rangée dans "+(m.chantier.client||"")+" ("+m.chantier.ref+")"));
+  if(!m.corbeille && (!COUR.verrou || COUR.dechiffree)){
+    var vb=el("button","", COUR.verrou ? "Retirer le verrou" : "Verrouiller"); vb.type="button";
+    vb.addEventListener("click", function(){ COUR.verrou ? retirerVerrou() : verrouiller(); });
+    h.appendChild(vb);
+    if(COUR.verrou){ var vm=el("button","","Verrouiller maintenant"); vm.type="button"; vm.addEventListener("click", verrouillerMaintenant); h.appendChild(vm); }
+  }
   if(!m.corbeille){
     var ep=el("button","", m.epingle ? "Désépingler" : "Épingler"); ep.type="button";
     ep.addEventListener("click", function(){ ranger({epingle:!m.epingle}); });
@@ -543,33 +616,41 @@ function ouvrir(id, neuve){
   fermerCourante();
   var m=meta(id); if(!m) return;
   var c=lireCacheNote(id);
-  COUR={meta:m, html:c ? c.html : (neuve ? NOTE_VIDE : ""), encre:c ? (c.encre||[]) : [], papier:(c && c.papier) || m.papier || "ligné", neuve:!!neuve, charge:!!c || !!neuve};
+  COUR={meta:m, html:c && !c.chiffre ? c.html : (neuve ? NOTE_VIDE : ""), encre:c && !c.chiffre ? (c.encre||[]) : [], papier:(c && c.papier) || m.papier || "ligné",
+    neuve:!!neuve, charge:!!c || !!neuve, verrou:!!m.verrou, chiffre:c && c.chiffre ? c.chiffre : null, dechiffree:!m.verrou};
   ANNULER=[]; montrer();
   document.body.classList.add("voir-note");
   try{ localStorage.setItem("mesnotes:derniere", id); }catch(e){}
   if(neuve) return;
+  if(COUR.verrou && COUR.chiffre && CLE) dechiffrerCourante();
   appel("mesnote&id="+encodeURIComponent(id)).then(function(r){
     if(!COUR || COUR.meta.id!==id) return;
     if(!r.ok){ if(!COUR.charge) toast(r.d.erreur||"Note introuvable."); return; }
     var srv=r.d.contenu||{};
     /* le site a plus récent (autre appareil), et rien n'est en cours ici : on le prend */
     if(!SALE && (!c || String(srv.maj||"") > String(c.maj||""))){
-      COUR.html=srv.html||""; COUR.encre=srv.encre||[]; COUR.papier=srv.papier||COUR.papier; COUR.charge=true;
-      Object.assign(COUR.meta, r.d.note||{}); cacheNote(id, srv); montrer();
+      Object.assign(COUR.meta, r.d.note||{}); COUR.papier=srv.papier||COUR.papier; COUR.charge=true; cacheNote(id, srv);
+      COUR.verrou=!!srv.chiffre;
+      if(srv.chiffre){ COUR.chiffre=srv.chiffre; COUR.html=""; COUR.encre=[]; COUR.dechiffree=false; if(CLE) return dechiffrerCourante(); montrer(); return; }
+      COUR.html=srv.html||""; COUR.encre=srv.encre||[]; COUR.dechiffree=true; COUR.chiffre=null; montrer();
     }
-  }).catch(function(){ if(!COUR.charge) toast("Pas de réseau : cette note n'est pas encore sur cet appareil."); });
+  }).catch(function(){ if(COUR && !COUR.charge) toast("Pas de réseau : cette note n'est pas encore sur cet appareil."); });
 }
 function montrer(){
   var ed=$("editeur");
   $("aucune").hidden=!!COUR;
-  if(!COUR){ ed.textContent=""; $("info").textContent=""; dessiner(); return; }
-  ed.textContent=""; ed.appendChild(nettoyer(COUR.html || NOTE_VIDE));
-  if(!ed.firstChild) ed.innerHTML=NOTE_VIDE;
+  if(!COUR){ ed.textContent=""; $("info").textContent=""; $("verrouEcran").hidden=true; $("defile").hidden=false; dessiner(); return; }
+  var ferme=COUR.verrou && !COUR.dechiffree;
+  $("verrouEcran").hidden=!ferme; $("defile").hidden=ferme;
+  if(ferme){ $("verrouTitre").textContent=COUR.meta.titre||"Note"; if(MODE.stylet) basculerStylet(false); }
+  ed.textContent=""; if(!ferme) ed.appendChild(nettoyer(COUR.html || NOTE_VIDE));
+  if(!ferme && !ed.firstChild) ed.innerHTML=NOTE_VIDE;
   var corb=!!COUR.meta.corbeille;
-  ed.setAttribute("contenteditable", corb || MODE.stylet ? "false" : "true");
+  ed.setAttribute("contenteditable", corb || ferme || MODE.stylet ? "false" : "true");
   $("barCorbeille").hidden=!corb;
   if(corb) $("corbTexte").textContent="Cette note est dans « Supprimées récemment » : effacée dans "+Math.max(0, 30-Math.floor((Date.now()-Date.parse(COUR.meta.corbeille.le))/864e5))+" jours.";
-  ["oFmt","oCases","oPhoto","oStylet","oPapier","oChantier"].forEach(function(i){ $(i).disabled=corb; });
+  ["oFmt","oCases","oTableau","oPhoto","oStylet","oPapier","oChantier"].forEach(function(i){ $(i).disabled=corb || ferme; });
+  ["oPartager","oPdf"].forEach(function(i){ $(i).disabled=ferme; });
   appliquerPapier(); peindreInfo(); majVide(); peindreListe();
   $("defile").scrollTop=0;
   requestAnimationFrame(ajusterEncre);
@@ -604,23 +685,33 @@ function enregistrer(tout){
   clearTimeout(MINUTEUR);
   if(!COUR || !SALE) return Promise.resolve();
   if(COUR.neuve && estVide()) { SALE=false; return Promise.resolve(); }
+  /* verrouillée et pas ouverte ici : rien à enregistrer */
+  if(COUR.verrou && (!COUR.dechiffree || !CLE)) { SALE=false; return Promise.resolve(); }
   SALE=false;
-  var t=textes(), maj=new Date().toISOString(), m=COUR.meta;
+  var t=textes(), maj=new Date().toISOString(), m=COUR.meta, verrou=COUR.verrou;
   COUR.html=serialiser(); COUR.neuve=false;
-  var corps={id:m.id, titre:t.titre || "Nouvelle note", apercu:t.apercu, html:COUR.html, encre:COUR.encre, papier:COUR.papier, dossier:m.dossier||"", epingle:!!m.epingle, maj:maj};
-  Object.assign(m, {titre:corps.titre, apercu:corps.apercu, maj:maj, papier:COUR.papier, encre:COUR.encre.length>0});
-  var ph=$("editeur").querySelector("figure[data-photo]");
-  m.vignette = ph ? ph.getAttribute("data-photo") : (COUR.encre.length ? "encre" : "");
-  cacheNote(m.id, {id:m.id, html:COUR.html, encre:COUR.encre, papier:COUR.papier, maj:maj}); ecrireCache();
+  var photos=Array.prototype.map.call($("editeur").querySelectorAll("figure[data-photo]"), function(f){ return f.getAttribute("data-photo"); });
+  var corps={id:m.id, titre:t.titre || "Nouvelle note", apercu:verrou ? "" : t.apercu, html:COUR.html, encre:COUR.encre, papier:COUR.papier, dossier:m.dossier||"", epingle:!!m.epingle, maj:maj};
+  Object.assign(m, {titre:corps.titre, apercu:corps.apercu, maj:maj, papier:COUR.papier, encre:!verrou && COUR.encre.length>0, verrou:verrou});
+  m.vignette = verrou ? "" : (photos[0] || (COUR.encre.length ? "encre" : ""));
   if(!tout){ peindreListe(); peindreInfo(); peindreDossiers(); }
   etat("enregistrement…", true);
+  /* verrouillée : le contenu part chiffré, et l'appareil ne garde que le chiffré */
+  var pret = verrou
+    ? chiffrer(CLE, {html:COUR.html, encre:COUR.encre}).then(function(ch){ corps.chiffre=ch; corps.html=""; corps.encre=[]; corps.photos=photos; COUR.chiffre=ch;
+        cacheNote(m.id, {id:m.id, chiffre:ch, papier:COUR.papier, maj:maj}); })
+    : Promise.resolve(cacheNote(m.id, {id:m.id, html:COUR.html, encre:COUR.encre, papier:COUR.papier, maj:maj}));
+  ecrireCache();
   var attente=setTimeout(function(){ etat("hors connexion · gardée sur l'appareil", true); }, 5000);
-  return appel("mesnote-enregistrer", {corps:corps}).then(function(r){
+  return pret.then(function(){ return appel("mesnote-enregistrer", {corps:corps}); }).then(function(r){
     clearTimeout(attente);
     if(r.ok){ var mm=meta(m.id); if(mm) Object.assign(mm, r.d.note); ecrireCache(); etat("synchronisé"); return; }
     if(r.st===409 && r.d.plusRecente){ etat("synchronisé"); toast("Cette note a été modifiée sur un autre appareil : la version la plus récente est gardée.");
       var mm2=meta(m.id); if(mm2) Object.assign(mm2, r.d.note); if(r.d.contenu) cacheNote(m.id, r.d.contenu);
-      if(COUR && COUR.meta.id===m.id && r.d.contenu){ COUR.html=r.d.contenu.html; COUR.encre=r.d.contenu.encre||[]; montrer(); } return; }
+      if(COUR && COUR.meta.id===m.id && r.d.contenu){
+        if(r.d.contenu.chiffre){ COUR.chiffre=r.d.contenu.chiffre; COUR.verrou=true; COUR.dechiffree=false; if(CLE) dechiffrerCourante(); else montrer(); }
+        else { COUR.html=r.d.contenu.html; COUR.encre=r.d.contenu.encre||[]; montrer(); }
+      } return; }
     etat("non enregistrée", true); toast(r.d.erreur || "Note non enregistrée.");
   }).catch(function(){ clearTimeout(attente); SALE=true; etat("hors connexion · gardée sur l'appareil", true); });
 }
@@ -725,11 +816,20 @@ $("editeur").addEventListener("click", function(e){
 /* ---------- les photos ---------- */
 var PLACE=null;
 $("oPhoto").addEventListener("mousedown", function(e){ e.preventDefault(); });
-$("oPhoto").addEventListener("click", function(){
+$("oPhoto").addEventListener("click", function(e){
   if(!COUR || MODE.stylet) return;
   rendreSelection();
   var s=getSelection(); PLACE=s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
-  $("inPhoto").click();
+  fermerMenuPhoto();
+  var m=el("div","np-menu-photo"); m.setAttribute("role","menu"); m.id="menuPhoto";
+  var a=el("button","","Photos ou appareil photo"); a.type="button";
+  a.addEventListener("click", function(){ fermerMenuPhoto(); $("inPhoto").click(); });
+  var sc=el("button","","Scanner un document"); sc.type="button";
+  sc.addEventListener("click", function(){ fermerMenuPhoto(); $("inScan").click(); });
+  m.appendChild(a); m.appendChild(sc); document.body.appendChild(m);
+  var r=$("oPhoto").getBoundingClientRect();
+  m.style.left=Math.max(8, Math.min(innerWidth-m.offsetWidth-8, r.left))+"px"; m.style.top=(r.bottom+6)+"px";
+  MENU=m;
 });
 function reduire(fichier){
   return new Promise(function(ok, ko){
@@ -946,6 +1046,303 @@ peindrePalette();
 if(window.ResizeObserver) new ResizeObserver(function(){ ajusterEncre(); }).observe($("defile"));
 window.addEventListener("resize", ajusterEncre);
 
+/* ---------- le verrou : le contenu chiffré sur l'appareil (AES-GCM), avec votre code ----------
+   Le code n'est jamais envoyé ni gardé : le site garde un sel et un témoin chiffré, qui
+   permettent de vérifier le code ici. Oublié, les notes verrouillées sont perdues. */
+var CODE=null, CLE=null, TEMOIN="suivi-travaux-360:notes";
+function b64(buf){ var a=new Uint8Array(buf), t=""; for(var i=0;i<a.length;i+=32768) t+=String.fromCharCode.apply(null, a.subarray(i, i+32768)); return btoa(t); }
+function deb64(t){ var x=atob(t), a=new Uint8Array(x.length); for(var i=0;i<x.length;i++) a[i]=x.charCodeAt(i); return a; }
+function deriver(code, sel){
+  return crypto.subtle.importKey("raw", new TextEncoder().encode(code), "PBKDF2", false, ["deriveKey"]).then(function(k){
+    return crypto.subtle.deriveKey({name:"PBKDF2", salt:deb64(sel), iterations:210000, hash:"SHA-256"}, k, {name:"AES-GCM", length:256}, false, ["encrypt","decrypt"]);
+  });
+}
+function chiffrer(cle, obj){
+  var iv=crypto.getRandomValues(new Uint8Array(12));
+  return crypto.subtle.encrypt({name:"AES-GCM", iv:iv}, cle, new TextEncoder().encode(JSON.stringify(obj))).then(function(c){ return {iv:b64(iv), data:b64(c)}; });
+}
+function dechiffrer(cle, c){
+  return crypto.subtle.decrypt({name:"AES-GCM", iv:deb64(c.iv)}, cle, deb64(c.data)).then(function(b){ return JSON.parse(new TextDecoder().decode(b)); });
+}
+var CODE_FIN=null;
+function demanderCode(o){
+  return new Promise(function(fin){
+    CODE_FIN=fin;
+    $("fenCodeT").textContent=o.titre; $("fenCodeTxt").textContent=o.texte||""; $("fenCodeErr").textContent="";
+    $("code1").value=""; $("code2").value=""; $("code2").hidden=!o.double;
+    $("fenCode").hidden=false; setTimeout(function(){ try{ $("code1").focus(); }catch(e){} }, 30);
+    $("formCode").onsubmit=function(e){
+      e.preventDefault();
+      var c1=$("code1").value;
+      if(c1.length<4){ $("fenCodeErr").textContent="Au moins 4 caractères."; return; }
+      if(o.double && c1!==$("code2").value){ $("fenCodeErr").textContent="Les deux codes ne sont pas les mêmes."; return; }
+      $("fenCode").hidden=true; CODE_FIN=null; fin(c1);
+    };
+  });
+}
+$("fenCodeX").addEventListener("click", function(){ $("fenCode").hidden=true; if(CODE_FIN){ var f=CODE_FIN; CODE_FIN=null; f(null); } });
+function obtenirCle(creer){
+  if(CLE) return Promise.resolve(CLE);
+  if(!window.crypto || !crypto.subtle){ toast("Le verrou demande une connexion sécurisée (https)."); return Promise.resolve(null); }
+  if(!CODE){
+    if(!creer) return Promise.resolve(null);
+    return demanderCode({titre:"Choisir le code des notes", double:true,
+      texte:"Ce code verrouille vos notes, sur cet appareil et les autres. Il n'est gardé nulle part : s'il est oublié, les notes verrouillées sont perdues."}).then(function(code){
+      if(!code) return null;
+      var sel=b64(crypto.getRandomValues(new Uint8Array(16)));
+      return deriver(code, sel).then(function(k){
+        return chiffrer(k, TEMOIN).then(function(v){
+          return appel("mesnotes-code", {corps:{sel:sel, verif:v}}).then(function(r){
+            if(!r.ok){ toast(r.d.erreur||"Code non enregistré."); return null; }
+            CODE=r.d.code; IDX.code=CODE; ecrireCache(); CLE=k; return k;
+          });
+        });
+      });
+    });
+  }
+  return demanderCode({titre:"Code des notes", texte:"Entrez le code de vos notes verrouillées."}).then(function(code){
+    if(!code) return null;
+    return deriver(code, CODE.sel).then(function(k){
+      return dechiffrer(k, CODE.verif).then(function(t){ if(t!==TEMOIN) throw 0; CLE=k; return k; });
+    }).catch(function(){ toast("Code incorrect."); return null; });
+  });
+}
+function dechiffrerCourante(){
+  var id=COUR.meta.id;
+  return dechiffrer(CLE, COUR.chiffre).then(function(o){
+    if(!COUR || COUR.meta.id!==id) return;
+    COUR.html=o.html||""; COUR.encre=o.encre||[]; COUR.dechiffree=true; montrer();
+  }).catch(function(){ toast("Impossible d'ouvrir cette note avec ce code."); });
+}
+$("btnDeverrouiller").addEventListener("click", function(){
+  if(!COUR || !COUR.chiffre){ toast("La note n'est pas encore arrivée sur cet appareil : réessayez avec du réseau."); return; }
+  obtenirCle(false).then(function(k){ if(k) dechiffrerCourante(); });
+});
+function verrouiller(){
+  if(!COUR) return;
+  if(COUR.neuve && estVide()){ toast("Écrivez d'abord quelque chose dans la note."); return; }
+  obtenirCle(true).then(function(k){
+    if(!k || !COUR) return;
+    COUR.verrou=true; COUR.dechiffree=true; COUR.meta.verrou=true; SALE=true;
+    enregistrer().then(function(){ peindreInfo(); peindreListe(); });
+    toast("Note verrouillée : il faudra le code pour la rouvrir.");
+  });
+}
+function retirerVerrou(){
+  if(!COUR || !COUR.dechiffree) return;
+  if(!window.confirm("Retirer le verrou ? La note sera de nouveau lisible sans code.")) return;
+  COUR.verrou=false; COUR.meta.verrou=false; COUR.chiffre=null; SALE=true;
+  enregistrer().then(function(){ peindreInfo(); peindreListe(); });
+}
+function verrouillerMaintenant(){
+  enregistrer(true).then(function(){
+    CLE=null;
+    if(COUR && COUR.verrou){ COUR.html=""; COUR.encre=[]; COUR.dechiffree=false; montrer(); }
+    toast("Notes verrouillées.");
+  });
+}
+
+/* ---------- les tableaux ---------- */
+function poserBloc(n, curseur){
+  var ed=$("editeur"), apres=el("p"); apres.appendChild(el("br"));
+  var r=PLACE, bloc=null;
+  if(r){ var x=r.startContainer; while(x && x.parentNode!==ed) x=x.parentNode; bloc=x && x.parentNode===ed ? x : null; }
+  if(bloc){ ed.insertBefore(n, bloc.nextSibling); ed.insertBefore(apres, n.nextSibling); }
+  else { ed.appendChild(n); ed.appendChild(apres); }
+  PLACE=null; placerCurseur(curseur || apres);
+}
+function nouvelleCellule(){ var td=el("td"); td.appendChild(el("br")); return td; }
+$("oTableau").addEventListener("mousedown", function(e){ e.preventDefault(); });
+$("oTableau").addEventListener("click", function(){
+  if(!COUR || MODE.stylet) return;
+  rendreSelection();
+  if(blocCourant("TD")){ toast("Vous êtes déjà dans un tableau : la barre « Tableau » ajoute lignes et colonnes."); return; }
+  var s=getSelection(); PLACE=s.rangeCount ? s.getRangeAt(0).cloneRange() : null;
+  var t=el("table","np-tab"), tb=el("tbody");
+  for(var i=0;i<3;i++){ var tr=el("tr"); for(var j=0;j<3;j++) tr.appendChild(nouvelleCellule()); tb.appendChild(tr); }
+  t.appendChild(tb); poserBloc(t, tb.firstChild.firstChild);
+  sale(); majBarreTab(); requestAnimationFrame(ajusterEncre);
+});
+function majBarreTab(){ $("barreTab").hidden=!(COUR && !MODE.stylet && blocCourant("TD")); }
+document.addEventListener("selectionchange", function(){ if(dansEditeur() || $("barreTab").hidden===false) majBarreTab(); });
+Array.prototype.forEach.call(document.querySelectorAll("#barreTab button"), function(b){
+  b.addEventListener("mousedown", function(e){ e.preventDefault(); });
+  b.addEventListener("click", function(){
+    rendreSelection();
+    var td=blocCourant("TD"); if(!td) return;
+    var tr=td.parentNode, table=tr.closest("table"), col=Array.prototype.indexOf.call(tr.children, td), quoi=b.getAttribute("data-tab");
+    var lignes=Array.prototype.slice.call(table.querySelectorAll("tr"));
+    if(quoi==="ligne+"){ var n=el("tr"); for(var i=0;i<tr.children.length;i++) n.appendChild(nouvelleCellule()); tr.parentNode.insertBefore(n, tr.nextSibling); placerCurseur(n.children[Math.min(col, n.children.length-1)]); }
+    if(quoi==="colonne+"){ lignes.forEach(function(l){ var ref=l.children[col]; l.insertBefore(nouvelleCellule(), ref ? ref.nextSibling : null); }); placerCurseur(tr.children[col+1]); }
+    if(quoi==="ligne-"){ if(lignes.length<=1){ table.remove(); } else { var autre=tr.nextElementSibling || tr.previousElementSibling; tr.remove(); placerCurseur(autre.children[Math.min(col, autre.children.length-1)]); } }
+    if(quoi==="colonne-"){ if(tr.children.length<=1){ table.remove(); } else { lignes.forEach(function(l){ if(l.children[col]) l.children[col].remove(); }); placerCurseur(tr.children[Math.max(0, col-1)]); } }
+    if(quoi==="supprimer"){ if(!window.confirm("Supprimer ce tableau ?")) return; table.remove(); }
+    sale(); majBarreTab(); requestAnimationFrame(ajusterEncre);
+  });
+});
+/* Tab : la cellule suivante (une ligne neuve au bout) */
+$("editeur").addEventListener("keydown", function(e){
+  if(e.key!=="Tab") return;
+  var td=blocCourant("TD"); if(!td) return;
+  e.preventDefault();
+  var cells=Array.prototype.slice.call(td.closest("table").querySelectorAll("td,th")), i=cells.indexOf(td)+(e.shiftKey ? -1 : 1);
+  if(i>=cells.length){ var tr=td.parentNode, n=el("tr"); for(var k=0;k<tr.children.length;k++) n.appendChild(nouvelleCellule()); tr.parentNode.appendChild(n); placerCurseur(n.firstChild); sale(); return; }
+  if(i>=0) placerCurseur(cells[i]);
+});
+
+/* ---------- Photo : photothèque, appareil, ou scanner un document ---------- */
+var SCAN=null;
+function scanFermer(){ $("scanner").hidden=true; Array.prototype.forEach.call(document.querySelectorAll("#scanZone .coin"), function(c){ c.remove(); }); SCAN=null; }
+function chargerScan(fichier){
+  var u=URL.createObjectURL(fichier), im=new Image();
+  im.onload=function(){
+    var k=Math.min(1, 2400/Math.max(im.naturalWidth, im.naturalHeight)), c=document.createElement("canvas");
+    c.width=Math.round(im.naturalWidth*k); c.height=Math.round(im.naturalHeight*k);
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height); URL.revokeObjectURL(u);
+    var w=c.width, h=c.height, mx=w*.08, my=h*.08;
+    SCAN={src:c, coins:[[mx,my],[w-mx,my],[w-mx,h-my],[mx,h-my]], mode:"nb", redresse:null, phase:1};
+    $("scanner").hidden=false; scanPhase(1);
+  };
+  im.onerror=function(){ URL.revokeObjectURL(u); toast("Image illisible."); };
+  im.src=u;
+}
+function scanAffiche(c){
+  var cv=$("scanCv"), z=$("scanZone"), k=Math.min((z.clientWidth-36)/c.width, (z.clientHeight-36)/c.height, 1);
+  cv.width=c.width; cv.height=c.height; cv.style.width=Math.round(c.width*k)+"px"; cv.style.height=Math.round(c.height*k)+"px";
+  cv.getContext("2d").drawImage(c, 0, 0);
+}
+function scanVersEcran(p){ var cv=$("scanCv"), r=cv.getBoundingClientRect(), z=$("scanZone").getBoundingClientRect(); return [r.left-z.left+p[0]*r.width/cv.width, r.top-z.top+p[1]*r.height/cv.height]; }
+function scanCadre(){
+  var pts=SCAN.coins.map(scanVersEcran);
+  $("scanCadre").innerHTML='<polygon points="'+pts.map(function(p){ return p[0].toFixed(1)+","+p[1].toFixed(1); }).join(" ")+'" fill="rgba(180,98,26,.18)" stroke="#F4F1EA" stroke-width="2"/>';
+  Array.prototype.forEach.call(document.querySelectorAll("#scanZone .coin"), function(c, i){ c.style.left=pts[i][0]+"px"; c.style.top=pts[i][1]+"px"; });
+}
+function scanPhase(n){
+  SCAN.phase=n;
+  $("scanModes").hidden=n!==2; $("scanRetour").hidden=n!==2; $("scanAjouter").hidden=n!==2; $("scanSuivant").hidden=n!==1;
+  $("scanT").textContent = n===1 ? "Recadrez le document" : "Le document";
+  $("scanAide").textContent = n===1 ? "Faites glisser les quatre coins sur ceux de la feuille." : "Couleur, gris ou noir et blanc, puis « Ajouter à la note ».";
+  Array.prototype.forEach.call(document.querySelectorAll("#scanZone .coin"), function(c){ c.remove(); });
+  $("scanCadre").innerHTML="";
+  if(n===1){
+    scanAffiche(SCAN.src);
+    SCAN.coins.forEach(function(p, i){
+      var c=el("div","coin"); c.setAttribute("role","slider"); c.setAttribute("aria-label","Coin "+(i+1)); c.tabIndex=0;
+      c.addEventListener("pointerdown", function(e){
+        e.preventDefault(); c.setPointerCapture(e.pointerId);
+        function bouge(ev){
+          var cv=$("scanCv"), r=cv.getBoundingClientRect();
+          SCAN.coins[i]=[Math.max(0, Math.min(cv.width, (ev.clientX-r.left)*cv.width/r.width)), Math.max(0, Math.min(cv.height, (ev.clientY-r.top)*cv.height/r.height))];
+          scanCadre();
+        }
+        function fin(){ c.removeEventListener("pointermove", bouge); c.removeEventListener("pointerup", fin); c.removeEventListener("pointercancel", fin); }
+        c.addEventListener("pointermove", bouge); c.addEventListener("pointerup", fin); c.addEventListener("pointercancel", fin);
+      });
+      $("scanZone").appendChild(c);
+    });
+    requestAnimationFrame(scanCadre);
+  } else {
+    if(!SCAN.redresse) SCAN.redresse=redresser(SCAN.src, SCAN.coins);
+    scanRendu();
+  }
+}
+/* le quadrilatère choisi devient un rectangle (homographie, échantillonnage bilinéaire) */
+function homographie(dst, src){
+  var A=[], B=[];
+  for(var i=0;i<4;i++){
+    var u=dst[i][0], v=dst[i][1], x=src[i][0], y=src[i][1];
+    A.push([u,v,1,0,0,0,-u*x,-v*x]); B.push(x);
+    A.push([0,0,0,u,v,1,-u*y,-v*y]); B.push(y);
+  }
+  for(var c=0;c<8;c++){
+    var piv=c; for(var r=c+1;r<8;r++) if(Math.abs(A[r][c])>Math.abs(A[piv][c])) piv=r;
+    var t=A[c]; A[c]=A[piv]; A[piv]=t; var tb=B[c]; B[c]=B[piv]; B[piv]=tb;
+    for(var r2=c+1;r2<8;r2++){ var f=A[r2][c]/A[c][c]; for(var k=c;k<8;k++) A[r2][k]-=f*A[c][k]; B[r2]-=f*B[c]; }
+  }
+  var h=new Array(8);
+  for(var r3=7;r3>=0;r3--){ var sm=B[r3]; for(var k2=r3+1;k2<8;k2++) sm-=A[r3][k2]*h[k2]; h[r3]=sm/A[r3][r3]; }
+  return h;
+}
+function redresser(src, q){
+  var d=function(a,b){ return Math.hypot(a[0]-b[0], a[1]-b[1]); };
+  var W=Math.max(d(q[0],q[1]), d(q[3],q[2])), H=Math.max(d(q[0],q[3]), d(q[1],q[2]));
+  var k=Math.min(1, 1800/Math.max(W,H)); W=Math.max(20, Math.round(W*k)); H=Math.max(20, Math.round(H*k));
+  /* un rien en dedans des coins : le bord de la table ne laisse pas de liseré */
+  var m=Math.max(2, Math.round(Math.max(W,H)*.006));
+  var h=homographie([[-m,-m],[W+m,-m],[W+m,H+m],[-m,H+m]], q);
+  var sw=src.width, sh=src.height, sd=src.getContext("2d").getImageData(0,0,sw,sh).data;
+  var out=document.createElement("canvas"); out.width=W; out.height=H;
+  var g=out.getContext("2d"), od=g.createImageData(W,H), o=od.data;
+  for(var v=0;v<H;v++){
+    for(var u=0;u<W;u++){
+      var den=h[6]*u+h[7]*v+1, x=(h[0]*u+h[1]*v+h[2])/den, y=(h[3]*u+h[4]*v+h[5])/den;
+      var x0=Math.floor(x), y0=Math.floor(y), fx=x-x0, fy=y-y0, i=(v*W+u)*4;
+      if(x0<0 || y0<0 || x0>=sw-1 || y0>=sh-1){ o[i]=o[i+1]=o[i+2]=255; o[i+3]=255; continue; }
+      var a=(y0*sw+x0)*4, b=a+4, c=a+sw*4, e=c+4;
+      for(var ch=0;ch<3;ch++) o[i+ch]=(sd[a+ch]*(1-fx)+sd[b+ch]*fx)*(1-fy)+(sd[c+ch]*(1-fx)+sd[e+ch]*fx)*fy;
+      o[i+3]=255;
+    }
+  }
+  g.putImageData(od,0,0);
+  return out;
+}
+function scanFiltre(c, mode){
+  var W=c.width, H=c.height, out=document.createElement("canvas"); out.width=W; out.height=H;
+  var g=out.getContext("2d"); g.drawImage(c,0,0);
+  var id=g.getImageData(0,0,W,H), p=id.data, n=W*H;
+  if(mode==="couleur"){ g.putImageData(id,0,0); return out; }
+  var gr=new Float32Array(n);
+  for(var i=0;i<n;i++) gr[i]=.299*p[i*4]+.587*p[i*4+1]+.114*p[i*4+2];
+  if(mode==="gris"){
+    var tri=Array.prototype.slice.call(gr.filter(function(_, j){ return j%7===0; })).sort(function(a,b){ return a-b; });
+    var lo=tri[Math.floor(tri.length*.02)]||0, hi=tri[Math.floor(tri.length*.98)]||255, k=255/Math.max(1, hi-lo);
+    for(var j=0;j<n;j++){ var vg=Math.max(0, Math.min(255, (gr[j]-lo)*k)); p[j*4]=p[j*4+1]=p[j*4+2]=vg; }
+  } else {
+    /* noir et blanc : seuil local (moyenne du voisinage), net même sous un éclairage inégal */
+    var S2=new Float64Array((W+1)*(H+1));
+    for(var y=0;y<H;y++){ var lig=0; for(var x=0;x<W;x++){ lig+=gr[y*W+x]; S2[(y+1)*(W+1)+x+1]=S2[y*(W+1)+x+1]+lig; } }
+    var r=Math.max(8, Math.round(Math.min(W,H)/16));
+    for(var y2=0;y2<H;y2++){
+      var ya=Math.max(0,y2-r), yb=Math.min(H,y2+r+1);
+      for(var x2=0;x2<W;x2++){
+        var xa=Math.max(0,x2-r), xb=Math.min(W,x2+r+1);
+        var sm=S2[yb*(W+1)+xb]-S2[ya*(W+1)+xb]-S2[yb*(W+1)+xa]+S2[ya*(W+1)+xa];
+        var moy=sm/((yb-ya)*(xb-xa)), bl=gr[y2*W+x2] < moy*.86 ? 0 : 255, q=(y2*W+x2)*4;
+        p[q]=p[q+1]=p[q+2]=bl;
+      }
+    }
+  }
+  g.putImageData(id,0,0);
+  return out;
+}
+function scanRendu(){
+  SCAN.rendu=scanFiltre(SCAN.redresse, SCAN.mode);
+  scanAffiche(SCAN.rendu);
+  Array.prototype.forEach.call(document.querySelectorAll("#scanModes button"), function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-mode")===SCAN.mode ? "true" : "false"); });
+}
+Array.prototype.forEach.call(document.querySelectorAll("#scanModes button"), function(b){
+  b.addEventListener("click", function(){ if(!SCAN) return; SCAN.mode=b.getAttribute("data-mode"); scanRendu(); });
+});
+$("scanSuivant").addEventListener("click", function(){ if(SCAN){ SCAN.redresse=null; scanPhase(2); } });
+$("scanRetour").addEventListener("click", function(){ if(SCAN) scanPhase(1); });
+$("scanAnnuler").addEventListener("click", scanFermer);
+$("scanAjouter").addEventListener("click", function(){
+  if(!SCAN || !SCAN.rendu) return;
+  var place=SCAN.place;
+  SCAN.rendu.toBlob(function(bl){
+    scanFermer(); if(!bl || !COUR) return;
+    PLACE=place;
+    var fig=figurePhoto("", URL.createObjectURL(bl), true); poserFigure(fig); requestAnimationFrame(ajusterEncre);
+    envoyerPhoto(bl, fig);
+  }, "image/jpeg", .88);
+});
+$("inScan").addEventListener("change", function(){
+  var f=this.files[0]; this.value=""; if(!f) return;
+  var place=PLACE; chargerScan(f);
+  var t=setInterval(function(){ if(SCAN){ SCAN.place=place; clearInterval(t); } }, 50); setTimeout(function(){ clearInterval(t); }, 5000);
+});
+window.addEventListener("resize", function(){ if(SCAN && !$("scanner").hidden){ scanAffiche(SCAN.phase===1 ? SCAN.src : SCAN.rendu); if(SCAN.phase===1) scanCadre(); } });
+
 /* ---------- le PDF : la note telle qu'à l'écran, texte, photos et écriture ---------- */
 function attendreJspdf(){
   return new Promise(function(ok, ko){
@@ -976,9 +1373,14 @@ function construirePdf(){
     for(var gy=0; gy<nb*HP; gy+=24) poser(gy, function(y){ doc.setDrawColor(236,229,214); doc.setLineWidth(.15); doc.line(M, y, M+W, y); });
   }
   /* le texte, bloc par bloc, ligne par ligne, là où il est à l'écran */
-  var blocs=ed.querySelectorAll("h1,h2,p,div,li");
+  /* les tableaux : le quadrillage, puis le texte des cases comme le reste */
+  Array.prototype.forEach.call(ed.querySelectorAll("td,th"), function(td){
+    var r=td.getBoundingClientRect();
+    poser(r.top-R.top, function(y){ doc.setDrawColor(207,199,182); doc.setLineWidth(.25); doc.rect(M+(r.left-R.left)*f, y, r.width*f, r.height*f, "S"); });
+  });
+  var blocs=ed.querySelectorAll("h1,h2,p,div,li,td,th");
   Array.prototype.forEach.call(blocs, function(b){
-    if(b.querySelector("h1,h2,p,div,li,figure")) return;
+    if(b.querySelector("h1,h2,p,div,li,figure,table")) return;
     var txt=(b.innerText||"").replace(/ /g," ").replace(/\s+$/,""); if(!txt.trim()) return;
     var cs=getComputedStyle(b), r=b.getBoundingClientRect();
     var taille=parseFloat(cs.fontSize)||16, lh=parseFloat(cs.lineHeight)||taille*1.4;
@@ -1114,14 +1516,15 @@ function rangerAuChantier(ref){
 /* ---------- le départ ---------- */
 function charger(){
   var c=lireCache();
-  if(c){ IDX=c; }
+  if(c){ IDX=c; CODE=c.code||null; }
   try{ VUE=localStorage.getItem("mesnotes:vue")||"tous"; }catch(e){}
   peindreDossiers(); peindreListe(); montrer();
   return appel("mesnotes-liste").then(function(r){
     if(!r.ok) return;
     /* une note écrite hors connexion, pas encore sur le site : elle reste */
     var locales=IDX.notes.filter(function(n){ return !r.d.notes.some(function(x){ return x.id===n.id; }) && lireCacheNote(n.id); });
-    IDX={notes:r.d.notes.concat(locales), dossiers:r.d.dossiers};
+    IDX={notes:r.d.notes.concat(locales), dossiers:r.d.dossiers, code:r.d.code||null};
+    CODE=IDX.code;
     /* première fois : deux dossiers pour démarrer, comme dans la maquette */
     var dejaSeme=false; try{ dejaSeme=!!localStorage.getItem(CLE_IDX+":seme"); }catch(e){}
     if(!IDX.dossiers.length && !IDX.notes.length && !dejaSeme){
@@ -1133,7 +1536,9 @@ function charger(){
     ecrireCache(); peindreDossiers(); peindreListe();
     /* et celles modifiées ici hors connexion, plus récentes que sur le site */
     r.d.notes.forEach(function(n){ var cc=lireCacheNote(n.id); if(cc && String(cc.maj||"") > String(n.maj||"") && locales.indexOf(n)<0) locales.push(n); });
-    locales.forEach(function(n){ var cc=lireCacheNote(n.id); if(cc && !(COUR && COUR.meta.id===n.id)){ appel("mesnote-enregistrer", {corps:{id:n.id, titre:n.titre, apercu:n.apercu, html:cc.html, encre:cc.encre||[], papier:cc.papier, dossier:n.dossier, epingle:n.epingle, maj:cc.maj}}).catch(function(){}); } });
+    locales.forEach(function(n){ var cc=lireCacheNote(n.id); if(cc && !(COUR && COUR.meta.id===n.id)){ var cr={id:n.id, titre:n.titre, apercu:n.apercu, html:cc.html||"", encre:cc.encre||[], papier:cc.papier, dossier:n.dossier, epingle:n.epingle, maj:cc.maj};
+      if(cc.chiffre){ cr.chiffre=cc.chiffre; cr.html=""; cr.encre=[]; cr.apercu=""; }
+      appel("mesnote-enregistrer", {corps:cr}).catch(function(){}); } });
     if(COUR && COUR.meta && !meta(COUR.meta.id)) { COUR=null; montrer(); }
   }).catch(function(){ etat("hors connexion · gardée sur l'appareil", true); });
 }
@@ -1146,7 +1551,7 @@ charger().then(function(){
     else { var l=IDX.notes.filter(function(n){ return !n.corbeille; }); if(l.length) ouvrir(l[0].id); }
   }
 });
-window.__mesnotes={etat:function(){ return {IDX:IDX, COUR:COUR, MODE:MODE, VUE:VUE}; }, pdf:function(){ return construirePdf(); }, enregistrer:function(){ SALE=true; return enregistrer(); }};
+window.__mesnotes={scan:function(){ return SCAN; }, etat:function(){ return {IDX:IDX, COUR:COUR, MODE:MODE, VUE:VUE, CLE:!!CLE}; }, pdf:function(){ return construirePdf(); }, enregistrer:function(){ SALE=true; return enregistrer(); }};
 })();
 </script>
 <script src="./horsligne.js?v=20261006a" defer></script>

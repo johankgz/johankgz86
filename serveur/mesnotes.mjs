@@ -9,15 +9,23 @@
    décide (son PDF, sous « Notes ») : c'est rapports.mjs qui l'y pose,
    puis note ici où elle est.
 
+   Une note verrouillée (option) : son contenu est chiffré sur l'appareil
+   (AES-GCM, clé tirée du code de la personne) ; le site n'en garde que le
+   chiffré, le titre restant lisible dans la liste. Le code n'est jamais
+   envoyé : seuls son sel et un petit témoin chiffré sont gardés, pour
+   vérifier le code sur l'appareil.
+
    Rangement, dans le magasin de la société, par personne (<u>) :
      mesnotes/<u>/index.json   {notes: [{id, titre, apercu, dossier, epingle,
                                papier, cree, maj, vignette, encre, photos,
                                chantier?, corbeille?}], dossiers: [{id, nom}]}
      mesnotes/<u>/n/<id>.json  le contenu : {id, html, encre: [traits], papier, maj}
+                               ou, verrouillée, {id, chiffre: {iv, data}, papier, maj}
+     (index.json porte aussi code: {sel, verif: {iv, data}} une fois le code choisi)
      mesnotes/<u>/p/<id>       une photo (JPEG ou PNG), telle qu'envoyée
    ===================================================================== */
 
-const MAX_HTML = 600000;
+const MAX_HTML = 600000;              /* le texte d'une note (sans les photos, gardées à part) */
 const MAX_ENCRE = 2500000;          /* les traits, en texte */
 const MAX_PHOTO = 8 * 1024 * 1024;
 const JOURS_CORBEILLE = 30;
@@ -37,6 +45,8 @@ function dossierDe(u) { return "mesnotes/" + u + "/"; }
 function slugNom(n) {
   return String(n || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "sans-nom";
 }
+const b64Valide = (t, max) => typeof t === "string" && t.length > 0 && t.length <= max && /^[A-Za-z0-9+/=]+$/.test(t);
+const chiffreValide = (c, max) => !!c && b64Valide(c.iv, 40) && b64Valide(c.data, max);
 /* les photos citées par une note : <figure data-photo="…"> */
 function photosDe(html) {
   const out = new Set(); const re = /data-photo="([a-z0-9]{6,32})"/g; let m;
@@ -88,7 +98,19 @@ export async function mesnotes(action, o) {
   if (action === "mesnotes-liste") {
     const x = await lire();
     if (await purger(x)) await enFile(personne.societe + "/" + u, () => ecrire(x));
-    return json({ notes: x.notes, dossiers: x.dossiers });
+    return json({ notes: x.notes, dossiers: x.dossiers, code: x.code || null });
+  }
+
+  /* ---------- le code des notes verrouillées : choisi une fois (son sel et un témoin chiffré) ---------- */
+  if (action === "mesnotes-code") {
+    const d = await corps(); if (!d) return json({ erreur: "Requête illisible." }, 400);
+    if (!b64Valide(d.sel, 64) || !chiffreValide(d.verif, 400)) return json({ erreur: "Code illisible." }, 400);
+    return modifier(async (x) => {
+      /* changer de code effacerait l'accès aux notes déjà verrouillées : refusé tant qu'il y en a */
+      if (x.code && x.notes.some((n) => n.verrou)) return json({ erreur: "Un code existe déjà, et des notes l'utilisent : retirez d'abord leur verrou." }, 409);
+      x.code = { sel: d.sel, verif: { iv: d.verif.iv, data: d.verif.data }, le: new Date().toISOString() };
+      return json({ ok: true, code: x.code });
+    });
   }
 
   /* ---------- une note : son contenu ---------- */
@@ -127,9 +149,11 @@ export async function mesnotes(action, o) {
   if (action === "mesnote-enregistrer") {
     const d = await corps(); if (!d) return json({ erreur: "Requête illisible." }, 400);
     if (!idValide(d.id)) return json({ erreur: "Note illisible." }, 400);
-    const html = String(d.html || "");
+    const verrou = !!d.chiffre;
+    if (verrou && !chiffreValide(d.chiffre, Math.round((MAX_HTML + MAX_ENCRE) * 1.4))) return json({ erreur: "Note verrouillée illisible." }, 400);
+    const html = verrou ? "" : String(d.html || "");
     if (html.length > MAX_HTML) return json({ erreur: "Note trop longue : coupez-la en deux." }, 413);
-    const encre = Array.isArray(d.encre) ? d.encre : [];
+    const encre = verrou ? [] : (Array.isArray(d.encre) ? d.encre : []);
     if (JSON.stringify(encre).length > MAX_ENCRE) return json({ erreur: "Trop d'écriture dans une seule note : commencez-en une autre." }, 413);
     const maj = /^\d{4}-\d\d-\d\dT/.test(String(d.maj || "")) ? String(d.maj) : new Date().toISOString();
     return modifier(async (x) => {
@@ -142,15 +166,17 @@ export async function mesnotes(action, o) {
       if (!e) { e = { id: d.id, cree: maj, dossier: "", epingle: false }; x.notes.unshift(e); }
       if (e.corbeille) delete e.corbeille;
       const papier = PAPIERS.indexOf(d.papier) >= 0 ? d.papier : (e.papier || "ligné");
-      const photos = photosDe(html);
+      /* verrouillée : le site ne lit pas le contenu, l'appareil lui dit quelles photos il cite */
+      const photos = verrou ? (Array.isArray(d.photos) ? d.photos.filter(idValide).slice(0, 200) : []) : photosDe(html);
+      if (verrou && !x.code) return json({ erreur: "Choisissez d'abord le code des notes verrouillées." }, 400);
       Object.assign(e, {
-        titre: court(d.titre, 120) || "Nouvelle note", apercu: court(d.apercu, 160), papier, maj,
-        vignette: photos[0] || (encre.length ? "encre" : ""), encre: encre.length > 0,
+        titre: court(d.titre, 120) || "Nouvelle note", apercu: verrou ? "" : court(d.apercu, 160), papier, maj,
+        vignette: verrou ? "" : (photos[0] || (encre.length ? "encre" : "")), encre: !verrou && encre.length > 0, verrou,
         photos: [...new Set([...(e.photos || []), ...photos])].slice(-200)
       });
       if (d.dossier !== undefined) e.dossier = x.dossiers.some((f) => f.id === d.dossier) ? d.dossier : "";
       if (d.epingle !== undefined) e.epingle = d.epingle === true;
-      await store.setJSON(base + "n/" + e.id + ".json", { id: e.id, html, encre, papier, maj });
+      await store.setJSON(base + "n/" + e.id + ".json", verrou ? { id: e.id, chiffre: { iv: d.chiffre.iv, data: d.chiffre.data }, papier, maj } : { id: e.id, html, encre, papier, maj });
       return json({ ok: true, note: e });
     });
   }
