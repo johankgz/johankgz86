@@ -1723,7 +1723,7 @@ body.connexion .ciel{display:none}
       <p class="meta" id="meta"></p>
     </div>
 
-    <div class="bulletin" id="bulletin">
+    <div class="bulletin plie" id="bulletin">
       <span class="bul-balai" aria-hidden="true"></span>
       <div class="bul-haut">
         <img class="bul-logo" src="./icone-192.png" width="46" height="46"
@@ -1740,7 +1740,7 @@ body.connexion .ciel{display:none}
             <span id="bulCiel"></span>
           </div>
         </div>
-        <button type="button" class="bul-pli" id="bulPli" aria-expanded="true" aria-controls="bulJours" title="Replier la météo" aria-label="Replier la météo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
+        <button type="button" class="bul-pli" id="bulPli" aria-expanded="false" aria-controls="bulJours" title="Déplier la météo" aria-label="Déplier la météo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
       </div>
       <div class="bul-jours" id="bulJours" hidden></div>
       <p class="bul-credit" id="bulCredit" hidden style="margin:2px 0 0;font-size:11px;opacity:.8;text-align:right">Météo : Open-Meteo.com (CC BY 4.0)</p>
@@ -2171,7 +2171,7 @@ function lancerFondAnime(el){
   FOND_LANCE=f;
   if(f) FondsAnim.demarrer(el, f); else FondsAnim.arreter();
 }
-/* la météo se plie d'un appui ; l'appareil s'en souvient */
+/* la météo : toujours repliée à l'ouverture ; un appui la déplie quand on en a besoin */
 (function pliMeteo(){
   var carte=$("bulletin"), bt=$("bulPli"); if(!carte || !bt) return;
   function peindre(plie){
@@ -2180,13 +2180,11 @@ function lancerFondAnime(el){
     bt.title = plie ? "Déplier la météo" : "Replier la météo";
     bt.setAttribute("aria-label", bt.title);
   }
-  var plie=false;
-  try{ plie = localStorage.getItem("accueil:meteoPliee")==="1"; }catch(e){}
+  var plie=true;
   peindre(plie);
-  bt.addEventListener("click", function(){
-    plie=!plie; peindre(plie);
-    try{ localStorage.setItem("accueil:meteoPliee", plie ? "1" : "0"); }catch(e){}
-  });
+  bt.addEventListener("click", function(){ plie=!plie; peindre(plie); });
+  /* retour sur l'accueil (même depuis le cache du navigateur) : repliée de nouveau */
+  window.addEventListener("pageshow", function(e){ if(e.persisted){ plie=true; peindre(plie); } });
 })();
 
 var BULLETIN_HORLOGE=false;

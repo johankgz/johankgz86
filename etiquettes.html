@@ -703,6 +703,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <section id="tab-tableau">
   <div class="barre-fiche">
     <button class="act ghost mini" id="btnTravauxSite" title="Reprendre un dossier du site"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/><path d="M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>Reprendre</button>
+    <button class="act ghost mini" id="btnRouvrirEtiq" title="Rouvrir une planche déjà publiée pour la corriger"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg>Rouvrir</button>
     <button class="act ghost mini" id="btnNew" title="Nouveau tableau : Repartir de zéro efface la fiche en cours sur cet appareil."><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg>Nouveau</button>
     <span class="par-qui" id="parQui"></span>
   </div>
@@ -1601,7 +1602,7 @@ function publierRapport(meta){
     deposerFiche(res.d.cle, el);
     if(versDossier){
       reinitialiserFormulaire("Étiquettes publiées. Formulaire vidé pour un nouveau tableau.");
-      el.textContent += "  ·  Formulaire vidé pour un nouveau tableau.";
+      el.textContent += "  ·  Formulaire vidé pour un nouveau tableau. Une correction plus tard : « Rouvrir ».";
     } else {
       toast("Rapport publié.");
     }
@@ -1734,6 +1735,83 @@ function recupererFiche(f){
       try{ d=JSON.parse(txt); }catch(e){ toast("Fiche illisible."); return; }
       if(d.erreur){ toast(d.erreur); return; }
       ficheCharger(d, f);
+    })
+    .catch(function(){ toast("Pas de réseau."); });
+}
+
+/* ---------- rouvrir une planche déjà publiée, pour la corriger ----------
+   Chaque planche publiée garde sa fiche sur le site : on la recharge telle
+   quelle (rangées, cases, textes, QR). « Publier » la remplace ensuite dans
+   le dossier (même tableau, même document), sans tout refaire. */
+function rouvrirEtiquettes(){
+  if(!apiPret()) return;
+  toast("Recherche des planches…");
+  fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ toast(res.d.erreur || "Accès refusé."); return; }
+      var l=[];
+      (res.d.chantiers||[]).forEach(function(c){
+        (c.fichiers||[]).forEach(function(f){
+          if(f.type==="etiquettes" && f.donnees) l.push({cle:f.cle, client:c.client||"", ref:c.ref, tableau:f.etape||"", publie:f.publie||"", date:f.date||""});
+        });
+      });
+      l.sort(function(a,b){ return String(b.publie).localeCompare(String(a.publie)); });
+      if(!l.length){ toast("Aucune planche d'étiquettes publiée à rouvrir."); return; }
+      listeEtiquettes(l);
+    })
+    .catch(function(){ toast("Pas de réseau."); });
+}
+function listeEtiquettes(l){
+  var ov=document.createElement("div"); ov.id="rouvrirEtiq";
+  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);display:flex;align-items:flex-end;justify-content:center";
+  var sh=document.createElement("div");
+  sh.style.cssText="background:var(--bg);width:100%;max-width:640px;max-height:82vh;overflow:auto;border-radius:18px 18px 0 0;"
+    +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))";
+  var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;margin:0 0 4px"; h.textContent="Rouvrir une planche";
+  var sub=document.createElement("p"); sub.className="hint"; sub.style.margin="0 0 12px";
+  sub.textContent="La planche revient telle que publiée : corrigez ce qu'il faut, puis « Publier » la remplace dans le dossier.";
+  sh.appendChild(h); sh.appendChild(sub);
+  var champ=document.createElement("input"); champ.type="search"; champ.placeholder="Client, référence, tableau…";
+  champ.style.cssText="width:100%;min-height:46px;padding:12px 14px;border:0;border-radius:var(--r-field);background:var(--field);font-size:16px;font-family:inherit;margin-bottom:12px";
+  champ.hidden=l.length<6; sh.appendChild(champ);
+  var hote=document.createElement("div"); sh.appendChild(hote);
+  function peindre(){
+    var q=(champ.value||"").toLowerCase().trim(); hote.textContent="";
+    l.filter(function(x){ return !q || (x.client+" "+x.ref+" "+x.tableau).toLowerCase().indexOf(q)>=0; }).forEach(function(x){
+      var b=document.createElement("button"); b.type="button"; b.className="act ghost etiq-ligne";
+      b.style.cssText="width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;margin-bottom:8px;padding:10px 14px;min-height:56px";
+      var t=document.createElement("b"); t.textContent=(x.client||x.ref)+(x.tableau ? " · "+x.tableau : "");
+      var d=document.createElement("span"); d.style.cssText="font-size:13px;font-weight:500;opacity:.75";
+      d.textContent=[x.ref, x.date ? "publiée le "+frDate(x.date) : ""].filter(Boolean).join("  ·  ");
+      b.appendChild(t); b.appendChild(d);
+      b.addEventListener("click", function(){ ov.remove(); chargerPlanche(x); });
+      hote.appendChild(b);
+    });
+  }
+  champ.addEventListener("input", peindre); peindre();
+  var f=document.createElement("button"); f.type="button"; f.className="act"; f.textContent="Fermer"; f.style.cssText="width:100%;margin-top:6px";
+  f.addEventListener("click", function(){ ov.remove(); });
+  sh.appendChild(f); ov.appendChild(sh);
+  ov.addEventListener("click", function(e){ if(e.target===ov) ov.remove(); });
+  document.body.appendChild(ov);
+}
+function chargerPlanche(x){
+  if(totalCases() && !window.confirm("Remplacer le tableau en cours sur cet appareil par la planche « "+(x.tableau||x.client)+" » ?")) return;
+  toast("Ouverture…");
+  fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(x.cle), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.text(); })
+    .then(function(txt){
+      var d; try{ d=JSON.parse(txt); }catch(e){ toast("Planche illisible."); return; }
+      if(!d || d.erreur || !Array.isArray(d.rangees)){ toast((d && d.erreur) || "Cette planche ne peut pas être rouverte."); return; }
+      S=Object.assign(blank(), d);
+      if(!S.chantier) S.chantier={client:x.client, ref:x.ref, tableau:x.tableau};
+      if(!S.chantier.ref) S.chantier.ref=x.ref;
+      S.rouverte={cle:x.cle, le:new Date().toISOString()};
+      RANGEE=0;
+      save(); paintForm(); showTab("tableau");
+      try{ basculePub("dossier"); equipeDuDossier(); }catch(e){}
+      toast("Planche rouverte : corrigez, puis « Publier » la remplace dans le dossier.");
     })
     .catch(function(){ toast("Pas de réseau."); });
 }
@@ -2023,6 +2101,7 @@ function bindAll(){
     });
   });
 
+  $("btnRouvrirEtiq").addEventListener("click", rouvrirEtiquettes);
   $("btnNew").addEventListener("click", function(){
     if(!window.confirm("Effacer ce tableau et repartir de zéro ?")) return;
     reinitialiserFormulaire("Nouveau tableau.");

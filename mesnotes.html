@@ -178,9 +178,18 @@ button{font:inherit;color:inherit}
 /* la palette du stylet, comme celle de l'Apple Pencil */
 .np-palette{position:absolute;left:8px;right:8px;margin:0 auto;width:max-content;max-width:calc(100% - 16px);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:4px;padding:8px 10px;
   border-radius:16px;background:#22201C;color:#F4F1EA;box-shadow:0 12px 40px rgba(20,18,14,.35);z-index:20;flex-wrap:wrap;justify-content:center}
-.np-palette .po{display:flex;flex-direction:column;align-items:center;gap:1px;width:52px;padding:4px 0;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer;transition:transform .15s}
+.np-palette .po{display:flex;flex-direction:column;align-items:center;gap:1px;width:48px;padding:4px 0;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer;transition:transform .15s}
 .np-palette .po[aria-pressed="true"]{background:rgba(255,255,255,.16);transform:translateY(-4px)}
 .np-palette .po span{font-size:10px}
+.np-souspal{position:absolute;left:8px;right:8px;margin:0 auto;width:max-content;max-width:calc(100% - 16px);bottom:calc(92px + env(safe-area-inset-bottom,0px));
+  display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:6px;border-radius:14px;background:rgba(34,32,28,.94);box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:6}
+.np-souspal .ps{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:58px;min-height:48px;padding:4px 6px;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer}
+.np-souspal .ps svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.np-souspal .ps[data-gomme] svg{fill:rgba(244,241,234,.25)}
+.np-souspal .ps span{font-size:10.5px}
+.np-souspal .ps[aria-pressed="true"]{background:#F4F1EA;color:#22201C}
+@media (max-width:760px){ .np-souspal{bottom:calc(150px + env(safe-area-inset-bottom,0px))} }
+@media (max-width:430px){ .np-souspal{flex-wrap:nowrap;width:auto;gap:0;padding-left:4px;padding-right:4px} .np-souspal .ps{min-width:0;flex:1 1 0;padding:4px 2px} .np-souspal .ps span{font-size:10px} }
 .np-palette .pc{width:28px;height:28px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
 .np-palette .pc[aria-pressed="true"]{border-color:#F4F1EA}
 .np-palette .sep{width:1px;height:34px;background:rgba(255,255,255,.18);margin:0 3px}
@@ -311,10 +320,11 @@ button{font:inherit;color:inherit}
         <button type="button" id="btnNouvelle2">Nouvelle note</button>
       </div>
       <div class="np-consigne" id="consigne" hidden>Écrivez directement dans la note — au stylet, au doigt ou à la souris</div>
+      <div class="np-souspal" id="sousPal" hidden role="toolbar" aria-label="Formes ou taille de la gomme"></div>
       <div class="np-palette" id="palette" hidden role="toolbar" aria-label="Stylet">
-        <div id="outils" style="display:flex;gap:6px"></div>
+        <div id="outils" style="display:flex;gap:2px"></div>
         <span class="sep" aria-hidden="true"></span>
-        <div id="couleurs" style="display:flex;gap:6px;align-items:center"></div>
+        <div id="couleurs" style="display:flex;gap:5px;align-items:center"></div>
         <span class="sep" aria-hidden="true"></span>
         <button type="button" class="pa" id="pAnnuler">Annuler</button>
         <button type="button" class="pt" id="pTermine">Terminé</button>
@@ -377,7 +387,11 @@ if(!S || !S.jeton){ location.replace("./index.html#connexion"); return; }
 var API="/api/rapports?action=";
 var CLE_IDX="mesnotes:idx:"+(S.societe||"")+":"+(S.nom||""), CLE_N="mesnotes:n:"+(S.societe||"")+":"+(S.nom||"")+":";
 var PAPIERS=["blanc","ligné","quadrillé"];
-var OUTILS=[["stylo","Stylo"],["feutre","Feutre"],["surligneur","Surligneur"],["gomme","Gomme"]];
+var OUTILS=[["stylo","Stylo"],["feutre","Feutre"],["surligneur","Surligneur"],["formes","Formes"],["gomme","Gomme"]];
+var FORMES_N=[["ligne","Trait",'<path d="M4 20 20 4"/>'],["rect","Rectangle",'<rect x="4" y="6" width="16" height="12" rx="1"/>'],
+  ["nuage","Nuage",'<path d="M6 17a3 3 0 0 1 0-6 4 4 0 0 1 7-3 3.5 3.5 0 0 1 5 3 3 3 0 0 1 0 6z"/>'],["fleche","Flèche",'<path d="M4 20 19 5"/><path d="M11 5h8v8"/>'],
+  ["spline","Spline",'<path d="M3 17c4-10 7 4 10-4s5-5 8-6"/>'],["cercle","Cercle",'<circle cx="12" cy="12" r="8"/>']];
+var GOMMES_N=[["petite","Petite",8],["moyenne","Moyenne",16],["grande","Grande",34]];
 var COULEURS=[["#1E3A8A","Bleu"],["#22201C","Noir"],["#B91C1C","Rouge"],["#15803D","Vert"]];
 var NOTE_VIDE="<h1><br></h1>";
 
@@ -385,12 +399,14 @@ var NOTE_VIDE="<h1><br></h1>";
 var IDX={notes:[], dossiers:[]};       /* les notes (sans contenu) et les dossiers */
 var VUE="tous";                         /* tous | epingles | chantier | corbeille | <id d'un dossier> */
 var COUR=null;                          /* la note ouverte : {meta, html, encre, papier} */
-var MODE={stylet:false, fmt:false, outil:"stylo", couleur:"#1E3A8A", surl:"#EAB308", k:{stylo:1, feutre:1, surligneur:1}};
+var MODE={stylet:false, fmt:false, outil:"stylo", couleur:"#1E3A8A", surl:"#EAB308", k:{stylo:1, feutre:1, surligneur:1, forme:1}, forme:"ligne", gomme:"moyenne"};
 /* la couleur (trichromie) et la taille de chaque crayon, gardées sur l'appareil */
 (function(){ try{ var x=JSON.parse(localStorage.getItem("mesnotes:crayon")||"null"); if(x){
   if(/^#[0-9A-F]{6}([0-9A-F]{2})?$/i.test(x.couleur)) MODE.couleur=x.couleur; if(/^#[0-9A-F]{6}([0-9A-F]{2})?$/i.test(x.surl)) MODE.surl=x.surl;
-  if(x.k) ["stylo","feutre","surligneur"].forEach(function(o){ var v=+x.k[o]; if(v>=.2 && v<=6) MODE.k[o]=v; }); } }catch(e){} })();
-function garderCrayon(){ try{ localStorage.setItem("mesnotes:crayon", JSON.stringify({couleur:MODE.couleur, surl:MODE.surl, k:MODE.k})); }catch(e){} }
+  if(x.k) ["stylo","feutre","surligneur","forme"].forEach(function(o){ var v=+x.k[o]; if(v>=.2 && v<=6) MODE.k[o]=v; });
+  if(FORMES_N.some(function(f){ return f[0]===x.forme; })) MODE.forme=x.forme;
+  if(GOMMES_N.some(function(g){ return g[0]===x.gomme; })) MODE.gomme=x.gomme; } }catch(e){} })();
+function garderCrayon(){ try{ localStorage.setItem("mesnotes:crayon", JSON.stringify({couleur:MODE.couleur, surl:MODE.surl, k:MODE.k, forme:MODE.forme, gomme:MODE.gomme})); }catch(e){} }
 var SALE=false, MINUTEUR=null, STYLO_VU=false, ANNULER=[], TRAIT=null;
 
 function appel(a, o){
@@ -969,7 +985,65 @@ $("oPapier").addEventListener("click", function(){
    fois le stylet posé, la main sur l'écran fait défiler sans tracer. La gomme
    retire les traits qu'elle touche. */
 var U=1;
-function largeurs(o, p){ return o==="stylo" ? 2+4.6*(p==null ? .5 : p) : o==="feutre" ? 7 : o==="surligneur" ? 26 : 0; }
+function largeurs(o, p){ return o==="stylo" ? 2+4.6*(p==null ? .5 : p) : o==="feutre" ? 7 : o==="surligneur" ? 26 : o==="forme" ? 4 : 0; }
+/* ---------- les formes : trait, rectangle, nuage, flèche, spline, cercle ----------
+   Une forme garde ses deux coins (ou les points de la spline) ; son contour se
+   calcule à l'affichage : des lignes brisées, en unités de page (largeur 1000). */
+function contour(t){
+  var p=t.p, a=p[0], b=p[p.length-1], x0=Math.min(a[0],b[0]), x1=Math.max(a[0],b[0]), y0=Math.min(a[1],b[1]), y1=Math.max(a[1],b[1]), i;
+  if(t.f==="ligne") return [[a,b]];
+  if(t.f==="fleche"){
+    var an=Math.atan2(b[1]-a[1], b[0]-a[0]), L=Math.max(12, largeurT(t)*3.4);
+    return [[a,b],[[b[0]-L*Math.cos(an-.45), b[1]-L*Math.sin(an-.45)], b, [b[0]-L*Math.cos(an+.45), b[1]-L*Math.sin(an+.45)]]];
+  }
+  if(t.f==="rect") return [[[x0,y0],[x1,y0],[x1,y1],[x0,y1],[x0,y0]]];
+  if(t.f==="cercle"){
+    var cx=(x0+x1)/2, cy=(y0+y1)/2, rx=(x1-x0)/2, ry=(y1-y0)/2, e=[];
+    for(i=0;i<=72;i++){ var th=i/72*Math.PI*2; e.push([cx+rx*Math.cos(th), cy+ry*Math.sin(th)]); }
+    return [e];
+  }
+  if(t.f==="nuage"){
+    /* le nuage de reprise : des arcs bombés vers l'extérieur, tout autour du cadre */
+    var arc=Math.max(8, Math.min(40, Math.min(x1-x0, y1-y0)/3)), out=[];
+    [[[x0,y0],[x1,y0],[0,-1]],[[x1,y0],[x1,y1],[1,0]],[[x1,y1],[x0,y1],[0,1]],[[x0,y1],[x0,y0],[-1,0]]].forEach(function(c){
+      var A=c[0], B=c[1], n=c[2], len=Math.hypot(B[0]-A[0], B[1]-A[1]), k=Math.max(1, Math.round(len/arc));
+      for(var s=0;s<k;s++){
+        var P=[A[0]+(B[0]-A[0])*s/k, A[1]+(B[1]-A[1])*s/k], Q=[A[0]+(B[0]-A[0])*(s+1)/k, A[1]+(B[1]-A[1])*(s+1)/k];
+        var mx=(P[0]+Q[0])/2, my=(P[1]+Q[1])/2, ux=(Q[0]-P[0])/2, uy=(Q[1]-P[1])/2, h=Math.hypot(ux,uy);
+        for(var j=0;j<=8;j++){ var th2=j/8*Math.PI; out.push([mx-ux*Math.cos(th2)+n[0]*h*.85*Math.sin(th2), my-uy*Math.cos(th2)+n[1]*h*.85*Math.sin(th2)]); }
+      }
+    });
+    return [out];
+  }
+  if(t.f==="spline"){
+    /* Catmull-Rom : une courbe douce qui passe par chaque point */
+    if(p.length<3) return [p.map(function(q){ return [q[0],q[1]]; })];
+    var o2=[]; 
+    for(i=0;i<p.length-1;i++){
+      var p0=p[Math.max(0,i-1)], p1=p[i], p2=p[i+1], p3=p[Math.min(p.length-1,i+2)];
+      for(var k2=0;k2<10;k2++){
+        var u=k2/10, u2=u*u, u3=u2*u;
+        o2.push([.5*((2*p1[0])+(-p0[0]+p2[0])*u+(2*p0[0]-5*p1[0]+4*p2[0]-p3[0])*u2+(-p0[0]+3*p1[0]-3*p2[0]+p3[0])*u3),
+                 .5*((2*p1[1])+(-p0[1]+p2[1])*u+(2*p0[1]-5*p1[1]+4*p2[1]-p3[1])*u2+(-p0[1]+3*p1[1]-3*p2[1]+p3[1])*u3)]);
+      }
+    }
+    o2.push([p[p.length-1][0], p[p.length-1][1]]);
+    return [o2];
+  }
+  return [p];
+}
+/* la spline : on garde les points utiles du tracé (Ramer-Douglas-Peucker) */
+function simplifier(pts, eps){
+  if(pts.length<3) return pts;
+  var a=pts[0], b=pts[pts.length-1], m=0, iM=0;
+  for(var i=1;i<pts.length-1;i++){ var d=distSeg(pts[i], a, b); if(d>m){ m=d; iM=i; } }
+  if(m<=eps) return [a, b];
+  return simplifier(pts.slice(0, iM+1), eps).slice(0,-1).concat(simplifier(pts.slice(iM), eps));
+}
+function distSeg(q, a, b){
+  var dx=b[0]-a[0], dy=b[1]-a[1], l=dx*dx+dy*dy, u=l ? Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/l)) : 0;
+  return Math.hypot(q[0]-(a[0]+u*dx), q[1]-(a[1]+u*dy));
+}
 /* la taille choisie pour ce trait (k : 1 = taille d'origine) */
 function largeurT(t, p){ var k=+t.k; return largeurs(t.o, p)*(k>=.2 && k<=6 ? k : 1); }
 var PAS=34, LIGNE0=51;
@@ -1046,6 +1120,11 @@ $("defile").addEventListener("scroll", function(){
 }, {passive:true});
 function tracerTrait(g, t){
   var p=t.p; if(!p.length) return;
+  if(t.o==="forme"){
+    g.save(); g.strokeStyle=t.c; g.lineJoin="round"; g.lineCap="round"; g.lineWidth=largeurT(t)*U;
+    contour(t).forEach(function(pl){ if(pl.length<2) return; g.beginPath(); g.moveTo(pl[0][0]*U, pl[0][1]*U); for(var z=1;z<pl.length;z++) g.lineTo(pl[z][0]*U, pl[z][1]*U); g.stroke(); });
+    g.restore(); return;
+  }
   g.save();
   g.globalAlpha=t.o==="surligneur" ? .32 : 1;
   g.strokeStyle=t.c; g.fillStyle=t.c; g.lineJoin="round"; g.lineCap=t.o==="surligneur" ? "butt" : "round";
@@ -1074,19 +1153,46 @@ function dessiner(){
   if(!COUR) return;
   COUR.encre.forEach(function(t){ tracerTrait(g, t); });
   if(TRAIT && !TRAIT.gomme) tracerTrait(g, TRAIT);
+  /* la gomme se voit pendant qu'on efface : un cercle à sa taille */
+  if(TRAIT && TRAIT.gomme && TRAIT.pos){
+    g.save(); g.lineWidth=1.5; g.strokeStyle="rgba(34,32,28,.55)"; g.fillStyle="rgba(255,255,255,.35)";
+    g.beginPath(); g.arc(TRAIT.pos[0]*U, TRAIT.pos[1]*U, gommeRayon()*U, 0, Math.PI*2); g.fill(); g.stroke(); g.restore();
+  }
 }
 function point(e){
   var r=$("page").getBoundingClientRect();
   return [Math.round((e.clientX-r.left)/U*10)/10, Math.round((e.clientY-r.top)/U*10)/10, e.pointerType==="pen" ? Math.round((e.pressure||.5)*100)/100 : .5];
 }
+/* la gomme : elle coupe le trait là où elle passe (le reste du trait demeure) ;
+   une forme touchée part entière. Trois tailles. */
+function gommeRayon(){ var g=GOMMES_N.filter(function(x){ return x[0]===MODE.gomme; })[0]; return g ? g[2] : 16; }
+function densifier(p, pas){
+  var out=[p[0]];
+  for(var i=1;i<p.length;i++){
+    var a=p[i-1], b=p[i], n=Math.ceil(Math.hypot(b[0]-a[0], b[1]-a[1])/pas);
+    for(var k=1;k<=n;k++){ var u=k/n; out.push([a[0]+(b[0]-a[0])*u, a[1]+(b[1]-a[1])*u, a[2]==null ? b[2] : a[2]+((b[2]==null ? a[2] : b[2])-a[2])*u]); }
+  }
+  return out;
+}
 function effacerPres(q){
-  var r=14, pris=[];
-  COUR.encre=COUR.encre.filter(function(t){
-    var touche=t.p.some(function(a){ var dx=a[0]-q[0], dy=a[1]-q[1]; return dx*dx+dy*dy < r*r; });
-    if(touche) pris.push(t);
-    return !touche;
+  var r=gommeRayon(), res=[], change=false;
+  COUR.encre.forEach(function(t){
+    var pres=function(pl){ if(pl.length===1) return Math.hypot(pl[0][0]-q[0], pl[0][1]-q[1]) < r; for(var i=1;i<pl.length;i++) if(distSeg(q, pl[i-1], pl[i]) < r) return true; return false; };
+    if(t.o==="forme"){ if(contour(t).some(pres)){ change=true; return; } res.push(t); return; }
+    if(!pres(t.p)){ res.push(t); return; }
+    change=true;
+    var pts=densifier(t.p, Math.max(1, r/3)), morceau=[];
+    var garder=function(){ if(morceau.length>=2){ var n=Object.assign({}, t); n.p=morceau.map(function(a){ return [Math.round(a[0]*10)/10, Math.round(a[1]*10)/10, a[2]==null ? .5 : Math.round(a[2]*100)/100]; }); res.push(n); } morceau=[]; };
+    pts.forEach(function(a){ if(Math.hypot(a[0]-q[0], a[1]-q[1]) < r) garder(); else morceau.push(a); });
+    garder();
   });
-  if(pris.length){ ANNULER.push({efface:pris}); dessiner(); sale(); }
+  if(change){ COUR.encre=res; if(TRAIT && TRAIT.gomme) TRAIT.change=true; sale(); }
+}
+/* la gomme suit le doigt sans sauter : des pas plus petits que sa taille */
+function gommer(q){
+  var d=TRAIT.pos, r=gommeRayon();
+  if(d){ var n=Math.ceil(Math.hypot(q[0]-d[0], q[1]-d[1])/(r/2)); for(var k=1;k<n;k++) effacerPres([d[0]+(q[0]-d[0])*k/n, d[1]+(q[1]-d[1])*k/n]); }
+  effacerPres(q); TRAIT.pos=q;
 }
 var page=$("page"), ACTIF=null;
 page.addEventListener("pointerdown", function(e){
@@ -1097,7 +1203,12 @@ page.addEventListener("pointerdown", function(e){
   e.preventDefault(); e.stopPropagation();
   ACTIF=e.pointerId; try{ page.setPointerCapture(e.pointerId); }catch(x){}
   var q=point(e);
-  if(MODE.outil==="gomme"){ TRAIT={gomme:true}; effacerPres(q); return; }
+  if(MODE.outil==="gomme"){ TRAIT={gomme:true, avant:COUR.encre.slice()}; gommer(q); dessiner(); return; }
+  if(MODE.outil==="formes"){
+    TRAIT={o:"forme", f:MODE.forme, c:MODE.couleur, p:[[q[0],q[1]],[q[0],q[1]]]};
+    if(MODE.k.forme && MODE.k.forme!==1) TRAIT.k=Math.round(MODE.k.forme*100)/100;
+    dessiner(); return;
+  }
   TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? MODE.surl : MODE.couleur, p:[q]};
   if(MODE.k[MODE.outil] && MODE.k[MODE.outil]!==1) TRAIT.k=Math.round(MODE.k[MODE.outil]*100)/100;
   dessiner();
@@ -1108,16 +1219,28 @@ page.addEventListener("pointermove", function(e){
   var evs=e.getCoalescedEvents ? e.getCoalescedEvents() : [e]; if(!evs.length) evs=[e];
   evs.forEach(function(ev){
     var q=point(ev);
-    if(TRAIT.gomme){ effacerPres(q); return; }
+    if(TRAIT.gomme){ gommer(q); return; }
+    if(TRAIT.o==="forme"){
+      if(TRAIT.f==="spline"){ var ds=TRAIT.p[TRAIT.p.length-1]; if(Math.hypot(q[0]-ds[0], q[1]-ds[1])>=1.5) TRAIT.p.push([q[0],q[1]]); }
+      else TRAIT.p[1]=[q[0],q[1]];
+      return;
+    }
     var d=TRAIT.p[TRAIT.p.length-1];
     if(Math.abs(q[0]-d[0])+Math.abs(q[1]-d[1]) >= 1.2) TRAIT.p.push(q);
   });
-  if(!TRAIT.gomme) dessiner();
+  dessiner();
 }, true);
 function lacher(e){
   if(e.pointerId!==ACTIF) return;
   ACTIF=null;
-  if(TRAIT && !TRAIT.gomme){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
+  if(TRAIT && TRAIT.gomme){ if(TRAIT.change) ANNULER.push({encre:TRAIT.avant}); }
+  else if(TRAIT && TRAIT.o==="forme"){
+    if(TRAIT.f==="spline") TRAIT.p=simplifier(TRAIT.p, 2.5).map(function(a){ return [Math.round(a[0]*10)/10, Math.round(a[1]*10)/10]; });
+    var a0=TRAIT.p[0], b0=TRAIT.p[TRAIT.p.length-1];
+    /* une simple touche ne pose pas de forme */
+    if(Math.hypot(b0[0]-a0[0], b0[1]-a0[1])>=4 || TRAIT.p.length>2){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
+  }
+  else if(TRAIT){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   TRAIT=null; dessiner(); ajusterEncre();
 }
 page.addEventListener("pointerup", lacher, true);
@@ -1126,6 +1249,8 @@ function basculerStylet(v){
   MODE.stylet = v===undefined ? !MODE.stylet : v;
   $("oStylet").setAttribute("aria-pressed", MODE.stylet ? "true" : "false");
   $("palette").hidden=!MODE.stylet; $("consigne").hidden=!MODE.stylet;
+  $("sousPal").hidden=!MODE.stylet || !$("sousPal").children.length;
+  placerSousPal();
   page.classList.toggle("stylet", MODE.stylet);
   page.style.touchAction = MODE.stylet && !STYLO_VU ? "none" : "";
   if(COUR && !COUR.meta.corbeille) $("editeur").setAttribute("contenteditable", MODE.stylet ? "false" : "true");
@@ -1138,24 +1263,50 @@ $("pAnnuler").addEventListener("click", function(){
   var a=ANNULER.pop(); if(!a || !COUR) return;
   if(a.ajout) COUR.encre=COUR.encre.filter(function(t){ return t!==a.ajout; });
   if(a.efface) COUR.encre=COUR.encre.concat(a.efface);
+  if(a.encre) COUR.encre=a.encre;
   dessiner(); sale();
 });
+/* la barre des formes (ou de la gomme) se pose juste au-dessus de la palette, quelle que soit sa hauteur */
+function placerSousPal(){
+  var pal=$("palette"), sp=$("sousPal"); if(sp.hidden || pal.hidden) return;
+  sp.style.bottom=(parseFloat(getComputedStyle(pal).bottom)||18)+pal.offsetHeight+8+"px";
+}
+window.addEventListener("resize", placerSousPal);
 function peindrePalette(){
   var o=$("outils"); o.textContent="";
   OUTILS.forEach(function(x){
     var b=el("button","po"); b.type="button"; b.setAttribute("aria-label", x[1]); b.setAttribute("aria-pressed", MODE.outil===x[0] ? "true" : "false");
     var pointe = x[0]==="gomme" ? "#E8E2D4" : x[0]==="surligneur" ? MODE.surl : MODE.couleur;
     var bague = x[0]==="gomme" ? "#E8A0A0" : x[0]==="surligneur" ? MODE.surl : MODE.couleur;
-    b.innerHTML='<svg viewBox="0 0 24 40" aria-hidden="true" style="width:18px;height:30px"><path d="M7 38 V14 L12 4 L17 14 V38 Z" fill="#E8E2D4"/><path d="M9.5 9 L12 4 L14.5 9 Z" fill="'+pointe+'"/><rect x="7" y="20" width="10" height="5" fill="'+bague+'"/></svg>';
+    if(x[0]==="formes") b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:24px;height:30px;fill:none;stroke:'+MODE.couleur+';stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><rect x="3.5" y="11" width="9" height="9" rx="1"/><circle cx="16" cy="8" r="4.5"/></svg>';
+    else b.innerHTML='<svg viewBox="0 0 24 40" aria-hidden="true" style="width:18px;height:30px"><path d="M7 38 V14 L12 4 L17 14 V38 Z" fill="#E8E2D4"/><path d="M9.5 9 L12 4 L14.5 9 Z" fill="'+pointe+'"/><rect x="7" y="20" width="10" height="5" fill="'+bague+'"/></svg>';
     b.appendChild(el("span","",x[1]));
     b.addEventListener("click", function(){ MODE.outil=x[0]; peindrePalette(); });
     o.appendChild(b);
   });
+  /* au-dessus de la palette : les formes, ou les tailles de la gomme */
+  var sp=$("sousPal"); sp.textContent="";
+  if(MODE.outil==="formes") FORMES_N.forEach(function(f){
+    var b=el("button","ps"); b.type="button"; b.dataset.forme=f[0]; b.setAttribute("aria-pressed", MODE.forme===f[0] ? "true" : "false");
+    b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+f[2]+'</svg>'; b.appendChild(el("span","",f[1]));
+    b.addEventListener("click", function(){ MODE.forme=f[0]; garderCrayon(); peindrePalette(); });
+    sp.appendChild(b);
+  });
+  if(MODE.outil==="gomme") GOMMES_N.forEach(function(g){
+    var b=el("button","ps"); b.type="button"; b.dataset.gomme=g[0]; b.setAttribute("aria-pressed", MODE.gomme===g[0] ? "true" : "false");
+    var d=Math.round(6+g[2]/34*18);
+    b.innerHTML='<svg viewBox="0 0 26 26" aria-hidden="true"><circle cx="13" cy="13" r="'+(d/2)+'"/></svg>'; b.appendChild(el("span","","Gomme "+g[1].toLowerCase()));
+    b.setAttribute("aria-label","Gomme "+g[1].toLowerCase());
+    b.addEventListener("click", function(){ MODE.gomme=g[0]; garderCrayon(); peindrePalette(); });
+    sp.appendChild(b);
+  });
+  sp.hidden=!sp.children.length || !MODE.stylet;
+  placerSousPal();
   var c=$("couleurs"); c.textContent="";
   COULEURS.forEach(function(x){
     var b=el("button","pc"); b.type="button"; b.style.background=x[0]; b.setAttribute("aria-label", x[1]);
     b.setAttribute("aria-pressed", MODE.couleur===x[0] ? "true" : "false");
-    b.addEventListener("click", function(){ MODE.couleur=x[0]; if(MODE.outil==="gomme" || MODE.outil==="surligneur") MODE.outil="stylo"; garderCrayon(); peindrePalette(); });
+    b.addEventListener("click", function(){ MODE.couleur=x[0]; if(MODE.outil==="gomme" || MODE.outil==="surligneur") MODE.outil=MODE.outil==="gomme" ? "stylo" : "stylo"; garderCrayon(); peindrePalette(); });
     c.appendChild(b);
   });
   /* toute couleur (trichromie) et la taille du crayon en cours */
@@ -1163,9 +1314,9 @@ function peindrePalette(){
     var tn=Teinte.pastille(MODE.outil==="surligneur" ? MODE.surl : MODE.couleur); tn.id="pTeinte";
     tn.addEventListener("click", function(){
       if(MODE.outil==="gomme") MODE.outil="stylo";
-      var o=MODE.outil, base=o==="stylo" ? largeurs("stylo", .5) : largeurs(o);
+      var o=MODE.outil==="formes" ? "forme" : MODE.outil, base=o==="stylo" ? largeurs("stylo", .5) : largeurs(o);
       Teinte.ouvrir({ancre:tn, couleur:o==="surligneur" ? MODE.surl : MODE.couleur, taille:Math.round(base*MODE.k[o]*10)/10,
-        tailles:[.5,.75,1,1.6,2.5].map(function(f){ return Math.round(base*f*10)/10; }), titreTaille:"Épaisseur du "+(o==="stylo" ? "stylo" : o==="feutre" ? "feutre" : "surligneur"),
+        tailles:[.5,.75,1,1.6,2.5].map(function(f){ return Math.round(base*f*10)/10; }), titreTaille:o==="forme" ? "Épaisseur des formes" : "Épaisseur du "+(o==="stylo" ? "stylo" : o==="feutre" ? "feutre" : "surligneur"),
         change:function(c, t){ if(o==="surligneur") MODE.surl=c; else MODE.couleur=c; MODE.k[o]=Math.max(.2, Math.min(6, t/base)); garderCrayon(); peindrePalette(); },
         fermer:function(){ peindrePalette(); }});
     });
@@ -1550,7 +1701,12 @@ function construirePdf(){
     poser(r.top-R.top, function(y){ try{ doc.addImage(d, "JPEG", M+(r.left-R.left)*f, y, r.width*f, r.height*f); }catch(e){} });
   });
   /* l'écriture : chaque trait d'un seul tenant (par page), pour que le surligneur reste transparent */
+  var aTracer=[];
   COUR.encre.forEach(function(t){
+    if(t.o==="forme" && t.p && t.p.length) contour(t).forEach(function(pl){ aTracer.push({o:"forme", c:t.c, k:t.k, p:pl}); });
+    else aTracer.push(t);
+  });
+  aTracer.forEach(function(t){
     if(!t.p || !t.p.length) return;
     var c=hexRgb(t.c||"#1E3A8A");
     var moy=t.p.reduce(function(a, q){ return a+(q[2]==null ? .5 : q[2]); }, 0)/t.p.length;
