@@ -624,7 +624,7 @@ function ouvrir(id, neuve){
   var c=lireCacheNote(id);
   COUR={meta:m, html:c && !c.chiffre ? c.html : (neuve ? NOTE_VIDE : ""), encre:c && !c.chiffre ? (c.encre||[]) : [], papier:(c && c.papier) || m.papier || "ligné",
     neuve:!!neuve, charge:!!c || !!neuve, verrou:!!m.verrou, chiffre:c && c.chiffre ? c.chiffre : null, dechiffree:!m.verrou};
-  ANNULER=[]; montrer();
+  ANNULER=[]; RAB=0; montrer();
   document.body.classList.add("voir-note");
   try{ localStorage.setItem("mesnotes:derniere", id); }catch(e){}
   if(neuve) return;
@@ -836,7 +836,7 @@ $("defile").addEventListener("click", function(e){
   if(e.clientY>bas){
     /* sous le texte : des lignes vides jusqu'à celle touchée */
     var n=Math.floor((e.clientY-bas)/PAS)+1;
-    for(var i=0;i<n && i<200;i++){ var p=el("p"); p.appendChild(el("br")); ed.appendChild(p); cible=p; }
+    for(var i=0;i<n && i<3000;i++){ var p=el("p"); p.appendChild(el("br")); ed.appendChild(p); cible=p; }
   } else if(e.target.parentNode===ed && estLigneVide(e.target)) cible=e.target;
   if(!cible) return;
   var rt=retraitDe(e.clientX, ed);
@@ -1002,20 +1002,39 @@ function caler(){
   LIGNE0=ed.offsetTop+27;
   $("page").style.setProperty("--ligne0", (ed.offsetTop-6)+"px");
 }
+/* une page sans fin : en descendant, elle s'allonge d'un écran à chaque fois (RAB) */
+var RAB=0;
+function basEncre(){ var b=0; (COUR ? COUR.encre : []).forEach(function(t){ t.p.forEach(function(q){ if(q[1]>b) b=q[1]; }); }); return b*U; }
 function ajusterEncre(){
   caler();
-  var pg=$("page"), cv=$("encre"), dpr=Math.min(window.devicePixelRatio||1, 2);
+  var pg=$("page"), df=$("defile"), VH=df.clientHeight;
   U=pg.clientWidth/1000;
-  /* la page s'allonge pour l'écriture (et, au stylet, laisse de la place en dessous) */
-  var basEncre=0; (COUR ? COUR.encre : []).forEach(function(t){ t.p.forEach(function(q){ if(q[1]>basEncre) basEncre=q[1]; }); });
+  /* la page s'allonge pour l'écriture : toujours au moins un écran sous le texte et sous l'encre */
   var contenu=$("editeur").offsetTop+$("editeur").offsetHeight+240;
-  pg.style.minHeight=Math.max(contenu, basEncre*U+240, MODE.stylet ? contenu+420 : 0, $("defile").clientHeight)+"px";
-  var w=pg.clientWidth, h=pg.scrollHeight;
-  cv.style.width=w+"px"; cv.style.height=h+"px";
+  pg.style.minHeight=Math.max(contenu, basEncre()+VH*.6, MODE.stylet ? contenu+420 : 0, VH+RAB)+"px";
+  placerEncre();
+}
+/* la couche d'encre ne couvre que ce qu'on voit (une toile de toute la page dépasserait
+   ce que l'iPad accepte), et suit le défilement */
+function placerEncre(){
+  var pg=$("page"), df=$("defile"), cv=$("encre"), dpr=Math.min(window.devicePixelRatio||1, 2);
+  var w=pg.clientWidth, h=Math.max(1, Math.min(df.clientHeight, pg.scrollHeight)), haut=Math.max(0, Math.min(df.scrollTop, pg.scrollHeight-h));
+  cv.style.width=w+"px"; cv.style.height=h+"px"; cv.style.top=haut+"px"; cv.dataset.haut=haut;
   var W=Math.round(w*dpr), H=Math.round(h*dpr);
   if(cv.width!==W || cv.height!==H){ cv.width=W; cv.height=H; }
   dessiner();
 }
+var DEFILE_RAF=0;
+$("defile").addEventListener("scroll", function(){
+  if(DEFILE_RAF) return;
+  DEFILE_RAF=requestAnimationFrame(function(){
+    DEFILE_RAF=0;
+    var df=$("defile"), pg=$("page");
+    if(COUR && !(COUR.verrou && !COUR.dechiffree) && df.scrollTop+df.clientHeight > pg.scrollHeight-df.clientHeight*.5 && RAB < df.clientHeight*300){
+      RAB=pg.scrollHeight; ajusterEncre();
+    } else placerEncre();
+  });
+}, {passive:true});
 function tracerTrait(g, t){
   var p=t.p; if(!p.length) return;
   g.save();
@@ -1034,8 +1053,8 @@ function tracerTrait(g, t){
   g.restore();
 }
 function dessiner(){
-  var cv=$("encre"), g=cv.getContext("2d"), dpr=cv.width/Math.max(1, parseFloat(cv.style.width)||cv.width);
-  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); g.setTransform(dpr,0,0,dpr,0,0);
+  var cv=$("encre"), g=cv.getContext("2d"), dpr=cv.width/Math.max(1, parseFloat(cv.style.width)||cv.width), haut=parseFloat(cv.dataset.haut)||0;
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); g.setTransform(dpr,0,0,dpr,0,-haut*dpr);
   if(!COUR) return;
   COUR.encre.forEach(function(t){ tracerTrait(g, t); });
   if(TRAIT && !TRAIT.gomme) tracerTrait(g, TRAIT);
@@ -1442,7 +1461,8 @@ function construirePdf(){
   var J=window.jspdf.jsPDF, doc=new J({unit:"mm", format:"a4"});
   var pg=$("page"), ed=$("editeur"), R=pg.getBoundingClientRect();
   var M=12, W=210-2*M, f=W/pg.clientWidth, HP=(297-2*M)/f;         /* une page A4 = HP pixels d'écran */
-  var bas=pg.scrollHeight, nb=Math.max(1, Math.ceil((bas-60)/HP));
+  /* le PDF s'arrête après le dernier texte ou le dernier trait, pas au bout de la page sans fin */
+  var bas=Math.max(ed.offsetTop+ed.offsetHeight, basEncre())+40, nb=Math.max(1, Math.ceil((bas-60)/HP));
   for(var k=1;k<nb;k++) doc.addPage();
   function poser(yPx, fn){ var p=Math.floor(yPx/HP); if(p>=nb) p=nb-1; if(p<0) p=0; doc.setPage(p+1); fn(M+(yPx-p*HP)*f); }
   /* le papier, aux mêmes lignes qu'à l'écran */
