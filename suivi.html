@@ -766,6 +766,9 @@ details.block.sv-societe summary{padding:0}
 .sv-ajout{display:flex;gap:8px;margin-top:10px}
 .sv-ajout input{flex:1 1 auto;min-width:0;min-height:44px;padding:10px 12px;font-size:15px}
 .sv-ajout .act{flex:0 0 auto}
+.sv-ajout .sv-stylo{width:46px;padding:0;display:inline-flex;align-items:center;justify-content:center}
+.sv-stylo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.sv-corps img.sty-encre{max-width:min(100%,520px)}
 .sv-rappel{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .sv-sw{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0;border:0;background:none;cursor:pointer;
   font-size:13px;font-weight:600;color:var(--ink-2);box-shadow:none}
@@ -971,6 +974,7 @@ a.act[hidden]{display:none}
     <div id="ts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="ts_texte" placeholder="Nouvelle demande…" enterkeyhint="done" aria-label="Nouvelle demande de travaux supplémentaires">
+      <button type="button" class="act ghost sv-stylo" id="ts_stylo" title="Écrire au stylet" aria-label="Écrire la demande au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="ts_ajout">Ajouter</button>
     </div>
     <p class="hint" id="ts_bilan"></p>
@@ -1013,6 +1017,7 @@ a.act[hidden]{display:none}
     <div id="rf_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="rf_texte" placeholder="Nouvelle tâche…" enterkeyhint="done" aria-label="Nouvelle tâche à faire">
+      <button type="button" class="act ghost sv-stylo" id="rf_stylo" title="Écrire au stylet" aria-label="Écrire la tâche au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="rf_ajout">Ajouter</button>
     </div>
     <p class="hint" id="rf_bilan"></p>
@@ -1023,6 +1028,7 @@ a.act[hidden]{display:none}
     <div id="pts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="pts_texte" placeholder="Nouveau point bloquant…" enterkeyhint="done" aria-label="Nouveau point bloquant">
+      <button type="button" class="act ghost sv-stylo" id="pts_stylo" title="Écrire au stylet" aria-label="Écrire la note au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="pts_ajout">Ajouter</button>
     </div>
   </div>
@@ -1098,6 +1104,7 @@ a.act[hidden]{display:none}
 <script src="./annotation.js?v=20261001a"></script>
 <script src="./sobre.js?v=20261007a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
+<script src="./stylet.js?v=20261007a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1439,6 +1446,7 @@ function renderTs(){
     }, charge ? "" : VERROU_TS));
     var corps=document.createElement("div"); corps.className="sv-corps";
     corps.appendChild(champTexte(it, renderResume));
+    if(it.encre && window.Stylet && Stylet.valide(it.encre)) corps.appendChild(imageEncre(it, renderTs));
     if(it.fait && it.chiffrePar){
       var cp=document.createElement("span"); cp.className="sv-chiffre";
       cp.textContent="Chiffrée par "+it.chiffrePar+(it.chiffreLe ? " le "+frDate(String(it.chiffreLe).slice(0,10)) : "");
@@ -1489,6 +1497,7 @@ function renderReste(){
     l.appendChild(caseACocher(it, "Tâche faite : "+(it.texte||""), function(){ toucherRf(it); renderReste(); }));
     var corps=document.createElement("div"); corps.className="sv-corps";
     corps.appendChild(champTexte(it, function(){ toucherRf(it); save(); renderResume(); }));
+    if(it.encre && window.Stylet && Stylet.valide(it.encre)) corps.appendChild(imageEncre(it, function(){ toucherRf(it); renderReste(); }));
     if(it.depuis || it.point){
       var dp=document.createElement("span"); dp.className="sv-depuis";
       dp.textContent = it.point ? "Du dossier : "+it.point : "Notée le "+frDate(it.depuis)+", reprise du suivi précédent";
@@ -1522,9 +1531,10 @@ function reprendreResteDossier(liste){
     var t=S.reste.filter(function(y){ return y.id===x.id; })[0];
     if(!t){
       if(x.fait || retires.indexOf(x.id)>=0) return;
-      S.reste.push({id:x.id, texte:x.texte, fait:false, maj:x.maj||"", point:x.point||""}); n++; change=true; return;
+      var nv={id:x.id, texte:x.texte, fait:false, maj:x.maj||"", point:x.point||""}; if(x.encre) nv.encre=x.encre;
+      S.reste.push(nv); n++; change=true; return;
     }
-    if(String(x.maj||"") > String(t.maj||"")){ t.fait=!!x.fait; t.texte=x.texte; t.maj=x.maj; change=true; }
+    if(String(x.maj||"") > String(t.maj||"")){ t.fait=!!x.fait; t.texte=x.texte; t.maj=x.maj; if(x.encre) t.encre=x.encre; change=true; }
   });
   if(change){ save(); renderReste(); }
   return n;
@@ -1554,7 +1564,9 @@ function lireResteDossier(){
 }
 function resteAReporter(liste, dateSuivi){
   return (liste||[]).filter(function(it){ return !it.fait && (it.texte||"").trim(); }).map(function(it){
-    return {id:it.id||uid(), texte:it.texte, fait:false, depuis:it.depuis||dateSuivi||"", maj:it.maj||"", point:it.point||""};
+    var r={id:it.id||uid(), texte:it.texte, fait:false, depuis:it.depuis||dateSuivi||"", maj:it.maj||"", point:it.point||""};
+    if(it.encre) r.encre=it.encre;
+    return r;
   });
 }
 function renderPoints(){
@@ -1574,8 +1586,10 @@ function renderPoints(){
       var tx=champTexte(it, function(){ rafraichirReperes(); renderResume(); }); tx.style.flex="1";
       tete.appendChild(nb); tete.appendChild(tx); corps.appendChild(tete);
       corps.appendChild(segStatut(it, rafraichirReperes));
-    } else
-    corps.appendChild(champTexte(it, renderResume));
+    } else {
+      corps.appendChild(champTexte(it, renderResume));
+      if(it.encre && window.Stylet && Stylet.valide(it.encre)) corps.appendChild(imageEncre(it, renderPoints));
+    }
     var r=document.createElement("div"); r.className="sv-rappel";
     var sw=document.createElement("button"); sw.type="button"; sw.className="sv-sw";
     sw.setAttribute("role","switch"); sw.setAttribute("aria-checked", it.rappel ? "true" : "false");
@@ -1634,12 +1648,36 @@ function basculerNote(){
 function ajouterLigne(cle, champ, rendu){
   var t=$(champ), v=(t.value||"").trim();
   if(!v){ t.focus(); return; }
+  nouvelleLigne(cle, v, null, rendu);
+  t.value=""; t.focus();
+}
+function nouvelleLigne(cle, texte, encre, rendu){
   if(!S[cle]) S[cle]=[];
-  var it={id:uid(), texte:v, fait:false, maj:new Date().toISOString()};
+  var it={id:uid(), texte:texte, fait:false, maj:new Date().toISOString()};
+  if(encre) it.encre=encre;
   if(cle==="ts") it.qui="";
   if(cle==="points"){ it.rappel=false; it.quand=""; it.heure=""; }
-  S[cle].push(it); t.value=""; save(); rendu();
-  t.focus();
+  S[cle].push(it); save(); rendu();
+  return it;
+}
+/* une note écrite au stylet : elle devient une ligne (le texte tapé, s'il y en a, lui sert de titre) */
+var NOTE_MAIN="Note manuscrite";
+function ajouterEncre(cle, champ, rendu, titre){
+  if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
+  Stylet.ouvrir({titre:titre, ok:function(encre){
+    var t=$(champ), v=(t.value||"").trim();
+    nouvelleLigne(cle, v || NOTE_MAIN, encre, rendu); t.value="";
+    toast("Note manuscrite ajoutée.");
+  }});
+}
+/* sous la ligne : l'écriture ; un toucher la réécrit */
+function imageEncre(it, rendu){
+  var im=Stylet.image(it.encre, (it.texte && it.texte!==NOTE_MAIN) ? it.texte : NOTE_MAIN);
+  im.title="Toucher pour réécrire";
+  im.addEventListener("click", function(){
+    Stylet.ouvrir({titre:"Réécrire la note", bouton:"Remplacer", ok:function(encre){ it.encre=encre; it.maj=new Date().toISOString(); save(); rendu(); }});
+  });
+  return im;
 }
 /* ---------- reportage photo ---------- */
 function renderPhotos(){
@@ -2121,6 +2159,20 @@ function buildPdf(){
     para(S.visite.objet);
   }
 
+  /* une note écrite au stylet, sous le texte de sa ligne (au plus 110 × 40 mm) */
+  function tailleEncre(it, maxL){
+    if(!it.encre || !window.Stylet || !Stylet.valide(it.encre) || !it.encre.l || !it.encre.h) return null;
+    var l=Math.min(maxL, 110, it.encre.l/2*0.2646), h=l*it.encre.h/it.encre.l;
+    if(h>40){ h=40; l=h*it.encre.l/it.encre.h; }
+    return {l:l, h:h};
+  }
+  function poserEncre(it, t, x, yHaut){
+    if(!t) return;
+    try{ doc.addImage(it.encre.src, "PNG", x, yHaut, t.l, t.h); }catch(e){}
+  }
+  /* le titre d'une note manuscrite sans texte n'est pas répété au PDF */
+  function texteLigne(it){ return it.encre && it.texte===NOTE_MAIN ? "" : it.texte; }
+
   /* ---------- 3. les travaux supplémentaires ---------- */
   var ts=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
   if(ts.length){
@@ -2133,14 +2185,16 @@ function buildPdf(){
     y+=5.5;
     ts.forEach(function(it){
       doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var lignes=doc.splitTextToSize(it.texte, xQui-M-12);
-      var h=lignes.length*5+3+(it.depuis ? 4 : 0);
+      var tx=texteLigne(it), lignes=tx ? doc.splitTextToSize(tx, xQui-M-12) : [];
+      var te=tailleEncre(it, xQui-M-12);
+      var hT=lignes.length*5, h=hT+3+(it.depuis ? 4 : 0)+(te ? te.h+(hT?1.5:0) : 0);
       need(h+2);
       caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); doc.text(lignes, M+9, y);
+      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
+      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
       if(it.depuis){
         doc.setFontSize(8); setText(GREY);
-        doc.text("demandée le "+frDate(it.depuis), M+9, y+lignes.length*5-0.6);
+        doc.text("demandée le "+frDate(it.depuis), M+9, y+hT+(te ? te.h+(hT?1.5:0) : 0)-0.6);
         doc.setFontSize(10);
       }
       doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(it.qui ? ACC : GREY);
@@ -2159,14 +2213,16 @@ function buildPdf(){
     h2("Reste à faire", 24);
     rf.forEach(function(it){
       doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var lignes=doc.splitTextToSize(it.texte, CW-12);
-      var h=lignes.length*5+3+(it.depuis ? 4 : 0);
+      var tx=texteLigne(it), lignes=tx ? doc.splitTextToSize(tx, CW-12) : [];
+      var te=tailleEncre(it, CW-12);
+      var hT=lignes.length*5, h=hT+3+(it.depuis ? 4 : 0)+(te ? te.h+(hT?1.5:0) : 0);
       need(h+2);
       caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); doc.text(lignes, M+9, y);
+      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
+      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
       if(it.depuis){
         doc.setFontSize(8); setText(GREY);
-        doc.text("notée le "+frDate(it.depuis), M+9, y+lignes.length*5-0.6);
+        doc.text("notée le "+frDate(it.depuis), M+9, y+hT+(te ? te.h+(hT?1.5:0) : 0)-0.6);
         doc.setFontSize(10);
       }
       y += h;
@@ -2277,11 +2333,13 @@ function buildPdf(){
     h2("Points bloquants", 30);
     pts.forEach(function(it){
       doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var lignes=doc.splitTextToSize((it.plan ? "Repère "+numRp(it)+" · " : "")+it.texte, CW-58);
-      var h=lignes.length*5+3;
+      var txp=(it.plan ? "Repère "+numRp(it)+" · " : "")+texteLigne(it), lignes=txp ? doc.splitTextToSize(txp, CW-58) : [];
+      var te=tailleEncre(it, CW-58);
+      var hT=lignes.length*5, h=hT+3+(te ? te.h+(hT?1.5:0) : 0);
       need(h+2);
       caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); doc.text(lignes, M+9, y);
+      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
+      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
       doc.setFontSize(8.5);
       var enCours = it.plan && statutRp(it)==="encours";
       var etat = it.fait ? "Levé" : enCours ? "En cours" : (it.rappel && it.quand ? "Rappel le "+frDate(it.quand)+(it.heure ? " à "+it.heure : "") : "À lever");
@@ -3170,7 +3228,9 @@ function partagerRapport(){
    enregistré du chantier, autre que celui-ci. */
 function tsAReporter(liste, dateSuivi){
   return (liste||[]).filter(function(it){ return !it.fait && (it.texte||"").trim(); }).map(function(it){
-    return {id:it.id||uid(), texte:it.texte, qui:it.qui||"", fait:false, depuis:it.depuis||dateSuivi||""};
+    var r={id:it.id||uid(), texte:it.texte, qui:it.qui||"", fait:false, depuis:it.depuis||dateSuivi||""};
+    if(it.encre) r.encre=it.encre;
+    return r;
   });
 }
 /* les repères pas encore faits d'un suivi, et les plans qui les portent */
@@ -3364,6 +3424,9 @@ function bindAll(){
   $("ts_ajout").addEventListener("click", function(){ ajouterLigne("ts", "ts_texte", renderTs); });
   $("pts_ajout").addEventListener("click", function(){ ajouterLigne("points", "pts_texte", renderPoints); });
   $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
+  $("ts_stylo").addEventListener("click", function(){ ajouterEncre("ts", "ts_texte", renderTs, "Travaux supplémentaires"); });
+  $("rf_stylo").addEventListener("click", function(){ ajouterEncre("reste", "rf_texte", renderReste, "Reste à faire"); });
+  $("pts_stylo").addEventListener("click", function(){ ajouterEncre("points", "pts_texte", renderPoints, "Point bloquant"); });
   /* les plans : fermés d'office, ouverts à la demande */
   $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
   $("noteOption").addEventListener("click", function(e){ e.preventDefault(); basculerNote(); });
@@ -3437,7 +3500,9 @@ function bindAll(){
       /* le reste à faire du suivi rejoint celui du dossier, comme celui d'un point de chantier */
       reste: (S.reste||[]).filter(function(t){ return (t.texte||"").trim(); }).map(function(t){
         if(!t.id) t.id=uid(); if(!t.maj) t.maj=new Date().toISOString();
-        return {id:t.id, texte:t.texte, fait:!!t.fait, prio:"", qui:"", quand:"", maj:t.maj};
+        var r={id:t.id, texte:t.texte, fait:!!t.fait, prio:"", qui:"", quand:"", maj:t.maj};
+        if(t.encre) r.encre=t.encre;
+        return r;
       }),
       retires: (S.resteRetires||[]).slice()
     });

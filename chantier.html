@@ -532,6 +532,7 @@ nav#nav button svg{stroke-width:1.9}
 .rt-case.on svg{opacity:1}
 .rt-case:disabled{opacity:.5}
 .rt-corps{flex:1;min-width:0}
+.rt-corps img.rt-encre{display:block;max-width:100%;margin:6px 0 2px;background:#fff;border-radius:8px;border:1px solid var(--rule);padding:3px}
 .rt-corps b{display:block;font-size:14.5px;font-weight:600;line-height:1.35;color:var(--ink);overflow-wrap:anywhere}
 .rt-ligne.fait .rt-corps b{font-weight:500;color:var(--ink-3);text-decoration:line-through}
 .rt-corps small{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
@@ -1860,6 +1861,15 @@ $("av_curseur").addEventListener("change", function(){
 
 /* ---------- le reste à faire du chantier ---------- */
 var RESTE_FAITS_OUVERTS=false;
+/* une note écrite au stylet dans le suivi : l'écriture elle-même, sous la ligne */
+function noteManuscrite(hote, t){
+  var e=t && t.encre;
+  if(!e || typeof e.src!=="string" || !/^data:image\/png;base64,/.test(e.src)) return;
+  var im=document.createElement("img"); im.className="rt-encre"; im.src=e.src; im.alt=t.texte||"Note manuscrite";
+  im.style.background="#fff";        /* l'écriture reste sur papier blanc, même en mode sombre */
+  if(e.l && e.h){ im.width=e.l; im.height=e.h; im.style.width=Math.min(e.l/2, 480)+"px"; im.style.height="auto"; }
+  hote.appendChild(im);
+}
 function ligneReste(t){
   var l=document.createElement("div"); l.className="rt-ligne"+(t.fait?" fait":"");
   var c=document.createElement("button"); c.type="button"; c.className="rt-case"+(t.fait?" on":"");
@@ -1869,6 +1879,7 @@ function ligneReste(t){
   c.addEventListener("click", function(){ cocherReste(t, !t.fait, c); });
   var corps=document.createElement("div"); corps.className="rt-corps";
   var b=document.createElement("b"); b.textContent=t.texte; corps.appendChild(b);
+  noteManuscrite(corps, t);
   var m=document.createElement("small");
   var bouts=[];
   if(t.point) bouts.push(String(t.point).replace(/^Le point de chantier/, "Le point"));
@@ -1903,9 +1914,10 @@ function peindreTs(){
     var c=document.createElement("div"); c.className="rt-corps";
     var b=document.createElement("b"); b.textContent=t.texte;
     var sm=document.createElement("small");
+    c.appendChild(b); noteManuscrite(c, t);
     var d=t.depuis ? String(t.depuis).slice(0,10).split("-").reverse().join("/") : "";
     sm.textContent=[t.qui ? "Demandée par "+t.qui : "", d ? "le "+d+(t.jours ? " (il y a "+t.jours+" j)" : "") : "", t.origine||""].filter(Boolean).join(" · ");
-    c.appendChild(b); c.appendChild(sm);
+    c.appendChild(sm);
     l.appendChild(pt); l.appendChild(c);
     if(TS_CHIFFRER){
       var bt=document.createElement("button"); bt.type="button"; bt.className="ts-chiffre"; bt.textContent="Chiffré";

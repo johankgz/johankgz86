@@ -661,6 +661,12 @@ function memeNom(a, b) {
    la corrige — la version la plus récente (maj) l'emporte. Sur la page du
    chantier, on la coche aussi directement. */
 const ID_TACHE = /^[A-Za-z0-9_-]{1,40}$/;
+/* une note écrite au stylet (stylet.js) : seulement une image PNG en data:, de taille raisonnable */
+function encreValide(e) {
+  if (!e || typeof e.src !== "string" || e.src.length > 400000 || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(e.src)) return null;
+  const l = Math.round(Number(e.l)), h = Math.round(Number(e.h));
+  return { src: e.src, l: l > 0 && l < 5000 ? l : 0, h: h > 0 && h < 5000 ? h : 0 };
+}
 function fusionnerReste(c, liste, retires, origine) {
   const reste = Array.isArray(c.reste) ? c.reste : [];
   const maintenant = new Date().toISOString();
@@ -672,6 +678,8 @@ function fusionnerReste(c, liste, retires, origine) {
     const fait = !!t.fait;
     const champs = { texte, prio: String(t.prio || "").slice(0, 20), qui: String(t.qui || "").trim().slice(0, 80),
       quand: /^\d{4}-\d{2}-\d{2}$/.test(String(t.quand || "")) ? t.quand : "" };
+    const encre = encreValide(t.encre);
+    if (encre) champs.encre = encre;
     const ancien = reste.find((x) => x.id === id);
     if (!ancien) {
       reste.push({ id, ...champs, fait, maj, cree: maintenant, point: origine.titre, pointId: origine.pointId, auteur: origine.auteur,
@@ -3388,7 +3396,7 @@ async function traiter(req) {
       ? (fiche && Array.isArray(fiche.demandes) ? fiche.demandes.map((t) => ({ ...t, qui: t.qui || fiche.auteur || f.auteur || "" })) : [])
       : (fiche && fiche.version === 2 && Array.isArray(fiche.ts) ? fiche.ts : []);
     const ts = liste.filter((t) => !t.fait && String(t.texte || "").trim())
-      .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }));
+      .map((t) => { const e = encreValide(t.encre); return { id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date, ...(e ? { encre: e } : {}) }; });
     CACHE_TS.set(k, { v, ts });
     return ts;
   }
@@ -3434,7 +3442,7 @@ async function traiter(req) {
         const ids = new Set(fiche.ts.map((t) => String((t && t.id) || "")));
         for (const t of await tsDuSuivi(suivis[1])) {
           if (!t.id || ids.has(t.id) || autorises.has(t.id)) continue;
-          fiche.ts.push({ id: t.id, texte: t.texte, qui: t.qui || "", fait: false, depuis: t.depuis || "" });
+          fiche.ts.push({ id: t.id, texte: t.texte, qui: t.qui || "", fait: false, depuis: t.depuis || "", ...(t.encre ? { encre: t.encre } : {}) });
           ids.add(t.id); change = true;
         }
       }

@@ -94,6 +94,11 @@ section[hidden]{display:none}
 label.f{display:block;margin-bottom:14px}
 label.f[hidden]{display:none}
 label.f > span{display:block;font-size:13.5px;font-weight:500;color:var(--ink-2);margin-bottom:6px}
+.az-champ{margin-bottom:14px}
+.az-ligne{display:flex;gap:8px;align-items:stretch}
+.az-ligne select{flex:1 1 auto;min-width:0}
+.az-ligne .az-bsl{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;margin:0}
+.az-ligne .az-bsl svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 input[type=text],input[type=tel],input[type=email],input[type=number],input[type=date],textarea,select{
   width:100%;min-height:var(--tap);padding:12px 14px;font-size:16px;line-height:1.35;
   font-family:inherit;color:var(--ink);background:var(--field);
@@ -1209,8 +1214,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
     <div class="grid2">
       <label class="f"><span>Inclinaison (°)</span><input type="number" id="v_inclinaison2" inputmode="numeric" min="0" max="90" step="1" placeholder="30"></label>
-      <label class="f"><span>Orientation</span>
-        <select id="v_azimut">
+      <div class="az-champ"><label class="f" for="v_azimut" style="margin-bottom:0"><span>Orientation</span></label>
+        <div class="az-ligne"><select id="v_azimut">
           <option value="0">Sud</option>
           <option value="-45">Sud-Est</option>
           <option value="45">Sud-Ouest</option>
@@ -1219,7 +1224,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
           <option value="-135">Nord-Est</option>
           <option value="135">Nord-Ouest</option>
           <option value="180">Nord</option>
-        </select></label>
+        </select>
+        <button type="button" class="act ghost az-bsl" id="btnBoussole" title="Mesurer l'orientation du pan à la boussole" aria-label="Boussole : mesurer l'orientation du pan"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></svg>Boussole</button></div></div>
     </div>
     <div class="row">
       <button class="act solid" id="btnPvgis">Calculer le productible</button>
@@ -1434,6 +1440,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <input type="range" id="sol_pan" min="-180" max="180" step="1"></label>
     <div class="sol-bas">
       <p id="sol_resume"></p>
+      <button type="button" class="act ghost" id="sol_boussole">Boussole</button>
       <button type="button" class="act ghost" id="sol_pvgis">Reporter dans PVGIS</button>
     </div>
   </div>
@@ -1506,6 +1513,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./courbe-charge.js?v=20261003a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
+<script src="./boussole.js?v=20261007a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1911,6 +1919,20 @@ function readAssign(key){
   return S.logistique[key];
 }
 var AZIMUTS={"Sud":0,"Est":-90,"Ouest":90,"Nord":180};
+/* une orientation fine (boussole, course du soleil) : sa ligne dans la liste, avec son libellé */
+function optionAzimut(v){
+  var sel=$("v_azimut"); v=String(v);
+  if(!Array.prototype.some.call(sel.options, function(o){ return o.value===v; })){
+    var o=document.createElement("option"); o.value=v; o.textContent=panNom(parseInt(v,10)||0); sel.appendChild(o);
+  }
+}
+/* le cap mesuré à la boussole (0 = nord, 180 = sud) devient l'orientation PVGIS (0 = sud, -90 = est, 90 = ouest) */
+function capVersPvgis(cap){ var a=((cap-180)%360+540)%360-180; return a===-180 ? 180 : a; }
+var CONSIGNE_PAN="Mettez-vous au pied du pan, dos à la toiture, et tenez l'appareil à plat, le haut pointé droit devant vous : c'est la direction vers laquelle le pan regarde.";
+function mesurerPan(ok){
+  if(!window.Boussole){ toast("Boussole indisponible : rechargez la page."); return; }
+  Boussole.ouvrir({titre:"Orientation du pan", consigne:CONSIGNE_PAN, bouton:"Prendre cette orientation", ok:function(cap){ ok(capVersPvgis(cap), cap); }});
+}
 function azimutDepuisExposition(){
   var e=(S.pv.exposition||[]).slice().sort().join("+");
   var table={
@@ -1960,6 +1982,7 @@ function paintForm(){
   paintConseil();
   try{ renderDest(); peindreParQui(); }catch(e){}
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
+  if(S.pv && S.pv.azimut!==undefined && S.pv.azimut!==""){ optionAzimut(S.pv.azimut); $("v_azimut").value=String(S.pv.azimut); }
   document.querySelectorAll("[data-single]").forEach(function(box){
     var v = readAssign(box.getAttribute("data-single"));
     box.querySelectorAll("input").forEach(function(i){
@@ -3210,6 +3233,12 @@ window.CourseSoleil = {position:positionSoleil, journee:journeeSoleil, instant:s
   });
   $("sol_heure").addEventListener("input", function(){ COURSE.minute=parseInt(this.value,10)||0; solRedessiner(); });
   $("sol_pan").addEventListener("input", function(){ COURSE.pan=parseInt(this.value,10)||0; solRedessiner(); });
+  $("sol_boussole").addEventListener("click", function(){
+    mesurerPan(function(a, cap){
+      COURSE.pan=a; $("sol_pan").value=a; solRedessiner();
+      toast("Pan orienté "+panNom(a)+" (cap "+cap+"°) : reportez-le dans PVGIS si besoin.");
+    });
+  });
   $("sol_pvgis").addEventListener("click", function(){
     /* l'orientation fine va dans l'étude PVGIS ; la liste en garde le libellé */
     var sel=$("v_azimut"), v=String(COURSE.pan);
@@ -4235,6 +4264,13 @@ $("btnPvgisSite").addEventListener("click", function(){
   var u="https://re.jrc.ec.europa.eu/pvg_tools/fr/";
   if(a.lat!=null) u += "#PVP";
   window.open(u,"_blank");
+});
+$("btnBoussole").addEventListener("click", function(){
+  mesurerPan(function(a, cap){
+    optionAzimut(a); $("v_azimut").value=String(a); S.pv.azimut=String(a); save();
+    $("pvgisState").textContent="Orientation mesurée à la boussole : "+panNom(a)+", cap "+cap+"° ("+Boussole.nom(cap).toLowerCase()+").";
+    toast("Orientation "+panNom(a)+" reprise de la boussole.");
+  });
 });
 $("btnPvgis").addEventListener("click", function(){
   var a=pvgisParams();
