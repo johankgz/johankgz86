@@ -1,6 +1,7 @@
 /* =====================================================================
    pied.js — le pied de page commun : mentions légales, confidentialité,
-   conditions. Le même sur toutes les pages, ajouté en fin de page.
+   conditions. Sur l'accueil (présentation et connecté), les pages légales
+   et les pages des clients ; plus sur les outils.
    Pas de « Gérer mes cookies » : le site n'en dépose aucun.
    Les pages envoyées aux clients (lien, QR code, rendez-vous) ne
    montrent que ce qui les concerne ; les éditeurs plein écran, dont la
@@ -16,6 +17,12 @@
 
   var page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
   var publique = page === "client.html" || page === "rdv.html" || page === "partage.html";
+  /* le pied de page n'est plus partout : seulement sur l'accueil (la présentation avant connexion
+     et l'accueil connecté), les pages légales elles-mêmes (pour passer de l'une à l'autre), et les
+     pages ouvertes par les clients, qui ne voient jamais l'accueil (lien client, rendez-vous, partage).
+     Ailleurs, les textes restent dans « Mon compte » et « Aide ». */
+  var LEGALES = /^(mentions-legales|confidentialite|cgu|conditions-abonnement|sous-traitance)\.html$/;
+  if(page !== "index.html" && !publique && !LEGALES.test(page)) return;
   var LIENS = [
     ["./mentions-legales.html", "Mentions légales"],
     ["./confidentialite.html", "Confidentialité"]

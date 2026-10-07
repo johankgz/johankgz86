@@ -837,6 +837,29 @@ header .chip.on{background:#1F2937;border-color:#1F2937;color:#fff}
 }
 </style>
 <style data-theme-propre>
+/* l'en-tête : opaque, sans flou ; le bouton Menu et les pastilles de filtre lisibles en clair comme en sombre
+   (avant, theme.js changeait leurs blancs translucides en voile foncé, avec un texte resté foncé) */
+html header{-webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+html.theme-clair header{background:#FBF8F2;border-bottom:1px solid #E6DFD1;color:#22201C;box-shadow:0 1px 0 rgba(34,32,28,.03)}
+html.theme-clair header .menu-link{background:#FFFFFF;border:1px solid #E2DCCE;color:#22201C}
+html.theme-clair header .chip{background:#FFFFFF;border:1px solid #E2DCCE;color:#4A463F;box-shadow:none}
+html.theme-clair header .chip.on{background:#22201C;border-color:#22201C;color:#FFFFFF}
+html.theme-sombre header{background:#1E2126;border-bottom:1px solid rgba(255,255,255,.08);color:#ECEFF3}
+html.theme-sombre header .menu-link{background:#2B3036;border:1px solid rgba(255,255,255,.12);color:#ECEFF3}
+html.theme-sombre header .chip{background:#2B3036;border:1px solid rgba(255,255,255,.10);color:#D5DAE1;box-shadow:none}
+html.theme-sombre header .chip.on{background:#ECEFF3;border-color:#ECEFF3;color:#1E2126}
+html.theme-clair .onglets-td{background:#ECE6DA}
+html.theme-clair .onglets-td a{color:#4A463F}
+html.theme-clair .onglets-td a[aria-current="page"]{background:#FFFFFF;color:#22201C}
+html.theme-sombre .onglets-td{background:#2B3036}
+html.theme-sombre .onglets-td a{color:#C9CFD7}
+html.theme-sombre .onglets-td a[aria-current="page"]{background:#ECEFF3;color:#1E2126;box-shadow:none}
+/* Synchroniser, Corbeille : en sombre, un orange clair sur gris, lisible */
+html.theme-sombre #btnSync,html.theme-sombre #btnCorbeille{background:#2B3036;border-color:rgba(255,255,255,.12);color:#F2A15E}
+@media (hover:hover){
+  html.theme-clair header .menu-link:hover,html.theme-clair header .chip:hover:not(.on){background:#F3EEE4;color:#22201C}
+  html.theme-sombre header .menu-link:hover,html.theme-sombre header .chip:hover:not(.on){background:#353B42;color:#FFFFFF}
+}
 /* la note garde sa couleur pastel, en clair comme en sombre : ses champs restent clairs,
    leur texte foncé (theme.js ne touche pas à cette feuille) */
 .note .n-details input{background:rgba(255,255,255,.85)!important;color:#22201C!important;color-scheme:light}
@@ -1066,8 +1089,8 @@ function charger_local(cb){
 function majSync(etat, detail){
   SYNC=etat;
   var e=$("syncEtat");
-  e.textContent = etat==="ok" ? "synchronisé"
-    : etat==="cours" ? "synchronisation…"
+  /* rien quand tout va bien : seul un souci s'affiche (hors connexion, envoi refusé) */
+  e.textContent = etat==="ok" || etat==="cours" ? ""
     : etat==="hors" ? "hors connexion" : (detail||"");
   e.style.color = etat==="ok" ? "var(--ok)" : (etat==="hors" ? "var(--ink-3)" : "var(--ink-2)");
 }
@@ -2190,6 +2213,6 @@ start();
 
 })();
 </script>
-<script src="./pied.js?v=20261003a" defer></script>
+<script src="./pied.js?v=20261007b" defer></script>
 </body>
 </html>
