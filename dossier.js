@@ -826,7 +826,8 @@ function retenirPli(ref, ouvert){
 }
 /* Les sous-dossiers d'un dossier : « Suivi de chantier », « Plans »
    (documents techniques de nature Plan, et eux seuls), « Documents
-   techniques » (fiches techniques, schémas, notices, autres),
+   techniques » (fiches techniques, schémas, notices, autres ; ceux de
+   nature Photo vont aux photos),
    « Commandes » et « Photos du chantier ». Repliés, avec leur nombre de documents ; les plus récents
    en premier une fois ouverts. Ouvert ou fermé tient jusqu'à la fin de
    la visite, dossier par dossier. */
@@ -853,7 +854,9 @@ function sousDossierDe(f){
   if(f.type==="commande") return "commandes";
   if(f.type==="point") return "points";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
-  if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans" : "techniques";
+  /* une photo déposée comme document technique rejoint les photos du chantier */
+  if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans"
+    : /^photos?(\s|$)/i.test(String(f.visite||"").trim()) ? "photos" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";
   if(f.type==="note") return "notes";
   return null;
