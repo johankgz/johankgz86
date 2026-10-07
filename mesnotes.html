@@ -365,8 +365,8 @@ button{font:inherit;color:inherit}
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
-<script src="./annotation.js?v=20261007c"></script>
-<script src="./teinte.js?v=20261007c"></script>
+<script src="./annotation.js?v=20261007d"></script>
+<script src="./teinte.js?v=20261007d"></script>
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function(){
@@ -388,7 +388,7 @@ var COUR=null;                          /* la note ouverte : {meta, html, encre,
 var MODE={stylet:false, fmt:false, outil:"stylo", couleur:"#1E3A8A", surl:"#EAB308", k:{stylo:1, feutre:1, surligneur:1}};
 /* la couleur (trichromie) et la taille de chaque crayon, gardées sur l'appareil */
 (function(){ try{ var x=JSON.parse(localStorage.getItem("mesnotes:crayon")||"null"); if(x){
-  if(/^#[0-9A-F]{6}$/i.test(x.couleur)) MODE.couleur=x.couleur; if(/^#[0-9A-F]{6}$/i.test(x.surl)) MODE.surl=x.surl;
+  if(/^#[0-9A-F]{6}([0-9A-F]{2})?$/i.test(x.couleur)) MODE.couleur=x.couleur; if(/^#[0-9A-F]{6}([0-9A-F]{2})?$/i.test(x.surl)) MODE.surl=x.surl;
   if(x.k) ["stylo","feutre","surligneur"].forEach(function(o){ var v=+x.k[o]; if(v>=.2 && v<=6) MODE.k[o]=v; }); } }catch(e){} })();
 function garderCrayon(){ try{ localStorage.setItem("mesnotes:crayon", JSON.stringify({couleur:MODE.couleur, surl:MODE.surl, k:MODE.k})); }catch(e){} }
 var SALE=false, MINUTEUR=null, STYLO_VU=false, ANNULER=[], TRAIT=null;
@@ -1055,6 +1055,13 @@ function tracerTrait(g, t){
     for(var i=1;i<p.length;i++) g.lineTo(p[i][0]*U, p[i][1]*U);
     g.stroke(); g.restore(); return;
   }
+  /* transparent : d'un seul tenant, sans perles aux raccords */
+  if(alphaDe(t.c)<1){
+    var moy=p.reduce(function(s, q){ return s+(q[2]==null ? .5 : q[2]); }, 0)/p.length;
+    g.lineWidth=Math.max(.8, largeurT(t, moy)*U); g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
+    for(var a2=1;a2<p.length;a2++) g.lineTo(p[a2][0]*U, p[a2][1]*U);
+    g.stroke(); g.restore(); return;
+  }
   for(var j=1;j<p.length;j++){
     g.lineWidth=Math.max(.8, largeurT(t, (p[j-1][2]+p[j][2])/2)*U);
     g.beginPath(); g.moveTo(p[j-1][0]*U, p[j-1][1]*U); g.lineTo(p[j][0]*U, p[j][1]*U); g.stroke();
@@ -1158,7 +1165,7 @@ function peindrePalette(){
       if(MODE.outil==="gomme") MODE.outil="stylo";
       var o=MODE.outil, base=o==="stylo" ? largeurs("stylo", .5) : largeurs(o);
       Teinte.ouvrir({ancre:tn, couleur:o==="surligneur" ? MODE.surl : MODE.couleur, taille:Math.round(base*MODE.k[o]*10)/10,
-        min:Math.max(1, Math.round(base*.25)), max:Math.round(base*4), pas:.5, echelle:U, titreTaille:"Taille du "+(o==="stylo" ? "stylo" : o==="feutre" ? "feutre" : "surligneur"),
+        tailles:[.5,.75,1,1.6,2.5].map(function(f){ return Math.round(base*f*10)/10; }), titreTaille:"Épaisseur du "+(o==="stylo" ? "stylo" : o==="feutre" ? "feutre" : "surligneur"),
         change:function(c, t){ if(o==="surligneur") MODE.surl=c; else MODE.couleur=c; MODE.k[o]=Math.max(.2, Math.min(6, t/base)); garderCrayon(); peindrePalette(); },
         fermer:function(){ peindrePalette(); }});
     });
@@ -1478,7 +1485,9 @@ function imageEnDonnees(img){
     c.getContext("2d").drawImage(img, 0, 0); return c.toDataURL("image/jpeg", .85);
   }catch(e){ return null; }
 }
-function hexRgb(h){ var n=parseInt(h.slice(1),16); return [(n>>16)&255, (n>>8)&255, n&255]; }
+function hexRgb(h){ var n=parseInt(String(h).slice(1,7),16); return [(n>>16)&255, (n>>8)&255, n&255]; }
+/* l'opacité d'une couleur #RRGGBBAA (1 sinon) */
+function alphaDe(h){ return /^#[0-9a-f]{8}$/i.test(h||"") ? parseInt(h.slice(7,9),16)/255 : 1; }
 function construirePdf(){
   enregistrer(true);
   var J=window.jspdf.jsPDF, doc=new J({unit:"mm", format:"a4"});
@@ -1554,7 +1563,8 @@ function construirePdf(){
     });
     morceaux.forEach(function(m){
       doc.setPage(m.pi+1);
-      if(t.o==="surligneur"){ try{ doc.setGState(new doc.GState({opacity:.32, "stroke-opacity":.32})); }catch(e){} }
+      var opa=(t.o==="surligneur" ? .32 : 1)*alphaDe(t.c);
+      if(opa<1){ try{ doc.setGState(new doc.GState({opacity:opa, "stroke-opacity":opa})); }catch(e){} }
       doc.setDrawColor(c[0], c[1], c[2]); doc.setFillColor(c[0], c[1], c[2]); doc.setLineWidth(lw);
       try{ doc.setLineCap(t.o==="surligneur" ? "butt" : "round"); doc.setLineJoin("round"); }catch(e){}
       if(m.pts.length===1) doc.circle(m.pts[0][0], m.pts[0][1], lw/2, "F");
@@ -1562,7 +1572,7 @@ function construirePdf(){
         var d=[]; for(var i=1;i<m.pts.length;i++) d.push([m.pts[i][0]-m.pts[i-1][0], m.pts[i][1]-m.pts[i-1][1]]);
         doc.lines(d, m.pts[0][0], m.pts[0][1], [1,1], "S", false);
       }
-      if(t.o==="surligneur"){ try{ doc.setGState(new doc.GState({opacity:1, "stroke-opacity":1})); }catch(e){} }
+      if(opa<1){ try{ doc.setGState(new doc.GState({opacity:1, "stroke-opacity":1})); }catch(e){} }
     });
   });
   return doc;

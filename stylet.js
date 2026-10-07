@@ -24,12 +24,12 @@
     if(window.Teinte) return;
     try{
       var moi=document.currentScript && document.currentScript.src, sc=document.createElement("script");
-      sc.src=(moi ? moi.replace(/stylet\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007c";
+      sc.src=(moi ? moi.replace(/stylet\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007d";
       (document.head||document.documentElement).appendChild(sc);
     }catch(e){}
   })();
   var PREF="stylet:crayon";
-  function lirePref(){ try{ var x=JSON.parse(localStorage.getItem(PREF)||"null"); if(x && /^#[0-9A-F]{6}$/i.test(x.c) && x.t>0) return x; }catch(e){} return null; }
+  function lirePref(){ try{ var x=JSON.parse(localStorage.getItem(PREF)||"null"); if(x && /^#[0-9A-F]{6}([0-9A-F]{2})?$/i.test(x.c) && x.t>0) return x; }catch(e){} return null; }
 
   var css=document.createElement("style");
   css.setAttribute("data-theme-propre", "");     /* mêmes couleurs en clair et en sombre : theme.js n'y touche pas */
@@ -72,7 +72,7 @@
     var tn=window.Teinte ? window.Teinte.pastille(couleur) : null;
     if(tn){
       tn.addEventListener("click", function(){
-        window.Teinte.ouvrir({ancre:tn, couleur:couleur, taille:tailleCrayon, min:1, max:14, pas:0.2, unite:" px", titreTaille:"Taille du crayon",
+        window.Teinte.ouvrir({ancre:tn, couleur:couleur, taille:tailleCrayon, tailles:[1.5, 2.6, 4, 6, 9], titreTaille:"Épaisseur du crayon",
           change:function(c, t){ couleur=c; tailleCrayon=t; marquer(); retenir(); }});
       });
       coul.appendChild(tn);
@@ -108,6 +108,13 @@
     function tracer(c, t, k, dx, dy){
       var p=t.pts; if(!p.length) return;
       c.strokeStyle=t.c; c.fillStyle=t.c; c.lineCap="round"; c.lineJoin="round";
+      /* une couleur transparente : le trait d'un seul tenant (sinon, les morceaux se superposent en perles) */
+      if(/^#[0-9a-f]{8}$/i.test(t.c) && p.length>1){
+        var moy=p.reduce(function(s, q){ return s+q.w; }, 0)/p.length;
+        c.save(); c.lineWidth=Math.max(0.8, moy*k); c.beginPath(); c.moveTo((p[0].x-dx)*k, (p[0].y-dy)*k);
+        for(var j=1;j<p.length;j++) c.lineTo((p[j].x-dx)*k, (p[j].y-dy)*k);
+        c.stroke(); c.restore(); return;
+      }
       if(p.length===1){ c.beginPath(); c.arc((p[0].x-dx)*k, (p[0].y-dy)*k, Math.max(1, p[0].w*k/2), 0, Math.PI*2); c.fill(); return; }
       /* du milieu au milieu, en passant par chaque point : un trait lisse */
       var s0={x:p[0].x, y:p[0].y};

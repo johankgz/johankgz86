@@ -67,7 +67,7 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
   if(window.Teinte) return;
   try{
     var moi=document.currentScript && document.currentScript.src, sc=document.createElement("script");
-    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007c";
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007d";
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
@@ -158,7 +158,7 @@ function tourner(p, c, a){
 function clone(o){ return JSON.parse(JSON.stringify(o)); }
 function borner(v, a, b){ return v<a ? a : (v>b ? b : v); }
 function clair(c){
-  var m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(c||"");
+  var m=/^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})(?:[0-9a-f]{2})?$/i.exec(c||"");
   if(!m) return false;
   var r=parseInt(m[1],16), g=parseInt(m[2],16), b=parseInt(m[3],16);
   return (0.299*r + 0.587*g + 0.114*b) > 170;
@@ -1343,12 +1343,11 @@ function ouvrirTeinte(btn){
   var texte=(o && o.t==="texte") || (!o && A.outil==="texte");
   var trait=(o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")) || (!o && (A.outil==="stylo" || A.outil==="surligneur" || A.outil==="formes"));
   var courant=o ? o.c : (surl ? PREFS.surCouleur : PREFS.couleur);
-  var taille, min, max, titre;
-  if(texte){ taille=o ? Math.round(o.taille/A.u) : PREFS.texteTaille; min=10; max=200; titre="Taille du texte"; }
-  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)*10)/10; min=surl ? 6 : 1; max=surl ? 70 : 30; titre=surl ? "Taille du surligneur" : "Taille du crayon"; }
+  var taille, tailles, titre;
+  if(texte){ taille=o ? Math.round(o.taille/A.u) : PREFS.texteTaille; tailles=[16, 24, 40, 64, 96]; titre="Taille du texte"; }
+  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)*10)/10; tailles=surl ? [10, 16, 24, 34, 48] : [2, 3.5, 5, 8, 12]; titre=surl ? "Épaisseur du surligneur" : "Épaisseur du crayon"; }
   var note=false;
-  Teinte.ouvrir({ancre:btn, couleur:courant, taille:taille, min:min, max:max, pas:texte ? 1 : .5, texte:texte, titreTaille:titre,
-    echelle: texte ? .3 : 1,
+  Teinte.ouvrir({ancre:btn, couleur:courant, taille:taille, tailles:tailles, texte:texte, titreTaille:titre,
     change:function(c, t){
       var cible=A.sel;
       if(!note){ note=true; var avant=photo(); A._teinteAvant=avant; }
