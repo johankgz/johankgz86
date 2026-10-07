@@ -716,7 +716,10 @@ function voit(personne, fichier, chantier) {
   if (!personne) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
+  /* celui qui l'a enregistré le voit, même au nom d'un autre conducteur de travaux */
+  if ((fichier.publiePar || []).some(moi)) return true;
   if ((fichier.destinataires || []).some(moi)) return true;
+  if (chantier && chantier._orphelin && (personne.role === "bureau" || personne.role === "admin")) return true;
   return !!chantier && (chantier.equipe || []).some(moi);
 }
 function chantierDe(idx, cle) {
@@ -1506,6 +1509,19 @@ async function traiter(req) {
     for (const c of Object.values(idx.chantiers || {})) {
       if (c && typeof c.client === "string" && c.client !== majuscules(c.client)) c.client = majuscules(c.client);
     }
+    /* un dossier que plus aucun compte ne voit (créé par un suivi au nom d'un conducteur
+       qui n'a pas de compte, avant que l'enregistreur y soit noté) : le bureau le voit,
+       pour qu'il ne soit jamais perdu. Marque en mémoire seulement, jamais enregistrée. */
+    if (bureau) {
+      let comptes = [];
+      try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+      const estCompte = (n) => !!n && comptes.some((u) => u.nom === n || memeNom(u.nom, n) || memeNom(u.identifiant, n));
+      for (const c of Object.values(idx.chantiers || {})) {
+        if (!c || !Array.isArray(c.fichiers) || !c.fichiers.length) continue;
+        const noms = [...(c.equipe || []), ...c.fichiers.flatMap((f) => [f.auteur, ...(f.destinataires || []), ...(f.publiePar || [])])];
+        if (!noms.some(estCompte)) Object.defineProperty(c, "_orphelin", { value: true, enumerable: false, configurable: true });
+      }
+    }
     return idx;
   }
   function trouver(idx, cle) {
@@ -1972,6 +1988,8 @@ async function traiter(req) {
       auteur: bureau ? (d.auteur || personne.nom) : personne.nom,
       destinataires: versDossier ? [] : (Array.isArray(d.destinataires) ? d.destinataires : []),
       versDossier,
+      /* qui l'a enregistré (l'auteur peut être un autre conducteur de travaux) */
+      publiePar: Array.from(new Set([...((ancien && ancien.publiePar) || []), personne.nom])),
       taille: octets.length,
       publie: new Date().toISOString(),
       donnees: ancien ? !!ancien.donnees : false,
@@ -2012,10 +2030,10 @@ async function traiter(req) {
       c.equipe = Array.from(equipe).filter(Boolean);
     } else if (!c.equipe || !c.equipe.length) {
       /* premier document d'un dossier sans relevé : son auteur en est
-         responsable, sous le nom de son compte */
+         responsable, sous le nom de son compte, avec celui qui l'enregistre */
       let comptesEq = [];
       try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
-      c.equipe = [nomDuCompte(entree.auteur, comptesEq)].filter(Boolean);
+      c.equipe = Array.from(new Set([nomDuCompte(entree.auteur, comptesEq), nomDuCompte(personne.nom, comptesEq)])).filter(Boolean);
     }
     /* chaque photo du lot, aussi rangée seule : <REF>/Photos/<date> <titre>/ */
     if (photos && cle.endsWith(".zip")) {
