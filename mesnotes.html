@@ -176,14 +176,14 @@ button{font:inherit;color:inherit}
 .np-corb .ok{background:#B4621A;color:#fff}
 .np-corb .ko{background:#fff;color:#A6291F}
 /* la palette du stylet, comme celle de l'Apple Pencil */
-.np-palette{position:absolute;left:8px;right:8px;margin:0 auto;width:max-content;max-width:calc(100% - 16px);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:6px;padding:8px 10px;
+.np-palette{position:absolute;left:8px;right:8px;margin:0 auto;width:max-content;max-width:calc(100% - 16px);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:4px;padding:8px 10px;
   border-radius:16px;background:#22201C;color:#F4F1EA;box-shadow:0 12px 40px rgba(20,18,14,.35);z-index:20;flex-wrap:wrap;justify-content:center}
-.np-palette .po{display:flex;flex-direction:column;align-items:center;gap:1px;width:56px;padding:4px 0;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer;transition:transform .15s}
+.np-palette .po{display:flex;flex-direction:column;align-items:center;gap:1px;width:52px;padding:4px 0;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer;transition:transform .15s}
 .np-palette .po[aria-pressed="true"]{background:rgba(255,255,255,.16);transform:translateY(-4px)}
 .np-palette .po span{font-size:10px}
-.np-palette .pc{width:30px;height:30px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0}
+.np-palette .pc{width:28px;height:28px;border-radius:50%;border:3px solid transparent;cursor:pointer;padding:0;box-shadow:0 0 0 1px rgba(255,255,255,.35)}
 .np-palette .pc[aria-pressed="true"]{border-color:#F4F1EA}
-.np-palette .sep{width:1px;height:34px;background:rgba(255,255,255,.18);margin:0 4px}
+.np-palette .sep{width:1px;height:34px;background:rgba(255,255,255,.18);margin:0 3px}
 .np-palette .pa{padding:8px 12px;border-radius:10px;border:0;background:rgba(255,255,255,.1);color:#F4F1EA;font-size:13px;font-weight:600;cursor:pointer;min-height:40px}
 .np-palette .pt{padding:8px 14px;border-radius:10px;border:0;background:#B4621A;color:#fff;font-size:13px;font-weight:700;cursor:pointer;min-height:40px}
 .np-consigne{position:absolute;left:50%;top:66px;transform:translateX(-50%);padding:6px 12px;border-radius:999px;background:#FBEDE0;color:#8A4A12;font-size:12.5px;font-weight:600;pointer-events:none;z-index:15;white-space:nowrap}
@@ -365,7 +365,8 @@ button{font:inherit;color:inherit}
 </div>
 <div class="toast" id="toast" hidden role="status"></div>
 
-<script src="./annotation.js?v=20261001a"></script>
+<script src="./annotation.js?v=20261007c"></script>
+<script src="./teinte.js?v=20261007c"></script>
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script>
 (function(){
@@ -384,7 +385,12 @@ var NOTE_VIDE="<h1><br></h1>";
 var IDX={notes:[], dossiers:[]};       /* les notes (sans contenu) et les dossiers */
 var VUE="tous";                         /* tous | epingles | chantier | corbeille | <id d'un dossier> */
 var COUR=null;                          /* la note ouverte : {meta, html, encre, papier} */
-var MODE={stylet:false, fmt:false, outil:"stylo", couleur:"#1E3A8A"};
+var MODE={stylet:false, fmt:false, outil:"stylo", couleur:"#1E3A8A", surl:"#EAB308", k:{stylo:1, feutre:1, surligneur:1}};
+/* la couleur (trichromie) et la taille de chaque crayon, gardées sur l'appareil */
+(function(){ try{ var x=JSON.parse(localStorage.getItem("mesnotes:crayon")||"null"); if(x){
+  if(/^#[0-9A-F]{6}$/i.test(x.couleur)) MODE.couleur=x.couleur; if(/^#[0-9A-F]{6}$/i.test(x.surl)) MODE.surl=x.surl;
+  if(x.k) ["stylo","feutre","surligneur"].forEach(function(o){ var v=+x.k[o]; if(v>=.2 && v<=6) MODE.k[o]=v; }); } }catch(e){} })();
+function garderCrayon(){ try{ localStorage.setItem("mesnotes:crayon", JSON.stringify({couleur:MODE.couleur, surl:MODE.surl, k:MODE.k})); }catch(e){} }
 var SALE=false, MINUTEUR=null, STYLO_VU=false, ANNULER=[], TRAIT=null;
 
 function appel(a, o){
@@ -964,6 +970,8 @@ $("oPapier").addEventListener("click", function(){
    retire les traits qu'elle touche. */
 var U=1;
 function largeurs(o, p){ return o==="stylo" ? 2+4.6*(p==null ? .5 : p) : o==="feutre" ? 7 : o==="surligneur" ? 26 : 0; }
+/* la taille choisie pour ce trait (k : 1 = taille d'origine) */
+function largeurT(t, p){ var k=+t.k; return largeurs(t.o, p)*(k>=.2 && k<=6 ? k : 1); }
 var PAS=34, LIGNE0=51;
 /* le navigateur loge parfois une liste dans un paragraphe (<p><ul>…</ul></p>) : on la ressort,
    pour que chaque bloc tombe sur les lignes. Le curseur reste où il était. */
@@ -1041,14 +1049,14 @@ function tracerTrait(g, t){
   g.save();
   g.globalAlpha=t.o==="surligneur" ? .32 : 1;
   g.strokeStyle=t.c; g.fillStyle=t.c; g.lineJoin="round"; g.lineCap=t.o==="surligneur" ? "butt" : "round";
-  if(p.length===1){ g.beginPath(); g.arc(p[0][0]*U, p[0][1]*U, Math.max(1, largeurs(t.o, p[0][2])*U/2), 0, Math.PI*2); g.fill(); g.restore(); return; }
+  if(p.length===1){ g.beginPath(); g.arc(p[0][0]*U, p[0][1]*U, Math.max(1, largeurT(t, p[0][2])*U/2), 0, Math.PI*2); g.fill(); g.restore(); return; }
   if(t.o==="surligneur" || t.o==="feutre"){
-    g.lineWidth=largeurs(t.o)*U; g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
+    g.lineWidth=largeurT(t)*U; g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
     for(var i=1;i<p.length;i++) g.lineTo(p[i][0]*U, p[i][1]*U);
     g.stroke(); g.restore(); return;
   }
   for(var j=1;j<p.length;j++){
-    g.lineWidth=Math.max(.8, largeurs(t.o, (p[j-1][2]+p[j][2])/2)*U);
+    g.lineWidth=Math.max(.8, largeurT(t, (p[j-1][2]+p[j][2])/2)*U);
     g.beginPath(); g.moveTo(p[j-1][0]*U, p[j-1][1]*U); g.lineTo(p[j][0]*U, p[j][1]*U); g.stroke();
   }
   g.restore();
@@ -1083,7 +1091,8 @@ page.addEventListener("pointerdown", function(e){
   ACTIF=e.pointerId; try{ page.setPointerCapture(e.pointerId); }catch(x){}
   var q=point(e);
   if(MODE.outil==="gomme"){ TRAIT={gomme:true}; effacerPres(q); return; }
-  TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? "#EAB308" : MODE.couleur, p:[q]};
+  TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? MODE.surl : MODE.couleur, p:[q]};
+  if(MODE.k[MODE.outil] && MODE.k[MODE.outil]!==1) TRAIT.k=Math.round(MODE.k[MODE.outil]*100)/100;
   dessiner();
 }, true);
 page.addEventListener("pointermove", function(e){
@@ -1128,8 +1137,8 @@ function peindrePalette(){
   var o=$("outils"); o.textContent="";
   OUTILS.forEach(function(x){
     var b=el("button","po"); b.type="button"; b.setAttribute("aria-label", x[1]); b.setAttribute("aria-pressed", MODE.outil===x[0] ? "true" : "false");
-    var pointe = x[0]==="gomme" ? "#E8E2D4" : x[0]==="surligneur" ? "#EAB308" : MODE.couleur;
-    var bague = x[0]==="gomme" ? "#E8A0A0" : x[0]==="surligneur" ? "#EAB308" : MODE.couleur;
+    var pointe = x[0]==="gomme" ? "#E8E2D4" : x[0]==="surligneur" ? MODE.surl : MODE.couleur;
+    var bague = x[0]==="gomme" ? "#E8A0A0" : x[0]==="surligneur" ? MODE.surl : MODE.couleur;
     b.innerHTML='<svg viewBox="0 0 24 40" aria-hidden="true" style="width:18px;height:30px"><path d="M7 38 V14 L12 4 L17 14 V38 Z" fill="#E8E2D4"/><path d="M9.5 9 L12 4 L14.5 9 Z" fill="'+pointe+'"/><rect x="7" y="20" width="10" height="5" fill="'+bague+'"/></svg>';
     b.appendChild(el("span","",x[1]));
     b.addEventListener("click", function(){ MODE.outil=x[0]; peindrePalette(); });
@@ -1139,9 +1148,22 @@ function peindrePalette(){
   COULEURS.forEach(function(x){
     var b=el("button","pc"); b.type="button"; b.style.background=x[0]; b.setAttribute("aria-label", x[1]);
     b.setAttribute("aria-pressed", MODE.couleur===x[0] ? "true" : "false");
-    b.addEventListener("click", function(){ MODE.couleur=x[0]; if(MODE.outil==="gomme" || MODE.outil==="surligneur") MODE.outil="stylo"; peindrePalette(); });
+    b.addEventListener("click", function(){ MODE.couleur=x[0]; if(MODE.outil==="gomme" || MODE.outil==="surligneur") MODE.outil="stylo"; garderCrayon(); peindrePalette(); });
     c.appendChild(b);
   });
+  /* toute couleur (trichromie) et la taille du crayon en cours */
+  if(window.Teinte){
+    var tn=Teinte.pastille(MODE.outil==="surligneur" ? MODE.surl : MODE.couleur); tn.id="pTeinte";
+    tn.addEventListener("click", function(){
+      if(MODE.outil==="gomme") MODE.outil="stylo";
+      var o=MODE.outil, base=o==="stylo" ? largeurs("stylo", .5) : largeurs(o);
+      Teinte.ouvrir({ancre:tn, couleur:o==="surligneur" ? MODE.surl : MODE.couleur, taille:Math.round(base*MODE.k[o]*10)/10,
+        min:Math.max(1, Math.round(base*.25)), max:Math.round(base*4), pas:.5, echelle:U, titreTaille:"Taille du "+(o==="stylo" ? "stylo" : o==="feutre" ? "feutre" : "surligneur"),
+        change:function(c, t){ if(o==="surligneur") MODE.surl=c; else MODE.couleur=c; MODE.k[o]=Math.max(.2, Math.min(6, t/base)); garderCrayon(); peindrePalette(); },
+        fermer:function(){ peindrePalette(); }});
+    });
+    c.appendChild(tn);
+  }
 }
 peindrePalette();
 if(window.ResizeObserver) new ResizeObserver(function(){ ajusterEncre(); }).observe($("defile"));
@@ -1523,7 +1545,7 @@ function construirePdf(){
     if(!t.p || !t.p.length) return;
     var c=hexRgb(t.c||"#1E3A8A");
     var moy=t.p.reduce(function(a, q){ return a+(q[2]==null ? .5 : q[2]); }, 0)/t.p.length;
-    var lw=Math.max(.15, (t.o==="stylo" ? largeurs("stylo", moy) : largeurs(t.o))*U*f);
+    var lw=Math.max(.15, (t.o==="stylo" ? largeurT(t, moy) : largeurT(t))*U*f);
     var morceaux=[], cur=null;
     t.p.forEach(function(q){
       var y=q[1]*U, pi=Math.min(nb-1, Math.max(0, Math.floor(y/HP)));

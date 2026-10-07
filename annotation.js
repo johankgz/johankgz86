@@ -62,6 +62,15 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
+/* la couleur en trichromie et la taille (teinte.js), à côté de ce fichier */
+(function(){
+  if(window.Teinte) return;
+  try{
+    var moi=document.currentScript && document.currentScript.src, sc=document.createElement("script");
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007c";
+    (document.head||document.documentElement).appendChild(sc);
+  }catch(e){}
+})();
 /* ---------- symboles du métier (plans et photos) ---------- */
 var SYMBOLES = [
   ["plafond","Point lumineux"], ["prise","Prise 16 A"], ["prise32","Prise 32 A"], ["prise2","Double prise"],
@@ -187,7 +196,7 @@ var A = null, D = null, MESURE = null;
 var FLOUS = {};
 var PREFS = {outil:"stylo", couleur:"#E5484D", surCouleur:"#FDE047", ep:"moyen", surEp:"moyen", droit:true,
   gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"symbole", symbole:"cfo-dcl-plafond",
-  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false};
+  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false, epVal:0, surEpVal:0};
 try{
   var lu = JSON.parse(localStorage.getItem("annotation:prefs") || "null");
   if(lu && typeof lu === "object") for(var kp in lu){ if(PREFS.hasOwnProperty(kp)) PREFS[kp]=lu[kp]; }
@@ -803,7 +812,9 @@ function posEcran(e){
   var r=D.cv.getBoundingClientRect();
   return [e.clientX-r.left, e.clientY-r.top];
 }
-function ep(){ return EPAISSEURS[PREFS.ep]*A.u; }
+/* l'épaisseur : une des trois tailles, ou celle réglée au curseur (teinte.js) */
+function ep(){ return (PREFS.epVal>0 ? PREFS.epVal : EPAISSEURS[PREFS.ep])*A.u; }
+function epSurl(){ return (PREFS.surEpVal>0 ? PREFS.surEpVal : SURL_EP[PREFS.surEp])*A.u; }
 function nouveau(o){ A.objs.push(o); return o; }
 function prochainNumero(){
   var n=0; A.objs.forEach(function(o){ if(o.t==="pastille" && o.n>n) n=o.n; });
@@ -880,7 +891,7 @@ function surAppui(e){
     case "stylo": case "surligneur":
       A.sel=null;
       var sur = A.outil==="surligneur";
-      o=nouveau({t:"trait", pts:[p], c: sur ? PREFS.surCouleur : PREFS.couleur, e: sur ? SURL_EP[PREFS.surEp]*A.u : ep()});
+      o=nouveau({t:"trait", pts:[p], c: sur ? PREFS.surCouleur : PREFS.couleur, e: sur ? epSurl() : ep()});
       if(sur){ o.sur=true; if(PREFS.droit) o.droit=true; }
       G={type:"dessin", o:o, p0:p, avant:avant1, sel:null, ancre:s};
       armerMaintien();
@@ -1319,10 +1330,42 @@ function choisirEpaisseur(cle){
   if(o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")){
     var val = (o.t==="trait" && o.sur) ? SURL_EP[cle] : EPAISSEURS[cle];
     if(val) modifier(function(){ o.e=val*A.u; });
-    if(o.t==="trait" && o.sur) PREFS.surEp=cle; else PREFS.ep=cle;
-  } else if(A.outil==="surligneur") PREFS.surEp=cle;
-  else PREFS.ep=cle;
+    if(o.t==="trait" && o.sur){ PREFS.surEp=cle; PREFS.surEpVal=0; } else { PREFS.ep=cle; PREFS.epVal=0; }
+  } else if(A.outil==="surligneur"){ PREFS.surEp=cle; PREFS.surEpVal=0; }
+  else { PREFS.ep=cle; PREFS.epVal=0; }
   garderPrefs(); majUI();
+}
+/* toute couleur (trichromie) et la taille au curseur : pour le trait, la forme, le surligneur ou le texte,
+   l'élément choisi ou le prochain. Un seul retour en arrière pour tout le réglage. */
+function ouvrirTeinte(btn){
+  if(!window.Teinte) return;
+  var o=A.sel, surl=(o && o.t==="trait" && o.sur) || (!o && A.outil==="surligneur");
+  var texte=(o && o.t==="texte") || (!o && A.outil==="texte");
+  var trait=(o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")) || (!o && (A.outil==="stylo" || A.outil==="surligneur" || A.outil==="formes"));
+  var courant=o ? o.c : (surl ? PREFS.surCouleur : PREFS.couleur);
+  var taille, min, max, titre;
+  if(texte){ taille=o ? Math.round(o.taille/A.u) : PREFS.texteTaille; min=10; max=200; titre="Taille du texte"; }
+  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)*10)/10; min=surl ? 6 : 1; max=surl ? 70 : 30; titre=surl ? "Taille du surligneur" : "Taille du crayon"; }
+  var note=false;
+  Teinte.ouvrir({ancre:btn, couleur:courant, taille:taille, min:min, max:max, pas:texte ? 1 : .5, texte:texte, titreTaille:titre,
+    echelle: texte ? .3 : 1,
+    change:function(c, t){
+      var cible=A.sel;
+      if(!note){ note=true; var avant=photo(); A._teinteAvant=avant; }
+      if(cible && cible.t!=="flou"){
+        cible.c=c;
+        if(t!=null && texte && cible.t==="texte") cible.taille=borner(t*A.u, 6*A.u, 400*A.u);
+        if(t!=null && trait && cible.t!=="texte") cible.e=t*A.u;
+      }
+      if(surl) PREFS.surCouleur=c; else PREFS.couleur=c;
+      if(t!=null){ if(texte) PREFS.texteTaille=Math.round(t); else if(surl) PREFS.surEpVal=t; else if(trait) PREFS.epVal=t; }
+      garderPrefs(); peindre();
+      if(A.edition) placerEditeur();
+    },
+    fermer:function(){
+      if(note && A._teinteAvant){ valider(A._teinteAvant); A._teinteAvant=null; }
+      majUI();
+    }});
 }
 function tailleTexte(f){
   var o=A.sel;
@@ -1402,6 +1445,11 @@ function majUI(){
       b.addEventListener("click", function(){ choisirCouleur(c[0]); });
       co.appendChild(b);
     });
+    if(window.Teinte){
+      var tn=Teinte.pastille(courant); tn.classList.add("an-teinte");
+      tn.addEventListener("click", function(){ ouvrirTeinte(tn); });
+      co.appendChild(tn);
+    }
   }
   co.appendChild(el("span","an-esp"));
   var tailleTrait = (o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")) ||

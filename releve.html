@@ -1360,8 +1360,10 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <p class="hint">Ce que le client demande, reformulé par vos soins. C'est le texte que liront le chiffreur et le technicien.</p>
     <div class="row" style="margin-bottom:8px">
       <button class="act rec dict" data-target="k_conclusion">Dicter</button>
+      <button type="button" class="act ghost stylo-btn" id="btnStyletDemande" title="Écrire à l'Apple Pencil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg>Stylet</button>
     </div>
     <textarea id="k_conclusion" style="min-height:220px"></textarea>
+    <div id="k_conclusionEncre" class="encres-points"></div>
   </div>
 
   <div class="block">
@@ -1517,13 +1519,13 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 </div>
 
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./annotation.js?v=20261001a"></script>
+<script src="./annotation.js?v=20261007c"></script>
 <script src="./sobre.js?v=20261007a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./courbe-charge.js?v=20261003a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script src="./boussole.js?v=20261007a"></script>
-<script src="./stylet.js?v=20261007a"></script>
+<script src="./stylet.js?v=20261007c"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1930,30 +1932,34 @@ function readAssign(key){
 }
 var AZIMUTS={"Sud":0,"Est":-90,"Ouest":90,"Nord":180};
 /* ---------- points à chiffrer : des notes écrites au stylet (Apple Pencil), sous le texte ---------- */
-function encresPoints(){ if(!S.conclusion) S.conclusion={synthese:"",points:"",encres:[]}; if(!Array.isArray(S.conclusion.encres)) S.conclusion.encres=[]; return S.conclusion.encres; }
-function peindreEncresPoints(){
-  var h=$("k_pointsEncre"); if(!h || !window.Stylet) return;
+/* … et sous la demande du client (synthèse) : encres = points à chiffrer, encresDemande = demande du client */
+function encresDe(cle){ if(!S.conclusion) S.conclusion={synthese:"",points:"",encres:[]}; if(!Array.isArray(S.conclusion[cle])) S.conclusion[cle]=[]; return S.conclusion[cle]; }
+function encresPoints(){ return encresDe("encres"); }
+function peindreEncres(cle, hote){
+  var h=$(hote); if(!h || !window.Stylet) return;
   h.textContent="";
-  encresPoints().forEach(function(e, i){
+  encresDe(cle).forEach(function(e, i){
     if(!Stylet.valide(e)) return;
     var l=document.createElement("div"); l.className="encre-ligne";
     var im=Stylet.image(e, "Note manuscrite "+(i+1)); im.title="Toucher pour réécrire";
     im.addEventListener("click", function(){
-      Stylet.ouvrir({titre:"Réécrire la note", bouton:"Remplacer", ok:function(n){ encresPoints()[i]=n; save(); peindreEncresPoints(); }});
+      Stylet.ouvrir({titre:"Réécrire la note", bouton:"Remplacer", ok:function(n){ encresDe(cle)[i]=n; save(); peindreEncresPoints(); }});
     });
     var x=document.createElement("button"); x.type="button"; x.className="encre-x"; x.textContent="×";
     x.setAttribute("aria-label","Retirer la note manuscrite "+(i+1));
     x.addEventListener("click", function(){
       if(!window.confirm("Retirer cette note manuscrite ?")) return;
-      encresPoints().splice(i, 1); save(); peindreEncresPoints();
+      encresDe(cle).splice(i, 1); save(); peindreEncresPoints();
     });
     l.appendChild(im); l.appendChild(x); h.appendChild(l);
   });
 }
-function ecrireAuStylet(){
+function peindreEncresPoints(){ peindreEncres("encres", "k_pointsEncre"); peindreEncres("encresDemande", "k_conclusionEncre"); }
+function ecrireAuStylet(cle, titre, ou){
   if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
-  Stylet.ouvrir({titre:"Points à chiffrer / à vérifier", ok:function(e){
-    encresPoints().push(e); save(); peindreEncresPoints(); toast("Note manuscrite ajoutée aux points à chiffrer.");
+  cle=typeof cle==="string" ? cle : "encres";
+  Stylet.ouvrir({titre:titre||"Points à chiffrer / à vérifier", ok:function(e){
+    encresDe(cle).push(e); save(); peindreEncresPoints(); toast("Note manuscrite ajoutée "+(ou||"aux points à chiffrer")+".");
   }});
 }
 /* une orientation fine (boussole, course du soleil) : sa ligne dans la liste, avec son libellé */
@@ -4303,7 +4309,8 @@ $("btnPvgisSite").addEventListener("click", function(){
   if(a.lat!=null) u += "#PVP";
   window.open(u,"_blank");
 });
-$("btnStyletPoints").addEventListener("click", ecrireAuStylet);
+$("btnStyletPoints").addEventListener("click", function(){ ecrireAuStylet("encres", "Points à chiffrer / à vérifier", "aux points à chiffrer"); });
+$("btnStyletDemande").addEventListener("click", function(){ ecrireAuStylet("encresDemande", "Demande du client", "à la demande du client"); });
 $("btnBoussole").addEventListener("click", function(){
   mesurerPan(function(a, cap){
     optionAzimut(a); $("v_azimut").value=String(a); S.pv.azimut=String(a); save();
@@ -5570,9 +5577,19 @@ function buildPdf(){
 
   /* ---------- conclusion ---------- */
   var encresPdf=(S.conclusion.encres||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
-  if(rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length){
+  var encresDemPdf=(S.conclusion.encresDemande||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
+  /* une note au stylet, telle quelle, à sa taille (70 mm de haut au plus) */
+  var poserEncre=function(e){
+    var l=Math.min(CW-4, e.l/2*0.2646), hh=l*e.h/e.l;
+    if(hh>70){ hh=70; l=hh*e.l/e.h; }
+    need(hh+4);
+    try{ doc.addImage(e.src, "PNG", M+2, y, l, hh); }catch(x){}
+    y+=hh+3;
+  };
+  if(rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length || encresDemPdf.length){
     h2("Demande du client", 40);
     encadre(S.conclusion.synthese);
+    encresDemPdf.forEach(poserEncre);
     if((S.conclusion.points && S.conclusion.points.trim()) || encresPdf.length){
       y+=1; sousTitre("Points à chiffrer et à vérifier");
       if(S.conclusion.points && S.conclusion.points.trim()) para(S.conclusion.points);

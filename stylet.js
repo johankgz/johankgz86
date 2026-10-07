@@ -19,6 +19,17 @@
   if(window.Stylet) return;
   var COULEURS=[["#1E3A8A","Bleu"],["#111827","Noir"],["#B91C1C","Rouge"]];
   var MAX_L=900;
+  /* la couleur en trichromie et la taille du crayon : teinte.js, à côté de ce fichier */
+  (function(){
+    if(window.Teinte) return;
+    try{
+      var moi=document.currentScript && document.currentScript.src, sc=document.createElement("script");
+      sc.src=(moi ? moi.replace(/stylet\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007c";
+      (document.head||document.documentElement).appendChild(sc);
+    }catch(e){}
+  })();
+  var PREF="stylet:crayon";
+  function lirePref(){ try{ var x=JSON.parse(localStorage.getItem(PREF)||"null"); if(x && /^#[0-9A-F]{6}$/i.test(x.c) && x.t>0) return x; }catch(e){} return null; }
 
   var css=document.createElement("style");
   css.setAttribute("data-theme-propre", "");     /* mêmes couleurs en clair et en sombre : theme.js n'y touche pas */
@@ -43,17 +54,30 @@
 
   function ouvrir(o){
     o=o||{};
-    var traits=[], courant=null, couleur=COULEURS[0][0], stylo=false, dpr=Math.min(window.devicePixelRatio||1, 2);
+    var pref=lirePref();
+    var traits=[], courant=null, couleur=pref ? pref.c : COULEURS[0][0], tailleCrayon=pref ? pref.t : 2.6, stylo=false, dpr=Math.min(window.devicePixelRatio||1, 2);
     var fond=el("div","sty-fond"); fond.setAttribute("role","dialog"); fond.setAttribute("aria-modal","true");
     fond.setAttribute("aria-label", o.titre||"Note manuscrite");
     var barre=el("div","sty-barre");
     barre.appendChild(el("b","",o.titre||"Note manuscrite"));
     var coul=el("span","sty-coul"); coul.setAttribute("role","group"); coul.setAttribute("aria-label","Couleur");
-    COULEURS.forEach(function(c, i){
-      var b=bouton("", function(){ couleur=c[0]; Array.prototype.forEach.call(coul.children, function(x){ x.setAttribute("aria-pressed","false"); }); b.setAttribute("aria-pressed","true"); });
-      b.style.background=c[0]; b.setAttribute("aria-label", c[1]); b.setAttribute("aria-pressed", i ? "false" : "true");
+    function marquer(){ Array.prototype.forEach.call(coul.querySelectorAll("button:not(.tn-pastille)"), function(x){ x.setAttribute("aria-pressed", x.dataset.c===couleur ? "true" : "false"); }); if(tn) tn.firstChild.style.background=couleur; }
+    function retenir(){ try{ localStorage.setItem(PREF, JSON.stringify({c:couleur, t:tailleCrayon})); }catch(e){} }
+    COULEURS.forEach(function(c){
+      var b=bouton("", function(){ couleur=c[0]; marquer(); retenir(); });
+      b.style.background=c[0]; b.dataset.c=c[0]; b.setAttribute("aria-label", c[1]);
       coul.appendChild(b);
     });
+    /* toute couleur (trichromie) et la taille du crayon */
+    var tn=window.Teinte ? window.Teinte.pastille(couleur) : null;
+    if(tn){
+      tn.addEventListener("click", function(){
+        window.Teinte.ouvrir({ancre:tn, couleur:couleur, taille:tailleCrayon, min:1, max:14, pas:0.2, unite:" px", titreTaille:"Taille du crayon",
+          change:function(c, t){ couleur=c; tailleCrayon=t; marquer(); retenir(); }});
+      });
+      coul.appendChild(tn);
+    }
+    marquer();
     barre.appendChild(coul);
     var bAnnuler=bouton("Annuler le trait", function(){ traits.pop(); peindre(); maj(); });
     var bEffacer=bouton("Effacer", function(){ traits=[]; peindre(); maj(); });
@@ -103,9 +127,10 @@
     }
     function maj(){ bAnnuler.disabled=bEffacer.disabled=bOk.disabled=!traits.length; aide.hidden=!!traits.length || !!courant; }
     function pos(e){ var r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+    /* la taille choisie, et la pression du stylet en plus : appuyer épaissit */
     function epaisseur(e){
-      if(e.pointerType==="pen"){ var p=e.pressure||0.5; return 1.2+p*3.6; }
-      return 2.6;
+      if(e.pointerType==="pen"){ var p=e.pressure||0.5; return tailleCrayon*(0.45+p*1.1); }
+      return tailleCrayon;
     }
     var actif=null;
     cv.addEventListener("pointerdown", function(e){
@@ -157,7 +182,7 @@
     window.addEventListener("resize", taille);
     document.addEventListener("keydown", clavier, true);
     taille(); maj(); bOk.focus();
-    var inst={ fermer: fermer, _traits: function(){ return traits; } };
+    var inst={ fermer: fermer, _traits: function(){ return traits; }, _crayon: function(){ return {couleur:couleur, taille:tailleCrayon}; } };
     window.Stylet._dernier=inst;
     return inst;
   }
