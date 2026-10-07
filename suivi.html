@@ -766,6 +766,7 @@ details.block.sv-societe summary{padding:0}
 .sv-ajout{display:flex;gap:8px;margin-top:10px}
 .sv-ajout input{flex:1 1 auto;min-width:0;min-height:44px;padding:10px 12px;font-size:15px}
 .sv-ajout .act{flex:0 0 auto}
+#pubEtat .pub-lien{font-weight:700;color:var(--accent);text-decoration:underline;white-space:nowrap}
 .sv-ajout .sv-stylo{width:46px;padding:0;display:inline-flex;align-items:center;justify-content:center}
 .sv-stylo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .sv-corps img.sty-encre{max-width:min(100%,520px)}
@@ -894,7 +895,7 @@ h2 .sv-switch + .aide-i{margin-left:0}
 .sv-choix{margin-top:12px;padding:12px 14px;border-radius:10px;background:var(--accent-soft);border:1px solid rgba(180,83,9,.25)}
 .sv-choix[hidden]{display:none}
 /* les deux questions (déjà enregistré / reprise du lendemain) : une feuille en bas de l'écran, par-dessus tout */
-#pubChoix,#repriseSuivi{position:fixed;left:0;right:0;bottom:0;z-index:1200;margin:0 auto;max-width:560px;
+#pubChoix,#repriseSuivi,#choixDossier{position:fixed;left:0;right:0;bottom:0;z-index:1200;margin:0 auto;max-width:560px;
   padding:18px 16px calc(16px + env(safe-area-inset-bottom));border-radius:16px 16px 0 0;background:var(--card,#fff);
   border:1px solid var(--rule,#ddd);border-bottom:0;box-shadow:0 -10px 40px rgba(0,0,0,.28)}
 body.choix-ouvert::before{content:"";position:fixed;inset:0;z-index:1190;background:rgba(10,14,20,.5)}
@@ -2736,6 +2737,12 @@ function publierRapport(meta){
       : "Suivi enregistré et publié dans le dossier, sous « Suivi de chantier ».";
     if(res.d.rappels) msg += " "+res.d.rappels+" rappel"+(res.d.rappels>1?"s":"")+" pour "+(meta.rappelPour||"vous")+".";
     el.textContent = msg + (meta.destinataires.length ? " Disponible pour " + meta.destinataires.join(", ") + "." : "");
+    /* où le retrouver : le dossier, d'un toucher */
+    if(res.d.ref && meta.dossier){
+      el.appendChild(document.createTextNode(" Dossier : "+((meta.client||"").trim() ? meta.client.trim()+" · " : "")+res.d.ref+". "));
+      var lien=document.createElement("a"); lien.href="./chantier.html?ref="+encodeURIComponent(res.d.ref);
+      lien.textContent="Ouvrir le dossier"; lien.className="pub-lien"; el.appendChild(lien);
+    }
     toast("Rapport publié.");
     try{ window.dispatchEvent(new Event("suivi:publie")); }catch(e){}
     if(APP_TYPE==="suivi"){
@@ -3475,8 +3482,8 @@ function bindAll(){
     var doc;
     try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
     dl(doc.output("blob"), pdfName());
-    $("pdfInfo").textContent = "PDF enregistré : "+pdfName();
-    toast("PDF enregistré.");
+    $("pdfInfo").textContent = "PDF téléchargé sur cet appareil : "+pdfName()+". Pour le ranger dans le dossier du chantier : « Enregistrer le suivi ».";
+    toast("PDF téléchargé sur l'appareil (pas encore dans le dossier).");
   });
   $("btnPartage").addEventListener("click", partagerRapport);
   $("btnOpenSite").addEventListener("click", function(){ ouvrirDepuisSite("suivi", "Suivis enregistrés"); });
@@ -3507,7 +3514,69 @@ function bindAll(){
       retires: (S.resteRetires||[]).slice()
     });
   }
+  /* ---------- le dossier où le suivi se range ----------
+     Une référence tapée (ou reprise d'un dossier) fait foi. Sans elle, on cherche le
+     dossier du client par son nom : un seul, le suivi y va ; plusieurs, on demande ;
+     aucun, un dossier neuf naît, à une référence lisible (son nom). */
+  function nomNet(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[^A-Z0-9]+/g," ").trim(); }
+  function poserRef(ref){
+    S.affaire.chantier=ref; var ch=$("a_chantier"); if(ch) ch.value=ref;
+    save(); try{ refreshHeader(); }catch(e){}
+  }
+  function choisirDossier(liste){
+    return new Promise(function(fin){
+      var f=document.createElement("div"); f.className="sv-choix"; f.id="choixDossier";
+      f.setAttribute("role","dialog"); f.setAttribute("aria-modal","true");
+      var t=document.createElement("p"); t.textContent="Plusieurs dossiers au nom de « "+S.client.nom.trim()+" » : dans lequel ranger ce suivi ?"; f.appendChild(t);
+      function bouton(txt, cls, val){
+        var b=document.createElement("button"); b.type="button"; b.className="act "+cls; b.textContent=txt;
+        b.addEventListener("click", function(){ f.remove(); document.body.classList.remove("choix-ouvert"); fin(val); });
+        f.appendChild(b);
+      }
+      liste.forEach(function(c){ bouton(c.client+" · "+c.ref+(c.adresse ? " · "+c.adresse : ""), "blue", c); });
+      bouton("Un nouveau dossier", "ghost", "neuf");
+      bouton("Annuler", "ghost", null);
+      $("pubChoix").parentNode.insertBefore(f, $("pubChoix"));
+      document.body.classList.add("choix-ouvert");
+      try{ f.querySelector("button").focus(); }catch(e){}
+    });
+  }
+  function rangerDansDossier(){
+    if((S.affaire.chantier||"").trim() || (S.affaire.devis||"").trim()) return Promise.resolve(true);
+    /* un suivi déjà enregistré garde son dossier */
+    if(S.publie && S.publie.cle){ poserRef(String(S.publie.cle).split("/")[0] || refAffaire()); return Promise.resolve(true); }
+    var nom=nomNet(S.client.nom);
+    if(!nom) return Promise.resolve(true);
+    function neuf(liste){
+      var ref=nom.replace(/ /g,"-").slice(0,30), base=ref, k=2;
+      while((liste||[]).some(function(c){ return memeRef(c.ref, ref); })) ref=base+"-"+(k++);
+      poserRef(ref); return true;
+    }
+    if(!apiPret(true)) return Promise.resolve(neuf([]));
+    return fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
+      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+      .then(function(d){
+        var tous=d.chantiers||[], l=tous.filter(function(c){ return nomNet(c.client)===nom; });
+        if(l.length===1){ poserRef(l[0].ref); toast("Rangé dans le dossier existant de "+(l[0].client||nom)+" ("+l[0].ref+")."); return true; }
+        if(l.length>1 && window.__autoPublier){
+          $("pubEtat").textContent="Non envoyé : plusieurs dossiers au nom de "+S.client.nom.trim()+". Ouvrez ce suivi pour choisir le bon.";
+          return false;
+        }
+        if(l.length>1) return choisirDossier(l).then(function(c){
+          if(!c) return false;
+          if(c==="neuf") return neuf(tous);
+          poserRef(c.ref); return true;
+        });
+        return neuf(tous);
+      })
+      .catch(function(){ return neuf([]); });
+  }
   $("btnPublier").addEventListener("click", function(){
+    if(!S.client.nom.trim()){ toast("Renseignez le client et la référence travaux."); showTab("client"); var c0=$("c_nom"); if(c0) try{ c0.focus({preventScroll:true}); }catch(e){} return; }
+    if(/en cours/i.test(($("pubEtat")||{}).textContent||"")){ toast("Publication en cours…"); return; }
+    rangerDansDossier().then(function(ok){ if(ok) publierVerifie(); });
+  });
+  function publierVerifie(){
     if(!S.client.nom.trim() || !refAffaire()){ toast("Renseignez le client et la référence travaux."); showTab("client"); var ch=$(!S.client.nom.trim() ? "c_nom" : "a_chantier"); if(ch) try{ ch.focus({preventScroll:true}); }catch(e){} return; }
     /* Déjà enregistré ? On ne remplace jamais un suivi sans le demander :
        par défaut, c'en est un nouveau et l'ancien reste dans le dossier.
@@ -3533,7 +3602,7 @@ function bindAll(){
       return;
     }
     publierSuivi();
-  });
+  }
   function fermerChoix(){ $("pubChoix").hidden=true; document.body.classList.remove("choix-ouvert"); }
   $("pubNouveau").addEventListener("click", function(){ fermerChoix(); suiviEnNouveau(); publierSuivi(); });
   $("pubMaj").addEventListener("click", function(){ fermerChoix(); publierSuivi(); });
