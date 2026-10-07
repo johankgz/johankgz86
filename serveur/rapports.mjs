@@ -2142,6 +2142,8 @@ async function traiter(req) {
       }
       try { JSON.parse(donnees); } catch { return json({ erreur: "Fiche illisible une fois reconstituée." }, 400); }
     }
+    /* les travaux supplémentaires d'un suivi : seul le chargé d'affaires les dit chiffrés, ou retire une demande reprise */
+    if (f && f.type === "suivi") { try { donnees = await garderTs(idx, f, cleFiche, donnees); } catch { /* fiche illisible : telle quelle */ } }
     await store.set(cleFiche, donnees, { metadata: { type: "application/json" } });
     if (f) {
       f.donnees = true; f.ficheMaj = new Date().toISOString();
@@ -3389,6 +3391,55 @@ async function traiter(req) {
       .map((t) => ({ id: String(t.id || ""), texte: String(t.texte), qui: t.qui || "", depuis: t.depuis || date }));
     CACHE_TS.set(k, { v, ts });
     return ts;
+  }
+
+  /* À l'enregistrement d'un suivi :
+     - par le chargé d'affaires (ou l'administrateur) : une demande cochée est signée (qui, quand) ;
+     - par un autre : une demande cochée sans l'avoir été par le chargé d'affaires (ici, sur la page
+       du chantier, au tableau de bord, ou déjà dans ce suivi) est décochée ; une demande reprise du
+       suivi précédent, pas encore chiffrée, et retirée de la liste, y revient. */
+  async function garderTs(idx, f, cleFiche, donnees) {
+    const fiche = JSON.parse(donnees);
+    if (!fiche || !Array.isArray(fiche.ts)) return donnees;
+    let change = false;
+    if (bureau) {
+      const quand = new Date().toISOString();
+      for (const t of fiche.ts) {
+        if (t && t.fait && !t.chiffreLe) { t.chiffrePar = personne.nom; t.chiffreLe = quand; change = true; }
+        if (t && !t.fait && (t.chiffreLe || t.chiffrePar)) { delete t.chiffrePar; delete t.chiffreLe; change = true; }
+      }
+      return change ? JSON.stringify(fiche) : donnees;
+    }
+    const c = chantierDe(idx, f.cle);
+    const fichesDe = async (g) => { try { return JSON.parse(await store.get(g.cle.replace(/\.pdf$/, ".json"), { type: "text" })); } catch { return null; } };
+    const autorises = new Map();
+    let avant = null;
+    try { avant = JSON.parse(await store.get(cleFiche, { type: "text" })); } catch { avant = null; }
+    for (const t of ((avant && avant.ts) || [])) if (t && t.fait && t.id) autorises.set(String(t.id), t);
+    for (const g of (c ? c.fichiers : []).filter((x) => (x.type === "suivi" || x.type === "point") && x.donnees && x.cle !== f.cle)) {
+      const fi = await fichesDe(g); const l = fi && (g.type === "point" ? fi.demandes : fi.ts);
+      for (const t of (Array.isArray(l) ? l : [])) if (t && t.fait && t.chiffreLe && t.id) autorises.set(String(t.id), t);
+    }
+    for (const t of fiche.ts) {
+      if (!t || !t.fait) continue;
+      const ok = autorises.get(String(t.id || ""));
+      if (!ok) { t.fait = false; delete t.chiffrePar; delete t.chiffreLe; change = true; }
+      else if (ok.chiffrePar && t.chiffrePar !== ok.chiffrePar) { t.chiffrePar = ok.chiffrePar; t.chiffreLe = ok.chiffreLe; change = true; }
+    }
+    /* ce suivi devient le dernier du dossier : les demandes encore à chiffrer du précédent y restent */
+    if (c) {
+      const suivis = c.fichiers.filter((x) => x.type === "suivi" && (x.donnees || x === f) && !x.brouillon).sort((x, y) =>
+        String(y.date || "").localeCompare(String(x.date || "")) || String(y.publie || "").localeCompare(String(x.publie || "")));
+      if (suivis[0] === f && suivis[1]) {
+        const ids = new Set(fiche.ts.map((t) => String((t && t.id) || "")));
+        for (const t of await tsDuSuivi(suivis[1])) {
+          if (!t.id || ids.has(t.id) || autorises.has(t.id)) continue;
+          fiche.ts.push({ id: t.id, texte: t.texte, qui: t.qui || "", fait: false, depuis: t.depuis || "" });
+          ids.add(t.id); change = true;
+        }
+      }
+    }
+    return change ? JSON.stringify(fiche) : donnees;
   }
 
   /* les travaux supplémentaires pas encore chiffrés d'un dossier : ceux de son dernier suivi

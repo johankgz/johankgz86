@@ -751,6 +751,8 @@ details.block.sv-societe summary{padding:0}
 .sv-case{flex:0 0 auto;width:26px;height:26px;min-height:26px;padding:0;margin-top:6px;border-radius:7px;cursor:pointer;
   border:2px solid rgba(15,23,42,.35);background:#fff;display:flex;align-items:center;justify-content:center;box-shadow:none}
 .sv-case[aria-checked="true"]{background:#16A34A;border-color:#16A34A}
+.sv-case.verrou{cursor:not-allowed;opacity:.55}
+.sv-chiffre{font-size:12.5px;color:#15803D;font-weight:600}
 .sv-case svg{width:15px;height:15px;stroke:#fff;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
 .sv-corps{flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:7px}
 .sv-corps .sv-txt{width:100%;min-height:40px;padding:8px 10px;font-size:15px}
@@ -1393,14 +1395,21 @@ function savePrefs(){ try{ window.storage.set("releve:prefs", JSON.stringify(P))
 /* ---------- les listes : travaux supplémentaires et points bloquants ---------- */
 var DEMANDEURS=["Client","Architecte","Maître d'œuvre","Technicien"];
 var COCHE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
-function caseACocher(it, libelle, apres){
-  var c=document.createElement("button"); c.type="button"; c.className="sv-case";
+function caseACocher(it, libelle, apres, verrou){
+  var c=document.createElement("button"); c.type="button"; c.className="sv-case"+(verrou ? " verrou" : "");
   c.setAttribute("role","checkbox"); c.setAttribute("aria-checked", it.fait ? "true" : "false");
   c.setAttribute("aria-label", libelle);
   c.innerHTML = it.fait ? COCHE : "";
-  c.addEventListener("click", function(){ it.fait=!it.fait; save(); apres(); });
+  if(verrou){ c.setAttribute("aria-disabled","true"); c.title=verrou; }
+  c.addEventListener("click", function(){
+    if(verrou){ toast(verrou); return; }
+    it.fait=!it.fait; save(); apres();
+  });
   return c;
 }
+/* les travaux supplémentaires : seul le chargé d'affaires les dit chiffrés ou validés */
+function chargeAffaires(){ return !!(SESSION && (SESSION.role==="bureau" || SESSION.role==="admin")); }
+var VERROU_TS="Seul le chargé d'affaires coche une demande chiffrée ou validée.";
 function boutonRetirer(liste, it, quoi, apres){
   var b=document.createElement("button"); b.type="button"; b.className="sv-sup";
   b.textContent="×"; b.title="Retirer"; b.setAttribute("aria-label","Retirer « "+(it.texte||quoi)+" »");
@@ -1422,9 +1431,19 @@ function renderTs(){
   host.textContent="";
   (S.ts||[]).forEach(function(it){
     var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
-    l.appendChild(caseACocher(it, "Demande chiffrée ou validée : "+(it.texte||""), renderTs));
+    var charge=chargeAffaires();
+    l.appendChild(caseACocher(it, "Demande chiffrée ou validée : "+(it.texte||""), function(){
+      if(it.fait){ it.chiffrePar=(SESSION && SESSION.nom)||""; it.chiffreLe=new Date().toISOString(); }
+      else { delete it.chiffrePar; delete it.chiffreLe; }
+      save(); renderTs();
+    }, charge ? "" : VERROU_TS));
     var corps=document.createElement("div"); corps.className="sv-corps";
     corps.appendChild(champTexte(it, renderResume));
+    if(it.fait && it.chiffrePar){
+      var cp=document.createElement("span"); cp.className="sv-chiffre";
+      cp.textContent="Chiffrée par "+it.chiffrePar+(it.chiffreLe ? " le "+frDate(String(it.chiffreLe).slice(0,10)) : "");
+      corps.appendChild(cp);
+    }
     if(it.depuis){
       var dp=document.createElement("span"); dp.className="sv-depuis";
       dp.textContent="Demandée le "+frDate(it.depuis)+", reprise du suivi précédent";
@@ -1441,7 +1460,8 @@ function renderTs(){
     });
     corps.appendChild(qui);
     l.appendChild(corps);
-    l.appendChild(boutonRetirer(S.ts, it, "cette demande", renderTs));
+    /* une demande reprise d'un suivi précédent : seul le chargé d'affaires la retire */
+    if(charge || !it.depuis) l.appendChild(boutonRetirer(S.ts, it, "cette demande", renderTs));
     host.appendChild(l);
   });
   var b=$("ts_bilan");
@@ -1517,7 +1537,7 @@ function lireTsChiffres(ref){
       if(!memeRef(refAffaire(), ref)) return;
       var ch={}; (d.chiffres||[]).forEach(function(x){ ch[x.id]=x; });
       var n=0;
-      (S.ts||[]).forEach(function(t){ if(!t.fait && t.id && ch[t.id]){ t.fait=true; n++; } });
+      (S.ts||[]).forEach(function(t){ if(!t.fait && t.id && ch[t.id]){ t.fait=true; t.chiffrePar=ch[t.id].par||""; t.chiffreLe=ch[t.id].le||""; n++; } });
       if(n){ save(); renderTs(); toast(n+" demande"+(n>1?"s":"")+" chiffrée"+(n>1?"s":"")+" depuis le site, cochée"+(n>1?"s":"")+" ici."); }
     }).catch(function(){});
 }
