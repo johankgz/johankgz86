@@ -767,8 +767,6 @@ details.block.sv-societe summary{padding:0}
 .sv-ajout input{flex:1 1 auto;min-width:0;min-height:44px;padding:10px 12px;font-size:15px}
 .sv-ajout .act{flex:0 0 auto}
 #pubEtat .pub-lien{font-weight:700;color:var(--accent);text-decoration:underline;white-space:nowrap}
-.sv-ajout .sv-stylo{width:46px;padding:0;display:inline-flex;align-items:center;justify-content:center}
-.sv-stylo svg{width:21px;height:21px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
 .sv-corps img.sty-encre{max-width:min(100%,520px)}
 .sv-rappel{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
 .sv-sw{display:inline-flex;align-items:center;gap:8px;min-height:36px;padding:0;border:0;background:none;cursor:pointer;
@@ -975,7 +973,6 @@ a.act[hidden]{display:none}
     <div id="ts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="ts_texte" placeholder="Nouvelle demande…" enterkeyhint="done" aria-label="Nouvelle demande de travaux supplémentaires">
-      <button type="button" class="act ghost sv-stylo" id="ts_stylo" title="Écrire au stylet" aria-label="Écrire la demande au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="ts_ajout">Ajouter</button>
     </div>
     <p class="hint" id="ts_bilan"></p>
@@ -1018,7 +1015,6 @@ a.act[hidden]{display:none}
     <div id="rf_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="rf_texte" placeholder="Nouvelle tâche…" enterkeyhint="done" aria-label="Nouvelle tâche à faire">
-      <button type="button" class="act ghost sv-stylo" id="rf_stylo" title="Écrire au stylet" aria-label="Écrire la tâche au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="rf_ajout">Ajouter</button>
     </div>
     <p class="hint" id="rf_bilan"></p>
@@ -1029,7 +1025,6 @@ a.act[hidden]{display:none}
     <div id="pts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
       <input type="text" id="pts_texte" placeholder="Nouveau point bloquant…" enterkeyhint="done" aria-label="Nouveau point bloquant">
-      <button type="button" class="act ghost sv-stylo" id="pts_stylo" title="Écrire au stylet" aria-label="Écrire la note au stylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg></button>
       <button type="button" class="act blue" id="pts_ajout">Ajouter</button>
     </div>
   </div>
@@ -1661,17 +1656,8 @@ function nouvelleLigne(cle, texte, encre, rendu){
   S[cle].push(it); save(); rendu();
   return it;
 }
-/* une note écrite au stylet : elle devient une ligne (le texte tapé, s'il y en a, lui sert de titre) */
+/* une note écrite au stylet (suivis plus anciens) : l'écriture sous la ligne ; un toucher la réécrit */
 var NOTE_MAIN="Note manuscrite";
-function ajouterEncre(cle, champ, rendu, titre){
-  if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
-  Stylet.ouvrir({titre:titre, ok:function(encre){
-    var t=$(champ), v=(t.value||"").trim();
-    nouvelleLigne(cle, v || NOTE_MAIN, encre, rendu); t.value="";
-    toast("Note manuscrite ajoutée.");
-  }});
-}
-/* sous la ligne : l'écriture ; un toucher la réécrit */
 function imageEncre(it, rendu){
   var im=Stylet.image(it.encre, (it.texte && it.texte!==NOTE_MAIN) ? it.texte : NOTE_MAIN);
   im.title="Toucher pour réécrire";
@@ -3431,9 +3417,6 @@ function bindAll(){
   $("ts_ajout").addEventListener("click", function(){ ajouterLigne("ts", "ts_texte", renderTs); });
   $("pts_ajout").addEventListener("click", function(){ ajouterLigne("points", "pts_texte", renderPoints); });
   $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
-  $("ts_stylo").addEventListener("click", function(){ ajouterEncre("ts", "ts_texte", renderTs, "Travaux supplémentaires"); });
-  $("rf_stylo").addEventListener("click", function(){ ajouterEncre("reste", "rf_texte", renderReste, "Reste à faire"); });
-  $("pts_stylo").addEventListener("click", function(){ ajouterEncre("points", "pts_texte", renderPoints, "Point bloquant"); });
   /* les plans : fermés d'office, ouverts à la demande */
   $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
   $("noteOption").addEventListener("click", function(e){ e.preventDefault(); basculerNote(); });

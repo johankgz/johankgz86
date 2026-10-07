@@ -95,6 +95,13 @@ label.f{display:block;margin-bottom:14px}
 label.f[hidden]{display:none}
 label.f > span{display:block;font-size:13.5px;font-weight:500;color:var(--ink-2);margin-bottom:6px}
 .az-champ{margin-bottom:14px}
+button.act.stylo-btn{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:4px 12px;font-size:12.5px;background:var(--accent-soft);color:var(--accent);border:0}
+.stylo-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.encres-points{display:flex;flex-direction:column;gap:10px;margin-top:10px}
+.encres-points:empty{display:none}
+.encre-ligne{display:flex;align-items:flex-start;gap:8px}
+.encre-ligne img.sty-encre{max-width:min(100%,560px)}
+.encre-ligne .encre-x{flex:0 0 auto;width:34px;height:34px;min-height:34px;border-radius:50%;border:1px solid var(--rule);background:var(--card);color:var(--ink-2);font-size:18px;line-height:1;padding:0;cursor:pointer}
 .az-ligne{display:flex;gap:8px;align-items:stretch}
 .az-ligne select{flex:1 1 auto;min-width:0}
 .az-ligne .az-bsl{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;margin:0}
@@ -1362,8 +1369,10 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <p class="hint">Postes identifiés, réserves, éléments manquants avant devis.</p>
     <div class="row" style="margin-bottom:8px">
       <button class="act rec dict" data-target="k_points">Dicter</button>
+      <button type="button" class="act ghost stylo-btn" id="btnStyletPoints" title="Écrire à l'Apple Pencil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg>Stylet</button>
     </div>
     <textarea id="k_points" style="min-height:150px"></textarea>
+    <div id="k_pointsEncre" class="encres-points"></div>
   </div>
 
   <div class="block">
@@ -1514,6 +1523,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./courbe-charge.js?v=20261003a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script src="./boussole.js?v=20261007a"></script>
+<script src="./stylet.js?v=20261007a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1680,7 +1690,7 @@ function blank(){
     logistique:{occupe:"",occupNote:"",accessibilite:[],code:"",acces:[],etage:"",toiture:"",stationnement:"",contraintes:""},
     clim:climVide(),
     charge:chargeVide(),
-    conclusion:{synthese:"",points:""}
+    conclusion:{synthese:"",points:"",encres:[]}
   };
 }
 /* la climatisation : un groupe extérieur, ses unités intérieures, ce qui les relie */
@@ -1919,6 +1929,33 @@ function readAssign(key){
   return S.logistique[key];
 }
 var AZIMUTS={"Sud":0,"Est":-90,"Ouest":90,"Nord":180};
+/* ---------- points à chiffrer : des notes écrites au stylet (Apple Pencil), sous le texte ---------- */
+function encresPoints(){ if(!S.conclusion) S.conclusion={synthese:"",points:"",encres:[]}; if(!Array.isArray(S.conclusion.encres)) S.conclusion.encres=[]; return S.conclusion.encres; }
+function peindreEncresPoints(){
+  var h=$("k_pointsEncre"); if(!h || !window.Stylet) return;
+  h.textContent="";
+  encresPoints().forEach(function(e, i){
+    if(!Stylet.valide(e)) return;
+    var l=document.createElement("div"); l.className="encre-ligne";
+    var im=Stylet.image(e, "Note manuscrite "+(i+1)); im.title="Toucher pour réécrire";
+    im.addEventListener("click", function(){
+      Stylet.ouvrir({titre:"Réécrire la note", bouton:"Remplacer", ok:function(n){ encresPoints()[i]=n; save(); peindreEncresPoints(); }});
+    });
+    var x=document.createElement("button"); x.type="button"; x.className="encre-x"; x.textContent="×";
+    x.setAttribute("aria-label","Retirer la note manuscrite "+(i+1));
+    x.addEventListener("click", function(){
+      if(!window.confirm("Retirer cette note manuscrite ?")) return;
+      encresPoints().splice(i, 1); save(); peindreEncresPoints();
+    });
+    l.appendChild(im); l.appendChild(x); h.appendChild(l);
+  });
+}
+function ecrireAuStylet(){
+  if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
+  Stylet.ouvrir({titre:"Points à chiffrer / à vérifier", ok:function(e){
+    encresPoints().push(e); save(); peindreEncresPoints(); toast("Note manuscrite ajoutée aux points à chiffrer.");
+  }});
+}
 /* une orientation fine (boussole, course du soleil) : sa ligne dans la liste, avec son libellé */
 function optionAzimut(v){
   var sel=$("v_azimut"); v=String(v);
@@ -1983,6 +2020,7 @@ function paintForm(){
   try{ renderDest(); peindreParQui(); }catch(e){}
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
   if(S.pv && S.pv.azimut!==undefined && S.pv.azimut!==""){ optionAzimut(S.pv.azimut); $("v_azimut").value=String(S.pv.azimut); }
+  peindreEncresPoints();
   document.querySelectorAll("[data-single]").forEach(function(box){
     var v = readAssign(box.getAttribute("data-single"));
     box.querySelectorAll("input").forEach(function(i){
@@ -4265,6 +4303,7 @@ $("btnPvgisSite").addEventListener("click", function(){
   if(a.lat!=null) u += "#PVP";
   window.open(u,"_blank");
 });
+$("btnStyletPoints").addEventListener("click", ecrireAuStylet);
 $("btnBoussole").addEventListener("click", function(){
   mesurerPan(function(a, cap){
     optionAzimut(a); $("v_azimut").value=String(a); S.pv.azimut=String(a); save();
@@ -4930,6 +4969,8 @@ $("btnNewHaut").addEventListener("click", function(){
 /* ---------- PDF ---------- */
 
 var M=14, PW=210, PH=297, CW=PW-2*M;
+/* pour les essais : le PDF tel qu'il partirait à la publication */
+window.__relevePdf=function(){ return buildPdf(); };
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
   var y=M, page=1;
@@ -5528,12 +5569,21 @@ function buildPdf(){
   }
 
   /* ---------- conclusion ---------- */
-  if(rempli(S.conclusion.synthese, S.conclusion.points)){
+  var encresPdf=(S.conclusion.encres||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
+  if(rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length){
     h2("Demande du client", 40);
     encadre(S.conclusion.synthese);
-    if(S.conclusion.points && S.conclusion.points.trim()){
+    if((S.conclusion.points && S.conclusion.points.trim()) || encresPdf.length){
       y+=1; sousTitre("Points à chiffrer et à vérifier");
-      para(S.conclusion.points);
+      if(S.conclusion.points && S.conclusion.points.trim()) para(S.conclusion.points);
+      /* les notes écrites au stylet, telles quelles */
+      encresPdf.forEach(function(e){
+        var l=Math.min(CW-4, e.l/2*0.2646), hh=l*e.h/e.l;
+        if(hh>70){ hh=70; l=hh*e.l/e.h; }
+        need(hh+4);
+        try{ doc.addImage(e.src, "PNG", M+2, y, l, hh); }catch(x){}
+        y+=hh+3;
+      });
     }
   }
 
