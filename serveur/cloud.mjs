@@ -17,7 +17,18 @@
      cloud/m/<id>          sa vignette (images), faite par le téléphone
 
    Supprimer met à la corbeille (30 jours), d'où l'on restaure.
+
+   Le lien client d'un dossier : son propriétaire (ou l'administrateur)
+   le crée, et l'envoie à un client sans compte. Il ouvre partage.html :
+   le dossier, ses sous-dossiers, voir et télécharger (un par un ou tout
+   en ZIP), et, si on l'a permis, y déposer des fichiers. Une date de fin
+   au choix ; retiré, il ne s'ouvre plus. Le jeton est rangé dans
+   l'annuaire (liens/<jeton>.json, genre « cloud ») pour retrouver la
+   société ; le dossier, lui, garde {lien: {jeton, cree, par, expire,
+   depot, vu}} : c'est lui qui fait foi.
    ===================================================================== */
+
+import { randomBytes } from "node:crypto";
 
 const INDEX = "cloud/index.json";
 const MAX_FICHIER = 25 * 1024 * 1024;     /* 25 Mo par fichier */
@@ -50,23 +61,74 @@ function nomPropre(t, n) {
   return String(t || "").normalize("NFC").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n || 120);
 }
 function extDe(nom) { const m = /\.([a-z0-9]{1,5})$/i.exec(nom || ""); return m ? m[1].toLowerCase() : ""; }
+function parId(x) { const m = new Map(); x.elements.forEach((e) => m.set(e.id, e)); return m; }
+/* la chaîne des dossiers, de l'élément à la racine */
+function chaine(e, m) { const out = []; let c = e, k = 0; while (c && k++ < 60) { out.push(c); c = c.parent ? m.get(c.parent) : null; } return out; }
+function enCorbeille(e, m) { return chaine(e, m).some((d) => d.corbeille); }
+async function lireIndex(store) {
+  try { const x = await store.get(INDEX, { type: "json" }); if (x && Array.isArray(x.elements)) return x; } catch { /* vide */ }
+  return { elements: [] };
+}
+function nomLibre(x, parent, nom, sauf) {
+  const pris = new Set(x.elements.filter((e) => (e.parent || null) === (parent || null) && !e.corbeille && e.id !== sauf).map((e) => e.nom.toLowerCase()));
+  if (!pris.has(nom.toLowerCase())) return nom;
+  const m = /^(.*?)(\.[a-z0-9]{1,5})?$/i.exec(nom); let k = 2, n;
+  do { n = m[1] + " (" + (k++) + ")" + (m[2] || ""); } while (pris.has(n.toLowerCase()));
+  return n;
+}
+/* le lien client est-il encore ouvert ? */
+function lienOuvert(l) { return !!(l && l.jeton && (!l.expire || Date.parse(l.expire) > Date.now())); }
+/* le dossier (lui ou un parent) qui porte un lien client ouvert : ce qui est dedans, le client le voit */
+function lienAuDessus(e, m) { return chaine(e, m).find((d) => d.type === "dossier" && lienOuvert(d.lien)) || null; }
+const urlLien = (origine, jeton) => origine + "/partage.html?j=" + jeton;
+
+/* un fichier, sa vignette, une note : pour l'équipe comme pour le client */
+async function servir(store, e, vignette, telecharger, json) {
+  if (vignette) {
+    if (!e.mini) return json({ erreur: "Pas de vignette." }, 404);
+    const v = await store.get("cloud/m/" + e.id, { type: "arrayBuffer" });
+    if (!v) return json({ erreur: "Pas de vignette." }, 404);
+    return new Response(v, { headers: { "content-type": "image/jpeg", "cache-control": "private, max-age=604800", "x-content-type-options": "nosniff" } });
+  }
+  const brut = await store.get("cloud/f/" + e.id, { type: "arrayBuffer" });
+  if (!brut) return json({ erreur: "Fichier introuvable." }, 404);
+  const type = e.mime || "application/octet-stream";
+  const voir = AFFICHABLES.test(type) && !telecharger;
+  const nom = e.nom || "fichier";
+  return new Response(brut, { headers: {
+    "content-type": type,
+    "content-disposition": (voir ? "inline" : "attachment") + "; filename=\"" + nom.replace(/["\\]/g, "_").replace(/[^\x20-\x7e]/g, "_") + "\"; filename*=UTF-8''" + encodeURIComponent(nom),
+    "x-content-type-options": "nosniff",
+    "content-security-policy": "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
+    "cache-control": "private, no-cache"
+  } });
+}
+/* un dossier entier, en ZIP, avec ses sous-dossiers */
+function zipDossier(store, x, d, zipFlux) {
+  const entrees = [];
+  (function marcher(dos, chemin) {
+    x.elements.filter((e) => e.parent === dos.id && !e.corbeille).sort((a, b) => a.nom.localeCompare(b.nom)).forEach((e) => {
+      if (e.type === "dossier") marcher(e, chemin + e.nom + "/");
+      else entrees.push({ nom: chemin + e.nom, quand: e.maj, lire: async () => { const b = await store.get("cloud/f/" + e.id, { type: "arrayBuffer" }); return b ? Buffer.from(b) : null; } });
+    });
+  })(d, d.nom + "/");
+  const nomZip = d.nom.replace(/[^A-Za-z0-9 _.-]+/g, "_") + ".zip";
+  return new Response(zipFlux(entrees), { status: 200, headers: {
+    "content-type": "application/zip", "cache-control": "no-store",
+    "content-disposition": "attachment; filename=\"" + nomZip + "\"; filename*=UTF-8''" + encodeURIComponent(d.nom + ".zip")
+  } });
+}
 
 export async function cloud(action, o) {
-  const { req, url, store, personne, json, lireComptes, notifier, zipFlux } = o;
+  const { req, url, store, personne, json, lireComptes, notifier, zipFlux, annuaire } = o;
   const moi = personne.nom;
   const admin = personne.role === "admin" || !!personne.proprietaire;
 
-  async function lire() {
-    try { const x = await store.get(INDEX, { type: "json" }); if (x && Array.isArray(x.elements)) return x; } catch { /* vide */ }
-    return { elements: [] };
-  }
+  const lire = () => lireIndex(store);
   const ecrire = (x) => store.setJSON(INDEX, x);
   /* tout changement passe par ici : lu, modifié, écrit, sans se croiser */
   const modifier = (fn) => enFile(personne.societe, async () => { const x = await lire(); const r = await fn(x); await ecrire(x); return r; });
 
-  function parId(x) { const m = new Map(); x.elements.forEach((e) => m.set(e.id, e)); return m; }
-  /* la chaîne des dossiers, de l'élément à la racine */
-  function chaine(e, m) { const out = []; let c = e, k = 0; while (c && k++ < 60) { out.push(c); c = c.parent ? m.get(c.parent) : null; } return out; }
   /* qui y a accès : le propriétaire de la racine, et ceux avec qui un dossier de la chaîne est partagé */
   function acces(e, m) {
     const ch = chaine(e, m), racine = ch[ch.length - 1];
@@ -74,7 +136,6 @@ export async function cloud(action, o) {
     if (ch.some((d) => d.type === "dossier" && (d.partage || []).indexOf(moi) >= 0)) return "partage";
     return "";
   }
-  function enCorbeille(e, m) { return chaine(e, m).some((d) => d.corbeille); }
   /* la liste des personnes avec qui l'élément est partagé (héritée des dossiers parents) */
   function partageDe(e, m) {
     const s = new Set(); let proprio = "";
@@ -89,18 +150,17 @@ export async function cloud(action, o) {
       v.nb = m ? [...m.values()].filter((x) => x.parent === e.id && !x.corbeille).length : 0;
     }
     if (m) { v.acces = acces(e, m); v.avec = partageDe(e, m).filter((n) => n !== moi); }
+    if (e.type === "dossier" && e.lien && e.lien.jeton) {
+      v.lien = { url: urlLien(url.origin, e.lien.jeton), cree: e.lien.cree, par: e.lien.par, expire: e.lien.expire || null,
+        depot: !!e.lien.depot, vu: e.lien.vu || null, ouvert: lienOuvert(e.lien) };
+    }
+    /* vu du client, par le lien de ce dossier ou d'un dossier au-dessus */
+    if (m) { const h = lienAuDessus(e, m); if (h) v.client = { id: h.id, nom: h.nom }; }
     if (e.corbeille) v.corbeille = e.corbeille;
     return v;
   }
   async function corps() { try { return await req.json(); } catch { return null; } }
   async function personnes() { return (await lireComptes()).filter((c) => c.nom).map((c) => ({ nom: c.nom, role: c.role || "" })); }
-  function nomLibre(x, parent, nom, sauf) {
-    const pris = new Set(x.elements.filter((e) => (e.parent || null) === (parent || null) && !e.corbeille && e.id !== sauf).map((e) => e.nom.toLowerCase()));
-    if (!pris.has(nom.toLowerCase())) return nom;
-    const m = /^(.*?)(\.[a-z0-9]{1,5})?$/i.exec(nom); let k = 2, n;
-    do { n = m[1] + " (" + (k++) + ")" + (m[2] || ""); } while (pris.has(n.toLowerCase()));
-    return n;
-  }
   /* un dossier où l'on peut ranger (ou la racine, null) */
   function dossierCible(x, m, id) {
     if (!id) return { ok: true, id: null };
@@ -246,24 +306,7 @@ export async function cloud(action, o) {
     const id = url.searchParams.get("id") || "";
     const x = await lire(), m = parId(x), e = m.get(id);
     if (!idValide(id) || !e || e.type === "dossier" || !acces(e, m)) return json({ erreur: "Fichier introuvable." }, 404);
-    if (action === "cloud-vignette") {
-      if (!e.mini) return json({ erreur: "Pas de vignette." }, 404);
-      const v = await store.get("cloud/m/" + id, { type: "arrayBuffer" });
-      if (!v) return json({ erreur: "Pas de vignette." }, 404);
-      return new Response(v, { headers: { "content-type": "image/jpeg", "cache-control": "private, max-age=604800", "x-content-type-options": "nosniff" } });
-    }
-    const brut = await store.get("cloud/f/" + id, { type: "arrayBuffer" });
-    if (!brut) return json({ erreur: "Fichier introuvable." }, 404);
-    const type = e.mime || "application/octet-stream";
-    const voir = AFFICHABLES.test(type) && url.searchParams.get("telecharger") !== "1";
-    const nom = e.nom || "fichier";
-    return new Response(brut, { headers: {
-      "content-type": type,
-      "content-disposition": (voir ? "inline" : "attachment") + "; filename=\"" + nom.replace(/["\\]/g, "_").replace(/[^\x20-\x7e]/g, "_") + "\"; filename*=UTF-8''" + encodeURIComponent(nom),
-      "x-content-type-options": "nosniff",
-      "content-security-policy": "default-src 'none'; img-src 'self' data:; media-src 'self'; style-src 'unsafe-inline'; sandbox",
-      "cache-control": "private, no-cache"
-    } });
+    return servir(store, e, action === "cloud-vignette", url.searchParams.get("telecharger") === "1", json);
   }
 
   /* ---------- un dossier entier, en ZIP ---------- */
@@ -271,18 +314,7 @@ export async function cloud(action, o) {
     const id = url.searchParams.get("id") || "";
     const x = await lire(), m = parId(x), d = m.get(id);
     if (!idValide(id) || !d || d.type !== "dossier" || enCorbeille(d, m) || !acces(d, m)) return json({ erreur: "Dossier introuvable." }, 404);
-    const entrees = [];
-    (function marcher(dos, chemin) {
-      x.elements.filter((e) => e.parent === dos.id && !e.corbeille).sort((a, b) => a.nom.localeCompare(b.nom)).forEach((e) => {
-        if (e.type === "dossier") marcher(e, chemin + e.nom + "/");
-        else entrees.push({ nom: chemin + e.nom, quand: e.maj, lire: async () => { const b = await store.get("cloud/f/" + e.id, { type: "arrayBuffer" }); return b ? Buffer.from(b) : null; } });
-      });
-    })(d, d.nom + "/");
-    const nomZip = d.nom.replace(/[^A-Za-z0-9 _.-]+/g, "_") + ".zip";
-    return new Response(zipFlux(entrees), { status: 200, headers: {
-      "content-type": "application/zip", "cache-control": "no-store",
-      "content-disposition": "attachment; filename=\"" + nomZip + "\"; filename*=UTF-8''" + encodeURIComponent(d.nom + ".zip")
-    } });
+    return zipDossier(store, x, d, zipFlux);
   }
 
   /* ---------- renommer, déplacer, partager, jeter, restaurer, effacer ---------- */
@@ -330,6 +362,37 @@ export async function cloud(action, o) {
       return json({ ok: true, element: vue(e, m) });
     }
 
+    /* ---------- le lien client du dossier : le créer, le régler, le changer, le retirer ---------- */
+    if (action === "cloud-lien" || action === "cloud-lien-retirer") {
+      if (e.type !== "dossier") return json({ erreur: "Le lien client se fait sur un dossier : rangez-y le document." }, 400);
+      if (enCorbeille(e, m)) return json({ erreur: "Restaurez-le d'abord." }, 400);
+      if (e.proprio !== moi && !admin) return json({ erreur: "Seul " + e.proprio + " crée le lien client de ce dossier." }, 403);
+      const retirer = async () => {
+        if (!e.lien || !e.lien.jeton) return;
+        try {
+          const l = await annuaire.get("liens/" + e.lien.jeton + ".json", { type: "json" });
+          if (l) await annuaire.setJSON("liens/" + e.lien.jeton + ".json", Object.assign(l, { actif: false, revoque: quand, revoquePar: moi }));
+        } catch { /* déjà parti */ }
+        delete e.lien;
+      };
+      if (action === "cloud-lien-retirer") { await retirer(); e.maj = quand; return json({ ok: true, element: vue(e, m) }); }
+      /* un nouveau lien : l'ancien ne s'ouvre plus (envoyé à la mauvaise personne…) */
+      if (d.nouveau) await retirer();
+      if (!e.lien) {
+        const jeton = randomBytes(15).toString("base64url");
+        await annuaire.setJSON("liens/" + jeton + ".json", { jeton, societe: personne.societe, genre: "cloud", dossier: e.id, cree: quand, par: moi, actif: true });
+        e.lien = { jeton, cree: quand, par: moi, expire: null, depot: false };
+      }
+      if (d.jours !== undefined && d.jours !== null && d.jours !== "") {
+        const j = Number(d.jours);
+        if (!(j >= 0 && j <= 366)) return json({ erreur: "Durée non comprise." }, 400);
+        e.lien.expire = j ? new Date(Date.now() + j * 864e5).toISOString() : null;
+      }
+      if (d.depot !== undefined) e.lien.depot = d.depot === true;
+      e.maj = quand;
+      return json({ ok: true, element: vue(e, m) });
+    }
+
     if (action === "cloud-supprimer") {
       if (e.corbeille) return json({ ok: true });
       /* un dossier partagé avec moi n'est pas à moi : je ne le jette pas, je peux seulement m'en retirer */
@@ -368,4 +431,83 @@ export async function cloud(action, o) {
     if (!avec.length) return;
     notifier(avec, { titre: "Cloud — " + p.nom, texte: moi + " a ajouté « " + e.nom + " ».", url: "./cloud.html?dossier=" + p.id, tag: "cloud-" + p.id });
   }
+}
+
+/* =====================================================================
+   Ce que voit le client, par le lien d'un dossier (partage.html)
+   ---------------------------------------------------------------------
+   Sans compte : le jeton n'ouvre que ce dossier et ce qu'il contient.
+   cloud-public          le dossier (ou un de ses sous-dossiers) : son contenu
+   cloud-public-fichier  voir ou télécharger un fichier
+   cloud-public-vignette la vignette d'une photo
+   cloud-public-zip      tout le dossier (ou un sous-dossier) en ZIP
+   cloud-public-depot    déposer un fichier, si on l'a permis
+   ===================================================================== */
+export async function cloudPublic(action, o) {
+  const { req, url, store, lien, json, zipFlux, societe, notifier, envoiPermis } = o;
+  const jeton = lien.jeton;
+  const x = await lireIndex(store), m = parId(x);
+  const racine = m.get(lien.dossier);
+  if (!racine || racine.type !== "dossier" || !racine.lien || racine.lien.jeton !== jeton || enCorbeille(racine, m)) {
+    return json({ erreur: "Ce lien n'est plus valable. Demandez-en un nouveau à l'entreprise." }, 404);
+  }
+  if (!lienOuvert(racine.lien)) return json({ erreur: "Ce lien a expiré. Demandez-en un nouveau à l'entreprise.", societe }, 410);
+  /* dans le dossier du lien (lui compris), pas à la corbeille */
+  const dedans = (e) => !!e && !enCorbeille(e, m) && chaine(e, m).indexOf(racine) >= 0;
+  const id = url.searchParams.get("id") || url.searchParams.get("dossier") || "";
+  const cible = id ? m.get(id) : racine;
+  const vueC = (e) => ({ id: e.id, type: e.type, nom: e.nom, taille: e.taille || 0, mime: e.mime || "", maj: e.maj, mini: !!e.mini,
+    nb: e.type === "dossier" ? x.elements.filter((y) => y.parent === e.id && !y.corbeille).length : undefined });
+
+  if (action === "cloud-public") {
+    if (!idValide(cible && cible.id) || !dedans(cible) || cible.type !== "dossier") return json({ erreur: "Dossier introuvable." }, 404);
+    /* la dernière ouverture, pour l'équipe (une fois par quart d'heure au plus) */
+    if (!racine.lien.vu || Date.now() - Date.parse(racine.lien.vu) > 15 * 60000) {
+      await enFile(lien.societe, async () => {
+        const y = await lireIndex(store), r = y.elements.find((e) => e.id === racine.id);
+        if (r && r.lien && r.lien.jeton === jeton) { r.lien.vu = new Date().toISOString(); await store.setJSON(INDEX, y); }
+      }).catch(() => {});
+    }
+    const chemin = chaine(cible, m).slice(0, chaine(cible, m).indexOf(racine) + 1).reverse().map((c) => ({ id: c.id, nom: c.nom }));
+    const elements = x.elements.filter((e) => e.parent === cible.id && !e.corbeille).map(vueC);
+    return json({ societe, dossier: { id: cible.id, nom: cible.nom }, racine: racine.id, chemin, elements,
+      depot: !!racine.lien.depot, expire: racine.lien.expire || null });
+  }
+
+  if (action === "cloud-public-fichier" || action === "cloud-public-vignette") {
+    if (!idValide(id) || !dedans(cible) || cible.type === "dossier") return json({ erreur: "Fichier introuvable." }, 404);
+    return servir(store, cible, action === "cloud-public-vignette", url.searchParams.get("telecharger") === "1", json);
+  }
+
+  if (action === "cloud-public-zip") {
+    if (!dedans(cible) || cible.type !== "dossier") return json({ erreur: "Dossier introuvable." }, 404);
+    return zipDossier(store, x, cible, zipFlux);
+  }
+
+  if (action === "cloud-public-depot") {
+    if (req.method !== "POST") return json({ erreur: "Envoi attendu." }, 405);
+    if (!racine.lien.depot) return json({ erreur: "Ce dossier ne reçoit pas de fichiers : envoyez-les à l'entreprise par e-mail." }, 403);
+    if (!dedans(cible) || cible.type !== "dossier") return json({ erreur: "Dossier introuvable." }, 404);
+    if (!envoiPermis("cloud-" + jeton, 40)) return json({ erreur: "Trop d'envois d'un coup. Réessayez dans une heure." }, 429);
+    const nom = nomPropre(url.searchParams.get("nom"), 140) || "fichier";
+    const lu = Buffer.from(await req.arrayBuffer());
+    if (!lu.length) return json({ erreur: "Fichier vide." }, 400);
+    if (lu.length > MAX_FICHIER) return json({ erreur: "Fichier trop lourd : 25 Mo au plus." }, 413);
+    const mime = EXT_TYPE[extDe(nom)] || "application/octet-stream";
+    return enFile(lien.societe, async () => {
+      const y = await lireIndex(store), my = parId(y), dos = my.get(cible.id), r = my.get(racine.id);
+      if (!dos || !r || !r.lien || r.lien.jeton !== jeton || enCorbeille(dos, my)) return json({ erreur: "Dossier introuvable." }, 404);
+      const quand = new Date().toISOString();
+      const e = { id: nouvelId(), type: "fichier", nom: nomLibre(y, dos.id, nom), parent: dos.id, proprio: dos.proprio, par: "Client (lien)",
+        taille: lu.length, mime, cree: quand, maj: quand, duClient: true };
+      await store.set("cloud/f/" + e.id, lu, { metadata: { type: mime } });
+      y.elements.push(e);
+      await store.setJSON(INDEX, y);
+      /* le propriétaire et ceux avec qui le dossier est partagé sont prévenus */
+      const avec = new Set([dos.proprio]); chaine(dos, my).forEach((c) => (c.partage || []).forEach((n) => avec.add(n)));
+      notifier([...avec], { titre: "Cloud — " + dos.nom, texte: "Le client a déposé « " + e.nom + " ».", url: "./cloud.html?dossier=" + dos.id, tag: "cloud-" + dos.id });
+      return json({ ok: true, element: vueC(e) });
+    });
+  }
+  return json({ erreur: "Action inconnue." }, 400);
 }

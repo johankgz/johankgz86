@@ -8,7 +8,7 @@ import { dossierDonnees } from "./magasin-fichiers.mjs";
 import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
-import { cloud } from "./cloud.mjs";
+import { cloud, cloudPublic } from "./cloud.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -997,7 +997,8 @@ function texteRdv(t) {
 const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
-  "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier"]);
+  "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
+  "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1261,6 +1262,21 @@ async function traiter(req) {
     }
   }
 
+  /* ---------- le lien client d'un dossier du Cloud (partage.html, serveur/cloud.mjs) ---------- */
+  if (action.startsWith("cloud-public")) {
+    const lien = await lireLien(String(url.searchParams.get("j") || ""));
+    if (!lien || lien.genre !== "cloud") return json({ erreur: "Ce lien n'est plus valable. Demandez-en un nouveau à l'entreprise." }, 404);
+    const st = magasinSociete(lien.societe);
+    let fiche = null;
+    try { fiche = await magasinAnnuaire().get("fiches/" + lien.societe + ".json", { type: "json" }); } catch { fiche = null; }
+    const soc = (await lireSocietes()).find((x) => x.code === lien.societe) || {};
+    const societe = { nom: (fiche && fiche.nom) || soc.nom || "", tel: (fiche && fiche.tel) || "", web: (fiche && fiche.web) || "",
+      adresse: (fiche && fiche.adresse) || "", mentions: (fiche && fiche.mentions) || "", logo: (fiche && fiche.logo) || null };
+    const comptes = await lireComptes(lien.societe);
+    const notifier = (noms, charge) => prevenirPush(st, magasinAnnuaire(), noms, "documents", charge, contactPush(url.origin), { comptes }).catch(() => {});
+    return cloudPublic(action, { req, url, store: st, lien, json, zipFlux, societe, notifier, envoiPermis });
+  }
+
   /* ---------- rendez-vous en ligne : les créneaux, la réservation, l'annulation, le flux ICS ---------- */
   if (action === "rdv-public" || action === "rdv-reserver" || action === "rdv-annuler" || action === "rdv-ics") {
     let d = {};
@@ -1428,7 +1444,7 @@ async function traiter(req) {
     const comptesSoc = await lireComptes(personne.societe);
     const notifier = (noms, charge) => prevenirPush(store, magasinAnnuaire(), noms, "documents", charge, contactPush(url.origin),
       { comptes: comptesSoc, exclure: [personne.nom] }).catch(() => {});
-    return cloud(action, { req, url, store, personne, json, lireComptes: async () => comptesSoc, notifier, zipFlux });
+    return cloud(action, { req, url, store, personne, json, lireComptes: async () => comptesSoc, notifier, zipFlux, annuaire: magasinAnnuaire() });
   }
 
   /* ---------- les discussions de l'équipe (serveur/discussions.mjs) ---------- */

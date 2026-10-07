@@ -15,7 +15,7 @@
   if(st.overflow === "hidden" || st.overflowY === "hidden" || sh.overflowY === "hidden") return;
 
   var page = (location.pathname.split("/").pop() || "index.html").toLowerCase();
-  var publique = page === "client.html" || page === "rdv.html";
+  var publique = page === "client.html" || page === "rdv.html" || page === "partage.html";
   var LIENS = [
     ["./mentions-legales.html", "Mentions légales"],
     ["./confidentialite.html", "Confidentialité"]
