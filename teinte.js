@@ -50,11 +50,15 @@
     ".tn .tn-hex{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px;color:#AEAEB2;font-size:13px}"+
     ".tn .tn-hex input{width:120px;min-height:36px;border-radius:10px;border:0;background:#2C2C2E;color:#F2F2F7;font:600 15px ui-monospace,Menlo,monospace;text-align:center;text-transform:uppercase}"+
     ".tn h3{margin:16px 0 8px;font-size:12.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:#8E8E93}"+
-    ".tn input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;border-radius:17px;margin:0;background:#3A3A3C;outline-offset:3px}"+
-    ".tn input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;border-radius:50%;background:transparent;border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)}"+
-    ".tn input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:transparent;border:4px solid #fff}"+
+    ".tn input[type=range]{-webkit-appearance:none;appearance:none;display:block;box-sizing:border-box;width:100%;height:34px;border-radius:17px;margin:0;padding:0;border:0;background:#3A3A3C;outline-offset:3px}"+
+    /* la piste interne prend toute la hauteur : le rond reste centré sur la bande, sur iPad comme ailleurs */
+    ".tn input[type=range]::-webkit-slider-runnable-track{height:34px;border-radius:17px;background:transparent;border:0}"+
+    ".tn input[type=range]::-moz-range-track{height:34px;border-radius:17px;background:transparent;border:0}"+
+    ".tn input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;box-sizing:border-box;width:34px;height:34px;margin:0;border-radius:50%;background:transparent;border:4px solid #fff;box-shadow:0 1px 6px rgba(0,0,0,.45)}"+
+    ".tn input[type=range]::-moz-range-thumb{box-sizing:border-box;width:34px;height:34px;border-radius:50%;background:transparent;border:4px solid #fff}"+
     ".tn .tn-op{display:flex;align-items:center;gap:12px}"+
-    ".tn .tn-op .piste{flex:1;border-radius:17px;"+DAMIER+"}"+
+    /* le damier exactement sous la bande de couleur : même hauteur, mêmes arrondis */
+    ".tn .tn-op .piste{flex:1;min-width:0;height:34px;border-radius:17px;overflow:hidden;line-height:0;"+DAMIER+"}"+
     ".tn .tn-op .val{min-width:62px;min-height:34px;border-radius:17px;background:#2C2C2E;display:flex;align-items:center;justify-content:center;font-size:15px}"+
     ".tn .tn-ep{display:flex;gap:6px;justify-content:space-between;background:#2C2C2E;border-radius:18px;padding:8px}"+
     ".tn .tn-ep button{flex:1;min-height:52px;border:0;border-radius:12px;background:none;cursor:pointer;color:#F2F2F7;display:flex;align-items:center;justify-content:center;padding:0}"+

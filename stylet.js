@@ -24,7 +24,7 @@
     if(window.Teinte) return;
     try{
       var moi=document.currentScript && document.currentScript.src, sc=document.createElement("script");
-      sc.src=(moi ? moi.replace(/stylet\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007d";
+      sc.src=(moi ? moi.replace(/stylet\.js(\?.*)?$/, "teinte.js") : "./teinte.js")+"?v=20261007e";
       (document.head||document.documentElement).appendChild(sc);
     }catch(e){}
   })();
