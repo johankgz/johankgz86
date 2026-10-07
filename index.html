@@ -1250,6 +1250,109 @@ body.connexion .ciel{display:none}
 <script src="./carte.js?v=20261005a" defer></script>
 <script src="./finitions.js?v=20261004a" defer></script>
 <script src="./palette.js?v=20261007a" defer></script>
+<style data-theme-propre>
+/* ---------- le menu à gauche ----------
+   iPad et ordinateur : un rail d'icônes sombre (88 px), chaque entrée avec son nom court ;
+   Outils s'ouvre en panneau à côté du rail.
+   Téléphone : le même menu en tiroir, ouvert par le bouton ☰ en haut à gauche.
+   Les boutons sont ceux d'avant (Outils, Calendrier, To-do list, Discussions, Cloud, cloche),
+   déplacés ici : leurs compteurs et leurs fenêtres ne changent pas. */
+#menuG{position:fixed;left:0;top:0;bottom:0;z-index:900;box-sizing:border-box;display:flex;flex-direction:column;overflow-y:auto;overscroll-behavior:contain;
+  font-family:var(--sans,inherit)}
+#menuG[hidden]{display:none}
+#menuG .barre-actions,#menuG .ba-droite{display:contents}
+#menuG .mg-tete{display:flex;align-items:center;gap:10px;order:0}
+#menuG .mg-logo{width:40px;height:40px;border-radius:11px;background:#2B323A;display:flex;align-items:center;justify-content:center;flex:0 0 auto}
+#menuG .mg-logo svg{width:22px;height:22px;fill:none;stroke:#F08A2E;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+#menuG .mg-nom{font-weight:800;font-size:14.5px;flex:1}
+#menuG .mg-x{width:40px;height:40px;border-radius:50%;border:0;background:var(--field,#F1F3F6);color:var(--ink,#1E2329);display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
+#menuG .mg-x svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}
+/* chaque entrée : une icône, un nom, un compteur */
+#menuG .mg-it,#menuG .barre-actions .btn-outils,#menuG .ba-droite .cloche{
+  position:relative;display:flex;align-items:center;box-sizing:border-box;margin:0;border:0;box-shadow:none;
+  -webkit-backdrop-filter:none;backdrop-filter:none;background:transparent;font:inherit;cursor:pointer;text-decoration:none;
+  white-space:nowrap;letter-spacing:-.01em;min-height:0;height:auto}
+#menuG .mg-it svg,#menuG .barre-actions .btn-outils svg,#menuG .ba-droite .cloche svg{fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+#menuG .mg-accueil{order:1}
+#menuG #btnOutils{order:2}
+#menuG #btnCal{order:3}
+#menuG #btnTodo{order:4}
+#menuG .mg-sous{order:5}
+#menuG #btnDiscu{order:6}
+#menuG #btnCloud{order:7}
+#menuG #cloche{order:8}
+#menuG .mg-titre{order:9}
+#menuG .mg-outils{order:10}
+#menuG .mg-tous{order:11}
+#menuG .nb{position:absolute;min-width:18px;height:18px;padding:0 5px;box-sizing:border-box;border-radius:999px;display:inline-flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+#menuG .nb[hidden]{display:none}
+.btn-menu-g{display:none}
+
+@media (min-width:761px){
+  body.avec-menu{padding-left:112px}
+  #menuG{width:88px;background:#1E2329;align-items:center;gap:6px;padding:16px 8px calc(14px + env(safe-area-inset-bottom,0px))}
+  #menuG .mg-tete{justify-content:center;margin-bottom:10px}
+  #menuG .mg-nom,#menuG .mg-x,#menuG .mg-sous,#menuG .mg-titre,#menuG .mg-outils,#menuG .mg-tous,#menuG .mg-tel{display:none}
+  #menuG .mg-it,#menuG .barre-actions .btn-outils,#menuG .ba-droite .cloche{
+    width:72px;flex-direction:column;justify-content:center;gap:5px;padding:9px 0 7px;border-radius:12px;
+    color:#C9D0D8;font-size:11px;font-weight:600}
+  #menuG .mg-it svg,#menuG .barre-actions .btn-outils svg,#menuG .ba-droite .cloche svg{width:23px;height:23px;stroke:currentColor}
+  #menuG #cloche{margin-top:auto}
+  /* l'entrée ouverte (Outils, Calendrier, Notifications) prend l'orange ; Accueil s'efface pendant ce temps */
+  #menuG .mg-it[aria-current="page"],#menuG #btnOutils[aria-expanded="true"],#menuG #btnCal[aria-expanded="true"],#menuG #cloche[aria-expanded="true"]{background:#E2761B;color:#fff}
+  #menuG:has([aria-expanded="true"]) .mg-it[aria-current="page"]{background:rgba(255,255,255,.09);color:#fff}
+  #menuG .nb{top:4px;right:9px;background:#F08A2E;color:#1E2329}
+  #menuG .ba-droite .cloche.vive{color:#fff}
+  @media (hover:hover){ #menuG .mg-it:hover,#menuG .barre-actions .btn-outils:hover,#menuG .ba-droite .cloche:hover{background:rgba(255,255,255,.09);color:#fff}
+    #menuG #btnOutils[aria-expanded="true"]:hover,#menuG #btnCal[aria-expanded="true"]:hover,#menuG #cloche[aria-expanded="true"]:hover{background:#E2761B} }
+  #menuG :focus-visible{outline:2px solid #F08A2E;outline-offset:2px}
+  /* Outils : un panneau qui s'ouvre à côté du rail */
+  body.avec-menu #fenOutils{left:88px;justify-content:flex-start;align-items:stretch}
+  body.avec-menu #fenOutils .fo-fond{background:rgba(10,14,20,.28)}
+  body.avec-menu #fenOutils .petits-outils{grid-template-columns:repeat(2,minmax(0,1fr))}
+  body.avec-menu #fenOutils .fo-boite{width:340px;max-width:calc(100vw - 88px);border-radius:0;overflow-y:auto;padding:22px 18px;
+    box-shadow:12px 0 30px rgba(10,14,20,.16);animation:mgPanneau .2s ease both}
+  .mg-fond{display:none}
+}
+@keyframes mgPanneau{from{transform:translateX(-24px);opacity:0}to{transform:none;opacity:1}}
+
+@media (max-width:760px){
+  .btn-menu-g{display:inline-flex;align-items:center;justify-content:center;width:44px;height:44px;flex:0 0 auto;border-radius:12px;
+    border:1px solid var(--rule,#E1E5EA);background:var(--card,#fff);color:var(--ink,#1E2329);cursor:pointer;padding:0;margin-top:2px}
+  .btn-menu-g svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+  #menuG{width:304px;max-width:86vw;background:var(--card,#fff);color:var(--ink,#1E2329);gap:2px;
+    padding:calc(16px + env(safe-area-inset-top,0px)) 14px calc(16px + env(safe-area-inset-bottom,0px));
+    border-radius:0 20px 20px 0;box-shadow:8px 0 30px rgba(20,24,30,.18);z-index:1001;
+    transform:translateX(-105%);visibility:hidden;transition:transform .22s ease,visibility 0s linear .22s}
+  body.menu-ouvert #menuG{transform:none;visibility:visible;transition:transform .22s ease}
+  #menuG .mg-tete{padding:0 2px 10px}
+  #menuG .mg-rail{display:none}
+  #menuG .mg-it,#menuG .barre-actions .btn-outils,#menuG .ba-droite .cloche{
+    width:100%;height:48px;gap:13px;padding:0 12px;border-radius:12px;color:var(--ink,#1E2329);font-size:15.5px;font-weight:600;justify-content:flex-start}
+  #menuG .mg-it svg,#menuG .barre-actions .btn-outils svg,#menuG .ba-droite .cloche svg{width:22px;height:22px;stroke:var(--accent-vif,#E2761B)}
+  #menuG [aria-current="page"]{background:var(--accent-soft,#FDEFE3);color:var(--accent,#B4561A);font-weight:700}
+  #menuG [aria-current="page"] svg{stroke:currentColor}
+  #menuG .nb{position:static;margin-left:auto;min-width:22px;height:22px;padding:0 7px;background:var(--accent-vif,#E2761B);color:#fff;font-size:12px}
+  @media (hover:hover){ #menuG .mg-it:hover,#menuG .barre-actions .btn-outils:hover,#menuG .ba-droite .cloche:hover{background:var(--field,#F1F3F6)} }
+  #menuG [aria-expanded="true"]{background:transparent}
+  /* Outils : en bas, ses petits outils en pastilles, et « Tous les outils » */
+  #menuG #btnOutils{order:11}
+  #menuG #btnOutils .mg-rail{display:none}
+  #menuG .mg-sous{display:flex;gap:6px;padding:0 0 4px 47px}
+  #menuG .mg-sous a{padding:6px 12px;border-radius:999px;background:var(--field,#F1F3F6);color:var(--ink-2,#3E4650);font-size:13px;font-weight:600;text-decoration:none}
+  #menuG .mg-titre{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-3,#8A929B);padding:14px 12px 8px}
+  #menuG .mg-outils{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 2px 4px}
+  #menuG .mg-outils a{min-height:46px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px 4px;border-radius:10px;
+    background:var(--field,#F6F8FA);color:var(--ink-2,#3E4650);font-size:12px;font-weight:600;text-decoration:none;line-height:1.15;white-space:normal}
+  #menuG .mg-outils a svg,#menuG .mg-outils a br{display:none}
+  .mg-fond{position:fixed;inset:0;z-index:1000;background:rgba(20,24,30,.42)}
+  .mg-fond[hidden]{display:none}
+}
+@media (max-width:760px) and (prefers-reduced-motion:reduce){ #menuG{transition:none} }
+@media (min-width:761px){ #menuG .mg-tel{display:none} }
+@media (max-width:760px){ #menuG .mg-pc{display:none} }
+</style>
 </head>
 <body>
 <!-- ===================== LA VITRINE (avant la connexion) =====================
@@ -1546,9 +1649,22 @@ body.connexion .ciel{display:none}
   </div>
 
   <div id="vueMenu" hidden>
+    <nav class="menu-g" id="menuG" aria-label="Menu" hidden>
+      <div class="mg-tete">
+        <span class="mg-logo" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"/></svg></span>
+        <span class="mg-nom">Suivi travaux 360</span>
+        <button type="button" class="mg-x" id="mgFermer" aria-label="Fermer le menu"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </div>
+      <a class="mg-it mg-accueil" href="./index.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5v8a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
+      <div class="mg-sous"><a href="./notes.html">Listes</a><a href="./mesnotes.html">Notes</a></div>
+      <div class="mg-titre">Outils</div>
+      <div class="mg-outils" id="mgOutils"></div>
+    </nav>
+    <div class="mg-fond" id="mgFond" hidden></div>
     <div class="tete">
       <p class="marque-app">Suivi travaux&nbsp;360</p>
       <div class="ligne-haut">
+        <button type="button" class="btn-menu-g" id="btnMenuG" aria-label="Menu" aria-controls="menuG" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
         <p class="salut" id="salut"></p>
         <button type="button" class="cherche-k" id="btnCherche" hidden aria-label="Rechercher un chantier, une appli, une référence (Ctrl K)"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg><span>Rechercher</span></button>
         <a class="avatar" id="btnCompte" href="./compte.html" aria-label="Mon compte"><span id="initiale"></span></a>
@@ -1604,7 +1720,7 @@ body.connexion .ciel{display:none}
     <div class="barre-actions" id="barreActions">
     <button type="button" class="btn-outils" id="btnOutils" aria-label="Outils" aria-haspopup="dialog" aria-controls="fenOutils" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
-      <span>Outils</span>
+      <span class="mg-pc">Outils</span><span class="mg-tel">Tous les outils</span>
     </button>
     <button type="button" class="btn-outils btn-cal" id="btnCal" aria-label="Calendrier" aria-haspopup="dialog" aria-controls="fenCal" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg>
@@ -2381,6 +2497,7 @@ function peindreEntreeTableau(s){
     f.hidden=true; b.setAttribute("aria-expanded","false");
   }
   b.addEventListener("click", function(){
+    if(!f.hidden){ fermer(); return; }
     f.hidden=false; b.setAttribute("aria-expanded","true");
     var x=f.querySelector(".fo-x"); if(x) x.focus();
   });
@@ -3111,7 +3228,7 @@ function peindreNotifs(s, ch, relances){
   cloche.type="button"; cloche.className="cloche"; cloche.id="cloche";
   cloche.setAttribute("aria-expanded","false"); cloche.setAttribute("aria-controls","panneauCloche");
   cloche.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z"/>'
-    +'<path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span class="nb" hidden></span>';
+    +'<path d="M10 20.5a2 2 0 0 0 4 0"/></svg><span>Notifications</span><span class="nb" hidden></span>';
   var panneau=document.createElement("div"); panneau.className="demandes cloche-liste";
   panneau.id="panneauCloche";
   cloche.setAttribute("aria-haspopup","dialog");
@@ -3123,19 +3240,19 @@ function peindreNotifs(s, ch, relances){
   /* la to-do list : une pilule écrite, comme Outils, et son compteur */
   todo.type="button"; todo.className="btn-outils todo"; todo.id="btnTodo"; todo.setAttribute("aria-label","To do list");
   todo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6.3l1.4 1.4 2.9-3.2M4 12.4l1.4 1.4 2.9-3.2M4 18.5l1.4 1.4 2.9-3.2"/>'
-    +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span>To do list</span><span class="nb" hidden></span>';
+    +'<path d="M11.5 6h8.5M11.5 12h8.5M11.5 18h6"/></svg><span class="mg-pc">To-do</span><span class="mg-tel">To-do list</span><span class="nb" hidden></span>';
   todo.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); location.href="./notes.html"; });
   /* les discussions de l'équipe : une bulle ronde, comme la cloche, et ses non-lus */
   var discu=document.createElement("a");
   discu.className="cloche discu"; discu.id="btnDiscu"; discu.href="./discussions.html";
   discu.setAttribute("aria-label","Discussions"); discu.title="Discussions";
   discu.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 5.5h15a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H10l-4.5 3.5v-3.5h-1a1 1 0 0 1-1-1v-9a1 1 0 0 1 1-1z"/>'
-    +'<path d="M8 10h8M8 13h5"/></svg><span class="nb" hidden></span>';
+    +'<path d="M8 10h8M8 13h5"/></svg><span>Discussions</span><span class="nb" hidden></span>';
   /* le Cloud : tout ce qu'on range, du téléphone à l'ordinateur */
   var nuage=document.createElement("a");
   nuage.className="cloche nuage"; nuage.id="btnCloud"; nuage.href="./cloud.html";
   nuage.setAttribute("aria-label","Cloud"); nuage.title="Cloud";
-  nuage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5z"/></svg>';
+  nuage.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 18.5h10.5a4 4 0 0 0 .6-7.95A6 6 0 0 0 6.6 9.2 4.7 4.7 0 0 0 7 18.5z"/></svg><span>Cloud</span>';
   var droite=$("baDroite");
   if(droite){ droite.textContent=""; droite.appendChild(todo); droite.appendChild(discu); droite.appendChild(nuage); droite.appendChild(cloche); }
   ajusterBarre();
@@ -3772,6 +3889,45 @@ function ajusterBarre(){
   try{ document.fonts && document.fonts.ready.then(ajusterBarre); }catch(e){}
 })();
 
+/* ---------- le menu à gauche : rail (iPad, ordinateur) ou tiroir (téléphone) ----------
+   Les boutons d'avant y sont déplacés tels quels ; seul le style change avec la largeur. */
+(function(){
+  var nav=$("menuG"), fond=$("mgFond"), vue=$("vueMenu"), barre=$("barreActions"), btn=$("btnMenuG");
+  if(!nav || !vue || !barre) return;
+  document.body.appendChild(nav); document.body.appendChild(fond);
+  nav.insertBefore(barre, nav.querySelector(".mg-sous"));
+  /* au téléphone, les petits outils en pastilles (la fenêtre Outils reste pour les grands) */
+  var po=$("petitsOutils"), mo=$("mgOutils");
+  if(po && mo) Array.prototype.forEach.call(po.querySelectorAll("a:not(.o-large)"), function(a){
+    var c=document.createElement("a"); c.href=a.getAttribute("href"); c.textContent=(a.textContent||"").trim(); mo.appendChild(c);
+  });
+  var tel=window.matchMedia ? matchMedia("(max-width:760px)") : {matches:false};
+  function voir(){
+    var on=!vue.hidden;
+    nav.hidden=!on; document.body.classList.toggle("avec-menu", on);
+    if(!on) ouvrir(false);
+  }
+  function ouvrir(v){
+    v=!!v && tel.matches;
+    document.body.classList.toggle("menu-ouvert", v);
+    fond.hidden=!v;
+    if(btn) btn.setAttribute("aria-expanded", v ? "true" : "false");
+    if(v){ var x=$("mgFermer"); if(x) setTimeout(function(){ try{ x.focus(); }catch(e){} }, 30); }
+  }
+  if(btn) btn.addEventListener("click", function(){ ouvrir(true); });
+  $("mgFermer").addEventListener("click", function(){ ouvrir(false); if(btn) btn.focus(); });
+  fond.addEventListener("click", function(){ ouvrir(false); });
+  /* au téléphone, choisir une entrée referme le tiroir (sa fenêtre s'ouvre par-dessus) */
+  nav.addEventListener("click", function(e){
+    var t=e.target.closest ? e.target.closest("a,button") : null;
+    if(t && t.id!=="mgFermer" && tel.matches) ouvrir(false);
+  });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && document.body.classList.contains("menu-ouvert")) ouvrir(false); });
+  try{ tel.addEventListener("change", function(){ ouvrir(false); }); }catch(e){}
+  window.addEventListener("pageshow", function(){ ouvrir(false); });
+  try{ new MutationObserver(voir).observe(vue, {attributes:true, attributeFilter:["hidden"]}); }catch(e){}
+  voir();
+})();
 /* la recherche Ctrl K (ou d'un toucher), sur ordinateur et tablette */
 (function(){
   var b=$("btnCherche"); if(!b) return;
