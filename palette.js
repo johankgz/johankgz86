@@ -127,7 +127,7 @@
     racine.innerHTML =
       '<div class="pl-boite" role="dialog" aria-modal="true" aria-label="Rechercher">' +
         '<label class="pl-champ"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/></svg>' +
-        '<input type="text" autocomplete="off" spellcheck="false" placeholder="Un chantier, une appli, une référence…" ' +
+        '<input type="text" autocomplete="off" spellcheck="false" placeholder="Recherche" ' +
         'role="combobox" aria-expanded="true" aria-controls="plListe" aria-autocomplete="list" aria-label="Rechercher un chantier, une appli, une référence">' +
         '<kbd>Échap</kbd></label>' +
         '<ul id="plListe" role="listbox" aria-label="Résultats"></ul>' +
