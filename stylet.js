@@ -34,8 +34,11 @@
   var css=document.createElement("style");
   css.setAttribute("data-theme-propre", "");     /* mêmes couleurs en clair et en sombre : theme.js n'y touche pas */
   css.textContent=
-    ".sty-fond{position:fixed;inset:0;z-index:9000;background:rgba(10,14,20,.6);display:flex;flex-direction:column}"
-   +".sty-barre{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:#1F2937;color:#fff;flex-wrap:wrap}"
+    ".sty-fond{position:fixed;inset:0;z-index:9000;background:rgba(10,14,20,.6);display:flex;flex-direction:column;"
+     /* rien ne se sélectionne, rien ne défile : sur iPad, le crayon ne doit qu'écrire */
+   +"-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;-webkit-tap-highlight-color:transparent;touch-action:none;overscroll-behavior:none}"
+   +"html.sty-ouvert,html.sty-ouvert body{overflow:hidden!important;overscroll-behavior:none}"
+   +".sty-barre{display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top,0px)) 12px 10px;background:#1F2937;color:#fff;flex-wrap:wrap;touch-action:manipulation}"
    +".sty-barre b{flex:1 1 160px;font-size:16px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}"
    +".sty-barre button{min-height:42px;padding:0 14px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font:inherit;font-size:14.5px;font-weight:600;cursor:pointer}"
    +".sty-barre button.ok{background:#16A34A;border-color:#16A34A}"
@@ -45,6 +48,7 @@
    +".sty-coul button[aria-pressed=true]{border-color:#fff}"
    +".sty-page{flex:1;position:relative;background:#fff;touch-action:none;overflow:hidden}"
    +".sty-page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}"
+   +".sty-page canvas{z-index:1}.sty-page canvas.sty-dessous{z-index:0;pointer-events:none}"
    +".sty-aide{position:absolute;left:0;right:0;top:40%;text-align:center;color:#9CA3AF;font-size:17px;pointer-events:none}"
    +"img.sty-encre{display:block;max-width:100%;max-height:150px;background:#fff;border-radius:8px;border:1px solid rgba(15,23,42,.12);padding:4px;cursor:pointer}";
   (document.head||document.documentElement).appendChild(css);
@@ -88,22 +92,34 @@
     var bOk=bouton("Ajouter", valider, "ok");
     if(o.bouton) bOk.textContent=o.bouton;
     barre.appendChild(bAnnuler); barre.appendChild(bEffacer); barre.appendChild(bFermer); barre.appendChild(bOk);
-    var page=el("div","sty-page"), cv=el("canvas"), aide=el("p","sty-aide","Écrivez ici avec le stylet (ou le doigt)");
-    page.appendChild(cv); page.appendChild(aide);
+    /* deux calques : dessous, les lignes et l'écriture déjà faite (peinte une fois) ;
+       dessus, le seul trait en cours, redessiné une fois par image : le trait suit le crayon */
+    var page=el("div","sty-page"), cvF=el("canvas"), cv=el("canvas"), aide=el("p","sty-aide","Écrivez ici avec le stylet (ou le doigt)");
+    cvF.className="sty-dessous"; page.appendChild(cv); page.appendChild(cvF); page.appendChild(aide);
     fond.appendChild(barre); fond.appendChild(page);
     document.body.appendChild(fond);
-    var ctx=cv.getContext("2d");
+    var ctx=cv.getContext("2d"), ctxF=cvF.getContext("2d");
     var avant=document.activeElement;
+    /* la page derrière ne bouge plus tant que la fenêtre est ouverte */
+    document.documentElement.classList.add("sty-ouvert");
+    function bloquer(e){ if(e.cancelable) e.preventDefault(); }
+    /* iOS : sans cela, un appui du crayon lance la sélection de texte ou la loupe, et la page glisse */
+    page.addEventListener("touchstart", bloquer, {passive:false});
+    page.addEventListener("touchmove", bloquer, {passive:false});
+    fond.addEventListener("touchmove", bloquer, {passive:false});
+    fond.addEventListener("selectstart", bloquer);
+    fond.addEventListener("contextmenu", bloquer);
+    fond.addEventListener("dblclick", bloquer);
 
     function taille(){
       var r=page.getBoundingClientRect();
-      cv.width=Math.round(r.width*dpr); cv.height=Math.round(r.height*dpr);
+      cv.width=cvF.width=Math.round(r.width*dpr); cv.height=cvF.height=Math.round(r.height*dpr);
       peindre();
     }
     function lignes(){
-      ctx.save(); ctx.strokeStyle="#DBEAFE"; ctx.lineWidth=1*dpr;
-      for(var y=56; y<cv.height/dpr; y+=44){ ctx.beginPath(); ctx.moveTo(0, y*dpr); ctx.lineTo(cv.width, y*dpr); ctx.stroke(); }
-      ctx.restore();
+      ctxF.save(); ctxF.strokeStyle="#DBEAFE"; ctxF.lineWidth=1*dpr;
+      for(var y=56; y<cvF.height/dpr; y+=44){ ctxF.beginPath(); ctxF.moveTo(0, y*dpr); ctxF.lineTo(cvF.width, y*dpr); ctxF.stroke(); }
+      ctxF.restore();
     }
     function tracer(c, t, k, dx, dy){
       var p=t.pts; if(!p.length) return;
@@ -126,12 +142,19 @@
         c.stroke(); s0=e;
       }
     }
+    /* tout repeindre : seulement à l'ouverture, au redimensionnement, Annuler et Effacer */
     function peindre(){
-      ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+      ctxF.setTransform(1,0,0,1,0,0); ctxF.clearRect(0,0,cvF.width,cvF.height);
       lignes();
-      traits.forEach(function(t){ tracer(ctx, t, dpr, 0, 0); });
+      traits.forEach(function(t){ tracer(ctxF, t, dpr, 0, 0); });
+      peindreCourant();
+    }
+    function peindreCourant(){
+      ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
       if(courant) tracer(ctx, courant, dpr, 0, 0);
     }
+    var image_=0;
+    function bientot(){ if(!image_) image_=requestAnimationFrame(function(){ image_=0; peindreCourant(); }); }
     function maj(){ bAnnuler.disabled=bEffacer.disabled=bOk.disabled=!traits.length; aide.hidden=!!traits.length || !!courant; }
     function pos(e){ var r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
     /* la taille choisie, et la pression du stylet en plus : appuyer épaissit */
@@ -146,7 +169,7 @@
       if(actif!==null) return;
       actif=e.pointerId; try{ cv.setPointerCapture(e.pointerId); }catch(x){}
       var p=pos(e); courant={c:couleur, pts:[{x:p.x, y:p.y, w:epaisseur(e)}]};
-      aide.hidden=true; peindre(); e.preventDefault();
+      aide.hidden=true; peindreCourant(); e.preventDefault();
     });
     cv.addEventListener("pointermove", function(e){
       if(e.pointerId!==actif || !courant) return;
@@ -157,13 +180,16 @@
         if(Math.abs(p.x-d.x)+Math.abs(p.y-d.y) < 0.8) return;
         courant.pts.push({x:p.x, y:p.y, w:epaisseur(ev)});
       });
-      peindre(); e.preventDefault();
+      bientot(); e.preventDefault();
     });
     function fin(e){
       if(e.pointerId!==actif) return;
       actif=null;
-      if(courant && courant.pts.length) traits.push(courant);
-      courant=null; peindre(); maj();
+      var t=courant; courant=null;
+      if(image_){ cancelAnimationFrame(image_); image_=0; }
+      /* le trait fini passe sur le calque du dessous, une fois pour toutes */
+      if(t && t.pts.length){ traits.push(t); tracer(ctxF, t, dpr, 0, 0); }
+      peindreCourant(); maj();
     }
     cv.addEventListener("pointerup", fin);
     cv.addEventListener("pointercancel", fin);
@@ -184,11 +210,13 @@
     function clavier(e){ if(e.key==="Escape"){ e.preventDefault(); bFermer.click(); } if((e.ctrlKey||e.metaKey) && e.key==="z"){ e.preventDefault(); bAnnuler.click(); } }
     function fermer(){
       window.removeEventListener("resize", taille); document.removeEventListener("keydown", clavier, true);
-      fond.remove(); if(avant && avant.focus) try{ avant.focus(); }catch(x){}
+      if(image_){ cancelAnimationFrame(image_); image_=0; }
+      fond.remove(); if(!document.querySelector(".sty-fond")) document.documentElement.classList.remove("sty-ouvert");
+      if(avant && avant.focus) try{ avant.focus({preventScroll:true}); }catch(x){}
     }
     window.addEventListener("resize", taille);
     document.addEventListener("keydown", clavier, true);
-    taille(); maj(); bOk.focus();
+    fond.tabIndex=-1; taille(); maj(); try{ fond.focus({preventScroll:true}); }catch(x){}
     var inst={ fermer: fermer, _traits: function(){ return traits; }, _crayon: function(){ return {couleur:couleur, taille:tailleCrayon}; } };
     window.Stylet._dernier=inst;
     return inst;

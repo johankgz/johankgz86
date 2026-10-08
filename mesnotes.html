@@ -178,6 +178,7 @@ button{font:inherit;color:inherit}
 /* la palette du stylet, comme celle de l'Apple Pencil */
 .np-palette{position:absolute;left:8px;right:8px;margin:0 auto;width:max-content;max-width:calc(100% - 16px);bottom:calc(18px + env(safe-area-inset-bottom,0px));display:flex;align-items:center;gap:4px;padding:8px 10px;
   border-radius:16px;background:#22201C;color:#F4F1EA;box-shadow:0 12px 40px rgba(20,18,14,.35);z-index:20;flex-wrap:wrap;justify-content:center}
+.np-palette,.np-souspal{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;touch-action:manipulation}
 .np-palette .po{display:flex;flex-direction:column;align-items:center;gap:1px;width:48px;padding:4px 0;border:0;border-radius:10px;background:none;color:#F4F1EA;cursor:pointer;transition:transform .15s}
 .np-palette .po[aria-pressed="true"]{background:rgba(255,255,255,.16);transform:translateY(-4px)}
 .np-palette .po span{font-size:10px}
@@ -1228,8 +1229,20 @@ page.addEventListener("pointermove", function(e){
     var d=TRAIT.p[TRAIT.p.length-1];
     if(Math.abs(q[0]-d[0])+Math.abs(q[1]-d[1]) >= 1.2) TRAIT.p.push(q);
   });
-  dessiner();
+  dessinerBientot();
 }, true);
+/* un dessin par image, pas un par mouvement du crayon : le trait suit sans à-coups */
+var DESSIN_RAF=0;
+function dessinerBientot(){ if(!DESSIN_RAF) DESSIN_RAF=requestAnimationFrame(function(){ DESSIN_RAF=0; dessiner(); }); }
+/* iPad : le crayon ne lance ni la sélection de texte, ni la loupe, ni le défilement ;
+   le doigt, lui, continue de faire défiler */
+function crayonSurPage(e){
+  if(!MODE.stylet || !COUR) return;
+  var t=e.changedTouches||[];
+  for(var i=0;i<t.length;i++) if(t[i].touchType==="stylus"){ if(e.cancelable) e.preventDefault(); return; }
+}
+page.addEventListener("touchstart", crayonSurPage, {passive:false});
+page.addEventListener("touchmove", crayonSurPage, {passive:false});
 function lacher(e){
   if(e.pointerId!==ACTIF) return;
   ACTIF=null;
@@ -1241,6 +1254,7 @@ function lacher(e){
     if(Math.hypot(b0[0]-a0[0], b0[1]-a0[1])>=4 || TRAIT.p.length>2){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   }
   else if(TRAIT){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
+  if(DESSIN_RAF){ cancelAnimationFrame(DESSIN_RAF); DESSIN_RAF=0; }
   TRAIT=null; dessiner(); ajusterEncre();
 }
 page.addEventListener("pointerup", lacher, true);
