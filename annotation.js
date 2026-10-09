@@ -1744,6 +1744,58 @@ window.Annotation = {
   legende: legende,
   symboles: SYMBOLES,
   dessinerSymbole: dessinerSymbole,
-  ouvert: function(){ return !!A; }
+  ouvert: function(){ return !!A; },
+  allegerImage: allegerImage,
+  pdfSousLimite: pdfSousLimite
 };
+
+/* ---------- alléger un rapport trop lourd plutôt que de le refuser ----------
+   Une photo annotée au stylet est ré-encodée à bonne qualité : quelques-unes
+   et le PDF dépasse ce que le site accepte. Plutôt que de demander d'en
+   retirer, on rapetisse les images du PDF par paliers, jusqu'à passer sous la
+   limite. Les photos à l'écran et les originales envoyées à part ne changent
+   pas : on ne touche qu'aux copies du PDF. */
+function allegerImage(src, maxPx, q){
+  return new Promise(function(res){
+    if(!src){ res(null); return; }
+    var img=new Image();
+    img.onload=function(){
+      var w=img.width, h=img.height;
+      if(w>maxPx || h>maxPx){ var r=Math.min(maxPx/w, maxPx/h); w=Math.round(w*r); h=Math.round(h*r); }
+      var cv=document.createElement("canvas"); cv.width=Math.max(1,w); cv.height=Math.max(1,h);
+      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);
+      try{ res(cv.toDataURL("image/jpeg", q)); }catch(e){ res(null); }
+    };
+    img.onerror=function(){ res(null); };
+    img.src=src;
+  });
+}
+/* construire() rend un doc jsPDF à partir de photos[].data ; limiteOctets en octets.
+   Rend { b64, allege } sous la limite, ou null si même au plus léger c'est trop. */
+function pdfSousLimite(construire, photos, limiteOctets){
+  function b64De(doc){ var s=doc.output("datauristring"); return s.slice(s.indexOf(",")+1); }
+  function taille(b64){ return b64.length*0.75; }
+  var doc, b64;
+  try{ doc=construire(); b64=b64De(doc); }catch(e){ return Promise.reject(e); }
+  if(taille(b64) <= limiteOctets) return Promise.resolve({ b64:b64, allege:false });
+  var utiles=(photos||[]).filter(function(p){ return p && p.data; });
+  if(!utiles.length) return Promise.resolve(null);
+  var paliers=[[1280,0.6],[1040,0.5],[840,0.42],[680,0.36]];
+  var origines=utiles.map(function(p){ return p.data; });
+  function rendre(){ utiles.forEach(function(p,i){ p.data=origines[i]; }); }
+  var i=0;
+  function essayer(){
+    if(i>=paliers.length){ rendre(); return Promise.resolve(null); }
+    var px=paliers[i][0], q=paliers[i][1]; i++;
+    return Promise.all(utiles.map(function(p,k){ return allegerImage(origines[k], px, q); }))
+      .then(function(legers){
+        utiles.forEach(function(p,k){ if(legers[k]) p.data=legers[k]; });
+        var d, b;
+        try{ d=construire(); b=b64De(d); }catch(e){ rendre(); throw e; }
+        if(taille(b) <= limiteOctets){ rendre(); return { b64:b, allege:true }; }
+        return essayer();
+      });
+  }
+  return essayer();
+}
 })();

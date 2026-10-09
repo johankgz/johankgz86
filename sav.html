@@ -1039,7 +1039,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./annotation.js?v=20261007e"></script>
+<script src="./annotation.js?v=20261009a"></script>
 <script src="./sobre.js?v=20261007a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
@@ -1923,11 +1923,23 @@ function publierRapport(meta, opts){
   var sel=destinataires();
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
   if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return Promise.resolve(null); }
+  var el=opts.etat || $("pubEtat");
+  /* un PDF trop lourd (souvent des photos annotées) est allégé automatiquement */
+  if(window.Annotation && Annotation.pdfSousLimite){
+    el.textContent="Préparation du PDF…";
+    return Annotation.pdfSousLimite(buildPdf, S.photos||[], 5.4*1024*1024).then(function(r){
+      if(!r){ el.textContent=""; toast("Rapport trop lourd même en allégeant les photos. Retirez-en quelques-unes."); return null; }
+      if(r.allege) toast("Photos allégées pour tenir dans un seul envoi.");
+      return envoyerRapport(r.b64);
+    }).catch(function(){ el.textContent=""; toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return null; });
+  }
   var doc;
   try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return Promise.resolve(null); }
-  var b64=doc.output("datauristring").split(",")[1];
-  if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return Promise.resolve(null); }
-  var el=opts.etat || $("pubEtat");
+  var b64brut=doc.output("datauristring").split(",")[1];
+  if(b64brut.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return Promise.resolve(null); }
+  return envoyerRapport(b64brut);
+
+  function envoyerRapport(b64){
   meta.destinataires = versDossier ? [] : sel.slice();
   if(versDossier) meta.dossier = true;
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
@@ -1963,6 +1975,7 @@ function publierRapport(meta, opts){
     return res.d;
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; return null; });
+  }
 }
 function deposerFiche(cle, el){
   var donnees;
