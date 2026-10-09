@@ -4279,7 +4279,8 @@ function chargeVersPv(){
 })();
 /* pour les essais automatiques : la fiche, la courbe et le PDF, vus de l'extérieur */
 window.__releve={fiche:function(){ return S; }, save:function(){ save(); }, paintCharge:function(){ paintCharge(); },
-  pdf:function(){ return buildPdf(); }, charge:function(){ return CK(); }};
+  pdf:function(){ return buildPdf(); }, charge:function(){ return CK(); },
+  images:function(){ return imagesDuRelevePourPdf(); }};
 
 function paintSimuls(){
   var box=$("simulList"); box.textContent="";
@@ -6101,11 +6102,28 @@ function publierRapport(meta){
   var sel=destinataires();
   var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
   if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
+  var el=$("pubEtat");
+  /* un PDF trop lourd (beaucoup de photos, ou des photos annotées au stylet)
+     est allégé automatiquement plutôt que refusé : on rapetisse toutes les
+     images du relevé (pièces, PV, IRVE, clim, vues aériennes) jusqu'à passer
+     sous la limite ; les notes manuscrites et les photos à l'écran ne
+     changent pas. On ne demande d'en retirer que si, même allégé, c'est trop. */
+  if(window.Annotation && Annotation.pdfSousLimite){
+    el.textContent="Préparation du PDF…";
+    Annotation.pdfSousLimite(buildPdf, imagesDuRelevePourPdf(), 5.4*1024*1024).then(function(r){
+      if(!r){ el.textContent=""; toast("Rapport trop lourd même en allégeant les photos. Retirez-en quelques-unes."); return; }
+      if(r.allege) toast("Photos allégées pour tenir dans un seul envoi.");
+      envoyerRapport(r.b64);
+    }).catch(function(){ el.textContent=""; toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); });
+    return;
+  }
   var doc;
   try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
-  var b64=doc.output("datauristring").split(",")[1];
-  if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
-  var el=$("pubEtat");
+  var b64brut=doc.output("datauristring").split(",")[1];
+  if(b64brut.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
+  envoyerRapport(b64brut);
+
+  function envoyerRapport(b64){
   meta.destinataires = versDossier ? [] : sel.slice();
   if(versDossier) meta.dossier = true;
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
@@ -6149,6 +6167,22 @@ function publierRapport(meta){
     });
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
+  }
+}
+/* toutes les images embarquées dans le PDF du relevé (pièces, PV, IRVE,
+   clim, vues aériennes), pour les alléger si le rapport est trop lourd ;
+   les notes manuscrites (au stylet) portent « src », pas « data » : elles
+   ne sont pas touchées. */
+function imagesDuRelevePourPdf(){
+  var out=[], vus=[];
+  (function walk(o){
+    if(!o || typeof o!=="object" || vus.indexOf(o)>=0) return;
+    vus.push(o);
+    if(typeof o.data==="string" && /^data:image\//.test(o.data)) out.push(o);
+    if(Array.isArray(o)){ o.forEach(walk); return; }
+    for(var k in o){ if(Object.prototype.hasOwnProperty.call(o,k)) walk(o[k]); }
+  })(S);
+  return out;
 }
 /* Un relevé avec beaucoup de photos dépasse ce qu'une requête peut
    porter : on l'envoie en morceaux, l'un après l'autre, et le serveur
