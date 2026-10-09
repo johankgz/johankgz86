@@ -1899,7 +1899,16 @@ function publierRapport(meta){
     S.numAuto=false; save();      /* publié : son numéro ne bouge plus */
     deposerFiche(res.d.cle, el);
     if(versDossier){
-      photos.then(function(){
+      photos.then(function(ok){
+        /* sur un mauvais réseau (4G au chantier), le PDF peut passer et les
+           photos échouer. Dans ce cas on NE VIDE PAS le formulaire : ses
+           photos restent sur l'appareil pour être renvoyées, plutôt que
+           perdues. On ne passe au point suivant qu'une fois les photos bien
+           dans le dossier. */
+        if(ok===false){
+          el.textContent += "  ·  Les photos ne sont pas encore dans le dossier : elles restent ici. Touchez « Photos sur le site » dès que le réseau revient — le formulaire n'est pas vidé pour ne pas les perdre.";
+          return;
+        }
         /* le chantier reste : le point suivant prend le numéro d'après */
         var suivant=pointSuivant();
         el.textContent += "  ·  Formulaire vidé pour le point suivant : " + suivant + " (même chantier).";
