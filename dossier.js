@@ -654,6 +654,12 @@ function ouvrirGalerie(f){
         }
         nav.appendChild(bouton("Précédente", function(){ k=(k-1+urls.length)%urls.length; afficher(); }));
         nav.appendChild(bouton("Suivante", function(){ k=(k+1)%urls.length; afficher(); }));
+        /* enregistrer juste cette photo, à l'unité (pour n'avoir que la photo) */
+        nav.appendChild(bouton("Enregistrer", function(){
+          var ph=photos[k];
+          var blob=new Blob([ph.octets], {type: /\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg"});
+          enregistrer(blob, ph.nom.split("/").pop());
+        }));
         nav.appendChild(bouton("Fermer", function(){ document.body.removeChild(vue); }));
         vue.appendChild(grande); vue.appendChild(nom); vue.appendChild(nav);
         document.body.appendChild(vue);
