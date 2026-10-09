@@ -6,8 +6,9 @@
    propose d'ajouter le contact : nom, prénom, téléphone, e-mail,
    fonction, société et adresse postale (format vCard 3.0, celui que les
    deux lisent sans application).
-   Les coordonnées viennent de « Mon compte » ; l'adresse, à défaut de
-   celle de la personne, est celle de la fiche société.
+   Les coordonnées viennent de « Mon compte » (dont le nom de famille) ;
+   l'adresse, à défaut de celle de la personne, et le site web viennent
+   de la fiche société.
 
    Carte.vcard(infos)        -> le texte vCard
    Carte.infos(session, compte) -> {prenom, nom, tel, email, fonction, org, adresse}
@@ -56,6 +57,13 @@
     var n = decouper(c.nom || s.nom);
     /* un compte écrit « Nom Prénom » : la personne l'inverse dans Mon compte */
     if(c.carteInverse != null ? c.carteInverse : s.carteInverse) n = {prenom:n.nom || n.prenom, nom:n.nom ? n.prenom : ""};
+    /* le nom de famille saisi dans Mon compte prime : le compte ne porte souvent que le prénom */
+    var famille = propre(c.nomFamille != null ? c.nomFamille : s.nomFamille);
+    if(famille){
+      var f = famille.toLocaleLowerCase("fr").split(" ");
+      var reste = propre(c.nom || s.nom).split(" ").filter(function(m){ return m && f.indexOf(m.toLocaleLowerCase("fr")) < 0; }).join(" ");
+      n = {prenom: reste || n.prenom, nom: famille};
+    }
     var role = c.role || s.role;
     return {
       prenom: n.prenom, nom: n.nom,
@@ -64,8 +72,14 @@
       fonction: propre(c.fonction || s.fonction) || (role === "technicien" ? "Technicien" : "Chargé d'affaires"),
       org: propre(soc.nom || c.societeNom || s.societeNom),
       adresse: propre(c.adresse || s.adresse) || propre(soc.adresse),
-      web: propre(soc.web)
+      web: siteWeb(soc.web)
     };
+  }
+  /* le site de la fiche société, en adresse complète (« www.exemple.fr » -> « https://www.exemple.fr ») */
+  function siteWeb(w){
+    var t = propre(w).replace(/\s/g, "");
+    if(!t) return "";
+    return /^https?:\/\//i.test(t) ? t : "https://" + t.replace(/^\/+/, "");
   }
 
   function vcard(i){
@@ -138,7 +152,7 @@
     fen.querySelector("#cfNom").textContent = nom;
     fen.querySelector(".cf-fn").textContent = [i.fonction, i.org].filter(Boolean).join(" · ");
     var co = fen.querySelector(".cf-co"); co.textContent = "";
-    [i.tel, i.email, i.adresse].filter(Boolean).forEach(function(t, k){ if(k) co.appendChild(document.createElement("br")); co.appendChild(document.createTextNode(t)); });
+    [i.tel, i.email, i.adresse, String(i.web || "").replace(/^https?:\/\//i, "").replace(/\/$/, "")].filter(Boolean).forEach(function(t, k){ if(k) co.appendChild(document.createElement("br")); co.appendChild(document.createTextNode(t)); });
     var manque = [];
     if(!i.tel) manque.push("téléphone"); if(!i.email) manque.push("e-mail");
     var m = fen.querySelector(".cf-manque");
@@ -178,12 +192,12 @@
         if(!d) return;
         /* sur l'objet de la page aussi : une session réécrite ensuite par l'accueil les garde */
         session.tel = d.tel || ""; session.email = d.email || ""; session.fonction = d.fonction || ""; session.adresse = d.adresse || "";
-        session.carteSociete = d.carteSociete || null; session.carteInverse = !!d.carteInverse;
+        session.carteSociete = d.carteSociete || null; session.carteInverse = !!d.carteInverse; session.nomFamille = d.nomFamille || "";
         try{
           var s = JSON.parse(localStorage.getItem("outils:session") || "null");
           if(s && s.jeton === session.jeton){
             s.tel = d.tel || ""; s.email = d.email || ""; s.fonction = d.fonction || ""; s.adresse = d.adresse || "";
-            s.carteSociete = d.carteSociete || null; s.carteInverse = !!d.carteInverse;
+            s.carteSociete = d.carteSociete || null; s.carteInverse = !!d.carteInverse; s.nomFamille = d.nomFamille || "";
             localStorage.setItem("outils:session", JSON.stringify(s));
           }
         }catch(e){}

@@ -827,7 +827,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script src="./sobre.js?v=20261007a"></script>
 <script src="./une-page.js?v=20261002a"></script>
-<script src="./qr.js?v=20261004a"></script>
+<script src="./qr.js?v=20261009a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
 (function(){
@@ -1962,7 +1962,20 @@ function buildPdf(){
    Le même pour tous les clients de l'entreprise : il ouvre client.html, sans compte,
    pour une demande de dépannage, de devis ou d'information, sans rien d'un dossier. */
 function telPointsE(t){ var c=String(t||"").replace(/\D/g, ""); return c.length===10 ? c.replace(/(\d\d)(?=\d)/g, "$1.") : String(t||""); }
-function optionsQr(){ return {url:S.qr.url, societe:(P && P.societe) || "", tel:telPointsE(P && P.socTel), web:(P && P.socWeb) || ""}; }
+/* le nom, le téléphone et le site de l'étiquette « Nous contacter » : ceux de la fiche
+   société (réglée par l'administrateur), les anciens réglages de l'appareil à défaut */
+var FICHE_SOC=null;
+function chargerFicheSoc(){
+  if(FICHE_SOC || !baseSite() || !jetonSession()) return Promise.resolve(FICHE_SOC);
+  return fetch(apiUrl("societe-fiche"), {headers:apiEnTetes()})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){ if(d){ var f=d.fiche||{}; FICHE_SOC={nom:f.nom||d.nom||"", tel:f.tel||"", web:f.web||""}; } return FICHE_SOC; })
+    .catch(function(){ return null; });
+}
+function optionsQr(){
+  var F=FICHE_SOC||{};
+  return {url:S.qr.url, societe:F.nom || (P && P.societe) || "", tel:telPointsE(F.tel || (P && P.socTel)), web:F.web || (P && P.socWeb) || ""};
+}
 function paintQr(){
   var q=S.qr, cv=$("qrApercu");
   if(q && q.tableau){ q=null; }          /* un ancien QR de tableau gardé dans le brouillon : on prend celui de l'entreprise */
@@ -1987,14 +2000,18 @@ function creerQr(){
 (function lierQr(){
   $("btnQr").addEventListener("click", creerQr);
   $("qrJoindre").addEventListener("change", function(){ if(S.qr){ S.qr.joindre=this.checked; save(); paintQr(); } });
+  chargerFicheSoc();
   $("btnQrPdf").addEventListener("click", function(){
     if(!window.jspdf){ toast("Le module PDF finit de se charger : réessayez dans quelques secondes."); return; }
+    chargerFicheSoc().then(pdfQr);
+  });
+  function pdfQr(){
     var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"});
     QR.etiquette(doc, 20, 20, 60, 86, optionsQr()); QR.etiquette(doc, 95, 20, 40, 57.3, optionsQr()); QR.etiquette(doc, 145, 20, 40, 57.3, optionsQr());
     doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(110,103,92);
     doc.text("Imprimez à 100 %, sur papier adhésif ou plastifié. La grande sur la porte du tableau, les petites à l'intérieur.", 20, 118, {maxWidth:170});
     dl(doc.output("blob"), "QR-nous-contacter.pdf");
-  });
+  }
 })();
 function pdfName(){ return "Etiquettes-"+(refAffaire()||"tableau")+".pdf"; }
 function dl(blob, name){

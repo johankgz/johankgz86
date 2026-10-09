@@ -245,15 +245,30 @@
     /* « Nous contacter », le nom de l'entreprise, ce qu'on peut demander */
     doc.setTextColor(34, 32, 28); doc.setFont("helvetica", "bold"); doc.setFontSize(11 * k);
     doc.text("Nous contacter", cx, ty, {align: "center"});
-    doc.setFontSize(8.6 * k); doc.setTextColor(180, 98, 26);
-    doc.text(doc.splitTextToSize(o.societe || "", l - 6 * k)[0] || "", cx, ty + 4.6 * k, {align: "center"});
+    doc.setTextColor(180, 98, 26);
+    /* le nom entier de l'entreprise : la taille se réduit plutôt que de couper un mot */
+    var largeur = l - 6 * k;
+    function ajuste(texte, taille, mini){
+      var t = taille; doc.setFontSize(t);
+      while(t > mini && doc.getTextWidth(texte) > largeur){ t -= 0.2; doc.setFontSize(t); }
+      return doc.getTextWidth(texte) <= largeur;
+    }
+    var soc = String(o.societe || "").replace(/\s+/g, " ").trim();
+    if(ajuste(soc, 8.6 * k, 6 * k)) doc.text(soc, cx, ty + 4.6 * k, {align: "center"});
+    else { doc.setFontSize(6 * k); doc.text(doc.splitTextToSize(soc, largeur).slice(0, 2), cx, ty + 3.8 * k, {align: "center", lineHeightFactor: 1.05}); }
     doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(110, 103, 92);
     doc.text("Dépannage  ·  Devis  ·  Information", cx, ty + 9 * k, {align: "center"});
-    var bas = o.tel || o.web || "";
-    if(bas){
+    /* en bas : le téléphone et le site de la fiche société, sur une ligne s'ils tiennent, sinon sur deux */
+    var web = String(o.web || "").replace(/^https?:\/\//i, "").replace(/\/$/, "").trim(), tel = String(o.tel || "").trim();
+    if(tel || web){
       doc.setFillColor(226, 220, 206); doc.rect(x + 5 * k, y + h - 9 * k, l - 10 * k, 0.25, "F");
-      doc.setFont("helvetica", "bold"); doc.setFontSize(8 * k); doc.setTextColor(34, 32, 28);
-      doc.text(doc.splitTextToSize(bas, l - 6 * k)[0], cx, y + h - 4.4 * k, {align: "center"});
+      doc.setFont("helvetica", "bold"); doc.setTextColor(34, 32, 28);
+      var une = [tel, web].filter(Boolean).join("  ·  ");
+      if(ajuste(une, 8 * k, 6.4 * k)) doc.text(une, cx, y + h - 4.4 * k, {align: "center"});
+      else {
+        ajuste(tel, 7.6 * k, 6 * k); doc.text(tel, cx, y + h - 5.6 * k, {align: "center"});
+        doc.setFont("helvetica", "normal"); ajuste(web, 6.8 * k, 5 * k); doc.text(web, cx, y + h - 2.6 * k, {align: "center"});
+      }
     }
     doc.setTextColor(0, 0, 0);
   }
