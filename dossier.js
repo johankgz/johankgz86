@@ -15,6 +15,7 @@
 (function(){
 "use strict";
 var CFG={}, S=null, MOI=null;
+var CLIENTS={};   /* code travaux (ref) -> nom du chantier (client), pour nommer les téléchargements */
 var API="/api/rapports";
 var $=function(i){ return document.getElementById(i); };
 function charger(){ if(CFG.charger) CFG.charger(); }
@@ -146,7 +147,7 @@ function archiver(c, bouton){
       .catch(function(){ return null; });
   }).then(function(){
     var blob=creerZip(fichiers);
-    var nom="Travaux-"+c.ref+".zip";
+    var nom="Travaux-"+(nomPropre(c.ref+" "+(c.client||"")).replace(/\s+/g,"-")||c.ref)+".zip";
     var a=document.createElement("a");
     a.href=URL.createObjectURL(blob); a.download=nom; a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
@@ -507,14 +508,15 @@ function partagerDocument(f, bouton){
     .then(function(blob){
       if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
       marquerLu(f);
+      var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f));
       var fichier;
-      try{ fichier=new File([blob], nomFichier(f), {type:blob.type||"application/pdf"}); }catch(e){ fichier=null; }
+      try{ fichier=new File([blob], nom, {type:blob.type||"application/pdf"}); }catch(e){ fichier=null; }
       if(fichier && navigator.canShare && navigator.canShare({files:[fichier]})){
-        navigator.share({files:[fichier], title:f.titre||nomFichier(f)})
-          .catch(function(err){ if(!err || err.name!=="AbortError") enregistrer(blob, nomFichier(f)); });
+        navigator.share({files:[fichier], title:f.titre||nom})
+          .catch(function(err){ if(!err || err.name!=="AbortError") enregistrer(blob, nom); });
         return;
       }
-      enregistrer(blob, nomFichier(f));
+      enregistrer(blob, nom);
     })
     .catch(function(){
       if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
@@ -539,7 +541,7 @@ function ouvrirDocument(f, bouton){
     .then(function(blob){
       if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
       marquerLu(f);
-      enregistrer(blob, nomFichier(f));
+      enregistrer(blob, nomAvecChantier(refDeCle(f.cle), nomFichier(f)));
     })
     .catch(function(){
       if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
@@ -658,7 +660,7 @@ function ouvrirGalerie(f){
         nav.appendChild(bouton("Enregistrer", function(){
           var ph=photos[k];
           var blob=new Blob([ph.octets], {type: /\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg"});
-          enregistrer(blob, ph.nom.split("/").pop());
+          enregistrer(blob, nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()));
         }));
         nav.appendChild(bouton("Fermer", function(){ document.body.removeChild(vue); }));
         vue.appendChild(grande); vue.appendChild(nom); vue.appendChild(nav);
@@ -882,11 +884,25 @@ function nomPropre(t){
   return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
     .replace(/[\/\\:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,70) || "photos";
 }
+/* le code travaux + le nom du chantier, nettoy\u00e9s, pour nommer un fichier */
+function refDeCle(cle){ return String(cle||"").split("/")[0]; }
+function etiquetteChantier(ref){
+  var e=[ref, CLIENTS[ref]||""].filter(Boolean).join(" ");
+  return String(e).normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+    .replace(/[\/\\:*?"<>|]+/g," ").replace(/\s+/g," ").trim().slice(0,80);
+}
+/* \u00ab 2024-105 Dupont Martin - releve.pdf \u00bb : l'\u00e9tiquette du chantier devant le nom d'origine */
+function nomAvecChantier(ref, base){
+  var pre=etiquetteChantier(ref); base=String(base||"");
+  if(!pre) return base;
+  if(ref && base.toLowerCase().indexOf(String(ref).toLowerCase())===0) return base;
+  return pre+" - "+base;
+}
 function exporterPhotos(ref, lignes, bouton){
   var docs=lignes.map(function(l){ return l.f; }).slice().sort(function(a,b){
     return String(a.date||"").localeCompare(String(b.date||"")) || String(a.publie||"").localeCompare(String(b.publie||""));
   });
-  var racine=nomPropre("Photos "+ref);
+  var racine=nomPropre("Photos "+etiquetteChantier(ref));
   var fichiers=[], pris={}, nbPhotos=0, fait=0;
   /* seul le libellé change pendant la préparation : l'icône reste */
   var lib=bouton.querySelector("span")||bouton, avant=lib.textContent;
@@ -981,6 +997,7 @@ function carteDossier(c, i, opts){
   trierDocs(c);
   var ouvertParDefaut = opts.ouvertParDefaut !== undefined ? !!opts.ouvertParDefaut : true;
   var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin"));
+  if(c && c.ref) CLIENTS[c.ref]=c.client||"";
   var box=document.createElement("div"); box.className="travaux"+(opts.integree ? " integree" : "");
   box.setAttribute("data-ref", c.ref);
   if(c.etat === "attente") box.classList.add("attente");

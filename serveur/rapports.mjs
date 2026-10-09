@@ -734,6 +734,28 @@ function typeDuFichier(cle) {
   const ext = String(cle).split(".").pop().toLowerCase();
   return TYPES_FICHIER[ext] || "application/pdf";
 }
+/* le nom du fichier téléchargé : code travaux + nom du chantier, puis le nom
+   d'origine du document. Ainsi « releve.pdf » devient « 2024-105 Dupont Martin
+   - releve.pdf » quand on l'enregistre depuis le navigateur. */
+function nomTelechargement(chantier, cle) {
+  const base = String(cle).split("/").pop();
+  const etiq = chantier
+    ? [chantier.ref, chantier.client].filter(Boolean).join(" ")
+        .replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80)
+    : "";
+  if (!etiq) return base;
+  /* on évite de répéter la référence si le nom d'origine la porte déjà */
+  if (base.toLowerCase().indexOf(String(chantier.ref || "").toLowerCase()) === 0) return base;
+  return etiq + " - " + base;
+}
+/* l'en-tête Content-Disposition, avec un repli ASCII et la version UTF-8
+   (RFC 6266) pour que les accents du nom de chantier passent partout. */
+function dispositionNom(nom, enPieceJointe) {
+  const ascii = String(nom).normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^\x20-\x7e]/g, "_").replace(/"/g, "'");
+  const utf8 = encodeURIComponent(nom).replace(/['()*]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+  return (enPieceJointe ? "attachment" : "inline") + '; filename="' + ascii + '"; filename*=UTF-8\'\'' + utf8;
+}
 function rang(f) {
   if (f.type === "releve") return -1;
   if (f.type === "commande") return 1000 + Number(new Date(f.publie || 0)) / 1e10;
@@ -1259,7 +1281,7 @@ async function traiter(req) {
       const blob = await st.get(cle, { type: "arrayBuffer" });
       if (!blob) return json({ erreur: "Document introuvable." }, 404);
       return new Response(blob, { headers: { "content-type": typeDuFichier(cle),
-        "content-disposition": 'inline; filename="' + cle.split("/").pop() + '"', "cache-control": "no-store" } });
+        "content-disposition": dispositionNom(nomTelechargement(c, cle), cle.endsWith(".zip")), "cache-control": "no-store" } });
     }
 
     const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -3382,7 +3404,7 @@ async function traiter(req) {
       const blob = await store.get(cle, { type: "arrayBuffer" });
       if (!blob) return json({ erreur: "Fichier introuvable." }, 404);
       return new Response(blob, { headers: { "content-type": x.type || typeDuFichier(cle),
-        "content-disposition": 'inline; filename="' + cle.split("/").pop() + '"', "cache-control": "no-store" } });
+        "content-disposition": dispositionNom(nomTelechargement(c, cle), cle.endsWith(".zip")), "cache-control": "no-store" } });
     }
   }
 
@@ -3898,7 +3920,7 @@ async function traiter(req) {
     return new Response(blob, {
       headers: {
         "content-type": typeDuFichier(cle),
-        "content-disposition": (zip ? "attachment" : "inline") + '; filename="' + cle.split("/").pop() + '"',
+        "content-disposition": dispositionNom(nomTelechargement(chantierDe(idx, cle), cle), zip),
         "cache-control": "no-store"
       }
     });

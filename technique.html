@@ -1445,15 +1445,24 @@ function deposerTout(){
   function suivant(k){
     if(k >= liste.length){
       bouton.disabled=false;
-      /* les documents partis quittent la liste, comme après un relevé ou un
-         rapport : on repart d'une liste vide sur le même chantier. Seuls
-         restent ceux qui ne sont pas partis (sans titre, refusés). */
+      /* les documents partis quittent la liste. S'il ne reste rien (ni échec,
+         ni document sans titre), on remet tout le formulaire à zéro — client,
+         référence, date, destinataires — comme après un relevé ou une
+         commande, pour repartir sur un nouveau dépôt. */
       viderDeposes();
-      save(); paintForm();
+      var toutParti = faits>0 && enAttente().length===0;
       var dit = faits ? (faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")
               + (versDossier ? " dans le dossier." : ", pour "+sel.join(", ")+".")) : "";
       if(echecs.length) dit += (dit?" ":"") + echecs.length + " en échec : " + echecs[0];
       if(sansTitre) dit += " " + sansTitre + " sans titre, laissé"+(sansTitre>1?"s":"")+" de côté.";
+      if(versDossier && toutParti){
+        S=blank(); save(); paintForm(); showTab("dossier");
+        dit += "  ·  Formulaire vidé pour un nouveau dépôt.";
+        el.textContent = dit;
+        toast(faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")+". Formulaire vidé pour un nouveau dépôt.");
+        return;
+      }
+      save(); paintForm();
       el.textContent = dit || "Rien n'a pu être déposé.";
       if(faits) toast(faits+" document"+(faits>1?"s":"")+" déposé"+(faits>1?"s":"")+(enAttente().length ? "." : ". Liste vidée pour un nouveau dépôt."));
       return;
