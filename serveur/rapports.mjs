@@ -3,6 +3,7 @@ import { PROPRIETAIRE, SOCIETE_DEPART, SOCIETE_DEMO } from "./equipe.mjs";
 import { DEMO } from "./demo.mjs";
 import { randomBytes, scryptSync, timingSafeEqual, createHmac } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import { lookup as dnsLookup } from "node:dns/promises";
 import path from "node:path";
 import { dossierDonnees } from "./magasin-fichiers.mjs";
 import { zipFlux, fichiersDe } from "./export.mjs";
@@ -965,6 +966,72 @@ function docVisible(f, lien) {
    ===================================================================== */
 const JETON_RDV = /^[A-Za-z0-9_-]{16,40}$/;
 const CACHE_AGENDA = new Map();                  /* lien ICS -> {t, evs} : 5 minutes */
+/* ---------- aller chercher un agenda sans servir de rebond (SSRF) ----------
+   Le lien ICS est donné par un utilisateur (ses réglages de rendez-vous).
+   Le serveur ne doit jamais s'en servir pour atteindre une adresse interne
+   de l'hébergeur (localhost, réseau privé, lien-local, métadonnées cloud) :
+   on résout le nom et on refuse si une seule des adresses est interne ;
+   on suit les redirections nous-mêmes, en revérifiant chaque saut ; et les
+   messages d'erreur restent volontairement vagues, pour ne pas faire du
+   formulaire un détecteur de services internes. */
+function ipv4Interne(ip) {
+  const o = ip.split(".").map(Number);
+  if (o.length !== 4 || o.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return true;
+  const [a, b] = o;
+  if (a === 0 || a === 10 || a === 127) return true;                 /* « ce réseau », privé, boucle locale */
+  if (a === 169 && b === 254) return true;                           /* lien-local / métadonnées cloud */
+  if (a === 172 && b >= 16 && b <= 31) return true;                  /* privé */
+  if (a === 192 && b === 168) return true;                           /* privé */
+  if (a === 192 && b === 0 && o[2] === 0) return true;               /* IETF */
+  if (a === 100 && b >= 64 && b <= 127) return true;                 /* CGNAT */
+  if (a === 198 && (b === 18 || b === 19)) return true;              /* bancs d'essai */
+  if (a >= 224) return true;                                         /* multicast et réservé */
+  return false;
+}
+function ipInterne(ip) {
+  let s = String(ip || "").toLowerCase().trim().replace(/%.*$/, "");  /* %zone éventuelle */
+  if (!s) return true;
+  if (s.startsWith("::ffff:") && s.includes(".")) s = s.slice(s.lastIndexOf(":") + 1);   /* IPv4 mappée IPv6 */
+  if (s.includes(".") && !s.includes(":")) return ipv4Interne(s);
+  if (s === "::1" || s === "::") return true;                        /* boucle locale / non spécifiée */
+  if (/^fe[89ab]/.test(s)) return true;                              /* fe80::/10 lien-local */
+  if (/^f[cd]/.test(s)) return true;                                 /* fc00::/7 local unique */
+  if (s.startsWith("ff")) return true;                               /* multicast */
+  return false;
+}
+async function hotePublic(hostname) {
+  const h = String(hostname || "").replace(/^\[|\]$/g, "");          /* [IPv6] -> IPv6 */
+  if (!h) return false;
+  let adrs;
+  try { adrs = await dnsLookup(h, { all: true }); } catch { return false; }
+  if (!adrs.length) return false;
+  /* soupape : à n'activer (AGENDA_AUTORISER_LOCAL=1) que si l'agenda Outlook
+     est auto-hébergé sur un réseau privé de confiance. Sur un hébergement
+     mutualisé (o2switch), on la laisse éteinte : le serveur ne doit jamais
+     atteindre une adresse interne à la demande d'un utilisateur. */
+  if (process.env.AGENDA_AUTORISER_LOCAL === "1") return true;
+  return adrs.every((a) => !ipInterne(a.address));
+}
+async function recupererIcs(depart) {
+  const ctl = new AbortController(), minuterie = setTimeout(() => ctl.abort(), 9000);
+  try {
+    let u = depart;
+    for (let saut = 0; saut <= 4; saut++) {
+      let parsed;
+      try { parsed = new URL(u); } catch { throw new Error("lien-invalide"); }
+      if (parsed.protocol !== "http:" && parsed.protocol !== "https:") throw new Error("lien-invalide");
+      if (!(await hotePublic(parsed.hostname))) throw new Error("hote-interne");
+      const rep = await fetch(u, { signal: ctl.signal, redirect: "manual",
+        headers: { accept: "text/calendar, text/plain, */*" } });
+      if (rep.status >= 300 && rep.status < 400 && rep.headers.get("location")) {
+        u = new URL(rep.headers.get("location"), u).href;           /* on revérifie le saut suivant */
+        continue;
+      }
+      return rep;
+    }
+    throw new Error("trop-de-redirections");
+  } finally { clearTimeout(minuterie); }
+}
 async function lireAgenda(lienIcs, force) {
   const u = String(lienIcs || "").trim().replace(/^webcal:\/\//i, "https://");
   if (!/^https?:\/\//i.test(u)) return { evs: [], erreur: "" };
@@ -972,16 +1039,19 @@ async function lireAgenda(lienIcs, force) {
   if (!force && vu && Date.now() - vu.t < 300000) return vu;
   let r = { t: Date.now(), evs: [], erreur: "" };
   try {
-    const ctl = new AbortController(), minuterie = setTimeout(() => ctl.abort(), 9000);
-    const rep = await fetch(u, { signal: ctl.signal, headers: { accept: "text/calendar, text/plain, */*" } });
-    clearTimeout(minuterie);
-    if (!rep.ok) throw new Error("L'agenda répond " + rep.status + ".");
+    const rep = await recupererIcs(u);
+    if (!rep.ok) throw new Error("statut");
     const txt = await rep.text();
-    if (txt.length > 8 * 1024 * 1024) throw new Error("Agenda trop lourd.");
-    if (!/BEGIN:VCALENDAR/i.test(txt)) throw new Error("Ce lien ne donne pas un agenda ICS.");
+    if (txt.length > 8 * 1024 * 1024) throw new Error("lourd");
+    if (!/BEGIN:VCALENDAR/i.test(txt)) throw new Error("pas-ics");
     r.evs = lireIcs(txt);
   } catch (e) {
-    r.erreur = e && e.name === "AbortError" ? "L'agenda ne répond pas." : (e && e.message) || "Agenda illisible.";
+    const m = e && e.message;
+    /* un seul message pour « injoignable », « statut » et « pas-ics » :
+       le formulaire ne révèle pas si une adresse interne répond ou non */
+    r.erreur = m === "lourd" ? "L'agenda est trop lourd."
+      : m === "hote-interne" ? "Ce lien vise une adresse interne : donnez l'adresse publique de votre agenda Outlook (« Publier le calendrier »)."
+      : "Lien d'agenda injoignable, ou qui ne donne pas un calendrier Outlook (ICS).";
     if (vu && vu.evs && vu.evs.length) r.evs = vu.evs;          /* l'agenda boude : on garde la dernière lecture */
   }
   CACHE_AGENDA.set(u, r);

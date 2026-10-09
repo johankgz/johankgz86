@@ -15,6 +15,10 @@
      PLAN_ANALYSE_CLE  sa clé partagée
      PUSH_CONTACT      contact signé dans les notifications (facultatif :
                        l'adresse du site par défaut)
+     AGENDA_AUTORISER_LOCAL  « 1 » autorise l'agenda Outlook à être lu sur
+                       une adresse interne (réseau privé) — à n'activer que
+                       si vous auto-hébergez Exchange. Éteint par défaut :
+                       sur un hébergement mutualisé, laissez-le éteint.
    ===================================================================== */
 
 process.env.DONNEES_DOSSIER = process.env.DONNEES_DOSSIER || "./donnees";
