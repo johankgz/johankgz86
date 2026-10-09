@@ -3370,6 +3370,8 @@ var CLOCHE_OUVERTE=false;
 function ouvrirCloche(ouvrir){
   var f=$("fenCloche"), c=$("cloche"); if(!f) return;
   if(f.parentNode!==document.body) document.body.appendChild(f);
+  /* au téléphone, le tiroir du menu passe par-dessus la fenêtre : on le referme d'abord */
+  if(ouvrir && window.fermerMenuGauche) window.fermerMenuGauche();
   CLOCHE_OUVERTE=!!ouvrir;
   f.hidden=!CLOCHE_OUVERTE;
   if(c) c.setAttribute("aria-expanded", CLOCHE_OUVERTE ? "true" : "false");
@@ -3968,6 +3970,8 @@ function ajusterBarre(){
     if(btn) btn.setAttribute("aria-expanded", v ? "true" : "false");
     if(v){ var x=$("mgFermer"); if(x) setTimeout(function(){ try{ x.focus(); }catch(e){} }, 30); }
   }
+  /* pour fermer le tiroir d'ailleurs (ex. quand les Notifications s'ouvrent par-dessus) */
+  window.fermerMenuGauche = function(){ ouvrir(false); };
   if(btn) btn.addEventListener("click", function(){ ouvrir(true); });
   $("mgFermer").addEventListener("click", function(){ ouvrir(false); if(btn) btn.focus(); });
   fond.addEventListener("click", function(){ ouvrir(false); });
