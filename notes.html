@@ -226,6 +226,8 @@ button.act:disabled{opacity:.4}
   box-shadow:0 12px 32px -12px rgba(0,0,0,.6);
 }
 .toast[hidden]{display:none}
+.toast .toast-act{margin-left:14px;min-height:36px;padding:6px 14px;border:0;border-radius:999px;background:#F08A2E;color:#1E2329;
+  font:inherit;font-weight:700;cursor:pointer}
 
 /* ---------- plein écran : croquis et implantation ---------- */
 #sketch,#toit{
@@ -854,8 +856,6 @@ html.theme-clair .onglets-td a[aria-current="page"]{background:#FFFFFF;color:#22
 html.theme-sombre .onglets-td{background:#2B3036}
 html.theme-sombre .onglets-td a{color:#C9CFD7}
 html.theme-sombre .onglets-td a[aria-current="page"]{background:#ECEFF3;color:#1E2126;box-shadow:none}
-/* Synchroniser, Corbeille : en sombre, un orange clair sur gris, lisible */
-html.theme-sombre #btnSync,html.theme-sombre #btnCorbeille{background:#2B3036;border-color:rgba(255,255,255,.12);color:#F2A15E}
 @media (hover:hover){
   html.theme-clair header .menu-link:hover,html.theme-clair header .chip:hover:not(.on){background:#F3EEE4;color:#22201C}
   html.theme-sombre header .menu-link:hover,html.theme-sombre header .chip:hover:not(.on){background:#353B42;color:#FFFFFF}
@@ -907,8 +907,6 @@ html.theme-sombre #btnSync,html.theme-sombre #btnCorbeille{background:#2B3036;bo
   </div>
   <div class="row" style="margin-bottom:14px">
     <button class="act blue" id="btnNouvelle" style="flex:1">Nouvelle liste</button>
-    <button class="act ghost" id="btnSync">Synchroniser</button>
-    <button class="act ghost" id="btnCorbeille" title="Listes supprimées et copies automatiques">Corbeille</button>
   </div>
 
   <label class="f" id="champRecherche" hidden>
@@ -1016,9 +1014,14 @@ function compress(file, cb){
 
 var $ = function(id){ return document.getElementById(id); };
 var toastT;
-function toast(msg){
+function toast(msg, action, fn){
   var t=$("toast"); t.textContent=msg; t.hidden=false;
-  clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 2400);
+  if(action){
+    var b=document.createElement("button"); b.type="button"; b.className="toast-act"; b.textContent=action;
+    b.addEventListener("click", function(){ t.hidden=true; clearTimeout(toastT); fn(); });
+    t.appendChild(b);
+  }
+  clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, action ? 7000 : 2400);
 }
 function uid(){ return "n"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 function maintenant(){ return new Date().toISOString(); }
@@ -1983,6 +1986,7 @@ function frDateHeure(iso){
   var a=dateLocale(iso).split("-");
   return a[2]+"/"+a[1]+"/"+a[0]+" à "+heureLocale(iso);
 }
+window.__notes = { corbeille: function(){ ouvrirCorbeille(); } };
 function ouvrirCorbeille(){
   var v=$("corbeille"), corps=$("corbCorps");
   v.hidden=false;
@@ -2058,8 +2062,25 @@ function supprimer(l){
   N.listes = N.listes.filter(function(x){ return x.id!==l.id; });
   try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
   render();
-  toast("Liste supprimée — elle reste 60 jours dans la corbeille.");
-  if(apiPret(true)) envoyerSuppression(l.id);
+  var envoi = apiPret(true) ? envoyerSuppression(l.id) : Promise.resolve(false);
+  toast("Liste « "+(l.titre||"sans titre")+" » supprimée.", "Annuler", function(){ annulerSuppression(l, envoi); });
+}
+/* « Annuler » juste après : la liste revient telle quelle. Si le serveur
+   l'avait déjà mise de côté, on la lui fait restaurer. */
+function annulerSuppression(l, envoi){
+  oublierSuppression(l.id);
+  if(!N.listes.some(function(x){ return x.id===l.id; })) N.listes.push(l);
+  try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
+  render();
+  envoi.then(function(parti){
+    if(!parti){ save(); toast("Liste « "+(l.titre||"sans titre")+" » remise."); return; }
+    fetch(apiUrl("note-restaurer")+"&id="+encodeURIComponent(l.id), {method:"POST", headers:apiEnTetes(), body:"{}"})
+      .then(function(r){ return r.ok; }).catch(function(){ return false; })
+      .then(function(ok){
+        tirer_serveur(function(){ save(); });
+        toast(ok ? "Liste « "+(l.titre||"sans titre")+" » remise." : "Pas de réseau : la liste revient dès la connexion retrouvée.");
+      });
+  });
 }
 
 /* ---------- annotation : l'outil commun (annotation.js) ----------
@@ -2138,8 +2159,6 @@ function renderFiltres(){
 /* ---------- liaisons ---------- */
 function bindAll(){
   $("btnNouvelle").addEventListener("click", nouvelleListe);
-  $("btnSync").addEventListener("click", function(){ tirer_serveur(function(){ pousser_serveur(); }); });
-  $("btnCorbeille").addEventListener("click", ouvrirCorbeille);
   $("corbFermer").addEventListener("click", function(){ $("corbeille").hidden=true; });
   $("corbeille").addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
   document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("corbeille").hidden) $("corbeille").hidden=true; });
