@@ -1525,7 +1525,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./courbe-charge.js?v=20261003a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script src="./boussole.js?v=20261007a"></script>
-<script src="./stylet.js?v=20261008a"></script>
+<script src="./stylet.js?v=20261009a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1941,10 +1941,8 @@ function peindreEncres(cle, hote){
   encresDe(cle).forEach(function(e, i){
     if(!Stylet.valide(e)) return;
     var l=document.createElement("div"); l.className="encre-ligne";
-    var im=Stylet.image(e, "Note manuscrite "+(i+1)); im.title="Toucher pour réécrire";
-    im.addEventListener("click", function(){
-      Stylet.ouvrir({titre:"Réécrire la note", bouton:"Remplacer", ok:function(n){ encresDe(cle)[i]=n; save(); peindreEncresPoints(); }});
-    });
+    var im=Stylet.image(e, "Note manuscrite "+(i+1)); im.title="Toucher pour compléter";
+    im.addEventListener("click", function(){ completerEncre(cle, i); });
     var x=document.createElement("button"); x.type="button"; x.className="encre-x"; x.textContent="×";
     x.setAttribute("aria-label","Retirer la note manuscrite "+(i+1));
     x.addEventListener("click", function(){
@@ -1955,9 +1953,30 @@ function peindreEncres(cle, hote){
   });
 }
 function peindreEncresPoints(){ peindreEncres("encres", "k_pointsEncre"); peindreEncres("encresDemande", "k_conclusionEncre"); }
+/* rouvrir une note pour la compléter : on reprend ses tracés (qualité intacte) ;
+   une note écrite avant cette mise à jour (sans tracés) est montrée en fond,
+   pour écrire par-dessus — et ce fond est reporté d'une fois sur l'autre. */
+function optionsReprise(e){
+  var o={titre:"Compléter la note", bouton:"Enregistrer"};
+  if(e){
+    if(e.traits && e.traits.length) o.traits=e.traits;
+    if(e.fond){ o.fond=e.fond; o.fondL=e.fondL; o.fondH=e.fondH; }
+    else if((!e.traits || !e.traits.length) && e.src){ o.fond=e.src; o.fondL=e.l; o.fondH=e.h; }
+  }
+  return o;
+}
+function completerEncre(cle, i){
+  if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
+  var e=encresDe(cle)[i]; if(!e) return;
+  var opt=optionsReprise(e); opt.ok=function(n){ encresDe(cle)[i]=n; save(); peindreEncresPoints(); };
+  Stylet.ouvrir(opt);
+}
 function ecrireAuStylet(cle, titre, ou){
   if(!window.Stylet){ toast("Stylet indisponible : rechargez la page."); return; }
   cle=typeof cle==="string" ? cle : "encres";
+  var liste=encresDe(cle);
+  /* s'il y a déjà une note, on la rouvre pour la compléter plutôt que d'en créer une vierge */
+  if(liste.length){ completerEncre(cle, liste.length-1); return; }
   Stylet.ouvrir({titre:titre||"Points à chiffrer / à vérifier", ok:function(e){
     encresDe(cle).push(e); save(); peindreEncresPoints(); toast("Note manuscrite ajoutée "+(ou||"aux points à chiffrer")+".");
   }});

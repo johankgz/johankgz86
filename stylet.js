@@ -60,6 +60,13 @@
     o=o||{};
     var pref=lirePref();
     var traits=[], courant=null, couleur=pref ? pref.c : COULEURS[0][0], tailleCrayon=pref ? pref.t : 2.6, stylo=false, dpr=Math.min(window.devicePixelRatio||1, 2);
+    /* rouvrir une note pour la compléter : on reprend ses tracés (vecteurs,
+       qualité intacte) ; une note d'avant, sans tracés, est montrée en fond
+       pour écrire par-dessus (et ce fond est reporté d'une fois sur l'autre). */
+    if(Array.isArray(o.traits)) traits=o.traits.filter(function(t){ return t && t.pts && t.pts.length; })
+      .map(function(t){ return {c:t.c, pts:t.pts.map(function(p){ return {x:p.x, y:p.y, w:p.w}; })}; });
+    var fondImg=null, fondRect=null, fondL=o.fondL||0, fondH=o.fondH||0;
+    if(o.fond){ fondImg=new Image(); fondImg.onload=function(){ peindre(); maj(); }; fondImg.src=o.fond; }
     var fond=el("div","sty-fond"); fond.setAttribute("role","dialog"); fond.setAttribute("aria-modal","true");
     fond.setAttribute("aria-label", o.titre||"Note manuscrite");
     var barre=el("div","sty-barre");
@@ -146,6 +153,14 @@
     function peindre(){
       ctxF.setTransform(1,0,0,1,0,0); ctxF.clearRect(0,0,cvF.width,cvF.height);
       lignes();
+      /* la note d'avant, en fond, pour écrire par-dessus */
+      if(fondImg && fondImg.complete && fondImg.naturalWidth){
+        var cssW=cvF.width/dpr, nat=fondImg.naturalWidth, dw=Math.min((fondL||nat)*0.5, cssW-24);
+        if(!(dw>0)) dw=Math.min(nat, cssW-24);
+        var dh=dw*(fondImg.naturalHeight/fondImg.naturalWidth);
+        fondRect={x:12, y:12, w:dw, h:dh};
+        ctxF.drawImage(fondImg, fondRect.x*dpr, fondRect.y*dpr, dw*dpr, dh*dpr);
+      }
       traits.forEach(function(t){ tracer(ctxF, t, dpr, 0, 0); });
       peindreCourant();
     }
@@ -195,15 +210,22 @@
     cv.addEventListener("pointercancel", fin);
 
     function valider(){
-      if(!traits.length) return;
+      if(!traits.length && !(fondImg && fondImg.complete && fondImg.naturalWidth)) return;
       var x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
       traits.forEach(function(t){ t.pts.forEach(function(p){ x0=Math.min(x0,p.x-p.w); y0=Math.min(y0,p.y-p.w); x1=Math.max(x1,p.x+p.w); y1=Math.max(y1,p.y+p.w); }); });
+      /* le fond (note d'avant) entre aussi dans le cadre */
+      if(fondRect){ x0=Math.min(x0, fondRect.x); y0=Math.min(y0, fondRect.y); x1=Math.max(x1, fondRect.x+fondRect.w); y1=Math.max(y1, fondRect.y+fondRect.h); }
+      if(x0>x1){ x0=0; y0=0; x1=1; y1=1; }
       var marge=10; x0-=marge; y0-=marge; x1+=marge; y1+=marge;
       var l=x1-x0, h=y1-y0, k=Math.min(2, MAX_L/l);
       var c=document.createElement("canvas"); c.width=Math.max(1, Math.round(l*k)); c.height=Math.max(1, Math.round(h*k));
       var g=c.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,c.width,c.height);
+      if(fondImg && fondRect && fondImg.complete && fondImg.naturalWidth) g.drawImage(fondImg, (fondRect.x-x0)*k, (fondRect.y-y0)*k, fondRect.w*k, fondRect.h*k);
       traits.forEach(function(t){ tracer(g, t, k, x0, y0); });
-      var encre={src:c.toDataURL("image/png"), l:c.width, h:c.height};
+      /* on garde les tracés (pour compléter plus tard) et le fond reporté */
+      var encre={src:c.toDataURL("image/png"), l:c.width, h:c.height,
+        traits: traits.map(function(t){ return {c:t.c, pts:t.pts.map(function(p){ return {x:Math.round(p.x*10)/10, y:Math.round(p.y*10)/10, w:Math.round(p.w*100)/100}; })}; })};
+      if(o.fond){ encre.fond=o.fond; encre.fondL=fondL; encre.fondH=fondH; }
       fermer();
       if(o.ok) o.ok(encre);
     }
