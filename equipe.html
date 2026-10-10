@@ -78,9 +78,10 @@ button.act.danger{background:#F8E4E0;color:var(--danger)}
 .compte .c-act .act{flex:0 0 auto;min-height:44px;padding:0 12px;margin:0;width:auto;font-size:14px}
 .legend{font-size:13px;color:var(--ink-2);margin:0 0 8px}
 .applis{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 6px}
-.applis button{min-height:42px;padding:9px 14px;border:0;border-radius:var(--r-field);background:var(--field);
+.applis button{min-height:44px;padding:9px 14px;border:0;border-radius:var(--r-field);background:var(--field);
  color:var(--ink);font-size:14.5px;font-weight:500;font-family:inherit;cursor:pointer}
 .applis button.on{background:var(--accent);color:#fff;font-weight:600}
+#btnSauvegarde,#btnSauvegardeTout{min-height:48px;width:100%;white-space:normal;line-height:1.25}
 .acces{display:block;font-size:12.5px;color:var(--accent);margin-top:2px}
 
 /* ---------- écrans larges : ordinateur et tablette ---------- */
@@ -1053,12 +1054,19 @@ function chargerSocietes(){
     .then(function(d){
       var host=$("listeSocietes"); host.textContent="";
       (d.societes||[]).forEach(function(x){
-        var r=document.createElement("div"); r.className="ligne";
-        var t=document.createElement("div"); t.style.cssText="flex:1;min-width:0";
-        var b=document.createElement("b"); b.textContent=x.nom+(x.demo?"  (démonstration)":"");
-        var s2=document.createElement("span");
-        s2.textContent="code "+x.code+(x.ville?"  ·  "+x.ville:"")+(x.actif===false?"  ·  suspendue":"");
-        t.appendChild(b); t.appendChild(s2);
+        /* comme les comptes : le nom en entier en haut, son état en pastille, les boutons dessous */
+        var r=document.createElement("div"); r.className="ligne compte";
+        var t=document.createElement("div"); t.className="c-infos";
+        var b=document.createElement("b"); b.textContent=x.nom;
+        t.appendChild(b);
+        if(x.demo || x.actif===false){
+          var pa=document.createElement("span"); pa.className="role"+(x.actif===false ? "" : " technicien");
+          pa.textContent=[x.demo ? "Démonstration" : "", x.actif===false ? "Suspendue" : ""].filter(Boolean).join(" · ");
+          t.appendChild(pa);
+        }
+        var s2=document.createElement("span"); s2.className="c-id";
+        s2.textContent=["code "+x.code, x.metier||"", x.ville||""].filter(Boolean).join("  ·  ");
+        t.appendChild(s2);
         var bt=document.createElement("button");
         bt.className="act"+(x.actif===false?" ghost":" danger");
         bt.textContent = x.actif===false ? "Réactiver" : "Suspendre";
@@ -1070,7 +1078,9 @@ function chargerSocietes(){
         var dl=document.createElement("button"); dl.className="act ghost"; dl.type="button";
         dl.textContent="Tout télécharger"; dl.title="Toutes les données de "+x.nom+", en un fichier ZIP";
         dl.addEventListener("click", function(){ sauvegarder(false, x.code, dl); });
-        r.appendChild(t); r.appendChild(dl); r.appendChild(bt);
+        var haut=document.createElement("div"); haut.className="c-haut"; haut.appendChild(t);
+        var act=document.createElement("div"); act.className="c-act"; act.appendChild(dl); act.appendChild(bt);
+        r.appendChild(haut); r.appendChild(act);
         host.appendChild(r);
       });
     }).catch(function(){});
