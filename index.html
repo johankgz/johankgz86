@@ -270,7 +270,12 @@ body.connexion button.lien{color:var(--accent)}
 .cal-liste li .h{font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent,#B4621A);flex:0 0 auto}
 .cal-liste li .x{flex:1;min-width:0}
 .cal-liste li .x small{display:block;color:var(--ink-3);font-size:12px}
-.cal-liste li button{flex:0 0 auto;width:32px;height:32px;border:0;border-radius:50%;background:none;color:var(--ink-3);font-size:18px;cursor:pointer}
+.cal-liste li button{flex:0 0 auto;width:44px;height:44px;margin:-6px -4px;border:0;border-radius:50%;background:none;color:var(--ink-3);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;padding:0}
+.cal-liste li button svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.cal-liste li .x.modifiable{cursor:pointer}
+.cal-liste li.modif{box-shadow:inset 0 0 0 2px var(--accent,#B4621A)}
+.cal-ajout .cal-annuler{background:none;color:var(--ink-2);border:1px solid var(--rule)}
 .cal-liste .vide{background:none;color:var(--ink-3);padding:2px 0}
 .cal-ajout{display:flex;gap:6px;flex-wrap:wrap}
 .cal-ajout input[type=text]{flex:1 1 100%;min-width:0;min-height:44px;padding:0 12px;border:1px solid var(--rule);border-radius:10px;font:inherit;font-size:16px;background:var(--card);color:var(--ink)}
@@ -1801,6 +1806,7 @@ body.connexion .ciel{display:none}
             <input type="text" id="calTexte" maxlength="300" placeholder="Rappel : téléphoner à…" aria-label="Texte du rappel" autocomplete="off">
             <input type="time" id="calHeure" value="09:00" aria-label="Heure du rappel">
             <button type="submit" id="calOk">Ajouter</button>
+            <button type="button" id="calAnnuler" class="cal-annuler" hidden>Annuler</button>
           </form>
           <p class="cal-info" id="calInfo">Une notification arrive sur le téléphone à l'heure dite, et le rappel s'affiche en tête de l'accueil.</p>
         </div>
@@ -2615,7 +2621,7 @@ function peindreCal(){
 function choisirJourCal(iso){
   CAL.jour=iso; var d=new Date(iso+"T12:00:00");
   if(d.getMonth()!==CAL.mois || d.getFullYear()!==CAL.an){ CAL.mois=d.getMonth(); CAL.an=d.getFullYear(); }
-  peindreCal();
+  peindreCal(); infoModifCal();
   /* au doigt, pas de clavier qui surgit : on touche le champ quand on veut écrire */
   var souris=window.matchMedia && window.matchMedia("(hover:hover) and (pointer:fine)").matches;
   if(souris) try{ $("calTexte").focus({preventScroll:true}); }catch(e){}
@@ -2636,18 +2642,47 @@ function peindreJourCal(){
     if(src){ var sm=document.createElement("small"); sm.textContent=src; x.appendChild(sm); }
     li.appendChild(h); li.appendChild(x);
     if(r.cal){
+      if(CAL.edit===r.cle) li.classList.add("modif");
+      x.classList.add("modifiable");
+      x.addEventListener("click", function(){ modifierRappelCal(r); });
+      var mo=document.createElement("button"); mo.type="button"; mo.className="cal-mod";
+      mo.setAttribute("aria-label","Modifier le rappel « "+r.texte+" »");
+      mo.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="m13.5 6.5 4 4"/></svg>';
+      mo.addEventListener("click", function(){ modifierRappelCal(r); });
+      li.appendChild(mo);
       var del=document.createElement("button"); del.type="button"; del.textContent="×"; del.setAttribute("aria-label","Supprimer le rappel « "+r.texte+" »");
       del.addEventListener("click", function(){
         var s=SESSION_COURANTE; if(!s) return; del.disabled=true;
         fetch(apiUrl("rappel-supprimer")+"&cle="+encodeURIComponent(r.cle), {headers:{"x-auth":s.jeton}})
           .then(function(rep){ return rep.ok ? rep.json() : Promise.reject(); })
-          .then(function(){ TACHES=TACHES.filter(function(z){ return z.cle!==r.cle; }); peindreCal(); try{ peindreRappels(s); peindreCloche(); }catch(e){} majBadgeCal(); })
+          .then(function(){ TACHES=TACHES.filter(function(z){ return z.cle!==r.cle; }); if(CAL.edit===r.cle) finModifCal(); peindreCal(); try{ peindreRappels(s); peindreCloche(); }catch(e){} majBadgeCal(); })
           .catch(function(){ del.disabled=false; });
       });
       li.appendChild(del);
     }
     ul.appendChild(li);
   });
+}
+/* modifier un rappel du calendrier : le formulaire se remplit ; on change le texte,
+   l'heure, ou on touche un autre jour pour l'y déplacer, puis « Enregistrer » */
+function modifierRappelCal(r){
+  CAL.edit=r.cle; CAL.editJour=r.quand;
+  $("calTexte").value=r.texte; $("calHeure").value=(r.heure||"09:00").slice(0,5);
+  $("calOk").textContent="Enregistrer"; $("calAnnuler").hidden=false;
+  peindreJourCal(); infoModifCal();
+  try{ $("calTexte").focus({preventScroll:true}); }catch(e){}
+}
+function infoModifCal(){
+  if(!CAL.edit) return;
+  var d=new Date(CAL.jour+"T12:00:00");
+  $("calInfo").textContent = CAL.jour!==CAL.editJour
+    ? "« Enregistrer » déplacera ce rappel au "+d.getDate()+" "+MOIS_FR[d.getMonth()]+"."
+    : "Modifiez le texte ou l'heure, ou touchez un autre jour pour y déplacer le rappel.";
+}
+function finModifCal(){
+  CAL.edit=null; CAL.editJour=null;
+  $("calTexte").value=""; $("calOk").textContent="Ajouter"; $("calAnnuler").hidden=true;
+  $("calInfo").textContent="Une notification arrive sur le téléphone à l'heure dite, et le rappel s'affiche en tête de l'accueil.";
 }
 function majBadgeCal(){
   var n=rappelsDuJour(isoJour(new Date())).length, b=$("calNb"), bt=$("btnCal"); if(!b || !bt) return;
@@ -2662,11 +2697,12 @@ function majBadgeCal(){
   function ouvrir(iso){
     var d=iso ? new Date(iso+"T12:00:00") : new Date(); if(isNaN(d)) d=new Date();
     CAL.an=d.getFullYear(); CAL.mois=d.getMonth(); CAL.jour=isoJour(d);
+    finModifCal();
     peindreCal(); f.hidden=false; b.setAttribute("aria-expanded","true");
-    $("calInfo").textContent="Une notification arrive sur le téléphone à l'heure dite, et le rappel s'affiche en tête de l'accueil.";
   }
-  function fermer(){ if(f.hidden) return; f.hidden=true; b.setAttribute("aria-expanded","false"); }
+  function fermer(){ if(f.hidden) return; f.hidden=true; b.setAttribute("aria-expanded","false"); finModifCal(); }
   window.ouvrirCalendrier=ouvrir;
+  $("calAnnuler").addEventListener("click", function(){ finModifCal(); peindreJourCal(); });
   b.addEventListener("click", function(){ ouvrir(); });
   f.addEventListener("click", function(e){ var t=e.target.closest ? e.target.closest("[data-fermer]") : null; if(t){ fermer(); b.focus(); } });
   document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !f.hidden){ fermer(); b.focus(); } });
@@ -2679,6 +2715,23 @@ function majBadgeCal(){
     if(!texte){ $("calTexte").focus(); return; }
     if(!s){ $("calInfo").textContent="Connectez-vous pour poser un rappel."; return; }
     $("calOk").disabled=true;
+    if(CAL.edit){
+      var cle=CAL.edit;
+      fetch(apiUrl("rappel-modifier"), {method:"POST", headers:{"content-type":"application/json","x-auth":s.jeton},
+        body:JSON.stringify({cle:cle, texte:texte, quand:CAL.jour, heure:heure.slice(0,5)})})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+        .then(function(res){
+          $("calOk").disabled=false;
+          if(!res.ok){ $("calInfo").textContent=res.d.erreur || "Modification refusée."; return; }
+          TACHES=TACHES.filter(function(z){ return z.cle!==cle; }); TACHES.push(res.d.tache);
+          finModifCal();
+          var d=new Date(res.d.tache.quand+"T12:00:00");
+          $("calInfo").textContent="Rappel modifié : le "+d.getDate()+" "+MOIS_FR[d.getMonth()]+" à "+res.d.tache.heure.replace(":", "h")+".";
+          peindreCal(); majBadgeCal(); try{ peindreRappels(s); peindreCloche(); }catch(er){}
+        })
+        .catch(function(){ $("calOk").disabled=false; $("calInfo").textContent="Pas de réseau : réessayez une fois connecté."; });
+      return;
+    }
     fetch(apiUrl("rappel-creer"), {method:"POST", headers:{"content-type":"application/json","x-auth":s.jeton},
       body:JSON.stringify({texte:texte, quand:CAL.jour, heure:heure.slice(0,5)})})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })

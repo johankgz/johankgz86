@@ -2834,6 +2834,28 @@ async function traiter(req) {
     await store.setJSON(cle, t);
     return json({ ok: true, tache: { cle, ...t } });
   }
+  /* modifier un rappel du calendrier : le texte, l'heure, ou le jour (le déplacer) ;
+     un nouveau moment le fait notifier à nouveau */
+  if (action === "rappel-modifier") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const cle = String(d.cle || "");
+    if (cle.indexOf("taches/cal-") !== 0) return json({ erreur: "Rappel introuvable." }, 404);
+    let t = null;
+    try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
+    if (!t) return json({ erreur: "Ce rappel n'existe plus." }, 404);
+    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    const texte = String(d.texte || "").trim().slice(0, 300);
+    const quand = String(d.quand || t.quand || "").slice(0, 10);
+    if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
+    const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : (t.heure || "09:00");
+    const autreMoment = quand !== t.quand || heure !== t.heure;
+    Object.assign(t, { texte, quand, heure, modifie: new Date().toISOString() });
+    if (autreMoment) t.notifie = "";
+    await store.setJSON(cle, t);
+    return json({ ok: true, tache: { cle, ...t } });
+  }
   if (action === "rappel-supprimer") {
     const cle = url.searchParams.get("cle") || "";
     if (cle.indexOf("taches/cal-") !== 0) return json({ erreur: "Rappel introuvable." }, 404);
