@@ -151,8 +151,40 @@ function habillerGroupe(box){
     }
   });
 }
+/* des rangées équilibrées : autant de tuiles par rangée que possible, mais réparties
+   (5 tuiles sur 4 places : 3 + 2, pas 4 + 1) ; refait quand la largeur change */
+function equilibrer(box){
+  if(!box.classList.contains("tuiles")) return;
+  var chips = Array.prototype.filter.call(box.children, function(c){ return c.classList.contains("chip") && !c.hidden && c.offsetParent !== null; });
+  var n = chips.length, W = box.clientWidth;
+  if(!n || !W) return;
+  var cs = getComputedStyle(box), gap = parseFloat(cs.columnGap) || 6, mini = 78;
+  var max = Math.max(1, Math.floor((W + gap) / (mini + gap)));
+  var rangs = Math.ceil(n / max), reste = n, i = 0;
+  for(var r = 0; r < rangs; r++){
+    var k = Math.ceil(reste / (rangs - r)); reste -= k;
+    var base = "calc((100% - " + (gap * (k - 1)) + "px) / " + k + ")";
+    for(var j = 0; j < k; j++, i++){
+      if(chips[i].style.flexBasis !== base){ chips[i].style.flex = "0 0 " + base; chips[i].style.maxWidth = base; }
+    }
+  }
+}
+var suivis = [];
+function suivre(box){
+  equilibrer(box);
+  if(box.__equilibre) return;
+  box.__equilibre = true; suivis.push(box);
+  if(window.ResizeObserver){
+    var attente = 0;   /* à l'image suivante : pas de boucle « ResizeObserver loop » */
+    try{ new ResizeObserver(function(){ if(attente) return; attente = requestAnimationFrame(function(){ attente = 0; equilibrer(box); }); }).observe(box); }catch(e){}
+  }
+}
+window.addEventListener("resize", function(){ suivis.forEach(equilibrer); });
 function habillerChoix(racine){
-  Array.prototype.forEach.call((racine || document).querySelectorAll(".chips"), habillerGroupe);
+  Array.prototype.forEach.call((racine || document).querySelectorAll(".chips"), function(box){
+    habillerGroupe(box);
+    if(box.classList.contains("tuiles")) suivre(box);
+  });
 }
 
 /* ---------- les titres : un symbole devant ---------- */
