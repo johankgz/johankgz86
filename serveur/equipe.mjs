@@ -34,8 +34,8 @@ export const PROPRIETAIRE = {
    page Comptes du site, sans toucher à ce fichier. */
 export const SOCIETE_DEPART = {
   code: "tle",
-  nom: "SUIVI TRAVAUX 360",
-  metier: "Suivi de chantier",
+  nom: "TRICHET LOUÉ ÉNERGIES",
+  metier: "",
   ville: "",
   utilisateurs: [
     { identifiant: "johan",        motdepasse: "", nom: "Johan",          role: "admin",       email: "Jklughertz@tlenergies.com" },

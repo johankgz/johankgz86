@@ -251,7 +251,10 @@
       .catch(function(){}).then(function(){ envoiJournal = false; });
   }
   /* les erreurs de la page */
-  window.addEventListener("error", function(e){ if(e && e.message) noter({quoi:"erreur", erreur:String(e.message).slice(0,200), source:String(e.filename||"").split("/").pop()+":"+(e.lineno||0)}); });
+  /* les avertissements du navigateur sans conséquence (« ResizeObserver loop… », « Script error. »
+     d'une autre origine) ne sont pas des erreurs de la page : on ne les note pas */
+  var BENIN = /ResizeObserver loop|^Script error\.?$/i;
+  window.addEventListener("error", function(e){ if(e && e.message && !BENIN.test(String(e.message))) noter({quoi:"erreur", erreur:String(e.message).slice(0,200), source:String(e.filename||"").split("/").pop()+":"+(e.lineno||0)}); });
   window.addEventListener("unhandledrejection", function(e){ var m = e && e.reason && (e.reason.message || e.reason); if(m && !/AbortError|Le site ne répond pas|Failed to fetch|NetworkError|Load failed/.test(String(m))) noter({quoi:"erreur", erreur:String(m).slice(0,200)}); });
   /* le message d'échec affiché sous « Publier » : ce que la personne a vu */
   function guetterEtat(){

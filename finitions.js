@@ -85,7 +85,9 @@
         placer(true);
       }).observe(nav, {attributes:true, attributeFilter:["aria-current", "hidden"], subtree:true, childList:true});
     }catch(e){}
-    if(window.ResizeObserver){ try{ new ResizeObserver(function(){ placer(false); }).observe(nav); }catch(e){} }
+    /* à l'image suivante : pas de boucle « ResizeObserver loop » */
+    var attente=0;
+    if(window.ResizeObserver){ try{ new ResizeObserver(function(){ if(attente) return; attente=requestAnimationFrame(function(){ attente=0; placer(false); }); }).observe(nav); }catch(e){} }
     window.addEventListener("resize", function(){ placer(false); });
     window.addEventListener("theme", function(){ couleurs = null; placer(false); });
     if(document.fonts && document.fonts.ready) document.fonts.ready.then(function(){ placer(false); });

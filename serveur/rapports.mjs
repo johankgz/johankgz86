@@ -157,11 +157,12 @@ async function lireSocietes() {
   /* réparation : la société de départ et la démonstration existent toujours */
   if (Array.isArray(liste) && liste.length) {
     let corrige = false;
-    /* la société de départ portait le nom d'un employeur sans rapport avec le
-       site : elle reprend celui du site, sans ville ni métier imposés */
+    /* la société de départ est l'entreprise (Trichet Loué Énergies) : une
+       ancienne version lui avait donné le nom du logiciel, qu'elle quitte */
     const dep = liste.find((x) => x.code === SOCIETE_DEPART.code);
-    if (dep && /trichet|lou[eé]\s*[eé]nergies/i.test(dep.nom || "")) {
-      dep.nom = SOCIETE_DEPART.nom; dep.metier = SOCIETE_DEPART.metier; dep.ville = SOCIETE_DEPART.ville;
+    if (dep && /^\s*suivi\s*travaux\s*360\s*$/i.test(dep.nom || "")) {
+      dep.nom = SOCIETE_DEPART.nom;
+      if (/^suivi de chantier$/i.test(dep.metier || "")) dep.metier = "";
       corrige = true;
     }
     for (const s of [SOCIETE_DEPART, SOCIETE_DEMO]) {
@@ -722,6 +723,10 @@ function voit(personne, fichier, chantier) {
   if ((fichier.destinataires || []).some(moi)) return true;
   if (chantier && chantier._orphelin && (personne.role === "bureau" || personne.role === "admin")) return true;
   return !!chantier && (chantier.equipe || []).some(moi);
+}
+/* un avertissement du navigateur sans conséquence, pas une erreur de la page */
+function incidentBenin(x) {
+  return !!x && x.quoi === "erreur" && /ResizeObserver loop|^Script error\.?$/i.test(String(x.erreur || ""));
 }
 function chantierDe(idx, cle) {
   return idx.chantiers[String(cle).split("/")[0]] || null;
@@ -1527,7 +1532,7 @@ async function traiter(req) {
   if (action === "journal-appareil") {
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const t = (v, n) => String(v == null ? "" : v).slice(0, n);
-    const entrees = (Array.isArray(d.entrees) ? d.entrees : []).slice(-30).map((x) => ({
+    const entrees = (Array.isArray(d.entrees) ? d.entrees : []).slice(-30).filter((x) => !incidentBenin(x)).map((x) => ({
       le: t(x.le, 30), qui: personne.nom, page: t(x.page, 60), quoi: t(x.quoi, 20), action: t(x.action, 40),
       statut: +x.statut || 0, erreur: t(x.erreur, 240), source: t(x.source, 80), essais: +x.essais || 0,
       duree: +x.duree || 0, taille: +x.taille || 0, enLigne: x.enLigne !== false,
@@ -1543,7 +1548,11 @@ async function traiter(req) {
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
     let l = [];
     try { l = (await store.get("diagnostic/appareils.json", { type: "json" })) || []; } catch { l = []; }
-    return json({ entrees: (Array.isArray(l) ? l : []).slice(-150).reverse() });
+    l = Array.isArray(l) ? l : [];
+    /* les avertissements sans conséquence déjà notés quittent le journal */
+    const propre = l.filter((x) => !incidentBenin(x));
+    if (propre.length !== l.length) { try { await store.setJSON("diagnostic/appareils.json", propre); } catch { /* lecture d'abord */ } }
+    return json({ entrees: propre.slice(-150).reverse() });
   }
 
   /* ---------- le Cloud : l'espace de rangement de chacun (serveur/cloud.mjs) ---------- */
@@ -1878,6 +1887,22 @@ async function traiter(req) {
     try { f = await a.get("fiches/" + personne.societe + ".json", { type: "json" }); } catch { f = null; }
     const soc = (await lireSocietes()).find((x) => x.code === personne.societe) || {};
     return json({ fiche: f, nom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "" });
+  }
+  /* le nom, le métier et la ville de la société : l'administrateur les corrige */
+  if (action === "societe-infos-enregistrer") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const txt = (v, n) => String(v || "").replace(/\s+/g, " ").trim().slice(0, n);
+    const nom = txt(d.nom, 120);
+    if (!nom) return json({ erreur: "Donnez le nom de la société." }, 400);
+    const liste = await lireSocietes();
+    const i = liste.findIndex((x) => x.code === personne.societe);
+    if (i < 0) return json({ erreur: "Société inconnue." }, 404);
+    if (liste[i].demo) return json({ erreur: "Démonstration : rien n'est enregistré." }, 403);
+    liste[i] = { ...liste[i], nom, metier: txt(d.metier, 80), ville: txt(d.ville, 80) };
+    await magasinAnnuaire().setJSON("societes.json", liste);
+    return json({ ok: true, nom: liste[i].nom, metier: liste[i].metier, ville: liste[i].ville });
   }
   if (action === "societe-fiche-enregistrer") {
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
