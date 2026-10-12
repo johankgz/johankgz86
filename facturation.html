@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<script src="./theme.js?v=20261007a"></script>
+<script src="./clavier.js?v=20261010a" defer></script>
+<script src="./commun.js?v=20261007a" defer></script>
+<script src="./dates.js?v=20261001a"></script>
+<script src="./reseau.js?v=20261010a"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
+<meta name="theme-color" content="#F4F1EA">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<title>Facturation du mois — Suivi travaux 360</title>
+<style>
+:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#5E584E;--ink-3:#736C60;--rule:#E2DCCE;--champ:#EFEBE1;
+ --accent:#B4621A;--accent-fonce:#8F4A10;--accent-soft:#FBEDE0;--rouge:#A6291F;--rouge-soft:#F8E4E0;--vert:#2F6B2A;--vert-plein:#2E7D32;--vert-soft:#E6F0E2;
+ --shadow:0 1px 0 rgba(34,32,28,.05);--r:14px}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
+ font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+ padding-bottom:calc(96px + env(safe-area-inset-bottom,0px))}
+header{position:sticky;top:0;z-index:10;background:rgba(244,241,234,.9);backdrop-filter:saturate(180%) blur(20px);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
+a.menu{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:10px;
+ background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13.5px;font-weight:600;text-decoration:none}
+h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+main{max-width:720px;margin:0 auto;padding:16px}
+.carte{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.hint{font-size:14px;color:var(--ink-3);margin:0}
+
+/* le mois en cours : où on en est */
+.mois{display:flex;align-items:center;gap:16px}
+.mois .reste{flex:0 0 auto;min-width:64px;text-align:center}
+.mois .reste b{display:block;font-size:34px;line-height:1;font-weight:800;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
+.mois .reste span{font-size:12.5px;color:var(--ink-3);font-weight:600}
+.mois .reste.fini b{color:var(--vert-plein)}
+.mois .txt{flex:1;min-width:0}
+.mois h2{margin:0 0 2px;font-size:17px;font-weight:700;letter-spacing:-.02em}
+.jauge{height:8px;border-radius:99px;background:var(--champ);overflow:hidden;margin:10px 0 6px}
+.jauge i{display:block;height:100%;width:0;background:var(--vert-plein);border-radius:99px;transition:width .35s ease}
+@media (prefers-reduced-motion:reduce){.jauge i{transition:none}}
+
+.outils{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 12px}
+.onglets{display:flex;gap:6px;flex:1 1 260px}
+.onglets button{flex:1;min-height:44px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink-2);font:inherit;font-size:14.5px;font-weight:600;cursor:pointer}
+.cherche{flex:1 1 220px;display:flex}
+.cherche input{width:100%;min-height:44px;padding:0 14px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;font-size:16px}
+
+/* une ligne par chantier */
+.liste{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
+.ch{display:flex;align-items:center;gap:12px;padding:12px 14px;border-top:1px solid var(--rule)}
+.ch:first-child{border-top:0}
+.ch .qui{flex:1;min-width:0}
+.ch .qui a{display:block;color:var(--ink);font-weight:700;font-size:16px;text-decoration:none;overflow-wrap:anywhere;line-height:1.3}
+.ch .qui small{display:block;font-size:13px;color:var(--ink-3);overflow-wrap:anywhere;margin-top:2px}
+.ch .choix{flex:0 0 auto;display:flex;gap:6px}
+.ch .choix button{min-height:44px;padding:0 12px;border-radius:10px;border:1px solid var(--rule);background:transparent;color:var(--ink-2);
+ font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.ch .choix button svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round}
+.ch.fait .qui a{color:var(--ink-2)}
+.ch .attente{display:inline-block;margin-left:6px;padding:0 7px;border-radius:99px;background:var(--accent-soft);color:var(--accent-fonce);font-size:11.5px;font-weight:700;vertical-align:1px}
+@media (max-width:520px){
+  .ch{flex-wrap:wrap}
+  .ch .qui{flex:1 1 100%}
+  .ch .choix{flex:1 1 100%}
+  .ch .choix button{flex:1;justify-content:center}
+}
+.vide,.err{background:var(--card);border-radius:var(--r);padding:22px 16px;text-align:center;color:var(--ink-3);margin:0}
+.bravo{display:flex;align-items:center;gap:10px;justify-content:center;color:var(--vert);font-weight:700}
+.bravo svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}
+
+.nouveau{margin-top:18px}
+.nouveau button{width:100%;min-height:50px;border-radius:12px;border:0;background:var(--accent);color:#fff;font:inherit;font-size:16px;font-weight:700;cursor:pointer}
+.nouveau p{margin:8px 2px 0}
+
+/* les mois passés */
+h2.sec{font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);margin:26px 2px 10px}
+details.passe{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:8px}
+details.passe summary{list-style:none;cursor:pointer;padding:12px 14px;min-height:48px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px}
+details.passe summary::-webkit-details-marker{display:none}
+details.passe summary b{flex:1 1 auto;font-size:15px}
+details.passe summary span{font-size:13px;color:var(--ink-3)}
+details.passe summary .oubli{color:var(--rouge);font-weight:700}
+details.passe .corps{padding:0 14px 12px;font-size:14px}
+details.passe h3{font-size:13px;margin:10px 0 4px;color:var(--ink-2)}
+details.passe ul{margin:0;padding-left:18px}
+a:focus-visible,button:focus-visible,summary:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#16181B;--card:#202328;--ink:#ECEAE5;--ink-2:#D3CFC6;--ink-3:#B4AEA3;--rule:rgba(255,255,255,.14);--champ:rgba(255,255,255,.1);
+   --accent-soft:#3A2A1A;--accent-fonce:#F0A563;--rouge-soft:#3A1F1C;--rouge:#F2A098;--vert:#B9D58F;--vert-plein:#2E7D32;--vert-soft:#24301A}
+  header{background:rgba(22,24,27,.9)}
+}
+</style>
+<style data-theme-propre>
+/* les états choisis et le bandeau : des couleurs fixes, que le thème ne retouche pas */
+.onglets button[aria-pressed="true"]{background:#B4621A;border-color:#B4621A;color:#fff}
+.ch .choix .fact[aria-pressed="true"]{background:#2E7D32;border-color:#2E7D32;color:#fff}
+.ch .choix .rien[aria-pressed="true"]{background:#4A453D;border-color:#4A453D;color:#fff}
+.toast{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:50;
+ width:min(520px,calc(100% - 32px));background:#22201C;color:#fff;border-radius:12px;padding:8px 8px 8px 16px;font-size:14.5px;line-height:1.35;
+ display:flex;align-items:center;gap:12px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+.toast[hidden]{display:none}
+.toast span{flex:1;min-width:0}
+.toast button{flex:0 0 auto;min-height:44px;padding:0 16px;border:0;border-radius:99px;background:#F08A2E;color:#22201C;font:inherit;font-weight:700;cursor:pointer}
+@media (prefers-color-scheme:dark){
+  .ch .choix .rien[aria-pressed="true"]{background:#8C8475;border-color:#8C8475;color:#16181B}
+  .toast{background:#ECEAE5;color:#16181B}
+}
+</style>
+<script src="./finitions.js?v=20261010a" defer></script>
+<script src="./palette.js?v=20261012a" defer></script>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1>Facturation du mois</h1>
+</header>
+<main>
+  <div class="carte mois" id="mois" aria-live="polite">
+    <div class="reste" id="reste"><b id="nReste">–</b><span id="lReste">à cocher</span></div>
+    <div class="txt">
+      <h2 id="moisT">Mois en cours</h2>
+      <div class="jauge" aria-hidden="true"><i id="jauge"></i></div>
+      <p class="hint" id="moisSous">Chargement…</p>
+    </div>
+  </div>
+
+  <div class="outils">
+    <div class="onglets" role="group" aria-label="Filtrer les chantiers">
+      <button type="button" id="fReste" aria-pressed="true">À cocher</button>
+      <button type="button" id="fTout" aria-pressed="false">Tous</button>
+    </div>
+    <label class="cherche"><span style="position:absolute;left:-9999px">Rechercher un chantier</span>
+      <input type="search" id="cherche" placeholder="Rechercher un chantier…" autocomplete="off"></label>
+  </div>
+
+  <div id="liste" aria-live="polite"><p class="vide">Chargement…</p></div>
+
+  <div class="nouveau">
+    <button type="button" id="btnNouveau">Nouveau mois : tout remettre à zéro</button>
+    <p class="hint">Quand toute la facturation est faite. Le mois fini est gardé plus bas, avec ce qui n'avait pas été coché.</p>
+  </div>
+
+  <h2 class="sec" id="histT" hidden>Les mois passés</h2>
+  <div id="historique"></div>
+</main>
+<div class="toast" id="toast" role="status" hidden><span id="toastT"></span><button type="button" id="toastAnnuler" hidden>Annuler</button></div>
+<script>
+(function(){
+  "use strict";
+  var $ = function(id){ return document.getElementById(id); };
+  var S = null; try{ S = JSON.parse(localStorage.getItem("outils:session") || "null"); }catch(e){}
+  if(!S || !S.jeton){ location.replace("./index.html#connexion"); return; }
+  var API = "/api/rapports?action=", D = null, VUE = "reste", Q = "";
+  try{ VUE = localStorage.getItem("facturation:vue") === "tout" ? "tout" : "reste"; }catch(e){}
+  function appel(a, o){ return fetch(API + a, Object.assign({headers:{"x-auth":S.jeton, "content-type":"application/json"}}, o || {}))
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, st:r.status, d:d}; }); }); }
+  function el(t, cls, txt){ var e = document.createElement(t); if(cls) e.className = cls; if(txt != null) e.textContent = txt; return e; }
+  function jour(iso, an){ try{ return new Date(iso).toLocaleDateString("fr-FR", an ? {day:"numeric", month:"long", year:"numeric"} : {day:"numeric", month:"long"}); }catch(e){ return ""; } }
+  function sans(t){ return String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, ""); }
+  var toastMinuterie = null;
+  function toast(t, annuler){
+    $("toastT").textContent = t; $("toast").hidden = false;
+    $("toastAnnuler").hidden = !annuler; $("toastAnnuler").onclick = annuler ? function(){ $("toast").hidden = true; annuler(); } : null;
+    clearTimeout(toastMinuterie); toastMinuterie = setTimeout(function(){ $("toast").hidden = true; }, annuler ? 5000 : 2600);
+  }
+  var SVG_OK = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 12.5 4.5 4.5L19 7.5"/></svg>';
+
+  function charger(){
+    appel("facturation").then(function(r){
+      if(!r.ok){ $("liste").textContent = ""; $("liste").appendChild(el("p", "err", r.d.erreur || "Accès refusé.")); $("btnNouveau").disabled = true; return; }
+      D = r.d; peindre(); peindreHistorique();
+    }).catch(function(){ $("liste").innerHTML = '<p class="err">Pas de réseau : la liste n\'a pas pu être lue.</p>'; });
+  }
+  function fait(c){ return !!D.coches[c.ref]; }
+  function peindre(){
+    if(!D) return;
+    var tot = D.chantiers.length, n = D.chantiers.filter(fait).length, reste = tot - n;
+    var nf = D.chantiers.filter(function(c){ return D.coches[c.ref] && D.coches[c.ref].etat === "facture"; }).length;
+    $("nReste").textContent = String(reste);
+    $("lReste").textContent = reste ? "à cocher" : "tout est fait";
+    $("reste").className = "reste" + (reste ? "" : " fini");
+    $("moisT").textContent = "Depuis le " + jour(D.depuis, new Date(D.depuis).getFullYear() !== new Date().getFullYear());
+    $("jauge").style.width = (tot ? Math.round(n / tot * 100) : 0) + "%";
+    $("moisSous").textContent = tot
+      ? n + " sur " + tot + " chantier" + (tot > 1 ? "s" : "") + " · " + nf + " facturé" + (nf > 1 ? "s" : "") + ", " + (n - nf) + " sans facture ce mois"
+      : "Aucun chantier en cours.";
+    $("fReste").setAttribute("aria-pressed", VUE === "reste"); $("fTout").setAttribute("aria-pressed", VUE === "tout");
+    $("fReste").textContent = "À cocher (" + reste + ")"; $("fTout").textContent = "Tous (" + tot + ")";
+    var q = sans(Q);
+    var l = D.chantiers.filter(function(c){ return (VUE === "tout" || !fait(c)) && (!q || sans(c.client + " " + c.ref + " " + c.adresse).indexOf(q) >= 0); });
+    var h = $("liste"); h.textContent = "";
+    if(!l.length){
+      if(q) h.appendChild(el("p", "vide", "Aucun chantier ne correspond à « " + Q + " »."));
+      else if(VUE === "reste" && tot){ var b = el("p", "vide bravo"); b.innerHTML = SVG_OK; b.appendChild(document.createTextNode("Tous les chantiers sont cochés pour ce mois.")); h.appendChild(b); }
+      else h.appendChild(el("p", "vide", "Aucun chantier en cours."));
+      return;
+    }
+    var box = el("div", "liste");
+    l.forEach(function(c){ box.appendChild(ligne(c)); });
+    h.appendChild(box);
+  }
+  function ligne(c){
+    var co = D.coches[c.ref] || null;
+    var li = el("div", "ch" + (co ? " fait" : "")); li.setAttribute("data-ref", c.ref);
+    var qui = el("div", "qui");
+    var a = el("a", "", c.client || c.ref); a.href = "./chantier.html?ref=" + encodeURIComponent(c.ref);
+    if(c.attente){ a.appendChild(el("span", "attente", "en attente")); }
+    qui.appendChild(a);
+    var sous = [c.ref, c.adresse].filter(Boolean).join(" · ");
+    if(co) sous = (co.etat === "facture" ? "Facturé" : "Rien ce mois") + " le " + jour(co.le) + (sous ? " · " + sous : "");
+    qui.appendChild(el("small", "", sous));
+    li.appendChild(qui);
+    var ch = el("div", "choix");
+    var bf = el("button", "fact"); bf.type = "button"; bf.innerHTML = SVG_OK + "<span>Facturé</span>";
+    bf.setAttribute("aria-pressed", co && co.etat === "facture" ? "true" : "false");
+    bf.setAttribute("aria-label", "Facturé : " + (c.client || c.ref));
+    var br = el("button", "rien", "Rien ce mois"); br.type = "button";
+    br.setAttribute("aria-pressed", co && co.etat === "rien" ? "true" : "false");
+    br.setAttribute("aria-label", "Rien à facturer ce mois : " + (c.client || c.ref));
+    bf.addEventListener("click", function(){ cocher(c, co && co.etat === "facture" ? "" : "facture", [bf, br]); });
+    br.addEventListener("click", function(){ cocher(c, co && co.etat === "rien" ? "" : "rien", [bf, br]); });
+    ch.appendChild(bf); ch.appendChild(br); li.appendChild(ch);
+    return li;
+  }
+  function cocher(c, etat, boutons){
+    var avant = D.coches[c.ref] ? D.coches[c.ref].etat : "";
+    boutons.forEach(function(b){ b.disabled = true; });
+    appel("facturation-cocher", {method:"POST", body:JSON.stringify({ref:c.ref, etat:etat})}).then(function(r){
+      boutons.forEach(function(b){ b.disabled = false; });
+      if(!r.ok){ toast(r.d.erreur || "Non enregistré."); return; }
+      if(r.d.coche) D.coches[c.ref] = r.d.coche; else delete D.coches[c.ref];
+      peindre();
+      var nom = c.client || c.ref;
+      toast(etat === "facture" ? "« " + nom + " » facturé" : etat === "rien" ? "« " + nom + " » : rien ce mois" : "« " + nom + " » à cocher de nouveau",
+        function(){ cocher(c, avant, []); });
+    }).catch(function(){ boutons.forEach(function(b){ b.disabled = false; }); toast("Pas de réseau : non enregistré."); });
+  }
+  function peindreHistorique(){
+    var h = $("historique"); h.textContent = "";
+    var l = (D && D.historique) || [];
+    $("histT").hidden = !l.length;
+    l.forEach(function(m){
+      var d = el("details", "passe");
+      var s = el("summary");
+      s.appendChild(el("b", "", "Du " + jour(m.du) + " au " + jour(m.au, true)));
+      s.appendChild(el("span", "", (m.facture || []).length + " facturé" + ((m.facture || []).length > 1 ? "s" : "") + " · " + (m.rien || []).length + " sans facture"));
+      if((m.oublies || []).length) s.appendChild(el("span", "oubli", (m.oublies || []).length + " non coché" + (m.oublies.length > 1 ? "s" : "")));
+      d.appendChild(s);
+      var corps = el("div", "corps");
+      [["Non cochés", m.oublies], ["Facturés", m.facture], ["Rien ce mois", m.rien]].forEach(function(g){
+        if(!g[1] || !g[1].length) return;
+        corps.appendChild(el("h3", "", g[0] + " (" + g[1].length + ")"));
+        var ul = el("ul");
+        g[1].forEach(function(x){ var li = el("li"); var a = el("a", "", x.client || x.ref); a.href = "./chantier.html?ref=" + encodeURIComponent(x.ref); a.style.color = "inherit"; li.appendChild(a); ul.appendChild(li); });
+        corps.appendChild(ul);
+      });
+      d.appendChild(corps);
+      h.appendChild(d);
+    });
+  }
+  function nouveauMois(confirme){
+    var bt = $("btnNouveau"); bt.disabled = true;
+    appel("facturation-nouveau-mois", {method:"POST", body:JSON.stringify({confirme:!!confirme})}).then(function(r){
+      bt.disabled = false;
+      if(r.st === 409 && r.d.oublies){
+        var o = r.d.oublies, noms = o.slice(0, 6).map(function(x){ return "• " + (x.client || x.ref); }).join("\n") + (o.length > 6 ? "\n… et " + (o.length - 6) + " autre" + (o.length - 6 > 1 ? "s" : "") : "");
+        if(window.confirm("Il reste " + o.length + " chantier" + (o.length > 1 ? "s" : "") + " non coché" + (o.length > 1 ? "s" : "") + " :\n" + noms + "\n\nCommencer quand même un nouveau mois ? Ils seront notés « non cochés » dans l'historique.")) nouveauMois(true);
+        return;
+      }
+      if(!r.ok){ toast(r.d.erreur || "Refusé."); return; }
+      toast("Nouveau mois commencé : tout est à cocher."); charger();
+    }).catch(function(){ bt.disabled = false; toast("Pas de réseau : rien n'a changé."); });
+  }
+  $("btnNouveau").addEventListener("click", function(){
+    if(!D) return;
+    var reste = D.chantiers.filter(function(c){ return !fait(c); }).length;
+    if(reste){ nouveauMois(false); return; }
+    if(window.confirm("Toute la facturation est cochée. Commencer un nouveau mois ? Toutes les coches repartent à zéro.")) nouveauMois(true);
+  });
+  function vue(v){ VUE = v; try{ localStorage.setItem("facturation:vue", v); }catch(e){} peindre(); }
+  $("fReste").addEventListener("click", function(){ vue("reste"); });
+  $("fTout").addEventListener("click", function(){ vue("tout"); });
+  $("cherche").addEventListener("input", function(){ Q = this.value.trim(); peindre(); });
+  charger();
+})();
+</script>
+<script src="./pied.js?v=20261007b" defer></script>
+</body>
+</html>

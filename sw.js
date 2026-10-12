@@ -18,7 +18,7 @@ var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html
   "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/mesnotes.html", "/photos.html", "/plans.html", "/point.html",
   "/cloud.html", "/discussions.html", "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
   "/technique.html", "/utilitaires.html",
-  "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html"];
+  "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html", "/facturation.html"];
 var FICHIERS = ["/annotation.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/fonds-anim.js", "/commun.js", "/theme.js", "/horsligne.js",
   "/notifications.js", "/reseau.js", "/sobre.js", "/finitions.js", "/palette.js", "/carte.js", "/vitrine.js", "/vitrine.css", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/stylet.js", "/teinte.js", "/boussole.js", "/sobre.css", "/pied.js", "/legal.css",
   "/manifest.webmanifest", "/polices/jakarta-var.woff2", "/icone-120.png", "/icone-152.png", "/icone-167.png",

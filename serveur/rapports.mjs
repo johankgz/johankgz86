@@ -4046,6 +4046,74 @@ async function traiter(req) {
     return json({ ok: true, note: c.note || null });
   }
 
+  /* =====================================================================
+     LA FACTURATION DU MOIS
+     ---------------------------------------------------------------------
+     Une liste à cocher, à soi : chaque chantier en cours, « Facturé » ou
+     « Rien ce mois ». « Nouveau mois » range le mois dans l'historique
+     (avec ce qui n'avait pas été coché) et repart d'une liste vierge,
+     quand on le décide. Le bureau et l'administrateur.
+     ===================================================================== */
+  if (action === "facturation" || action === "facturation-cocher" || action === "facturation-nouveau-mois") {
+    if (!bureau) return json({ erreur: "La facturation est réservée au bureau." }, 403);
+    const cleF = "facturation/" + slug(personne.nom) + ".json";
+    const lireF = async () => {
+      const f = (await store.get(cleF, { type: "json" })) || {};
+      /* jamais commencée : le mois en cours, depuis le 1er */
+      const premier = new Date(); premier.setDate(1); premier.setHours(0, 0, 0, 0);
+      return { depuis: f.depuis || premier.toISOString(), coches: f.coches || {}, historique: Array.isArray(f.historique) ? f.historique : [] };
+    };
+    const enCours = async () => {
+      const idx = await lireIndex();
+      const l = [];
+      for (const c of Object.values(idx.chantiers)) {
+        if (!(c.fichiers || []).some((f) => !f.brouillon && voit(personne, f, c))) continue;
+        const e = etatDossier(c);
+        l.push({ ref: c.ref, client: c.client || "", adresse: c.adresse || "", attente: e.etat === "attente", accepte: !!e.accepte,
+          avancement: avancementDe(c), maj: c.maj || "" });
+      }
+      return l;
+    };
+    if (action === "facturation") {
+      const f = await lireF();
+      const tous = await enCours();
+      /* les chantiers en cours, et ceux déjà cochés ce mois même s'ils sont passés en attente */
+      const chantiers = tous.filter((c) => !c.attente || f.coches[c.ref]);
+      chantiers.sort((a, b) => String(a.client || a.ref).localeCompare(String(b.client || b.ref), "fr"));
+      return json({ depuis: f.depuis, coches: f.coches, chantiers, historique: f.historique.slice(0, 12) });
+    }
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    return sousVerrou(personne.societe + ":" + cleF, async () => {
+      const f = await lireF();
+      if (action === "facturation-cocher") {
+        const ref = String(d.ref || "").trim();
+        const etat = d.etat === "facture" || d.etat === "rien" ? d.etat : "";
+        if (!ref) return json({ erreur: "Chantier manquant." }, 400);
+        if (etat) {
+          const c = (await enCours()).find((x) => x.ref === ref);
+          if (!c) return json({ erreur: "Chantier introuvable." }, 404);
+          f.coches[ref] = { etat, le: new Date().toISOString(), client: c.client };
+        } else delete f.coches[ref];
+        await store.setJSON(cleF, f);
+        return json({ ok: true, coche: f.coches[ref] || null });
+      }
+      /* nouveau mois : le mois fini part dans l'historique, la liste repart vierge */
+      const tous = (await enCours()).filter((c) => !c.attente || f.coches[c.ref]);
+      const nom = (r) => (f.coches[r] && f.coches[r].client) || ((tous.find((c) => c.ref === r) || {}).client) || r;
+      const refs = (etat) => Object.keys(f.coches).filter((r) => f.coches[r].etat === etat).map((r) => ({ ref: r, client: nom(r) }));
+      const oublies = tous.filter((c) => !f.coches[c.ref]).map((c) => ({ ref: c.ref, client: c.client }));
+      if (oublies.length && d.confirme !== true) return json({ erreur: "Il reste des chantiers à cocher.", oublies }, 409);
+      f.historique.unshift({ du: f.depuis, au: new Date().toISOString(), facture: refs("facture"), rien: refs("rien"), oublies });
+      f.historique = f.historique.slice(0, 24);
+      f.depuis = new Date().toISOString();
+      f.coches = {};
+      await store.setJSON(cleF, f);
+      return json({ ok: true, depuis: f.depuis, historique: f.historique.slice(0, 12) });
+    });
+  }
+
   /* le téléphone et l'e-mail du client, dans l'encadré du chantier :
      toute personne qui voit le chantier peut les compléter (le technicien sur place aussi) */
   if (action === "contact-client") {

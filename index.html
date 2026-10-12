@@ -1282,7 +1282,7 @@ body.connexion .ciel{display:none}
 <script src="./qr.js?v=20261009a" defer></script>
 <script src="./carte.js?v=20261009a" defer></script>
 <script src="./finitions.js?v=20261010a" defer></script>
-<script src="./palette.js?v=20261008a" defer></script>
+<script src="./palette.js?v=20261012a" defer></script>
 <style data-theme-propre>
 /* ---------- le menu à gauche ----------
    iPad et ordinateur : un rail d'icônes sombre (88 px), chaque entrée avec son nom court ;
@@ -1831,6 +1831,7 @@ body.connexion .ciel{display:none}
           <a class="o-large" id="rcDwg" href="./dwg.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 3.5h17v17h-17zM3.5 10h7v10.5M10.5 14h10"/><path d="M5 7h13M5 5.8v2.4M18 5.8v2.4"/></svg><span>Plan · dessin, cotes et symboles (DWG)</span></a>
           <a class="o-large" id="rcKnx" href="./knx.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M7.5 8.5h3M7.5 12h3M7.5 15.5h3M13.5 8.5h3M13.5 12h3M13.5 15.5h3"/></svg><span>Adresses de groupe KNX</span></a>
           <a class="o-large" id="rcTableau" href="./tableau.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Tableau de bord du bureau</span></a>
+          <a class="o-large" id="rcFacturation" href="./facturation.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 2.8h9l4 4V21.2H6z"/><path d="M14.5 2.8v4.5H19"/><path d="m9 13.2 2.2 2.2 4.3-4.6"/></svg><span>Facturation du mois</span></a>
         </nav>
       </div>
     </div>
@@ -2534,6 +2535,7 @@ function peindreEntreeTableau(s){
   var a=$("rcTableau"); if(!a) return;
   var bureau = s && (s.role==="bureau" || s.role==="admin");
   a.hidden=!bureau;
+  if($("rcFacturation")) $("rcFacturation").hidden=!bureau;
   if(!bureau || TABLEAU_DEMANDE) return;
   TABLEAU_DEMANDE=true;
   try{
@@ -3199,6 +3201,32 @@ function peindreDemandesClient(){
 }
 /* les demandes reçues par le QR code « Nous contacter » : pour la personne choisie (secrétariat…) */
 var CONTACTS_A_TRAITER=[];
+/* la facturation du mois : en fin de mois (du 25 au 5), un rappel tant
+   qu'il reste des chantiers à cocher et que le mois n'a pas été remis à
+   zéro depuis trois semaines */
+var FACT_RAPPEL=null;
+function facturationRappel(s){
+  var bureau = s && (s.role==="bureau" || s.role==="admin"), j=new Date().getDate();
+  if(!bureau || (j<25 && j>5)){ FACT_RAPPEL=null; peindreFacturation(); return; }
+  fetch(apiUrl("facturation"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var reste=(d.chantiers||[]).filter(function(c){ return !(d.coches||{})[c.ref]; }).length;
+      var vieux=Date.now()-new Date(d.depuis).getTime() > 20*864e5;
+      FACT_RAPPEL = reste && vieux ? {reste:reste} : null;
+      peindreFacturation();
+    })
+    .catch(function(){ FACT_RAPPEL=null; });
+}
+function peindreFacturation(){
+  var host=$("notifs"); if(!host) return;
+  var vieux=host.querySelector(".rappel-facturation"); if(vieux) vieux.remove();
+  if(!FACT_RAPPEL){ host.hidden=!host.children.length; return; }
+  var n=FACT_RAPPEL.reste;
+  host.insertBefore(notif("amb rappel-facturation", String(n), "Facturation du mois : "+n+" chantier"+(n>1?"s":"")+" à cocher",
+    "Cochez chaque chantier, facturé ou rien ce mois, pour n'en oublier aucun", "./facturation.html"), host.firstChild);
+  host.hidden=false;
+}
 function demandesContact(s){
   fetch(apiUrl("contacts"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -3236,6 +3264,7 @@ function charger(s){
   relevesEnCours(s);
   savATerminer(s);
   demandesContact(s);
+  facturationRappel(s);
   messagesNonLus(s);
   discussionsNonLues(s);
   SESSION_COURANTE=s;
@@ -3412,6 +3441,7 @@ function peindreNotifs(s, ch, relances){
   peindreSavATerminer();
   peindreDemandesClient();       /* la liste vient d'être refaite : les demandes des clients y reviennent */
   peindreContacts();
+  peindreFacturation();
   host.hidden = !host.children.length;
 }
 /* ---------- la cloche des chantiers ----------

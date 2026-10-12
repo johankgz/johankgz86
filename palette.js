@@ -46,6 +46,7 @@
     ["./technique.html", "Documents", "technique", "fiches techniques"],
     ["./schema.html", "Schéma unifilaire", "schema", "tableau electrique"],
     ["./tableau.html", "Tableau de bord du bureau", "", "ts commandes bloquants relances", "bureau"],
+    ["./facturation.html", "Facturation du mois", "", "facture factures fin de mois cocher oubli", "bureau"],
     ["./rapports.html", "Carte des chantiers", "", "rapports dossiers plan"],
     ["./utilitaires.html", "Outils", "", "calcul boussole niveau"],
     ["./utilitaires.html#refs", "Références", "", "articles base catalogue batigest"],
