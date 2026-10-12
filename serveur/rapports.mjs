@@ -415,6 +415,26 @@ function aAcces(personne, appli) {
    ===================================================================== */
 /* un nom de chantier (le client, la raison sociale) : toujours en majuscules */
 function majuscules(t) { return String(t == null ? "" : t).toLocaleUpperCase("fr-FR"); }
+
+/* le téléphone et l'e-mail du client d'un chantier : tels qu'on les a écrits,
+   nettoyés de ce qui n'a rien à y faire */
+function telPropre(t) { return String(t == null ? "" : t).replace(/[^\d+().\s-]/g, "").replace(/\s+/g, " ").trim().slice(0, 30); }
+function telValide(t) { return (t.match(/\d/g) || []).length >= 6; }
+function mailPropre(m) { return String(m == null ? "" : m).replace(/\s+/g, "").slice(0, 120); }
+function mailValide(m) { return /^[^@]+@[^@]+\.[^@.]+$/.test(m); }
+/* une fiche publiée (relevé, suivi, SAV) apporte ce qui manque, sans écraser
+   ce que quelqu'un a écrit sur le chantier */
+function completerContact(c, tel, email, par) {
+  const t = telPropre(tel), m = mailPropre(email);
+  const ct = c.contact || {};
+  let change = false;
+  if (t && telValide(t) && !ct.tel) { ct.tel = t; change = true; }
+  if (m && mailValide(m) && !ct.email) { ct.email = m; change = true; }
+  /* un contact noté à la main garde son auteur ; un contact vide prend celui de la fiche */
+  if (change && !c.contact) { ct.le = new Date().toISOString(); ct.par = par || ""; ct.source = "fiche"; }
+  if (change) c.contact = ct;
+  return change;
+}
 const RELANCE_JOURS = 30;
 function joursDepuis(iso) {
   if (!iso) return 0;
@@ -2068,6 +2088,7 @@ async function traiter(req) {
     }
     if (d.client && !c.clientFixe) c.client = majuscules(d.client);     /* un nom changé sur le site n'est plus écrasé */
     if (d.adresse) c.adresse = d.adresse;
+    if (d.telClient || d.emailClient) completerContact(c, d.telClient, d.emailClient, personne.nom);
     /* un dossier archivé qu'on restaure (depuis son ZIP) retrouve les liens de son espace client :
        le client et les QR des tableaux rouvrent le dossier complet, l'espace mis de côté n'a plus lieu d'être */
     /* seulement pour une vraie restauration : une autre affaire qui reprendrait la même référence n'hérite de rien */
@@ -3563,6 +3584,7 @@ async function traiter(req) {
         equipe: c.equipe || [],
         reste: c.reste || [],
         note: c.note || null,
+        contact: c.contact || null,
         fichiers: visibles });
     }
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
@@ -4022,6 +4044,25 @@ async function traiter(req) {
     else delete c.note;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, note: c.note || null });
+  }
+
+  /* le téléphone et l'e-mail du client, dans l'encadré du chantier :
+     toute personne qui voit le chantier peut les compléter (le technicien sur place aussi) */
+  if (action === "contact-client") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const idx = await lireIndex();
+    const c = idx.chantiers[String(d.ref || "").trim()];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!(c.fichiers || []).some((f) => voit(personne, f, c))) return json({ erreur: "Ce chantier ne vous est pas attribué." }, 403);
+    const tel = telPropre(d.tel), email = mailPropre(d.email);
+    if (tel && !telValide(tel)) return json({ erreur: "Ce numéro de téléphone paraît incomplet." }, 400);
+    if (email && !mailValide(email)) return json({ erreur: "Cette adresse e-mail n'est pas valable." }, 400);
+    if (tel || email) c.contact = { tel, email, le: new Date().toISOString(), par: personne.nom };
+    else delete c.contact;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, contact: c.contact || null });
   }
 
   if (action === "renommer-chantier") {
