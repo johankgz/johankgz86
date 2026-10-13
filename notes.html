@@ -931,6 +931,9 @@ html.theme-clair .onglets-td a[aria-current="page"]{background:#FFFFFF;color:#22
 html.theme-sombre .onglets-td{background:#2B3036}
 html.theme-sombre .onglets-td a{color:#C9CFD7}
 html.theme-sombre .onglets-td a[aria-current="page"]{background:#ECEFF3;color:#1E2126;box-shadow:none}
+/* Synchroniser, Corbeille : dans la grille (la to-do list d’origine) ; en sombre, un orange clair sur gris */
+body.vue-simple #btnSync,body.vue-simple #btnCorbeille{display:none}
+html.theme-sombre #btnSync,html.theme-sombre #btnCorbeille{background:#2B3036;border-color:rgba(255,255,255,.12);color:#F2A15E}
 @media (hover:hover){
   html.theme-clair header .menu-link:hover,html.theme-clair header .chip:hover:not(.on){background:#F3EEE4;color:#22201C}
   html.theme-sombre header .menu-link:hover,html.theme-sombre header .chip:hover:not(.on){background:#353B42;color:#FFFFFF}
@@ -1030,6 +1033,8 @@ html.theme-sombre #toReglages .tr-choix{border-bottom-color:rgba(255,255,255,.08
   </div>
   <div class="row" id="rowNouvelle" style="margin-bottom:14px">
     <button class="act blue" id="btnNouvelle" style="flex:1">Nouvelle liste</button>
+    <button class="act ghost" id="btnSync">Synchroniser</button>
+    <button class="act ghost" id="btnCorbeille" title="Listes supprimées et copies automatiques">Corbeille</button>
   </div>
 
   <label class="f" id="champRecherche" hidden>
@@ -1529,11 +1534,12 @@ var FONDS_LISTE={jaune:"#FDF3D3",vert:"#E6F4E4",bleu:"#E3EEFC",rose:"#FBE6E6",vi
 var POINTS_LISTE={jaune:"#E8B931",vert:"#4E9F57",bleu:"#4A7FD0",rose:"#D9707A",violet:"#8C6CD0",gris:"#8C96A3"};
 function pref(k, d){ try{ var v=localStorage.getItem("notes:"+k); return v===null ? d : v; }catch(e){ return d; } }
 function prefSet(k, v){ try{ localStorage.setItem("notes:"+k, v); }catch(e){} }
-/* la vue : « cartes » (mes 3 listes l'une sous l'autre, par défaut), « onglets », ou « grille » (l'ancienne) */
+/* la vue : « grille » (la to-do list d’origine, par défaut), « onglets » ou « cartes » (mes 3 listes) */
 function vue(){
-  /* une fois : ceux qui avaient les onglets par défaut passent aux cartes */
-  if(pref("vueB","")!=="1"){ if(pref("vue","")==="onglets") prefSet("vue","cartes"); prefSet("vueB","1"); }
-  var v=pref("vue","cartes"); return v==="onglets" || v==="grille" ? v : "cartes";
+  /* la to-do list comme avant : la grille de listes à cocher, par défaut.
+     Une fois, chacun y revient ; les onglets et les cartes restent dans les réglages. */
+  if(pref("vueAvant","")!=="1"){ prefSet("vue","grille"); prefSet("vueAvant","1"); }
+  var v=pref("vue","grille"); return v==="onglets" || v==="cartes" ? v : "grille";
 }
 function vueOnglets(){ return vue()==="onglets"; }
 function rondSupprime(){ return pref("rond","suppr")!=="coche"; }
@@ -1906,9 +1912,9 @@ function ouvrirReglages(){
   choix("radio", "rond", "coche", "La coche (elle reste, en bas, cochée)", !rondSupprime());
   h3("Affichage");
   var v0=vue();
+  choix("radio", "vue", "grille", "Toutes les listes, comme avant (par défaut)", v0==="grille");
   choix("radio", "vue", "cartes", "Mes 3 listes l'une sous l'autre, le reste en tuiles", v0==="cartes");
   choix("radio", "vue", "onglets", "Mes 3 listes en onglets", v0==="onglets");
-  choix("radio", "vue", "grille", "Toutes les listes en cartes (l'ancienne vue)", v0==="grille");
   v.hidden=false;
   try{ $("toRegOk").focus({preventScroll:true}); }catch(e){}
 }
@@ -2737,6 +2743,8 @@ function renderFiltres(){
 /* ---------- liaisons ---------- */
 function bindAll(){
   $("btnNouvelle").addEventListener("click", nouvelleListe);
+  $("btnSync").addEventListener("click", function(){ tirer_serveur(function(){ pousser_serveur(); }); });
+  $("btnCorbeille").addEventListener("click", ouvrirCorbeille);
   $("toRegOk").addEventListener("click", validerReglages);
   $("toRegFermer").addEventListener("click", function(){ $("toReglages").hidden=true; });
   $("toReglages").addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
