@@ -716,7 +716,8 @@ document.addEventListener("visibilitychange", function(){
 var MOI=null;
 function pasEncoreLu(f){
   var m = MOI && MOI.nom;
-  return !!m && f.auteur !== m && !((f.lectures||{})[m]);
+  /* « tout marquer comme vu » sur l'accueil : plus nouveau, sans valoir lecture */
+  return !!m && f.auteur !== m && !((f.lectures||{})[m]) && !((f.acquis||{})[m]);
 }
 function docsNonLus(c){
   return (c.fichiers||[]).filter(pasEncoreLu).length;

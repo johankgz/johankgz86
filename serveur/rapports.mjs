@@ -3528,6 +3528,42 @@ async function traiter(req) {
     return json({ ok: true, message, prevenus });
   }
 
+  /* tout acquitter d'un coup : les nouveaux documents et les messages non lus
+     de mes dossiers. Ce n'est pas une lecture : l'auteur ne voit pas « Lu par »,
+     le document reste à ouvrir ; seule la notification s'en va. */
+  if (action === "notifications-acquitter") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    const maintenant = new Date().toISOString();
+    const idx = await lireIndex();
+    let docs = 0, msgs = 0, change = false;
+    for (const c of Object.values(idx.chantiers)) {
+      for (const f of (c.fichiers || [])) {
+        if (f.brouillon || f.auteur === personne.nom || !voit(personne, f, c)) continue;
+        if ((f.lectures || {})[personne.nom] || (f.acquis || {})[personne.nom]) continue;
+        f.acquis = f.acquis || {};
+        f.acquis[personne.nom] = maintenant;
+        docs++; change = true;
+      }
+      if (!membreDe(c)) continue;
+      const d = await lireMessages(c.ref);
+      if (!d.messages.length) continue;
+      const dernier = d.messages[d.messages.length - 1].id;
+      const vu = d.lectures[personne.nom] || "", acq = (d.acquis || {})[personne.nom] || "";
+      if (dernier === vu || dernier === acq) continue;
+      let n = 0;
+      for (let i = d.messages.length - 1; i >= 0; i--) {
+        if (d.messages[i].id === vu || d.messages[i].id === acq) break;
+        if (d.messages[i].auteur !== personne.nom) n++;
+      }
+      d.acquis = d.acquis || {};
+      d.acquis[personne.nom] = dernier;
+      await store.setJSON(cleMessages(c.ref), d);
+      msgs += n;
+    }
+    if (change) await store.setJSON(INDEX, idx);
+    return json({ ok: true, documents: docs, messages: msgs });
+  }
+
   if (action === "messages-non-lus") {
     const idx = await lireIndex();
     const out = [];
@@ -3536,9 +3572,11 @@ async function traiter(req) {
       const d = await lireMessages(c.ref);
       if (!d.messages.length) continue;
       const vu = d.lectures[personne.nom] || "";
+      /* « tout acquitter » marque le dernier message vu, sans valoir lecture */
+      const acquis = (d.acquis || {})[personne.nom] || "";
       let n = 0;
       for (let i = d.messages.length - 1; i >= 0; i--) {
-        if (d.messages[i].id === vu) break;
+        if (d.messages[i].id === vu || d.messages[i].id === acquis) break;
         if (d.messages[i].auteur !== personne.nom) n++;
       }
       if (n) out.push({ ref: c.ref, client: c.client || c.ref, nb: n,

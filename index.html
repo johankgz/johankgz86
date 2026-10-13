@@ -291,6 +291,13 @@ body.connexion button.lien{color:var(--accent)}
 .cloche-liste a.d:active{background:var(--field)}
 .cloche-liste .d span{margin-top:3px}
 .cloche-liste .vide-cloche{color:var(--ink-3);font-size:13.5px}
+.cloche-liste .tout-vu{display:flex;flex-direction:column;gap:6px}
+#panneauCloche .tout-vu button{margin:0;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:44px;width:100%;padding:0 14px;border-radius:10px;
+  border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;font-size:14.5px;font-weight:700;cursor:pointer}
+.cloche-liste .tout-vu button svg{width:20px;height:20px;fill:none;stroke:var(--accent,#B4621A);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
+.cloche-liste .tout-vu button:disabled{opacity:.6;cursor:default}
+.cloche-liste .tout-vu span{font-size:12.5px;color:var(--ink-3)}
+.cloche-liste .tout-vu-ok{color:var(--ink-2);font-size:13.5px;font-weight:600}
 .demandes .d b{font-size:14.5px}
 .demandes .d span{display:block;font-size:13px;color:var(--ink-2)}
 .demandes .d a{color:var(--accent);text-decoration:none}
@@ -3492,7 +3499,7 @@ function peindreCloche(){
   total += rappels.length;
   (DERNIERS_CHANTIERS||[]).forEach(function(c){
     var nouveaux=(c.fichiers||[]).filter(function(f){
-      return f.auteur !== moi && !((f.lectures||{})[moi]);
+      return f.auteur !== moi && !((f.lectures||{})[moi]) && !((f.acquis||{})[moi]);
     }).sort(function(a,b){ return String(b.publie||"").localeCompare(String(a.publie||"")); });
     var msgs=NON_LUS_PAR_REF[c.ref]||0;
     if(!nouveaux.length && !msgs) return;
@@ -3526,6 +3533,18 @@ function peindreCloche(){
     r.appendChild(sp);
     pan.appendChild(r);
   });
+  var aVoir=lignes.reduce(function(n, l){ return n + l.nouveaux.length + l.msgs; }, 0);
+  if(aVoir >= 2){
+    var tout=document.createElement("div"); tout.className="d tout-vu";
+    var bt=document.createElement("button"); bt.type="button"; bt.id="btnToutVu";
+    bt.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3.5 12.5 4 4L15 9"/><path d="m11 16.5 1 1L20.5 9"/></svg>';
+    bt.appendChild(document.createTextNode("Tout marquer comme vu ("+aVoir+")"));
+    bt.addEventListener("click", function(){ toutMarquerVu(bt); });
+    tout.appendChild(bt);
+    var ex=document.createElement("span"); ex.textContent="Les documents restent à ouvrir ; leurs auteurs ne les voient pas « lus ».";
+    tout.appendChild(ex);
+    pan.insertBefore(tout, pan.firstChild);
+  }
   if(!lignes.length && !rappels.length){
     var v=document.createElement("div"); v.className="d vide-cloche";
     v.textContent="Rien de nouveau sur vos chantiers.";
@@ -3551,6 +3570,34 @@ function peindreCloche(){
     }
     pan.appendChild(a);
   });
+}
+
+/* tout marquer comme vu : les nouveaux documents et les messages de tous
+   les dossiers, d'un seul geste. Les rappels restent : ce sont des choses à faire. */
+function toutMarquerVu(bt){
+  var s=SESSION_COURANTE; if(!s || !s.jeton) return;
+  bt.disabled=true;
+  fetch(apiUrl("notifications-acquitter"), {method:"POST", headers:{"x-auth":s.jeton, "content-type":"application/json"}, body:"{}"})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){
+      var moi=s.nom, quand=new Date().toISOString();
+      (DERNIERS_CHANTIERS||[]).forEach(function(c){ (c.fichiers||[]).forEach(function(f){
+        if(f.auteur !== moi && !((f.lectures||{})[moi])){ f.acquis=f.acquis||{}; f.acquis[moi]=quand; }
+      }); });
+      NON_LUS_PAR_REF={};
+      /* les notifications déjà affichées sur le téléphone s'en vont aussi */
+      try{
+        if(navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(function(reg){
+          if(reg && reg.getNotifications) reg.getNotifications().then(function(ns){ ns.forEach(function(n){ n.close(); }); });
+        }).catch(function(){});
+      }catch(e){}
+      if(DERNIERS_CHANTIERS) repeindreChantiers(DERNIERS_CHANTIERS, s);
+      peindreCloche();
+      try{ peindreTableau(); }catch(e){}
+      var pan=$("panneauCloche");
+      if(pan){ var ok=document.createElement("div"); ok.className="d tout-vu-ok"; ok.setAttribute("role","status"); ok.textContent="Tout est marqué comme vu."; pan.insertBefore(ok, pan.firstChild); }
+    })
+    .catch(function(){ bt.disabled=false; bt.lastChild.textContent="Pas de réseau : réessayez"; });
 }
 
 /* ---------- la liste des chantiers du technicien ---------- */
@@ -3613,7 +3660,7 @@ function docsNonLus(c){
   var moi = (SESSION_COURANTE && SESSION_COURANTE.nom) || "";
   if(!moi || !c || !Array.isArray(c.fichiers)) return 0;
   return c.fichiers.filter(function(f){
-    return f.auteur !== moi && !((f.lectures||{})[moi]);
+    return f.auteur !== moi && !((f.lectures||{})[moi]) && !((f.acquis||{})[moi]);
   }).length;
 }
 /* la carte d'un dossier : le même objet des deux côtés, en travaux ou
