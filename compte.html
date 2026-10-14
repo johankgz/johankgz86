@@ -692,7 +692,7 @@ function initialeDe(nom){ var n=String(nom||"").trim(); return n ? n.charAt(0).t
 function fonctionDe(r){ return r==="admin" ? "Administrateur" : (r==="technicien" ? "Technicien" : "Chargé d'affaires"); }
 
 var S=session();
-if(!S || !S.jeton){ location.replace("./index.html#connexion"); return; }
+if(!S || !S.jeton){ location.replace("./index.html?sortie"); return; }
 
 function peindre(){
   $("pastille").textContent=initialeDe(S.nom);
@@ -722,11 +722,11 @@ $("carteInverser").addEventListener("click", function(){ INVERSE=!INVERSE; peind
 ["email","tel","nomFamille","fonctionCarte","adresseCarte"].forEach(function(i){ $(i).addEventListener("input", peindreCarte); });
 peindreCarte();
 
-function sortir(){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace("./index.html#connexion"); }
+function sortir(expiree){ try{ localStorage.removeItem("outils:session"); }catch(e){} location.replace(expiree ? "./index.html?sortie=expiree" : "./index.html?sortie"); }
 
 fetch(apiUrl("mon-compte"), {headers:{"x-auth":S.jeton}})
   .then(function(r){
-    if(r.status===401){ sortir(); return Promise.reject(); }
+    if(r.status===401){ sortir(true); return Promise.reject(); }
     return r.json().then(function(d){ return {ok:r.ok, d:d}; });
   })
   .then(function(res){

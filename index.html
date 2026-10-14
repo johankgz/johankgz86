@@ -10,8 +10,9 @@
 /* la vitrine : la page d'accueil de suivitravaux360.com pour qui n'est pas
    connecté. Seule l'appli installée sur l'écran d'accueil (les équipes)
    s'ouvre directement sur la connexion ; ?vitrine la montre toujours,
-   #connexion jamais. */
-(function(){var h=document.documentElement,v=true;try{var q=location.search+location.hash,s=JSON.parse(localStorage.getItem("outils:session")||"null"),on=!!(s&&s.jeton);if(on&&location.hash==="#connexion")history.replaceState(null,"",location.pathname+location.search);var seul=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;v=/vitrine/.test(q)||(!on&&!seul&&!/connexion/.test(q));}catch(e){}if(v)h.classList.add("vitrine-on");})();
+   #connexion jamais. ?sortie (déconnexion, session expirée) la montre
+   aussi dans l'appli installée, tant qu'on n'est pas reconnecté. */
+(function(){var h=document.documentElement,v=true;try{var q=location.search+location.hash,s=JSON.parse(localStorage.getItem("outils:session")||"null"),on=!!(s&&s.jeton);if(on&&/sortie/.test(location.search))history.replaceState(null,"",location.pathname+(location.hash==="#connexion"?"":location.hash));else if(on&&location.hash==="#connexion")history.replaceState(null,"",location.pathname+location.search);var seul=(window.matchMedia&&matchMedia("(display-mode: standalone)").matches)||navigator.standalone===true;v=/vitrine/.test(q)||(!on&&(!seul||/sortie/.test(location.search))&&!/connexion/.test(location.hash));}catch(e){}if(v)h.classList.add("vitrine-on");})();
 </script>
 <script src="./reseau.js?v=20261010a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
@@ -1285,7 +1286,7 @@ body.connexion .ciel{display:none}
 </style>
 <script src="./clavier.js?v=20261010a" defer></script>
 <script src="./horsligne.js?v=20261006a" defer></script>
-<script src="./vitrine.js?v=20261004a" defer></script>
+<script src="./vitrine.js?v=20261014a" defer></script>
 <script src="./qr.js?v=20261009a" defer></script>
 <script src="./carte.js?v=20261009a" defer></script>
 <script src="./finitions.js?v=20261010a" defer></script>
@@ -2387,7 +2388,7 @@ $("cguOk").addEventListener("click", function(){
 });
 $("cguSortir").addEventListener("click", function(){
   try{ localStorage.removeItem("outils:session"); }catch(e){}
-  location.replace("./index.html#connexion");
+  location.replace("./index.html?sortie");
 });
 /* la carte de visite en QR code (carte.js), à droite du prénom : les chargés
    d'affaires et l'administrateur. Les scripts différés arrivent après ce code. */
@@ -3067,7 +3068,7 @@ function majIdentite(s){
       /* un jeton que le site ne reconnaît plus — mot de passe changé
          ailleurs, compte remis à zéro : on revient à la connexion plutôt
          que de laisser une page vide. */
-      if(r.status===401){ localStorage.removeItem("outils:session"); location.replace("./index.html#connexion"); return Promise.reject(); }
+      if(r.status===401){ finSession(); return Promise.reject(); }
       return r.ok && r.d ? r.d : Promise.reject();
     })
     .then(function(d){
@@ -3266,6 +3267,14 @@ function peindreSavATerminer(){
   host.insertBefore(n, host.firstChild);
   host.hidden=false;
 }
+/* la session a expiré (trois jours) : on se déconnecte et on revient à la page du site.
+   Les chantiers restent sur le serveur : on ne repeint surtout pas une liste vide. */
+var FIN_SESSION=false;
+function finSession(){
+  if(FIN_SESSION) return; FIN_SESSION=true;
+  try{ localStorage.removeItem("outils:session"); }catch(e){}
+  location.replace("./index.html?sortie=expiree");
+}
 function charger(s){
   DERNIER_CHARGEMENT=Date.now();
   relevesEnCours(s);
@@ -3276,9 +3285,13 @@ function charger(s){
   discussionsNonLues(s);
   SESSION_COURANTE=s;
   fetch(apiUrl("liste"), {headers:{"x-auth":s.jeton}})
-    .then(function(r){ return r.json(); })
+    .then(function(r){
+      if(r.status===401){ finSession(); return Promise.reject(new Error("session")); }
+      return r.json();
+    })
     .then(function(d){
-      var ch=(d.chantiers)||[];
+      if(!d || !Array.isArray(d.chantiers)) return Promise.reject(new Error("liste"));
+      var ch=d.chantiers;
       DERNIERS_CHANTIERS=ch;
       SESSION_COURANTE=s;
       var enCours=repeindreChantiers(ch, s);
@@ -3286,6 +3299,7 @@ function charger(s){
       peindreBref(enCours);
     })
     .catch(function(){
+      if(FIN_SESSION) return;
       $("bref").innerHTML='<div class="vide">Liste indisponible hors connexion.</div>';
     });
 }

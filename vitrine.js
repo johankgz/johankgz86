@@ -21,6 +21,19 @@
   }
   var fin = window.matchMedia && matchMedia("(pointer: fine)").matches;
 
+  /* revenu ici parce que la session a expiré : un mot pour rassurer, rien n'est perdu */
+  if(/[?&]sortie=expiree/.test(location.search) && !connecte()){
+    var mot = document.createElement("div");
+    mot.className = "vt-expiree"; mot.setAttribute("role", "status");
+    mot.style.cssText = "position:relative;z-index:5;max-width:760px;margin:12px auto 0;padding:12px 16px;border-radius:12px;"
+      + "background:#FFF7E8;color:#5B3B06;border:1px solid #F0C979;font-size:14.5px;line-height:1.45;box-sizing:border-box;width:calc(100% - 32px)";
+    var t = document.createElement("b"); t.textContent = "Session terminée. ";
+    mot.appendChild(t);
+    mot.appendChild(document.createTextNode("Par sécurité, il faut vous reconnecter tous les trois jours. Vos chantiers sont bien enregistrés sur le serveur : touchez «\u00a0Se connecter\u00a0»."));
+    var barre = V.querySelector(".vt-barre");
+    V.insertBefore(mot, barre ? barre.nextSibling : V.firstChild);
+  }
+
   /* déjà connecté (arrivé par ?vitrine) : le bouton ouvre l'application */
   if(connecte()) V.querySelectorAll('[data-vt="connexion"]').forEach(function(b){ b.textContent = "Ouvrir l'application"; });
 
