@@ -4,7 +4,8 @@
    Plutôt que le clavier de l'iPad : une page lignée plein écran, on écrit
    au stylet, et la note devient une image posée dans la ligne (travaux
    supplémentaires, reste à faire, points bloquants…).
-   - le trait suit la pression du stylet ;
+   - le trait suit la pression du stylet (lissée : pas de grumeaux), et colle à la pointe :
+     à chaque image, seuls ses nouveaux morceaux sont dessinés, si long soit-il ;
    - dès que le stylet a touché la page, le doigt et la paume ne tracent
      plus (on peut poser la main) ; deux doigts font défiler ;
    - les mêmes outils que la note de la To-do list (mesnotes.html) : stylo,
@@ -51,7 +52,7 @@
    +".sty-coul button[aria-pressed=true]{border-color:#fff}"
    +".sty-page{flex:1;position:relative;background:#fff;touch-action:none;overflow:hidden}"
    +".sty-page canvas{position:absolute;inset:0;width:100%;height:100%;display:block}"
-   +".sty-page canvas{z-index:1}.sty-page canvas.sty-dessous{z-index:0;pointer-events:none}"
+   +".sty-page canvas{z-index:1}.sty-page canvas.sty-dessous{z-index:0;pointer-events:none}.sty-page canvas.sty-bout{z-index:2;pointer-events:none}"
    +".sty-aide{position:absolute;left:0;right:0;top:40%;text-align:center;color:#9CA3AF;font-size:17px;pointer-events:none}"
    +".sty-outils{display:inline-flex;gap:2px;margin:0 2px;flex-wrap:wrap}"
    +".sty-outils button{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;min-width:52px;min-height:46px;padding:2px 4px;border-radius:10px;border:0;background:none;color:#fff;font-size:10.5px;font-weight:600}"
@@ -162,6 +163,21 @@
   }
   /* tous les points d'un trait, pour le cadre et la gomme */
   function lignesDe(t){ return t.o==="forme" ? contour(t) : [t.pts]; }
+  /* un morceau du trait au stylo : du milieu au milieu en passant par le point (une courbe, sans angle),
+     à l'épaisseur de ses deux bouts ; le dernier morceau finit sur le dernier point. Le même morceau sert
+     au trait en cours et au trait fini : rien ne bouge quand on lève le crayon. */
+  function segment(c, p, i, k, dx, dy){
+    var a=p[i-1], b=p[i], d=p[i+1], sx=i===1 ? a.x : (a.x+b.x)/2, sy=i===1 ? a.y : (a.y+b.y)/2;
+    var ex=d ? (b.x+d.x)/2 : b.x, ey=d ? (b.y+d.y)/2 : b.y;
+    c.lineWidth=Math.max(0.8, (a.w+b.w)/2*k);
+    c.beginPath(); c.moveTo((sx-dx)*k, (sy-dy)*k); c.quadraticCurveTo((b.x-dx)*k, (b.y-dy)*k, (ex-dx)*k, (ey-dy)*k); c.stroke();
+  }
+  /* d'un seul tenant, mais en courbes (feutre, surligneur, couleur transparente) */
+  function cheminLisse(c, p, k, dx, dy){
+    c.beginPath(); c.moveTo((p[0].x-dx)*k, (p[0].y-dy)*k);
+    for(var j=1;j<p.length-1;j++) c.quadraticCurveTo((p[j].x-dx)*k, (p[j].y-dy)*k, ((p[j].x+p[j+1].x)/2-dx)*k, ((p[j].y+p[j+1].y)/2-dy)*k);
+    c.lineTo((p[p.length-1].x-dx)*k, (p[p.length-1].y-dy)*k);
+  }
   /* un trait : stylo (à la pression), feutre, surligneur (transparent), ou forme */
   function tracer(c, t, k, dx, dy){
     var p=t.pts; if(!p || !p.length) return;
@@ -177,20 +193,12 @@
     /* surligneur, feutre ou couleur transparente : d'un seul tenant (sinon, les morceaux se superposent en perles) */
     if((surl || t.o==="feutre" || /^#[0-9a-f]{8}$/i.test(t.c)) && p.length>1){
       var moy=p.reduce(function(s, q){ return s+q.w; }, 0)/p.length;
-      c.lineWidth=Math.max(0.8, moy*k); c.beginPath(); c.moveTo((p[0].x-dx)*k, (p[0].y-dy)*k);
-      for(var j=1;j<p.length;j++) c.lineTo((p[j].x-dx)*k, (p[j].y-dy)*k);
+      c.lineWidth=Math.max(0.8, moy*k); cheminLisse(c, p, k, dx, dy);
       c.stroke(); c.restore(); return;
     }
     if(p.length===1){ c.beginPath(); c.arc((p[0].x-dx)*k, (p[0].y-dy)*k, Math.max(1, p[0].w*k/2), 0, Math.PI*2); c.fill(); c.restore(); return; }
     /* du milieu au milieu, en passant par chaque point : un trait lisse */
-    var s0={x:p[0].x, y:p[0].y};
-    for(var i=1;i<p.length;i++){
-      var b=p[i], e=i<p.length-1 ? {x:(b.x+p[i+1].x)/2, y:(b.y+p[i+1].y)/2} : b;
-      c.lineWidth=Math.max(0.8, (p[i-1].w+b.w)/2*k);
-      c.beginPath(); c.moveTo((s0.x-dx)*k, (s0.y-dy)*k);
-      c.quadraticCurveTo((b.x-dx)*k, (b.y-dy)*k, (e.x-dx)*k, (e.y-dy)*k);
-      c.stroke(); s0=e;
-    }
+    for(var i=1;i<p.length;i++) segment(c, p, i, k, dx, dy);
     c.restore();
   }
 
@@ -283,14 +291,15 @@
     var bOk=bouton("Ajouter", valider, "ok");
     if(o.bouton) bOk.textContent=o.bouton;
     barre.appendChild(bAnnuler); barre.appendChild(bEffacer); barre.appendChild(bFermer); barre.appendChild(bOk);
-    /* deux calques : dessous, les lignes et l'écriture déjà faite (peinte une fois) ;
-       dessus, le seul trait en cours, redessiné une fois par image : le trait suit le crayon */
-    var page=el("div","sty-page"), cvF=el("canvas"), cv=el("canvas"), aide=el("p","sty-aide","Écrivez ici avec le stylet (ou le doigt)");
-    cvF.className="sty-dessous"; page.appendChild(cv); page.appendChild(cvF); page.appendChild(aide);
+    /* trois calques : dessous, les lignes et l'écriture déjà faite (peinte une fois) ; au milieu, le trait
+       en cours, qui ne reçoit à chaque image que ses nouveaux morceaux (un long trait ne ralentit pas) ;
+       dessus, le bout encore provisoire du trait et l'avance prédite du crayon, seuls effacés à chaque image */
+    var page=el("div","sty-page"), cvF=el("canvas"), cv=el("canvas"), cvB=el("canvas"), aide=el("p","sty-aide","Écrivez ici avec le stylet (ou le doigt)");
+    cvF.className="sty-dessous"; cvB.className="sty-bout"; page.appendChild(cv); page.appendChild(cvF); page.appendChild(cvB); page.appendChild(aide);
     fond.appendChild(barre); fond.appendChild(sous); fond.appendChild(page);
     document.body.appendChild(fond);
     peindreOutils();
-    var ctx=cv.getContext("2d"), ctxF=cvF.getContext("2d");
+    var ctx=cv.getContext("2d"), ctxF=cvF.getContext("2d"), ctxB=cvB.getContext("2d");
     var avant=document.activeElement;
     /* la page derrière ne bouge plus tant que la fenêtre est ouverte */
     document.documentElement.classList.add("sty-ouvert");
@@ -305,8 +314,8 @@
 
     function taille(){
       var r=page.getBoundingClientRect();
-      cv.width=cvF.width=Math.round(r.width*dpr); cv.height=cvF.height=Math.round(r.height*dpr);
-      peindre();
+      cv.width=cvF.width=cvB.width=Math.round(r.width*dpr); cv.height=cvF.height=cvB.height=Math.round(r.height*dpr);
+      rectCv=null; boutSale=null; peindre();
     }
     function lignes(){
       ctxF.save(); ctxF.strokeStyle="#DBEAFE"; ctxF.lineWidth=1*dpr;
@@ -326,12 +335,50 @@
         ctxF.drawImage(fondImg, fondRect.x*dpr, fondRect.y*dpr, dw*dpr, dh*dpr);
       }
       traits.forEach(function(t){ tracer(ctxF, t, dpr, 0, 0); });
-      peindreCourant();
+      peindreCourant(true);
     }
     function gommeRayon(){ var g=GOMMES.filter(function(x){ return x[0]===M.gomme; })[0]; return g ? g[2] : 16; }
-    var posGomme=null;
-    function peindreCourant(){
-      ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height);
+    var posGomme=null, boutSale=null;
+    /* le trait au stylo, d'une couleur pleine : dessiné au fil de l'eau */
+    function vif(t){ return !!(t && !t.gomme && !t.o && t.pts && t.pts.length && !/^#[0-9a-f]{8}$/i.test(t.c)); }
+    function style(c, t){ c.strokeStyle=t.c; c.fillStyle=t.c; c.lineCap="round"; c.lineJoin="round"; }
+    /* les morceaux devenus sûrs (leur point suivant est connu) passent sur le calque du milieu, une seule fois */
+    function avancer(t){
+      var p=t.pts, n=p.length, i0=(t.fait||0)+1;
+      if(n<3 || i0>n-2) return;
+      ctx.save(); style(ctx, t);
+      for(var i=i0;i<=n-2;i++) segment(ctx, p, i, dpr, 0, 0);
+      ctx.restore(); t.fait=n-2;
+    }
+    function effacerBout(tout){
+      ctxB.setTransform(1,0,0,1,0,0);
+      if(tout) ctxB.clearRect(0,0,cvB.width,cvB.height);
+      else if(boutSale) ctxB.clearRect(boutSale[0], boutSale[1], boutSale[2], boutSale[3]);
+      boutSale=null;
+    }
+    /* le bout : le dernier morceau, qui changera au point suivant, et l'avance prédite du crayon */
+    function bout(t){
+      effacerBout(false);
+      var p=t.pts, n=p.length, q=p[n-1], x0=q.x, y0=q.y, x1=q.x, y1=q.y, wm=q.w;
+      var voir=function(a){ x0=Math.min(x0,a.x); y0=Math.min(y0,a.y); x1=Math.max(x1,a.x); y1=Math.max(y1,a.y); if(a.w>wm) wm=a.w; };
+      ctxB.save(); style(ctxB, t);
+      if(n===1){ ctxB.beginPath(); ctxB.arc(q.x*dpr, q.y*dpr, Math.max(1, q.w*dpr/2), 0, Math.PI*2); ctxB.fill(); }
+      else { segment(ctxB, p, n-1, dpr, 0, 0); voir(p[n-2]); }
+      if(t.predits && t.predits.length){
+        ctxB.lineWidth=Math.max(0.8, q.w*dpr); ctxB.beginPath(); ctxB.moveTo(q.x*dpr, q.y*dpr);
+        t.predits.forEach(function(a){ ctxB.lineTo(a.x*dpr, a.y*dpr); voir(a); });
+        ctxB.stroke();
+      }
+      ctxB.restore();
+      var m=(wm/2+3)*dpr;
+      boutSale=[Math.floor(x0*dpr-m), Math.floor(y0*dpr-m), Math.ceil((x1-x0)*dpr+2*m), Math.ceil((y1-y0)*dpr+2*m)];
+    }
+    /* complet : tout le trait en cours (ouverture, redimensionnement) ; sinon, seulement ce qui est nouveau */
+    function peindreCourant(complet){
+      var t=courant;
+      if(vif(t) && !complet){ avancer(t); bout(t); return; }
+      ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,cv.width,cv.height); effacerBout(true);
+      if(vif(t)){ t.fait=0; avancer(t); bout(t); return; }
       if(courant && !courant.gomme) tracer(ctx, courant, dpr, 0, 0);
       /* la gomme se voit pendant qu'on efface : un cercle à sa taille */
       if(courant && courant.gomme && posGomme){
@@ -372,7 +419,8 @@
     var image_=0;
     function bientot(){ if(!image_) image_=requestAnimationFrame(function(){ image_=0; peindreCourant(); }); }
     function maj(){ bAnnuler.disabled=!retours.length; bEffacer.disabled=!traits.length; bOk.disabled=!traits.length && !(fondImg && fondImg.complete && fondImg.naturalWidth); aide.hidden=!!traits.length || !!courant; }
-    function pos(e){ var r=cv.getBoundingClientRect(); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
+    var rectCv=null;
+    function pos(e){ var r=rectCv||(rectCv=cv.getBoundingClientRect()); return {x:e.clientX-r.left, y:e.clientY-r.top}; }
     /* la taille de l'outil, et la pression du stylet en plus pour le stylo : appuyer épaissit */
     function epaisseur(e){
       if(M.outil==="feutre") return 7*M.k.feutre;
@@ -386,13 +434,13 @@
       else if(stylo && e.pointerType==="touch") return;           /* la main posée sur la page */
       if(actif!==null) return;
       actif=e.pointerId; try{ cv.setPointerCapture(e.pointerId); }catch(x){}
-      var p=pos(e);
+      rectCv=null; var p=pos(e);
       aide.hidden=true; e.preventDefault();
       if(M.outil==="gomme"){ courant={gomme:true, avant:traits.slice()}; posGomme=null; gommer(p); return; }
       if(M.outil==="formes"){ courant={o:"forme", f:M.forme, c:M.couleur, w:Math.round(3.5*M.k.forme*100)/100, pts:[{x:p.x, y:p.y}, {x:p.x, y:p.y}]}; peindreCourant(); return; }
-      courant={c:couleurOutil(), pts:[{x:p.x, y:p.y, w:epaisseur(e)}]};
+      courant={c:couleurOutil(), pts:[{x:p.x, y:p.y, w:epaisseur(e)}], fait:0};
       if(M.outil!=="stylo") courant.o=M.outil;
-      peindreCourant();
+      peindreCourant(true);
     });
     cv.addEventListener("pointermove", function(e){
       if(e.pointerId!==actif || !courant) return;
@@ -408,8 +456,15 @@
         }
         var d=courant.pts[courant.pts.length-1];
         if(Math.abs(p.x-d.x)+Math.abs(p.y-d.y) < 0.8) return;
-        courant.pts.push({x:p.x, y:p.y, w:epaisseur(ev)});
+        /* la pression lissée : l'épaisseur varie en douceur, sans grumeaux */
+        var w=epaisseur(ev); if(ev.pointerType==="pen") w=d.w+(w-d.w)*0.35;
+        courant.pts.push({x:p.x, y:p.y, w:w});
       });
+      /* là où le crayon va dans un instant (si le navigateur le sait) : le trait colle à la pointe */
+      if(vif(courant)){
+        var pr=[]; try{ pr=e.getPredictedEvents ? e.getPredictedEvents() : []; }catch(x){ pr=[]; }
+        courant.predits=Array.prototype.slice.call(pr, 0, 3).map(pos);
+      }
       bientot(); e.preventDefault();
     });
     function fin(e){
@@ -417,6 +472,7 @@
       actif=null;
       var t=courant; courant=null; posGomme=null;
       if(image_){ cancelAnimationFrame(image_); image_=0; }
+      if(t) delete t.predits;
       if(t && t.gomme){ if(t.change) retours.push(t.avant); }
       else if(t && t.o==="forme"){
         if(t.f==="spline") t.pts=simplifier(t.pts, 2.5);
@@ -425,8 +481,8 @@
         if(Math.hypot(b0.x-a0.x, b0.y-a0.y)>=4 || t.pts.length>2){ retours.push(traits.slice()); traits.push(t); tracer(ctxF, t, dpr, 0, 0); }
       }
       /* le trait fini passe sur le calque du dessous, une fois pour toutes */
-      else if(t && t.pts.length){ retours.push(traits.slice()); traits.push(t); tracer(ctxF, t, dpr, 0, 0); }
-      peindreCourant(); maj();
+      else if(t && t.pts.length){ delete t.fait; retours.push(traits.slice()); traits.push(t); tracer(ctxF, t, dpr, 0, 0); }
+      peindreCourant(true); maj();
     }
     cv.addEventListener("pointerup", fin);
     cv.addEventListener("pointercancel", fin);

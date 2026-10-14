@@ -331,6 +331,8 @@ try{ if(innerWidth>760 && localStorage.getItem("mesnotes:derniere")){ document.b
           <div class="np-info" id="info"></div>
           <div class="np-editeur" id="editeur" contenteditable="true" spellcheck="true" aria-label="Texte de la note" role="textbox" aria-multiline="true"></div>
           <canvas class="np-encre" id="encre" aria-hidden="true"></canvas>
+          <canvas class="np-encre" id="encreVive" aria-hidden="true"></canvas>
+          <canvas class="np-encre" id="encreBout" aria-hidden="true"></canvas>
         </div>
       </div>
       <div class="np-vide np-verrou" id="verrouEcran" hidden>
@@ -1136,11 +1138,15 @@ function ajusterEncre(){
 /* la couche d'encre ne couvre que ce qu'on voit (une toile de toute la page dépasserait
    ce que l'iPad accepte), et suit le défilement */
 function placerEncre(){
-  var pg=$("page"), df=$("defile"), cv=$("encre"), dpr=Math.min(window.devicePixelRatio||1, 2);
+  var pg=$("page"), df=$("defile"), dpr=Math.min(window.devicePixelRatio||1, 2);
   var w=pg.clientWidth, h=Math.max(1, Math.min(df.clientHeight, pg.scrollHeight)), haut=Math.max(0, Math.min(df.scrollTop, pg.scrollHeight-h));
-  cv.style.width=w+"px"; cv.style.height=h+"px"; cv.style.top=haut+"px"; cv.dataset.haut=haut;
   var W=Math.round(w*dpr), H=Math.round(h*dpr);
-  if(cv.width!==W || cv.height!==H){ cv.width=W; cv.height=H; }
+  ["encre","encreVive","encreBout"].forEach(function(id){
+    var cv=$(id);
+    cv.style.width=w+"px"; cv.style.height=h+"px"; cv.style.top=haut+"px"; cv.dataset.haut=haut;
+    if(cv.width!==W || cv.height!==H){ cv.width=W; cv.height=H; }
+  });
+  BOUT=null;
   dessiner();
 }
 var DEFILE_RAF=0;
@@ -1154,6 +1160,21 @@ $("defile").addEventListener("scroll", function(){
     } else placerEncre();
   });
 }, {passive:true});
+/* un morceau du trait au stylo : du milieu au milieu en passant par le point (une courbe, sans angle),
+   à l'épaisseur de ses deux bouts ; le dernier morceau finit sur le dernier point. Le même morceau sert
+   au trait en cours et au trait fini : rien ne bouge quand on lève le crayon. */
+function segmentN(g, t, p, i){
+  var a=p[i-1], b=p[i], d=p[i+1], sx=i===1 ? a[0] : (a[0]+b[0])/2, sy=i===1 ? a[1] : (a[1]+b[1])/2;
+  var ex=d ? (b[0]+d[0])/2 : b[0], ey=d ? (b[1]+d[1])/2 : b[1];
+  g.lineWidth=Math.max(.8, largeurT(t, (a[2]+b[2])/2)*U);
+  g.beginPath(); g.moveTo(sx*U, sy*U); g.quadraticCurveTo(b[0]*U, b[1]*U, ex*U, ey*U); g.stroke();
+}
+/* d'un seul tenant, mais en courbes (feutre, surligneur, couleur transparente) */
+function cheminLisseN(g, p){
+  g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
+  for(var j=1;j<p.length-1;j++) g.quadraticCurveTo(p[j][0]*U, p[j][1]*U, (p[j][0]+p[j+1][0])/2*U, (p[j][1]+p[j+1][1])/2*U);
+  g.lineTo(p[p.length-1][0]*U, p[p.length-1][1]*U);
+}
 function tracerTrait(g, t){
   var p=t.p; if(!p.length) return;
   if(t.o==="forme"){
@@ -1166,34 +1187,94 @@ function tracerTrait(g, t){
   g.strokeStyle=t.c; g.fillStyle=t.c; g.lineJoin="round"; g.lineCap=t.o==="surligneur" ? "butt" : "round";
   if(p.length===1){ g.beginPath(); g.arc(p[0][0]*U, p[0][1]*U, Math.max(1, largeurT(t, p[0][2])*U/2), 0, Math.PI*2); g.fill(); g.restore(); return; }
   if(t.o==="surligneur" || t.o==="feutre"){
-    g.lineWidth=largeurT(t)*U; g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
-    for(var i=1;i<p.length;i++) g.lineTo(p[i][0]*U, p[i][1]*U);
+    g.lineWidth=largeurT(t)*U; cheminLisseN(g, p);
     g.stroke(); g.restore(); return;
   }
   /* transparent : d'un seul tenant, sans perles aux raccords */
   if(alphaDe(t.c)<1){
     var moy=p.reduce(function(s, q){ return s+(q[2]==null ? .5 : q[2]); }, 0)/p.length;
-    g.lineWidth=Math.max(.8, largeurT(t, moy)*U); g.beginPath(); g.moveTo(p[0][0]*U, p[0][1]*U);
-    for(var a2=1;a2<p.length;a2++) g.lineTo(p[a2][0]*U, p[a2][1]*U);
+    g.lineWidth=Math.max(.8, largeurT(t, moy)*U); cheminLisseN(g, p);
     g.stroke(); g.restore(); return;
   }
-  for(var j=1;j<p.length;j++){
-    g.lineWidth=Math.max(.8, largeurT(t, (p[j-1][2]+p[j][2])/2)*U);
-    g.beginPath(); g.moveTo(p[j-1][0]*U, p[j-1][1]*U); g.lineTo(p[j][0]*U, p[j][1]*U); g.stroke();
-  }
+  for(var j=1;j<p.length;j++) segmentN(g, t, p, j);
   g.restore();
 }
+/* tout repeindre : l'écriture déjà faite (ouverture, défilement, Annuler, gomme), puis le trait en cours */
+var ENCRE_SALE=false;
 function dessiner(){
-  var cv=$("encre"), g=cv.getContext("2d"), dpr=cv.width/Math.max(1, parseFloat(cv.style.width)||cv.width), haut=parseFloat(cv.dataset.haut)||0;
-  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,cv.width,cv.height); g.setTransform(dpr,0,0,dpr,0,-haut*dpr);
-  if(!COUR) return;
-  COUR.encre.forEach(function(t){ tracerTrait(g, t); });
-  if(TRAIT && !TRAIT.gomme) tracerTrait(g, TRAIT);
-  /* la gomme se voit pendant qu'on efface : un cercle à sa taille */
-  if(TRAIT && TRAIT.gomme && TRAIT.pos){
-    g.save(); g.lineWidth=1.5; g.strokeStyle="rgba(34,32,28,.55)"; g.fillStyle="rgba(255,255,255,.35)";
-    g.beginPath(); g.arc(TRAIT.pos[0]*U, TRAIT.pos[1]*U, gommeRayon()*U, 0, Math.PI*2); g.fill(); g.stroke(); g.restore();
+  var T=toile("encre"), g=T.g;
+  g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,T.cv.width,T.cv.height); g.setTransform(T.dpr,0,0,T.dpr,0,-T.haut*T.dpr);
+  ENCRE_SALE=false;
+  if(COUR) COUR.encre.forEach(function(t){ tracerTrait(g, t); });
+  peindreVif(true);
+}
+/* ---------- le trait en cours, au fil de l'eau ----------
+   « encre » porte l'écriture déjà faite, peinte une fois ; « encreVive », le trait en cours, qui ne
+   reçoit à chaque image que ses nouveaux morceaux (un long trait, une note pleine : rien ne ralentit) ;
+   « encreBout », le bout encore provisoire du trait, l'avance prédite du crayon et la gomme, seuls
+   effacés à chaque image. */
+function toile(id){
+  var cv=$(id);
+  return {cv:cv, g:cv.getContext("2d"), dpr:cv.width/Math.max(1, parseFloat(cv.style.width)||cv.width), haut:parseFloat(cv.dataset.haut)||0};
+}
+function vifN(t){ return !!(t && !t.gomme && t.o==="stylo" && t.p && t.p.length && alphaDe(t.c)>=1); }
+function styleN(g, t){ g.strokeStyle=t.c; g.fillStyle=t.c; g.lineJoin="round"; g.lineCap="round"; g.globalAlpha=1; }
+var BOUT=null;     /* ce que le calque du bout a sali à l'image précédente, en pixels de la toile */
+function effacerBoutN(tout){
+  var T=toile("encreBout"); T.g.setTransform(1,0,0,1,0,0);
+  if(tout) T.g.clearRect(0,0,T.cv.width,T.cv.height); else if(BOUT) T.g.clearRect(BOUT[0], BOUT[1], BOUT[2], BOUT[3]);
+  BOUT=null;
+}
+/* les morceaux devenus sûrs (leur point suivant est connu) passent sur le calque vif, une seule fois */
+function avancerN(t){
+  var p=t.p, n=p.length, i0=(t.fait||0)+1; if(n<3 || i0>n-2) return;
+  var T=toile("encreVive"), g=T.g;
+  g.save(); g.setTransform(T.dpr,0,0,T.dpr,0,-T.haut*T.dpr); styleN(g, t);
+  for(var i=i0;i<=n-2;i++) segmentN(g, t, p, i);
+  g.restore(); t.fait=n-2;
+}
+function boutN(){
+  effacerBoutN(false);
+  var t=TRAIT; if(!t) return;
+  var T=toile("encreBout"), g=T.g, vus=[], m=3;
+  g.save(); g.setTransform(T.dpr,0,0,T.dpr,0,-T.haut*T.dpr);
+  if(t.gomme){
+    /* la gomme se voit pendant qu'on efface : un cercle à sa taille */
+    if(t.pos){
+      g.lineWidth=1.5; g.strokeStyle="rgba(34,32,28,.55)"; g.fillStyle="rgba(255,255,255,.35)";
+      g.beginPath(); g.arc(t.pos[0]*U, t.pos[1]*U, gommeRayon()*U, 0, Math.PI*2); g.fill(); g.stroke();
+      vus.push(t.pos); m=gommeRayon()*U+3;
+    }
+  } else if(vifN(t)){
+    var p=t.p, n=p.length, q=p[n-1], wq=largeurT(t, q[2])*U;
+    styleN(g, t);
+    if(n===1){ g.beginPath(); g.arc(q[0]*U, q[1]*U, Math.max(1, wq/2), 0, Math.PI*2); g.fill(); }
+    else { segmentN(g, t, p, n-1); vus.push(p[n-2]); }
+    vus.push(q);
+    if(t.predits && t.predits.length){
+      g.lineWidth=Math.max(.8, wq); g.beginPath(); g.moveTo(q[0]*U, q[1]*U);
+      t.predits.forEach(function(a){ g.lineTo(a[0]*U, a[1]*U); vus.push(a); });
+      g.stroke();
+    }
+    m=Math.max(wq, n>1 ? largeurT(t, p[n-2][2])*U : 0)/2+3;
   }
+  g.restore();
+  if(!vus.length) return;
+  var x0=1e9, y0=1e9, x1=-1e9, y1=-1e9;
+  vus.forEach(function(a){ var X=a[0]*U, Y=a[1]*U-T.haut; x0=Math.min(x0,X); y0=Math.min(y0,Y); x1=Math.max(x1,X); y1=Math.max(y1,Y); });
+  BOUT=[Math.floor((x0-m)*T.dpr), Math.floor((y0-m)*T.dpr), Math.ceil((x1-x0+2*m)*T.dpr)+1, Math.ceil((y1-y0+2*m)*T.dpr)+1];
+}
+/* complet : tout le trait en cours (son début, un défilement) ; sinon, seulement ce qui est nouveau */
+function peindreVif(complet){
+  var t=TRAIT;
+  if(vifN(t) && !complet){ avancerN(t); boutN(); return; }
+  var V=toile("encreVive"); V.g.setTransform(1,0,0,1,0,0); V.g.clearRect(0,0,V.cv.width,V.cv.height);
+  effacerBoutN(true);
+  if(!t) return;
+  if(vifN(t)){ t.fait=0; avancerN(t); boutN(); return; }
+  /* feutre, surligneur, forme : un seul tracé, refait à chaque image (il est court à dessiner) */
+  if(!t.gomme){ V.g.save(); V.g.setTransform(V.dpr,0,0,V.dpr,0,-V.haut*V.dpr); tracerTrait(V.g, t); V.g.restore(); }
+  boutN();
 }
 function point(e){
   var r=$("page").getBoundingClientRect();
@@ -1222,7 +1303,7 @@ function effacerPres(q){
     pts.forEach(function(a){ if(Math.hypot(a[0]-q[0], a[1]-q[1]) < r) garder(); else morceau.push(a); });
     garder();
   });
-  if(change){ COUR.encre=res; if(TRAIT && TRAIT.gomme) TRAIT.change=true; sale(); }
+  if(change){ COUR.encre=res; ENCRE_SALE=true; if(TRAIT && TRAIT.gomme) TRAIT.change=true; sale(); }
 }
 /* la gomme suit le doigt sans sauter : des pas plus petits que sa taille */
 function gommer(q){
@@ -1239,15 +1320,15 @@ page.addEventListener("pointerdown", function(e){
   e.preventDefault(); e.stopPropagation();
   ACTIF=e.pointerId; try{ page.setPointerCapture(e.pointerId); }catch(x){}
   var q=point(e);
-  if(MODE.outil==="gomme"){ TRAIT={gomme:true, avant:COUR.encre.slice()}; gommer(q); dessiner(); return; }
+  if(MODE.outil==="gomme"){ TRAIT={gomme:true, avant:COUR.encre.slice()}; gommer(q); if(ENCRE_SALE) dessiner(); else peindreVif(true); return; }
   if(MODE.outil==="formes"){
     TRAIT={o:"forme", f:MODE.forme, c:MODE.couleur, p:[[q[0],q[1]],[q[0],q[1]]]};
     if(MODE.k.forme && MODE.k.forme!==1) TRAIT.k=Math.round(MODE.k.forme*100)/100;
-    dessiner(); return;
+    peindreVif(true); return;
   }
-  TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? MODE.surl : MODE.couleur, p:[q]};
+  TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? MODE.surl : MODE.couleur, p:[q], fait:0};
   if(MODE.k[MODE.outil] && MODE.k[MODE.outil]!==1) TRAIT.k=Math.round(MODE.k[MODE.outil]*100)/100;
-  dessiner();
+  peindreVif(true);
 }, true);
 page.addEventListener("pointermove", function(e){
   if(e.pointerId!==ACTIF || !TRAIT) return;
@@ -1262,13 +1343,23 @@ page.addEventListener("pointermove", function(e){
       return;
     }
     var d=TRAIT.p[TRAIT.p.length-1];
-    if(Math.abs(q[0]-d[0])+Math.abs(q[1]-d[1]) >= 1.2) TRAIT.p.push(q);
+    if(Math.abs(q[0]-d[0])+Math.abs(q[1]-d[1]) >= 1.2){
+      /* la pression lissée : l'épaisseur varie en douceur, sans grumeaux */
+      if(ev.pointerType==="pen" && d[2]!=null) q[2]=Math.round((d[2]+(q[2]-d[2])*.35)*100)/100;
+      TRAIT.p.push(q);
+    }
   });
+  /* là où le crayon va dans un instant (si le navigateur le sait) : le trait colle à la pointe */
+  if(vifN(TRAIT)){
+    var pr=[]; try{ pr=e.getPredictedEvents ? e.getPredictedEvents() : []; }catch(x){ pr=[]; }
+    TRAIT.predits=Array.prototype.slice.call(pr, 0, 3).map(point);
+  }
   dessinerBientot();
 }, true);
-/* un dessin par image, pas un par mouvement du crayon : le trait suit sans à-coups */
+/* un dessin par image, pas un par mouvement du crayon, et seulement ce qui est nouveau :
+   l'écriture déjà faite n'est repeinte que si la gomme vient d'y couper un trait */
 var DESSIN_RAF=0;
-function dessinerBientot(){ if(!DESSIN_RAF) DESSIN_RAF=requestAnimationFrame(function(){ DESSIN_RAF=0; dessiner(); }); }
+function dessinerBientot(){ if(!DESSIN_RAF) DESSIN_RAF=requestAnimationFrame(function(){ DESSIN_RAF=0; if(ENCRE_SALE) dessiner(); else peindreVif(false); }); }
 /* iPad : le crayon ne lance ni la sélection de texte, ni la loupe, ni le défilement ;
    le doigt, lui, continue de faire défiler */
 function crayonSurPage(e){
@@ -1288,9 +1379,18 @@ function lacher(e){
     /* une simple touche ne pose pas de forme */
     if(Math.hypot(b0[0]-a0[0], b0[1]-a0[1])>=4 || TRAIT.p.length>2){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   }
-  else if(TRAIT){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
+  else if(TRAIT){ delete TRAIT.fait; delete TRAIT.predits; COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   if(DESSIN_RAF){ cancelAnimationFrame(DESSIN_RAF); DESSIN_RAF=0; }
-  TRAIT=null; dessiner(); ajusterEncre();
+  var fini=TRAIT && !TRAIT.gomme && COUR.encre.indexOf(TRAIT)>=0 ? TRAIT : null;
+  TRAIT=null;
+  if(ENCRE_SALE || !fini) dessiner();
+  else {
+    /* le trait fini passe sur la toile de l'écriture déjà faite, une fois pour toutes */
+    var T=toile("encre"); T.g.setTransform(T.dpr,0,0,T.dpr,0,-T.haut*T.dpr); tracerTrait(T.g, fini);
+    peindreVif(true);
+  }
+  /* la page ne s'allonge que si l'écriture arrive vers le bas */
+  if(basEncre()+$("defile").clientHeight*.6 > (parseFloat($("page").style.minHeight)||0)) ajusterEncre();
 }
 page.addEventListener("pointerup", lacher, true);
 page.addEventListener("pointercancel", lacher, true);
