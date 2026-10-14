@@ -969,6 +969,13 @@ a.act[hidden]{display:none}
     <div hidden><input type="tel" id="m_caTel"><input type="email" id="m_caMail"></div>
   </div>
 
+  <div class="block" id="sec-note">
+    <h2>Note générale</h2>
+    <label class="f"><span class="sr-only">Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite." aria-label="Note générale"></textarea></label>
+    <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
+    <p class="hint" style="margin:0">Elle figure en tête du PDF du suivi, sous l'objet de la visite.</p>
+  </div>
+
   <div class="block" id="sec-ts">
     <h2>Travaux supplémentaires</h2>
     <div id="ts_liste" class="sv-liste"></div>
@@ -990,11 +997,6 @@ a.act[hidden]{display:none}
     </div>
     <div id="ph_grille"></div>
     <p class="hint ph-site" id="ph_site" hidden></p>
-    <div class="sv-option" id="noteOption"><b>Note générale</b><button type="button" class="sv-switch" id="noteBascule" role="switch" aria-checked="false" aria-controls="noteCorps" aria-label="Ajouter une note générale"><span></span></button></div>
-    <div id="noteCorps" hidden>
-    <label class="f" style="margin-top:8px"><span class="sr-only">Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite." aria-label="Note générale"></textarea></label>
-    <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
-    </div>
   </div>
 
   <div class="block replie" id="sec-plans">
@@ -1628,20 +1630,6 @@ function majBasculePlans(){
   var n=(S.plans||[]).length, ouvert=!$("plansCorps").hidden;
   e.textContent = !ouvert && n ? n+" plan"+(n>1?"s":"") : "";
 }
-/* la note générale : en option ; allumée d'office quand il y en a une */
-function montrerNote(oui){
-  var c=$("noteCorps"), b=$("noteBascule"); if(!c || !b) return;
-  c.hidden=!oui; b.setAttribute("aria-checked", oui ? "true" : "false");
-}
-function basculerNote(){
-  var oui=!!$("noteCorps").hidden;
-  if(!oui && (S.visite.note||"").trim()){
-    if(!window.confirm("Retirer la note générale ?")) return;
-    S.visite.note=""; $("v_note").value=""; save(); renderResume();
-  }
-  montrerNote(oui);
-  if(oui) try{ $("v_note").focus(); }catch(e){}
-}
 function ajouterLigne(cle, champ, rendu){
   var t=$(champ), v=(t.value||"").trim();
   if(!v){ t.focus(); return; }
@@ -1727,7 +1715,7 @@ function ajouterPhotos(files, cible, apres){
 /* une seule page : l'onglet unique porte tout, les anciens noms mènent
    à la partie correspondante */
 var TABS=[["suivi","Suivi"]];
-var PARTIES={visite:"sec-visite", client:"sec-client", ts:"sec-ts", photos:"sec-photos", plan:"sec-plans", plans:"sec-plans",
+var PARTIES={visite:"sec-visite", note:"sec-note", client:"sec-client", ts:"sec-ts", photos:"sec-photos", plan:"sec-plans", plans:"sec-plans",
   points:"sec-points", reste:"sec-reste", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
@@ -1849,7 +1837,7 @@ function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   habillerBarres();
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
-  montrerNote(!!(S.visite.note||"").trim());
+
   paintChips();
   paintLien();
   paintAppel();
@@ -1980,7 +1968,8 @@ function renderResume(){
   var lignes=[
     [titreSuivi(), [S.client.nom, refAffaire()].filter(Boolean).join(" · ") || "client à renseigner"],
     [ts.length+" travaux supplémentaire"+(ts.length>1?"s":""), ts.length ? ts.filter(function(x){ return x.fait; }).length+" chiffré"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"")+" ou validé"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"") : "aucune demande"],
-    [(S.photos||[]).length+" photo"+((S.photos||[]).length>1?"s":""), (annot ? annot+" annotée"+(annot>1?"s":"")+" · " : "")+((S.visite.note||"").trim() ? "note générale" : "sans note générale")],
+    [(S.photos||[]).length+" photo"+((S.photos||[]).length>1?"s":""), annot ? annot+" annotée"+(annot>1?"s":"") : "aucune annotée"],
+    ["Note générale", (S.visite.note||"").trim() ? String(S.visite.note).trim().replace(/\s+/g, " ").slice(0, 60)+((S.visite.note||"").trim().length>60 ? "…" : "") : "aucune"],
     [(S.plans||[]).length+" plan"+((S.plans||[]).length>1?"s":""), (S.plans||[]).length ? modif+" modifié"+(modif>1?"s":"")+" · "+((S.plans||[]).length-modif)+" sans modification" : "aucun plan"],
     resumeReperes(),
     [pts.length+" point"+(pts.length>1?"s":"")+" bloquant"+(pts.length>1?"s":""), rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
@@ -2148,6 +2137,11 @@ function buildPdf(){
     }
     para(S.visite.objet);
   }
+  /* la note générale : celle du suivi, en tête, sous l'objet de la visite */
+  if((S.visite.note||"").trim()){
+    if(!((S.visite.type||"").trim() || (S.visite.objet||"").trim())) h2("Objet de la visite", 26);
+    encadre("Note générale", S.visite.note);
+  }
 
   /* une note écrite au stylet, sous le texte de sa ligne (au plus 110 × 40 mm) */
   function tailleEncre(it, maxL){
@@ -2225,9 +2219,9 @@ function buildPdf(){
 
   /* ---------- 4. le reportage photo ---------- */
   var ph=(S.photos||[]);
-  if(ph.length || (S.visite.note||"").trim()){
-    h2("Reportage photo", ph.length ? 80 : 30);
-    if(ph.length){
+  if(ph.length){
+    h2("Reportage photo", 80);
+    {
       var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
       ph.forEach(function(p, k){
         var h=Math.min(70, cw*(p.h/p.w)), w=h*(p.w/p.h);
@@ -2243,7 +2237,6 @@ function buildPdf(){
       });
       setText(INK);
     }
-    encadre("Note générale", S.visite.note);
   }
 
   /* ---------- 5. les plans ---------- */
@@ -3409,7 +3402,7 @@ function bindAll(){
   $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
   /* les plans : fermés d'office, ouverts à la demande */
   $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
-  $("noteOption").addEventListener("click", function(e){ e.preventDefault(); basculerNote(); });
+
   $("sec-plans").querySelector("h2").addEventListener("click", function(e){ if(!e.target.closest("button")) ouvrirPlans(!!$("plansCorps").hidden); });
   [["ts_texte","ts",renderTs],["rf_texte","reste",renderReste],["pts_texte","points",renderPoints]].forEach(function(x){
     $(x[0]).addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterLigne(x[1], x[0], x[2]); } });
