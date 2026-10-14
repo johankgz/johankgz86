@@ -1203,7 +1203,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <label class="f"><span>Taux d'autoconsommation (%)</span>
         <input type="number" id="v_tauxAuto" inputmode="numeric" min="1" max="100" step="1"></label>
     </div>
-    <p class="hint" style="margin:-4px 0 12px">Seule l'électricité produite et consommée sur place se soustrait de la facture. Le taux est estimé pour ce site ; forcez-le si vous connaissez les habitudes du foyer, une piscine, une voiture rechargée le jour.</p>
+    <p class="hint" style="margin:-4px 0 12px">Seule l'électricité produite et consommée sur place se soustrait de la facture. Le taux est repris de la puissance conseillée (la carte juste ou large, selon la puissance reportée) et suit ses changements ; tapez le vôtre si vous connaissez les habitudes du foyer, une piscine, une voiture rechargée le jour, videz la case pour revenir à la puissance conseillée.</p>
     <div id="amortiOut"></div>
   </div>
 
@@ -1685,7 +1685,7 @@ function blank(){
     activeRoom:null,
     logo:null,
     pv:{actif:"non",conso:"",foyer:"",chauffage:[],exposition:[],toitureType:"",inclinaison:"",surfToit:"",masques:"",kwc:"",wc:"",pertes:"",azimut:"0",pvgis:null,simuls:[],
-        prixKwh:"", coutInstall:"", rachat:"", inflation:"", tauxAuto:"",
+        prixKwh:"", coutInstall:"", rachat:"", inflation:"", tauxAuto:"", tauxManuel:false, conseilChoix:"",
         aerienne:null, consoMois:["","","","","","","","","","","",""],
         irve:{actif:false,type:"",puissance:"",raccordement:"",delestage:"",badge:"",nbBadges:"",pied:"",longueur:"",note:"",photos:[]},
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
@@ -1849,10 +1849,13 @@ function bindFields(){
   FIELDS.forEach(function(f){
     var el=$(f[0]);
     el.addEventListener("input", function(){
-      setPath(f[1], el.value); save(); refreshHeader();
+      setPath(f[1], el.value);
+      /* un taux tapé reste le vôtre ; la case vidée revient à la puissance conseillée */
+      if(f[0]==="v_tauxAuto") S.pv.tauxManuel = String(el.value).trim()!=="";
+      save(); refreshHeader();
       if(f[0]==="v_conso"){ paintPvgis(); try{ paintCompa(); }catch(e){} }
       /* la puissance conseillée suit la consommation et les batteries, saisies juste au-dessus et plus bas */
-      if(f[0]==="v_conso" || f[0]==="v_nbBat"){ try{ paintConseil(); }catch(e){} }
+      if(f[0]==="v_conso" || f[0]==="v_nbBat" || f[0]==="v_kwc" || f[0]==="v_tauxAuto"){ try{ paintConseil(); }catch(e){} }
       if(f[0].indexOf("v_")===0){ try{ paintAmorti(); }catch(e){} }
     });
   });
@@ -4257,7 +4260,7 @@ function chargeVersPv(){
   S.pv.conso=String(Math.round(a.annuel));
   S.pv.consoMois=a.douze.map(function(v){ return String(v); });
   var ac=autoconsoCharge();
-  if(ac) S.pv.tauxAuto=String(Math.round(ac.taux));
+  if(ac){ S.pv.tauxAuto=String(Math.round(ac.taux)); S.pv.tauxManuel=true; }
   if(S.pv.actif!=="oui") S.pv.actif="oui";
   save(); paintForm();
   var n=a.douzeMesure.filter(Boolean).length;
@@ -4407,6 +4410,7 @@ function handlePvgis(d, a){
 }
 function paintPvgis(){
   var g=S.pv.pvgis, out=$("pvgisOut");
+  try{ paintConseil(); }catch(e){}      /* PVGIS change la base de la puissance conseillée */
   try{ paintCompa(); }catch(e){}
   try{ paintAmorti(); }catch(e){}
   if(!g){ out.hidden=true; out.textContent=""; return; }
@@ -4535,6 +4539,32 @@ function conseilPv(){
 }
 /* ================= amortissement sur 10 ans ================= */
 var INFLATION_DEFAUT = 2;
+/* Le taux d'autoconsommation de l'amortissement vient de la puissance conseillée :
+   celle qui a la puissance crête saisie, sinon la dernière reportée (bouton
+   juste ou large : PVGIS peut décaler d'un demi-kWc), sinon la juste. Il suit la consommation, les
+   batteries et PVGIS, tant qu'on n'a pas tapé son propre taux (ou reporté celui
+   de la courbe de charge). Un ancien relevé au taux déjà saisi le garde. */
+function tauxManuel(){
+  if(S.pv.tauxManuel===true) return true;
+  if(S.pv.tauxManuel===false) return false;
+  return String(S.pv.tauxAuto==null ? "" : S.pv.tauxAuto).trim()!=="";
+}
+function carteConseilRetenue(c){
+  if(!c) return null;
+  var k=nombrePv(S.pv.kwc);
+  var choix = k>0 && k===c.juste.kwc ? "juste" : k>0 && k===c.large.kwc ? "large"
+    : (S.pv.conseilChoix==="large" ? "large" : "juste");
+  return {nom:choix, o:c[choix]};
+}
+function reporterTauxConseil(){
+  if(tauxManuel()) return null;
+  var r=carteConseilRetenue(conseilPv());
+  S.pv.tauxManuel=false;
+  S.pv.tauxAuto = r ? String(r.o.taux) : "";
+  var ch=$("v_tauxAuto");
+  if(ch && document.activeElement!==ch) ch.value=S.pv.tauxAuto;
+  return r;
+}
 function nombrePv(v){
   var n = parseFloat(String(v==null ? "" : v).replace(",", "."));
   return isFinite(n) ? n : 0;
@@ -4563,10 +4593,12 @@ function baseProduction(){
   var auto = Math.min(conso, g.ey*taux/100);
   return {auto:auto, surplus:Math.max(0, g.ey-auto), prod:g.ey, conso:conso,
           taux:Math.round(taux), estime:Math.round(estime), force:force,
-          source: force ? "le taux d'autoconsommation que vous avez fixé"
-                        : "le taux d'autoconsommation estimé pour ce site"};
+          source: !force ? "le taux d'autoconsommation estimé pour ce site"
+                : tauxManuel() ? "le taux d'autoconsommation que vous avez fixé"
+                : "le taux de la puissance conseillée" + (function(){ var r=carteConseilRetenue(conseilPv()); return r ? " (" + r.nom + ", " + String(r.o.kwc).replace(".", ",") + " kWc)" : ""; })()};
 }
 function amortissement(){
+  reporterTauxConseil();               /* aussi pour le PDF, sans passer par l'écran */
   var prix = nombrePv(S.pv.prixKwh), cout = nombrePv(S.pv.coutInstall), rachat = nombrePv(S.pv.rachat);
   var infl = String(S.pv.inflation == null ? "" : S.pv.inflation).trim() === ""
     ? INFLATION_DEFAUT : nombrePv(S.pv.inflation);
@@ -4595,9 +4627,10 @@ function dureeEnClair(mois){
 function paintAmorti(){
   var host=$("amortiOut"); if(!host) return;
   host.textContent="";
-  /* le champ du taux propose l'estimation du site tant qu'on ne le force pas */
+  /* le taux suit la puissance conseillée, tant qu'on n'a pas tapé le sien */
+  reporterTauxConseil();
   var champTaux=$("v_tauxAuto"), b0=baseProduction();
-  if(champTaux) champTaux.placeholder = b0 ? String(b0.estime) : "estimé";
+  if(champTaux) champTaux.placeholder = tauxManuel() ? (b0 ? String(b0.estime) : "estimé") : (S.pv.tauxAuto || "conseillé");
   var A=amortissement();
   if(!A){
     var manque=[];
@@ -4660,6 +4693,14 @@ function paintAmorti(){
     + " % par an" + (A.rachat > 0 ? ", le tarif de rachat reste celui du contrat" : "")
     + ". Production et consommation sont supposées stables.";
   host.appendChild(note);
+  /* le taux d'une carte vaut pour sa puissance : PVGIS simulé sur une autre, on le signale */
+  var rc = (!tauxManuel() && A.base.force) ? carteConseilRetenue(conseilPv()) : null, kSim = S.pv.pvgis && Number(S.pv.pvgis.kwc);
+  if(rc && kSim > 0 && Math.abs(kSim - rc.o.kwc) > 0.01){
+    var av=document.createElement("p"); av.className="hint taux-ecart"; av.style.cssText="margin:6px 0 0;font-weight:600;color:var(--ink-2)";
+    av.textContent = "Le taux de " + rc.o.taux + " % est celui de la puissance " + rc.nom + " (" + String(rc.o.kwc).replace(".", ",")
+      + " kWc), mais PVGIS est simulé sur " + String(kSim).replace(".", ",") + " kWc : reportez cette puissance et relancez PVGIS, ou tapez votre taux.";
+    host.appendChild(av);
+  }
 }
 
 function paintConseil(){
@@ -4672,7 +4713,7 @@ function paintConseil(){
     host.appendChild(p);
     return;
   }
-  function carte(titre, o, fort){
+  function carte(titre, o, fort, repris){
     var b=document.createElement("div");
     b.style.cssText="border:1px solid "+(fort?"var(--ink)":"var(--rule)")+";padding:12px 13px;margin-bottom:9px";
     var t=document.createElement("div");
@@ -4691,10 +4732,17 @@ function paintConseil(){
       + o.taux+" % autoconsommés  ·  " + o.couverture + " % des besoins couverts  ·  "
       + o.surplus.toLocaleString("fr-FR") + " kWh de surplus";
     b.appendChild(d2);
+    if(repris){
+      var rp=document.createElement("p"); rp.className="conseil-repris";
+      rp.style.cssText="margin:6px 0 0;font-size:12.5px;font-weight:600;color:var(--ink-2)";
+      rp.textContent="Taux de "+o.taux+" % repris dans l'amortissement sur 10 ans";
+      b.appendChild(rp);
+    }
     return b;
   }
-  host.appendChild(carte("puissance juste", c.juste, true));
-  host.appendChild(carte("puissance large", c.large, false));
+  var retenue = tauxManuel() ? null : carteConseilRetenue(c);
+  host.appendChild(carte("puissance juste", c.juste, true, retenue && retenue.nom==="juste"));
+  host.appendChild(carte("puissance large", c.large, false, retenue && retenue.nom==="large"));
   var note=document.createElement("p");
   note.className="hint"; note.style.margin="2px 0 0";
   note.textContent = "Base de calcul : " + c.unitaire + " kWh par kWc et par an"
@@ -4971,18 +5019,23 @@ sur("fileJson").addEventListener("change", function(){
   };
   r.readAsText(f);
 });
+$("v_tauxAuto").addEventListener("blur", function(){
+  if(!tauxManuel()){ reporterTauxConseil(); this.value=S.pv.tauxAuto; }
+});
 $("btnConseilJuste").addEventListener("click", function(){
   var c=conseilPv();
   if(!c){ toast("Saisissez d'abord la consommation annuelle."); return; }
   S.pv.kwc=String(c.juste.kwc).replace(".",","); $("v_kwc").value=S.pv.kwc;
-  save(); paintConseil();
+  S.pv.conseilChoix="juste";
+  save(); paintConseil(); try{ paintAmorti(); }catch(e){}
   toast(c.juste.kwc+" kWc reportés.");
 });
 $("btnConseilLarge").addEventListener("click", function(){
   var c=conseilPv();
   if(!c){ toast("Saisissez d'abord la consommation annuelle."); return; }
   S.pv.kwc=String(c.large.kwc).replace(".",","); $("v_kwc").value=S.pv.kwc;
-  save(); paintConseil();
+  S.pv.conseilChoix="large";
+  save(); paintConseil(); try{ paintAmorti(); }catch(e){}
   toast(c.large.kwc+" kWc reportés.");
 });
 sur("btnPhotosZip").addEventListener("click", exporterPhotos);
