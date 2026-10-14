@@ -5042,691 +5042,1242 @@ $("btnNewHaut").addEventListener("click", function(){
 var M=14, PW=210, PH=297, CW=PW-2*M;
 /* pour les essais : le PDF tel qu'il partirait à la publication */
 window.__relevePdf=function(){ return buildPdf(); };
+/* ---------- les polices du rapport : Outfit pour les titres et les chiffres,
+   une écriture à la main pour les deux phrases des pages photovoltaïques.
+   Lues une fois à l'ouverture et gardées en base64 ; sans elles (premier
+   lancement hors réseau), le rapport reste en Helvetica. ---------- */
+var POLICES_PDF = {};
+(function(){
+  if(!(location.protocol==="http:" || location.protocol==="https:")) return;
+  [["titre","./polices/outfit-400.ttf"],["titreGras","./polices/outfit-700.ttf"],["main","./polices/manuscrite.ttf"]].forEach(function(p){
+    try{
+      fetch(p[1]).then(function(r){ return r.ok ? r.arrayBuffer() : null; }).then(function(b){
+        if(!b || b.byteLength < 1000) return;
+        var u=new Uint8Array(b), s="";
+        for(var i=0;i<u.length;i+=0x8000) s+=String.fromCharCode.apply(null, u.subarray(i, i+0x8000));
+        POLICES_PDF[p[0]]=btoa(s);
+      }).catch(function(){});
+    }catch(e){}
+  });
+})();
+
+/* Les dessins des pictogrammes du rapport, dans un carré de 24 : cercle
+   ["c",x,y,r], ellipse ["e",x,y,rx,ry], trait ["l",x1,y1,x2,y2], ligne
+   brisée ["p",[[x,y]…]] ou fermée ["z",[[x,y]…]]. */
+var PICTOS_PDF = {
+  soleil:[["c",12,12,4],["l",12,2,12,4.6],["l",12,19.4,12,22],["l",2,12,4.6,12],["l",19.4,12,22,12],["l",4.9,4.9,6.8,6.8],["l",17.2,17.2,19.1,19.1],["l",4.9,19.1,6.8,17.2],["l",17.2,6.8,19.1,4.9]],
+  eclair:[["z",[[13,2.5],[5.5,13.5],[11,13.5],[10,21.5],[18.5,10],[13,10],[14,2.5]]]],
+  maison:[["p",[[3.5,11.5],[12,4],[20.5,11.5]]],["p",[[6,10],[6,20],[18,20],[18,10]]],["p",[[10,20],[10,15],[14,15],[14,20]]]],
+  prise:[["l",9,3,9,8],["l",15,3,15,8],["z",[[6,8],[18,8],[18,12],[15,16],[9,16],[6,12]]],["l",12,16,12,21]],
+  feuille:[["z",[[5,19],[5.4,12.5],[8.5,8],[13,5.6],[19,5],[18.6,11],[16,15.5],[11.5,18.4]]],["l",5,19,13.5,10.5]],
+  boussole:[["c",12,12,9],["z",[[15.5,8.5],[13.5,13.5],[8.5,15.5],[10.5,10.5]]]],
+  pente:[["l",4,20,20,6],["l",4,20,16,20],["p",[[10.5,20],[10.1,18.2],[9.1,16.6]]]],
+  pertes:[["c",12,12,8.5],["l",8,12,16,12]],
+  jauge:[["p",[[4,17],[4.8,12.5],[7.5,8.7],[12,7],[16.5,8.7],[19.2,12.5],[20,17]]],["l",12,17,15.5,10.5],["c",12,17,1.2]],
+  panneau:[["z",[[3,18],[6,6],[21,6],[18,18]]],["l",4.5,12,19.5,12],["l",9,6,8,18],["l",14,6,13.4,18]],
+  euro:[["p",[[17,6.5],[14.5,5.2],[11.5,5.2],[8.6,6.8],[7,9.5],[6.6,12],[7,14.5],[8.6,17.2],[11.5,18.8],[14.5,18.8],[17,17.5]]],["l",4.5,10.3,13,10.3],["l",4.5,13.7,13,13.7]],
+  horloge:[["c",12,12,9],["p",[[12,7],[12,12],[15.5,14]]]],
+  hausse:[["p",[[3.5,18],[9,12.5],[13,16],[20.5,8]]],["p",[[15.5,8],[20.5,8],[20.5,13]]]],
+  bouclier:[["z",[[12,3],[19,6],[19,11.5],[16.5,17],[12,21],[7.5,17],[5,11.5],[5,6]]],["p",[[9,12],[11.3,14.3],[15.5,10]]]],
+  repere:[["z",[[12,21],[6.6,13.6],[6,10],[7.5,6.4],[12,4],[16.5,6.4],[18,10],[17.4,13.6]]],["c",12,10,2.4]]
+};
+
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var y=M, page=1;
-  var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206];
-  var ACC=[180,98,26], ACC_BG=[251,237,224];
-  var SOL=[138,90,20], SOL_BG=[250,239,222], FROID=[30,96,170], FROID_BG=[228,238,250];
-  var GREEN=[94,110,66], AMBER=[232,163,61];
-  var theme = ACC, themeBg = ACC_BG;
+  /* la palette : un papier clair, un vert profond, du sable */
+  var FOND=[247,246,241], ENCRE=[31,42,36], GRIS=[93,102,95], GRIS2=[139,145,136], TRAIT=[227,225,216],
+      VERT=[62,111,85], VERT_F=[33,64,47], VERT_C=[226,236,229], SABLE=[236,231,220], SABLE2=[241,238,230],
+      BLANC=[255,255,255], CUIVRE=[181,118,42], TOIT=[52,58,62], BLEU_PV=[32,58,99];
+  var BAS = PH-21;            /* dernière ligne utile, au-dessus du pied de page */
+  var y = 0, page = 0, SUITE = null, SOMMAIRE = [], Y_SOMMAIRE = 0;
 
-  function fmtDate(d){ if(!d) return ""; var a=d.split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+  /* ---------- polices ---------- */
+  var FT = {t:"helvetica", m:null};
+  try{
+    if(POLICES_PDF.titre && POLICES_PDF.titreGras && doc.addFileToVFS){
+      doc.addFileToVFS("outfit-400.ttf", POLICES_PDF.titre); doc.addFont("outfit-400.ttf", "Outfit", "normal");
+      doc.addFileToVFS("outfit-700.ttf", POLICES_PDF.titreGras); doc.addFont("outfit-700.ttf", "Outfit", "bold");
+      FT.t = "Outfit";
+    }
+    if(POLICES_PDF.main && doc.addFileToVFS){
+      doc.addFileToVFS("manuscrite.ttf", POLICES_PDF.main); doc.addFont("manuscrite.ttf", "Manuscrite", "normal");
+      FT.m = "Manuscrite";
+    }
+  }catch(e){ FT = {t:"helvetica", m:null}; }
+  function titre(gras){ try{ doc.setFont(FT.t, gras ? "bold" : "normal"); }catch(e){ doc.setFont("helvetica", gras ? "bold" : "normal"); } }
+  function texte(gras){ doc.setFont("helvetica", gras ? "bold" : "normal"); }
+  function manuscrit(){ try{ if(FT.m){ doc.setFont(FT.m, "normal"); return; } }catch(e){} doc.setFont("helvetica", "oblique"); }
+
+  /* ---------- petits outils ---------- */
+  function fmtDate(d){ if(!d) return ""; var a=String(d).split("-"); return a.length===3 ? a[2]+"/"+a[1]+"/"+a[0] : String(d); }
   function nb(n){ return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
+  function dec(n, k){ var f=Math.pow(10, k==null ? 1 : k); return String(Math.round(Number(n)*f)/f).replace(".", ","); }
   function vide(v){ return v===null || v===undefined || v==="" || (v.join && !v.length); }
+  function rempli(){ for(var i=0;i<arguments.length;i++) if(!vide(arguments[i])) return true; return false; }
   function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
   function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-
-  /* ---------- structure de page ---------- */
-  function bandeau(){
-    setFill(INK); doc.rect(0,0,PW,3.2,"F");
-    var L = S.logo || (P && P.logo), tx = M;
-    if(L){
-      var lh=15, lw=lh*(L.w/L.h);
-      if(lw>40){ lw=40; lh=lw*(L.h/L.w); }
-      try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){}
-      tx = M + lw + 7;
-    }
-    setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Relevé technique de site", tx, 19);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous = "Visite du "+fmtDate(S.meta.date);
-    if(refAffaire()) sous += "     Réf. "+refAffaire();
-    doc.text(sous, tx, 25);
-    var soc = S.meta.societe || (P&&P.societe) || "";
-    if(soc){
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(soc, PW-M, 13.5, {align:"right"});
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-      var ly=18;
-      [(P&&P.socTel) ? telPoints(P.socTel) : "", (P&&P.socWeb), (P&&P.socAdr)].forEach(function(t){
-        if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; }
-      });
-    }
-    setFill(LIGHT); doc.rect(M, 31, CW, 0.4, "F");
-    setText(INK); y = 39;
+  function setDraw(c){ doc.setDrawColor(c[0],c[1],c[2]); }
+  function formatImg(d){ return /^data:image\/png/i.test(String(d||"")) ? "PNG" : "JPEG"; }
+  function opacite(o){ try{ if(doc.GState && doc.setGState) doc.setGState(new doc.GState({opacity:o})); }catch(e){} }
+  function lh(taille){ return taille*1.18*0.3528; }               /* interligne, en mm, d'une taille en points */
+  function lignes(txt, l, taille){ doc.setFontSize(taille); return doc.splitTextToSize(String(txt||"").trim(), l); }
+  function poly(pts, style){                                        /* un polygone, en points absolus */
+    var rel=[]; for(var i=1;i<pts.length;i++) rel.push([pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]]);
+    doc.lines(rel, pts[0][0], pts[0][1], [1,1], style, true);
   }
-  function footer(){
-    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    var soc = S.meta.societe || (P&&P.societe) || "";
-    var left = doc.splitTextToSize([soc,(P&&P.socLegal)||""].filter(Boolean).join("   "), 110)[0] || "";
-    doc.text(left, M, PH-9.5);
-    doc.text((refAffaire()? "Réf. "+refAffaire()+"     " : "")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-    doc.setFontSize(6.5); setText([140,132,117]);
-    doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-5.5, {align:"center"});
-    setText(INK);
-  }
-  function newPage(){
-    footer(); doc.addPage(); page++;
-    setFill(INK); doc.rect(0,0,PW,2.2,"F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.client.nom||"Relevé technique"), M, 12);
-    if(refAffaire()) doc.text(refAffaire(), PW-M, 12, {align:"right"});
-    setText(INK); y=20;
-  }
-  function need(h){ if(y+h > PH-22) newPage(); }
-
-  /* ---------- blocs de contenu ---------- */
-  function h2(t, est, couleur){
-    theme = couleur || ACC; themeBg = (couleur===SOL) ? SOL_BG : (couleur===FROID) ? FROID_BG : ACC_BG;
-    if(est && (y + est > PH-22) && y > 45) newPage();
-    need(34); y+=4;
-    setFill(themeBg); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
-    setFill(theme); doc.roundedRect(M, y, 2.6, 9.5, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setText(theme);
-    doc.text(t, M+7, y+6.4);
-    setText(INK); y+=15;
-  }
-  function sousTitre(t){
-    need(20); doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme);
-    doc.text(t, M+1, y); setText(INK); y+=5.8;
-  }
-  function ecrireExp(txt, x, yy, taille){   // gère le "²" absent des polices PDF de base
-    var parts = String(txt).split("²");
-    var cx = x;
-    for(var i=0;i<parts.length;i++){
-      doc.setFontSize(taille);
-      doc.text(parts[i], cx, yy);
-      cx += doc.getTextWidth(parts[i]);
-      if(i < parts.length-1){
-        doc.setFontSize(taille*0.68);
-        doc.text("2", cx, yy-1.3);
-        cx += doc.getTextWidth("2");
-        doc.setFontSize(taille);
+  function picto(nom, x, yy, taille, couleur){
+    var I=PICTOS_PDF[nom]; if(!I) return;
+    var k=taille/24, X=function(v){ return x+v*k; }, Y=function(v){ return yy+v*k; };
+    setDraw(couleur||VERT_F); doc.setLineWidth(Math.max(0.22, taille*0.06));
+    try{ doc.setLineCap("round"); doc.setLineJoin("round"); }catch(e){}
+    I.forEach(function(p){
+      if(p[0]==="c") doc.circle(X(p[1]), Y(p[2]), p[3]*k, "S");
+      else if(p[0]==="e") doc.ellipse(X(p[1]), Y(p[2]), p[3]*k, p[4]*k, "S");
+      else if(p[0]==="l") doc.line(X(p[1]), Y(p[2]), X(p[3]), Y(p[4]));
+      else {
+        var pts=p[1];
+        for(var i=0;i<pts.length-1;i++) doc.line(X(pts[i][0]), Y(pts[i][1]), X(pts[i+1][0]), Y(pts[i+1][1]));
+        if(p[0]==="z") doc.line(X(pts[pts.length-1][0]), Y(pts[pts.length-1][1]), X(pts[0][0]), Y(pts[0][1]));
       }
+    });
+    try{ doc.setLineCap("butt"); doc.setLineJoin("miter"); }catch(e){}
+    doc.setLineWidth(0.2);
+  }
+  /* « 150 m² » : le ² dessiné en petit, pour toutes les polices */
+  function largeurExp(txt){
+    var t=0, parts=String(txt).split("²"), taille=doc.getFontSize ? doc.getFontSize() : 9;
+    parts.forEach(function(p, i){ t+=doc.getTextWidth(p); if(i<parts.length-1){ doc.setFontSize(taille*0.68); t+=doc.getTextWidth("2"); doc.setFontSize(taille); } });
+    return t;
+  }
+  function ecrireExp(txt, x, yy, taille){
+    var parts=String(txt).split("²"), cx=x;
+    for(var i=0;i<parts.length;i++){
+      doc.setFontSize(taille); doc.text(parts[i], cx, yy); cx+=doc.getTextWidth(parts[i]);
+      if(i<parts.length-1){ doc.setFontSize(taille*0.68); doc.text("2", cx, yy-1.3); cx+=doc.getTextWidth("2"); doc.setFontSize(taille); }
     }
   }
-  function kv(k,v){
-    if(k==="Téléphone") v=telPoints(v);
-    if(vide(v)) return;
-    v = String(v);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-    var kL=doc.splitTextToSize(k, 42), vL=doc.splitTextToSize(v, CW-50);
-    var n=Math.max(kL.length, vL.length);
-    need(n*4.8+3);
-    setText(GREY); doc.text(kL, M+1, y);
-    setText(INK); doc.setFont("helvetica","bold");
-    if(v.indexOf("²")>=0 && vL.length===1) ecrireExp(vL[0], M+48, y, 9.5);
-    else doc.text(vL, M+48, y);
-    y += n*4.8 + 3.4;
+
+  /* ---------- la société, le dossier ---------- */
+  var SOC = S.meta.societe || (P && P.societe) || "";
+  var LOGO = S.logo || (P && P.logo) || null;
+  var REF = refAffaire() || "";
+  var VISITE = fmtDate(S.meta.date);
+  var COORD_SOC = [(P && P.socTel) ? telPoints(P.socTel) : "", (P && P.socWeb) || ""].filter(Boolean).join("   ·   ")
+               || String((P && P.socAdr) || "").replace(/\n/g, ", ");
+  function initiales(t){
+    var m=String(t||"").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().split(/[^A-Z0-9]+/)
+      .filter(function(w){ return w && ["SAS","SARL","EURL","SA","ET","DE","DES","LA","LE","LES"].indexOf(w)<0; });
+    return ((m[0]||"")[0]||"") + ((m[1]||"")[0]||"");
   }
-  function para(txt){
-    if(vide(txt) || !txt.trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-    var lines=doc.splitTextToSize(txt.trim(), CW-4);
-    for(var i=0;i<lines.length;i++){ need(6); doc.text(lines[i], M+2, y); y+=5.2; }
-    y+=2;
+
+  /* ---------- la page : fond, en-tête ; le pied et les numéros sont posés à la fin ---------- */
+  function entete(){
+    var x=M;
+    if(LOGO && LOGO.data){
+      var lh0=12, lw=lh0*((LOGO.w||1)/(LOGO.h||1));
+      if(lw>34){ lw=34; lh0=lw*((LOGO.h||1)/(LOGO.w||1)); }
+      try{ doc.addImage(LOGO.data, formatImg(LOGO.data), M, 10+(12-lh0)/2, lw, lh0); x=M+lw+4.5; }catch(e){}
+    } else if(SOC){
+      setFill(VERT_F); doc.roundedRect(M, 10, 12, 12, 2.2, 2.2, "F");
+      titre(true); doc.setFontSize(10); setText(BLANC);
+      doc.text(initiales(SOC) || "·", M+6, 17.7, {align:"center"});
+      x=M+16.5;
+    }
+    titre(true); doc.setFontSize(12); setText(ENCRE);
+    doc.text(lignes(SOC ? SOC.toUpperCase() : "Relevé technique de site", 96, 12)[0], x, 15.6, {charSpace: SOC ? 0.3 : 0});
+    if(COORD_SOC){ texte(false); doc.setFontSize(7.2); setText(GRIS); doc.text(lignes(COORD_SOC, 100, 7.2)[0], x, 20.6); }
+    texte(false); doc.setFontSize(7); setText(GRIS);
+    var xr=PW-M-23;
+    if(REF) doc.text("Réf. "+REF, xr, VISITE ? 14.8 : 17.2, {align:"right"});
+    if(VISITE) doc.text("Visite du "+VISITE, xr, REF ? 19.4 : 17.2, {align:"right"});
+    setFill(TRAIT); doc.rect(PW-M-20.5, 11, 0.25, 10, "F");
+    doc.rect(M, 27, CW, 0.3, "F");
   }
-  function encadre(txt){
-    if(vide(txt) || !txt.trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var lines=doc.splitTextToSize(txt.trim(), CW-14);
-    var h = lines.length*5.2 + 11;
-    need(h+2);
-    setFill(themeBg); doc.roundedRect(M, y, CW, h, 0.8, 0.8, "F");
-    setText(INK); doc.text(lines, M+7, y+7.5);
-    y += h + 5;
+  function nouvellePage(){
+    if(page>0) doc.addPage();
+    page++;
+    setFill(FOND); doc.rect(0, 0, PW, PH, "F");
+    entete();
+    setText(ENCRE); y=36;
   }
-  function bloc(titre, paires){          // sous-partie : rien d'affiché si tout est vide
-    var utiles = paires.filter(function(pp){ return !vide(pp[1]); });
-    if(!utiles.length) return false;
-    if(titre){ y+=1.5; sousTitre(titre); }
-    utiles.forEach(function(pp){ kv(pp[0], pp[1]); });
+  /* la place manque : page suivante, qui rappelle le chapitre en cours */
+  function need(h){
+    if(y+h <= BAS) return;
+    nouvellePage();
+    if(SUITE){ puce(SUITE+" · suite", M, y); y+=11; }
+  }
+  function puce(t, x, yy, fond){
+    t=String(t).toUpperCase();
+    texte(true); doc.setFontSize(6.4);
+    /* un léger interlettrage, sous le seuil où un lecteur de PDF couperait le mot en lettres */
+    var w=doc.getTextWidth(t) + t.length*0.15 + 8;
+    setFill(fond||SABLE); doc.roundedRect(x, yy, w, 6, 3, 3, "F");
+    setText(ENCRE); doc.text(t, x+4, yy+4.1, {charSpace:0.15});
+    return w;
+  }
+  function etiquette(t, x, yy){ texte(true); doc.setFontSize(6.6); setText(VERT_F); doc.text(String(t).toUpperCase(), x, yy, {charSpace:0.15}); }
+  function sousTitre(t, x, yy, taille){ titre(true); doc.setFontSize(taille||10.5); setText(VERT_F); doc.text(t, x, yy); }
+  /* un chapitre : page neuve, pastille, grand titre en deux tons, chapeau */
+  function chapitre(nomPuce, l1, l2, chapeau, largeurChapeau, horsSommaire){
+    nouvellePage(); SUITE=nomPuce;
+    if(!horsSommaire) SOMMAIRE.push({t: l2 ? l1+" "+l2 : l1, p: page});
+    puce(nomPuce, M, y); y+=11;
+    titre(false); doc.setFontSize(24); setText(ENCRE);
+    var L1=lignes(l1, CW, 24); doc.text(L1, M, y+6.6); y+=L1.length*lh(24)+0.6;
+    if(l2){ setText(VERT); titre(false); var L2=lignes(l2, CW, 24); doc.text(L2, M, y+6.6); y+=L2.length*lh(24)+0.6; }
+    if(chapeau){
+      texte(false); setText(GRIS);
+      var C=lignes(chapeau, largeurChapeau||125, 9.5); doc.text(C, M, y+5.2); y+=4.5+C.length*lh(9.5);
+    }
+    y+=7; setText(ENCRE);
+  }
+
+  /* ---------- tableaux de valeurs : une ligne sur deux teintée, rien si tout est vide ---------- */
+  var T_TAB=8.2;
+  function utilesDe(paires){ return paires.filter(function(p){ return !vide(p[1]); }); }
+  function rangsDe(utiles, l, kL){
+    return utiles.map(function(p){
+      var k=String(p[0]), v=String(p[1]);
+      if(/Téléphone/.test(k)) v=telPoints(v);
+      var long = v.length>70 || /\n/.test(v);
+      texte(false); var kl=lignes(k, long ? l-6 : kL-4, T_TAB);
+      texte(true); var vl=lignes(v.replace(/\n+/g, "  "), long ? l-6 : l-kL-6, T_TAB);
+      return {k:kl, v:vl, long:long, h: long ? (kl.length+vl.length)*lh(T_TAB)+4.4 : Math.max(kl.length, vl.length)*lh(T_TAB)+3.6};
+    });
+  }
+  function ligneTab(r, x, yy, l, h, teinte){
+    if(teinte){ setFill(SABLE2); doc.rect(x, yy, l, h, "F"); }
+    var b=yy+4.4;
+    texte(false); doc.setFontSize(T_TAB); setText(GRIS); doc.text(r.k, x+3, b);
+    texte(true); setText(ENCRE);
+    if(r.long) doc.text(r.v, x+3, b+r.k.length*lh(T_TAB));
+    else if(r.v.length===1 && r.v[0].indexOf("²")>=0){ doc.setFontSize(T_TAB); ecrireExp(r.v[0], x+l-3-largeurExp(r.v[0]), b, T_TAB); }
+    else doc.text(r.v, x+l-3, b, {align:"right"});
+  }
+  /* pleine largeur, coupé d'une page à l'autre ; l'intitulé ne reste jamais seul en bas de page */
+  function tableau(nom, paires, opt){
+    opt=opt||{};
+    var utiles=utilesDe(paires); if(!utiles.length) return false;
+    var kL=opt.kl||Math.min(62, CW*0.42), rangs=rangsDe(utiles, CW, kL);
+    if(nom){ need(9+rangs[0].h); etiquette(nom, M+1, y+3); y+=6.5; }
+    rangs.forEach(function(r, i){ need(r.h); ligneTab(r, M, y, CW, r.h, i%2===0); y+=r.h; });
+    y+=opt.apres==null ? 6 : opt.apres;
     return true;
   }
-  function rempli(){
-    for(var i=0;i<arguments.length;i++) if(!vide(arguments[i])) return true;
-    return false;
+  /* un groupe de plus de quatre lignes : sur deux colonnes, rang par rang */
+  var L2=(CW-6)/2, KL2=Math.min(40, L2*0.46);
+  function grille(nom, paires, opt){
+    opt=opt||{};
+    var utiles=utilesDe(paires); if(!utiles.length) return false;
+    if(utiles.length<=4) return tableau(nom, paires, opt);
+    var n=Math.ceil(utiles.length/2), G=rangsDe(utiles.slice(0, n), L2, KL2), D=rangsDe(utiles.slice(n), L2, KL2);
+    var hs=G.map(function(r, i){ return Math.max(r.h, D[i] ? D[i].h : 0); });
+    if(nom){ need(9+hs[0]); etiquette(nom, M+1, y+3); y+=6.5; }
+    for(var i=0;i<n;i++){
+      need(hs[i]);
+      ligneTab(G[i], M, y, L2, hs[i], i%2===0);
+      if(D[i]) ligneTab(D[i], M+L2+6, y, L2, hs[i], i%2===0);
+      y+=hs[i];
+    }
+    y+=opt.apres==null ? 6 : opt.apres;
+    return true;
   }
-
-  function courbes(prod, conso){
-    var seulement = (!prod || !prod.length);
-    var hG=62, x0=M+13, x1=PW-M-4, largeur=x1-x0;
-    need(hG+26);
-    var maxi=Math.max.apply(null, (seulement ? conso : prod.concat(conso))) || 1;
-    var haut=Math.ceil(maxi/50)*50;
-    var yBas=y+hG, yHaut=y+4;
-    /* grille */
-    doc.setFont("helvetica","normal"); doc.setFontSize(7);
-    for(var k=0;k<=3;k++){
-      var v=haut*k/3, yy=yBas-(yBas-yHaut)*k/3;
-      setFill([236,239,244]); doc.rect(x0, yy, largeur, 0.2, "F");
-      setText(GREY); doc.text(nb(v), x0-2.5, yy+1.2, {align:"right"});
+  /* un groupe et le début de sa note restent ensemble : la note ne part jamais seule, sans son intitulé */
+  function garderAvecNote(nom, paires, note){
+    var utiles=utilesDe(paires); if(!utiles.length) return;
+    var hs;
+    if(utiles.length<=4) hs=rangsDe(utiles, CW, Math.min(62, CW*0.42)).map(function(r){ return r.h; });
+    else {
+      var n=Math.ceil(utiles.length/2), G=rangsDe(utiles.slice(0, n), L2, KL2), D=rangsDe(utiles.slice(n), L2, KL2);
+      hs=G.map(function(r, i){ return Math.max(r.h, D[i] ? D[i].h : 0); });
     }
-    function pt(i, v){
-      return [x0 + largeur*i/11, yBas - (yBas-yHaut)*(v/haut)];
-    }
-    function trace(serie, couleur, epaisseur){
-      doc.setDrawColor(couleur[0],couleur[1],couleur[2]);
-      doc.setLineWidth(epaisseur);
-      for(var i=0;i<11;i++){
-        var a=pt(i,serie[i]), b=pt(i+1,serie[i+1]);
-        doc.line(a[0],a[1],b[0],b[1]);
-      }
-      setFill(couleur);
-      for(var j=0;j<12;j++){ var q=pt(j,serie[j]); doc.circle(q[0],q[1],0.7,"F"); }
-    }
-    trace(conso, ACC, 0.8);
-    if(!seulement) trace(prod, SOL, 0.9);
-    doc.setLineWidth(0.2);
-    setText(GREY); doc.setFontSize(6.5);
-    for(var m=0;m<12;m++){
-      doc.text(MOIS[m], x0 + largeur*m/11, yBas+4, {align:"center"});
-    }
-    y = yBas + 8;
-    /* légende */
-    setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(8);
-    setFill(ACC); doc.circle(x0+1, y-1, 1.1, "F");
-    doc.text("Consommation du foyer", x0+4, y);
-    if(!seulement){
-      setFill(SOL); doc.circle(x0+52, y-1, 1.1, "F");
-      doc.text("Production solaire", x0+55, y);
-    }
-    setText(INK); y += 7;
+    var h=(nom ? 6.5 : 0)+hs.reduce(function(t, v){ return t+v; }, 0);
+    if(note && String(note).trim()){ texte(false); h+=3+Math.min(lignes(note, CW-12, 9.2).length, 3)*lh(9.2)+9; }
+    if(h <= BAS-47) need(h);
   }
-
-  /* ---------- page de garde ---------- */
-  bandeau();
-
-  if(S.meta.statut){
-    var accepte = S.meta.statut.indexOf("accept")>=0;
-    var rdv = S.meta.statut.indexOf("rendez-vous")>=0;
-    var bc = accepte ? GREEN : (rdv ? ACC : AMBER);
-    setFill(bc); doc.roundedRect(M, y, CW, 11, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-    doc.text(accepte ? "Devis accepté - préparation et exécution des travaux"
-             : (rdv ? "Nouvelle demande client - visite à programmer"
-                    : "Devis en attente de réponse - relevé pour chiffrage"), M+5, y+7.2);
-    if(accepte){
-      var rg=[];
-      if(S.affaire.devis) rg.push("Devis "+S.affaire.devis);
-      if(S.affaire.chantier) rg.push("Travaux "+S.affaire.chantier);
-      if(rg.length){ doc.setFontSize(9.5); doc.text(rg.join("     "), PW-M-5, y+7.2, {align:"right"}); }
-    }
-    setText(INK); y+=16;
-  }
-
-  if(S.meta.ca){
-    setFill([244,241,234]); doc.roundedRect(M, y, CW, 10, 0.8, 0.8, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    doc.text("Votre interlocuteur", M+5, y+6.4);
-    doc.setFont("helvetica","bold"); setText(INK);
-    var coord = S.meta.ca
-      + (S.meta.caTel ? "     "+telPoints(S.meta.caTel) : "")
-      + (S.meta.caMail ? "     "+S.meta.caMail : "");
-    doc.text(coord, M+38, y+6.4);
-    y+=15;
-  }
-
-  /* ---------- client ---------- */
-  h2("Client", 60);
-  kv("Nom ou raison sociale", S.client.nom);
-  kv("Code client", S.client.code);
-  kv("Téléphone", S.client.tel);
-  kv("E-mail", S.client.email);
-  kv("Interlocuteur", S.client.contact);
-  kv("Adresse des travaux", (S.client.adresse||"").replace(/\n/g,", "));
-  kv("Coordonnées GPS", S.client.lat!=null ? S.client.lat.toFixed(6)+", "+S.client.lon.toFixed(6) : "");
-  if((S.meta.statut||"").indexOf("accept")>=0){
-    kv("Devis Batigest", S.affaire.devis);
-    kv("Référence travaux", S.affaire.chantier);
-    kv("Démarrage prévu", fmtDate(S.affaire.demarrage));
-  }
-
-  /* ---------- objet du rendez-vous ---------- */
-  if(rempli(S.rdv.objet, S.rdv.description)){
-    h2("Objet du rendez-vous", 30);
-    kv("Objet", S.rdv.objet);
-    para(S.rdv.description);
-  }
-
-  /* ---------- travaux ---------- */
-  var CH=S.chantier;
-  if(rempli(CH.typeBien, CH.natures, CH.construction, CH.surface, CH.niveaux, CH.alim, CH.puissance, CH.pdl, CH.gtl)){
-    h2("Travaux", 62);
-    kv("Type de bien", CH.typeBien);
-    kv("Nature des travaux", CH.natures.join(", "));
-    kv("Type de construction", CH.construction);
-    kv("Surface", CH.surface ? CH.surface+" m²" : "");
-    kv("Niveaux", CH.niveaux);
-    kv("Alimentation", CH.alim);
-    kv("Puissance souscrite", CH.puissance ? CH.puissance+" kVA" : "");
-    kv("N° PDL ou PRM", CH.pdl);
-    kv("Compteur GTL", CH.gtl);
-  }
-
-  /* ---------- courbe de charge ---------- */
-  var KC=CK(), AC=KC.actif==="oui" && KC.courbe ? analyseCharge() : null;
-  if(AC){
-    h2("Courbe de charge du compteur", 120);
-    if(KC.courbe.prm && KC.courbe.prm!==String(S.chantier.pdl||"").trim()) kv("PRM du fichier", KC.courbe.prm);
-    constatsCharge(AC).forEach(function(x){ kv(x[0], x[1]); });
-    var gx=M+12, gl=CW-16;
-    if(AC.detail){
-      need(64); y+=2; sousTitre("Une journée moyenne (kW)");
-      y+=3; CourbeCharge.pdfProfil(doc, gx, y, gl, 40, AC, {gris:GREY, c1:ACC, c2:FROID}); y+=52;
-      doc.setFont("helvetica","bold"); doc.setFontSize(7.5);
-      setFill(ACC); doc.rect(gx, y-1.8, 5, 1, "F"); setText(INK); doc.text("En semaine", gx+7, y-0.8);
-      setFill(FROID); doc.rect(gx+30, y-1.8, 5, 1, "F"); doc.text("Le week-end", gx+37, y-0.8);
-      setFill([232,240,250]); doc.rect(gx+62, y-3, 5, 3.4, "F"); doc.text("Heures creuses", gx+69, y-0.8);
-      y+=6;
-    }
-    need(58); sousTitre("Jour par jour (kWh)");
-    y+=3; CourbeCharge.pdfJours(doc, gx, y, gl, 34, AC, {gris:GREY, c1:ACC}); y+=42;
-    setText(INK);
-  }
-
-  /* ---------- photovoltaïque ---------- */
-  var V=S.pv, cv40=parseFloat((V.conso||"").toString().replace(",","."));
-  var pvRempli = rempli(V.conso, V.foyer, V.chauffage, V.exposition, V.toitureType, V.inclinaison,
-    V.masques, V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat)
-    || V.pvgis || (V.simuls && V.simuls.length) || V.aerienne || V.soleil;
-  if(V.actif !== "oui") pvRempli = false;          /* partie éteinte au relevé */
-  if(pvRempli){
-    var estPv = 45;
-    if(V.simuls) V.simuls.forEach(function(it){ estPv += Math.min(135, CW*(it.h/it.w)) + 12; });
-    if(V.pvgis) estPv += 95;
-    if(V.soleil) estPv += 125;
-    estPv += 60;
-    h2("Photovoltaïque", estPv, SOL);
-
-    bloc("Consommation et foyer", [
-      ["Consommation annuelle", V.conso ? nb(Number(V.conso))+" kWh" : ""],
-      ["Personnes au foyer", V.foyer],
-      ["Chauffage", V.chauffage.join(", ")]
-    ]);
-
-    bloc("Toiture", [
-      ["Exposition", V.exposition.join(", ")],
-      ["Type de toiture", V.toitureType],
-      ["Inclinaison", V.inclinaison ? V.inclinaison+" °" : ""],
-      ["Masques et observations", V.masques ? V.masques.replace(/\n/g,"  ") : ""]
-    ]);
-
-    if(V.simuls && V.simuls.length){
-      y+=1.5; sousTitre("Implantation projetée");
-      V.simuls.forEach(function(it, k){
-        var hh = Math.min(135, CW*(it.h/it.w)), ww = hh*(it.w/it.h);
-        need(hh+12);
-        var xx = M + (CW-ww)/2;
-        try{ doc.addImage(it.data,"JPEG", xx, y, ww, hh); }catch(e){}
-        setFill(LIGHT); doc.rect(xx, y+hh, ww, 0.3, "F");
-        doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-        doc.text(it.nb+" panneaux de 1,13 m sur 1,76 m ("+it.cols+" x "+it.rows+", "+it.orient+")"
-          +" - "+String(it.kwc).replace(".",",")+" kWc", xx, y+hh+4.5);
-        setText(INK);
-        y += hh + 10;
-      });
-    }
-
-    if(V.pvgis){
-      var g=V.pvgis;
-      y+=1.5; sousTitre("Production estimée (simulation PVGIS)");
-      need(30);
-      setFill(SOL_BG); doc.roundedRect(M, y, CW, 20, 0.8, 0.8, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(19); setText(SOL);
-      doc.text(nb(g.ey)+" kWh", M+7, y+11);
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-      doc.text("production annuelle estimée", M+7, y+16);
-      doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
-      doc.text(String(g.kwc).replace(".",",")+" kWc", PW-M-7, y+9, {align:"right"});
-      if(isFinite(cv40) && cv40>0){
-        doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-        doc.text(Math.round(g.ey/cv40*100)+" % de la consommation", PW-M-7, y+15, {align:"right"});
-      }
-      setText(INK); y+=25;
-
-      bloc(null, [
-        ["Production par kWc", nb(g.ey/g.kwc)+" kWh"],
-        ["Irradiation reçue", nb(g.hy)+" kWh par m² et par an"],
-        ["Inclinaison", g.angle+" °"],
-        ["Azimut", g.aspect+" ° (0 = plein sud)"],
-        ["Pertes système", g.loss+" %"]
-      ]);
-
-      need(28);
-      var colW=CW/6, ry=y;
-      for(var half=0; half<2; half++){
-        for(var i=0;i<6;i++){
-          var idx=half*6+i, cx=M+i*colW;
-          setFill([248,249,251]); doc.roundedRect(cx+0.6, ry+half*12, colW-1.2, 11, 0.8, 0.8, "F");
-          doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-          doc.text(MOIS[idx], cx+colW/2, ry+half*12+4.2, {align:"center"});
-          doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(INK);
-          doc.text(String(g.months[idx]), cx+colW/2, ry+half*12+9, {align:"center"});
-        }
-      }
-      y = ry + 26;
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      doc.text("Production mensuelle en kWh - source PVGIS, Commission européenne"
-        + (g.date ? ", simulation du "+g.date.split("-").reverse().join("/") : ""), M, y);
-      setText(INK); y+=7;
-    }
-
-    if(V.aerienne){
-      y+=1.5; sousTitre("Vue aérienne du site");
-      var ha=Math.min(105, CW*(V.aerienne.h/V.aerienne.w)), wa=ha*(V.aerienne.w/V.aerienne.h);
-      need(ha+12);
-      var xa2=M+(CW-wa)/2;
-      try{ doc.addImage(V.aerienne.data,"JPEG", xa2, y, wa, ha); }catch(e){}
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      doc.text("Source "+V.aerienne.source+" - environ "
-        + Math.round(V.aerienne.w*V.aerienne.echelle) + " m de large", xa2, y+ha+4);
-      setText(INK); y += ha + 9;
-    }
-    if(V.soleil){
-      y+=1.5; sousTitre("Course du soleil et orientation du pan");
-      var hs=Math.min(115, CW*(V.soleil.h/V.soleil.w)), ws=hs*(V.soleil.w/V.soleil.h);
-      need(hs+16);
-      var xs2=M+(CW-ws)/2;
-      try{ doc.addImage(V.soleil.data,"JPEG", xs2, y, ws, hs); }catch(e){}
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      var lignesSol=doc.splitTextToSize(String(V.soleil.resume||""), CW);
-      doc.text(lignesSol, M, y+hs+4);
-      setText(INK); y += hs + 6 + lignesSol.length*3.4;
-    }
-
-    var CP = (function(){
-      var douze = (V.consoMois||[]).filter(function(x){ return x!=="" && x!=null; }).length===12;
-      if(!douze) return null;
-      if(!V.pvgis){
-        /* pas encore d'étude : on imprime la seule consommation relevée */
-        var c0=V.consoMois.map(function(x){ return Math.max(0, parseFloat(String(x).replace(",","."))||0); });
-        var t0=c0.reduce(function(p,q){ return p+q; },0);
-        return {conso:c0, prod:null, totalConso:t0, seule:true};
-      }
-      var conso=V.consoMois.map(function(x){ return Math.max(0, parseFloat(String(x).replace(",","."))||0); });
-      var prod=V.pvgis.months.slice();
-      var somme=function(a){ return a.reduce(function(p,q){ return p+q; },0); };
-      var auto=prod.map(function(p,i){ return Math.min(p, conso[i]); });
-      var tc=somme(conso), tp=somme(prod), ta=somme(auto);
-      return {conso:conso, prod:prod, totalConso:tc, totalProd:tp, totalAuto:ta,
-              couverture: tc? ta/tc*100 : 0, surplus: tp-ta, achat: tc-ta};
-    })();
-    if(CP && CP.seule){
-      if(y + 96 > PH-22) newPage();
-      y+=1.5; sousTitre("Consommation du foyer, mois par mois");
-      courbes(null, CP.conso);
-      need(20);
-      setFill(SOL_BG); doc.roundedRect(M, y, CW, 15, 0.8, 0.8, "F");
-      var moyenne = CP.totalConso/12;
-      var fort = CP.conso.indexOf(Math.max.apply(null, CP.conso));
-      var faible = CP.conso.indexOf(Math.min.apply(null, CP.conso));
-      [[nb(CP.totalConso)+" kWh","sur l'année"],
-       [nb(Math.round(moyenne))+" kWh","par mois en moyenne"],
-       [MOIS_LONG[fort],"mois le plus fort"],
-       [MOIS_LONG[faible],"mois le plus faible"]].forEach(function(c, i){
-        var cx=M+6+i*(CW-12)/4;
-        doc.setFont("helvetica","bold"); doc.setFontSize(10.5); setText(SOL);
-        doc.text(c[0], cx, y+6.5);
-        doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-        doc.text(c[1], cx, y+11);
-      });
-      setText(INK); y+=20;
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-      doc.text("L'étude de production sera ajoutée au relevé une fois le calcul PVGIS effectué.", M, y);
-      setText(INK); y+=7;
-    }
-    if(CP && !CP.seule){
-      if(y + 118 > PH-22) newPage();
-      y+=1.5; sousTitre("Production solaire et consommation du foyer");
-      courbes(CP.prod, CP.conso);
-      need(24);
-      setFill(SOL_BG); doc.roundedRect(M, y, CW, 17, 0.8, 0.8, "F");
-      var cases=[[Math.round(CP.couverture)+" %","des besoins couverts"],
-                 [nb(CP.totalAuto)+" kWh","autoconsommés"],
-                 [nb(CP.surplus)+" kWh","injectés en surplus"],
-                 [nb(CP.achat)+" kWh","restant à acheter"]];
-      cases.forEach(function(c, i){
-        var cx=M+6+i*(CW-12)/4;
-        doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(SOL);
-        doc.text(c[0], cx, y+7);
-        doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-        doc.text(c[1], cx, y+12);
-      });
-      setText(INK); y+=22;
-      kv("Consommation annuelle relevée", nb(CP.totalConso)+" kWh");
-      kv("Production annuelle estimée", nb(V.pvgis.ey)+" kWh");
-    }
-
-    var AM = null;
-    try{ AM = amortissement(); }catch(e){ AM = null; }
-    if(AM){
-      if(y + 120 > PH-22) newPage();
-      y+=1.5; sousTitre("Amortissement de l'installation");
-      need(26);
-      setFill(SOL_BG); doc.roundedRect(M, y, CW, 20, 0.8, 0.8, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(19); setText(SOL);
-      doc.text(AM.mois ? dureeEnClair(AM.mois) : "plus de 10 ans", M+7, y+11);
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-      doc.text("pour rembourser l'installation", M+7, y+16);
-      doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
-      doc.text(nb(AM.cout)+" \u20AC", PW-M-7, y+9, {align:"right"});
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-      doc.text("prix de l'installation", PW-M-7, y+15, {align:"right"});
-      setText(INK); y+=25;
-
-      bloc(null, [
-        ["Prix du kWh acheté", String(AM.prix).replace(".",",")+" \u20AC"],
-        ["Inflation retenue", String(AM.infl).replace(".",",")+" % par an"],
-        ["Électricité consommée sur place", nb(AM.base.auto)+" kWh par an  ("+AM.base.couverture+" % de la consommation)"],
-        ["Rachat du surplus", AM.rachat>0
-          ? String(AM.rachat).replace(".",",")+" \u20AC le kWh  (" + nb(AM.base.surplus) + " kWh)" : ""],
-        ["Gain la première année", nb(AM.lignes[0].gain)+" \u20AC"],
-        ["Gain cumulé sur 10 ans", nb(AM.cumul)+" \u20AC"]
-      ]);
-
-      need(20);
-      setFill([244,241,234]); doc.roundedRect(M, y, CW, 8, 0.8, 0.8, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(GREY);
-      var colsAm=[["Année", M+4, "left"], ["Prix du kWh", M+CW*0.42, "right"],
-                  ["Gain de l'année", M+CW*0.66, "right"], ["Cumul", M+CW*0.86, "right"],
-                  ["Reste", PW-M-4, "right"]];
-      colsAm.forEach(function(c){ doc.text(c[0], c[1], y+5.4, {align:c[2]}); });
-      setText(INK); y+=11;
-      AM.lignes.forEach(function(l){
-        need(8);
-        var paye = AM.mois && l.an === Math.ceil(AM.mois/12);
-        if(paye){ setFill(SOL_BG); doc.rect(M, y-4.2, CW, 6.6, "F"); }
-        doc.setFont("helvetica", paye ? "bold" : "normal"); doc.setFontSize(9);
-        setText(paye ? SOL : INK);
-        doc.text("An "+l.an, M+4, y);
-        setText(INK); doc.setFont("helvetica","normal");
-        doc.text(l.prix.toFixed(3).replace(".",",")+" \u20AC", M+CW*0.42, y, {align:"right"});
-        doc.text(nb(l.gain)+" \u20AC", M+CW*0.66, y, {align:"right"});
-        doc.text(nb(l.cumul)+" \u20AC", M+CW*0.86, y, {align:"right"});
-        doc.text(l.reste>0 ? nb(l.reste)+" \u20AC" : "amorti", PW-M-4, y, {align:"right"});
-        setFill(LIGHT); doc.rect(M, y+2, CW, 0.25, "F");
-        y+=7;
-      });
-      y+=2;
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      var noteAm = doc.splitTextToSize("Calcul d'ordre indicatif. Seule l'électricité produite et "
-        + "consommée sur place se soustrait de la facture, soit " + nb(AM.base.auto) + " kWh par an, "
-        + AM.base.couverture + " % des " + nb(AM.base.conso) + " kWh consommés, d'après " + AM.base.source
-        + ". Le prix d'achat de l'électricité progresse de " + String(AM.infl).replace(".",",")
-        + " % par an" + (AM.rachat>0 ? ", le tarif de rachat reste celui du contrat" : "")
-        + ". Production et consommation sont supposées stables, hors aides et entretien.", CW);
-      noteAm.forEach(function(t){ need(6); doc.text(t, M, y); y+=3.8; });
-      setText(INK); y+=4;
-    }
-
-    bloc("Branchement", [
-      ["Alimentation", V.pvAlim],
-      ["Emplacement coffret", V.coffret],
-      ["Raccordement", V.reseau],
-      ["Longueur coffret TGBT", V.lgTgbt ? V.lgTgbt+" ml" : ""]
-    ]);
-    bloc("Batterie", [
-      ["Nombre de batteries", V.nbBat],
-      ["Coffret backup", V.backup],
-      ["Emplacement batterie", V.empBat],
-      ["Longueur batterie coffret", V.lgBat ? V.lgBat+" ml" : ""]
-    ]);
-  }
-
-
-  /* ---------- borne de recharge ---------- */
-  var IV=S.pv.irve||{};
-  if(IV.actif==="oui" && rempli(IV.type, IV.puissance, IV.raccordement, IV.delestage, IV.badge, IV.pied, IV.longueur, IV.note, IV.photos)){
-    var estIrve = 60 + (IV.photos||[]).length*110;
-    h2("Borne de recharge - IRVE", estIrve, SOL);
-    kv("Type d'équipement", IV.type);
-    kv("Puissance", IV.puissance ? String(IV.puissance).replace(".",",")+" kW" : "");
-    kv("Raccordement", IV.raccordement);
-    kv("Câble de délestage", IV.delestage);
-    kv("Badges", IV.badge==="Oui" ? (IV.nbBadges ? IV.nbBadges+" badge"+(IV.nbBadges>1?"s":"") : "Oui") : IV.badge);
-    kv("Pose sur pied", IV.pied);
-    kv("Longueur de câble", IV.longueur ? IV.longueur+" ml" : "");
-    para(IV.note);
-    (IV.photos||[]).forEach(function(it){
-      var hi=Math.min(105, CW*(it.h/it.w)), wi=hi*(it.w/it.h);
-      need(hi+12);
-      var xi=M+(CW-wi)/2;
-      try{ doc.addImage(it.data,"JPEG", xi, y, wi, hi); }catch(e){}
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      doc.text(it.pied ? "Emplacement, borne sur pied" : "Emplacement, borne murale", xi, y+hi+4);
-      setText(INK); y += hi + 9;
+  /* deux petits groupes côte à côte ; s'il en manque un, l'autre prend la largeur */
+  function cote(nomG, pairesG, nomD, pairesD){
+    var uG=utilesDe(pairesG), uD=utilesDe(pairesD);
+    if(!uG.length || !uD.length){ grille(nomG, pairesG); grille(nomD, pairesD); return; }
+    var G=rangsDe(uG, L2, KL2), D=rangsDe(uD, L2, KL2);
+    var som=function(R){ return R.reduce(function(t, r){ return t+r.h; }, 0); };
+    var h=6.5+Math.max(som(G), som(D));
+    if(h > BAS-60){ grille(nomG, pairesG); grille(nomD, pairesD); return; }
+    need(h);
+    [[nomG, G, M], [nomD, D, M+L2+6]].forEach(function(c){
+      etiquette(c[0], c[2]+1, y+3);
+      var yy=y+6.5;
+      c[1].forEach(function(r, i){ ligneTab(r, c[2], yy, L2, r.h, i%2===0); yy+=r.h; });
     });
+    y+=h+6;
   }
-
-  /* ---------- climatisation ---------- */
-  var CC=CL();
-  if(CC.actif==="oui" && rempli(CC.type, CC.puissance, CC.nbInt, CC.alim, CC.liaison, CC.cable, CC.cableLiaison, CC.condensats, CC.pompe, CC.poseExt, CC.goulotte, CC.percements, CC.note, CC.photos)){
-    h2("Climatisation", 60 + CC.photos.length*110, FROID);
-    kv("Type d'installation", CC.type);
-    kv("Puissance du groupe", CC.puissance ? String(CC.puissance).replace(".", ",")+" kW" : "");
-    kv("Unités intérieures", CC.nbInt);
-    kv("Alimentation", CC.alim);
-    var ml=function(v){ return v ? String(v).replace(".", ",")+" ml" : ""; };
-    kv("Liaison frigorifique", ml(CC.liaison));
-    kv("Câble d'alimentation", ml(CC.cable));
-    kv("Câble de liaison int./ext.", ml(CC.cableLiaison));
-    kv("Évacuation des condensats", ml(CC.condensats));
-    kv("Pompe de relevage", CC.pompe==="Oui" ? "Oui"+(CC.nbPompes ? ", "+CC.nbPompes+" pompe"+(Number(CC.nbPompes)>1 ? "s" : "") : "") : CC.pompe);
-    kv("Pose du groupe extérieur", CC.poseExt);
-    kv("Goulotte", CC.goulotte==="Oui" ? "Oui"+(CC.lgGoulotte ? ", "+ml(CC.lgGoulotte) : "") : CC.goulotte);
-    kv("Percements de mur", CC.percements);
-    para(CC.note);
-    CC.photos.forEach(function(it){
-      var hi=Math.min(105, CW*(it.h/it.w)), wi=hi*(it.w/it.h);
-      need(hi+12);
-      var xi=M+(CW-wi)/2;
-      try{ doc.addImage(it.data, "JPEG", xi, y, wi, hi); }catch(e){}
-      doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-      doc.text(it.genre==="ext" ? "Emplacement du groupe extérieur"+(it.support ? ", sur support" : "") : "Emplacement de l'unité murale", xi, y+hi+4);
-      setText(INK); y += hi + 9;
-    });
+  /* un intitulé et son texte : l'intitulé part toujours avec le début du texte */
+  function blocTexte(nom, txt){
+    if(vide(txt) || !String(txt).trim()) return false;
+    texte(false); var n=lignes(txt, CW-12, 9.2).length;
+    need(6.5+Math.min(n, 3)*lh(9.2)+9);
+    etiquette(nom, M+1, y+3); y+=6.5;
+    carte(txt);
+    return true;
   }
-
-  /* ---------- logistique ---------- */
-  var G=S.logistique;
-  if(rempli(G.occupe, G.occupNote, G.accessibilite, G.code, G.acces, G.etage, G.toiture, G.stationnement, G.contraintes)){
-    h2("Accès et logistique", 60);
-    kv("Occupation", G.occupe);
-    kv("Précisions", G.occupNote);
-    kv("Accessibilité", G.accessibilite.join(", "));
-    kv("Code et consignes", G.code);
-    kv("Accès", G.acces.join(", "));
-    kv("Niveau d'intervention", G.etage);
-    kv("Hauteur de toiture", G.toiture ? G.toiture+" m" : "");
-    kv("Stationnement", G.stationnement);
-    if(G.contraintes && G.contraintes.trim()){
-      y+=1.5; sousTitre("Contraintes particulières");
-      encadre(G.contraintes);
+  /* un texte libre dans une carte blanche, coupé d'une page à l'autre s'il est long */
+  function carte(txt, opt){
+    opt=opt||{};
+    if(vide(txt) || !String(txt).trim()) return;
+    texte(false); setText(ENCRE);
+    var L=lignes(txt, CW-12, 9.2), i=0, h1=lh(9.2);
+    while(i<L.length){
+      /* au moins trois lignes par morceau (ou tout le texte s'il est plus court) */
+      var dispo=Math.floor((BAS-y-9)/h1+1e-6);
+      if(dispo<Math.min(3, L.length-i)){ need(BAS); continue; }
+      var n=Math.min(dispo, L.length-i), h=n*h1+9;
+      setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, h, 2.4, 2.4, "FD");
+      texte(false); doc.setFontSize(9.2); setText(ENCRE); doc.text(L.slice(i, i+n), M+6, y+6.4);
+      y+=h+5; i+=n;
     }
   }
-
-  /* ---------- conclusion ---------- */
-  var encresPdf=(S.conclusion.encres||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
-  var encresDemPdf=(S.conclusion.encresDemande||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
-  /* une note au stylet, telle quelle, à sa taille (70 mm de haut au plus) */
-  var poserEncre=function(e){
+  /* une note écrite au stylet, telle quelle, à sa taille (70 mm de haut au plus) */
+  function poserEncre(e){
     var l=Math.min(CW-4, e.l/2*0.2646), hh=l*e.h/e.l;
     if(hh>70){ hh=70; l=hh*e.l/e.h; }
-    need(hh+4);
-    try{ doc.addImage(e.src, "PNG", M+2, y, l, hh); }catch(x){}
-    y+=hh+3;
-  };
-  if(rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length || encresDemPdf.length){
-    h2("Demande du client", 40);
-    encadre(S.conclusion.synthese);
-    encresDemPdf.forEach(poserEncre);
-    if((S.conclusion.points && S.conclusion.points.trim()) || encresPdf.length){
-      y+=1; sousTitre("Points à chiffrer et à vérifier");
-      if(S.conclusion.points && S.conclusion.points.trim()) para(S.conclusion.points);
-      /* les notes écrites au stylet, telles quelles */
-      encresPdf.forEach(function(e){
-        var l=Math.min(CW-4, e.l/2*0.2646), hh=l*e.h/e.l;
-        if(hh>70){ hh=70; l=hh*e.l/e.h; }
-        need(hh+4);
-        try{ doc.addImage(e.src, "PNG", M+2, y, l, hh); }catch(x){}
-        y+=hh+3;
+    need(hh+6);
+    setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, hh+4, 2.4, 2.4, "FD");
+    try{ doc.addImage(e.src, "PNG", M+2, y+2, l, hh); }catch(x){}
+    y+=hh+9;
+  }
+
+  /* ---------- images ---------- */
+  /* l'image entière dans son cadre, sur fond sable (photos de repérage, plans, croquis) */
+  function photoDans(img, x, yy, w, h){
+    setFill(SABLE2); doc.roundedRect(x, yy, w, h, 2, 2, "F");
+    var iw=img.w||w, ih=img.h||h, r=Math.min(w/iw, h/ih), dw=iw*r, dh=ih*r;
+    try{ doc.addImage(img.data, formatImg(img.data), x+(w-dw)/2, yy+(h-dh)/2, dw, dh); }catch(e){}
+  }
+  /* l'image remplit le cadre, coupée aux bords, coins arrondis (les grandes photos) */
+  function photoCouvre(img, x, yy, w, h, r){
+    var iw=img.w||w, ih=img.h||h, s=Math.max(w/iw, h/ih), dw=iw*s, dh=ih*s;
+    var coupe = typeof doc.clip==="function" && typeof doc.saveGraphicsState==="function";
+    if(!coupe){ photoDans(img, x, yy, w, h); return; }
+    try{
+      doc.saveGraphicsState();
+      if(r) doc.roundedRect(x, yy, w, h, r, r, null); else doc.rect(x, yy, w, h, null);
+      doc.clip(); if(doc.discardPath) doc.discardPath();
+      doc.addImage(img.data, formatImg(img.data), x+(w-dw)/2, yy+(h-dh)/2, dw, dh);
+      doc.restoreGraphicsState();
+    }catch(e){ try{ doc.restoreGraphicsState(); }catch(x2){} }
+  }
+  /* Un dégradé de transparence fait de couches empilées, qui partent toutes du même
+     bord : pas de couture entre deux bandes, seulement des marches de 1/n.
+     cible(k) : l'opacité voulue dans la k-ième bande, couverte par les couches 1 à k. */
+  function degrade(n, cible, couche){
+    var tPrec=1;
+    for(var k=1;k<=n;k++){
+      var t=1-cible(k), a=1-t/tPrec; tPrec=t;
+      opacite(Math.max(0, Math.min(1, a))); couche(k);
+    }
+    opacite(1);
+  }
+  /* le bas d'une photo, doucement assombri : le texte blanc s'y lit sur un ciel clair comme sur un toit sombre */
+  function voile(x, yy, w, h, r){
+    var coupe = r && typeof doc.clip==="function" && typeof doc.saveGraphicsState==="function";
+    if(coupe){ try{ doc.saveGraphicsState(); doc.roundedRect(x, yy, w, h, r, r, null); doc.clip(); if(doc.discardPath) doc.discardPath(); }catch(e){ coupe=false; } }
+    var n=32, hh=h*0.62, y0=yy+h-hh;
+    setFill([12,20,16]);
+    degrade(n, function(k){ return 0.46*(k-0.5)/n; }, function(k){ var t=y0+(k-1)*hh/n; doc.rect(x, t, w, yy+h-t, "F"); });
+    if(coupe){ try{ doc.restoreGraphicsState(); }catch(e){} }
+  }
+  /* le bord gauche d'une photo qui se fond dans le papier, sur la largeur l */
+  function fondu(x, yy, l, h){
+    var n=40;
+    setFill(FOND);
+    degrade(n, function(k){ return k===n ? 1 : (k-0.5)/n; }, function(k){ doc.rect(x, yy, l*(n-k+1)/n, h, "F"); });
+  }
+  /* sans photo du bâtiment : un dessin sobre plutôt qu'une page vide */
+  function illustration(x, yy, w, h){
+    var coupe = typeof doc.clip==="function" && typeof doc.saveGraphicsState==="function";
+    if(coupe){ try{ doc.saveGraphicsState(); doc.roundedRect(x, yy, w, h, 3, 3, null); doc.clip(); if(doc.discardPath) doc.discardPath(); }catch(e){ coupe=false; } }
+    setFill(SABLE2); doc.rect(x, yy, w, h, "F");
+    setFill([244,214,140]); doc.circle(x+w*0.8, yy+h*0.3, h*0.13, "F");
+    setFill(VERT_C); doc.ellipse(x+w*0.22, yy+h*1.02, w*0.42, h*0.3, "F"); doc.ellipse(x+w*0.82, yy+h*1.06, w*0.38, h*0.26, "F");
+    var bw=Math.min(w*0.34, h*1.05), bh=h*0.3, bx=x+w*0.5-bw/2, by=yy+h*0.86-bh, th=h*0.26;
+    setFill(BLANC); doc.rect(bx, by, bw, bh, "F");
+    setFill(TOIT); poly([[bx-bw*0.07, by+0.2],[bx+bw*1.07, by+0.2],[bx+bw*0.8, by-th],[bx+bw*0.2, by-th]], "F");
+    var cols=6, rows=2, px=bx+bw*0.19, pw=(bw*0.62)/cols, ph=th*0.34, py=by-th*0.86;
+    for(var r=0;r<rows;r++) for(var c=0;c<cols;c++){ setFill(BLEU_PV); doc.rect(px+c*pw+0.25+r*pw*0.12, py+r*(ph+0.6), pw-0.5, ph, "F"); }
+    setFill([70,86,96]);
+    [0.12,0.36,0.6].forEach(function(k){ doc.rect(bx+bw*k, by+bh*0.26, bw*0.13, bh*0.4, "F"); });
+    doc.rect(bx+bw*0.8, by+bh*0.3, bw*0.11, bh*0.7, "F");
+    setFill([62,107,58]); doc.circle(x+w*0.12, yy+h*0.72, h*0.12, "F"); doc.circle(x+w*0.9, yy+h*0.7, h*0.15, "F");
+    if(coupe){ try{ doc.restoreGraphicsState(); }catch(e){} }
+  }
+  /* une phrase écrite à la main, penchée, soulignée ; posée par son coin bas droit */
+  function phrase(ls, xDroite, yBas, taille, couleur, ombre){
+    manuscrit(); doc.setFontSize(taille);
+    var a=7*Math.PI/180, sa=Math.sin(a), ca=Math.cos(a), h1=lh(taille)*1.02, maxw=0;
+    ls.forEach(function(l){ maxw=Math.max(maxw, doc.getTextWidth(l)); });
+    var n=ls.length, x0=xDroite-maxw-(n-1)*h1*sa, y0=yBas-(n-1+0.45)*h1*ca;
+    function poser(dx, dy, c){ setText(c); ls.forEach(function(l, i){ doc.text(l, x0+dx+i*h1*sa, y0+dy+i*h1*ca, {angle:7}); }); }
+    if(ombre){ opacite(0.38); poser(0.35, 0.35, [0,0,0]); opacite(1); }
+    poser(0, 0, couleur);
+    var sx=x0+(n-1)*h1*sa+0.45*h1*sa, sy=y0+(n-1)*h1*ca+0.45*h1*ca, L=maxw*0.72;
+    setDraw(couleur); doc.setLineWidth(0.5); try{ doc.setLineCap("round"); }catch(e){}
+    doc.line(sx, sy, sx+L*ca, sy-L*sa);
+    try{ doc.setLineCap("butt"); }catch(e){}
+    doc.setLineWidth(0.2);
+  }
+  function rose(x, yy){        /* le nord, sur une vue aérienne */
+    setDraw(BLANC); doc.setLineWidth(0.35); doc.circle(x, yy, 4.6, "S");
+    setFill(BLANC); poly([[x, yy-3.6],[x+1.3, yy],[x, yy+3.6],[x-1.3, yy]], "F");
+    texte(true); doc.setFontSize(6.4); setText(BLANC); doc.text("N", x, yy-5.6, {align:"center"});
+    doc.setLineWidth(0.2);
+  }
+  function legendeSurPhoto(t, x, yy){
+    texte(true); doc.setFontSize(7); opacite(0.45); setText([0,0,0]); doc.text(t, x+0.3, yy+0.3); opacite(1);
+    setText(BLANC); doc.text(t, x, yy);
+  }
+
+  /* ---------- graphiques ---------- */
+  function pasRond(maxi, n){
+    var brut=Math.max(1e-9, maxi/n), p=Math.pow(10, Math.floor(Math.log(brut)/Math.LN10)), m=brut/p;
+    return (m<=1 ? 1 : m<=2 ? 2 : m<=2.5 ? 2.5 : m<=5 ? 5 : 10)*p;
+  }
+  function axes(x0, yH, l, h, maxi, n, fmt){
+    var pas=pasRond(maxi, n), haut=Math.max(pas, Math.ceil(maxi/pas-1e-9)*pas);
+    texte(false); doc.setFontSize(6.2);
+    for(var v=0; v<=haut+1e-9; v+=pas){
+      var yy=yH+h-h*v/haut;
+      setFill(TRAIT); doc.rect(x0, yy-0.1, l, 0.2, "F");
+      setText(GRIS); doc.text(fmt ? fmt(v) : nb(v), x0-2, yy+1.1, {align:"right"});
+    }
+    return haut;
+  }
+  function moisSous(x0, yBas, cw){
+    texte(false); doc.setFontSize(6.2); setText(GRIS);
+    for(var m=0;m<12;m++) doc.text(MOIS[m], x0+cw*(m+0.5), yBas+4.2, {align:"center"});
+  }
+  /* barres mois par mois (production) et, s'il y a lieu, la courbe de la consommation */
+  function graphMois(x0, yH, l, h, barres, courbe, couleurBarres){
+    var maxi=Math.max.apply(null, (barres||[]).concat(courbe||[]).concat([1]));
+    var haut=axes(x0, yH, l, h, maxi, 4), cw=l/12, yB=yH+h;
+    if(barres) barres.forEach(function(v, i){
+      var hb=h*Math.max(0, v)/haut; setFill(couleurBarres||VERT);
+      doc.rect(x0+cw*i+cw*0.24, yB-hb, cw*0.52, hb, "F");
+    });
+    if(courbe){
+      var pt=function(i){ return [x0+cw*(i+0.5), yB-h*Math.max(0, courbe[i])/haut]; };
+      setDraw(GRIS2); doc.setLineWidth(0.55);
+      for(var i=0;i<11;i++){ var a=pt(i), b=pt(i+1); doc.line(a[0], a[1], b[0], b[1]); }
+      for(var j=0;j<12;j++){ var q=pt(j); setFill(FOND); doc.circle(q[0], q[1], 0.85, "F"); setDraw(GRIS2); doc.setLineWidth(0.35); doc.circle(q[0], q[1], 0.85, "S"); }
+      doc.setLineWidth(0.2);
+    }
+    moisSous(x0, yB, cw);
+  }
+  function pastilleLegende(x, yy, couleur, t, rond){
+    setFill(couleur); if(rond) doc.circle(x+1.2, yy-1.1, 1.2, "F"); else doc.roundedRect(x, yy-2.3, 2.4, 2.4, 0.5, 0.5, "F");
+    texte(false); doc.setFontSize(6.8); setText(GRIS); doc.text(t, x+3.6, yy);
+    return doc.getTextWidth(t)+9;
+  }
+  /* une tuile chiffrée : pictogramme, valeur, unité, libellé */
+  function tuile(T, x, yy, w, h, fond){
+    setFill(fond||SABLE2); doc.roundedRect(x, yy, w, h, 2.4, 2.4, "F");
+    picto(T.ic, x+4, yy+3.4, 5.2);
+    titre(false); doc.setFontSize(T.v.length>9 ? 13.5 : 17); setText(ENCRE);
+    doc.text(T.v, x+4, yy+15.8);
+    if(T.u){ var vw=doc.getTextWidth(T.v); doc.setFontSize(9); doc.text(T.u, x+4+vw+1.3, yy+15.8); }
+    texte(false); setText(GRIS);
+    var L=lignes(T.l, w-8, 7.1); doc.text(L, x+4, yy+20.6);
+    if(T.s){ doc.setFontSize(6.1); setText(GRIS2); doc.text(lignes(T.s, w-8, 6.1)[0], x+4, yy+20.8+L.length*lh(7.1)); }
+  }
+  function rangTuiles(TT, x, yy, l, h, fond, colonnes){
+    var n=TT.length; if(!n) return 0;
+    var c=Math.max(n, colonnes||n), w=(l-(c-1)*4)/c;
+    TT.forEach(function(T, i){ tuile(T, x+i*(w+4), yy, w, h, fond); });
+    return h;
+  }
+
+  /* =====================================================================
+     les données
+     ===================================================================== */
+  var V=S.pv||{}, CH=S.chantier||{}, G0=S.logistique||{}, IV=(S.pv&&S.pv.irve)||{}, CC=CL();
+  var PV = V.actif==="oui" && !!(rempli(V.conso, V.foyer, V.chauffage, V.exposition, V.toitureType, V.inclinaison,
+    V.masques, V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat)
+    || V.pvgis || (V.simuls && V.simuls.length) || V.aerienne || V.soleil);
+  var GV = PV && V.pvgis && V.pvgis.months && V.pvgis.months.length===12 ? V.pvgis : null;
+  var CP = (function(){
+    if(!PV) return null;
+    var douze=(V.consoMois||[]).filter(function(x){ return x!=="" && x!=null; }).length===12;
+    if(!douze) return null;
+    var conso=V.consoMois.map(function(x){ return Math.max(0, parseFloat(String(x).replace(",", "."))||0); });
+    var somme=function(a){ return a.reduce(function(p,q){ return p+q; }, 0); };
+    if(!GV) return {conso:conso, prod:null, totalConso:somme(conso), seule:true};
+    var prod=GV.months.slice(), auto=prod.map(function(p,i){ return Math.min(p, conso[i]); });
+    var tc=somme(conso), tp=somme(prod), ta=somme(auto);
+    return {conso:conso, prod:prod, totalConso:tc, totalProd:tp, totalAuto:ta, couverture: tc ? ta/tc*100 : 0, surplus:tp-ta, achat:tc-ta};
+  })();
+  var AM=null;
+  if(PV){ try{ AM=amortissement(); }catch(e){ AM=null; } }
+  var KC=CK(), AC=KC.actif==="oui" && KC.courbe ? analyseCharge() : null;
+  var IRVE = IV.actif==="oui" && rempli(IV.type, IV.puissance, IV.raccordement, IV.delestage, IV.badge, IV.pied, IV.longueur, IV.note, IV.photos);
+  var CLIM = CC.actif==="oui" && rempli(CC.type, CC.puissance, CC.nbInt, CC.alim, CC.liaison, CC.cable, CC.cableLiaison, CC.condensats, CC.pompe, CC.poseExt, CC.goulotte, CC.percements, CC.note, CC.photos);
+  var kwc = GV ? Number(GV.kwc) : parseFloat(String(V.kwc||"").replace(",", "."));
+
+  /* la photo du bâtiment : l'implantation sur la toiture, sinon une photo de
+     la façade ou de la toiture prise dans les pièces, sinon la vue aérienne.
+     Rien de tout ça : un dessin, jamais une photo qui ne serait pas celle du chantier. */
+  function photoBatiment(){
+    if(PV && V.simuls) for(var s=0;s<V.simuls.length;s++) if(V.simuls[s] && V.simuls[s].data) return {img:V.simuls[s], quoi:"implantation"};
+    var RX=/ext[ée]rieur|fa[çc]ade|toit|toiture|couverture|maison|b[âa]timent|pignon|terrasse|jardin/i;
+    for(var i=0;i<(S.pieces||[]).length;i++){
+      var p=S.pieces[i]; if(!RX.test(p.nom||"")) continue;
+      var ph=(p.photos||[]).filter(function(x){ return x && x.data && !x.croquis; })[0];
+      if(ph) return {img:ph, quoi:"batiment"};
+    }
+    if(PV && V.aerienne && V.aerienne.data) return {img:V.aerienne, quoi:"aerienne"};
+    return null;
+  }
+  var HERO = photoBatiment();
+  var LEGENDE_HERO = HERO ? ({implantation:"Implantation projetée sur la toiture", batiment:"Le bâtiment", aerienne:"Vue aérienne du site"})[HERO.quoi] : "";
+
+  /* les chiffres-clés de l'étude, repris d'une page à l'autre */
+  function dureeCourte(mois){
+    var a=Math.floor(mois/12), r=mois%12;
+    if(r>=9) return String(a+1);
+    if(r>=3) return a+",5";
+    return String(a);
+  }
+  var couverture = AM ? AM.base.couverture : (CP && !CP.seule ? Math.round(CP.couverture) : null);
+  var autoKwh = AM ? AM.base.auto : (CP && !CP.seule ? CP.totalAuto : null);
+  var TUILES=[];
+  if(GV) TUILES.push({ic:"eclair", v:nb(GV.ey), u:"kWh", l:"Production annuelle estimée", s:"pour "+dec(GV.kwc, 1)+" kWc"});
+  if(couverture!=null) TUILES.push({ic:"maison", v:String(couverture), u:"%", l:"Couverture estimée de vos besoins", s:"part de la consommation"});
+  if(autoKwh!=null) TUILES.push({ic:"prise", v:nb(autoKwh), u:"kWh/an", l:"Électricité autoconsommée", s:"selon simulation"});
+  if(AM) TUILES.push({ic:"feuille", v: AM.mois ? dureeCourte(AM.mois) : "> 10", u:"ans", l:"Temps de retour indicatif", s:"selon conditions"});
+  /* un nombre pair de tuiles : la dernière ne reste pas seule sur son rang */
+  if(GV && Number(GV.kwc)>0 && TUILES.length%2===1) TUILES.push({ic:"soleil", v:nb(GV.ey/GV.kwc), u:"kWh/kWc", l:"Production par kWc installé", s:"productible du site"});
+
+  function orientation(){
+    if(GV && GV.aspect!=null && GV.aspect!==""){
+      var a=Number(GV.aspect), N=[[0,"Sud"],[-45,"Sud-Est"],[45,"Sud-Ouest"],[-90,"Est"],[90,"Ouest"],[-135,"Nord-Est"],[135,"Nord-Ouest"],[180,"Nord"],[-180,"Nord"]];
+      var best=N[0]; N.forEach(function(n){ if(Math.abs(n[0]-a)<Math.abs(best[0]-a)) best=n; });
+      return {nom:best[1], az:a};
+    }
+    if(V.exposition && V.exposition.length) return {nom:V.exposition.join(" · "), az:null};
+    if(V.azimut!=null && V.azimut!==""){ var b=Number(V.azimut); return {nom:({"0":"Sud","-45":"Sud-Est","45":"Sud-Ouest","-90":"Est","90":"Ouest","-135":"Nord-Est","135":"Nord-Ouest","180":"Nord"})[String(b)]||"", az:b}; }
+    return {nom:"", az:null};
+  }
+  var ORI = orientation();
+  var INCL = GV && GV.angle!=null ? GV.angle : V.inclinaison;
+  function typeInstallation(){
+    var bat=(parseInt(V.nbBat,10)||0)>0, rachat=AM ? AM.rachat>0 : parseFloat(String(V.rachat||"").replace(",", "."))>0;
+    if(bat) return "Autoconsommation avec batterie"+(rachat ? " et revente du surplus" : "");
+    return rachat ? "Autoconsommation avec revente du surplus" : "Autoconsommation";
+  }
+
+  /* =====================================================================
+     1. couverture
+     ===================================================================== */
+  nouvellePage(); SUITE=null;
+  puce("Votre projet", M, y); y+=11;
+  titre(false); doc.setFontSize(28); setText(ENCRE);
+  doc.text("Relevé technique", M, y+7.6); y+=lh(28)+0.6;
+  setText(VERT); doc.text("de site", M, y+7.6); y+=lh(28)+1.5;
+  var sujets=[];
+  if(PV) sujets.push("photovoltaïque");
+  if(CLIM) sujets.push("climatisation");
+  if(IRVE) sujets.push("borne de recharge");
+  var sujet = sujets.length ? "Étude "+(sujets.length>1 ? sujets.slice(0,-1).join(", ")+" & "+sujets[sujets.length-1] : sujets[0])
+            : ((CH.natures||[]).length ? CH.natures.join(" · ") : "Visite technique du site");
+  texte(false); setText(GRIS); doc.text(lignes(sujet, CW, 10)[0], M, y+4.4); y+=11;
+
+  var hHero = HERO ? 72 : 60;
+  if(HERO){
+    photoCouvre(HERO.img, M, y, CW, hHero, 3);
+    if(PV) voile(M, y, CW, hHero, 3);
+    legendeSurPhoto(LEGENDE_HERO, M+5, y+hHero-5);
+    if(PV) phrase(["Le soleil,", "une énergie", "à votre portée"], PW-M-8, y+hHero-9, 21, BLANC, true);
+  } else {
+    illustration(M, y, CW, hHero);
+    /* sur le dessin, la phrase prend le ciel libre à gauche de la maison */
+    if(PV) phrase(["Le soleil,", "une énergie", "à votre portée"], M+CW*0.3, y+33, 18, VERT_F, false);
+  }
+  y+=hHero+7;
+
+  /* la carte du client et l'étape du dossier */
+  var statut=String(S.meta.statut||""), accepte=statut.indexOf("accept")>=0;
+  var etape = accepte ? "Devis accepté" : statut.indexOf("rendez-vous")>=0 ? "Visite à programmer"
+            : statut.indexOf("attente")>=0 ? "Étude et chiffrage" : statut;
+  var adrL=String(S.client.adresse||"").split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+  var derniere=adrL[adrL.length-1]||"", mCp=derniere.match(/\b\d{5}\s+(.+)$/);
+  var ville = mCp ? mCp[1] : (adrL.length>1 ? derniere : "");
+  var l2c=[CH.typeBien, CH.construction].filter(Boolean).join(" · ");
+  var l3c=[ville, CH.surface ? CH.surface+" m²" : ""].filter(Boolean).join(" · ");
+  var detailsAcc = accepte ? [S.affaire.devis ? "Devis "+S.affaire.devis : "", S.affaire.chantier ? "Travaux "+S.affaire.chantier : ""].filter(Boolean).join("   ·   ") : "";
+  var demarrage = accepte && S.affaire.demarrage ? "Démarrage prévu le "+fmtDate(S.affaire.demarrage) : "";
+  var sousEtape=[accepte ? "Préparation et exécution des travaux" : "", detailsAcc, demarrage].filter(Boolean);
+  var hCarte = 13 + (l2c ? 5 : 0) + (l3c ? 5 : 0);
+  if(etape) hCarte=Math.max(hCarte, 21 + sousEtape.length*4.4);
+  setFill(SABLE2); doc.roundedRect(M, y, CW, hCarte, 3, 3, "F");
+  titre(true); doc.setFontSize(13); setText(ENCRE);
+  doc.text(lignes(String(S.client.nom||"Client").toUpperCase(), etape ? CW*0.56 : CW-12, 13)[0], M+6, y+8.6, {charSpace:0.15});
+  texte(false); doc.setFontSize(8.8); var yc=y+8.6;
+  if(l2c){ yc+=5.2; setText(ENCRE); doc.text(lignes(l2c, CW*0.56, 8.8)[0], M+6, yc); }
+  if(l3c){ yc+=5; setText(GRIS2); ecrireExp(l3c, M+6, yc, 8.8); }
+  if(etape){
+    var xe=M+CW*0.62;
+    etiquette("Étape du dossier", xe, y+7.4);
+    puce(etape, xe, y+10.2, BLANC);
+    texte(false); doc.setFontSize(7.4); setText(GRIS);
+    var ye=y+21;
+    sousEtape.forEach(function(t){ doc.text(lignes(t, CW*0.38-6, 7.4)[0], xe, ye); ye+=4.4; });
+  }
+  y+=hCarte+8;
+
+  /* votre dossier, votre interlocuteur */
+  var colG=[], adr=String(S.client.adresse||"").split("\n").map(function(s){ return s.trim(); }).filter(Boolean);
+  var yd=y;
+  etiquette("Votre dossier", M, yd+3); yd+=8.5;
+  texte(false); doc.setFontSize(9); setText(ENCRE);
+  adr.forEach(function(a){ var L=lignes(a, 86, 9); doc.text(L, M, yd); yd+=L.length*lh(9); });
+  doc.setFontSize(8.2); setText(GRIS);
+  [S.client.tel ? "Téléphone : "+telPoints(S.client.tel) : "", S.client.email || "", S.client.contact ? "Sur place : "+S.client.contact : "",
+   S.client.code ? "Code client : "+S.client.code : "",
+   S.client.lat!=null && S.client.lon!=null ? "GPS : "+Number(S.client.lat).toFixed(6)+", "+Number(S.client.lon).toFixed(6) : ""]
+    .filter(Boolean).forEach(function(t, i){ yd+=(i===0 ? 2.2 : 0); doc.text(lignes(t, 86, 8.2)[0], M, yd); yd+=4.6; });
+  var yi=y;
+  if(S.meta.ca){
+    var xi=M+102;
+    setFill(TRAIT); doc.rect(M+96, y+1, 0.25, Math.max(28, yd-y-2), "F");
+    etiquette("Votre interlocuteur", xi, yi+3); yi+=9.5;
+    titre(true); doc.setFontSize(14); setText(ENCRE); doc.text(lignes(S.meta.ca, CW-102, 14)[0], xi, yi+1.4); yi+=7.4;
+    texte(false); doc.setFontSize(8.2); setText(GRIS);
+    doc.text("Chargé d'affaires", xi, yi); yi+=5.2;
+    if(S.meta.caTel){ doc.text(telPoints(S.meta.caTel), xi, yi); yi+=4.6; }
+    if(S.meta.caMail){ doc.text(lignes(S.meta.caMail, CW-102, 8.2)[0], xi, yi); yi+=4.6; }
+  }
+  y=Math.max(yd, yi)+4;
+  Y_SOMMAIRE=y;
+
+  /* =====================================================================
+     2. votre potentiel solaire
+     ===================================================================== */
+  if(PV){
+    nouvellePage(); SUITE="Votre projet photovoltaïque"; SOMMAIRE.push({t:"Votre potentiel solaire", p:page});
+    var xL=M, wL=86, xR=M+92, wR=CW-92, yL=y, yR=y;
+    puce("Votre projet photovoltaïque", xL, yL); yL+=11;
+    titre(false); setText(ENCRE);
+    var T1=lignes("Photovoltaïque", wL, 21); doc.text(T1, xL, yL+6); yL+=T1.length*lh(21);
+    setText(VERT); var T2=lignes("Votre potentiel solaire", wL, 21); doc.text(T2, xL, yL+6); yL+=T2.length*lh(21)+2.5;
+    texte(false); setText(GRIS);
+    var C2=lignes("Une énergie propre, locale et durable pour réduire vos factures et valoriser votre habitat.", wL, 8.8);
+    doc.text(C2, xL, yL+3.6); yL+=3.6+C2.length*lh(8.8)+5;
+    sousTitre("Les caractéristiques de votre installation", xL, yL+3, 10); yL+=7;
+    var nbPanneaux = (V.simuls||[]).reduce(function(t, s){ return t+(Number(s.nb)||0); }, 0);
+    var wc=parseFloat(String(V.wc||"").replace(",", "."))||0;
+    if(!nbPanneaux && kwc>0 && wc>0) nbPanneaux=Math.round(kwc*1000/wc);
+    [["soleil","Type d'installation", typeInstallation()],
+     ["jauge","Puissance envisagée", kwc>0 ? dec(kwc, 2)+" kWc" : ""],
+     ["panneau","Panneaux", nbPanneaux ? nbPanneaux+" panneaux"+(wc ? " de "+nb(wc)+" Wc" : "") : ""],
+     ["eclair","Production annuelle estimée", GV ? nb(GV.ey)+" kWh" : ""],
+     ["maison","Type de toiture", V.toitureType],
+     ["boussole","Orientation", ORI.nom],
+     ["pente","Inclinaison", INCL!=null && INCL!=="" ? INCL+"°" : ""],
+     ["pertes","Pertes système", GV && GV.loss!=null ? GV.loss+" %" : (V.pertes ? V.pertes+" %" : "")]]
+      .filter(function(r){ return !vide(r[2]); })
+      .forEach(function(r){
+        texte(true); var vl=lignes(r[2], wL-46, 7.6), hR=Math.max(7.6, vl.length*lh(7.6)+4.2);
+        picto(r[0], xL, yL+1.6, 4.4);
+        texte(false); doc.setFontSize(7.6); setText(GRIS); doc.text(r[1], xL+7.5, yL+4.9);
+        texte(true); setText(ENCRE); doc.text(vl, xL+44, yL+4.9);
+        setFill(TRAIT); doc.rect(xL, yL+hR, wL, 0.22, "F");
+        yL+=hR+0.4;
       });
+    yL+=4;
+
+    /* à droite : la photo, puis les chiffres en un coup d'œil */
+    if(HERO){
+      photoCouvre(HERO.img, xR, yR, wR, 60, 3);
+      voile(xR, yR, wR, 60, 3);
+      phrase(["Le soleil,", "une énergie", "à votre portée"], xR+wR-6, yR+60-7, 14.5, BLANC, true);
+      yR+=60+5;
+    }
+    if(TUILES.length){
+      var nT=TUILES.length, rangs=Math.ceil(nT/2), th=29;
+      var hb=13+rangs*th+(rangs-1)*3+4;
+      setFill(SABLE); doc.roundedRect(xR, yR, wR, hb, 3, 3, "F");
+      sousTitre("Votre potentiel en un coup d'œil", xR+5, yR+8.2, 9.5);
+      for(var rI=0; rI<rangs; rI++) rangTuiles(TUILES.slice(rI*2, rI*2+2), xR+4, yR+13+rI*(th+3), wR-8, th, [250,249,245], 2);
+      yR+=hb+5;
+    }
+
+    /* à gauche, sous les caractéristiques : la toiture ; à droite, sous les chiffres : le détail de la production */
+    var ori=ORI.nom||"", bienOriente=/sud/i.test(ori) && !/nord/i.test(ori);
+    var phraseToit = ori || INCL ? "Votre toiture"+(ori ? ", orientée "+(ori==="Sud" ? "plein sud" : ori.toLowerCase())+"," : "")
+      +(INCL ? " avec une inclinaison de "+INCL+"°," : "")
+      +(bienOriente ? " offre des conditions idéales pour une production optimale." : /est|ouest/i.test(ori) ? " répartit la production sur la journée." : " sera précisée par l'étude.")
+      : "L'orientation et l'inclinaison du pan seront précisées par l'étude.";
+    var aerToit = V.aerienne && V.aerienne.data && !(HERO && HERO.quoi==="aerienne") ? V.aerienne : null;
+    var wB=78, xD=M+84, wD=CW-84;
+    texte(false); var LT=lignes(phraseToit, wB-10, 8);
+    var LM = V.masques ? lignes("Masques et observations : "+String(V.masques).replace(/\n+/g, " "), wB-10, 7.4) : [];
+    var hAer = aerToit ? Math.min(44, (wB-10)*(aerToit.h/aerToit.w)) : 0;
+    var hBoite = 12 + LT.length*lh(8) + (LM.length ? 2+LM.length*lh(7.4) : 0) + (hAer ? hAer+5 : 0) + 4;
+    var hDetail = GV ? 80 : 0;
+    var yB=yL+1, yD=Math.max(yR, yL+1);
+    if(Math.max(yB+hBoite, GV ? yD+hDetail : 0) > BAS){
+      /* trop haut pour la page : les deux cadres passent ensemble à la suivante */
+      nouvellePage(); puce(SUITE+" · suite", M, y); y+=11;
+      yB=y; yD=y;
+    }
+    setFill(SABLE2); doc.roundedRect(M, yB, wB, hBoite, 3, 3, "F");
+    picto("boussole", M+5, yB+4.2, 5.4);
+    sousTitre(bienOriente ? "Une toiture bien orientée" : "Votre toiture", M+12.5, yB+8.6, 10);
+    texte(false); doc.setFontSize(8); setText(GRIS); doc.text(LT, M+5, yB+15.5);
+    var yT=yB+15.5+LT.length*lh(8);
+    if(LM.length){ doc.setFontSize(7.4); setText(GRIS2); doc.text(LM, M+5, yT+1.2); yT+=2+LM.length*lh(7.4); }
+    if(aerToit){
+      var wA=Math.min(wB-10, hAer*(aerToit.w/aerToit.h));
+      photoCouvre(aerToit, M+5, yT+2, wA, hAer, 2.2);
+      rose(M+11, yT+2+hAer-8);
+      legendeSurPhoto("Vue aérienne du site", M+18, yT+2+hAer-4);
+    }
+    if(GV){
+      setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(xD, yD, wD, hDetail, 3, 3, "FD");
+      sousTitre("Détail de la production estimée", xD+5, yD+8.4, 9.5);
+      texte(false); doc.setFontSize(6.4); setText(GRIS2); doc.text("source PVGIS · kWh par mois", xD+5, yD+12.6);
+      graphMois(xD+14, yD+18, wD-19, 34, GV.months, null);
+      var stats=[["soleil", nb(GV.ey/GV.kwc)+" kWh", "Production par kWc"],
+                 ["soleil", GV.hy ? nb(GV.hy)+" kWh/m²" : "", "Irradiation reçue par an"],
+                 ["pente", GV.angle!=null ? GV.angle+"°" : "", "Inclinaison"],
+                 ["boussole", GV.aspect!=null ? GV.aspect+"°" : "", GV.aspect==0 ? "Azimut (plein sud)" : "Azimut (0° = sud)"]]
+        .filter(function(st0){ return st0[1]; });
+      var sw=(wD-10)/stats.length;
+      stats.forEach(function(st0, i){
+        var sx=xD+5+i*sw;
+        if(i){ setFill(TRAIT); doc.rect(sx-1.5, yD+61, 0.22, 15, "F"); }
+        picto(st0[0], sx, yD+61, 4);
+        texte(true); doc.setFontSize(7.6); setText(ENCRE); ecrireExp(st0[1], sx, yD+69.4, 7.6);
+        texte(false); doc.setFontSize(6.2); setText(GRIS); doc.text(lignes(st0[2], sw-3, 6.2), sx, yD+73.2);
+      });
+    }
+    y=Math.max(yB+hBoite, GV ? yD+hDetail : 0)+5;
+    if(GV){
+      texte(false); doc.setFontSize(6.6); setText(GRIS2);
+      need(6); doc.text("Source : PVGIS, Commission européenne"+(GV.date ? " · simulation du "+fmtDate(GV.date) : "")+(GV.base ? " · "+GV.base : ""), M, y); y+=5;
+    }
+
+    /* =================================================================
+       3. le site et son orientation
+       ================================================================= */
+    var simuls=(V.simuls||[]).filter(function(s){ return s && s.data; });
+    var aerOk=!!(V.aerienne && V.aerienne.data), solOk=!!(V.soleil && V.soleil.data);
+    if(aerOk || solOk || simuls.length){
+      chapitre("Implantation", "Le site et son orientation", null, "Repères visuels pour préparer l'étude et l'implantation.");
+      if(V.aerienne && V.aerienne.data){
+        var A=V.aerienne, wa=104, ha=Math.min(68, wa*(A.h/A.w)); wa=Math.min(wa, ha*(A.w/A.h));
+        need(ha+12);
+        sousTitre("Vue aérienne du site", M, y+3, 9.5); y+=6.5;
+        photoDans(A, M, y, wa, ha);
+        rose(M+wa-8, y+9);
+        var xI=M+wa+8, yI=y+3, wI=CW-wa-8;
+        etiquette("Localisation", xI, yI); yI+=5.4;
+        texte(false); doc.setFontSize(8.6); setText(ENCRE);
+        adr.forEach(function(a){ var L=lignes(a, wI, 8.6); doc.text(L, xI, yI); yI+=L.length*lh(8.6); });
+        if(S.client.lat!=null && S.client.lon!=null){
+          yI+=5; etiquette("Coordonnées GPS", xI, yI); yI+=5.4;
+          texte(true); doc.setFontSize(8.6); setText(ENCRE); doc.text(Number(S.client.lat).toFixed(6)+", "+Number(S.client.lon).toFixed(6), xI, yI); yI+=lh(8.6);
+        }
+        yI+=5; etiquette("Source", xI, yI); yI+=5.4;
+        texte(false); doc.setFontSize(8); setText(GRIS);
+        doc.text(lignes("Source "+(A.source||"IGN")+(A.echelle ? " · environ "+Math.round(A.w*A.echelle)+" m de large" : ""), wI, 8), xI, yI);
+        y+=ha+8;
+      }
+      var s0=simuls[0], So=V.soleil && V.soleil.data ? V.soleil : null, resumeSol=So ? String(So.resume||"").trim() : "";
+      var legendeSimul=function(it){ return it.nb+" panneaux de 1,13 m sur 1,76 m ("+it.cols+" x "+it.rows+", "+it.orient+") · "+dec(it.kwc, 2)+" kWc"; };
+      var w2=(CW-6)/2;
+      if(s0 && So){
+        var h2=Math.max(Math.min(62, w2*(s0.h/s0.w)), Math.min(62, w2*(So.h/So.w)));
+        need(h2+16);
+        sousTitre("Implantation projetée", M, y+3, 9.5);
+        sousTitre("Course du soleil et orientation du pan", M+w2+6, y+3, 9.5);
+        y+=6.5;
+        photoDans(s0, M, y, w2, h2);
+        photoDans(So, M+w2+6, y, w2, h2);
+        texte(false); doc.setFontSize(7.2); setText(GRIS);
+        doc.text(lignes(legendeSimul(s0), w2, 7.2), M, y+h2+4.2);
+        y+=h2+11;
+        if(resumeSol){
+          texte(false); var LRs=lignes(resumeSol, CW-12, 8.2), hRs=13+LRs.length*lh(8.2);
+          need(hRs);
+          setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, hRs, 2.6, 2.6, "FD");
+          etiquette("Repères solaires", M+5, y+6.6);
+          texte(false); doc.setFontSize(8.2); setText(ENCRE); doc.text(LRs, M+5, y+12.2);
+          y+=hRs+6;
+        }
+      } else if(s0){
+        var hS=Math.min(90, CW*(s0.h/s0.w));
+        need(hS+16); sousTitre("Implantation projetée", M, y+3, 9.5); y+=6.5;
+        photoDans(s0, M, y, CW, hS);
+        texte(false); doc.setFontSize(7.4); setText(GRIS); doc.text(legendeSimul(s0), M, y+hS+4.4);
+        y+=hS+10;
+      } else if(So){
+        var wso=104, hso=Math.min(84, wso*(So.h/So.w)); wso=Math.min(wso, hso*(So.w/So.h));
+        texte(false); var LR=lignes(resumeSol, CW-wso-20, 8.2);
+        need(hso+12);
+        sousTitre("Course du soleil et orientation du pan", M, y+3, 9.5); y+=6.5;
+        photoDans(So, M, y, wso, hso);
+        if(resumeSol){
+          var xr2=M+wso+8, wr2=CW-wso-8, hr2=Math.min(hso, 15+LR.length*lh(8.2));
+          setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(xr2, y, wr2, hr2, 2.6, 2.6, "FD");
+          etiquette("Repères solaires", xr2+5, y+7);
+          texte(false); doc.setFontSize(8.2); setText(ENCRE); doc.text(LR, xr2+5, y+13);
+        }
+        y+=hso+8;
+      }
+      /* les autres implantations, deux par rang */
+      var autres=simuls.slice(1);
+      for(var ks=0; ks<autres.length; ks+=2){
+        var a3=autres[ks], b3=autres[ks+1], h3=Math.max(Math.min(62, w2*(a3.h/a3.w)), b3 ? Math.min(62, w2*(b3.h/b3.w)) : 0);
+        need(h3+12);
+        photoDans(a3, M, y, w2, h3);
+        texte(false); doc.setFontSize(7.2); setText(GRIS); doc.text(lignes(legendeSimul(a3), w2, 7.2), M, y+h3+4.2);
+        if(b3){ photoDans(b3, M+w2+6, y, w2, h3); doc.text(lignes(legendeSimul(b3), w2, 7.2), M+w2+6, y+h3+4.2); }
+        y+=h3+11;
+      }
+      texte(false); doc.setFontSize(6.6); setText(GRIS2); need(6);
+      doc.text(aerOk ? "Source cartographique : "+(V.aerienne.source||"IGN")+" / orthophotographie · repères selon le relevé" : "Repères selon le relevé de visite", M, y); y+=5;
+    }
+
+    /* =================================================================
+       4. production solaire et consommation du foyer
+       ================================================================= */
+    if(GV || CP){
+      nouvellePage(); SUITE="Analyse énergétique";
+      SOMMAIRE.push({t: GV ? "Production solaire et consommation du foyer" : "Votre consommation mois par mois", p:page});
+      var img4 = simuls[0] || (HERO ? HERO.img : null), yb=29, hBand=48, xPh=PW*0.47;
+      if(img4){
+        photoCouvre(img4, xPh, yb, PW-xPh, hBand, 0);
+        if(GV) voile(xPh, yb, PW-xPh, hBand, 0);
+        fondu(xPh, yb, 44, hBand);
+        if(GV) phrase(["Plus d'indépendance", "énergétique,", "moins de dépenses"], PW-10, yb+hBand-7, 14, BLANC, true);
+      }
+      var yt=yb+6;
+      puce("Analyse énergétique", M, yt); yt+=11;
+      titre(false); doc.setFontSize(20); setText(ENCRE);
+      doc.text(GV ? "Production solaire" : "Votre consommation", M, yt+5.6); yt+=lh(20);
+      setText(VERT); doc.text(GV ? "et consommation du foyer" : "mois par mois", M, yt+5.6); yt+=lh(20)+2;
+      texte(false); setText(GRIS);
+      var C4=lignes(GV ? "Une solution performante et rentable pour produire votre propre électricité et réduire durablement votre dépendance au réseau."
+                       : "Relevée sur les factures ou l'espace client du fournisseur, en kWh.", 84, 8.6);
+      doc.text(C4, M, yt+3.6); yt+=3.6+C4.length*lh(8.6);
+      y=Math.max(yb+hBand, yt)+6;
+
+      /* le graphique */
+      var hG=58;
+      need(hG);
+      setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, hG, 3, 3, "FD");
+      sousTitre(CP && !CP.seule ? "Production solaire et consommation estimées" : CP ? "Consommation du foyer, mois par mois" : "Production solaire estimée, mois par mois", M+5, y+8.2, 10);
+      var xl=PW-M-5, wl=0;
+      texte(false); doc.setFontSize(6.8);
+      var leg = CP && !CP.seule ? [[GRIS2,"Consommation du foyer",true],[VERT,"Production solaire",true]] : CP ? [[[190,183,168],"Consommation du foyer",false]] : [[VERT,"Production solaire",false]];
+      leg.forEach(function(L){ wl+=doc.getTextWidth(L[1])+9; });
+      var xLeg=xl-wl;
+      leg.slice().reverse().forEach(function(L){ xLeg+=pastilleLegende(xLeg, y+8, L[0], L[1], L[2]); });
+      texte(false); doc.setFontSize(6.2); setText(GRIS2); doc.text("Énergie (kWh)", M+5, y+14.2);
+      if(CP && !CP.seule) graphMois(M+16, y+18, CW-22, 31, CP.prod, CP.conso);
+      else if(CP) graphMois(M+16, y+18, CW-22, 31, CP.conso, null, [190,183,168]);
+      else graphMois(M+16, y+18, CW-22, 31, GV.months, null);
+      y+=hG+6;
+
+      /* les chiffres */
+      if(CP && CP.seule){
+        var moy=CP.totalConso/12, fort=CP.conso.indexOf(Math.max.apply(null, CP.conso)), faible=CP.conso.indexOf(Math.min.apply(null, CP.conso));
+        need(30);
+        rangTuiles([{ic:"prise", v:nb(CP.totalConso), u:"kWh", l:"Consommation sur l'année"},
+                    {ic:"horloge", v:nb(moy), u:"kWh", l:"Par mois en moyenne"},
+                    {ic:"hausse", v:MOIS_LONG[fort], u:"", l:"Le mois le plus fort"},
+                    {ic:"feuille", v:MOIS_LONG[faible], u:"", l:"Le mois le plus faible"}], M, y, CW, 28);
+        y+=34;
+        texte(false); doc.setFontSize(8.4); setText(GRIS);
+        doc.text("L'étude de production sera ajoutée au relevé une fois le calcul PVGIS effectué.", M, y); y+=7;
+      } else if(TUILES.length){
+        need(31); rangTuiles(TUILES, M, y, CW, 29, null, TUILES.length<=2 ? 2 : 4); y+=35;
+      }
+      if(CP && !CP.seule){
+        texte(false); doc.setFontSize(7.4); setText(GRIS);
+        need(6);
+        doc.text("Sur l'année : "+nb(CP.totalConso)+" kWh consommés, "+nb(CP.totalProd)+" kWh produits, "+nb(CP.surplus)+" kWh injectés en surplus, "+nb(CP.achat)+" kWh restant à acheter.", M, y);
+        y+=7;
+      }
+
+      if(GV){
+        /* les bénéfices, puis le rappel technique */
+        need(40);
+        sousTitre("Les bénéfices pour votre foyer", M, y+3, 10); y+=8;
+        var BEN=[["euro","Économies sur vos factures","Une production solaire qui réduit ce que vous achetez au réseau."],
+                 ["feuille","Une énergie plus verte","Moins d'émissions de carbone pour un habitat plus durable."],
+                 ["maison","Valorisation de votre bien","Une installation qui renforce la performance énergétique de votre maison."],
+                 ["bouclier","Une solution fiable et durable","Plus de 25 ans de durée de vie pour vos panneaux."]];
+        var bw=CW/4, hBen=0;
+        BEN.forEach(function(b, i){
+          var bx=M+i*bw+(i ? 4 : 0), bl=bw-(i ? 8 : 4);
+          if(i){ setFill(TRAIT); doc.rect(M+i*bw, y, 0.22, 24, "F"); }
+          picto(b[0], bx, y, 5.4);
+          titre(true); doc.setFontSize(8.2); setText(ENCRE); var Lt=lignes(b[1], bl, 8.2); doc.text(Lt, bx, y+10);
+          texte(false); doc.setFontSize(7); setText(GRIS); var Ld=lignes(b[2], bl, 7); doc.text(Ld, bx, y+10.6+Lt.length*lh(8.2));
+          hBen=Math.max(hBen, 10.6+Lt.length*lh(8.2)+Ld.length*lh(7));
+        });
+        y+=Math.max(24, hBen)+6;
+
+        var RAP=[["Production annuelle estimée", nb(GV.ey)+" kWh"], ["Puissance envisagée", dec(GV.kwc, 2)+" kWc"],
+                 ["Production par kWc", nb(GV.ey/GV.kwc)+" kWh"], ["Irradiation reçue", GV.hy ? nb(GV.hy)+" kWh/m²/an" : ""],
+                 ["Inclinaison / azimut", (GV.angle!=null ? GV.angle+"°" : "–")+" / "+(GV.aspect!=null ? GV.aspect+"°" : "–")+(GV.aspect==0 ? " (plein sud)" : "")],
+                 ["Pertes système", GV.loss!=null ? GV.loss+" %" : ""]].filter(function(r){ return r[1]; });
+        var hRap=12+RAP.length*5+3, wRap=110;
+        need(hRap);
+        var yR4=y;
+        setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, yR4, wRap, hRap, 3, 3, "FD");
+        sousTitre("Rappel des principaux éléments techniques", M+5, yR4+7.6, 9);
+        RAP.forEach(function(r, i){
+          var ry=yR4+11+i*5;
+          if(i%2===0){ setFill(SABLE2); doc.rect(M+4, ry, wRap-8, 5, "F"); }
+          texte(false); doc.setFontSize(7.4); setText(GRIS); doc.text(r[0], M+6.5, ry+3.5);
+          texte(true); setText(ENCRE); ecrireExp(r[1], M+48, ry+3.5, 7.4);
+        });
+        var xN=M+wRap+5, wN=CW-wRap-5;
+        setFill(VERT_C); doc.roundedRect(xN, yR4, wN, hRap, 3, 3, "F");
+        setFill(VERT_F); doc.circle(xN+8, yR4+8, 3, "F");
+        texte(true); doc.setFontSize(8); setText(BLANC); doc.text("i", xN+8, yR4+9.4, {align:"center"});
+        titre(true); doc.setFontSize(9.5); setText(VERT_F); doc.text("À noter", xN+13.5, yR4+9.2);
+        texte(false); doc.setFontSize(6.9); setText(GRIS);
+        doc.text(lignes("Les résultats présentés sont issus d'une simulation (PVGIS, Commission européenne) et peuvent varier en fonction du matériel choisi, des conditions réelles d'installation, de votre profil de consommation et de l'évolution du prix de l'électricité.", wN-10, 6.9), xN+5, yR4+16);
+        y=yR4+hRap+6;
+      }
     }
   }
 
-  /* ---------- pièces ---------- */
-  if(S.pieces.length){
-    /* le titre d'une pièce ne reste jamais seul en bas de page : il part avec ses notes ou sa première photo */
-    var debutPiece=function(p){
-      var cwp=(CW-6)/2, ph=(p.photos||[])[0], h=0;
-      if((p.notes||"").trim()) h=Math.min(40, 8+5*doc.splitTextToSize(String(p.notes), CW-4).length);
-      else if(ph) h = ph.croquis ? Math.min(150, CW*(ph.h/ph.w))+10 : Math.min(78, cwp*(ph.h/ph.w))+10;
-      return 12.5 + h;
-    };
-    h2("Relevé par pièce", 15 + (S.pieces.length ? debutPiece(S.pieces[0]) : 0));
-    S.pieces.forEach(function(p,idx){
-      need(Math.max(26, debutPiece(p)));
-      setFill(ACC); doc.roundedRect(M, y, CW, 9, 0.8, 0.8, "F");
-      doc.setFillColor(255,255,255);
-      doc.roundedRect(M+3, y+2, 8, 5, 0.8, 0.8, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(ACC);
-      doc.text(String(idx+1), M+7, y+5.8, {align:"center"});
-      doc.setTextColor(255,255,255); doc.setFontSize(10.5);
-      doc.text(p.nom, M+14.5, y+6.1);
-      if(p.natures.length){
-        doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-        doc.text(p.natures.join("   "), PW-M-4, y+6, {align:"right"});
-      }
-      setText(INK); y+=12.5;
-      para(p.notes);
-
-      var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
-      function flush(){ if(ci){ y = startY + rowH + 6; ci=0; } }
-      p.photos.forEach(function(ph){
-        if(ph.croquis){
-          flush();
-          var hc=Math.min(150, CW*(ph.h/ph.w)), wc=hc*(ph.w/ph.h);
-          need(hc+10);
-          var xc=M+(CW-wc)/2;
-          try{ doc.addImage(ph.data,"JPEG", xc, y, wc, hc); }catch(e){}
-          if(ph.legende){
-            doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-            doc.text(ph.legende, xc, y+hc+4); setText(INK);
-          }
-          y += hc + 8; startY = y;
-          return;
-        }
-        var h=Math.min(78, cw*(ph.h/ph.w)), w=cw;
-        if(ci===0){ need(h+10); startY=y; rowH=0; }
-        var x=M+ci*(cw+6);
-        try{ doc.addImage(ph.data,"JPEG", x, startY, w, h); }catch(e){}
-        if(ph.legende){
-          doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-          doc.text(doc.splitTextToSize(ph.legende, w)[0], x, startY+h+3.8); setText(INK);
-        }
-        rowH=Math.max(rowH, h+(ph.legende?5:0));
-        ci++;
-        if(ci===2){ y=startY+rowH+6; ci=0; }
-      });
-      flush();
-      y+=4;
-    });
+  /* =====================================================================
+     la courbe de charge du compteur
+     ===================================================================== */
+  if(AC){
+    chapitre("Analyse énergétique", "Courbe de charge", "du compteur", "Ce que dit le compteur du client, mesure après mesure.");
+    var cst=constatsCharge(AC);
+    if(KC.courbe.prm && KC.courbe.prm!==String(CH.pdl||"").trim()) cst.unshift(["PRM du fichier", KC.courbe.prm]);
+    tableau(null, cst, {kl:44});
+    var gx=M+14, gl=CW-20;
+    if(AC.detail){
+      need(72);
+      setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, 66, 3, 3, "FD");
+      sousTitre("Une journée moyenne (kW)", M+5, y+8, 9.5);
+      texte(false); doc.setFontSize(6.5);
+      CourbeCharge.pdfProfil(doc, gx, y+15, gl, 38, AC, {gris:GRIS, c1:VERT, c2:CUIVRE});
+      var yl=y+62;
+      texte(true); doc.setFontSize(7);
+      setFill(VERT); doc.rect(gx, yl-1.8, 5, 1, "F"); setText(ENCRE); doc.text("En semaine", gx+7, yl-0.8);
+      setFill(CUIVRE); doc.rect(gx+32, yl-1.8, 5, 1, "F"); doc.text("Le week-end", gx+39, yl-0.8);
+      setFill([232,240,250]); doc.rect(gx+66, yl-3, 5, 3.4, "F"); doc.text("Heures creuses", gx+73, yl-0.8);
+      y+=72;
+    }
+    need(58);
+    setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, 52, 3, 3, "FD");
+    sousTitre("Jour par jour (kWh)", M+5, y+8, 9.5);
+    texte(false); doc.setFontSize(6.5);
+    CourbeCharge.pdfJours(doc, gx, y+14, gl, 30, AC, {gris:GRIS, c1:VERT});
+    y+=58; setText(ENCRE);
   }
 
-  footer();
+  /* =====================================================================
+     5. votre installation sur dix ans
+     ===================================================================== */
+  if(AM){
+    chapitre("Estimation de rentabilité", "Votre installation", "sur dix ans", "Ce que l'électricité produite et consommée sur place vous fait économiser, année après année.", 150);
+    rangTuiles([{ic:"euro", v:nb(AM.cout), u:"€", l:"Prix de l'installation"},
+                {ic:"horloge", v: AM.mois ? dureeEnClair(AM.mois) : "plus de 10 ans", u:"", l:"pour rembourser l'installation"},
+                {ic:"hausse", v:nb(AM.lignes[0].gain), u:"€", l:"Gain la première année"}], M, y, CW, 27);
+    y+=33;
+
+    /* le gain cumulé, qui croise le prix de l'installation */
+    var hC=44; need(hC);
+    setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(M, y, CW, hC, 3, 3, "FD");
+    sousTitre("Amortissement de l'installation", M+5, y+8, 10);
+    texte(false); doc.setFontSize(6.4); setText(GRIS2); doc.text("gain cumulé année après année (1 à 10), comparé au prix de l'installation", M+5, y+12.4);
+    var gx0=M+22, gL=CW-30, gH=y+16, gh=19, maxC=Math.max(AM.cumul, AM.cout)*1.04;
+    var hautC=axes(gx0, gH, gL, gh, maxC, 3, function(v){ return nb(v)+" €"; });
+    var cwC=gL/10, ptC=function(i){ return [gx0+cwC*(i+0.5), gH+gh-gh*AM.lignes[i].cumul/hautC]; };
+    setFill(VERT_C);
+    for(var iC=0;iC<9;iC++){ var a1=ptC(iC), b1=ptC(iC+1); poly([[a1[0], gH+gh],[a1[0], a1[1]],[b1[0], b1[1]],[b1[0], gH+gh]], "F"); }
+    var yCout=gH+gh-gh*AM.cout/hautC;
+    setDraw(CUIVRE); doc.setLineWidth(0.4);
+    try{ doc.setLineDashPattern([1.4, 1.1], 0); }catch(e){}
+    doc.line(gx0, yCout, gx0+gL, yCout);
+    try{ doc.setLineDashPattern([], 0); }catch(e){}
+    texte(false); doc.setFontSize(6.4); setText(CUIVRE); doc.text("Prix de l'installation : "+nb(AM.cout)+" €", gx0+gL, yCout-1.4, {align:"right"});
+    setDraw(VERT); doc.setLineWidth(0.6);
+    for(var jC=0;jC<9;jC++){ var a2=ptC(jC), b2=ptC(jC+1); doc.line(a2[0], a2[1], b2[0], b2[1]); }
+    var anPaye = AM.mois ? Math.ceil(AM.mois/12) : 0;
+    for(var kC=0;kC<10;kC++){
+      var q=ptC(kC); setFill(kC+1===anPaye ? VERT_F : VERT); doc.circle(q[0], q[1], kC+1===anPaye ? 1.2 : 0.75, "F");
+      texte(false); doc.setFontSize(6.2); setText(GRIS); doc.text(String(kC+1), q[0], gH+gh+4.2, {align:"center"});
+    }
+    doc.setLineWidth(0.2);
+    y+=hC+6;
+
+    /* la projection, année par année */
+    need(12+10*5);
+    etiquette("Projection sur 10 ans", M+1, y+3); y+=6;
+    setFill(SABLE); doc.rect(M, y, CW, 6.6, "F");
+    texte(true); doc.setFontSize(7.4); setText(VERT_F);
+    var colsAm=[["Année", M+4, "left"], ["Prix du kWh", M+CW*0.42, "right"], ["Gain de l'année", M+CW*0.63, "right"], ["Cumul", M+CW*0.82, "right"], ["Reste", PW-M-4, "right"]];
+    colsAm.forEach(function(c){ doc.text(c[0], c[1], y+4.4, {align:c[2]}); });
+    y+=6.6;
+    AM.lignes.forEach(function(l){
+      need(5);
+      var paye = anPaye && l.an===anPaye;
+      if(paye){ setFill(VERT_C); doc.rect(M, y, CW, 5, "F"); }
+      texte(paye); doc.setFontSize(7.8); setText(paye ? VERT_F : ENCRE);
+      doc.text("An "+l.an, M+4, y+3.5);
+      doc.text(l.prix.toFixed(3).replace(".", ",")+" €", M+CW*0.42, y+3.5, {align:"right"});
+      doc.text(nb(l.gain)+" €", M+CW*0.63, y+3.5, {align:"right"});
+      doc.text(nb(l.cumul)+" €", M+CW*0.82, y+3.5, {align:"right"});
+      doc.text(l.reste>0 ? nb(l.reste)+" €" : "amorti", PW-M-4, y+3.5, {align:"right"});
+      setFill(TRAIT); doc.rect(M, y+4.9, CW, 0.2, "F");
+      y+=5;
+    });
+    y+=5;
+
+    /* les hypothèses, sur deux colonnes */
+    var HYP=[["Prix du kWh acheté", String(AM.prix).replace(".", ",")+" €"],
+             ["Inflation retenue", String(AM.infl).replace(".", ",")+" % par an"],
+             ["Électricité consommée sur place", nb(AM.base.auto)+" kWh par an  ("+AM.base.couverture+" % de la consommation)"],
+             ["Rachat du surplus", AM.rachat>0 ? String(AM.rachat).replace(".", ",")+" € le kWh  ("+nb(AM.base.surplus)+" kWh)" : ""],
+             ["Gain la première année", nb(AM.lignes[0].gain)+" €"],
+             ["Gain cumulé sur 10 ans", nb(AM.cumul)+" €"]].filter(function(h){ return h[1]; });
+    /* sur trois colonnes ; chaque rang prend la hauteur de sa plus longue valeur */
+    var wH=(CW-8)/3, rangsH=[];
+    texte(true);
+    HYP.forEach(function(h, i){ var L=lignes(h[1], wH-6, 7.4), r=Math.floor(i/3); rangsH[r]=Math.max(rangsH[r]||0, L.length); h.L=L; });
+    var hR=rangsH.map(function(n){ return 4.8+n*lh(7.4)+1.6; }), hTot=hR.reduce(function(t, v){ return t+v; }, 0);
+    need(hTot+10);
+    etiquette("Les hypothèses du calcul", M+1, y+3); y+=6;
+    var yR0=y;
+    HYP.forEach(function(h, i){
+      var r=Math.floor(i/3), cx=M+(i%3)*(wH+4), cy=yR0+hR.slice(0, r).reduce(function(t, v){ return t+v; }, 0);
+      if(r%2===0){ setFill(SABLE2); doc.rect(cx, cy, wH, hR[r], "F"); }
+      texte(false); doc.setFontSize(6.6); setText(GRIS); doc.text(h[0], cx+3, cy+3.6);
+      texte(true); doc.setFontSize(7.4); setText(ENCRE); doc.text(h.L, cx+3, cy+7.1);
+    });
+    y=yR0+hTot+4;
+    texte(false); doc.setFontSize(6.8); setText(GRIS);
+    var noteAm=lignes("Calcul d'ordre indicatif. Seule l'électricité produite et consommée sur place se soustrait de la facture, soit "
+      + nb(AM.base.auto)+" kWh par an, "+AM.base.couverture+" % des "+nb(AM.base.conso)+" kWh consommés, d'après "+AM.base.source
+      + ". Le prix d'achat de l'électricité progresse de "+String(AM.infl).replace(".", ",")+" % par an"
+      + (AM.rachat>0 ? ", le tarif de rachat reste celui du contrat" : "")
+      + ". Production et consommation sont supposées stables, hors aides et entretien.", CW, 6.8);
+    need(noteAm.length*lh(6.8)+1);
+    noteAm.forEach(function(t){ doc.text(t, M, y); y+=lh(6.8); });
+    y+=4;
+  }
+
+  /* =====================================================================
+     6. préparer l'intervention
+     ===================================================================== */
+  var accepteTravaux=(S.meta.statut||"").indexOf("accept")>=0;
+  var GRP_TRAVAUX=[["Type de bien", CH.typeBien], ["Nature des travaux", (CH.natures||[]).join(", ")], ["Type de construction", CH.construction],
+    ["Surface", CH.surface ? CH.surface+" m²" : ""], ["Niveaux", CH.niveaux], ["Alimentation", CH.alim],
+    ["Puissance souscrite", CH.puissance ? CH.puissance+" kVA" : ""], ["N° PDL ou PRM", CH.pdl], ["Compteur GTL", CH.gtl]];
+  if(accepteTravaux) GRP_TRAVAUX.push(["Devis Batigest", S.affaire.devis], ["Référence travaux", S.affaire.chantier], ["Démarrage prévu", fmtDate(S.affaire.demarrage)]);
+  var encresPdf=(S.conclusion.encres||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
+  var encresDemPdf=(S.conclusion.encresDemande||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
+  var demande = rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length || encresDemPdf.length;
+  var prep = rempli.apply(null, GRP_TRAVAUX.map(function(p){ return p[1]; })) || (S.pieces||[]).length || rempli(S.rdv.objet, S.rdv.description)
+    || (PV && rempli(V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat, V.conso, V.foyer, V.chauffage, V.toitureType, V.exposition, V.masques))
+    || IRVE || CLIM || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
+  if(prep){
+    chapitre("Informations complémentaires", "Préparer l'intervention", null, "Les éléments pratiques relevés lors de la visite.");
+    grille("Travaux", GRP_TRAVAUX);
+    grille("Pièces relevées", (S.pieces||[]).map(function(pc, i){
+      var nPh=(pc.photos||[]).filter(function(x){ return x && x.data; }).length;
+      return [pc.nom || ("Pièce "+(i+1)), [(pc.natures||[]).join(", "), nPh ? nPh+" photo"+(nPh>1 ? "s" : "") : "", String(pc.notes||"").trim() ? "notes" : ""]
+        .filter(Boolean).join(" · ") || "Sans observation"];
+    }));
+    if(S.rdv.objet){ garderAvecNote("Objet du rendez-vous", [["Objet", S.rdv.objet]], S.rdv.description); tableau("Objet du rendez-vous", [["Objet", S.rdv.objet]], {apres: S.rdv.description ? 2 : 6}); }
+    if(S.rdv.description){ if(S.rdv.objet) carte(S.rdv.description); else blocTexte("Objet du rendez-vous", S.rdv.description); }
+    if(PV) cote("Branchement & communication", [["Alimentation", V.pvAlim], ["Emplacement du coffret", V.coffret], ["Raccordement", V.reseau],
+        ["Longueur coffret vers TGBT", V.lgTgbt ? V.lgTgbt+" ml" : ""]],
+      "Batterie", [["Nombre de batteries", V.nbBat], ["Coffret backup", V.backup], ["Emplacement de la batterie", V.empBat],
+        ["Longueur batterie vers coffret", V.lgBat ? V.lgBat+" ml" : ""]]);
+    /* les photos d'un bloc (borne, climatisation), deux par rang */
+    var photosBloc=function(liste, legende){
+      var cw=(CW-6)/2, i=0;
+      while(i<liste.length){
+        var a=liste[i], b=liste[i+1];
+        var ha2=Math.min(66, cw*(a.h/a.w)), hb2=b ? Math.min(66, cw*(b.h/b.w)) : 0, hr=Math.max(ha2, hb2);
+        texte(true);
+        var La=lignes(legende(a), cw, 7.4).slice(0, 2), Lb=b ? lignes(legende(b), cw, 7.4).slice(0, 2) : [], nL2=Math.max(La.length, Lb.length);
+        need(hr+7+nL2*3.4);
+        photoDans(a, M, y, cw, hr);
+        texte(true); doc.setFontSize(7.4); setText(ENCRE); doc.text(La, M, y+hr+4.2);
+        if(b){ photoDans(b, M+cw+6, y, cw, hr); doc.text(Lb, M+cw+6, y+hr+4.2); }
+        y+=hr+6.6+nL2*3.4; i+=2;
+      }
+    };
+    if(IRVE){
+      var irveP=(IV.photos||[]).filter(function(p){ return p && p.data; });
+      var grpIrve=[["Type d'équipement", IV.type], ["Puissance", IV.puissance ? String(IV.puissance).replace(".", ",")+" kW" : ""],
+        ["Raccordement", IV.raccordement], ["Câble de délestage", IV.delestage],
+        ["Badges", IV.badge==="Oui" ? (IV.nbBadges ? IV.nbBadges+" badge"+(IV.nbBadges>1 ? "s" : "") : "Oui") : IV.badge],
+        ["Pose sur pied", IV.pied], ["Longueur de câble", IV.longueur ? IV.longueur+" ml" : ""]];
+      garderAvecNote("Borne de recharge - IRVE", grpIrve, IV.note);
+      grille("Borne de recharge - IRVE", grpIrve, {apres: IV.note || irveP.length ? 3 : 6});
+      carte(IV.note);
+      photosBloc(irveP, function(it){ return it.pied ? "Emplacement, borne sur pied" : "Emplacement, borne murale"; });
+    }
+    if(CLIM){
+      var ml=function(v){ return v ? String(v).replace(".", ",")+" ml" : ""; };
+      var climP=CC.photos.filter(function(p){ return p && p.data; });
+      var grpClim=[["Type d'installation", CC.type], ["Puissance du groupe", CC.puissance ? String(CC.puissance).replace(".", ",")+" kW" : ""],
+        ["Unités intérieures", CC.nbInt], ["Alimentation", CC.alim], ["Liaison frigorifique", ml(CC.liaison)], ["Câble d'alimentation", ml(CC.cable)],
+        ["Câble de liaison int./ext.", ml(CC.cableLiaison)], ["Évacuation des condensats", ml(CC.condensats)],
+        ["Pompe de relevage", CC.pompe==="Oui" ? "Oui"+(CC.nbPompes ? ", "+CC.nbPompes+" pompe"+(Number(CC.nbPompes)>1 ? "s" : "") : "") : CC.pompe],
+        ["Pose du groupe extérieur", CC.poseExt], ["Goulotte", CC.goulotte==="Oui" ? "Oui"+(CC.lgGoulotte ? ", "+ml(CC.lgGoulotte) : "") : CC.goulotte],
+        ["Percements de mur", CC.percements]];
+      garderAvecNote("Climatisation", grpClim, CC.note);
+      grille("Climatisation", grpClim, {apres: CC.note || climP.length ? 3 : 6});
+      carte(CC.note);
+      photosBloc(climP, function(it){ return it.genre==="ext" ? "Emplacement du groupe extérieur"+(it.support ? ", sur support" : "") : "Emplacement de l'unité murale"; });
+    }
+    cote("Accès et logistique", [["Occupation", G0.occupe], ["Précisions", G0.occupNote], ["Accessibilité", (G0.accessibilite||[]).join(", ")],
+        ["Code et consignes", G0.code], ["Accès", (G0.acces||[]).join(", ")], ["Niveau d'intervention", G0.etage],
+        ["Hauteur de toiture", G0.toiture ? G0.toiture+" m" : ""], ["Stationnement", G0.stationnement]],
+      "Consommation et foyer", PV ? [["Consommation annuelle relevée", V.conso ? nb(Number(String(V.conso).replace(",", ".")))+" kWh" : ""],
+        ["Personnes au foyer", V.foyer], ["Chauffage", (V.chauffage||[]).join(", ")],
+        ["Toiture", [V.toitureType, (V.exposition||[]).length ? "exposition "+V.exposition.join(", ").toLowerCase() : ""].filter(Boolean).join(" · ")],
+        ["Inclinaison", V.inclinaison ? V.inclinaison+"°" : ""], ["Masques et observations", V.masques]] : []);
+    blocTexte("Contraintes particulières", G0.contraintes);
+    if(demande){
+      if(!blocTexte("Demande du client", S.conclusion.synthese)){ need(30); etiquette("Demande du client", M+1, y+3); y+=6.5; }
+      encresDemPdf.forEach(poserEncre);
+      if((S.conclusion.points && String(S.conclusion.points).trim()) || encresPdf.length){
+        if(!blocTexte("Points à chiffrer et à vérifier", S.conclusion.points)){ need(30); etiquette("Points à chiffrer et à vérifier", M+1, y+3); y+=6.5; }
+        encresPdf.forEach(poserEncre);
+      }
+    }
+    texte(false); doc.setFontSize(6.8); setText(GRIS2); need(6);
+    doc.text("Données reprises du relevé de visite"+(VISITE ? " du "+VISITE : "")+".", M, y+1); y+=6;
+  }
+
+  /* =====================================================================
+     7. relevé photographique
+     ===================================================================== */
+  var num=0, premiere=true, photosVues=false;
+  (S.pieces||[]).forEach(function(p, idx){
+    var liste=(p.photos||[]).filter(function(ph){ return ph && ph.data; });
+    var notes=String(p.notes||"").trim();
+    if(!liste.length && !notes) return;
+    var nomP=p.nom || ("Pièce "+(idx+1));
+    var sousP=(p.natures||[]).length ? p.natures.join(" · ") : "Photographies de repérage, relevé de site.";
+    if(premiere || y > PH*0.56){
+      chapitre("Relevé photographique", nomP, null, sousP, null, true);
+      if(premiere) SOMMAIRE.push({t:"Relevé photographique", p:page});
+      premiere=false;
+    } else {
+      need(46);
+      y+=3; puce("Relevé photographique", M, y); y+=10;
+      titre(false); doc.setFontSize(18); setText(ENCRE); doc.text(lignes(nomP, CW, 18)[0], M, y+5); y+=lh(18)+1;
+      texte(false); doc.setFontSize(9); setText(GRIS); doc.text(lignes(sousP, CW, 9)[0], M, y+4); y+=10;
+    }
+    SUITE="Relevé photographique";
+    photosVues = photosVues || liste.length>0;
+    var cw=(CW-6)/2, ch=66, normales=[], croquis=[];
+    liste.forEach(function(ph){ (ph.croquis ? croquis : normales).push(ph); });
+    /* les notes de la pièce : dans la case libre s'il en reste une, sinon dessous */
+    texte(false); var LN=notes ? lignes(notes, cw-12, 8.4) : [];
+    var notesEnCase = notes && normales.length%2===1 && (16+LN.length*lh(8.4)) <= ch;
+    var cases=normales.map(function(ph){ return {ph:ph}; });
+    if(notesEnCase) cases.push({notes:true});
+    var legendeDe=function(ph, n){ return (n<10 ? "0" : "")+n+" · "+(ph.legende || nomP); };
+    for(var i=0;i<cases.length;i+=2){
+      /* la hauteur du rang : deux lignes de légende si l'une des deux le demande */
+      texte(true);
+      var nL=[cases[i], cases[i+1]].reduce(function(m, c, j){ return c && c.ph ? Math.max(m, Math.min(2, lignes(legendeDe(c.ph, num+1+j), cw, 7.4).length)) : m; }, 1);
+      need(ch+8+nL*3.4);
+      [cases[i], cases[i+1]].forEach(function(c, j){
+        if(!c) return;
+        var cx=M+j*(cw+6);
+        if(c.notes){
+          setFill(BLANC); setDraw(TRAIT); doc.setLineWidth(0.25); doc.roundedRect(cx, y, cw, ch, 2.6, 2.6, "FD");
+          etiquette("Repères de visite", cx+5, y+7.5);
+          texte(false); doc.setFontSize(8.4); setText(ENCRE); doc.text(LN, cx+5, y+14);
+          return;
+        }
+        num++;
+        photoDans(c.ph, cx, y, cw, ch);
+        texte(true); doc.setFontSize(7.4); setText(ENCRE);
+        doc.text(lignes(legendeDe(c.ph, num), cw, 7.4).slice(0, 2), cx, y+ch+4.4);
+      });
+      y+=ch+7.6+nL*3.4;
+    }
+    croquis.forEach(function(ph){
+      var hc=Math.min(150, CW*(ph.h/ph.w));
+      need(hc+12);
+      num++;
+      photoDans(ph, M, y, CW, hc);
+      texte(true); doc.setFontSize(7.4); setText(ENCRE);
+      doc.text(lignes((num<10 ? "0" : "")+num+" · "+(ph.legende || "Croquis"), CW, 7.4).slice(0, 2), M, y+hc+4.4);
+      y+=hc+11;
+    });
+    if(notes && !notesEnCase){ need(12); etiquette("Repères de visite", M+1, y+3); y+=6.5; carte(notes); }
+  });
+  if(photosVues){
+    texte(false); doc.setFontSize(6.8); setText(GRIS2); need(6);
+    doc.text("Les photographies et notes sont conservées comme éléments de repérage du dossier.", M, y+1); y+=6;
+  }
+
+  /* =====================================================================
+     les numéros de page et le pied, une fois le nombre de pages connu
+     ===================================================================== */
+  var N = doc.getNumberOfPages ? doc.getNumberOfPages() : page;
+  if(SOMMAIRE.length && doc.setPage){
+    doc.setPage(1);
+    /* sur une colonne si la place le permet, sinon deux, sinon trois */
+    var ys=Y_SOMMAIRE+3, hRow=6, nCol=0;
+    for(var c0=1; c0<=3 && !nCol; c0++) if(ys+10+Math.ceil(SOMMAIRE.length/c0)*hRow <= BAS) nCol=c0;
+    var parCol=Math.ceil(SOMMAIRE.length/Math.max(1, nCol)), lc=(CW-(nCol-1)*10)/Math.max(1, nCol), deuxCol=nCol>1;
+    if(nCol){
+      setFill(TRAIT); doc.rect(M, ys, CW, 0.25, "F");
+      etiquette("Dans ce relevé", M, ys+7.4);
+      SOMMAIRE.forEach(function(e, i){
+        var col=deuxCol ? Math.floor(i/parCol) : 0, rang=deuxCol ? i%parCol : i;
+        var x=M+col*(lc+10), yy=ys+10.5+rang*hRow;
+        titre(false); doc.setFontSize(nCol>2 ? 8.4 : 9.4); setText(ENCRE);
+        var t=lignes(e.t, lc-12, nCol>2 ? 8.4 : 9.4)[0]; doc.text(t, x, yy+4.3);
+        var wt=doc.getTextWidth(t);
+        setDraw(TRAIT); doc.setLineWidth(0.3);
+        try{ doc.setLineDashPattern([0.5, 1.1], 0); }catch(x0){}
+        if(x+wt+3 < x+lc-9) doc.line(x+wt+3, yy+4, x+lc-9, yy+4);
+        try{ doc.setLineDashPattern([], 0); }catch(x0){}
+        titre(true); doc.setFontSize(8.6); setText(VERT); doc.text(String(e.p), x+lc, yy+4.3, {align:"right"});
+      });
+      doc.setLineWidth(0.2);
+    }
+  }
+  for(var pg=1; pg<=N; pg++){
+    if(doc.setPage) doc.setPage(pg);
+    titre(true); doc.setFontSize(8.4); setText(ENCRE);
+    doc.text("Page "+pg+" / "+N, PW-M, 17.4, {align:"right"});
+    setFill(TRAIT); doc.rect(M, PH-16, CW, 0.3, "F");
+    titre(true); doc.setFontSize(6.8); setText(VERT_F);
+    var nomPied=SOC ? SOC.toUpperCase() : "", lNom=nomPied ? doc.getTextWidth(nomPied) : 0;
+    if(nomPied) doc.text(nomPied, M, PH-11.2);
+    texte(false); doc.setFontSize(6.4); setText(GRIS);
+    var legal=String((P && P.socLegal) || "").replace(/\n+/g, " ");
+    if(legal){ var xLeg2=M+(nomPied ? lNom+3 : 0); doc.text(lignes(legal, 128-(xLeg2-M), 6.4)[0], xLeg2, PH-11.2); }
+    doc.setFontSize(6); setText(GRIS2);
+    doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", M, PH-7.4);
+    doc.setFontSize(6.4); setText(GRIS);
+    if(REF) doc.text("Réf. "+REF, PW-M, PH-11.2, {align:"right"});
+    doc.text("Page "+pg+" / "+N, PW-M, PH-7.4, {align:"right"});
+  }
+  setText(ENCRE);
   return doc;
 }
 
