@@ -4792,8 +4792,10 @@ var PUB_MODE = "dossier";
 /* PUB_AUTO : le mode « à une personne » a été choisi par la fiche, pas par vous (pas encore de référence).
    Dès qu'une référence se tape, l'équipe du dossier est relue et la publication revient au dossier. */
 var PUB_AUTO = false;
-document.addEventListener("input", function(){
+document.addEventListener("input", function(ev){
   if(!PUB_AUTO) return;
+  /* une recherche de nom (personnes.js) n'est pas la référence : elle ne relance pas l'attente */
+  if(ev && ev.target && ev.target.hasAttribute && ev.target.hasAttribute("data-sans-marque")) return;
   clearTimeout(window.__pubAutoT);
   window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
 }, true);

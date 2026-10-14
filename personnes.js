@@ -80,11 +80,13 @@
       aide.hidden = !!q;
       if(!q){ trouves = []; return; }
       var ex = (o.exclure || []).map(sans);
-      var l = (o.personnes || []).filter(function(p){ return p && p.nom && ex.indexOf(sans(p.nom)) < 0 && sans(p.nom).indexOf(q) >= 0; });
-      /* d'abord ceux dont un mot commence par ce qu'on tape */
+      var tous = o.personnes || [];
+      var l = tous.filter(function(p){ return p && p.nom && ex.indexOf(sans(p.nom)) < 0 && sans(p.nom).indexOf(q) >= 0; });
+      /* d'abord ceux dont un mot commence par ce qu'on tape, puis l'ordre donné par la page
+         (au SAV, les techniciens avant le bureau) */
       l.sort(function(a, b){
         var da = (" " + sans(a.nom)).indexOf(" " + q) >= 0 ? 0 : 1, db = (" " + sans(b.nom)).indexOf(" " + q) >= 0 ? 0 : 1;
-        return da - db || String(a.nom).localeCompare(String(b.nom), "fr");
+        return da - db || tous.indexOf(a) - tous.indexOf(b);
       });
       trouves = l.slice(0, 8);
       if(!trouves.length){ var r = document.createElement("p"); r.className = "cp-rien"; r.textContent = "Personne ne correspond à « " + champ.value.trim() + " »."; res.appendChild(r); return; }
