@@ -3623,6 +3623,7 @@ async function traiter(req) {
         reste: c.reste || [],
         note: c.note || null,
         contact: c.contact || null,
+        sansNouvelle: c.sansNouvelle || null,
         fichiers: visibles });
     }
     chantiers.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
@@ -4150,6 +4151,23 @@ async function traiter(req) {
       await store.setJSON(cleF, f);
       return json({ ok: true, depuis: f.depuis, historique: f.historique.slice(0, 12) });
     });
+  }
+
+  /* « chantier sans nouvelle » acquitté : le chantier n'a sans doute pas commencé.
+     L'alerte se tait jusqu'au prochain dépôt ; deux semaines sans rien après lui, elle revient. */
+  if (action === "sans-nouvelle-acquitter") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (personne.role === "technicien") return json({ erreur: "Réservé au bureau." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const idx = await lireIndex();
+    const c = idx.chantiers[String(d.ref || "").trim()];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    if (!(c.fichiers || []).some((f) => voit(personne, f, c))) return json({ erreur: "Ce chantier ne vous est pas attribué." }, 403);
+    if (d.annuler) delete c.sansNouvelle;
+    else c.sansNouvelle = { le: new Date().toISOString(), par: personne.nom };
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, sansNouvelle: c.sansNouvelle || null });
   }
 
   /* le téléphone et l'e-mail du client, dans l'encadré du chantier :

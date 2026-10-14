@@ -3289,6 +3289,58 @@ function charger(s){
       $("bref").innerHTML='<div class="vide">Liste indisponible hors connexion.</div>';
     });
 }
+/* ---------- les chantiers sans nouvelle ----------
+   Deux semaines sans rien de déposé. Un toucher déplie la liste : ouvrir le
+   chantier, ou l'acquitter (il n'a sans doute pas commencé) ; l'alerte se
+   tait alors jusqu'au prochain dépôt. */
+var SANS_NOUVELLE_JOURS=14;
+function dernierDepot(c){
+  var d="";
+  (c.fichiers||[]).forEach(function(f){ var x=String(f.publie||f.date||""); if(x>d) d=x; });
+  return d || String(c.maj||"");
+}
+var SANS_NOUVELLE_OUVERT=false;
+function peindreSansNouvelle(s, host, l){
+  l.sort(function(a, b){ return b.jours - a.jours; });
+  var n=notif("amb sans-nouvelle", String(l.length),
+    l.length>1 ? l.length+" chantiers sans nouvelle" : "1 chantier sans nouvelle",
+    l.length>1 ? "Rien de déposé depuis deux semaines — touchez pour voir lesquels"
+               : (l[0].c.client||l[0].c.ref)+" — rien de déposé depuis "+l[0].jours+" jours");
+  n.id="notifSansNouvelle"; n.style.cursor="pointer"; n.setAttribute("role","button"); n.tabIndex=0;
+  n.setAttribute("aria-expanded", SANS_NOUVELLE_OUVERT ? "true" : "false");
+  var pan=document.createElement("div"); pan.className="demandes"; pan.id="panneauSansNouvelle"; pan.hidden=!SANS_NOUVELLE_OUVERT;
+  l.forEach(function(x){
+    var c=x.c, d=document.createElement("div"); d.className="d";
+    var b=document.createElement("b"); b.textContent=c.client||c.ref; d.appendChild(b);
+    var sp=document.createElement("span");
+    sp.textContent=[c.ref, "dernier dépôt il y a "+x.jours+" jours"+(x.dernier ? " (le "+frCourt(x.dernier)+")" : "")].join("  ·  ");
+    d.appendChild(sp);
+    var row=document.createElement("div");
+    row.style.cssText="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap";
+    var ouvrir=document.createElement("a"); ouvrir.href="./chantier.html?ref="+encodeURIComponent(c.ref); ouvrir.textContent="Ouvrir le chantier";
+    ouvrir.style.cssText="display:inline-flex;align-items:center;min-height:44px;padding:0 14px;border-radius:var(--r-field);background:var(--accent);"
+      +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
+    var ok=document.createElement("button"); ok.type="button"; ok.textContent="Pas encore commencé : acquitter";
+    ok.setAttribute("aria-label","Acquitter : "+(c.client||c.ref)+" n'a pas encore commencé");
+    ok.style.cssText="min-height:44px;padding:0 14px;border:0;border-radius:var(--r-field);background:var(--field);"
+      +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
+    ok.addEventListener("click", function(e){
+      e.stopPropagation();
+      ok.disabled=true; ok.textContent="…";
+      fetch(apiUrl("sans-nouvelle-acquitter"), {method:"POST", headers:{"x-auth":s.jeton, "content-type":"application/json"}, body:JSON.stringify({ref:c.ref})})
+        .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+        .then(function(res){ c.sansNouvelle=res.sansNouvelle; SANS_NOUVELLE_OUVERT=true; charger(s); })
+        .catch(function(){ ok.disabled=false; ok.textContent="Pas de réseau : réessayez"; });
+    });
+    row.appendChild(ouvrir); row.appendChild(ok);
+    d.appendChild(row);
+    pan.appendChild(d);
+  });
+  function basculer(){ SANS_NOUVELLE_OUVERT=pan.hidden; pan.hidden=!pan.hidden; n.setAttribute("aria-expanded", pan.hidden ? "false" : "true"); }
+  n.addEventListener("click", basculer);
+  n.addEventListener("keydown", function(e){ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); basculer(); } });
+  host.appendChild(n); host.appendChild(pan);
+}
 function peindreNotifs(s, ch, relances){
   var host=$("notifs"); host.textContent="";
   var tech = s.role==="technicien";
@@ -3320,8 +3372,11 @@ function peindreNotifs(s, ch, relances){
       var et=(f.etape||"").toLowerCase();
       if(f.type==="reception" && et.indexOf("avec réserve")>=0 && et.indexOf("sans réserve")<0) reserves++;
     });
-    var j=(Date.now()-Date.parse(c.maj||0))/864e5;
-    if(j>21) aRelancer.push(c);
+    /* sans nouvelle : rien de déposé depuis deux semaines, sauf si on l'a
+       acquitté depuis le dernier dépôt (le chantier n'a pas commencé) */
+    var dernier=dernierDepot(c), j=(Date.now()-Date.parse(dernier||0))/864e5;
+    var acq=c.sansNouvelle && c.sansNouvelle.le && String(c.sansNouvelle.le) >= String(dernier||"");
+    if(j>SANS_NOUVELLE_JOURS && !acq) aRelancer.push({c:c, dernier:dernier, jours:Math.floor(j)});
   });
 
   /* la relance d'un dossier laissé de côté : elle passe devant, sinon
@@ -3442,9 +3497,7 @@ function peindreNotifs(s, ch, relances){
   if(LISTES.length) setTimeout(function(){ peindreListes(s); }, 0);
   if(TACHES.length) setTimeout(function(){ peindreTaches(s); }, 0);
   if(DEMANDES.length) setTimeout(function(){ peindreDemandes(s); }, 0);
-  if(!tech && aRelancer.length) host.appendChild(notif("amb", String(aRelancer.length),
-    aRelancer.length+(aRelancer.length>1?" chantiers sans nouvelle":" chantier sans nouvelle"),
-    "Rien de déposé depuis trois semaines", "./rapports.html"));
+  if(!tech && aRelancer.length) peindreSansNouvelle(s, host, aRelancer);
   peindreSavATerminer();
   peindreDemandesClient();       /* la liste vient d'être refaite : les demandes des clients y reviennent */
   peindreContacts();
