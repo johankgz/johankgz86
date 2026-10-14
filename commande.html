@@ -159,6 +159,19 @@ button.act:disabled{opacity:.4}
 .room > .head .meta{font-size:12.5px;color:var(--ink-3)}
 .room .body{padding:16px}
 .room[data-open="0"] .body{display:none}
+/* le catalogue : fermé d'office, l'interrupteur sur son titre l'ouvre (comme les Plans du suivi) */
+.sv-switch{flex:0 0 auto;width:54px;height:32px;min-height:0;border:0;border-radius:999px;background:rgba(140,132,117,.30);
+  padding:3px;cursor:pointer;transition:background .18s ease}
+.sv-switch span{display:block;width:26px;height:26px;border-radius:50%;background:#fff;
+  box-shadow:0 1px 3px rgba(0,0,0,.25);transition:transform .18s ease}
+.sv-switch[aria-checked="true"]{background:var(--ok,#16A34A)}
+.sv-switch[aria-checked="true"] span{transform:translateX(22px)}
+.sv-switch:active span{width:29px}
+@media (prefers-reduced-motion:reduce){ .sv-switch,.sv-switch span{transition:none} }
+h2 .sv-switch{margin-left:auto}
+.sv-nb{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--ink-2,#6b6458)}
+.sv-nb + .sv-switch{margin-left:0}
+.block.replie > h2{margin-bottom:0;cursor:pointer}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:10px;margin-top:12px}
 .thumb{position:relative;border-radius:var(--r-field);overflow:hidden;background:#1A1815;box-shadow:var(--shadow)}
 .thumb img{display:block;width:100%;height:106px;object-fit:cover}
@@ -787,12 +800,15 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 </section>
 
 <section id="tab-commande" hidden>
-  <div class="block">
-    <label class="f" style="margin:0"><span>Rechercher un article</span><input type="text" id="recherche" placeholder="disjoncteur, ICTA, PER…" autocapitalize="off"></label>
+  <div class="block replie" id="sec-catalogue">
+    <h2>Catalogue<span class="sv-nb" id="catNb"></span><button type="button" class="sv-switch" id="catBascule" role="switch" aria-checked="false" aria-controls="catCorps" aria-label="Afficher le catalogue"><span></span></button></h2>
+    <div id="catCorps" hidden>
+      <label class="f" style="margin:0"><span>Rechercher un article</span><input type="text" id="recherche" placeholder="disjoncteur, ICTA, PER…" autocapitalize="off"></label>
+    </div>
   </div>
-  <div id="catalogue"></div>
+  <div id="catalogue" hidden></div>
   <div class="block">
-    <h2>Article hors catalogue</h2>
+    <h2>Article</h2>
     <div class="grid2">
       <label class="f"><span>Désignation</span><input type="text" id="d_nom"></label>
       <label class="f"><span>Quantité</span><input type="number" id="d_qte" inputmode="numeric" placeholder="1"></label>
@@ -825,7 +841,7 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 <div class="toast" id="toast" hidden></div>
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
-<script src="./sobre.js?v=20261010a"></script>
+<script src="./sobre.js?v=20261014a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
@@ -1228,7 +1244,19 @@ function ajuster(cat, nom, unite, delta){
   l.qte = Math.max(0, (parseFloat(l.qte)||0) + delta);
   save(); renderCatalogue(); renderResume();
 }
+/* le catalogue (recherche et rubriques) : fermé d'office, ouvert à la demande ; fermé, son titre dit combien d'articles sont choisis */
+function ouvrirCatalogue(oui){
+  $("catCorps").hidden=!oui; $("catalogue").hidden=!oui;
+  $("sec-catalogue").classList.toggle("replie", !oui);
+  $("catBascule").setAttribute("aria-checked", oui ? "true" : "false");
+  majNbCatalogue();
+}
+function majNbCatalogue(){
+  var n=(S && S.lignes ? S.lignes : []).filter(function(l){ return l.qte>0; }).length;
+  $("catNb").textContent = $("catCorps").hidden && n ? n+" article"+(n>1 ? "s" : "") : "";
+}
 function renderCatalogue(){
+  majNbCatalogue();
   var host=$("catalogue"); host.textContent="";
   var cata=CATALOGUE[S.metier]||{}, rub={};
   /* les articles hors catalogue (repris d'un schéma, ou « Divers ») ont
@@ -2144,6 +2172,8 @@ function bindAll(){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
   });
   $("recherche").addEventListener("input", renderCatalogue);
+  $("catBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirCatalogue(!!$("catCorps").hidden); });
+  $("sec-catalogue").querySelector("h2").addEventListener("click", function(e){ if(!e.target.closest("button")) ouvrirCatalogue(!!$("catCorps").hidden); });
 
   $("btnDivers").addEventListener("click", function(){
     var nom=($("d_nom").value||"").trim();
