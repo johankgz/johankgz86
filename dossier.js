@@ -250,28 +250,9 @@ function ouvrirAcces(c){
         var dedans=document.createElement("div");
         dedans.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
         equipe.forEach(function(nom){
-          var p=document.createElement("span");
-          p.style.cssText="display:inline-flex;align-items:center;gap:7px;background:var(--accent-soft);"
-            +"color:var(--accent);padding:7px 11px;font-size:14px;font-weight:600";
-          p.appendChild(document.createTextNode(nom));
-          if(res.d.peutModifier && nom!==auteur){
-            var x=document.createElement("button"); x.type="button"; x.textContent="×";
-            x.setAttribute("aria-label","Retirer "+nom);
-            x.style.cssText="width:22px;height:22px;min-height:22px;border:0;border-radius:50%;"
-              +"background:rgba(180,98,26,.16);color:var(--accent);font-size:15px;line-height:1;"
-              +"cursor:pointer;font-family:inherit";
-            x.addEventListener("click", function(){
-              equipe=equipe.filter(function(n){ return n!==nom; });
-              enregistrer();
-            });
-            p.appendChild(x);
-          } else if(nom===auteur){
-            var t=document.createElement("span");
-            t.style.cssText="font-size:11.5px;opacity:.6;font-weight:500";
-            t.textContent="auteur";
-            p.appendChild(t);
-          }
-          dedans.appendChild(p);
+          dedans.appendChild(PastillePersonne(nom,
+            res.d.peutModifier && nom!==auteur ? function(){ equipe=equipe.filter(function(n){ return n!==nom; }); enregistrer(); } : null,
+            {etiquette: nom===auteur ? "auteur" : ""}));
         });
         hote.appendChild(dedans);
         if(!res.d.peutModifier){
@@ -280,21 +261,11 @@ function ouvrirAcces(c){
           hote.appendChild(note);
           return;
         }
-        var reste=res.d.personnes.filter(function(u){ return equipe.indexOf(u.nom)<0; });
-        if(!reste.length) return;
-        var l=document.createElement("p"); l.className="legend"; l.textContent="Ajouter";
+        /* une recherche plutôt que la liste de tous les comptes */
+        var l=document.createElement("p"); l.className="legend"; l.textContent="Ajouter quelqu'un";
         hote.appendChild(l);
-        var libre=document.createElement("div");
-        libre.style.cssText="display:flex;flex-wrap:wrap;gap:7px";
-        reste.forEach(function(u){
-          var b=document.createElement("button"); b.type="button";
-          b.style.cssText="border:1px solid var(--rule);background:var(--card);padding:8px 12px;"
-            +"font-size:14px;font-family:inherit;color:var(--ink);cursor:pointer";
-          b.textContent="+ "+u.nom+(u.role==="technicien" ? "" : "  ·  bureau");
-          b.addEventListener("click", function(){ equipe.push(u.nom); enregistrer(); });
-          libre.appendChild(b);
-        });
-        hote.appendChild(libre);
+        hote.appendChild(ChercherPersonne({personnes:res.d.personnes, exclure:equipe,
+          ajouter:function(nom){ if(equipe.indexOf(nom)<0){ equipe.push(nom); enregistrer(); } }}));
       }
       function enregistrer(){
         peindre();

@@ -584,17 +584,19 @@ function deplacer(e){
   }
   aller2(DOSSIER);
 }
+function sansAccent(t){ return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
 function partager(e){
   var f=fen("Partager « "+e.nom+" »"), coches={};
   (e.partage||[]).forEach(function(n){ coches[n]=true; });
   f.corps.appendChild(el("p","note","Les personnes cochées voient ce dossier dans leur Cloud : elles y ajoutent, renomment et rangent. Vous seul choisissez avec qui il est partagé."));
-  var q=el("input"); q.type="text"; q.placeholder="Chercher un nom"; q.setAttribute("aria-label","Chercher un nom"); q.style.marginTop="10px";
+  var q=el("input"); q.type="search"; q.placeholder="Rechercher un nom"; q.setAttribute("aria-label","Rechercher un nom"); q.setAttribute("autocomplete","off"); q.style.marginTop="10px";
   var zone=el("div"), err=el("p","err-f");
   f.corps.appendChild(q); f.corps.appendChild(zone); f.corps.appendChild(err);
   function peindreP(){
-    zone.textContent=""; var t=q.value.trim().toLowerCase(), rien=true;
+    zone.textContent=""; var t=sansAccent(q.value), rien=true;
     GROUPES.concat([["","Autres"]]).forEach(function(g){
-      var l=PERS.filter(function(p){ return p.nom!==MOI && (g[0] ? p.role===g[0] : !ROLES[p.role]) && (!t || p.nom.toLowerCase().indexOf(t)>=0); });
+      /* sans rien taper : les personnes avec qui c'est déjà partagé ; on tape pour trouver les autres */
+      var l=PERS.filter(function(p){ return p.nom!==MOI && (g[0] ? p.role===g[0] : !ROLES[p.role]) && (t ? sansAccent(p.nom).indexOf(t)>=0 : !!coches[p.nom]); });
       if(!l.length) return; rien=false; zone.appendChild(el("p","groupe-t",g[1]));
       l.forEach(function(p){
         var lab=el("label","pers"), cb=el("input"); cb.type="checkbox"; cb.checked=!!coches[p.nom];
@@ -604,7 +606,7 @@ function partager(e){
         lab.appendChild(cb); lab.appendChild(a); lab.appendChild(n); zone.appendChild(lab);
       });
     });
-    if(rien) zone.appendChild(el("p","note","Personne ne correspond."));
+    if(rien) zone.appendChild(el("p","note", t ? "Personne ne correspond à « "+q.value.trim()+" »." : "Tapez les premières lettres d'un prénom ou d'un nom."));
   }
   q.addEventListener("input", peindreP); peindreP();
   f.pied.appendChild(bouton("Annuler","g",fermerFen));

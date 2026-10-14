@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="./theme.js?v=20261007a"></script>
+<script src="./personnes.js?v=20261014a"></script>
 <script src="./commun.js?v=20261007a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
@@ -2371,8 +2372,8 @@ function choix(titre, valeur, source, libelle, placeholder, poser){
     pil.appendChild(document.createTextNode(libelle(valeur)));
     var x=document.createElement("button"); x.type="button"; x.textContent="×";
     x.setAttribute("aria-label","Retirer");
-    x.style.cssText="width:22px;height:22px;min-height:22px;padding:0;border:0;border-radius:50%;"
-      +"background:rgba(34,32,28,.10);color:var(--ink-2);font-size:15px;line-height:1;cursor:pointer";
+    x.style.cssText="flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;min-width:32px;min-height:32px;"
+      +"padding:0;margin:0;border:0;border-radius:50%;background:rgba(34,32,28,.10);color:var(--ink-2);font-size:19px;line-height:1;cursor:pointer";
     x.addEventListener("click", function(){ poser(""); });
     pil.appendChild(x);
     box.appendChild(pil);
@@ -2461,22 +2462,7 @@ function saisiePartage(l){
     var pils=document.createElement("div");
     pils.style.cssText="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:9px";
     noms.forEach(function(nom){
-      var pil=document.createElement("span");
-      pil.style.cssText="display:inline-flex;align-items:center;gap:7px;padding:7px 9px 7px 12px;"
-        +"border-radius:var(--r-field);background:rgba(255,255,255,.85);color:var(--ink);"
-        +"font-size:14px;font-weight:600";
-      pil.appendChild(document.createTextNode(nom));
-      if(mien){
-        var x=document.createElement("button"); x.type="button"; x.textContent="×";
-        x.setAttribute("aria-label","Retirer "+nom);
-        x.style.cssText="width:21px;height:21px;min-height:21px;padding:0;border:0;border-radius:50%;"
-          +"background:rgba(34,32,28,.10);color:var(--ink-2);font-size:14px;line-height:1;cursor:pointer";
-        x.addEventListener("click", function(){
-          poserPartage(l, noms.filter(function(n){ return n!==nom; }));
-        });
-        pil.appendChild(x);
-      }
-      pils.appendChild(pil);
+      pils.appendChild(PastillePersonne(nom, mien ? function(){ poserPartage(l, noms.filter(function(n){ return n!==nom; })); } : null));
     });
     box.appendChild(pils);
   }
@@ -2489,37 +2475,14 @@ function saisiePartage(l){
     return box;
   }
 
-  var ligne=document.createElement("div");
-  ligne.style.cssText="display:flex;gap:8px;width:100%";
-  var saisie=document.createElement("input"); saisie.type="text";
-  saisie.placeholder="Nom d'un collègue"; saisie.autocapitalize="words";
-  saisie.setAttribute("list","dl_equipe");
-  saisie.autocomplete="off"; saisie.spellcheck=false;
-  saisie.style.cssText="flex:1;min-height:44px;padding:11px 14px;border:0;border-radius:var(--r-field);"
-    +"background:rgba(255,255,255,.85);font-size:16px;font-family:inherit";
-  var btn=document.createElement("button"); btn.type="button";
-  btn.textContent="Partager";
-  btn.style.cssText="flex:0 0 auto;min-height:44px;padding:0 16px;border:0;border-radius:var(--r-field);"
-    +"background:var(--accent);color:#fff;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer";
-  function valider(){
-    var nom=nomEquipe(saisie.value);
-    if(!nom){
-      var t=normaliser(saisie.value);
-      var proches=EQUIPE.filter(function(p){ return normaliser(p.nom).indexOf(t)>=0; }).map(function(p){ return p.nom; });
-      toast(!t ? "Saisissez un nom."
-        : (proches.length ? "Plusieurs correspondances : "+proches.slice(0,4).join(", ")
-                          : "Aucun utilisateur ne porte ce nom."));
-      return;
-    }
-    if(estMoi(nom)){ toast("La liste est déjà la vôtre."); return; }
-    if(noms.indexOf(nom)>=0){ toast(nom+" y a déjà accès."); return; }
-    poserPartage(l, noms.concat([nom]));
-    toast("Partagée avec "+nom+".");
-  }
-  btn.addEventListener("click", valider);
-  saisie.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); valider(); } });
-  ligne.appendChild(saisie); ligne.appendChild(btn);
-  box.appendChild(ligne);
+  /* une recherche : on tape, les collègues qui correspondent s'affichent dessous (personnes.js) */
+  box.appendChild(ChercherPersonne({personnes:EQUIPE.filter(function(p){ return !estMoi(p.nom); }), exclure:noms,
+    placeholder:"Rechercher un collègue",
+    ajouter:function(nom){
+      if(noms.indexOf(nom)>=0){ toast(nom+" y a déjà accès."); return; }
+      poserPartage(l, noms.concat([nom]));
+      toast("Partagée avec "+nom+".");
+    }}));
   var aide=document.createElement("p"); aide.className="hint"; aide.style.margin="8px 0 0";
   aide.textContent="Chacun la voit dans sa To-do list et peut cocher. "
     +"Deux personnes qui cochent en même temps ne s'effacent pas : chaque ligne garde sa dernière modification.";

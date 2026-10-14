@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="./theme.js?v=20261007a"></script>
+<script src="./personnes.js?v=20261014a"></script>
 <script src="./commun.js?v=20261007a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
@@ -1865,31 +1866,12 @@ function renderDest(){
     host.appendChild(p); return;
   }
 
-  var ligne=document.createElement("div");
-  ligne.style.cssText="display:flex;gap:8px;width:100%;margin-bottom:10px";
-  var saisie=document.createElement("input");
-  saisie.type="text"; saisie.setAttribute("list","dl_equipe");
-  saisie.autocapitalize="words"; saisie.autocomplete="off"; saisie.spellcheck=false;
-  saisie.placeholder = destUnSeul() ? "Nom du chargé d'affaires" : "Nom du destinataire";
-  saisie.style.cssText="flex:1;min-height:44px;padding:11px 14px;border:0;border-radius:var(--r-field);"
-    +"background:var(--field);font-size:16px;font-family:inherit";
-  var btn=document.createElement("button");
-  btn.type="button"; btn.className="act blue"; btn.textContent="Ajouter";
-  btn.style.cssText="flex:0 0 auto";
-  function valider(){ if(ajouterDest(saisie.value)) saisie.value=""; }
-  btn.addEventListener("click", valider);
-  saisie.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); valider(); } });
-  saisie.addEventListener("change", function(){ if(nomConnu(saisie.value)) valider(); });
-  ligne.appendChild(saisie); ligne.appendChild(btn);
-  host.appendChild(ligne);
-
-  var dl=document.getElementById("dl_equipe");
-  if(!dl){ dl=document.createElement("datalist"); dl.id="dl_equipe"; document.body.appendChild(dl); }
-  dl.textContent="";
-  equipeCandidats().forEach(function(pers){
-    if(sel.indexOf(pers.nom)>=0) return;
-    var o=document.createElement("option"); o.value=pers.nom; dl.appendChild(o);
-  });
+  /* une recherche : on tape, les personnes qui correspondent s'affichent dessous (personnes.js) */
+  var cherche=ChercherPersonne({personnes:equipeCandidats(), exclure:sel,
+    placeholder: destUnSeul() ? "Rechercher le chargé d'affaires" : "Rechercher un destinataire",
+    ajouter:function(nom){ ajouterDest(nom); }});
+  cherche.style.marginBottom="10px";
+  host.appendChild(cherche);
 
   if(!sel.length){
     var v=document.createElement("p"); v.className="hint"; v.style.margin="0";
@@ -1901,17 +1883,7 @@ function renderDest(){
   var liste=document.createElement("div");
   liste.style.cssText="display:flex;flex-wrap:wrap;gap:8px;width:100%";
   sel.forEach(function(nom, i){
-    var pil=document.createElement("span");
-    pil.style.cssText="display:inline-flex;align-items:center;gap:8px;padding:8px 10px 8px 13px;"
-      +"border-radius:var(--r-field);background:var(--accent-soft);color:var(--accent);font-size:14.5px;font-weight:600";
-    pil.appendChild(document.createTextNode(nom));
-    var x=document.createElement("button");
-    x.type="button"; x.textContent="×"; x.setAttribute("aria-label", "Retirer "+nom);
-    x.style.cssText="width:22px;height:22px;min-height:22px;border:0;border-radius:50%;"
-      +"background:rgba(180,98,26,.16);color:var(--accent);font-size:15px;line-height:1;cursor:pointer;font-family:inherit";
-    x.addEventListener("click", function(){ sel.splice(i,1); save(); renderDest(); });
-    pil.appendChild(x);
-    liste.appendChild(pil);
+    liste.appendChild(PastillePersonne(nom, function(){ sel.splice(i,1); save(); renderDest(); }));
   });
   host.appendChild(liste);
 }
@@ -2123,7 +2095,10 @@ function renderConfier(){
   if(!$("ch_confier")) return;
   var noms=techniciensPossibles();
   if(CONFIE_A && noms.indexOf(CONFIE_A)<0) CONFIE_A="";
-  chips("ch_confier", noms, function(o){ return CONFIE_A===o; }, function(o){ CONFIE_A=(CONFIE_A===o) ? "" : o; majBoutonConfier(); });
+  /* une recherche plutôt que la liste de tous les techniciens (personnes.js) */
+  var pers=noms.map(function(n){ return (EQUIPE_CACHE||[]).filter(function(p){ return p.nom===n; })[0] || {nom:n}; });
+  ChoisirUnePersonne($("ch_confier"), {personnes:pers, choisi:CONFIE_A, placeholder:"Rechercher le technicien",
+    choisir:function(nom){ CONFIE_A=nom||""; renderConfier(); }});
   $("confierVide").hidden = !!noms.length || !EQUIPE_CACHE;
   var tech = !!(SESSION && SESSION.role==="technicien");
   $("blocConfier").querySelector("h2").textContent = tech ? "Confier à un autre technicien" : "Confier à un technicien";

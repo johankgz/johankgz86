@@ -617,16 +617,18 @@ $("fenX").addEventListener("click", fermerFen);
 $("fen").addEventListener("click", function(e){ if(e.target===$("fen")) fermerFen(); });
 document.addEventListener("keydown", function(e){ if(e.key==="Escape"){ if(!$("vis").hidden){ $("visX").click(); } else if(!$("fen").hidden) fermerFen(); } });
 
-/* une liste de personnes à cocher, rangées par rôle */
+/* une recherche de personnes à cocher, rangées par rôle : rien n'est listé tant qu'on n'a pas tapé */
+function sansAccent(t){ return String(t||"").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim(); }
 function choixPersonnes(host, exclure, auChange){
-  var coches={}, q=el("input"); q.type="search"; q.placeholder="Chercher un nom"; q.setAttribute("aria-label","Chercher un nom");
+  var coches={}, q=el("input"); q.type="search"; q.placeholder="Rechercher un nom"; q.setAttribute("aria-label","Rechercher un nom"); q.setAttribute("autocomplete","off");
   var zone=el("div");
   host.appendChild(q); host.appendChild(zone);
   function peindre(){
     zone.textContent="";
-    var t=q.value.trim().toLowerCase(), rien=true;
+    var t=sansAccent(q.value), rien=true;
     GROUPES.concat([["", "Autres"]]).forEach(function(g){
-      var l=PERS.filter(function(p){ return exclure.indexOf(p.nom)<0 && (g[0] ? p.role===g[0] : !ROLES[p.role]) && (!t || p.nom.toLowerCase().indexOf(t)>=0); });
+      /* sans rien taper : seulement les personnes déjà cochées ; on tape pour trouver les autres */
+      var l=PERS.filter(function(p){ return exclure.indexOf(p.nom)<0 && (g[0] ? p.role===g[0] : !ROLES[p.role]) && (t ? sansAccent(p.nom).indexOf(t)>=0 : !!coches[p.nom]); });
       if(!l.length) return; rien=false;
       zone.appendChild(el("p","groupe-t",g[1]));
       l.forEach(function(p){
@@ -637,7 +639,7 @@ function choixPersonnes(host, exclure, auChange){
         lab.appendChild(cb); lab.appendChild(a); lab.appendChild(n); zone.appendChild(lab);
       });
     });
-    if(rien) zone.appendChild(el("p","note", t ? "Personne ne correspond." : "Tout le monde est déjà dans la discussion."));
+    if(rien) zone.appendChild(el("p","note", t ? "Personne ne correspond à « "+q.value.trim()+" »." : "Tapez les premières lettres d'un prénom ou d'un nom."));
   }
   q.addEventListener("input", peindre);
   peindre();
