@@ -902,6 +902,10 @@ body.choix-ouvert::before{content:"";position:fixed;inset:0;z-index:1190;backgro
 .sv-choix .act{width:100%;margin-top:6px}
 a.act{display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none}
 a.act[hidden]{display:none}
+/* la note générale écrite au stylet, sous son texte */
+.sv-note-encre{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:10px 0}
+.sv-note-encre[hidden]{display:none}
+.sv-note-encre img.sty-encre{max-height:260px}
 </style>
 <link rel="stylesheet" href="./sobre.css?v=20261010a">
 <script src="./clavier.js?v=20261010a" defer></script>
@@ -972,8 +976,9 @@ a.act[hidden]{display:none}
   <div class="block" id="sec-note">
     <h2>Note générale</h2>
     <label class="f"><span class="sr-only">Note générale</span><textarea id="v_note" rows="4" placeholder="Ce qu'il faut retenir de la visite." aria-label="Note générale"></textarea></label>
-    <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button></div>
-    <p class="hint" style="margin:0">Elle figure en tête du PDF du suivi, sous l'objet de la visite.</p>
+    <div class="row" style="margin-top:-6px"><button class="act rec" data-dictee="v_note">Dicter</button>
+      <button type="button" class="act ghost" id="btnNoteStylet"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="m14 6 3 3"/></svg><span>Écrire au stylet</span></button></div>
+    <div id="noteEncre" class="sv-note-encre" hidden></div>
   </div>
 
   <div class="block" id="sec-ts">
@@ -1103,7 +1108,7 @@ a.act[hidden]{display:none}
 <script src="./annotation.js?v=20261009a"></script>
 <script src="./sobre.js?v=20261010a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
-<script src="./stylet.js?v=20261009a"></script>
+<script src="./stylet.js?v=20261015a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1645,6 +1650,32 @@ function nouvelleLigne(cle, texte, encre, rendu){
   S[cle].push(it); save(); rendu();
   return it;
 }
+/* la note générale écrite au stylet : sous le texte ; un toucher la rouvre pour la compléter */
+function ouvrirNoteStylet(){
+  if(!window.Stylet) return;
+  var e=S.visite.noteEncre;
+  var opt={titre: e ? "Compléter la note générale" : "Note générale", bouton: e ? "Enregistrer" : "Ajouter",
+    ok:function(encre){ S.visite.noteEncre=encre; save(); peindreNoteEncre(); renderResume(); }};
+  if(e && e.traits && e.traits.length) opt.traits=e.traits;
+  else if(e && e.src){ opt.fond=e.src; opt.fondL=e.l; opt.fondH=e.h; }
+  Stylet.ouvrir(opt);
+}
+function peindreNoteEncre(){
+  var h=$("noteEncre"), b=$("btnNoteStylet"); if(!h || !b) return;
+  var e=S && S.visite && S.visite.noteEncre, ok=!!(e && window.Stylet && Stylet.valide(e));
+  b.querySelector("span").textContent = ok ? "Compléter au stylet" : "Écrire au stylet";
+  h.textContent=""; h.hidden=!ok;
+  if(!ok) return;
+  var im=Stylet.image(e, "Note générale écrite au stylet"); im.title="Toucher pour compléter";
+  im.addEventListener("click", ouvrirNoteStylet);
+  h.appendChild(im);
+  var x=document.createElement("button"); x.type="button"; x.className="act ghost mini"; x.textContent="Retirer l'écriture";
+  x.addEventListener("click", function(){
+    if(!window.confirm("Retirer l'écriture au stylet de la note générale ?")) return;
+    delete S.visite.noteEncre; save(); peindreNoteEncre(); renderResume();
+  });
+  h.appendChild(x);
+}
 /* une note écrite au stylet (suivis plus anciens) : l'écriture sous la ligne ; un toucher la réécrit */
 var NOTE_MAIN="Note manuscrite";
 function imageEncre(it, rendu){
@@ -1842,6 +1873,7 @@ function paintForm(){
   paintLien();
   paintAppel();
   renderTs(); renderReste(); renderPhotos(); renderPlans(); renderPoints();
+  peindreNoteEncre();
   paintPieces();
   renderDest();
   refreshHeader();
@@ -1969,7 +2001,8 @@ function renderResume(){
     [titreSuivi(), [S.client.nom, refAffaire()].filter(Boolean).join(" · ") || "client à renseigner"],
     [ts.length+" travaux supplémentaire"+(ts.length>1?"s":""), ts.length ? ts.filter(function(x){ return x.fait; }).length+" chiffré"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"")+" ou validé"+(ts.filter(function(x){ return x.fait; }).length>1?"s":"") : "aucune demande"],
     [(S.photos||[]).length+" photo"+((S.photos||[]).length>1?"s":""), annot ? annot+" annotée"+(annot>1?"s":"") : "aucune annotée"],
-    ["Note générale", (S.visite.note||"").trim() ? String(S.visite.note).trim().replace(/\s+/g, " ").slice(0, 60)+((S.visite.note||"").trim().length>60 ? "…" : "") : "aucune"],
+    ["Note générale", ((S.visite.note||"").trim() ? String(S.visite.note).trim().replace(/\s+/g, " ").slice(0, 60)+((S.visite.note||"").trim().length>60 ? "…" : "") : "")
+      + (S.visite.noteEncre ? ((S.visite.note||"").trim() ? " + " : "")+"écriture au stylet" : "") || "aucune"],
     [(S.plans||[]).length+" plan"+((S.plans||[]).length>1?"s":""), (S.plans||[]).length ? modif+" modifié"+(modif>1?"s":"")+" · "+((S.plans||[]).length-modif)+" sans modification" : "aucun plan"],
     resumeReperes(),
     [pts.length+" point"+(pts.length>1?"s":"")+" bloquant"+(pts.length>1?"s":""), rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
@@ -2137,10 +2170,19 @@ function buildPdf(){
     }
     para(S.visite.objet);
   }
-  /* la note générale : celle du suivi, en tête, sous l'objet de la visite */
-  if((S.visite.note||"").trim()){
+  /* la note générale : celle du suivi, en tête, sous l'objet de la visite ; son écriture au stylet dessous */
+  var encreNote=S.visite.noteEncre && window.Stylet && Stylet.valide(S.visite.noteEncre) ? S.visite.noteEncre : null;
+  if((S.visite.note||"").trim() || encreNote){
     if(!((S.visite.type||"").trim() || (S.visite.objet||"").trim())) h2("Objet de la visite", 26);
-    encadre("Note générale", S.visite.note);
+    if((S.visite.note||"").trim()) encadre("Note générale", S.visite.note);
+    else { need(10); doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme); doc.text("Note générale", M+2, y+3); y+=6; setText(INK); }
+    if(encreNote && encreNote.l && encreNote.h){
+      var lN=Math.min(CW, encreNote.l/2*0.2646), hN=lN*encreNote.h/encreNote.l;
+      if(hN>150){ hN=150; lN=hN*encreNote.l/encreNote.h; }
+      need(hN+4);
+      try{ doc.addImage(encreNote.src, "PNG", M+2, y, lN, hN); }catch(e){}
+      y+=hN+4;
+    }
   }
 
   /* une note écrite au stylet, sous le texte de sa ligne (au plus 110 × 40 mm) */
@@ -3399,6 +3441,7 @@ function bindAll(){
   $("btnPlanImport").addEventListener("click", function(){ $("filePlan").click(); });
   $("ts_ajout").addEventListener("click", function(){ ajouterLigne("ts", "ts_texte", renderTs); });
   $("pts_ajout").addEventListener("click", function(){ ajouterLigne("points", "pts_texte", renderPoints); });
+  $("btnNoteStylet").addEventListener("click", ouvrirNoteStylet);
   $("rf_ajout").addEventListener("click", function(){ ajouterLigne("reste", "rf_texte", renderReste); });
   /* les plans : fermés d'office, ouverts à la demande */
   $("plansBascule").addEventListener("click", function(e){ e.stopPropagation(); ouvrirPlans(!!$("plansCorps").hidden); });
