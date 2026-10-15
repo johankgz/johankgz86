@@ -2078,7 +2078,7 @@ function paintForm(){
   paintAmorti();
   paintIrve();
   paintClim();
-  paintCharge();
+  if(COURBE_CHARGE) paintCharge();
   refreshHeader();
 }
 
@@ -2189,7 +2189,11 @@ function chargerFicheSociete(){
 }
 
 /* ---------- onglets ---------- */
-var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]];
+/* la courbe de charge (onglet Conso) est mise de côté pour l'instant : son code reste, il suffit de passer
+   COURBE_CHARGE à true pour la rouvrir (les essais automatiques la rallument avec window.COURBE_CHARGE) */
+var COURBE_CHARGE = window.COURBE_CHARGE === true;
+var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]]
+  .filter(function(t){ return t[0]!=="charge" || COURBE_CHARGE; });
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -4468,7 +4472,7 @@ function bascule(idBouton, idCorps, lire, ecrire){
     save(); peindre();
     if(typeof paintIrve === "function") paintIrve();
     if(typeof paintClim === "function") paintClim();
-    if(typeof paintCharge === "function"){ paintCharge(); if(CK().actif==="oui") chargerCourbesRecues(); }
+    if(COURBE_CHARGE && typeof paintCharge === "function"){ paintCharge(); if(CK().actif==="oui") chargerCourbesRecues(); }
   });
   peindre();
   return peindre;
@@ -5516,7 +5520,7 @@ function buildPdf(){
   })();
   var AM=null;
   if(PV){ try{ AM=amortissement(); }catch(e){ AM=null; } }
-  var KC=CK(), AC=KC.actif==="oui" && KC.courbe ? analyseCharge() : null;
+  var KC=CK(), AC=COURBE_CHARGE && KC.actif==="oui" && KC.courbe ? analyseCharge() : null;
   var IRVE = IV.actif==="oui" && rempli(IV.type, IV.puissance, IV.raccordement, IV.delestage, IV.badge, IV.pied, IV.longueur, IV.note, IV.photos);
   var CLIM = CC.actif==="oui" && rempli(CC.type, CC.puissance, CC.nbInt, CC.alim, CC.liaison, CC.cable, CC.cableLiaison, CC.condensats, CC.pompe, CC.poseExt, CC.goulotte, CC.percements, CC.note, CC.photos);
   var kwc = GV ? Number(GV.kwc) : parseFloat(String(V.kwc||"").replace(",", "."));
