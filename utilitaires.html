@@ -537,6 +537,9 @@ button.rf-texte{appearance:none;-webkit-appearance:none;margin:0;padding:2px 0;b
 
 .outil-titre{margin:0 0 14px;font-size:16px;font-weight:600;color:#F2F5F9;letter-spacing:-.01em}
 .conv-params.trois{grid-template-columns:repeat(3,minmax(0,1fr))}
+.conv-params.seule{grid-template-columns:1fr}
+/* ce qui ne sert pas au réseau choisi (cos φ, kVA, tensions du continu) disparaît vraiment */
+#vue-conversion [hidden],#vue-cable [hidden]{display:none!important}
 .conv-params.trois input{padding-right:34px}
 .surf-zone{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:4px 8px;align-items:end;margin-bottom:10px;
   position:relative;padding-right:30px}
@@ -698,6 +701,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
     <div class="carte-outil conv">
       <p class="conv-legende">Je connais</p>
       <div class="seg" id="convUnite" role="radiogroup" aria-label="Grandeur connue">
+        <button type="button" data-u="W" role="radio">W</button>
         <button type="button" data-u="kW" role="radio">kW</button>
         <button type="button" data-u="kVA" role="radio">kVA</button>
         <button type="button" data-u="A" role="radio">Ampères</button>
@@ -711,8 +715,9 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <div class="seg" id="convReseau" role="radiogroup" aria-label="Réseau">
         <button type="button" data-r="mono" role="radio">Monophasé</button>
         <button type="button" data-r="tri" role="radio">Triphasé</button>
+        <button type="button" data-r="dc" role="radio">Continu</button>
       </div>
-      <div class="conv-params">
+      <div class="conv-params" id="convParams">
         <label><span>Tension</span><input type="text" id="convTension" inputmode="decimal" autocomplete="off"><i>V</i></label>
         <label id="convCosBoite"><span>cos φ</span><input type="text" id="convCos" inputmode="decimal" autocomplete="off"></label>
       </div>
@@ -720,6 +725,11 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
         <button type="button" data-cos="1">1 · chauffage</button>
         <button type="button" data-cos="0.9">0,9 · courant</button>
         <button type="button" data-cos="0.8">0,8 · moteurs</button>
+      </div>
+      <div class="puces" id="convTensionPuces" aria-label="Tensions courantes en continu" hidden>
+        <button type="button" data-v="12">12 V</button>
+        <button type="button" data-v="24">24 V</button>
+        <button type="button" data-v="48">48 V</button>
       </div>
 
       <div class="conv-res" id="convRes" aria-live="polite">
@@ -871,6 +881,15 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
       <div class="seg" id="cabReseau" role="radiogroup" aria-label="Réseau">
         <button type="button" data-r="mono" role="radio">Mono 230 V</button>
         <button type="button" data-r="tri" role="radio">Tri 400 V</button>
+        <button type="button" data-r="dc" role="radio">Continu</button>
+      </div>
+      <div id="cabTensionBoite" hidden>
+        <div class="conv-params seule">
+          <label><span>Tension du circuit</span><input type="text" id="cabU" inputmode="decimal" autocomplete="off" placeholder="48"><i>V</i></label>
+        </div>
+        <div class="puces" id="cabUPuces" aria-label="Tensions courantes en continu" style="margin:10px 0 14px">
+          <button type="button" data-v="12">12 V</button><button type="button" data-v="24">24 V</button><button type="button" data-v="48">48 V</button>
+        </div>
       </div>
       <p class="conv-legende">Conducteur</p>
       <div class="seg" id="cabMetal" role="radiogroup" aria-label="Conducteur">
@@ -882,11 +901,13 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
         <button type="button" data-c="3" role="radio">3 % · éclairage</button>
         <button type="button" data-c="5" role="radio">5 % · autres</button>
       </div>
+      <div id="cabCosBoite">
       <p class="conv-legende">cos φ</p>
       <div class="puces" id="cabCos" style="margin:0 0 4px">
         <button type="button" data-cos="1">1 · chauffage</button>
         <button type="button" data-cos="0.9">0,9 · courant</button>
         <button type="button" data-cos="0.8">0,8 · moteurs</button>
+      </div>
       </div>
 
       <div class="conv-res" aria-live="polite">
@@ -1299,9 +1320,15 @@ peindreCalc();
 /* ---------- conversion électrique ----------
    Monophasé : I = P ÷ (U × cos φ)        I = S ÷ U
    Triphasé  : I = P ÷ (√3 × U × cos φ)   I = S ÷ (√3 × U)
-   avec P en W, S en VA, U la tension entre phases en triphasé. */
-var CONV={u:"kW", r:"mono", v:"", tension:{mono:"230", tri:"400"}, cos:"0.9"};
+   Continu   : I = P ÷ U                  (pas de cos φ ni de kVA : P = U × I)
+   avec P en W, S en VA, U la tension entre phases en triphasé. En continu, la
+   puissance se tape en W (ou en kW). */
+var CONV={u:"kW", r:"mono", v:"", tension:{mono:"230", tri:"400", dc:"48"}, cos:"0.9"};
 try{ var cv=JSON.parse(localStorage.getItem("outils:conversion")||"null"); if(cv) for(var k in cv) CONV[k]=cv[k]; }catch(e){}
+["mono","tri","dc"].forEach(function(r){ if(!CONV.tension[r]) CONV.tension[r]={mono:"230", tri:"400", dc:"48"}[r]; });
+/* les grandeurs proposées : en alternatif kW, kVA, A ; en continu W, kW, A */
+function unitesConv(r){ return r==="dc" ? ["W","kW","A"] : ["kW","kVA","A"]; }
+if(unitesConv(CONV.r).indexOf(CONV.u)<0) CONV.u = CONV.r==="dc" ? "W" : "kW";
 var CALIBRES=[2,6,10,16,20,25,32,40,50,63,80,100,125,160,200,250];
 function lireNombre(t){ var x=parseFloat(String(t||"").replace(/\s/g,"").replace(",",".")); return isFinite(x) ? x : NaN; }
 function fr(n, dec){
@@ -1315,8 +1342,15 @@ function fr(n, dec){
 }
 function garderConv(){ try{ localStorage.setItem("outils:conversion", JSON.stringify(CONV)); }catch(e){} }
 function peindreConv(){
+  var dc=CONV.r==="dc", unites=unitesConv(CONV.r);
   document.querySelectorAll("#convUnite button").forEach(function(b){
+    b.hidden = unites.indexOf(b.getAttribute("data-u"))<0;
     b.setAttribute("aria-checked", b.getAttribute("data-u")===CONV.u ? "true" : "false"); });
+  /* en continu : ni cos φ, ni kVA ; les tensions courantes à la place */
+  $("convCosBoite").hidden=dc; $("convCosPuces").hidden=dc; $("convTensionPuces").hidden=!dc;
+  $("convParams").classList.toggle("seule", dc);
+  var Uc=lireNombre(CONV.tension.dc);
+  document.querySelectorAll("#convTensionPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-v"))===Uc); });
   document.querySelectorAll("#convReseau button").forEach(function(b){
     b.setAttribute("aria-checked", b.getAttribute("data-r")===CONV.r ? "true" : "false"); });
   $("convUniteSaisie").textContent = CONV.u==="A" ? "A" : CONV.u;
@@ -1329,6 +1363,7 @@ function peindreConv(){
   calculerConv();
 }
 function calculerConv(){
+  if(CONV.r==="dc") return calculerConvDc();
   var x=lireNombre(CONV.v), U=lireNombre(CONV.tension[CONV.r]), cos=lireNombre(CONV.cos);
   var tri = CONV.r==="tri", k = tri ? Math.sqrt(3) : 1;
   var cosOk = isFinite(cos) && cos>0 && cos<=1;
@@ -1367,17 +1402,49 @@ function calculerConv(){
     h.appendChild(d);
   });
   $("convFormule").textContent=formule;
+  afficherCalibre(I, grandU==="A", false);
+}
+/* le courant continu : I = P ÷ U, ou P = U × I */
+function calculerConvDc(){
+  var x=lireNombre(CONV.v), U=lireNombre(CONV.tension.dc);
+  var valide = isFinite(x) && x>0 && isFinite(U) && U>0;
+  var P = CONV.u==="kW" ? x*1000 : CONV.u==="W" ? x : U*x;
+  var I = CONV.u==="A" ? x : P/U;
+  if(!valide){
+    $("convVersCable").hidden=true; $("convCalibre").hidden=true;
+    $("convGrand").textContent="—"; $("convGrandU").textContent= CONV.u==="A" ? "W" : "A";
+    $("convAutres").textContent=""; $("convFormule").textContent="Saisissez une valeur."; return;
+  }
+  var sU=fr(U,1)+" V";
+  $("convAutres").textContent="";
+  if(CONV.u==="A"){
+    var enKw = P>=10000;
+    $("convGrand").textContent = enKw ? fr(P/1000,2) : fr(P, P<100 ? 1 : 0);
+    $("convGrandU").textContent = enKw ? "kW" : "W";
+    $("convFormule").textContent="P = U × I = "+sU+" × "+fr(I,2)+" A";
+  } else {
+    $("convGrand").textContent=fr(I, I<10 ? 2 : 1);
+    $("convGrandU").textContent="A";
+    $("convFormule").textContent="I = P ÷ U = "+fr(P, P<100 ? 1 : 0)+" W ÷ "+sU;
+  }
+  afficherCalibre(I, CONV.u!=="A", true);
+}
+/* le premier calibre du commerce au-dessus du courant, et le lien vers la section de câble */
+function afficherCalibre(I, montrer, dc){
   var c=$("convCalibre");
-  if(grandU==="A"){
+  if(montrer){
     var cal=CALIBRES.filter(function(v){ return v>=I-1e-9; })[0];
     c.hidden=!cal;
     /* les disjoncteurs n'existent qu'en calibres standard : on prend le
        premier qui couvre le courant calculé */
-    if(cal) c.textContent="Disjoncteur : "+cal+" A minimum — c'est le premier calibre du commerce au-dessus de "
-      +fr(I,1)+" A. Le câble doit ensuite supporter ces "+cal+" A : sa section dépend de la longueur et de la pose (onglet Câble).";
+    if(cal) c.textContent = dc
+      ? "Protection : "+cal+" A minimum — c'est le premier calibre du commerce au-dessus de "+fr(I,1)+" A. En continu, un disjoncteur "
+        +"ou un fusible prévu pour le courant continu (DC), à la tension du circuit. En basse tension continue, c'est souvent la chute de tension qui fixe la section du câble (onglet Câble)."
+      : "Disjoncteur : "+cal+" A minimum — c'est le premier calibre du commerce au-dessus de "
+        +fr(I,1)+" A. Le câble doit ensuite supporter ces "+cal+" A : sa section dépend de la longueur et de la pose (onglet Câble).";
   } else c.hidden=true;
   var vc=$("convVersCable");
-  var calibre = (grandU==="A") ? CALIBRES.filter(function(v){ return v>=I-1e-9; })[0] : null;
+  var calibre = montrer ? CALIBRES.filter(function(v){ return v>=I-1e-9; })[0] : null;
   vc.hidden = !(isFinite(I) && I>0);
   if(!vc.hidden){
     var pour = calibre || Math.round(I*10)/10;
@@ -1389,7 +1456,18 @@ document.querySelectorAll("#convUnite button").forEach(function(b){
   b.addEventListener("click", function(){ CONV.u=b.getAttribute("data-u"); garderConv(); peindreConv(); $("convValeur").focus(); });
 });
 document.querySelectorAll("#convReseau button").forEach(function(b){
-  b.addEventListener("click", function(){ CONV.r=b.getAttribute("data-r"); garderConv(); peindreConv(); });
+  b.addEventListener("click", function(){
+    var r=b.getAttribute("data-r"), avant=CONV.r;
+    if(r===avant) return;
+    CONV.r=r;
+    /* la grandeur suit : des W passent en kW en alternatif (200 W → 0,2 kW) ; des kVA en kW en continu */
+    if(r!=="dc" && CONV.u==="W"){ var w=lireNombre(CONV.v); CONV.u="kW"; if(isFinite(w)) CONV.v=String(Math.round(w)/1000); }
+    else if(r==="dc" && CONV.u==="kVA") CONV.u="kW";
+    garderConv(); peindreConv();
+  });
+});
+document.querySelectorAll("#convTensionPuces button").forEach(function(b){
+  b.addEventListener("click", function(){ CONV.tension.dc=b.getAttribute("data-v"); garderConv(); peindreConv(); });
 });
 document.querySelectorAll("#convCosPuces button").forEach(function(b){
   b.addEventListener("click", function(){ CONV.cos=b.getAttribute("data-cos"); garderConv(); peindreConv(); });
@@ -1416,10 +1494,13 @@ var ADMIS={
   al:{16:50,25:63,35:80,50:100,70:125,95:160,120:180,150:200,185:225,240:250}
 };
 var RHO={cu:0.0225, al:0.036};
-var CAB={i:"", l:"", r:"mono", m:"cu", c:"3", cos:"1"};
+var CAB={i:"", l:"", r:"mono", m:"cu", c:"3", cos:"1", u:"48"};
 try{ var cb=JSON.parse(localStorage.getItem("outils:cable")||"null"); if(cb) for(var k2 in cb) CAB[k2]=cb[k2]; }catch(e){}
 function garderCab(){ try{ localStorage.setItem("outils:cable", JSON.stringify(CAB)); }catch(e){} }
+/* en continu : l'aller et le retour (b = 2), sans cos φ ni réactance, rapportée à la tension du circuit */
+function tensionCab(){ var u=lireNombre(CAB.u); return u>0 ? u : 48; }
 function chute(S, I, L){
+  if(CAB.r==="dc") return 100*2*RHO[CAB.m]*L/S*I/tensionCab();
   var cos=lireNombre(CAB.cos); if(!(cos>0 && cos<=1)) cos=1;
   var sin=Math.sqrt(Math.max(0, 1-cos*cos));
   var b = CAB.r==="tri" ? 1 : 2;
@@ -1436,6 +1517,11 @@ function peindreCab(){
   document.querySelectorAll("#cabCos button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-cos"))===cos); });
   var I=lireNombre(CAB.i);
   document.querySelectorAll("#cabCalibres button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-i"))===I); });
+  var dc=CAB.r==="dc";
+  $("cabTensionBoite").hidden=!dc; $("cabCosBoite").hidden=dc;
+  if(document.activeElement!==$("cabU")) $("cabU").value=String(CAB.u||"").replace(".",",");
+  var Uc=lireNombre(CAB.u);
+  document.querySelectorAll("#cabUPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-v"))===Uc); });
   if(document.activeElement!==$("cabI")) $("cabI").value=String(CAB.i||"").replace(".",",");
   if(document.activeElement!==$("cabL")) $("cabL").value=String(CAB.l||"").replace(".",",");
   calculerCab();
@@ -1461,12 +1547,14 @@ function calculerCab(){
   }
   if(!sU){
     $("cabS").textContent="—";
-    $("cabExpl").textContent="Même en 240 mm², la chute dépasse "+lim+" % sur "+fr(L,0)+" m : raccourcissez la liaison, passez en triphasé ou mettez des câbles en parallèle.";
+    $("cabExpl").textContent="Même en 240 mm², la chute dépasse "+lim+" % sur "+fr(L,0)+" m : raccourcissez la liaison, "
+      +(CAB.r==="dc" ? "montez en tension (24 → 48 V)" : "passez en triphasé")+" ou mettez des câbles en parallèle.";
     return;
   }
   $("cabS").textContent=nomSection(sU);
   var brins = CAB.r==="tri" ? "5G" : "3G";
-  $("cabRef").textContent=(CAB.m==="al" ? "Aluminium" : "Cuivre")+"  ·  "+brins+nomSection(sU)+" mm²";
+  $("cabRef").textContent=(CAB.m==="al" ? "Aluminium" : "Cuivre")+"  ·  "
+    +(CAB.r==="dc" ? "2 × "+nomSection(sU)+" mm² (+ et −) · "+fr(tensionCab(),1)+" V" : brins+nomSection(sU)+" mm²");
   /* les sections autour : de celle qu'impose le courant jusqu'à une au-delà du choix */
   var debut=possibles.indexOf(sI), fin=Math.min(possibles.length-1, possibles.indexOf(sU)+1);
   for(var j=debut;j<=fin;j++){
@@ -1498,9 +1586,15 @@ document.querySelectorAll("#cabCalibres button").forEach(function(b){
 });
 $("cabI").addEventListener("input", function(){ CAB.i=this.value.replace(",","."); garderCab(); peindreCab(); });
 $("cabL").addEventListener("input", function(){ CAB.l=this.value.replace(",","."); garderCab(); calculerCab(); });
+$("cabU").addEventListener("input", function(){ CAB.u=this.value.replace(",","."); garderCab(); calculerCab();
+  var Uc=lireNombre(CAB.u); document.querySelectorAll("#cabUPuces button").forEach(function(b){ b.classList.toggle("on", parseFloat(b.getAttribute("data-v"))===Uc); }); });
+document.querySelectorAll("#cabUPuces button").forEach(function(b){
+  b.addEventListener("click", function(){ CAB.u=b.getAttribute("data-v"); garderCab(); peindreCab(); });
+});
 $("convVersCable").addEventListener("click", function(){
   CAB.i=this.getAttribute("data-i"); CAB.r=CONV.r;
-  if(isFinite(lireNombre(CONV.cos))) CAB.cos=CONV.cos;
+  if(CONV.r==="dc") CAB.u=CONV.tension.dc;
+  else if(isFinite(lireNombre(CONV.cos))) CAB.cos=CONV.cos;
   garderCab(); peindreCab(); montrer("cable");
   if(!(lireNombre(CAB.l)>0)) $("cabL").focus();
 });
