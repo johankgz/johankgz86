@@ -718,7 +718,10 @@ function construire(){
   var bD=el("button", "tr-btn tr-sec", "Choisir un dossier"); bD.type="button";
   zbtn.appendChild(bF); zbtn.appendChild(bD);
   var zsm=el("small", "", "PDF, plans DWG et DXF, images, Word, Excel, PowerPoint · 25 Mo par fichier");
-  var inF=el("input"); inF.type="file"; inF.multiple=true; inF.accept=ACCEPT; inF.hidden=true; inF.setAttribute("aria-label", "Choisir des fichiers");
+  var inF=el("input"); inF.type="file"; inF.multiple=true; inF.hidden=true; inF.setAttribute("aria-label", "Choisir des fichiers");
+  /* sur l'ordinateur, le sélecteur ne montre que les formats acceptés ; au téléphone, tout se choisit :
+     l'iPhone grise dans Fichiers ce qu'il ne reconnaît pas (un plan .dwg), et le format est vérifié juste après */
+  if(!auDoigt()) inF.accept=ACCEPT;
   var inD=el("input"); inD.type="file"; inD.multiple=true; inD.hidden=true; inD.setAttribute("webkitdirectory", ""); inD.setAttribute("aria-label", "Choisir un dossier");
   zone.appendChild(zp); zone.appendChild(zbtn); zone.appendChild(zsm); zone.appendChild(inF); zone.appendChild(inD);
   bF.addEventListener("click", function(){ inF.click(); });

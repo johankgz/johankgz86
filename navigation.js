@@ -106,7 +106,6 @@ var STYLE=
 +".nv-ch[aria-current=\"page\"] b{color:#B4561A}"
 +".nv-vide{margin:0;padding:14px;color:#5B6470;font-size:14px}"
 +".nv-tous{display:block;margin-top:10px;padding:12px 4px 0;color:#B4561A;font-weight:700;font-size:14.5px;text-decoration:none;border-top:1px solid #E1E5EA}"
-+"@media (max-width:760px){.nv-pc{display:none!important}}"
 +"@media (prefers-reduced-motion:reduce){.nv-tiroir{animation:none}}";
 
 var BTN=null, FOND=null, TIROIR=null, R={}, AVANT=null, LISTE=null, CHARGE=null;
@@ -167,7 +166,7 @@ function construire(){
   vm.appendChild(entree("a", "notes", "Notes", {href:"./mesnotes.html", page:["mesnotes.html"]}));
   vm.appendChild(entree("a", "discu", "Discussions", {href:"./discussions.html", page:["discussions.html"]}));
   vm.appendChild(entree("a", "cloud", "Cloud", {href:"./cloud.html", page:["cloud.html"]}));
-  vm.appendChild(entree("a", "importer", "Importer et exporter", {href:"./importer.html", page:["importer.html"], cls:"nv-pc"}));
+  vm.appendChild(entree("a", "importer", "Importer et exporter", {href:"./importer.html", page:["importer.html"]}));
   vm.appendChild(el("div", "nv-titre", "Outils"));
   var outils=el("div", "nv-outils");
   OUTILS.forEach(function(o){ var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a); });
