@@ -1302,6 +1302,7 @@ body.connexion .ciel{display:none}
 <script src="./carte.js?v=20261009a" defer></script>
 <script src="./finitions.js?v=20261010a" defer></script>
 <script src="./palette.js?v=20261015a" defer></script>
+<script src="./transfert.js?v=20261015a" defer></script>
 <style data-theme-propre>
 /* ---------- le menu à gauche ----------
    iPad et ordinateur : un rail d'icônes sombre (88 px), chaque entrée avec son nom court ;
@@ -1334,6 +1335,7 @@ body.connexion .ciel{display:none}
 #menuG #btnNotes{order:5}
 #menuG #btnDiscu{order:6}
 #menuG #btnCloud{order:7}
+#menuG .mg-transfert{order:8;text-align:left;font:inherit;cursor:pointer}
 #menuG .mg-plans{order:8}
 #menuG #cloche{order:9}
 #menuG .mg-comptes{order:12}
@@ -1371,12 +1373,12 @@ body.connexion .ciel{display:none}
   /* « Analyse de plan » tient sur deux lignes dans le rail */
   #menuG .mg-plans span{white-space:normal;text-align:center;line-height:1.15}
   /* l'entrée ouverte (Outils, Calendrier, Notifications) prend l'orange ; Accueil s'efface pendant ce temps */
-  #menuG .mg-it[aria-current="page"],#menuG #btnOutils[aria-expanded="true"],#menuG #btnChantiers[aria-expanded="true"],#menuG #btnCal[aria-expanded="true"],#menuG #cloche[aria-expanded="true"]{background:#E2761B;color:#fff}
+  #menuG .mg-it[aria-current="page"],#menuG #btnOutils[aria-expanded="true"],#menuG #btnChantiers[aria-expanded="true"],#menuG #btnCal[aria-expanded="true"],#menuG #mgTransfert[aria-expanded="true"],#menuG #cloche[aria-expanded="true"]{background:#E2761B;color:#fff}
   #menuG:has([aria-expanded="true"]) .mg-it[aria-current="page"]{background:rgba(255,255,255,.09);color:#fff}
   #menuG .nb{top:4px;right:9px;background:#F08A2E;color:#1E2329}
   #menuG .ba-droite .cloche.vive{color:#fff}
   @media (hover:hover){ #menuG .mg-it:hover,#menuG .barre-actions .btn-outils:hover,#menuG .ba-droite .cloche:hover{background:rgba(255,255,255,.09);color:#fff}
-    #menuG #btnOutils[aria-expanded="true"]:hover,#menuG #btnChantiers[aria-expanded="true"]:hover,#menuG #btnCal[aria-expanded="true"]:hover,#menuG #cloche[aria-expanded="true"]:hover{background:#E2761B} }
+    #menuG #btnOutils[aria-expanded="true"]:hover,#menuG #btnChantiers[aria-expanded="true"]:hover,#menuG #btnCal[aria-expanded="true"]:hover,#menuG #mgTransfert[aria-expanded="true"]:hover,#menuG #cloche[aria-expanded="true"]:hover{background:#E2761B} }
   #menuG :focus-visible{outline:2px solid #F08A2E;outline-offset:2px}
   /* Outils : un panneau qui s'ouvre à côté du rail */
   body.avec-menu #fenOutils{left:88px;justify-content:flex-start;align-items:stretch}
@@ -1425,6 +1427,7 @@ body.connexion .ciel{display:none}
 @media (max-width:760px) and (prefers-reduced-motion:reduce){ #menuG{transition:none} }
 @media (min-width:761px){ #menuG .mg-tel{display:none} }
 @media (max-width:760px){ #menuG .mg-pc{display:none} }
+@media (max-width:760px){ #menuG .mg-transfert{display:none} }
 </style>
 </head>
 <body>
@@ -1730,6 +1733,7 @@ body.connexion .ciel{display:none}
       </div>
       <a class="mg-it mg-accueil" href="./index.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5v8a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
       <button type="button" class="mg-it mg-reactu" id="btnReactu" aria-label="Réactualiser la page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.65"/><path d="M20 4v4.5h-4.5"/></svg><span>Réactualiser</span></button>
+      <button type="button" class="mg-it mg-transfert" id="mgTransfert" aria-haspopup="dialog" aria-expanded="false" title="Importer et exporter des plans et des documents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/></svg><span>Importer</span></button>
       <a class="mg-it mg-plans" id="mgPlans" href="./plans.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></svg><span class="mg-pc">Analyse de plan</span><span class="mg-tel">Analyse de plan — essai</span></a>
       <a class="mg-it mg-comptes" id="mgComptes" href="./equipe.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21 19c0-2.6-1.6-4.6-4-5.3"/></svg><span class="mg-pc">Comptes</span><span class="mg-tel" id="mgComptesLib">Comptes et sociétés</span></a>
       <div class="mg-titre">Outils</div>
@@ -2645,6 +2649,28 @@ function peindreEntreeTableau(s){
     var a=f.querySelector(".fch-liste a.ch-ligne"); if(a){ e.preventDefault(); location.href=a.href; }
   });
   window.addEventListener("pageshow", function(e){ if(e.persisted) fermer(); });
+})();
+/* ---------- importer et exporter : les plans et les documents, depuis l'ordinateur ----------
+   « Importer » dans le rail (iPad, ordinateur) ouvre la fenêtre de transfert.js : déposer
+   des fichiers ou un dossier dans un chantier, ou enregistrer un chantier sur l'ordinateur.
+   Des fichiers glissés n'importe où sur l'accueil, ou collés (Ctrl V), l'ouvrent aussi. */
+(function(){
+  var b=$("mgTransfert");
+  var reglages={
+    chantiers:function(){ return DERNIERS_CHANTIERS; },
+    apres:function(){ if(SESSION_COURANTE) charger(SESSION_COURANTE); },
+    quandOuvert:function(v){ if(b) b.setAttribute("aria-expanded", v ? "true" : "false"); }
+  };
+  if(b) b.addEventListener("click", function(){
+    if(!window.Transfert) return;
+    if(Transfert.ouvert()){ Transfert.fermer(); return; }
+    Transfert.ouvrir(Object.assign({onglet:"importer"}, reglages));
+  });
+  function brancher(){
+    if(!window.Transfert) return;
+    Transfert.depot(Object.assign({actif:function(){ return !!SESSION_COURANTE; }}, reglages));
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", brancher); else brancher();
 })();
 /* ---------- le calendrier : les semaines, et un rappel sur un jour ----------
    Le bouton entre Outils et la to-do list ouvre le mois, avec les numéros

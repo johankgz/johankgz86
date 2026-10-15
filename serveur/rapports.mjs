@@ -752,18 +752,36 @@ function chantierDe(idx, cle) {
   return idx.chantiers[String(cle).split("/")[0]] || null;
 }
 /* le type d'un document d'après son extension : un plan peut être une
-   image, un PDF reste un PDF, un lot de photos reste un ZIP. */
+   image, un PDF reste un PDF, un lot de photos reste un ZIP. Un document
+   importé depuis l'ordinateur peut aussi être un plan DWG ou DXF, un Word,
+   un Excel. */
 const TYPES_FICHIER = { pdf: "application/pdf", zip: "application/zip", jpg: "image/jpeg",
-                        jpeg: "image/jpeg", png: "image/png", webp: "image/webp" };
+                        jpeg: "image/jpeg", png: "image/png", webp: "image/webp",
+                        dwg: "application/acad", dxf: "application/dxf",
+                        doc: "application/msword", docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                        odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet",
+                        txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8" };
 function typeDuFichier(cle) {
   const ext = String(cle).split(".").pop().toLowerCase();
   return TYPES_FICHIER[ext] || "application/pdf";
 }
+/* ce que le navigateur montre dans un onglet (PDF, image) ; le reste
+   (ZIP, plan DWG, Word, Excel…) se télécharge et s'ouvre dans son logiciel */
+function enPieceJointe(cle) {
+  return !/\.(pdf|jpe?g|png|webp)$/i.test(String(cle));
+}
 /* le nom du fichier téléchargé : code travaux + nom du chantier, puis le nom
    d'origine du document. Ainsi « releve.pdf » devient « 2024-105 Dupont Martin
    - releve.pdf » quand on l'enregistre depuis le navigateur. */
-function nomTelechargement(chantier, cle) {
-  const base = String(cle).split("/").pop();
+function nomTelechargement(chantier, cle, f) {
+  let base = String(cle).split("/").pop();
+  /* un document importé garde le nom qu'on lui a donné (« Plan RDC.pdf »), pas sa clé */
+  if (f && f.type === "technique" && f.titre) {
+    const t = String(f.titre).normalize("NFC").replace(/[\/\\:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+    if (t) base = t + base.slice(base.lastIndexOf("."));
+  }
   const etiq = chantier
     ? [chantier.ref, chantier.client].filter(Boolean).join(" ")
         .replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 80)
@@ -1306,7 +1324,7 @@ async function traiter(req) {
       const blob = await st.get(cle, { type: "arrayBuffer" });
       if (!blob) return json({ erreur: "Document introuvable." }, 404);
       return new Response(blob, { headers: { "content-type": typeDuFichier(cle),
-        "content-disposition": dispositionNom(nomTelechargement(c, cle), cle.endsWith(".zip")), "cache-control": "no-store" } });
+        "content-disposition": dispositionNom(nomTelechargement(c, cle, f), enPieceJointe(cle)), "cache-control": "no-store" } });
     }
 
     const court = (t, n) => String(t || "").replace(/\s+/g, " ").trim().slice(0, n);
@@ -2027,11 +2045,15 @@ async function traiter(req) {
     }
     /* un relevé technique remplace le précédent ; un suivi crée une version par visite */
     /* commande : une par jour et par personne ; suivi : une par visite ; relevé : une seule */
-    /* un document technique n'est pas toujours un PDF : plan, photo, schéma.
-       On ne garde que les formats qu'un navigateur sait rouvrir. */
-    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp"];
-    const ext = technique && FORMATS_TECHNIQUE.indexOf(String(d.ext || "pdf").toLowerCase()) >= 0
-      ? String(d.ext || "pdf").toLowerCase() : "pdf";
+    /* un document technique n'est pas toujours un PDF : plan, photo, schéma,
+       et, importé depuis l'ordinateur, un plan DWG ou DXF, un Word, un Excel.
+       Jamais une page web ni un programme : rien qui s'exécuterait. */
+    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv"];
+    const extDemandee = String(d.ext || "pdf").toLowerCase();
+    if (technique && FORMATS_TECHNIQUE.indexOf(extDemandee) < 0) {
+      return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte." }, 415);
+    }
+    const ext = technique ? extDemandee : "pdf";
     if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);
 
     const nomFichier = schema
@@ -2074,7 +2096,9 @@ async function traiter(req) {
     const cle = ref + "/" + nomFichier;
 
     const octets = Buffer.from(d.pdf, "base64");
-    if (octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Rapport trop lourd pour la publication." }, 413);
+    /* un plan d'architecte pèse vite 10 ou 20 Mo : 25 Mo pour un document technique */
+    if (technique && octets.length > 25 * 1024 * 1024) return json({ erreur: "Document trop lourd : 25 Mo au plus." }, 413);
+    if (!technique && octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Rapport trop lourd pour la publication." }, 413);
     await store.set(cle, octets, { metadata: { type: typeDuFichier(cle) } });
 
     const idx = await lireIndex();
@@ -2215,13 +2239,17 @@ async function traiter(req) {
     }
 
     let prevenus = [];
-    if (!photos) {
+    /* des documents importés d'un coup depuis l'ordinateur : une seule
+       notification pour le lot, envoyée avec le dernier (les autres arrivent
+       « silencieux ») */
+    const lot = technique ? Math.max(0, Math.min(500, parseInt(d.lot, 10) || 0)) : 0;
+    if (!photos && !(technique && d.silencieux === true)) {
       /* et sur le téléphone, sans faire attendre la publication */
       lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
-        titre: libelleDocument(entree),
-        texte: (c.client || ref) + " — déposé par " + entree.auteur,
+        titre: lot > 1 ? lot + " documents ajoutés" : libelleDocument(entree),
+        texte: (c.client || ref) + " — " + (lot > 1 ? "déposés" : "déposé") + " par " + entree.auteur,
         url: "./chantier.html?ref=" + encodeURIComponent(ref),
-        tag: "doc-" + cle
+        tag: lot > 1 ? "docs-" + ref + "-" + Date.now().toString(36) : "doc-" + cle
       }, contactPush(url.origin), { comptes, exclure: [personne.nom, entree.auteur] })).catch(() => {});
     }
 
@@ -3491,7 +3519,7 @@ async function traiter(req) {
       const blob = await store.get(cle, { type: "arrayBuffer" });
       if (!blob) return json({ erreur: "Fichier introuvable." }, 404);
       return new Response(blob, { headers: { "content-type": x.type || typeDuFichier(cle),
-        "content-disposition": dispositionNom(nomTelechargement(c, cle), cle.endsWith(".zip")), "cache-control": "no-store" } });
+        "content-disposition": dispositionNom(nomTelechargement(c, cle), enPieceJointe(cle)), "cache-control": "no-store" } });
     }
   }
 
@@ -4043,11 +4071,10 @@ async function traiter(req) {
       }
     } catch { /* la lecture du document prime sur son suivi */ }
 
-    const zip = cle.endsWith(".zip");
     return new Response(blob, {
       headers: {
         "content-type": typeDuFichier(cle),
-        "content-disposition": dispositionNom(nomTelechargement(chantierDe(idx, cle), cle), zip),
+        "content-disposition": dispositionNom(nomTelechargement(chantierDe(idx, cle), cle, f), enPieceJointe(cle)),
         "cache-control": "no-store"
       }
     });

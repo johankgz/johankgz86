@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<script src="./theme.js?v=20261007a"></script>
+<script src="./commun.js?v=20261007a" defer></script>
+<script src="./reseau.js?v=20261010a"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0A0E14">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<title>Importer et exporter — Suivi travaux 360</title>
+<style>
+/* =====================================================================
+   Importer et exporter : la page que le logiciel installé ouvre depuis
+   l'Explorateur (« Ouvrir avec Suivi travaux 360 ») et depuis l'icône de
+   la barre des tâches. Le contenu est celui de transfert.js, en pleine
+   page : déposer des plans et des documents dans un chantier, ou
+   enregistrer tout un chantier dans un dossier de l'ordinateur.
+   ===================================================================== */
+@font-face{font-family:"Plus Jakarta Sans";src:url("./polices/jakarta-var.woff2") format("woff2-variations");font-weight:200 800;font-style:normal;font-display:swap}
+:root{
+  --g-900:#0A0E14;--trait-tech:rgba(255,255,255,.10);
+  --bg:#383E42;--ink:#0C1119;--accent-vif:#FB923C;--data-vif:#22D3EE;
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+[hidden]{display:none!important}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;min-height:100vh;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:16px;line-height:1.45;-webkit-font-smoothing:antialiased;letter-spacing:-.006em}
+button,input,textarea,select{font-family:inherit}
+a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible{outline:3px solid var(--accent-vif);outline-offset:2px}
+header{position:sticky;top:0;z-index:20;background:var(--g-900);color:#E7ECF2;border-bottom:1px solid var(--trait-tech);
+  padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;display:flex;align-items:center;gap:10px;min-height:58px}
+header::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%)}
+header a.menu{display:inline-flex;align-items:center;min-height:36px;padding:0 12px;border-radius:8px;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.18);color:#EDF1F6;font-size:13.5px;font-weight:600;text-decoration:none}
+header h1{margin:0;font-size:19px;font-weight:600;color:#F2F5F9;flex:1;min-width:0;display:flex;align-items:center;gap:8px}
+header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
+main{max-width:860px;margin:0 auto;padding:18px 16px 40px}
+.hors{background:#FFFFFF;color:#1E2329;border-radius:16px;padding:22px 20px;font-size:15.5px}
+.hors a{color:#B4621A;font-weight:700}
+@media (max-width:720px){ main{padding:0 0 24px} #hote .tr-boite{border-radius:0;border-left:0;border-right:0} .hors{border-radius:0} }
+</style>
+</head>
+<body>
+<header>
+  <a class="menu" href="./index.html">Menu</a>
+  <h1><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 9.5 12 4.5l5 5M12 4.5v10"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/></svg>Importer et exporter</h1>
+</header>
+<main>
+  <div id="hote"></div>
+  <p class="hors" id="hors" hidden>Connectez-vous d'abord : <a href="./index.html">ouvrir Suivi travaux 360</a>, puis revenez ici (ou rouvrez le fichier avec Suivi travaux 360).</p>
+</main>
+<script src="./transfert.js?v=20261015a"></script>
+<script>
+(function(){
+"use strict";
+var s=null;
+try{ s=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+if(!s || !s.jeton){ document.getElementById("hors").hidden=false; return; }
+var q=new URLSearchParams(location.search);
+Transfert.ouvrir({hote:document.getElementById("hote"), onglet:q.get("onglet")==="exporter" ? "exporter" : "importer", ref:q.get("ref")||""});
+/* déposé n'importe où sur la page, ou collé (Ctrl V) */
+Transfert.depot({});
+/* ouvert depuis l'Explorateur ou le Finder : « Ouvrir avec Suivi travaux 360 » (logiciel installé, Edge ou Chrome) */
+if(window.launchQueue && window.launchQueue.setConsumer){
+  window.launchQueue.setConsumer(function(p){
+    if(!p || !p.files || !p.files.length) return;
+    Promise.all(p.files.map(function(h){ return h.getFile().catch(function(){ return null; }); })).then(function(l){
+      l=l.filter(Boolean);
+      if(l.length) Transfert.ouvrir({onglet:"importer", fichiers:l.map(function(f){ return {file:f, chemin:""}; })});
+    });
+  });
+}
+})();
+</script>
+</body>
+</html>

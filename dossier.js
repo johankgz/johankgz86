@@ -471,7 +471,32 @@ function telecharger(f){
   return fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
     .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); });
 }
-function nomFichier(f){ return String(f.cle).split("/").pop(); }
+function nomFichier(f){
+  var base=String(f.cle).split("/").pop();
+  /* un document importé garde le nom qu'on lui a donné (« Plan RDC.pdf »), pas sa clé */
+  if(f.type==="technique" && f.titre){
+    var t=String(f.titre).normalize("NFC").replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+    if(t) return t+base.slice(base.lastIndexOf("."));
+  }
+  return base;
+}
+/* glisser un document de la liste vers le bureau ou un dossier de l'ordinateur (Edge, Chrome) */
+var TYPES_GLISSER={pdf:"application/pdf", zip:"application/zip", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp",
+  dwg:"application/acad", dxf:"application/dxf", doc:"application/msword", docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls:"application/vnd.ms-excel", xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ppt:"application/vnd.ms-powerpoint", pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",
+  odt:"application/vnd.oasis.opendocument.text", ods:"application/vnd.oasis.opendocument.spreadsheet", txt:"text/plain", csv:"text/csv"};
+function glisserVersOrdinateur(a, f){
+  a.draggable=true;
+  a.addEventListener("dragstart", function(e){
+    if(!e.dataTransfer) return;
+    var ext=String(f.cle).split(".").pop().toLowerCase();
+    var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
+    var url=location.origin+API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+    try{ e.dataTransfer.setData("DownloadURL", (TYPES_GLISSER[ext]||"application/octet-stream")+":"+nom+":"+url); }catch(er){}
+    try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
+  });
+}
 function partagerDocument(f, bouton){
   var avant = bouton ? bouton.textContent : "";
   if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
@@ -1084,6 +1109,9 @@ function carteDossier(c, i, opts){
     if(zip){
       a.style.cursor="pointer";
       a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
+    } else if(/\.(dwg|dxf)$/i.test(f.cle||"")){
+      /* un plan DWG ou DXF : le navigateur ne l'affiche pas, l'outil Plan si (cotes, symboles) */
+      a.href="./dwg.html?cle="+encodeURIComponent(f.cle);
     } else {
       a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
       /* toujours à part, même dans l'appli installée : le téléphone l'ouvre
@@ -1091,6 +1119,7 @@ function carteDossier(c, i, opts){
          Dans la même fenêtre, le PDF remplaçait l'appli, sans barre ni retour. */
       a.target="_blank"; a.rel="noopener";
     }
+    glisserVersOrdinateur(a, f);
     a.addEventListener("click", function(){
       /* accusé de lecture immédiat, sans dépendre du chargement du PDF */
       fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})

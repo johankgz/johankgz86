@@ -5942,7 +5942,7 @@ function peindreSite(){
   if(!SITE_DOCS){ var v0=document.createElement("p"); v0.className="fs-vide"; v0.textContent="Chargement…"; h.appendChild(v0); return; }
   var q=String($("fsCherche").value||"").trim().toLowerCase();
   var l=SITE_DOCS.filter(function(c){ return !q || (c.ref+" "+(c.client||"")+" "+(c.adresse||"")+" "+c.docs.map(function(d){ return d.titre||""; }).join(" ")).toLowerCase().indexOf(q)>=0; });
-  if(!l.length){ var v=document.createElement("p"); v.className="fs-vide"; v.textContent = SITE_DOCS.length ? "Aucun chantier ne correspond." : "Aucun plan (PDF ou image) dans les documents techniques de vos chantiers. Déposez-en un dans l'appli Documents techniques."; h.appendChild(v); return; }
+  if(!l.length){ var v=document.createElement("p"); v.className="fs-vide"; v.textContent = SITE_DOCS.length ? "Aucun chantier ne correspond." : "Aucun plan (DWG, DXF, PDF ou image) dans les documents de vos chantiers. Importez-en un : « Importer » dans le menu de l'accueil."; h.appendChild(v); return; }
   l.forEach(function(c){
     var bloc=document.createElement("div"); bloc.className="fs-chantier";
     var t=document.createElement("h3"); var r=document.createElement("span"); r.textContent=c.ref; t.appendChild(r); t.appendChild(document.createTextNode(c.client||"")); bloc.appendChild(t);
@@ -5966,7 +5966,7 @@ function ouvrirFenSite(){
     .then(function(d){
       SITE_DOCS=(d.chantiers||[]).map(function(c){
         return {ref:c.ref, client:c.client||"", adresse:c.adresse||"", maj:c.maj||"",
-          docs:(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||""); })};
+          docs:(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(f.cle||""); })};
       }).filter(function(c){ return c.docs.length; });
       peindreSite();
     })
@@ -5985,7 +5985,7 @@ $("fsCherche").addEventListener("input", peindreSite);
 /* venu d'un chantier : dwg.html?cle=REF/technique-….pdf ouvre le document tout de suite */
 (function(){
   var cle=new URLSearchParams(location.search).get("cle")||"";
-  if(cle && /\.(pdf|jpe?g|png|webp)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop()); }, 50);
+  if(cle && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop()); }, 50);
 })();
 $("fichier").addEventListener("change", function(){ var f=this.files[0]; this.value=""; ouvrirFichier(f); });
 ["dragenter","dragover"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.add("survol"); }); });

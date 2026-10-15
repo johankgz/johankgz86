@@ -1122,7 +1122,8 @@ header{overflow-anchor:none}
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./dossier.js?v=20261014a"></script>
+<script src="./dossier.js?v=20261015a"></script>
+<script src="./transfert.js?v=20261015a"></script>
 <script src="./qr.js?v=20261009a"></script>
 <script>
 (function(){
@@ -1209,7 +1210,18 @@ var REF=(function(){
 })();
 if(!REF) location.replace("./index.html?sortie");
 
-var CHANTIER=null;
+var CHANTIER=null, TOUS=null;
+/* l'import et l'export (transfert.js) : ce chantier d'office, les autres à portée */
+function reglagesTransfert(o){
+  return Object.assign({ref:CHANTIER ? CHANTIER.ref : REF, chantiers:function(){ return TOUS; }, apres:function(){ charger(); }}, o||{});
+}
+if(window.Transfert) Transfert.depot({
+  ref:function(){ return CHANTIER ? CHANTIER.ref : ""; },
+  chantier:function(){ return CHANTIER; },
+  chantiers:function(){ return TOUS; },
+  apres:function(){ charger(); },
+  actif:function(){ return !!CHANTIER; }
+});
 var TOUT_PUBLIER_DEMANDE=(function(){
   try{ return new URLSearchParams(location.search).get("toutPublier")==="1"; }catch(e){ return false; }
 })();
@@ -1416,7 +1428,9 @@ var ICONES={
   schema:'<path d="M12 3v4"/><path d="M5 7h14"/><path d="M5 7v5M12 7v5M19 7v5"/><path d="M3.5 12h3M10.5 12h3M17.5 12h3"/><path d="M5 12v4.5M12 12v4.5M19 12v4.5"/><path d="M3 20.5h18"/>',
   discussion:'<path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/>',
   localisation:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>',
-  publierTout:'<path d="M3.5 12 20.5 4 13 20.5l-2.7-6.8L3.5 12z"/><path d="M10.3 13.7 20.5 4"/>'
+  publierTout:'<path d="M3.5 12 20.5 4 13 20.5l-2.7-6.8L3.5 12z"/><path d="M10.3 13.7 20.5 4"/>',
+  importer:'<path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/>',
+  exporter:'<path d="M12 4v11.5M7.5 11 12 15.5 16.5 11"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/>'
 };
 /* [clé, libellé, page, onglet d'arrivée] */
 var ACTIONS_TECH=[
@@ -1528,6 +1542,17 @@ function peindreActions(){
   pub.appendChild(pt);
   pub.addEventListener("click", ouvrirToutPublier);
   hote.appendChild(pub);
+  /* importer des plans et des documents depuis l'ordinateur, ou enregistrer tout le chantier dessus */
+  [["importer", "Importer", aAcces("technique")], ["exporter", "Exporter", true]].forEach(function(x){
+    if(!x[2] || !window.Transfert) return;
+    var bt=document.createElement("button");
+    bt.type="button"; bt.className="transfert"; bt.id="onglet"+x[1];
+    bt.setAttribute("aria-haspopup", "dialog");
+    bt.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES[x[0]]+'</svg>';
+    var lb=document.createElement("span"); lb.textContent=x[1]; bt.appendChild(lb);
+    bt.addEventListener("click", function(){ Transfert.ouvrir(reglagesTransfert({onglet:x[0]})); });
+    hote.appendChild(bt);
+  });
   majDebord();
   peindreModifsActions();
   chargerNonLusIci();
@@ -2204,7 +2229,7 @@ function charger(){
         $("docs").textContent="";
         return;
       }
-      CHANTIER=trouve;
+      CHANTIER=trouve; TOUS=res.d.chantiers||[];
       Dossier.moi(res.d.moi || SESSION);
       document.title = (CHANTIER.client || CHANTIER.ref) + " — Chantier";
       $("titre").textContent="Chantier";
