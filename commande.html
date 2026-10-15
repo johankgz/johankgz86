@@ -172,6 +172,13 @@ h2 .sv-switch{margin-left:auto}
 .sv-nb{margin-left:auto;font-size:12.5px;font-weight:600;color:var(--ink-2,#6b6458)}
 .sv-nb + .sv-switch{margin-left:0}
 .block.replie > h2{margin-bottom:0;cursor:pointer}
+/* les articles saisis : la liste de la commande, à ajuster sur place */
+.art-ligne{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--rule)}
+.art-ligne:last-child{border-bottom:0}
+.art-nom{flex:1;min-width:0;font-size:15px;overflow-wrap:anywhere}
+.art-nom span{display:block;font-size:12px;color:var(--ink-3)}
+#resume input.art-qte{width:64px;min-height:42px;text-align:center;font-size:16px;font-weight:700;padding:8px 4px;border:0;
+  border-radius:var(--r-field);background:var(--accent-soft);color:var(--accent);box-shadow:none;flex:0 0 auto}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:10px;margin-top:12px}
 .thumb{position:relative;border-radius:var(--r-field);overflow:hidden;background:#1A1815;box-shadow:var(--shadow)}
 .thumb img{display:block;width:100%;height:106px;object-fit:cover}
@@ -818,8 +825,8 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 </section>
 
 <section id="tab-envoi" hidden>
-  <div class="block">
-    <h2>Récapitulatif</h2>
+  <div class="block" id="sec-articles">
+    <h2>Articles saisis<span class="sv-nb" id="artNb"></span></h2>
     <div id="resume"></div>
     <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer le PDF</button></div>
     <p class="hint" id="pdfInfo"></p>
@@ -841,7 +848,7 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 <div class="toast" id="toast" hidden></div>
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
-<script src="./sobre.js?v=20261014a"></script>
+<script src="./sobre.js?v=20261015a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
 <script>
@@ -1252,23 +1259,16 @@ function ouvrirCatalogue(oui){
   majNbCatalogue();
 }
 function majNbCatalogue(){
-  var n=(S && S.lignes ? S.lignes : []).filter(function(l){ return l.qte>0; }).length;
+  var n=(S && S.lignes ? S.lignes : []).filter(function(l){ return l.qte>0 && auCatalogue(l); }).length;
   $("catNb").textContent = $("catCorps").hidden && n ? n+" article"+(n>1 ? "s" : "") : "";
 }
 function renderCatalogue(){
   majNbCatalogue();
   var host=$("catalogue"); host.textContent="";
   var cata=CATALOGUE[S.metier]||{}, rub={};
-  /* les articles hors catalogue (repris d'un schéma, ou « Divers ») ont
-     leur rubrique aussi, en tête, pour qu'on les voie et les ajuste */
-  S.lignes.forEach(function(l){
-    if(!(l.qte>0)) return;
-    var dans = cata[l.cat] && cata[l.cat].some(function(a){ return a[0]===l.nom; });
-    if(dans) return;
-    rub[l.cat]=rub[l.cat]||[];
-    if(!rub[l.cat].some(function(a){ return a[0]===l.nom; })) rub[l.cat].push([l.nom, l.unite||"u"]);
-  });
-  Object.keys(cata).forEach(function(cat){ rub[cat]=(rub[cat]||[]).concat(cata[cat]); });
+  /* le catalogue ne montre que ses articles : ceux ajoutés à la main (« Article ») ou repris
+     d'un schéma sont dans « Articles saisis », avec tous les articles de la commande */
+  Object.keys(cata).forEach(function(cat){ rub[cat]=cata[cat]; });
   var filtre=($("recherche").value||"").trim().toLowerCase();
   Object.keys(rub).forEach(function(cat){
     var articles=rub[cat].filter(function(a){
@@ -1471,21 +1471,36 @@ function chips(host, opts, get, set){
   });
 }
 
-/* ---------- récapitulatif ---------- */
+/* ---------- les articles saisis ---------- */
 function lignesUtiles(){ return S.lignes.filter(function(l){ return l.qte>0; }); }
+/* un article du catalogue du métier (sinon : ajouté à la main, ou repris d'un schéma) */
+function auCatalogue(l){ var a=(CATALOGUE[S.metier]||{})[l.cat]; return !!(a && a.some(function(x){ return x[0]===l.nom; })); }
+/* une quantité changée dans la liste : à zéro, l'article sort de la commande */
+function changerQte(l, q){
+  l.qte=Math.max(0, q||0);
+  if(!(l.qte>0) && !auCatalogue(l)){ var i=S.lignes.indexOf(l); if(i>=0) S.lignes.splice(i, 1); }
+  save(); renderCatalogue(); renderResume();
+}
+/* les articles saisis, à la place du récapitulatif : tout ce que la commande contient (catalogue,
+   « Article », schéma), dans l'ordre où on l'a saisi, avec − et + pour ajuster */
 function renderResume(){
   var host=$("resume"); if(!host) return;
   host.textContent="";
-  [["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
-   ["Métier", S.metier],
-   ["Articles commandés", String(lignesUtiles().length)],
-   ["Destinataires", destinataires().join(", ")||"aucun"]].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
+  var lu=lignesUtiles(), nb=$("artNb");
+  if(nb) nb.textContent = lu.length ? lu.length+" article"+(lu.length>1 ? "s" : "") : "";
+  if(!lu.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Aucun article saisi pour l'instant."; host.appendChild(v); return; }
+  lu.forEach(function(x){
+    var row=document.createElement("div"); row.className="art-ligne";
+    var lab=document.createElement("div"); lab.className="art-nom"; lab.textContent=x.nom;
+    var u=document.createElement("span"); u.textContent=x.cat+" · "+(x.unite||"u"); lab.appendChild(u);
+    var moins=stepper("−", function(){ changerQte(x, (parseFloat(x.qte)||0)-1); }); moins.setAttribute("aria-label", "Un de moins : "+x.nom);
+    var plus=stepper("+", function(){ changerQte(x, (parseFloat(x.qte)||0)+1); }); plus.setAttribute("aria-label", "Un de plus : "+x.nom);
+    var val=document.createElement("input"); val.type="number"; val.inputMode="numeric"; val.className="art-qte"; val.value=x.qte;
+    val.setAttribute("aria-label", "Quantité : "+x.nom); val.setAttribute("data-sans-marque", "");   /* une ligne qui bouge : pas de surlignage « modifié » */
+    val.addEventListener("input", function(){ x.qte=Math.max(0, parseFloat(val.value)||0); save(); });
+    val.addEventListener("change", function(){ changerQte(x, parseFloat(val.value)||0); });
+    row.appendChild(lab); row.appendChild(moins); row.appendChild(val); row.appendChild(plus);
+    host.appendChild(row);
   });
 }
 
@@ -2179,7 +2194,8 @@ function bindAll(){
     var nom=($("d_nom").value||"").trim();
     if(!nom){ toast("Indiquez la désignation."); return; }
     var q=parseFloat($("d_qte").value)||1;
-    S.lignes.push({cat:"Divers", nom:nom, unite:"u", qte:q});
+    var deja=S.lignes.filter(function(l){ return l.cat==="Divers" && l.nom.toLowerCase()===nom.toLowerCase(); })[0];
+    if(deja) deja.qte=(parseFloat(deja.qte)||0)+q; else S.lignes.push({cat:"Divers", nom:nom, unite:"u", qte:q});
     $("d_nom").value=""; $("d_qte").value="";
     save(); renderCatalogue(); renderResume();
     toast(nom+" ajouté.");
