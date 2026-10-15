@@ -791,19 +791,6 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
     <div class="chips" id="ch_metier"></div>
   </div>
 
-  <div class="block">
-    <h2>Destinataire</h2>
-    <div class="choix-pub" id="choixPublication">
-      <button type="button" class="opt on" data-pub="dossier">
-        <b>Dans le dossier</b><span id="pubDossierQui">visible par l'équipe du chantier</span>
-      </button>
-      <button type="button" class="opt" data-pub="cible">
-        <b>Seulement à une personne</b><span>vous choisissez qui</span>
-      </button>
-    </div>
-    <p class="legend" id="legendeDest" hidden id="pubTitre">Qui doit recevoir cette commande</p>
-    <div class="chips" id="pubDest"></div>
-  </div>
 </section>
 
 <section id="tab-commande" hidden>
@@ -832,10 +819,11 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
     <p class="hint" id="pdfInfo"></p>
   </div>
 
-  <div class="block">
-    <h2>Publication</h2>
-    <p class="hint" id="pubIntro" style="margin:-8px 0 14px">La commande part directement dans l'espace des personnes choisies dans l'onglet Travaux.</p>
-    <button class="act blue" id="btnPublier" style="width:100%">Publier</button>
+  <div class="block" id="sec-enregistrer">
+    <h2>Enregistrer</h2>
+    <p class="hint" id="pubIntro" style="margin:-8px 0 4px">La commande s'enregistre dans le dossier du chantier.</p>
+    <p class="hint" id="pubDossierQui" style="margin:0 0 14px"></p>
+    <button class="act blue" id="btnPublier" style="width:100%">Enregistrer la commande</button>
     <p class="hint" id="pubEtat"></p>
   </div>
 
@@ -1757,38 +1745,28 @@ function renderDest(){
 /* ---------- publication ---------- */
 function publierRapport(meta){
   if(!apiPret()) return;
-  var sel=destinataires();
-  var versDossier = (typeof PUB_MODE !== "undefined") && PUB_MODE === "dossier";
-  if(!versDossier && !sel.length){ toast("Choisissez la personne destinataire."); return; }
+  /* une commande va toujours dans le dossier du chantier */
+  var versDossier = true;
   var doc;
   try{ doc=buildPdf(); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger (connexion lente) : réessayez dans quelques secondes." : "Rapport impossible à générer."); return; }
   var b64=doc.output("datauristring").split(",")[1];
   if(b64.length*0.75 > 5.4*1024*1024){ toast("Rapport trop lourd. Retirez quelques photos."); return; }
   var el=$("pubEtat");
-  meta.destinataires = versDossier ? [] : sel.slice();
-  if(versDossier) meta.dossier = true;
+  meta.destinataires = [];
+  meta.dossier = true;
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
-  el.textContent="Publication en cours…";
+  el.textContent="Enregistrement en cours…";
   fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(Object.assign({pdf:b64}, meta))})
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
-    if(!res.ok){ el.textContent = res.d.erreur || "Publication refusée."; return; }
+    if(!res.ok){ el.textContent = res.d.erreur || "Enregistrement refusé."; return; }
     effacerMarques();
-    var msg = res.d.remplace
-      ? (APP_TYPE==="releve" ? "Relevé mis à jour (version "+res.d.versions+")."
-                             : "Visite remplacée par cette nouvelle version.")
-      : "Rapport publié.";
-    el.textContent = msg + (versDossier ? " Disponible pour l'équipe du dossier."
-                                        : " Disponible pour " + meta.destinataires.join(", ") + ".");
+    el.textContent = "Commande enregistrée dans le dossier, disponible pour son équipe.";
     deposerFiche(res.d.cle, el);
-    /* publiée dans le dossier, la commande est faite : on repart d'une
+    /* enregistrée dans le dossier, la commande est faite : on repart d'une
        page vide pour la suivante, avec une confirmation qui le dit. */
-    if(versDossier){
-      reinitialiserFormulaire("Commande publiée. Formulaire vidé pour une nouvelle commande.");
-      el.textContent += "  ·  Formulaire vidé pour une nouvelle commande.";
-    } else {
-      toast("Rapport publié.");
-    }
+    reinitialiserFormulaire("Commande enregistrée dans le dossier. Formulaire vidé pour une nouvelle commande.");
+    el.textContent += "  ·  Formulaire vidé pour une nouvelle commande.";
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
 }
@@ -2075,7 +2053,6 @@ function buildPdf(){
   kv("Référence travaux", S.chantier.ref);
   kv("Adresse", S.chantier.adresse);
   kv("Relevé par", S.auteur||"");
-  kv("Pour", destinataires().join(", "));
 
   if(lignes.length){
     h2("Commande de matériel", 60);
@@ -2215,11 +2192,25 @@ function bindAll(){
   });
   $("btnPublier").addEventListener("click", function(){
     if(!refAffaire()){ toast("Indiquez les travaux."); showTab("travaux"); return; }
-    publierRapport({
-      chantier: refAffaire(), client: S.chantier.client, adresse: S.chantier.adresse,
+    var b=$("btnPublier"), ref=refAffaire(); if(b.disabled) return;
+    var meta={
+      chantier: ref, client: S.chantier.client, adresse: S.chantier.adresse,
       type: "commande", date: S.date, visite: "",
       etape: S.metier,
       titre: "Commande de matériel - "+S.metier
+    };
+    /* une commande se fait toujours sur un chantier existant : le dossier est vérifié avant
+       d'enregistrer (sans réseau, l'enregistrement suit son cours habituel) */
+    b.disabled=true; $("pubEtat").textContent="Vérification du dossier…";
+    verifierDossier(ref).then(function(r){
+      b.disabled=false;
+      if(r.etat==="absent"){
+        $("pubEtat").textContent="Le dossier « "+ref+" » n'existe pas : une commande se fait toujours sur un chantier existant. « Reprendre », en haut de la page, pour le choisir.";
+        toast("Dossier introuvable : choisissez un chantier existant.");
+        return;
+      }
+      $("pubEtat").textContent="";
+      publierRapport(meta);
     });
   });
 
@@ -2799,7 +2790,7 @@ function ecrireFiche(){
         if(maintenant && maintenant !== avant && !occupe){
           if(++calme < 4) return;
           clearInterval(minuteur);
-          dire(/publié|mis à jour|remplacé/i.test(maintenant), maintenant);
+          dire(/publié|enregistrée|mis à jour|remplacé/i.test(maintenant), maintenant);
           return;
         }
         calme=0;
@@ -2845,75 +2836,51 @@ function majDateDuJour(){
   }catch(e){}
 }
 
-/* ---------- publication : dans le dossier ou à une personne ---------- */
+/* ---------- enregistrer : toujours dans le dossier du chantier ----------
+   Plus de choix du destinataire : une commande se fait sur un chantier existant,
+   elle va dans son dossier, visible par son équipe. */
 var PUB_MODE = "dossier";
-/* PUB_AUTO : le mode « à une personne » a été choisi par la fiche, pas par vous (pas encore de référence).
-   Dès qu'une référence se tape, l'équipe du dossier est relue et la publication revient au dossier. */
-var PUB_AUTO = false;
+/* la référence tapée : l'équipe du dossier (et son existence) est relue un instant après */
 document.addEventListener("input", function(ev){
-  if(!PUB_AUTO) return;
-  /* une recherche de nom (personnes.js) n'est pas la référence : elle ne relance pas l'attente */
-  if(ev && ev.target && ev.target.hasAttribute && ev.target.hasAttribute("data-sans-marque")) return;
+  if(!ev || !ev.target || (ev.target.id!=="c_ref" && ev.target.id!=="c_client")) return;
   clearTimeout(window.__pubAutoT);
-  window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
+  window.__pubAutoT = setTimeout(function(){ try{ equipeDuDossier(); }catch(e){} }, 600);
 }, true);
+/* le dossier existe-t-il ? « absent » (introuvable), « existe » (avec son équipe), ou "" (pas de réseau) */
+function verifierDossier(ref){
+  if(!apiPret || !apiPret(true)) return Promise.resolve({etat:""});
+  var delai=new Promise(function(res){ setTimeout(function(){ res({etat:""}); }, 8000); });
+  var lu=fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){
+      if(r.status===404) return {etat:"absent"};
+      if(!r.ok) return {etat:"existe", gens:[]};          /* attribué à d'autres : il existe */
+      return r.json().then(function(d){ return {etat:"existe", gens:(d.equipe||[]).filter(Boolean)}; });
+    })
+    .catch(function(){ return {etat:""}; });
+  return Promise.race([lu, delai]);
+}
 function equipeDuDossier(){
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
-  var choix = document.getElementById("choixPublication");
-  if(!el || !choix) return;
-  if(!ref){
-    el.textContent = "renseignez la référence des travaux";
-    basculePub("cible", true);
-    return;
-  }
-  /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
-  if(PUB_AUTO) basculePub("dossier");
-  if(!apiPret || !apiPret(true)) { el.textContent = "visible par l'équipe du chantier"; return; }
-  fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-    .then(function(d){
-      var gens=(d.equipe||[]).filter(Boolean);
-      el.textContent = gens.length ? "visible par "+gens.join(", ") : "vous serez seul à le voir";
-    })
-    .catch(function(){
-      el.textContent = "dossier nouveau : l'équipe sera constituée à la publication";
-    });
-}
-function basculePub(mode, force){
-  PUB_MODE = mode;
-  PUB_AUTO = !!force;
-  var choix=document.getElementById("choixPublication");
-  if(choix){
-    Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){
-      b.classList.toggle("on", b.getAttribute("data-pub")===mode);
-    });
-  }
-  var lg=document.getElementById("legendeDest");
-  var chips=document.getElementById("pubDest");
-  if(lg) lg.hidden = (mode!=="cible");
-  if(chips) chips.hidden = (mode!=="cible");
-}
-function bindChoixPublication(){
-  var choix=document.getElementById("choixPublication");
-  if(!choix) return;
-  Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){
-    b.addEventListener("click", function(){ basculePub(b.getAttribute("data-pub")); });
+  if(!el) return;
+  el.style.color="";
+  if(!ref){ el.textContent = "Renseignez la référence des travaux."; return; }
+  verifierDossier(ref).then(function(r){
+    if(ref !== refAffaire()) return;                    /* la référence a changé entre-temps */
+    if(r.etat==="absent"){
+      el.textContent = "Le dossier « "+ref+" » n'existe pas : une commande se fait toujours sur un chantier existant. « Reprendre », en haut de la page, pour le choisir.";
+      el.style.color="var(--danger,#B91C1C)";
+    }
+    else if(r.etat==="existe") el.textContent = r.gens && r.gens.length ? "Visible par "+r.gens.join(", ")+"." : "Visible par l'équipe du chantier.";
+    else el.textContent = "Visible par l'équipe du chantier.";
   });
-  basculePub("dossier");
-  equipeDuDossier();
 }
+function basculePub(){ PUB_MODE = "dossier"; }
+function bindChoixPublication(){ equipeDuDossier(); }
 
 /* ---------- démarrage ---------- */
-function adapterRole(){
-  if(SESSION && SESSION.role==="technicien"){
-    /* le technicien choisit le dossier comme les autres : c'est la référence
-       qui range le document, la saisir à la main éparpille le chantier */
-    var i=$("pubIntro");
-    if(i) i.textContent="Votre commande part directement dans l'espace du chargé d'affaires choisi.";
-    var t=$("pubTitre"); if(t) t.textContent="Chargé d'affaires destinataire";
-  }
-}
+/* le technicien comme le bureau : la commande va dans le dossier du chantier */
+function adapterRole(){}
 
 function start(){
   buildNav(); bindAll(); adapterRole();
