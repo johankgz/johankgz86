@@ -8,7 +8,7 @@
      à chaque image, seuls ses nouveaux morceaux sont dessinés, si long soit-il ;
    - dès que le stylet a touché la page, le doigt et la paume ne tracent
      plus (on peut poser la main) ; deux doigts font défiler ;
-   - les mêmes outils que la note de la To-do list (mesnotes.html) : stylo,
+   - les mêmes outils que les Notes (mesnotes.html) : stylo,
      feutre, surligneur, formes (trait, rectangle, nuage, flèche, spline,
      cercle), gomme en trois tailles, les mêmes couleurs, et les réglages
      partagés avec elle (le dernier outil, sa couleur, sa taille) ;
@@ -70,7 +70,7 @@
   function el(t, c, txt){ var e=document.createElement(t); if(c) e.className=c; if(txt!=null) e.textContent=txt; return e; }
   function bouton(t, f, cls){ var b=el("button", cls||"", t); b.type="button"; b.addEventListener("click", f); return b; }
 
-  /* ---------- les outils, comme dans la note de la To-do list ---------- */
+  /* ---------- les outils, comme dans les Notes ---------- */
   var COULEURS=[["#1E3A8A","Bleu"],["#22201C","Noir"],["#B91C1C","Rouge"],["#15803D","Vert"]];
   var OUTILS=[["stylo","Stylo",'<path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="m14 6 3 3"/>'],
     ["feutre","Feutre",'<path d="M6 21h12"/><path d="M8 17l2-9h4l2 9z"/><path d="M10 8V4h4v4"/>'],
@@ -81,7 +81,7 @@
     ["nuage","Nuage",'<path d="M6 17a3 3 0 0 1 0-6 4 4 0 0 1 7-3 3.5 3.5 0 0 1 5 3 3 3 0 0 1 0 6z"/>'],["fleche","Flèche",'<path d="M4 20 19 5"/><path d="M11 5h8v8"/>'],
     ["spline","Spline",'<path d="M3 17c4-10 7 4 10-4s5-5 8-6"/>'],["cercle","Cercle",'<circle cx="12" cy="12" r="8"/>']];
   var GOMMES=[["petite","Petite",8],["moyenne","Moyenne",16],["grande","Grande",34]];
-  /* les réglages du crayon : les mêmes que la note de la To-do list */
+  /* les réglages du crayon : les mêmes que les Notes */
   var PREF_NOTES="mesnotes:crayon";
   function lireNotes(){
     var m={outil:"stylo", couleur:null, surl:"#EAB308", k:{stylo:1, feutre:1, surligneur:1, forme:1}, forme:"ligne", gomme:"moyenne"};
