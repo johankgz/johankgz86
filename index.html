@@ -249,6 +249,17 @@ body.connexion button.lien{color:var(--accent)}
 .btn-cal .nb{position:absolute;top:-6px;right:-6px;min-width:19px;height:19px;padding:0 5px;display:inline-flex;align-items:center;justify-content:center;
   border-radius:10px;background:var(--accent-vif,#EA7A1E);color:#fff;font-size:11px;font-weight:700;line-height:1;font-variant-numeric:tabular-nums}
 .btn-cal .nb[hidden]{display:none}
+/* la fenêtre des chantiers : une recherche, puis la liste, qui défile */
+.fo-ch{max-height:86vh;display:flex;flex-direction:column}
+.fo-ch .fo-tete b{flex:1}
+.fch-nb{font-size:13px;font-weight:600;color:var(--ink-3);margin-right:10px;font-variant-numeric:tabular-nums}
+.fch-cherche{display:flex;align-items:center;gap:8px;min-height:46px;padding:0 12px;margin:0 0 10px;border:1px solid var(--rule);border-radius:12px;background:var(--card)}
+.fch-cherche:focus-within{border-color:var(--accent,#B4621A)}
+.fch-cherche svg{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:var(--ink-3);stroke-width:2;stroke-linecap:round}
+.fch-cherche input{flex:1;min-width:0;border:0!important;background:none!important;box-shadow:none!important;outline:none;font:inherit;font-size:16px;color:var(--ink);padding:0!important;min-height:0;border-radius:0}
+.fch-corps{flex:1 1 auto;min-height:120px;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-radius:14px}
+.fch-liste{box-shadow:none}
+.fch-tous{display:block;text-align:center;padding:12px 4px 2px;color:var(--accent,#B4621A);font-weight:700;font-size:14px;text-decoration:none}
 /* la fenêtre du calendrier */
 .fo-cal .fo-tete b{flex:1;text-align:center;text-transform:capitalize}
 .cal-tete-d{display:flex;gap:6px}
@@ -1317,6 +1328,7 @@ body.connexion .ciel{display:none}
 #menuG .mg-accueil{order:1}
 #menuG .mg-reactu{order:1;text-align:left;font:inherit;cursor:pointer}
 #menuG #btnOutils{order:2}
+#menuG #btnChantiers{order:3}
 #menuG #btnCal{order:3}
 #menuG #btnTodo{order:4}
 #menuG #btnNotes{order:5}
@@ -1359,12 +1371,12 @@ body.connexion .ciel{display:none}
   /* « Analyse de plan » tient sur deux lignes dans le rail */
   #menuG .mg-plans span{white-space:normal;text-align:center;line-height:1.15}
   /* l'entrée ouverte (Outils, Calendrier, Notifications) prend l'orange ; Accueil s'efface pendant ce temps */
-  #menuG .mg-it[aria-current="page"],#menuG #btnOutils[aria-expanded="true"],#menuG #btnCal[aria-expanded="true"],#menuG #cloche[aria-expanded="true"]{background:#E2761B;color:#fff}
+  #menuG .mg-it[aria-current="page"],#menuG #btnOutils[aria-expanded="true"],#menuG #btnChantiers[aria-expanded="true"],#menuG #btnCal[aria-expanded="true"],#menuG #cloche[aria-expanded="true"]{background:#E2761B;color:#fff}
   #menuG:has([aria-expanded="true"]) .mg-it[aria-current="page"]{background:rgba(255,255,255,.09);color:#fff}
   #menuG .nb{top:4px;right:9px;background:#F08A2E;color:#1E2329}
   #menuG .ba-droite .cloche.vive{color:#fff}
   @media (hover:hover){ #menuG .mg-it:hover,#menuG .barre-actions .btn-outils:hover,#menuG .ba-droite .cloche:hover{background:rgba(255,255,255,.09);color:#fff}
-    #menuG #btnOutils[aria-expanded="true"]:hover,#menuG #btnCal[aria-expanded="true"]:hover,#menuG #cloche[aria-expanded="true"]:hover{background:#E2761B} }
+    #menuG #btnOutils[aria-expanded="true"]:hover,#menuG #btnChantiers[aria-expanded="true"]:hover,#menuG #btnCal[aria-expanded="true"]:hover,#menuG #cloche[aria-expanded="true"]:hover{background:#E2761B} }
   #menuG :focus-visible{outline:2px solid #F08A2E;outline-offset:2px}
   /* Outils : un panneau qui s'ouvre à côté du rail */
   body.avec-menu #fenOutils{left:88px;justify-content:flex-start;align-items:stretch}
@@ -1785,6 +1797,10 @@ body.connexion .ciel{display:none}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/></svg>
       <span class="mg-pc">Outils</span><span class="mg-tel">Tous les outils</span>
     </button>
+    <button type="button" class="btn-outils btn-ch" id="btnChantiers" aria-label="Chantiers" aria-haspopup="dialog" aria-controls="fenChantiers" aria-expanded="false">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 16.5V14a6.5 6.5 0 0 1 13 0v2.5"/><path d="M10 8V12.5M14 8v4.5"/><path d="M3.5 16.5h17v2.5h-17z"/></svg>
+      <span>Chantiers</span>
+    </button>
     <button type="button" class="btn-outils btn-cal" id="btnCal" aria-label="Calendrier" aria-haspopup="dialog" aria-controls="fenCal" aria-expanded="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M3.5 9.5h17M8 3v4M16 3v4"/><path d="M7.5 13h2M11 13h2M14.5 13h2M7.5 16.5h2M11 16.5h2"/></svg>
       <span>Calendrier</span><span class="nb" id="calNb" hidden></span>
@@ -1815,6 +1831,18 @@ body.connexion .ciel{display:none}
           </form>
           <p class="cal-info" id="calInfo">Une notification arrive sur le téléphone à l'heure dite, et le rappel s'affiche en tête de l'accueil.</p>
         </div>
+      </div>
+    </div>
+    <div class="fen-outils" id="fenChantiers" role="dialog" aria-modal="true" aria-labelledby="fenChT" hidden>
+      <div class="fo-fond" data-fermer></div>
+      <div class="fo-boite fo-ch">
+        <div class="fo-tete"><b id="fenChT">Chantiers</b><span class="fch-nb" id="fenChNb"></span>
+          <button type="button" class="fo-x" data-fermer aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+        <label class="fch-cherche"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+          <input type="search" id="fenChQ" placeholder="Client, référence, ville…" aria-label="Rechercher un chantier" autocomplete="off" enterkeyhint="go"></label>
+        <div class="fch-corps"><div class="chantiers fch-liste" id="fenChListe"></div></div>
+        <a class="fch-tous" href="./rapports.html">Tous mes chantiers, avec la carte →</a>
       </div>
     </div>
     <div class="fen-outils" id="fenOutils" role="dialog" aria-modal="true" aria-labelledby="fenOutilsT" hidden>
@@ -2575,6 +2603,49 @@ function peindreEntreeTableau(s){
   /* retour arrière depuis un outil : la page revient fermée */
   window.addEventListener("pageshow", fermer);
 })();
+/* ---------- les chantiers, d'un toucher dans le menu ----------
+   Comme le calendrier : une fenêtre par-dessus l'accueil. Une recherche (client,
+   référence, ville ; sans se soucier des accents), puis tous les chantiers, les plus
+   récemment actifs en haut, avec leurs pastilles et leur avancement ; un toucher
+   ouvre le chantier. Sur un ordinateur, la recherche prend le curseur d'office. */
+(function(){
+  var b=$("btnChantiers"), f=$("fenChantiers"), q=$("fenChQ"); if(!b || !f || !q) return;
+  document.body.appendChild(f);
+  function plat(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase(); }
+  function peindre(){
+    var host=$("fenChListe"); host.textContent="";
+    var ch=DERNIERS_CHANTIERS, nb=$("fenChNb");
+    function mot(t){ var v=document.createElement("div"); v.className="ch-vide"; v.textContent=t; host.appendChild(v); }
+    if(!ch){ nb.textContent=""; mot(navigator.onLine===false ? "Liste indisponible hors connexion." : "Chargement des chantiers…"); return; }
+    if(!ch.length){ nb.textContent=""; mot((SESSION_COURANTE && SESSION_COURANTE.role==="technicien") ? "Aucun chantier ne vous est attribué pour l'instant." : "Aucun chantier pour l'instant."); return; }
+    var mots=plat(q.value).split(/\s+/).filter(Boolean);
+    var l=ch.slice().sort(function(x,y){ return String(y.maj||"").localeCompare(String(x.maj||"")); })
+      .filter(function(c){ var foin=plat([c.client, c.ref, c.adresse].join(" ")); return mots.every(function(m){ return foin.indexOf(m)>=0; }); });
+    nb.textContent = mots.length ? l.length+" sur "+ch.length : String(ch.length);
+    if(!l.length){ mot("Aucun chantier ne correspond à « "+q.value.trim()+" »."); return; }
+    l.forEach(function(c){ host.appendChild(carteChantier(c)); });
+  }
+  function ouvrir(){
+    peindre(); f.hidden=false; b.setAttribute("aria-expanded","true");
+    $("fenChListe").parentNode.scrollTop=0;
+    /* au clavier (ordinateur), on tape tout de suite ; au doigt, pas de clavier qui cache la liste */
+    var clavier=false; try{ clavier=matchMedia("(hover:hover) and (pointer:fine)").matches; }catch(e){}
+    var x=f.querySelector(".fo-x");
+    setTimeout(function(){ try{ (clavier ? q : x).focus({preventScroll:true}); }catch(e){} }, 30);
+  }
+  function fermer(){ if(f.hidden) return; f.hidden=true; b.setAttribute("aria-expanded","false"); }
+  window.peindreFenChantiers=function(){ if(!f.hidden) peindre(); };
+  b.addEventListener("click", function(){ if(!f.hidden){ fermer(); return; } ouvrir(); });
+  f.addEventListener("click", function(e){ var t=e.target.closest ? e.target.closest("[data-fermer]") : null; if(t){ fermer(); b.focus(); } });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !f.hidden){ fermer(); b.focus(); } });
+  q.addEventListener("input", peindre);
+  /* Entrée : le premier chantier trouvé */
+  q.addEventListener("keydown", function(e){
+    if(e.key!=="Enter") return;
+    var a=f.querySelector(".fch-liste a.ch-ligne"); if(a){ e.preventDefault(); location.href=a.href; }
+  });
+  window.addEventListener("pageshow", function(e){ if(e.persisted) fermer(); });
+})();
 /* ---------- le calendrier : les semaines, et un rappel sur un jour ----------
    Le bouton entre Outils et la to-do list ouvre le mois, avec les numéros
    de semaine (ISO, comme sur les plannings). Un point marque les jours
@@ -3291,6 +3362,7 @@ function charger(s){
       var ch=d.chantiers;
       DERNIERS_CHANTIERS=ch;
       SESSION_COURANTE=s;
+      if(window.peindreFenChantiers) peindreFenChantiers();
       var enCours=repeindreChantiers(ch, s);
       peindreNotifs(s, enCours, ch.filter(function(c){ return c.etat === "attente" && c.relanceDue; }));
       peindreBref(enCours);
