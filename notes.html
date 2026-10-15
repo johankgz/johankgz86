@@ -299,10 +299,6 @@ input[type="date"],input[type="time"]{min-width:0;width:100%;-webkit-appearance:
 html{-webkit-text-size-adjust:100%}
 body{touch-action:manipulation}
 button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
-.filtres{margin-top:9px;flex-wrap:nowrap;overflow-x:auto;-webkit-overflow-scrolling:touch;
- scrollbar-width:none;padding-bottom:2px}
-.filtres::-webkit-scrollbar{display:none}
-.filtres .chip{flex:0 0 auto}
 
 /* ---------- carte de liste ---------- */
 .note{border-radius:var(--r-field);padding:14px 15px 10px;margin-bottom:12px;border:1px solid rgba(34,32,28,.10);
@@ -369,7 +365,7 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
  cursor:pointer;padding:0}
 .note .n-couleur.on{border-color:var(--ink)}
 
-.haut{display:flex;justify-content:center;margin:18px 0 4px}
+.haut{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin:18px 0 4px}
 .haut button{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 16px;border:0;
  border-radius:var(--r-field);background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13.5px;font-weight:600;
  font-family:inherit;cursor:pointer}
@@ -816,17 +812,6 @@ header .chip.on{background:#1F2937;border-color:#1F2937;color:#fff}
 .k-carte{box-shadow:0 1px 2px rgba(15,23,42,.06),0 10px 24px -16px rgba(15,23,42,.4)}
 
 /* ---------- la journée : combien de tâches, et le petit bonhomme ---------- */
-#journee{display:flex;align-items:center;gap:12px;margin:0 0 12px;padding:11px 14px;border-radius:16px;
-  background:rgba(255,255,255,.86);box-shadow:0 1px 2px rgba(15,23,42,.06);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-#journee[hidden]{display:none}
-#journee .bonhomme{flex:0 0 auto;width:42px;height:42px}
-#journee .bonhomme.saute{animation:bonhommeSaute .55s cubic-bezier(.3,1.6,.5,1)}
-#journee .j-t{flex:1 1 auto;min-width:0}
-#journee .j-t b{display:block;font-size:13.5px;font-weight:700;color:#0C1119;line-height:1.3}
-#journee .j-barre{height:8px;border-radius:999px;background:#F3EBDD;margin-top:7px;overflow:hidden}
-#journee .j-barre i{display:block;height:100%;width:100%;border-radius:999px;transform-origin:left;
-  background:linear-gradient(90deg,#F97316,#22C55E);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
-#journee .j-n{flex:0 0 auto;font-size:13px;font-weight:800;color:#16A34A;font-variant-numeric:tabular-nums}
 @keyframes bonhommeSaute{0%{transform:scale(1)}35%{transform:scale(1.22) rotate(-6deg)}70%{transform:scale(.96)}100%{transform:scale(1)}}
 
 /* ---------- la fête : une liste terminée ---------- */
@@ -841,15 +826,13 @@ header .chip.on{background:#1F2937;border-color:#1F2937;color:#fff}
   box-shadow:0 18px 40px -16px rgba(0,0,0,.5);animation:bravoArrive 2.2s ease forwards}
 @keyframes bravoArrive{0%{opacity:0;transform:translate(-50%,10px) scale(.96)}12%{opacity:1;transform:translate(-50%,0) scale(1)}80%{opacity:1}100%{opacity:0}}
 @media (prefers-reduced-motion:reduce){
-  #fondPastel i,#journee .bonhomme.saute{animation:none!important}
-  #journee .j-barre i{transition:none}
+  #fondPastel i{animation:none!important}
   #fete span{display:none}
   #fete .bravo{animation:none}
 }
 </style>
 <style data-theme-propre>
 /* ---------- la vue « trois onglets » : mes 3 listes en haut, le reste en dessous ---------- */
-body.vue-simple #filtres{display:none}
 .to-onglets{display:grid;grid-template-columns:repeat(var(--n,3),minmax(0,1fr));gap:6px;padding:5px;border-radius:16px;background:#E9E0D3;margin:0 0 12px}
 .to-tab{min-height:54px;min-width:0;border:0;border-radius:12px;background:transparent;color:#22201C;font:inherit;cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 6px}
@@ -916,7 +899,6 @@ body.vue-simple #filtres{display:none}
 /* la vue « trois onglets » : la recherche s'efface, « Nouvelle liste » descend sous les listes, en pointillés */
 body.vue-simple #champRecherche{display:none!important}
 body.vue-simple main{display:flex;flex-direction:column}
-body.vue-simple #journee{order:0}
 body.vue-simple #listes,body.vue-simple #vide{order:1}
 body.vue-simple #rowNouvelle{order:2;margin:14px 0 0!important}
 body.vue-simple main > .haut{order:3}
@@ -934,9 +916,8 @@ html.theme-sombre header{background:#1E2126;border-bottom:1px solid rgba(255,255
 html.theme-sombre header .menu-link{background:#2B3036;border:1px solid rgba(255,255,255,.12);color:#ECEFF3}
 html.theme-sombre header .chip{background:#2B3036;border:1px solid rgba(255,255,255,.10);color:#D5DAE1;box-shadow:none}
 html.theme-sombre header .chip.on{background:#ECEFF3;border-color:#ECEFF3;color:#1E2126}
-/* Synchroniser, Corbeille : dans la grille (la to-do list d’origine) ; en sombre, un orange clair sur gris */
-body.vue-simple #btnSync,body.vue-simple #btnCorbeille{display:none}
-html.theme-sombre #btnSync,html.theme-sombre #btnCorbeille{background:#2B3036;border-color:rgba(255,255,255,.12);color:#F2A15E}
+/* la corbeille, discrète, en bas de la grille (la to-do list d'origine) */
+body.vue-simple #btnCorbeille{display:none}
 @media (hover:hover){
   html.theme-clair header .menu-link:hover,html.theme-clair header .chip:hover:not(.on){background:#F3EEE4;color:#22201C}
   html.theme-sombre header .menu-link:hover,html.theme-sombre header .chip:hover:not(.on){background:#353B42;color:#FFFFFF}
@@ -1014,29 +995,13 @@ html.theme-sombre #toReglages .tr-choix{border-bottom-color:rgba(255,255,255,.08
   <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1 class="titre-td">To-do list</h1>
     <div class="ref" id="syncEtat"></div>
   </div>
-  <div class="chips filtres" id="filtres"></div>
 </header>
 
 <div id="fondPastel" aria-hidden="true"><i class="b1"></i><i class="b2"></i><i class="b3"></i></div>
 <div id="fete" aria-hidden="true" hidden></div>
 <main>
-  <div id="journee" role="status" hidden>
-    <svg class="bonhomme" viewBox="0 0 42 42" aria-hidden="true">
-      <circle cx="21" cy="21" r="19" fill="#FDE68A"></circle>
-      <circle class="joue" cx="10.5" cy="25" r="3.2" fill="#FDA4AF" opacity="0"></circle>
-      <circle class="joue" cx="31.5" cy="25" r="3.2" fill="#FDA4AF" opacity="0"></circle>
-      <g class="yeux-ronds" fill="#78350F"><circle cx="15" cy="17" r="2.2"></circle><circle cx="27" cy="17" r="2.2"></circle></g>
-      <g class="yeux-rieurs" fill="none" stroke="#78350F" stroke-width="2.2" stroke-linecap="round" opacity="0">
-        <path d="M12 18 Q15 14 18 18"></path><path d="M24 18 Q27 14 30 18"></path></g>
-      <path class="bouche" d="M15 27 L27 27" stroke="#78350F" stroke-width="2.4" fill="none" stroke-linecap="round" stroke-linejoin="round"></path>
-    </svg>
-    <div class="j-t"><b id="journeeTitre"></b><div class="j-barre"><i id="journeeBarre"></i></div></div>
-    <span class="j-n" id="journeeN"></span>
-  </div>
   <div class="row" id="rowNouvelle" style="margin-bottom:14px">
     <button class="act blue" id="btnNouvelle" style="flex:1">Nouvelle liste</button>
-    <button class="act ghost" id="btnSync">Synchroniser</button>
-    <button class="act ghost" id="btnCorbeille" title="Listes supprimées et copies automatiques">Corbeille</button>
   </div>
 
   <label class="f" id="champRecherche" hidden>
@@ -1047,7 +1012,8 @@ html.theme-sombre #toReglages .tr-choix{border-bottom-color:rgba(255,255,255,.08
   <div id="listes"></div>
   <p class="hint" id="vide" hidden>Aucune liste pour l'instant. Touchez « Nouvelle liste » pour commencer.</p>
 
-  <div class="haut"><button type="button" id="btnHaut"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6"/><path d="M6 11l6-6 6 6"/></svg>Revenir en haut</button></div>
+  <div class="haut"><button type="button" id="btnHaut"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 19V6"/><path d="M6 11l6-6 6 6"/></svg>Revenir en haut</button>
+    <button type="button" id="btnCorbeille" title="Listes supprimées et copies automatiques"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5h15"/><path d="M9 6.5V4.8h6v1.7"/><path d="M6.5 6.5l.9 12.2a1 1 0 0 0 1 .9h7.2a1 1 0 0 0 1-.9l.9-12.2"/></svg>Listes supprimées</button></div>
 </main>
 <div id="toReglages" role="dialog" aria-modal="true" aria-labelledby="toRegTitre" hidden>
   <div class="tr-boite">
@@ -1371,60 +1337,6 @@ function touche(l){ l.maj=maintenant(); l.local=false; }
    lieu de laisser le dernier qui enregistre effacer le travail de
    l'autre. */
 function toucheItem(l, it){ it.maj=maintenant(); touche(l); }
-/* ---------- la journée ----------
-   Aujourd'hui = les tâches cochées aujourd'hui, sur toutes celles qu'il
-   restait à faire ce matin (les cochées du jour + les pas encore faites).
-   Le bonhomme sourit de plus en plus à mesure que la barre avance. */
-function aujourdhui(){ var d=new Date(); return d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2); }
-function faiteAujourdhui(it){
-  if(!it.fait || !it.faitLe) return false;
-  var d=new Date(it.faitLe);
-  var j=d.getFullYear()+"-"+("0"+(d.getMonth()+1)).slice(-2)+"-"+("0"+d.getDate()).slice(-2);
-  return j===aujourdhui();
-}
-var JOURNEE_AVANT=-1;
-var BOUCHES=[
-  "M15 27 L27 27",                 /* rien encore : on attend */
-  "M14 26 Q21 29 28 26",           /* un début */
-  "M13 25 Q21 31 29 25",           /* à mi-chemin */
-  "M12 24 Q21 34 30 24",           /* presque */
-  "M11.5 23.5 Q21 37 30.5 23.5 Z"  /* tout est fait */
-];
-function majJournee(){
-  var e=$("journee"); if(!e) return;
-  var faites=0, reste=0;
-  N.listes.forEach(function(l){
-    (l.items||[]).forEach(function(it){
-      if(!String(it.texte||"").trim()) return;
-      if(!it.fait) reste++;
-      else if(faiteAujourdhui(it)) faites++;
-    });
-  });
-  faites += reglees();     /* une ligne supprimée aujourd'hui compte comme faite */
-  var total=faites+reste;
-  e.hidden = !N.listes.length;
-  var r = total ? faites/total : 0;
-  var niveau = !total ? 0 : (r>=1 ? 4 : r>=0.66 ? 3 : r>=0.33 ? 2 : faites ? 1 : 0);
-  $("journeeTitre").textContent = !total ? "Rien à faire aujourd'hui, profitez-en !"
-    : r>=1 ? "Tout est fait, bravo !"
-    : faites ? "Aujourd'hui : "+faites+" tâche"+(faites>1?"s":"")+" réglée"+(faites>1?"s":"")+" sur "+total
-    : "C'est parti : "+total+" tâche"+(total>1?"s":"")+" à faire";
-  $("journeeN").textContent = total ? faites+"/"+total : "";
-  $("journeeBarre").style.transform = "scaleX("+(total ? r : 0)+")";
-  var svg=e.querySelector(".bonhomme");
-  var bouche=svg.querySelector(".bouche");
-  bouche.setAttribute("d", BOUCHES[!total ? 2 : niveau]);
-  bouche.setAttribute("fill", niveau===4 ? "#78350F" : "none");
-  var rieur = niveau===4 || !total;
-  svg.querySelector(".yeux-ronds").setAttribute("opacity", rieur ? "0" : "1");
-  svg.querySelector(".yeux-rieurs").setAttribute("opacity", rieur ? "1" : "0");
-  svg.querySelectorAll(".joue").forEach(function(j){ j.setAttribute("opacity", niveau>=3 ? ".8" : "0"); });
-  /* une tâche de plus : le bonhomme sautille */
-  if(JOURNEE_AVANT>=0 && faites>JOURNEE_AVANT){
-    svg.classList.remove("saute"); void svg.getBoundingClientRect(); svg.classList.add("saute");
-  }
-  JOURNEE_AVANT=faites;
-}
 /* une liste vient d'être terminée : confettis et un mot */
 function feter(l){
   var f=$("fete"); if(!f) return;
@@ -1512,7 +1424,6 @@ function rendre(){
     $("champRecherche").hidden = true;
     if(N.listes.length){ if(mode==="onglets") renderOnglets(host); else renderCartes(host); }
     peindreEditeur();
-    majJournee();
     if(!OUVERTE){
       var ch = mode==="onglets" ? ((focusAjout || TO_FOCUS) && $("toAjout"))
              : ((focusCarte || TC_FOCUS) && host.querySelector('.tc-champ[data-liste="'+(focusCarte || TC_FOCUS)+'"]'));
@@ -1531,7 +1442,6 @@ function rendre(){
   if(epinglees.length){ titreSection(host, "Épinglées"); grille(host, epinglees, true); }
   if(autres.length){ if(epinglees.length) titreSection(host, "Autres"); grille(host, autres, false); }
   peindreEditeur();
-  majJournee();
 }
 function nbColonnes(){
   var w=$("listes").clientWidth || (window.innerWidth-28);
@@ -1558,10 +1468,6 @@ function vue(){
 }
 function vueOnglets(){ return vue()==="onglets"; }
 function rondSupprime(){ return pref("rond","suppr")!=="coche"; }
-function reglees(){
-  try{ var r=JSON.parse(pref("reglees","{}")||"{}"); return r && r.jour===aujourdhui() ? (r.n||0) : 0; }catch(e){ return 0; }
-}
-function ajouterReglee(d){ prefSet("reglees", JSON.stringify({jour:aujourdhui(), n:Math.max(0, reglees()+d)})); }
 function aFaireDe(l){ return (l.items||[]).filter(function(i){ return !i.fait && textePlein(i); }); }
 function mesTrois(){
   var ids=[]; try{ ids=JSON.parse(pref("trois","[]"))||[]; }catch(e){ ids=[]; }
@@ -1859,14 +1765,14 @@ function retirerTache(l, it, delai){
     var garde=L.items[i];
     var restait=aFaireDe(L).length;
     L.items.splice(i,1);
-    touche(L); ajouterReglee(1); save(); render();
+    touche(L); save(); render();
     if(restait===1) feter(L);
     toast("« "+garde.texte+" » retirée.", "Annuler", function(){
       var L2=listeDe(l.id); if(!L2) return;
       L2.items=L2.items||[];
       /* une copie neuve : la ligne revient même si la suppression est déjà partie */
       L2.items.splice(Math.min(i, L2.items.length), 0, Object.assign({}, garde, {id:uid(), maj:maintenant()}));
-      touche(L2); ajouterReglee(-1); save(); render();
+      touche(L2); save(); render();
     });
   }, reduitMouvement() ? 0 : delai);
 }
@@ -2534,9 +2440,7 @@ function ligneItem(l, it, i){
     +"background:none;color:#8C8475;font-size:18px;line-height:1;cursor:pointer";
   del.setAttribute("aria-label","Supprimer la tâche");
   del.addEventListener("click", function(){
-    var it0=l.items[i];
     l.items.splice(i,1);
-    if(it0 && !it0.fait && textePlein(it0)) ajouterReglee(1);   /* le bonhomme la compte comme faite */
     touche(l); save(); render();
   });
   /* le rappel de la ligne : un jour, une heure */
@@ -2952,24 +2856,9 @@ function chargerListesDeroulantes(){
     }).catch(function(){});
 }
 
-/* ---------- filtres ---------- */
-var FILTRES=[["toutes","Toutes"],["epinglees","Épinglées"],["partagees","Partagées"],
-             ["faites","Faites"]];
-function renderFiltres(){
-  var box=$("filtres"); box.textContent="";
-  FILTRES.forEach(function(f){
-    var lab=document.createElement("label");
-    lab.className="chip"+(FILTRE===f[0]?" on":"");
-    lab.textContent=f[1];
-    lab.addEventListener("click", function(e){ e.preventDefault(); FILTRE=f[0]; renderFiltres(); render(); });
-    box.appendChild(lab);
-  });
-}
-
 /* ---------- liaisons ---------- */
 function bindAll(){
   $("btnNouvelle").addEventListener("click", nouvelleListe);
-  $("btnSync").addEventListener("click", function(){ tirer_serveur(function(){ pousser_serveur(); }); });
   $("btnCorbeille").addEventListener("click", ouvrirCorbeille);
   $("toRegOk").addEventListener("click", validerReglages);
   $("toRegFermer").addEventListener("click", function(){ $("toReglages").hidden=true; });
@@ -3030,7 +2919,7 @@ function bindAll(){
 })();
 
 function start(){
-  bindAll(); renderFiltres();
+  bindAll();
   charger_local(function(){
     render();
     /* ?liste=… : l'accueil ouvre directement la liste concernée */
@@ -3052,5 +2941,6 @@ start();
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
+<script src="./navigation.js?v=20261015a" defer></script>
 </body>
 </html>
