@@ -2616,6 +2616,18 @@ async function traiter(req) {
     } catch { /* rien à retirer */ }
   }
   const cleCorbeille = (nom) => "notes-corbeille/" + slug(nom) + ".json";
+  /* L'ordre dans lequel je range mes listes (la première en haut à gauche) :
+     à moi seul — une liste partagée garde sa place chez les autres — et le
+     même sur tous mes appareils. Le rangement le plus récent l'emporte. */
+  const cleOrdre = (nom) => "notes-ordre/" + slug(nom) + ".json";
+  function ordreValide(o) {
+    if (!o || !Array.isArray(o.ids) || typeof o.maj !== "string") return null;
+    const ids = Array.from(new Set(o.ids.filter((x) => typeof x === "string" && x && x.length <= 80))).slice(0, 1000);
+    return { ids, maj: o.maj.slice(0, 40) };
+  }
+  async function lireOrdre(nom) {
+    try { return ordreValide(await store.get(cleOrdre(nom), { type: "json" })); } catch { return null; }
+  }
   const prefixeSauvegardes = (nom) => "notes-sauvegardes/" + slug(nom) + "/";
   /* une lecture qui échoue n'est pas une liste vide : on s'arrête là,
      plutôt que de repartir de rien et d'écraser ce qui existe */
@@ -2661,7 +2673,7 @@ async function traiter(req) {
       }
     } catch { /* rien d'autre */ }
     const corbeille = await lireCorbeille(personne.nom);
-    return json({ listes: out, supprimees: corbeille.map((n) => n.id), moi: personne.nom });
+    return json({ listes: out, supprimees: corbeille.map((n) => n.id), moi: personne.nom, ordre: await lireOrdre(personne.nom) });
   }
 
   if (action === "notes-enregistrer") {
@@ -2722,6 +2734,11 @@ async function traiter(req) {
         } catch { /* l'auteur n'a rien encore */ }
       }
       try { await synchroRappelsTodo(d.listes); } catch { /* les rappels suivront au prochain envoi */ }
+      const range = ordreValide(d.ordre);
+      if (range) {
+        const avant = await lireOrdre(personne.nom);
+        if (!avant || range.maj >= avant.maj) await store.setJSON(cleOrdre(personne.nom), range);
+      }
       return json({ ok: true, enregistrees: miennes.length });
     });
   }

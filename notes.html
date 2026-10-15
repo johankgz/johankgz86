@@ -732,6 +732,19 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 @media (hover:hover){
   .k-carte:hover{box-shadow:0 1px 2px rgba(10,14,20,.08),0 8px 22px -10px rgba(10,14,20,.45)}
 }
+/* ranger les listes : la liste en main, la place qu'elle prendra */
+.k-carte{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.k-photo{-webkit-user-drag:none}
+.k-carte.k-source{display:none}
+.k-carte.k-leve{position:fixed;left:0;top:0;z-index:70;margin:0;pointer-events:none;cursor:grabbing;
+  scale:1.04;will-change:transform;animation:kLeve .14s ease-out;
+  box-shadow:0 24px 46px -14px rgba(10,14,20,.5),0 3px 10px rgba(10,14,20,.16);
+  transition:box-shadow .14s ease}
+@keyframes kLeve{from{scale:1;box-shadow:0 1px 2px rgba(10,14,20,.08)}}
+.k-place{border-radius:12px;border:2px dashed rgba(34,32,28,.26);background:rgba(34,32,28,.05)}
+html.theme-sombre .k-place{border-color:rgba(255,255,255,.3);background:rgba(255,255,255,.06)}
+body.k-glisse{-webkit-user-select:none;user-select:none;cursor:grabbing}
+@media (prefers-reduced-motion:reduce){ .k-carte.k-leve{animation:none} }
 
 /* la liste ouverte en grand */
 .ed-fond{position:fixed;inset:0;z-index:50;background:rgba(10,14,20,.6);overflow-y:auto;
@@ -1054,7 +1067,7 @@ html.theme-sombre #toReglages .tr-choix{border-bottom-color:rgba(255,255,255,.08
 </div>
 
 <input type="file" id="filePhoto" accept="image/*" multiple hidden>
-<div class="toast" id="toast" hidden></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <datalist id="dl_equipe"></datalist>
 
 <script src="./symboles-elec.js?v=20261007a"></script>
@@ -1227,7 +1240,7 @@ function pousser_serveur(){
   if(envoiEnCours){ aRenvoyer=true; return; }
   envoiEnCours=true; majSync("cours");
   fetch(apiUrl("notes-enregistrer"), {method:"POST", headers:apiEnTetes(),
-    body:JSON.stringify({listes:N.listes})})
+    body:JSON.stringify(N.ordre ? {listes:N.listes, ordre:N.ordre} : {listes:N.listes})})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
       envoiEnCours=false;
@@ -1248,8 +1261,12 @@ function tirer_serveur(cb){
       /* y a-t-il ici quelque chose que le serveur n'a pas ? (sinon, rien à renvoyer) */
       var dist={}; (d.listes||[]).forEach(function(x){ dist[x.id]=x.maj||""; });
       tirer_serveur.aPousser = N.listes.some(function(l){ return !(l.id in dist) || (l.maj||"") > dist[l.id]; })
-        || !!(N.aSupprimer && N.aSupprimer.length);
+        || !!(N.aSupprimer && N.aSupprimer.length)
+        || !!(N.ordre && (!d.ordre || (N.ordre.maj||"") > (d.ordre.maj||"")));
       if(d.moi){ AUTEUR_MOI=d.moi; try{ localStorage.setItem("notes:moi", d.moi); }catch(e){} }
+      /* l'ordre rangé sur un autre appareil : le plus récent l'emporte */
+      if(d.ordre && Array.isArray(d.ordre.ids) && (!N.ordre || (d.ordre.maj||"") > (N.ordre.maj||"")))
+        N.ordre={ids:d.ordre.ids.slice(), maj:d.ordre.maj||""};
       fusionner(d.listes||[], d.supprimees||[]);
       majSync("ok");
       try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
@@ -1314,8 +1331,10 @@ function envoyerSuppression(id){
     .catch(function(){ return false; });
 }
 /* Une liste reste à sa place : on la retrouve là où on l'a laissée, qu'on
-   la modifie ou qu'on la coche. Seule l'épingle la met en tête ; les
-   autres suivent leur date de création, la plus récente d'abord. */
+   la modifie ou qu'on la coche. Les épinglées d'abord ; dans chaque partie,
+   l'ordre où je les ai rangées à la main (N.ordre, le même sur tous mes
+   appareils). Une liste pas encore rangée (une nouvelle, ou tant que rien
+   n'a été rangé) passe devant, la plus récente d'abord. */
 function creeLe(l){
   if(l.cree) return l.cree;
   var m=/^n([0-9a-z]+)[0-9a-z]{4}$/.exec(l.id||"");
@@ -1324,8 +1343,13 @@ function creeLe(l){
   return l.maj || "";
 }
 function trier(){
+  var rang={};
+  ((N.ordre && N.ordre.ids) || []).forEach(function(id, i){ rang[id]=i; });
   N.listes.sort(function(a,b){
     if(!!b.epingle !== !!a.epingle) return b.epingle ? 1 : -1;
+    var ra=rang[a.id], rb=rang[b.id];
+    if(ra!==undefined && rb!==undefined) return ra-rb;
+    if(ra!==undefined || rb!==undefined) return ra===undefined ? -1 : 1;
     return creeLe(b).localeCompare(creeLe(a));
   });
 }
@@ -1457,6 +1481,8 @@ function visibles(){
    qu'on touche pour l'ouvrir en grand et la modifier. */
 var OUVERTE=null, NB_COLONNES=0;
 function render(){
+  /* une liste en main : on redessine quand elle est posée (poser() le fait) */
+  if(GL) return;
   RENDU_EN_COURS=true;
   try{ rendre(); } finally { RENDU_EN_COURS=false; }
   if(TO_EDIT && !OUVERTE){
@@ -1502,8 +1528,8 @@ function rendre(){
   var epinglees=liste.filter(function(l){ return l.epingle; });
   var autres=liste.filter(function(l){ return !l.epingle; });
   NB_COLONNES=nbColonnes();
-  if(epinglees.length){ titreSection(host, "Épinglées"); grille(host, epinglees); }
-  if(autres.length){ if(epinglees.length) titreSection(host, "Autres"); grille(host, autres); }
+  if(epinglees.length){ titreSection(host, "Épinglées"); grille(host, epinglees, true); }
+  if(autres.length){ if(epinglees.length) titreSection(host, "Autres"); grille(host, autres, false); }
   peindreEditeur();
   majJournee();
 }
@@ -1916,22 +1942,35 @@ function validerReglages(){
   $("toReglages").hidden=true;
   render();
 }
-function grille(host, listes){
+function grille(host, listes, epingle){
   var g=document.createElement("div"); g.className="keep";
-  var cols=[], nb=[];
+  g.setAttribute("data-epingle", epingle ? "1" : "0");
+  var cols=[];
   for(var i=0;i<NB_COLONNES;i++){
     var c=document.createElement("div"); c.className="keep-col";
-    g.appendChild(c); cols.push(c); nb.push(0);
+    g.appendChild(c); cols.push(c);
   }
   host.appendChild(g);
-  /* chaque aperçu va dans la colonne la moins haute */
-  listes.forEach(function(l){
-    var k=0;
-    for(var i=1;i<cols.length;i++){
-      var h=cols[i].offsetHeight, hk=cols[k].offsetHeight;
-      if(h<hk || (h===hk && nb[i]<nb[k])) k=i;
-    }
-    cols[k].appendChild(apercu(l)); nb[k]++;
+  g._cols=cols;
+  g._cartes=listes.map(apercu);
+  empiler(cols, g._cartes);
+}
+/* Chaque aperçu va dans la colonne la moins haute (à égalité, celle qui en
+   a le moins) : la première liste en haut à gauche, puis de gauche à
+   droite. Le même calcul place les listes pendant qu'on en déplace une. */
+var ECART=10;
+function colonneDe(hs, nbs){
+  var k=0;
+  for(var i=1;i<hs.length;i++) if(hs[i] < hs[k]-0.5 || (Math.abs(hs[i]-hs[k])<=0.5 && nbs[i] < nbs[k])) k=i;
+  return k;
+}
+function empiler(cols, cartes){
+  var hs=cols.map(function(){ return 0; }), nbs=cols.map(function(){ return 0; });
+  cartes.forEach(function(c){
+    var k=colonneDe(hs, nbs);
+    cols[k].appendChild(c);
+    if(c._h==null) c._h=c.getBoundingClientRect().height;
+    hs[k]+=(nbs[k] ? ECART : 0)+c._h; nbs[k]++;
   });
 }
 function textePlein(i){ return !!String(i.texte||"").trim(); }
@@ -1941,8 +1980,9 @@ function apercu(l){
   c.setAttribute("role","button"); c.tabIndex=0;
   c.setAttribute("data-apercu", l.id);
   c.setAttribute("aria-label","Ouvrir la liste "+(l.titre||"sans titre"));
+  c.setAttribute("aria-keyshortcuts","Alt+ArrowLeft Alt+ArrowRight");
   if((l.photos||[]).length){
-    var im=document.createElement("img"); im.className="k-photo"; im.src=l.photos[0].data; im.alt="";
+    var im=document.createElement("img"); im.className="k-photo"; im.src=l.photos[0].data; im.alt=""; im.draggable=false;
     c.appendChild(im);
   }
   var corps=document.createElement("div"); corps.className="k-corps";
@@ -2003,6 +2043,241 @@ function apercu(l){
   return c;
 }
 
+/* ---------- ranger les listes à la main ----------
+   Un appui long sur une liste (à la souris : la saisir et la tirer) la
+   détache : elle suit le doigt, les autres s'écartent pour lui faire de
+   la place, et elle se pose là où on la lâche — la première en haut à
+   gauche. Lâchée parmi les épinglées, elle s'épingle ; parmi les autres,
+   elle ne l'est plus. Au clavier : Alt + flèches. L'ordre est à moi seul
+   (une liste partagée garde sa place chez les autres) et il suit sur tous
+   mes appareils. La liste d'un collègue reste dans sa partie : l'épingle
+   est sur la liste, l'épingler l'épinglerait aussi chez lui. */
+var GL=null, APPUI=null, FIN_GLISSE=0;
+/* la liste « id » va juste avant « avantId », ou juste après « apresId » */
+function ranger(id, avantId, apresId, epingle){
+  var l=listeDe(id);
+  if(!l){ render(); return false; }
+  trier();
+  var avant=N.listes.map(function(x){ return x.id; });
+  var ids=avant.filter(function(x){ return x!==id; });
+  var k = avantId && ids.indexOf(avantId)>=0 ? ids.indexOf(avantId)
+        : apresId && ids.indexOf(apresId)>=0 ? ids.indexOf(apresId)+1 : ids.length;
+  ids.splice(k, 0, id);
+  var epingleChange = !!l.epingle !== !!epingle;
+  if(!epingleChange && ids.join("|")===avant.join("|")){ render(); return false; }
+  if(epingleChange){ l.epingle=!!epingle; touche(l); }
+  N.ordre={ids:ids, maj:maintenant()};
+  /* gardé tout de suite : l'appli peut être fermée aussitôt la liste posée */
+  try{ window.storage.set("notes:local", JSON.stringify(N)); }catch(e){}
+  save(); render();
+  return true;
+}
+/* au clavier : Alt + ← / → avance ou recule la liste d'une place */
+function deplacerAuClavier(carte, sens){
+  var g=carte.closest(".keep"); if(!g || !g._cartes) return;
+  var seq=g._cartes, i=seq.indexOf(carte), id=carte.getAttribute("data-apercu"), l=listeDe(id);
+  if(i<0 || !l) return;
+  var nom="« "+((l.titre||"").trim() || "Sans titre")+" »", j=i+sens;
+  if(j<0 || j>=seq.length){ toast(nom+(sens<0 ? " est déjà la première." : " est déjà la dernière.")); return; }
+  var reste=seq.filter(function(c){ return c!==carte; });
+  ranger(id, reste[j] ? reste[j].getAttribute("data-apercu") : null,
+             j>0 ? reste[j-1].getAttribute("data-apercu") : null, g.getAttribute("data-epingle")==="1");
+  var c=document.querySelector('#listes .keep [data-apercu="'+id+'"]');
+  if(c) try{ c.focus(); }catch(e){}
+  toast(nom+" : place "+(j+1)+" sur "+seq.length+".");
+}
+/* où irait l'aperçu glissé à la place i de la suite : la colonne et le haut */
+function positionDe(seq, i, nbCol){
+  var hs=[], nbs=[];
+  for(var c=0;c<nbCol;c++){ hs.push(0); nbs.push(0); }
+  for(var j=0;j<i;j++){ var k=colonneDe(hs, nbs); hs[k]+=(nbs[k] ? ECART : 0)+seq[j]._h; nbs[k]++; }
+  var k2=colonneDe(hs, nbs);
+  return {col:k2, top:hs[k2]+(nbs[k2] ? ECART : 0)};
+}
+function lever(carte, x, y, pointeur){
+  APPUI=null;
+  var keeps=Array.prototype.slice.call(document.querySelectorAll("#listes .keep"));
+  var g0=carte.closest(".keep");
+  if(!carte.isConnected || !g0 || keeps.indexOf(g0)<0 || OUVERTE) return;
+  var r=carte.getBoundingClientRect();
+  var sections=keeps.map(function(g){
+    g._cartes.forEach(function(c){ c._h=c.getBoundingClientRect().height; });
+    return {keep:g, cols:g._cols, epingle:g.getAttribute("data-epingle")==="1",
+            seq:g._cartes.filter(function(c){ return c!==carte; })};
+  });
+  /* la place laissée vide, et la liste en main (une copie : l'aperçu
+     touché reste dans la page, caché, pour que le doigt garde la main) */
+  var place=document.createElement("div"); place.className="k-place";
+  place.style.height=r.height+"px"; place._h=r.height;
+  carte.parentNode.insertBefore(place, carte);
+  var fantome=carte.cloneNode(true);
+  fantome.classList.add("k-leve"); fantome.removeAttribute("tabindex"); fantome.removeAttribute("data-apercu");
+  fantome.setAttribute("aria-hidden","true");
+  fantome.style.width=r.width+"px"; fantome.style.height=r.height+"px";
+  carte.classList.add("k-source");
+  document.body.appendChild(fantome);
+  var s=keeps.indexOf(g0);
+  GL={id:carte.getAttribute("data-apercu"), carte:carte, fantome:fantome, place:place, sections:sections,
+      dx:x-r.left, dy:y-r.top, w:r.width, h:r.height, x:x, y:y, pointeur:pointeur,
+      cible:{s:s, i:g0._cartes.indexOf(carte)}, raf:0, pose:false, bouge:false, largeur:window.innerWidth,
+      seule: dAutrui(listeDe(carte.getAttribute("data-apercu"))||{}) ? s : null};
+  document.body.classList.add("k-glisse");
+  suivre();
+  try{ if(navigator.vibrate) navigator.vibrate(10); }catch(e){}
+  GL.raf=requestAnimationFrame(defiler);
+}
+function suivre(){
+  var g=GL; if(!g) return;
+  g.fantome.style.transform="translate3d("+(g.x-g.dx)+"px,"+(g.y-g.dy)+"px,0)";
+}
+/* la place la plus proche de la liste en main, dans la partie où elle est */
+function cibler(){
+  var g=GL; if(!g || g.pose) return;
+  var cx=g.x-g.dx+g.w/2, cy=g.y-g.dy+g.h/2, s=0;
+  if(g.seule!=null) s=g.seule;
+  else if(g.sections.length>1){
+    var t=g.sections[1].keep.previousElementSibling;
+    var b=(t && t.classList.contains("k-section") ? t : g.sections[1].keep).getBoundingClientRect();
+    s = cy > b.top+b.height/2 ? 1 : 0;
+  }
+  var S=g.sections[s], kr=S.keep.getBoundingClientRect();
+  var cr=S.cols.map(function(c){ return c.getBoundingClientRect(); });
+  var meilleur=0, dmin=Infinity;
+  for(var i=0;i<=S.seq.length;i++){
+    var p=positionDe(S.seq, i, S.cols.length);
+    var px=cr[p.col].left+cr[p.col].width/2, py=kr.top+p.top+g.h/2;
+    var d=(px-cx)*(px-cx)+(py-cy)*(py-cy);
+    if(d<dmin){ dmin=d; meilleur=i; }
+  }
+  if(s!==g.cible.s || meilleur!==g.cible.i){ g.cible={s:s, i:meilleur}; disposer(); }
+}
+/* les listes s'écartent : on les replace, puis elles glissent de leur
+   ancienne place à la nouvelle */
+function disposer(){
+  var g=GL; if(!g) return;
+  var anime=!reduitMouvement(), tous=[], avant=[];
+  g.sections.forEach(function(S){ S.seq.forEach(function(c){ tous.push(c); }); });
+  if(anime){
+    tous.forEach(function(c){ avant.push(c.getBoundingClientRect()); });
+    tous.forEach(function(c){ c.style.transition="none"; c.style.transform=""; });
+  }
+  if(g.place.parentNode) g.place.parentNode.removeChild(g.place);
+  g.sections.forEach(function(S, s){
+    var seq=S.seq.slice();
+    if(s===g.cible.s) seq.splice(g.cible.i, 0, g.place);
+    empiler(S.cols, seq);
+  });
+  if(!anime) return;
+  var bouges=[];
+  tous.forEach(function(c, j){
+    var b=c.getBoundingClientRect(), dx=avant[j].left-b.left, dy=avant[j].top-b.top;
+    if(Math.abs(dx)<0.5 && Math.abs(dy)<0.5) return;
+    c.style.transform="translate("+dx+"px,"+dy+"px)"; bouges.push(c);
+  });
+  if(!bouges.length) return;
+  void document.body.offsetWidth;
+  bouges.forEach(function(c){ c.style.transition="transform .2s cubic-bezier(.2,.8,.2,1)"; c.style.transform=""; });
+}
+/* à chaque image : près du haut ou du bas de l'écran, la page défile
+   toute seule ; et si le doigt a bougé, on revoit la place visée */
+function defiler(){
+  var g=GL; if(!g || g.pose) return;
+  var hd=document.querySelector("header");
+  var haut=(hd ? hd.getBoundingClientRect().bottom : 0)+48, bas=window.innerHeight-56, v=0;
+  if(g.y<haut) v=-Math.min(20, 2+(haut-g.y)/4);
+  else if(g.y>bas) v=Math.min(20, 2+(g.y-bas)/4);
+  if(v){
+    var y0=window.scrollY;
+    window.scrollBy(0, v);
+    if(window.scrollY!==y0) g.bouge=true;
+  }
+  if(g.bouge){ g.bouge=false; cibler(); }
+  g.raf=requestAnimationFrame(defiler);
+}
+function poser(annule){
+  var g=GL; if(!g || g.pose) return;
+  g.pose=true; FIN_GLISSE=Date.now();
+  cancelAnimationFrame(g.raf);
+  var fini=false;
+  function fin(){
+    if(fini) return; fini=true;
+    GL=null;
+    document.body.classList.remove("k-glisse");
+    if(g.fantome.parentNode) g.fantome.parentNode.removeChild(g.fantome);
+    if(annule){ render(); return; }
+    var S=g.sections[g.cible.s], seq=S.seq, i=g.cible.i;
+    ranger(g.id, seq[i] ? seq[i].getAttribute("data-apercu") : null,
+                 i>0 ? seq[i-1].getAttribute("data-apercu") : null, S.epingle);
+  }
+  if(annule || reduitMouvement() || !g.place.isConnected){ fin(); return; }
+  /* elle se pose à sa place */
+  var r=g.place.getBoundingClientRect();
+  g.fantome.style.transition="transform .16s ease, scale .16s ease, box-shadow .16s ease";
+  g.fantome.style.transform="translate3d("+r.left+"px,"+r.top+"px,0)";
+  g.fantome.style.scale="1";
+  g.fantome.addEventListener("transitionend", fin);
+  setTimeout(fin, 230);
+}
+function brancherRangement(){
+  var host=$("listes");
+  host.addEventListener("pointerdown", function(e){
+    if(GL || OUVERTE) return;
+    /* un second doigt : ce n'est pas un rangement */
+    if(APPUI){ clearTimeout(APPUI.t); APPUI=null; return; }
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    var c=e.target.closest ? e.target.closest(".keep .k-carte") : null;
+    if(!c) return;
+    var a={carte:c, x0:e.clientX, y0:e.clientY, x:e.clientX, y:e.clientY, id:e.pointerId,
+           souris:e.pointerType==="mouse", t:0};
+    APPUI=a;
+    /* au doigt et au crayon : un appui long, pour ne pas gêner le défilement */
+    if(!a.souris) a.t=setTimeout(function(){ if(APPUI===a) lever(a.carte, a.x, a.y, a.id); }, 400);
+  });
+  window.addEventListener("pointermove", function(e){
+    if(GL){
+      if(e.pointerId!==GL.pointeur || GL.pose) return;
+      GL.x=e.clientX; GL.y=e.clientY; GL.bouge=true; suivre();
+      return;
+    }
+    var a=APPUI; if(!a || e.pointerId!==a.id) return;
+    a.x=e.clientX; a.y=e.clientY;
+    var d=Math.hypot(a.x-a.x0, a.y-a.y0);
+    if(a.souris){
+      if(d>6){ lever(a.carte, a.x0, a.y0, a.id); if(GL){ GL.x=a.x; GL.y=a.y; GL.bouge=true; suivre(); } }
+    } else if(d>9){ clearTimeout(a.t); APPUI=null; }     /* le doigt fait défiler la page */
+  });
+  window.addEventListener("pointerup", function(e){
+    if(GL && e.pointerId===GL.pointeur){ poser(false); return; }
+    if(APPUI && e.pointerId===APPUI.id){ clearTimeout(APPUI.t); APPUI=null; }
+  });
+  window.addEventListener("pointercancel", function(e){
+    if(GL && e.pointerId===GL.pointeur){ poser(true); return; }
+    if(APPUI && e.pointerId===APPUI.id){ clearTimeout(APPUI.t); APPUI=null; }
+  });
+  /* liste en main : la page ne défile pas sous le doigt, et le lâcher n'ouvre rien
+     (l'aperçu touché reste dans la grille : ses événements y remontent) */
+  host.addEventListener("touchmove", function(e){ if(GL) e.preventDefault(); }, {passive:false});
+  host.addEventListener("touchend", function(e){ if(GL) e.preventDefault(); }, {passive:false});
+  window.addEventListener("click", function(e){
+    if(GL || Date.now()-FIN_GLISSE < 450){ e.stopPropagation(); e.preventDefault(); }
+  }, true);
+  host.addEventListener("contextmenu", function(e){
+    if(GL || (APPUI && !APPUI.souris)) e.preventDefault();
+  });
+  /* on quitte la fenêtre en tenant une liste : elle revient à sa place */
+  window.addEventListener("blur", function(){ if(GL) poser(true); });
+  document.addEventListener("keydown", function(e){
+    if(GL && e.key==="Escape"){ e.preventDefault(); poser(true); return; }
+    if(!e.altKey || e.ctrlKey || e.metaKey) return;
+    var c=e.target;
+    if(!c || !c.classList || !c.classList.contains("k-carte") || !host.contains(c)) return;
+    var sens = e.key==="ArrowLeft" || e.key==="ArrowUp" ? -1 : e.key==="ArrowRight" || e.key==="ArrowDown" ? 1 : 0;
+    if(!sens) return;
+    e.preventDefault();
+    deplacerAuClavier(c, sens);
+  });
+}
+
 /* ---------- la liste ouverte en grand ---------- */
 function listeDe(id){ return N.listes.filter(function(x){ return x.id===id; })[0] || null; }
 function listeVide(l){
@@ -2060,7 +2335,7 @@ function peindreEditeur(){
   document.body.classList.add("ed-ouvert");
 }
 function titreSection(host, texte){
-  var h=document.createElement("p");
+  var h=document.createElement("p"); h.className="k-section";
   h.style.cssText="margin:16px 2px 8px;font-size:11.5px;font-weight:700;letter-spacing:.06em;"
     +"text-transform:uppercase;color:var(--ink-3)";
   h.textContent=texte;
@@ -2705,8 +2980,11 @@ function bindAll(){
   document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("corbeille").hidden) $("corbeille").hidden=true; });
   $("btnHaut").addEventListener("click", function(){ window.scrollTo({top:0, behavior:"smooth"}); });
   $("q").addEventListener("input", render);
+  brancherRangement();
   var attente=null;
   window.addEventListener("resize", function(){
+    /* l'écran tourne pendant qu'on tient une liste : elle revient à sa place */
+    if(GL && window.innerWidth!==GL.largeur) poser(true);
     clearTimeout(attente);
     attente=setTimeout(function(){ if(nbColonnes()!==NB_COLONNES) render(); }, 120);
   });
