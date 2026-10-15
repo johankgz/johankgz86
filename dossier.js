@@ -580,10 +580,10 @@ function styleGalerie(){
     +".dg-x{width:44px;height:44px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(244,241,234,.14);color:#F4F1EA;"
     +"display:flex;align-items:center;justify-content:center;cursor:pointer}"
     +".dg-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
-    +".dg-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;touch-action:pan-y pinch-zoom;-webkit-user-select:none;user-select:none}"
+    +".dg-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}"
     +".dg-piste{position:absolute;inset:0;will-change:transform}"
     +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;justify-content:center}"
-    +".dg-case img{display:block;max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none}"
+    +".dg-case img{display:block;max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;transform-origin:50% 50%}"
     +".dg-case img[hidden]{display:none}"
     +".dg-fl{display:none;position:absolute;top:50%;z-index:1;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
     +"background:rgba(15,14,12,.55);color:#F4F1EA;align-items:center;justify-content:center;cursor:pointer}"
@@ -666,14 +666,24 @@ function ouvrirGalerie(f){
       /* Une photo en grand. On passe de l'une à l'autre en la faisant glisser
          du doigt : vers la gauche la suivante, vers la droite la précédente.
          La photo suit le doigt ; aux deux bouts, elle résiste et revient.
+         Le zoom : deux doigts qui s'écartent agrandissent la photo vers
+         l'endroit pincé (jusqu'à 5 fois) ; un double toucher l'agrandit là où
+         l'on touche, un autre la remet entière. Agrandie, un doigt la promène
+         (sans qu'elle sorte du cadre) et le glissé ne change plus de photo.
          La croix en haut à droite referme ; « Enregistrer », seul au centre,
          garde la photo affichée. À l'ordinateur : la souris fait glisser de
-         même, les flèches du clavier et les deux flèches sur les côtés aussi,
-         Échap referme. Deux doigts, ou la page zoomée : c'est un zoom, la
-         photo ne change pas. */
+         même ; la molette (ou le pincement du pavé tactile) et le double clic
+         zooment, + et − aussi, 0 remet la photo entière ; les flèches du
+         clavier et les deux flèches sur les côtés changent de photo, Échap
+         referme. */
       function plein(depart){
         styleGalerie();
-        var k=depart, n=urls.length, W=1, dx=0, id=null, glisse=null, x0=0, y0=0, traces=[], enCours=false;
+        var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false;
+        /* les doigts posés, et le geste en cours : null (pas encore décidé), « glisse »
+           (changer de photo), « promene » (déplacer la photo agrandie), « pince »
+           (zoomer à deux doigts), « rien » (un glissé vertical) */
+        var DOIGTS={}, geste=null, bouge=false, origine={x:0, y:0}, pince=null, toucherAvant=null;
+        var Z={s:1, x:0, y:0}, ZMAX=5, ZDOUBLE=2.5;
         var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
         var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
         vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
@@ -707,12 +717,14 @@ function ouvrirGalerie(f){
 
         function remplir(c, i){
           var im=c.firstChild;
+          im.style.transition="none"; im.style.transform="";
           if(i<0 || i>=n){ im.hidden=true; im.removeAttribute("src"); im.alt=""; return; }
           im.hidden=false;
           if(im.getAttribute("src")!==urls[i]) im.src=urls[i];
           im.alt=photos[i].nom.split("/").pop();
         }
         function placer(){
+          Z={s:1, x:0, y:0}; scene.classList.remove("dg-zoom");
           cases[0].style.left="-100%"; cases[1].style.left="0"; cases[2].style.left="100%";
           remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
           cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
@@ -724,10 +736,44 @@ function ouvrirGalerie(f){
           piste.style.transition = anime && !reduit ? "transform .28s cubic-bezier(.2,.8,.2,1)" : "none";
           piste.style.transform = "translate3d("+x+"px,0,0)";
         }
+
+        /* ---------- le zoom de la photo affichée ---------- */
+        function image(){ return cases[1].firstChild; }
+        function centre(){ var r=scene.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
+        /* jusqu'où la photo agrandie peut aller : ses bords ne quittent pas ceux de l'écran */
+        function bornes(s){
+          var im=image();
+          return {x:Math.max(0, (im.offsetWidth*s-scene.clientWidth)/2), y:Math.max(0, (im.offsetHeight*s-scene.clientHeight)/2)};
+        }
+        function borner(){ var b=bornes(Z.s); Z.x=Math.max(-b.x, Math.min(b.x, Z.x)); Z.y=Math.max(-b.y, Math.min(b.y, Z.y)); }
+        function resiste(v, m){ return v>m ? m+(v-m)*.35 : v<-m ? -m+(v+m)*.35 : v; }
+        function zoomer(anime){
+          var im=image();
+          im.style.transition = anime && !reduit ? "transform .25s cubic-bezier(.2,.8,.2,1)" : "none";
+          im.style.transform = Z.s===1 && !Z.x && !Z.y ? "" : "translate("+Z.x+"px,"+Z.y+"px) scale("+Z.s+")";
+          scene.classList.toggle("dg-zoom", Z.s>1.01);
+        }
+        function remettre(anime){ Z={s:1, x:0, y:0}; zoomer(anime); }
+        /* agrandir à s fois en gardant sous (mx, my) le point de la photo qui s'y trouve */
+        function zoomerVers(s, mx, my, anime){
+          s=Math.min(ZMAX, Math.max(1, s));
+          if(s<1.01){ remettre(anime); return; }
+          var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s;
+          Z.s=s; Z.x=mx-c.x-s*px; Z.y=my-c.y-s*py;
+          borner(); zoomer(anime);
+        }
+        /* la fin d'un pincement : entre 1 et 5 fois, et dans le cadre */
+        function finZoom(mx, my){
+          if(Z.s<1.01){ remettre(true); return; }
+          if(Z.s>ZMAX){ var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s; Z.s=ZMAX; Z.x=mx-c.x-ZMAX*px; Z.y=my-c.y-ZMAX*py; }
+          borner(); zoomer(true);
+        }
+
         /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place */
         function aller(sens){
           if(enCours) return;
           if(k+sens<0 || k+sens>=n){ poser(0, true); return; }
+          if(Z.s!==1 || Z.x || Z.y) remettre(false);
           enCours=true; W=scene.clientWidth||1;
           var fini=false;
           function fin(){
@@ -743,47 +789,117 @@ function ouvrirGalerie(f){
           setTimeout(fin, 360);
         }
 
-        /* ---------- le doigt (ou la souris) ---------- */
+        /* ---------- les doigts (ou la souris) ---------- */
+        function doigts(){ return Object.keys(DOIGTS).map(function(i){ return DOIGTS[i]; }); }
         scene.addEventListener("pointerdown", function(e){
-          /* un deuxième doigt : c'est un zoom, la photo reprend sa place */
-          if(!e.isPrimary){ if(glisse) poser(0, true); id=null; glisse=null; return; }
-          if(enCours || (e.pointerType==="mouse" && e.button!==0)) return;
+          if(e.pointerType==="mouse" && e.button!==0) return;
           if(e.target.closest && e.target.closest(".dg-fl")) return;
-          /* la page est zoomée : le doigt sert à se promener dans la photo */
-          if(window.visualViewport && window.visualViewport.scale>1.01) return;
-          id=e.pointerId; x0=e.clientX; y0=e.clientY; dx=0; glisse=null; W=scene.clientWidth||1;
-          traces=[{x:e.clientX, t:e.timeStamp}];
+          if(enCours) return;
+          /* le premier doigt posé : aucun autre ne compte encore (un lâcher perdu ne bloque rien) */
+          if(e.isPrimary) DOIGTS={};
+          DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
+          try{ scene.setPointerCapture(e.pointerId); }catch(er){}
+          var l=doigts();
+          if(l.length===1){
+            geste = Z.s>1.01 ? "promene" : null; bouge=false;
+            x0=e.clientX; y0=e.clientY; dx=0; W=scene.clientWidth||1;
+            traces=[{x:e.clientX, t:e.timeStamp}];
+            origine={x:Z.x, y:Z.y};
+            if(geste==="promene"){ image().style.transition="none"; scene.classList.add("dg-tient"); }
+          } else if(l.length===2){
+            /* deux doigts : on zoome ; un glissé commencé reprend sa place */
+            if(geste==="glisse") poser(0, true);
+            geste="pince"; bouge=true; scene.classList.remove("dg-tient");
+            var a=l[0], b=l[1];
+            pince={d:Math.max(1, Math.hypot(b.x-a.x, b.y-a.y)), mx:(a.x+b.x)/2, my:(a.y+b.y)/2, s:Z.s, x:Z.x, y:Z.y};
+            image().style.transition="none";
+          }
         });
         scene.addEventListener("pointermove", function(e){
-          if(e.pointerId!==id) return;
-          var mx=e.clientX-x0, my=e.clientY-y0;
-          if(glisse===null){
-            if(Math.abs(mx)<8 && Math.abs(my)<8) return;
-            glisse=Math.abs(mx)>Math.abs(my);
-            if(!glisse){ id=null; return; }
-            try{ scene.setPointerCapture(id); }catch(er){}
-            scene.classList.add("dg-tient");
+          if(!DOIGTS[e.pointerId]) return;
+          DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
+          var l=doigts();
+          if(geste==="pince"){
+            if(l.length<2) return;
+            var a=l[0], b=l[1], d=Math.hypot(b.x-a.x, b.y-a.y), cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
+            var s=pince.s*d/pince.d;
+            if(s>ZMAX) s=ZMAX+(s-ZMAX)*.3;   /* au-delà de 5 fois, ça résiste */
+            if(s<.6) s=.6;
+            var c=centre(), px=(pince.mx-c.x-pince.x)/pince.s, py=(pince.my-c.y-pince.y)/pince.s;
+            Z.s=s; Z.x=cx-c.x-s*px; Z.y=cy-c.y-s*py;
+            zoomer(false);
+            return;
           }
+          if(l.length!==1) return;
+          var mx=e.clientX-x0, my=e.clientY-y0;
+          if(!bouge && (Math.abs(mx)>8 || Math.abs(my)>8)) bouge=true;
+          if(geste==="promene"){
+            var bo=bornes(Z.s);
+            Z.x=resiste(origine.x+mx, bo.x); Z.y=resiste(origine.y+my, bo.y);
+            zoomer(false);
+            return;
+          }
+          if(geste===null){
+            if(!bouge) return;
+            geste = Math.abs(mx)>Math.abs(my) ? "glisse" : "rien";
+            if(geste==="glisse") scene.classList.add("dg-tient");
+          }
+          if(geste!=="glisse") return;
           /* au premier et au dernier bout, la photo résiste */
           dx = (k<=0 && mx>0) || (k>=n-1 && mx<0) ? mx*.3 : mx;
           traces.push({x:e.clientX, t:e.timeStamp}); if(traces.length>6) traces.shift();
           poser(dx, false);
         });
         function lacher(e){
-          if(e.pointerId!==id) return;
-          id=null; scene.classList.remove("dg-tient");
-          var tenu=glisse; glisse=null;
-          if(!tenu) return;
-          if(e.type==="pointercancel"){ poser(0, true); return; }
-          /* un petit coup sec suffit : la vitesse des derniers instants compte */
-          var a=traces[0], v=a ? (e.clientX-a.x)/Math.max(16, e.timeStamp-a.t) : 0;
-          if(k<n-1 && (dx<-W*.2 || (v<-.35 && dx<-24))) aller(1);
-          else if(k>0 && (dx>W*.2 || (v>.35 && dx>24))) aller(-1);
-          else poser(0, true);
+          if(!DOIGTS[e.pointerId]) return;
+          delete DOIGTS[e.pointerId];
+          var l=doigts();
+          if(geste==="pince"){
+            if(l.length===1){
+              /* un doigt reste posé : il promène la photo agrandie */
+              x0=l[0].x; y0=l[0].y; origine={x:Z.x, y:Z.y};
+              if(Z.s>1.01){ geste="promene"; scene.classList.add("dg-tient"); }
+              else { geste="rien"; finZoom(pince.mx, pince.my); }
+            } else if(!l.length){ geste=null; finZoom(pince.mx, pince.my); }
+            return;
+          }
+          if(l.length) return;
+          scene.classList.remove("dg-tient");
+          var g=geste; geste=null;
+          if(g==="promene"){
+            finZoom(e.clientX, e.clientY);
+            if(!bouge && e.type!=="pointercancel") toucher(e);
+            return;
+          }
+          if(g==="glisse"){
+            if(e.type==="pointercancel"){ poser(0, true); return; }
+            /* un petit coup sec suffit : la vitesse des derniers instants compte */
+            var a=traces[0], v=a ? (e.clientX-a.x)/Math.max(16, e.timeStamp-a.t) : 0;
+            if(k<n-1 && (dx<-W*.2 || (v<-.35 && dx<-24))) aller(1);
+            else if(k>0 && (dx>W*.2 || (v>.35 && dx>24))) aller(-1);
+            else poser(0, true);
+            return;
+          }
+          if(g===null && !bouge && e.type!=="pointercancel") toucher(e);
+        }
+        /* deux touchers rapprochés : la photo s'agrandit là, ou redevient entière */
+        function toucher(e){
+          var t=e.timeStamp, x=e.clientX, y=e.clientY, avant=toucherAvant;
+          toucherAvant={t:t, x:x, y:y};
+          if(!avant || t-avant.t>320 || Math.hypot(x-avant.x, y-avant.y)>30) return;
+          toucherAvant=null;
+          if(Z.s>1.01) remettre(true); else zoomerVers(ZDOUBLE, x, y, true);
         }
         scene.addEventListener("pointerup", lacher);
         scene.addEventListener("pointercancel", lacher);
         scene.addEventListener("dragstart", function(e){ e.preventDefault(); });
+        /* la molette, ou le pincement du pavé tactile (une molette avec Ctrl, plus fine) */
+        scene.addEventListener("wheel", function(e){
+          e.preventDefault();
+          if(enCours) return;
+          var d=e.deltaY*(e.deltaMode===1 ? 33 : e.deltaMode===2 ? 400 : 1);
+          zoomerVers(Z.s*Math.exp(-d*(e.ctrlKey ? .01 : .0018)), e.clientX, e.clientY, false);
+        }, {passive:false});
         flG.addEventListener("click", function(){ aller(-1); });
         flD.addEventListener("click", function(){ aller(1); });
 
@@ -794,17 +910,27 @@ function ouvrirGalerie(f){
           enregistrer(blob, nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()));
         });
         function touche(e){
-          var s = e.key==="ArrowRight" ? 1 : e.key==="ArrowLeft" ? -1 : 0;
-          if(e.key!=="Escape" && !s) return;
+          var c;
+          if(e.key==="Escape") fermer();
+          else if(e.key==="ArrowRight") aller(1);
+          else if(e.key==="ArrowLeft") aller(-1);
+          else if(e.key==="+" || e.key==="=" || e.key==="-" || e.key==="_"){
+            c=centre(); zoomerVers(Z.s*(e.key==="+" || e.key==="=" ? 1.5 : 1/1.5), c.x, c.y, true);
+          }
+          else if(e.key==="0") remettre(true);
+          else return;
           e.preventDefault(); e.stopPropagation();
-          if(s) aller(s); else fermer();
         }
+        /* l'écran tourne : la photo agrandie reste dans le cadre */
+        function recaler(){ if(Z.s>1.01){ borner(); zoomer(false); } }
         function fermer(){
           document.removeEventListener("keydown", touche, true);
+          window.removeEventListener("resize", recaler);
           if(vue.parentNode) vue.parentNode.removeChild(vue);
         }
         croix.addEventListener("click", fermer);
         document.addEventListener("keydown", touche, true);
+        window.addEventListener("resize", recaler);
         document.body.appendChild(vue);
         placer(); poser(0, false);
         try{ vue.focus({preventScroll:true}); }catch(e){}
