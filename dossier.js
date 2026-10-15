@@ -565,6 +565,41 @@ function lireZip(octets){
   }
   return out;
 }
+/* la photo en grand : toujours sur fond noir, en mode clair comme en sombre
+   (data-theme-propre : le thème n'y touche pas) */
+var STYLE_GALERIE=false;
+function styleGalerie(){
+  if(STYLE_GALERIE) return;
+  STYLE_GALERIE=true;
+  var st=document.createElement("style");
+  st.setAttribute("data-theme-propre","");
+  st.textContent=
+    ".dg-plein{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:#0F0E0C;color:#F4F1EA;outline:none;"
+    +"padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}"
+    +".dg-haut{flex:0 0 auto;display:flex;justify-content:flex-end;padding:8px 12px 4px}"
+    +".dg-x{width:44px;height:44px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(244,241,234,.14);color:#F4F1EA;"
+    +"display:flex;align-items:center;justify-content:center;cursor:pointer}"
+    +".dg-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
+    +".dg-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;touch-action:pan-y;touch-action:pan-y pinch-zoom;-webkit-user-select:none;user-select:none}"
+    +".dg-piste{position:absolute;inset:0;will-change:transform}"
+    +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;justify-content:center}"
+    +".dg-case img{display:block;max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none}"
+    +".dg-case img[hidden]{display:none}"
+    +".dg-fl{display:none;position:absolute;top:50%;z-index:1;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
+    +"background:rgba(15,14,12,.55);color:#F4F1EA;align-items:center;justify-content:center;cursor:pointer}"
+    +".dg-fl svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
+    +".dg-fl.g{left:16px}.dg-fl.d{right:16px}"
+    +".dg-nom{flex:0 0 auto;margin:10px 16px 0;color:#BDB5A6;font-size:12.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+    +".dg-bas{flex:0 0 auto;display:flex;justify-content:center;padding:14px 16px 18px}"
+    +".dg-enr{min-height:48px;min-width:170px;padding:0 28px;border:0;border-radius:var(--r-field,10px);background:rgba(244,241,234,.14);"
+    +"color:#F4F1EA;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}"
+    +".dg-x:focus-visible,.dg-fl:focus-visible,.dg-enr:focus-visible{outline:3px solid #FB923C;outline-offset:2px}"
+    /* à la souris : la main qui saisit, les deux flèches sur les côtés, le survol */
+    +"@media (hover:hover) and (pointer:fine){.dg-scene{cursor:grab}.dg-scene.dg-tient{cursor:grabbing}"
+    +".dg-fl{display:flex}.dg-fl[hidden]{display:none}"
+    +".dg-x:hover,.dg-enr:hover{background:rgba(244,241,234,.24)}.dg-fl:hover{background:rgba(15,14,12,.8)}}";
+  (document.head||document.documentElement).appendChild(st);
+}
 function ouvrirGalerie(f){
   var ov=document.createElement("div");
   ov.style.cssText="position:fixed;inset:0;z-index:80;background:#1A1815;display:flex;flex-direction:column;"
@@ -628,40 +663,151 @@ function ouvrirGalerie(f){
         fig.appendChild(im); fig.appendChild(cap);
         corps.appendChild(fig);
       });
+      /* Une photo en grand. On passe de l'une à l'autre en la faisant glisser
+         du doigt : vers la gauche la suivante, vers la droite la précédente.
+         La photo suit le doigt ; aux deux bouts, elle résiste et revient.
+         La croix en haut à droite referme ; « Enregistrer », seul au centre,
+         garde la photo affichée. À l'ordinateur : la souris fait glisser de
+         même, les flèches du clavier et les deux flèches sur les côtés aussi,
+         Échap referme. Deux doigts, ou la page zoomée : c'est un zoom, la
+         photo ne change pas. */
       function plein(depart){
-        var k=depart;
-        var vue=document.createElement("div");
-        vue.style.cssText="position:fixed;inset:0;z-index:90;background:#0F0E0C;display:flex;"
-          +"flex-direction:column;align-items:center;justify-content:center;padding:12px";
-        var grande=document.createElement("img");
-        grande.style.cssText="max-width:100%;max-height:78vh;object-fit:contain";
-        var nom=document.createElement("p");
-        nom.style.cssText="color:#BDB5A6;font-size:12.5px;margin:10px 0 0;text-align:center";
-        var nav=document.createElement("div");
-        nav.style.cssText="display:flex;gap:10px;margin-top:14px";
-        function bouton(texte, fn){
-          var b=document.createElement("button"); b.type="button"; b.textContent=texte;
-          b.style.cssText="min-height:44px;padding:0 18px;border:0;border-radius:var(--r-field);"
-            +"background:rgba(244,241,234,.12);color:#F4F1EA;font-size:14.5px;font-weight:600;"
-            +"font-family:inherit;cursor:pointer";
-          b.addEventListener("click", fn); return b;
+        styleGalerie();
+        var k=depart, n=urls.length, W=1, dx=0, id=null, glisse=null, x0=0, y0=0, traces=[], enCours=false;
+        var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+        var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
+        vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
+        var haut=document.createElement("div"); haut.className="dg-haut";
+        var croix=document.createElement("button"); croix.type="button"; croix.className="dg-x";
+        croix.setAttribute("aria-label","Fermer"); croix.title="Fermer";
+        croix.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+        haut.appendChild(croix);
+        var scene=document.createElement("div"); scene.className="dg-scene";
+        var piste=document.createElement("div"); piste.className="dg-piste";
+        /* trois cases côte à côte : la précédente, celle qu'on voit, la suivante */
+        var cases=[0,1,2].map(function(){
+          var c=document.createElement("div"); c.className="dg-case";
+          var im=document.createElement("img"); im.draggable=false; im.alt="";
+          c.appendChild(im); piste.appendChild(c); return c;
+        });
+        scene.appendChild(piste);
+        function fleche(cote, etiquette, trace){
+          var b=document.createElement("button"); b.type="button"; b.className="dg-fl "+cote;
+          b.setAttribute("aria-label", etiquette); b.title=etiquette;
+          b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+trace+'"/></svg>';
+          scene.appendChild(b); return b;
         }
-        function afficher(){
-          grande.src=urls[k];
-          nom.textContent=(k+1)+" sur "+urls.length+"  ·  "+photos[k].nom.split("/").pop();
+        var flG=fleche("g", "Photo précédente", "M15 5l-7 7 7 7");
+        var flD=fleche("d", "Photo suivante", "M9 5l7 7-7 7");
+        var nom=document.createElement("p"); nom.className="dg-nom"; nom.setAttribute("aria-live","polite");
+        var bas=document.createElement("div"); bas.className="dg-bas";
+        var enr=document.createElement("button"); enr.type="button"; enr.className="dg-enr"; enr.textContent="Enregistrer";
+        bas.appendChild(enr);
+        vue.appendChild(haut); vue.appendChild(scene); vue.appendChild(nom); vue.appendChild(bas);
+
+        function remplir(c, i){
+          var im=c.firstChild;
+          if(i<0 || i>=n){ im.hidden=true; im.removeAttribute("src"); im.alt=""; return; }
+          im.hidden=false;
+          if(im.getAttribute("src")!==urls[i]) im.src=urls[i];
+          im.alt=photos[i].nom.split("/").pop();
         }
-        nav.appendChild(bouton("Précédente", function(){ k=(k-1+urls.length)%urls.length; afficher(); }));
-        nav.appendChild(bouton("Suivante", function(){ k=(k+1)%urls.length; afficher(); }));
+        function placer(){
+          cases[0].style.left="-100%"; cases[1].style.left="0"; cases[2].style.left="100%";
+          remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
+          cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
+          nom.textContent=(k+1)+" sur "+n+"  ·  "+photos[k].nom.split("/").pop();
+          vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
+          flG.hidden = k<=0; flD.hidden = k>=n-1;
+        }
+        function poser(x, anime){
+          piste.style.transition = anime && !reduit ? "transform .28s cubic-bezier(.2,.8,.2,1)" : "none";
+          piste.style.transform = "translate3d("+x+"px,0,0)";
+        }
+        /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place */
+        function aller(sens){
+          if(enCours) return;
+          if(k+sens<0 || k+sens>=n){ poser(0, true); return; }
+          enCours=true; W=scene.clientWidth||1;
+          var fini=false;
+          function fin(){
+            if(fini) return; fini=true;
+            k+=sens;
+            /* la case arrivée au milieu y reste : son image ne se recharge pas */
+            if(sens>0) cases.push(cases.shift()); else cases.unshift(cases.pop());
+            placer(); poser(0, false); enCours=false;
+          }
+          if(reduit){ fin(); return; }
+          poser(-sens*W, true);
+          piste.addEventListener("transitionend", fin, {once:true});
+          setTimeout(fin, 360);
+        }
+
+        /* ---------- le doigt (ou la souris) ---------- */
+        scene.addEventListener("pointerdown", function(e){
+          /* un deuxième doigt : c'est un zoom, la photo reprend sa place */
+          if(!e.isPrimary){ if(glisse) poser(0, true); id=null; glisse=null; return; }
+          if(enCours || (e.pointerType==="mouse" && e.button!==0)) return;
+          if(e.target.closest && e.target.closest(".dg-fl")) return;
+          /* la page est zoomée : le doigt sert à se promener dans la photo */
+          if(window.visualViewport && window.visualViewport.scale>1.01) return;
+          id=e.pointerId; x0=e.clientX; y0=e.clientY; dx=0; glisse=null; W=scene.clientWidth||1;
+          traces=[{x:e.clientX, t:e.timeStamp}];
+        });
+        scene.addEventListener("pointermove", function(e){
+          if(e.pointerId!==id) return;
+          var mx=e.clientX-x0, my=e.clientY-y0;
+          if(glisse===null){
+            if(Math.abs(mx)<8 && Math.abs(my)<8) return;
+            glisse=Math.abs(mx)>Math.abs(my);
+            if(!glisse){ id=null; return; }
+            try{ scene.setPointerCapture(id); }catch(er){}
+            scene.classList.add("dg-tient");
+          }
+          /* au premier et au dernier bout, la photo résiste */
+          dx = (k<=0 && mx>0) || (k>=n-1 && mx<0) ? mx*.3 : mx;
+          traces.push({x:e.clientX, t:e.timeStamp}); if(traces.length>6) traces.shift();
+          poser(dx, false);
+        });
+        function lacher(e){
+          if(e.pointerId!==id) return;
+          id=null; scene.classList.remove("dg-tient");
+          var tenu=glisse; glisse=null;
+          if(!tenu) return;
+          if(e.type==="pointercancel"){ poser(0, true); return; }
+          /* un petit coup sec suffit : la vitesse des derniers instants compte */
+          var a=traces[0], v=a ? (e.clientX-a.x)/Math.max(16, e.timeStamp-a.t) : 0;
+          if(k<n-1 && (dx<-W*.2 || (v<-.35 && dx<-24))) aller(1);
+          else if(k>0 && (dx>W*.2 || (v>.35 && dx>24))) aller(-1);
+          else poser(0, true);
+        }
+        scene.addEventListener("pointerup", lacher);
+        scene.addEventListener("pointercancel", lacher);
+        scene.addEventListener("dragstart", function(e){ e.preventDefault(); });
+        flG.addEventListener("click", function(){ aller(-1); });
+        flD.addEventListener("click", function(){ aller(1); });
+
         /* enregistrer juste cette photo, à l'unité (pour n'avoir que la photo) */
-        nav.appendChild(bouton("Enregistrer", function(){
+        enr.addEventListener("click", function(){
           var ph=photos[k];
           var blob=new Blob([ph.octets], {type: /\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg"});
           enregistrer(blob, nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()));
-        }));
-        nav.appendChild(bouton("Fermer", function(){ document.body.removeChild(vue); }));
-        vue.appendChild(grande); vue.appendChild(nom); vue.appendChild(nav);
+        });
+        function touche(e){
+          var s = e.key==="ArrowRight" ? 1 : e.key==="ArrowLeft" ? -1 : 0;
+          if(e.key!=="Escape" && !s) return;
+          e.preventDefault(); e.stopPropagation();
+          if(s) aller(s); else fermer();
+        }
+        function fermer(){
+          document.removeEventListener("keydown", touche, true);
+          if(vue.parentNode) vue.parentNode.removeChild(vue);
+        }
+        croix.addEventListener("click", fermer);
+        document.addEventListener("keydown", touche, true);
         document.body.appendChild(vue);
-        afficher();
+        placer(); poser(0, false);
+        try{ vue.focus({preventScroll:true}); }catch(e){}
       }
     })
     .catch(function(){
