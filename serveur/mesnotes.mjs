@@ -18,7 +18,9 @@
    Rangement, dans le magasin de la société, par personne (<u>) :
      mesnotes/<u>/index.json   {notes: [{id, titre, apercu, dossier, epingle,
                                papier, cree, maj, vignette, encre, photos,
-                               chantier?, corbeille?}], dossiers: [{id, nom}]}
+                               largeur?, chantier?, corbeille?}], dossiers: [{id, nom}]}
+     (largeur : la largeur, en pixels, de la page où l'on a écrit au stylet ; ailleurs,
+      la note s'affiche à cette largeur, réduite pour tenir dans l'écran)
      mesnotes/<u>/n/<id>.json  le contenu : {id, html, encre: [traits], papier, maj}
                                ou, verrouillée, {id, chiffre: {iv, data}, papier, maj}
      (index.json porte aussi code: {sel, verif: {iv, data}} une fois le code choisi)
@@ -44,6 +46,13 @@ const court = (t, n) => String(t || "").replace(/[\u0000-\u001f]+/g, " ").replac
 function dossierDe(u) { return "mesnotes/" + u + "/"; }
 function slugNom(n) {
   return String(n || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "sans-nom";
+}
+/* la largeur de la page d'écriture : un nombre de pixels plausible, sinon rien */
+const largeurValide = (v) => { const n = Math.round(Number(v)); return n >= 240 && n <= 4000 ? n : null; };
+function poserLargeur(e, v) {
+  if (v === undefined) return;
+  const n = largeurValide(v);
+  if (n) e.largeur = n; else delete e.largeur;
 }
 const b64Valide = (t, max) => typeof t === "string" && t.length > 0 && t.length <= max && /^[A-Za-z0-9+/=]+$/.test(t);
 const chiffreValide = (c, max) => !!c && b64Valide(c.iv, 40) && b64Valide(c.data, max);
@@ -176,6 +185,7 @@ export async function mesnotes(action, o) {
       });
       if (d.dossier !== undefined) e.dossier = x.dossiers.some((f) => f.id === d.dossier) ? d.dossier : "";
       if (d.epingle !== undefined) e.epingle = d.epingle === true;
+      poserLargeur(e, d.largeur);
       await store.setJSON(base + "n/" + e.id + ".json", verrou ? { id: e.id, chiffre: { iv: d.chiffre.iv, data: d.chiffre.data }, papier, maj } : { id: e.id, html, encre, papier, maj });
       return json({ ok: true, note: e });
     });
@@ -203,6 +213,8 @@ export async function mesnotes(action, o) {
     if (action === "mesnote-ranger") {
       if (d.epingle !== undefined) e.epingle = d.epingle === true;
       if (d.dossier !== undefined) e.dossier = x.dossiers.some((f) => f.id === d.dossier) ? d.dossier : "";
+      /* la largeur d'écriture se note sans toucher à la date : la note ne remonte pas dans la liste */
+      poserLargeur(e, d.largeur);
       return json({ ok: true, note: e });
     }
     if (action === "mesnote-supprimer") { e.corbeille = { le: new Date().toISOString() }; e.epingle = false; return json({ ok: true, note: e }); }

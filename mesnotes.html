@@ -77,10 +77,26 @@ button{font:inherit;color:inherit}
 .np-ligne .vg img{width:100%;height:100%;object-fit:cover}
 .np-ligne .vg svg{width:34px;height:34px;fill:none;stroke:#1E3A8A;stroke-width:1.6;stroke-linecap:round}
 .np-rien{color:var(--ink-3);text-align:center;margin:40px 16px;font-size:14px}
+/* glisser une note vers la gauche : ses actions dessous ; appui long : épinglée */
+.np-rang{position:relative;margin-bottom:2px;border-radius:10px;overflow:hidden}
+.np-rang .np-ligne{position:relative;z-index:1;margin-bottom:0;background:var(--list);touch-action:pan-y;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:transform .22s cubic-bezier(.2,.8,.2,1),background-color .15s}
+.np-rang .np-ligne[aria-current="true"]{background:var(--accent-soft)}
+.np-rang.glisse .np-ligne{transition:none}
+.np-rang.appui .np-ligne{background:var(--accent-soft)}
+.np-actions{position:absolute;inset:0;display:flex;justify-content:flex-end}
+/* au repos, rien dessous : pas de liseré aux coins arrondis */
+.np-rang:not(.glisse):not(.ouvert) .np-actions{visibility:hidden}
+.np-rang.loin .np-a-sup{flex:1 1 auto}
+.np-rang.loin .np-a-verrou,.np-rang.loin .np-a-recup{display:none}
+.np-verrou-tout{display:inline-flex;align-items:center;gap:6px;border:0;background:none;color:var(--accent);font:inherit;font-size:13px;font-weight:650;padding:2px 0 8px;cursor:pointer}
+.np-verrou-tout svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.np-cache{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 .np-sec{font-size:11.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3);padding:10px 10px 4px}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:90;background:#22201C;color:#F4F1EA;
   padding:11px 18px;border-radius:12px;font-size:14px;max-width:min(560px,calc(100vw - 32px));box-shadow:0 12px 40px rgba(0,0,0,.3)}
 .toast[hidden]{display:none}
+
 [hidden]{display:none!important}
 /* moyen écran : les dossiers passent en pastilles au-dessus de la liste */
 @media (max-width:1000px){
@@ -98,6 +114,14 @@ button{font:inherit;color:inherit}
 }
 </style>
 <style data-theme-propre>
+/* les actions sous une note glissée, et « Annuler » : mêmes couleurs en clair comme en sombre */
+.np-a{border:0;min-width:88px;padding:0 10px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  color:#fff;font:inherit;font-size:12.5px;font-weight:650;line-height:1.15;text-align:center;cursor:pointer}
+.np-a svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.np-a-verrou{background:#6B5E4E}
+.np-a-recup{background:#2F7D4F}
+.np-a-sup{background:#C0392B}
+.toast button{margin-left:12px;border:0;border-radius:999px;background:#F08A2E;color:#1E2329;font:inherit;font-weight:700;padding:5px 12px;cursor:pointer}
 /* ---------- la note : du papier, en clair comme en sombre (theme.js n'y touche pas) ---------- */
 .np-note{flex:1;min-width:0;display:flex;flex-direction:column;background:#FFFDF8;position:relative;color:#22201C}
 .np-outils{flex:0 0 auto;min-height:58px;display:flex;align-items:center;gap:4px;padding:0 12px;border-bottom:1px solid #ECE6D9;flex-wrap:wrap;background:#FFFDF8}
@@ -134,37 +158,45 @@ button{font:inherit;color:inherit}
 .np-fmt .f-sous{font-weight:650}
 .np-fmt .f-carre{width:36px;padding:0;text-align:center}
 .np-defile{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch}
-.np-page{position:relative;min-height:100%;padding:22px 40px 120px;background:#FFFDF8}
-.np-page.papier-ligne{background-color:#FFFDF8;background-image:repeating-linear-gradient(to bottom,transparent 0 33px,#E6DFD0 33px 34px);background-position:0 var(--ligne0,18px)}
-.np-page.papier-quadrille{background-color:#FFFDF8;background-image:linear-gradient(#ECE5D6 1px,transparent 1px),linear-gradient(90deg,#ECE5D6 1px,transparent 1px);background-size:24px 24px}
-@media (max-width:760px){ .np-page{padding:16px 18px 120px} }
-.np-info{font-size:12.5px;color:#6E675C;text-align:center;margin-bottom:14px;display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:4px 10px}
+/* La page : tout s'y mesure à l'échelle --z. Une note écrite au stylet garde la largeur de la page où
+   on l'a écrite : sur un écran plus étroit, texte, lignes et écriture rapetissent ensemble (--z < 1),
+   comme une image ajustée à l'écran ; une note sans écriture suit l'écran (--z = 1). */
+.np-page{position:relative;min-height:100%;margin:0 auto;padding:calc(16px*var(--z,1)) calc(18px*var(--z,1)) calc(120px*var(--z,1));background:#FFFDF8}
+.np-page.large{padding:calc(22px*var(--z,1)) calc(40px*var(--z,1)) calc(120px*var(--z,1))}
+.np-page.papier-ligne{background-color:#FFFDF8;background-image:repeating-linear-gradient(to bottom,transparent 0 calc(34px*var(--z,1) - 1px),#E6DFD0 calc(34px*var(--z,1) - 1px) calc(34px*var(--z,1)));background-position:0 var(--ligne0,18px)}
+.np-page.papier-quadrille{background-color:#FFFDF8;background-image:linear-gradient(#ECE5D6 1px,transparent 1px),linear-gradient(90deg,#ECE5D6 1px,transparent 1px);background-size:calc(24px*var(--z,1)) calc(24px*var(--z,1))}
+/* la ligne d'infos garde sa hauteur d'avant (23 px) : le texte et l'écriture restent où ils étaient */
+.np-info{font-size:calc(12.5px*var(--z,1));color:#6E675C;text-align:center;margin-bottom:calc(14px*var(--z,1));min-height:calc(23px*var(--z,1));display:flex;flex-wrap:wrap;justify-content:center;align-items:center;gap:calc(4px*var(--z,1)) calc(10px*var(--z,1))}
+/* page réduite : la ligne d'infos de la page garde sa place, et se lit en taille normale au-dessus */
+.np-page.reduite .np-info{visibility:hidden}
+.np-info.haut{min-height:0;margin:10px 12px 8px}
+.np-info.haut[hidden]{display:none}
 .np-info .dos{position:relative;display:inline-flex;align-items:center}
 .np-info .dos b{font-weight:600;color:#4A463F}
 .np-info select{position:absolute;inset:0;opacity:0;cursor:pointer;font-size:16px}
-.np-info button{border:0;background:none;color:#B4621A;font-weight:600;font-size:12.5px;padding:4px 2px;cursor:pointer}
+.np-info button{border:0;background:none;color:#B4621A;font-weight:600;font-size:inherit;padding:calc(4px*var(--z,1)) calc(2px*var(--z,1));cursor:pointer}
 .np-info .rangee{color:#2563A8;font-weight:600}
 /* une ligne de texte = une ligne du papier (34 px) : le texte se pose sur les lignes */
-.np-editeur{outline:none;font-size:16px;line-height:34px;color:#22201C;min-height:204px;caret-color:#B4621A;word-wrap:break-word}
-.np-editeur h1{margin:0;font-size:28px;font-weight:750;letter-spacing:-.02em;line-height:34px}
-.np-editeur h2{margin:0;font-size:18px;font-weight:700;line-height:34px}
-.np-editeur p,.np-editeur div{margin:0;min-height:34px}
-.np-editeur ul,.np-editeur ol{margin:0;padding-left:26px}
+.np-editeur{outline:none;font-size:calc(16px*var(--z,1));line-height:calc(34px*var(--z,1));color:#22201C;min-height:calc(204px*var(--z,1));caret-color:#B4621A;word-wrap:break-word}
+.np-editeur h1{margin:0;font-size:calc(28px*var(--z,1));font-weight:750;letter-spacing:-.02em;line-height:calc(34px*var(--z,1))}
+.np-editeur h2{margin:0;font-size:calc(18px*var(--z,1));font-weight:700;line-height:calc(34px*var(--z,1))}
+.np-editeur p,.np-editeur div{margin:0;min-height:calc(34px*var(--z,1))}
+.np-editeur ul,.np-editeur ol{margin:0;padding-left:calc(26px*var(--z,1))}
 .np-editeur li{margin:0}
 .np-editeur ul.cases{list-style:none;padding-left:0}
-.np-editeur ul.cases li{position:relative;padding:0 0 0 34px;min-height:34px}
-.np-editeur ul.cases li::before{content:"";position:absolute;left:0;top:6px;width:22px;height:22px;border-radius:50%;border:2px solid #A79F90;box-sizing:border-box;cursor:pointer}
+.np-editeur ul.cases li{position:relative;padding:0 0 0 calc(34px*var(--z,1));min-height:calc(34px*var(--z,1))}
+.np-editeur ul.cases li::before{content:"";position:absolute;left:0;top:calc(6px*var(--z,1));width:calc(22px*var(--z,1));height:calc(22px*var(--z,1));border-radius:50%;border:calc(2px*var(--z,1)) solid #A79F90;box-sizing:border-box;cursor:pointer}
 .np-editeur ul.cases li[data-fait="1"]{color:#8C8475;text-decoration:line-through}
 .np-editeur ul.cases li[data-fait="1"]::before{background:#B4621A;border-color:#B4621A;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E");
-  background-size:14px 14px;background-repeat:no-repeat;background-position:center}
+  background-size:calc(14px*var(--z,1)) calc(14px*var(--z,1));background-repeat:no-repeat;background-position:center}
 .np-editeur.vide h1:first-child::before{content:"Titre de la note";color:#A79F90}
-.np-editeur figure.np-photo{margin:0;max-width:520px;position:relative;cursor:pointer;user-select:none;-webkit-user-select:none}
-.np-editeur figure.np-photo img{display:block;width:100%;height:auto;border-radius:10px;background:#E3DDD0}
+.np-editeur figure.np-photo{margin:0;max-width:calc(520px*var(--z,1));position:relative;cursor:pointer;user-select:none;-webkit-user-select:none}
+.np-editeur figure.np-photo img{display:block;width:100%;height:auto;border-radius:calc(10px*var(--z,1));background:#E3DDD0}
 .np-editeur figure.np-photo.envoi img{opacity:.55}
-.np-editeur figure.np-photo .etq{position:absolute;left:10px;bottom:10px;padding:3px 9px;border-radius:999px;background:rgba(255,255,255,.9);font-size:12px;color:#8A4A12}
-.np-editeur table.np-tab{border-collapse:collapse;margin:0;width:100%;max-width:600px;table-layout:fixed;background:rgba(255,253,248,.85)}
-.np-editeur table.np-tab td,.np-editeur table.np-tab th{border:1px solid #CFC7B6;padding:5px 8px 6px;line-height:22px;vertical-align:top;min-width:50px;overflow-wrap:anywhere}
+.np-editeur figure.np-photo .etq{position:absolute;left:calc(10px*var(--z,1));bottom:calc(10px*var(--z,1));padding:calc(3px*var(--z,1)) calc(9px*var(--z,1));border-radius:999px;background:rgba(255,255,255,.9);font-size:calc(12px*var(--z,1));color:#8A4A12}
+.np-editeur table.np-tab{border-collapse:collapse;margin:0;width:100%;max-width:calc(600px*var(--z,1));table-layout:fixed;background:rgba(255,253,248,.85)}
+.np-editeur table.np-tab td,.np-editeur table.np-tab th{border:1px solid #CFC7B6;padding:calc(5px*var(--z,1)) calc(8px*var(--z,1)) calc(6px*var(--z,1));line-height:calc(22px*var(--z,1));vertical-align:top;min-width:calc(50px*var(--z,1));overflow-wrap:anywhere}
 .np-editeur table.np-tab tr:first-child td{font-weight:650;background:#F3EEE3}
 .np-editeur figure.np-photo.scan img{border-radius:4px;box-shadow:0 1px 6px rgba(34,32,28,.18);background:#fff}
 .np-encre{position:absolute;left:0;top:0;pointer-events:none}
@@ -263,6 +295,7 @@ try{ if(innerWidth>760 && localStorage.getItem("mesnotes:derniere")){ document.b
     <section class="np-liste" aria-label="Notes du dossier">
       <div class="np-lt">
         <h1 id="titreDossier">Toutes les notes</h1>
+        <button type="button" class="np-verrou-tout" id="btnVerrouTout" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>Verrouiller maintenant</button>
         <div class="np-actdos" id="actDossier" hidden>
           <button type="button" id="btnRenommer">Renommer</button>
           <button type="button" id="btnSupDossier">Supprimer le dossier</button>
@@ -274,6 +307,7 @@ try{ if(innerWidth>760 && localStorage.getItem("mesnotes:derniere")){ document.b
       </div>
       <div class="np-chips" id="chips" role="group" aria-label="Dossiers"></div>
       <div class="np-lignes" id="liste"></div>
+      <p class="np-cache" id="aideLigne">Glisser vers la gauche : verrouiller ou supprimer. Appui long : épingler. Au clavier : Suppr pour supprimer, la touche menu pour épingler.</p>
     </section>
 
     <section class="np-note" aria-label="Note">
@@ -318,6 +352,7 @@ try{ if(innerWidth>760 && localStorage.getItem("mesnotes:derniere")){ document.b
         <button type="button" class="ko" id="btnEffacer">Supprimer définitivement</button>
       </div>
       <div class="np-defile" id="defile">
+        <div class="np-info haut" id="infoHaut" hidden></div>
         <div class="np-page papier-ligne" id="page">
           <div class="np-info" id="info"></div>
           <div class="np-editeur" id="editeur" contenteditable="true" spellcheck="true" aria-label="Texte de la note" role="textbox" aria-multiline="true"></div>
@@ -440,7 +475,12 @@ function appel(a, o){
   });
 }
 function el(t, cls, txt){ var e=document.createElement(t); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
-var toastT; function toast(m){ var t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 3200); }
+var toastT; function toast(m, action, fn){
+  var t=$("toast"); t.textContent=m; t.hidden=false;
+  /* « Annuler » : juste après une suppression */
+  if(action){ var b=el("button","",action); b.type="button"; b.addEventListener("click", function(){ t.hidden=true; clearTimeout(toastT); fn(); }); t.appendChild(b); }
+  clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, action ? 6000 : 3200);
+}
 function nouvelId(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,8); }
 function urlPhoto(id){ return API+"mesnote-photo-lire&id="+encodeURIComponent(id)+"&auth="+encodeURIComponent(S.jeton); }
 /* l'en-tête ne dit rien quand tout va bien : seul un souci s'affiche (hors connexion, non enregistrée) */
@@ -584,7 +624,8 @@ var SVG_ENCRE='<svg viewBox="0 0 40 40" aria-hidden="true"><path d="M6 30 L7 10 
 var SVG_CADENAS='<svg viewBox="0 0 24 24" aria-label="verrouillée" role="img" style="width:13px;height:13px;fill:none;stroke:#6E675C;stroke-width:2;stroke-linecap:round;flex:0 0 auto"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
 var SVG_EPINGLE='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:13px;height:13px;fill:#B4621A;flex:0 0 auto"><path d="M9 3h6l-1 6 3 3v2H7v-2l3-3z"/><path d="M12 14v7" stroke="#B4621A" stroke-width="2"/></svg>';
 function peindreListe(){
-  var h=$("liste"); h.textContent="";
+  var h=$("liste"); h.textContent=""; OUVERT=null;
+  $("btnVerrouTout").hidden=!(CLE && IDX.notes.some(function(n){ return n.verrou && !n.corbeille; }));
   var q=($("cherche").value||"").trim().toLowerCase();
   var l=IDX.notes.filter(function(n){ return dansVue(n, VUE) && (!q || ((n.titre||"")+" "+(n.apercu||"")).toLowerCase().indexOf(q)>=0); })
     .sort(function(a,b){ return VUE==="corbeille" ? String(b.corbeille.le).localeCompare(String(a.corbeille.le))
@@ -592,9 +633,19 @@ function peindreListe(){
   if(!l.length){ h.appendChild(el("p","np-rien", q ? "Aucune note ne correspond." : VUE==="corbeille" ? "Rien dans « Supprimées récemment »." : "Aucune note dans ce dossier.")); return; }
   var epi=VUE!=="corbeille" && VUE!=="epingles" && l.some(function(n){ return n.epingle; }) && l.some(function(n){ return !n.epingle; });
   var titreFait={};
+  var corb=VUE==="corbeille";
   l.forEach(function(n){
     if(epi){ var s=n.epingle ? "Épinglées" : "Notes"; if(!titreFait[s]){ titreFait[s]=1; h.appendChild(el("div","np-sec",s)); } }
+    var rang=el("div","np-rang"); rang.setAttribute("data-id", n.id);
+    var act=el("div","np-actions"); act.setAttribute("aria-hidden","true");
+    [corb ? ["recuperer","np-a-recup","Récupérer",ICO_RECUP] : ["verrou","np-a-verrou",n.verrou ? "Retirer le verrou" : "Verrouiller",ICO_VERROU],
+     ["supprimer","np-a-sup",corb ? "Supprimer définitivement" : "Supprimer",ICO_POUBELLE]].forEach(function(a){
+      var x=el("button","np-a "+a[1]); x.type="button"; x.tabIndex=-1; x.setAttribute("data-action", a[0]);
+      x.innerHTML=a[3]; x.appendChild(el("span","",a[2])); act.appendChild(x);
+    });
+    rang.appendChild(act);
     var b=el("button","np-ligne"); b.type="button"; b.setAttribute("data-id", n.id);
+    b.setAttribute("aria-describedby","aideLigne"); b.setAttribute("aria-keyshortcuts","Delete");
     b.setAttribute("aria-current", COUR && COUR.meta.id===n.id ? "true" : "false");
     var tx=el("div","tx"), ti=el("div","ti");
     if(n.epingle) ti.insertAdjacentHTML("beforeend", SVG_EPINGLE);
@@ -610,15 +661,21 @@ function peindreListe(){
       else { var im=el("img"); im.alt=""; im.loading="lazy"; im.src=urlPhoto(n.vignette); vg.appendChild(im); }
       b.appendChild(vg);
     }
-    b.addEventListener("click", function(){ ouvrir(n.id); });
-    h.appendChild(b);
+    b.addEventListener("click", function(){
+      if(AVALER){ AVALER=false; return; }
+      if(OUVERT){ fermerTiroir(); return; }
+      ouvrir(n.id);
+    });
+    rang.appendChild(b);
+    h.appendChild(rang);
   });
 }
 $("cherche").addEventListener("input", peindreListe);
 
 /* ---------- ouvrir une note ---------- */
-function peindreInfo(){
-  var h=$("info"); h.textContent="";
+function peindreInfo(){ remplirInfo($("info")); remplirInfo($("infoHaut")); }
+function remplirInfo(h){
+  h.textContent="";
   if(!COUR) return;
   var m=COUR.meta;
   var dos=el("span","dos"); dos.appendChild(document.createTextNode("Dans « "));
@@ -632,19 +689,6 @@ function peindreInfo(){
   dos.appendChild(sel); h.appendChild(dos);
   h.appendChild(el("span","", "modifiée "+quand(m.maj, true)));
   if(m.chantier) h.appendChild(el("span","rangee","rangée dans "+(m.chantier.client||"")+" ("+m.chantier.ref+")"));
-  if(!m.corbeille && (!COUR.verrou || COUR.dechiffree)){
-    var vb=el("button","", COUR.verrou ? "Retirer le verrou" : "Verrouiller"); vb.type="button";
-    vb.addEventListener("click", function(){ COUR.verrou ? retirerVerrou() : verrouiller(); });
-    h.appendChild(vb);
-    if(COUR.verrou){ var vm=el("button","","Verrouiller maintenant"); vm.type="button"; vm.addEventListener("click", verrouillerMaintenant); h.appendChild(vm); }
-  }
-  if(!m.corbeille){
-    var ep=el("button","", m.epingle ? "Désépingler" : "Épingler"); ep.type="button";
-    ep.addEventListener("click", function(){ ranger({epingle:!m.epingle}); });
-    var sup=el("button","","Supprimer"); sup.type="button"; sup.style.color="#A6291F";
-    sup.addEventListener("click", supprimer);
-    h.appendChild(ep); h.appendChild(sup);
-  }
 }
 function appliquerPapier(){
   var p=COUR ? COUR.papier : "ligné";
@@ -660,21 +704,24 @@ function fermerCourante(){
 }
 function ouvrir(id, neuve){
   volet(false);
-  if(COUR && COUR.meta.id===id && !neuve){ document.body.classList.add("voir-note"); return; }
+  if(COUR && COUR.meta.id===id && !neuve){ document.body.classList.add("voir-note"); return Promise.resolve(); }
   fermerCourante();
-  var m=meta(id); if(!m) return;
+  var m=meta(id); if(!m) return Promise.resolve();
   var c=lireCacheNote(id);
   COUR={meta:m, html:c && !c.chiffre ? c.html : (neuve ? NOTE_VIDE : ""), encre:c && !c.chiffre ? (c.encre||[]) : [], papier:(c && c.papier) || m.papier || "ligné",
     neuve:!!neuve, charge:!!c || !!neuve, verrou:!!m.verrou, chiffre:c && c.chiffre ? c.chiffre : null, dechiffree:!m.verrou};
-  ANNULER=[]; RAB=0; montrer();
+  /* la note s'affiche d'abord (au téléphone, elle remplace la liste) : le curseur peut s'y poser, le clavier vient */
   document.body.classList.add("voir-note");
+  ANNULER=[]; RAB=0; montrer();
   try{ localStorage.setItem("mesnotes:derniere", id); }catch(e){}
-  if(neuve) return;
+  if(neuve) return Promise.resolve();
   if(COUR.verrou && COUR.chiffre && CLE) dechiffrerCourante();
-  appel("mesnote&id="+encodeURIComponent(id)).then(function(r){
+  return appel("mesnote&id="+encodeURIComponent(id)).then(function(r){
     if(!COUR || COUR.meta.id!==id) return;
     if(!r.ok){ if(!COUR.charge) toast(r.d.erreur||"Note introuvable."); return; }
     var srv=r.d.contenu||{};
+    /* la largeur d'écriture, notée sur un autre appareil */
+    if(r.d.note && +r.d.note.largeur && +r.d.note.largeur!==+COUR.meta.largeur){ COUR.meta.largeur=+r.d.note.largeur; delete COUR.largeurSupposee; ecrireCache(); requestAnimationFrame(ajusterEncre); }
     /* le site a plus récent (autre appareil), et rien n'est en cours ici : on le prend */
     if(!SALE && (!c || String(srv.maj||"") > String(c.maj||""))){
       Object.assign(COUR.meta, r.d.note||{}); COUR.papier=srv.papier||COUR.papier; COUR.charge=true; cacheNote(id, srv);
@@ -687,7 +734,7 @@ function ouvrir(id, neuve){
 function montrer(){
   var ed=$("editeur");
   $("aucune").hidden=!!COUR;
-  if(!COUR){ ed.textContent=""; $("info").textContent=""; $("verrouEcran").hidden=true; $("defile").hidden=false; dessiner(); return; }
+  if(!COUR){ ed.textContent=""; $("info").textContent=""; $("infoHaut").textContent=""; $("infoHaut").hidden=true; $("verrouEcran").hidden=true; $("defile").hidden=false; dessiner(); return; }
   var ferme=COUR.verrou && !COUR.dechiffree;
   $("verrouEcran").hidden=!ferme; $("defile").hidden=ferme;
   if(ferme){ $("verrouTitre").textContent=COUR.meta.titre||"Note"; if(MODE.stylet) basculerStylet(false); }
@@ -699,7 +746,8 @@ function montrer(){
   if(corb) $("corbTexte").textContent="Cette note est dans « Supprimées récemment » : effacée dans "+Math.max(0, 30-Math.floor((Date.now()-Date.parse(COUR.meta.corbeille.le))/864e5))+" jours.";
   ["oFmt","oCases","oTableau","oPhoto","oStylet","oPapier","oChantier"].forEach(function(i){ $(i).disabled=corb || ferme; });
   ["oPartager","oPdf"].forEach(function(i){ $(i).disabled=ferme; });
-  appliquerPapier(); peindreInfo(); majVide(); peindreListe();
+  if(!ferme) regleLargeur();
+  appliquerPapier(); peindreInfo(); majVide(); peindreListe(); appliquerLargeur();
   $("defile").scrollTop=0;
   requestAnimationFrame(ajusterEncre);
   if(COUR.neuve){ var h1=ed.querySelector("h1"); placerCurseur(h1||ed); }
@@ -750,6 +798,7 @@ function enregistrer(tout){
   COUR.html=serialiser(); COUR.neuve=false;
   var photos=Array.prototype.map.call($("editeur").querySelectorAll("figure[data-photo]"), function(f){ return f.getAttribute("data-photo"); });
   var corps={id:m.id, titre:t.titre || "Nouvelle note", apercu:verrou ? "" : t.apercu, html:COUR.html, encre:COUR.encre, papier:COUR.papier, dossier:m.dossier||"", epingle:!!m.epingle, maj:maj};
+  if(+m.largeur) corps.largeur=+m.largeur;
   Object.assign(m, {titre:corps.titre, apercu:corps.apercu, maj:maj, papier:COUR.papier, encre:!verrou && COUR.encre.length>0, verrou:verrou});
   m.vignette = verrou ? "" : (photos[0] || (COUR.encre.length ? "encre" : ""));
   if(!tout){ peindreListe(); peindreInfo(); peindreDossiers(); }
@@ -784,33 +833,180 @@ function ranger(ch){
   if(SALE || COUR.neuve){ SALE=true; enregistrer(); return; }
   appel("mesnote-ranger", {corps:Object.assign({id:m.id}, ch)}).then(function(r){ if(r.ok){ Object.assign(m, r.d.note); ecrireCache(); } }).catch(function(){});
 }
-function supprimer(){
-  if(!COUR) return;
-  var m=COUR.meta;
-  if(COUR.neuve && estVide()){ fermerCourante(); montrer(); peindreListe(); return; }
-  enregistrer(true).then(function(){
-    return appel("mesnote-supprimer", {corps:{id:m.id}});
+/* Les actions d'une note se font depuis la liste, comme dans l'app Notes : glissée vers la
+   gauche, elle montre « Verrouiller » et « Supprimer » (glissée loin, elle part, avec
+   « Annuler ») ; un appui long l'épingle en haut de la liste, ou la désépingle. Dans
+   « Supprimées récemment » : « Récupérer » et « Supprimer définitivement ». */
+function epinglerNote(id){
+  var m=meta(id); if(!m || m.corbeille) return;
+  var ep=!m.epingle;
+  if(COUR && COUR.meta.id===id) ranger({epingle:ep});
+  else {
+    m.epingle=ep; ecrireCache(); peindreListe(); peindreDossiers();
+    appel("mesnote-ranger", {corps:{id:id, epingle:ep}}).then(function(r){ if(r.ok){ Object.assign(m, r.d.note); ecrireCache(); } }).catch(function(){ toast("Pas de réseau : l'épingle sera perdue au prochain chargement."); });
+  }
+  toast(ep ? "Note épinglée : elle reste en haut de la liste." : "Note désépinglée.");
+}
+function supprimerNote(id){
+  var m=meta(id); if(!m) return Promise.resolve();
+  var ouverte=COUR && COUR.meta.id===id;
+  if(ouverte && COUR.neuve && estVide()){ fermerCourante(); montrer(); document.body.classList.remove("voir-note"); peindreListe(); return Promise.resolve(); }
+  return (ouverte ? enregistrer(true) : Promise.resolve()).then(function(){
+    return appel("mesnote-supprimer", {corps:{id:id}});
   }).then(function(r){
-    if(r && r.ok){ Object.assign(m, r.d.note); ecrireCache(); toast("Note mise dans « Supprimées récemment » (30 jours)."); COUR=null; montrer(); document.body.classList.remove("voir-note"); peindreDossiers(); peindreListe(); }
-    else toast((r && r.d.erreur) || "Refusé.");
+    if(!r || !r.ok){ toast((r && r.d.erreur) || "Refusé."); peindreListe(); return; }
+    Object.assign(m, r.d.note); ecrireCache();
+    if(COUR && COUR.meta.id===id){ COUR=null; montrer(); document.body.classList.remove("voir-note"); }
+    peindreDossiers(); peindreListe();
+    toast("« "+(m.titre||"Nouvelle note")+" » est dans « Supprimées récemment ».", "Annuler", function(){ recupererNote(id); });
+  }).catch(function(){ toast("Pas de réseau : réessayez."); peindreListe(); });
+}
+function recupererNote(id){
+  var m=meta(id); if(!m) return;
+  appel("mesnote-restaurer", {corps:{id:id}}).then(function(r){
+    if(!r.ok){ toast(r.d.erreur||"Refusé."); return; }
+    Object.assign(m, r.d.note); delete m.corbeille; ecrireCache(); toast("Note récupérée.");
+    if(VUE==="corbeille" && COUR && COUR.meta.id===id){ VUE="tous"; montrer(); }
+    peindreDossiers(); peindreListe();
   }).catch(function(){ toast("Pas de réseau : réessayez."); });
 }
-$("btnRecuperer").addEventListener("click", function(){
-  if(!COUR) return; var m=COUR.meta;
-  appel("mesnote-restaurer", {corps:{id:m.id}}).then(function(r){
-    if(!r.ok){ toast(r.d.erreur||"Refusé."); return; }
-    Object.assign(m, r.d.note); delete m.corbeille; ecrireCache(); toast("Note récupérée."); VUE="tous"; peindreDossiers(); montrer();
-  }).catch(function(){ toast("Pas de réseau : réessayez."); });
-});
-$("btnEffacer").addEventListener("click", function(){
-  if(!COUR) return; var m=COUR.meta;
-  if(!window.confirm("Supprimer définitivement « "+(m.titre||"cette note")+" » ? Elle ne pourra plus être récupérée.")) return;
-  appel("mesnote-effacer", {corps:{id:m.id}}).then(function(r){
-    if(!r.ok){ toast(r.d.erreur||"Refusé."); return; }
-    IDX.notes=IDX.notes.filter(function(n){ return n.id!==m.id; }); cacheNote(m.id, null); ecrireCache();
-    COUR=null; montrer(); document.body.classList.remove("voir-note"); peindreDossiers(); peindreListe(); toast("Note supprimée définitivement.");
-  }).catch(function(){ toast("Pas de réseau : réessayez."); });
-});
+function effacerNoteDef(id){
+  var m=meta(id); if(!m) return;
+  if(!window.confirm("Supprimer définitivement « "+(m.titre||"cette note")+" » ? Elle ne pourra plus être récupérée.")){ peindreListe(); return; }
+  appel("mesnote-effacer", {corps:{id:id}}).then(function(r){
+    if(!r.ok){ toast(r.d.erreur||"Refusé."); peindreListe(); return; }
+    IDX.notes=IDX.notes.filter(function(n){ return n.id!==id; }); cacheNote(id, null); ecrireCache();
+    if(COUR && COUR.meta.id===id){ COUR=null; montrer(); document.body.classList.remove("voir-note"); }
+    peindreDossiers(); peindreListe(); toast("Note supprimée définitivement.");
+  }).catch(function(){ toast("Pas de réseau : réessayez."); peindreListe(); });
+}
+/* verrouiller (ou retirer le verrou) : la note s'ouvre, le code est demandé s'il le faut */
+function verrouNote(id){
+  var m=meta(id); if(!m || m.corbeille) return;
+  ouvrir(id).then(function(){
+    if(!COUR || COUR.meta.id!==id) return;
+    if(!COUR.verrou){ verrouiller(); return; }
+    var pret = COUR.dechiffree ? Promise.resolve() : obtenirCle(false).then(function(k){ if(k && COUR && COUR.meta.id===id && COUR.chiffre) return dechiffrerCourante(); });
+    pret.then(function(){ if(COUR && COUR.meta.id===id && COUR.dechiffree) retirerVerrou(); });
+  });
+}
+function actionNote(id, quoi){
+  if(quoi==="supprimer") return VUE==="corbeille" ? effacerNoteDef(id) : supprimerNote(id);
+  if(quoi==="recuperer") return recupererNote(id);
+  if(quoi==="verrou") return verrouNote(id);
+}
+$("btnRecuperer").addEventListener("click", function(){ if(COUR) recupererNote(COUR.meta.id); });
+$("btnEffacer").addEventListener("click", function(){ if(COUR) effacerNoteDef(COUR.meta.id); });
+$("btnVerrouTout").addEventListener("click", function(){ verrouillerMaintenant(); });
+
+/* ---------- les gestes sur la liste ---------- */
+var ICO_VERROU='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="10.5" width="14" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>';
+var ICO_POUBELLE='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 6.5h15M9.5 6.5V4.5h5v2M6.5 6.5l1 13h9l1-13M10 10.5v6M14 10.5v6"/></svg>';
+var ICO_RECUP='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 12a7.5 7.5 0 1 0 2.2-5.3"/><path d="M4.5 4.5v4h4"/></svg>';
+var GESTE=null, OUVERT=null, AVALER=false;   /* AVALER : le clic qui suit ce geste n'ouvre pas la note */
+function largeurTiroir(rang){
+  return Array.prototype.reduce.call(rang.querySelectorAll(".np-a"), function(t, x){ return t+x.offsetWidth; }, 0) || 176;
+}
+function ouvrirTiroir(rang){
+  if(OUVERT && OUVERT!==rang) fermerTiroir(OUVERT);
+  rang.querySelector(".np-ligne").style.transform="translateX("+(-largeurTiroir(rang))+"px)";
+  rang.classList.add("ouvert"); rang.classList.remove("loin"); OUVERT=rang;
+  rang.querySelector(".np-actions").removeAttribute("aria-hidden");
+  rang.querySelectorAll(".np-a").forEach(function(x){ x.tabIndex=0; });
+}
+function fermerTiroir(rang){
+  rang=rang||OUVERT; if(!rang) return;
+  rang.querySelector(".np-ligne").style.transform="";
+  rang.classList.remove("ouvert","loin"); if(OUVERT===rang) OUVERT=null;
+  rang.querySelector(".np-actions").setAttribute("aria-hidden","true");
+  rang.querySelectorAll(".np-a").forEach(function(x){ x.tabIndex=-1; });
+}
+/* glissée loin : elle part tout de suite */
+function partir(rang){
+  OUVERT=null;
+  rang.querySelector(".np-ligne").style.transform="translateX(-105%)";
+  var id=rang.getAttribute("data-id");
+  setTimeout(function(){ actionNote(id, "supprimer"); }, reduitMouvement() ? 0 : 200);
+}
+function reduitMouvement(){ try{ return matchMedia("(prefers-reduced-motion: reduce)").matches; }catch(e){ return false; } }
+(function(){
+  var liste=$("liste");
+  liste.addEventListener("pointerdown", function(e){
+    var b=e.target.closest && e.target.closest(".np-ligne"); if(!b) return;
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    var rang=b.parentNode;
+    /* les actions d'une autre note sont ouvertes : ce toucher les referme, rien de plus */
+    if(OUVERT && OUVERT!==rang){ fermerTiroir(); AVALER=true; GESTE=null; return; }
+    var g={rang:rang, b:b, id:rang.getAttribute("data-id"), x0:e.clientX, y0:e.clientY, pid:e.pointerId, mode:"",
+           depart:OUVERT===rang ? -largeurTiroir(rang) : 0, dx:0};
+    GESTE=g;
+    /* appui long : épingler (dans « Supprimées récemment », rien) ; dans les deux cas, lâcher n'ouvre pas la note */
+    g.t=setTimeout(function(){
+      if(GESTE!==g || g.mode) return;
+      g.mode="long"; AVALER=true;
+      if(VUE==="corbeille") return;
+      try{ if(navigator.vibrate) navigator.vibrate(12); }catch(x){}
+      rang.classList.add("appui");
+      setTimeout(function(){ epinglerNote(g.id); }, 120);
+    }, 480);
+  });
+  window.addEventListener("pointermove", function(e){
+    var g=GESTE; if(!g || e.pointerId!==g.pid || g.mode==="long") return;
+    var mx=e.clientX-g.x0, my=e.clientY-g.y0;
+    if(!g.mode){
+      if(Math.abs(mx)>10 && Math.abs(mx)>Math.abs(my)*1.2){
+        g.mode="glisse"; clearTimeout(g.t); g.rang.classList.add("glisse");
+        try{ g.b.setPointerCapture(e.pointerId); }catch(x){}
+      } else if(Math.abs(my)>10 || Math.abs(mx)>10){ clearTimeout(g.t); GESTE=null; return; }
+      else return;
+    }
+    var w=g.rang.offsetWidth;
+    g.dx=Math.max(-w, Math.min(0, g.depart+mx));
+    g.b.style.transform="translateX("+g.dx+"px)";
+    g.rang.classList.toggle("loin", g.dx < -w*.55);
+  });
+  function fin(e, annule){
+    var g=GESTE; if(!g || e.pointerId!==g.pid) return;
+    GESTE=null; clearTimeout(g.t);
+    if(g.mode==="long"){ g.rang.classList.remove("appui"); return; }
+    if(g.mode!=="glisse") return;
+    AVALER=true;
+    g.rang.classList.remove("glisse");
+    var w=g.rang.offsetWidth, tw=largeurTiroir(g.rang);
+    if(!annule && g.dx < -w*.55){ partir(g.rang); return; }
+    if(!annule && g.dx < -tw/2) ouvrirTiroir(g.rang); else fermerTiroir(g.rang);
+  }
+  window.addEventListener("pointerup", function(e){ fin(e, false); });
+  window.addEventListener("pointercancel", function(e){ fin(e, true); });
+  /* toucher ailleurs (la note, la recherche…) referme le tiroir */
+  document.addEventListener("pointerdown", function(e){
+    AVALER=false;
+    if(OUVERT && !OUVERT.contains(e.target) && !(e.target.closest && e.target.closest("#liste"))) fermerTiroir();
+  }, true);
+  /* les boutons du tiroir */
+  liste.addEventListener("click", function(e){
+    var a=e.target.closest && e.target.closest(".np-a"); if(!a) return;
+    var rang=a.closest(".np-rang"), id=rang.getAttribute("data-id"), quoi=a.getAttribute("data-action");
+    fermerTiroir(rang);
+    actionNote(id, quoi);
+  });
+  /* clic droit (ou la touche menu) : épingler ; Suppr : supprimer */
+  liste.addEventListener("contextmenu", function(e){
+    var b=e.target.closest && e.target.closest(".np-ligne"); if(!b) return;
+    e.preventDefault();
+    /* doigt encore posé (Android : l'appui long a déjà épinglé) */
+    if(GESTE || VUE==="corbeille") return;
+    epinglerNote(b.getAttribute("data-id"));
+  });
+  liste.addEventListener("keydown", function(e){
+    var b=e.target; if(!b.classList || !b.classList.contains("np-ligne")) return;
+    if(e.key==="Delete" || (e.key==="Backspace" && (e.metaKey || e.ctrlKey))){ e.preventDefault(); actionNote(b.getAttribute("data-id"), "supprimer"); }
+  });
+  /* Échap referme d'abord les actions ouvertes (la liste posée par-dessus reste), au second appui la liste */
+  window.addEventListener("keydown", function(e){
+    if(e.key==="Escape" && OUVERT){ fermerTiroir(); e.stopPropagation(); }
+  }, true);
+})();
 
 /* ---------- le texte : mise en forme et cases à cocher ---------- */
 try{ document.execCommand("defaultParagraphSeparator", false, "p"); }catch(e){}
@@ -861,7 +1057,7 @@ $("editeur").addEventListener("click", function(e){
   var li=e.target.closest && e.target.closest("ul.cases > li");
   if(li && !MODE.stylet && !(COUR && COUR.meta.corbeille)){
     var r=li.getBoundingClientRect();
-    if(e.clientX - r.left < 30){
+    if(e.clientX - r.left < 30*Z){
       e.preventDefault();
       if(li.getAttribute("data-fait")==="1") li.removeAttribute("data-fait"); else li.setAttribute("data-fait","1");
       sale(); return;
@@ -881,7 +1077,7 @@ $("defile").addEventListener("click", function(e){
   if(!COUR || MODE.stylet || COUR.meta.corbeille || (COUR.verrou && !COUR.dechiffree)) return;
   var ed=$("editeur");
   if(ed.getAttribute("contenteditable")!=="true") return;
-  if(e.target.closest && (e.target.closest("#info") || e.target.closest("figure,table,ul,ol"))) return;
+  if(e.target.closest && (e.target.closest("#info, #infoHaut") || e.target.closest("figure,table,ul,ol"))) return;
   if(e.target!==ed && e.target!==$("page") && e.target!==$("defile") && !estLigneVide(e.target.parentNode===ed ? e.target : null)) return;
   var dernier=ed.lastElementChild, bas=dernier ? dernier.getBoundingClientRect().bottom+parseFloat(getComputedStyle(dernier).marginBottom||0) : ed.getBoundingClientRect().top;
   var cible=null;
@@ -1076,6 +1272,54 @@ function distSeg(q, a, b){
 /* la taille choisie pour ce trait (k : 1 = taille d'origine) */
 function largeurT(t, p){ var k=+t.k; return largeurs(t.o, p)*(k>=.2 && k<=6 ? k : 1); }
 var PAS=34, LIGNE0=51;
+/* ---------- la page garde sa largeur d'écriture ----------
+   Une note écrite au stylet garde la largeur, en pixels, de la page où on l'a écrite
+   (meta.largeur). Sur un écran plus étroit, toute la page — texte, lignes, photos et
+   écriture — s'affiche réduite, à l'identique, comme une image ajustée à l'écran ; sur un
+   écran plus large, elle garde sa taille, au milieu. Une note sans écriture suit l'écran.
+   Les notes écrites avant : sur l'iPad (un grand écran tactile, là où l'on écrit au crayon), la
+   largeur de l'écran est notée à l'ouverture (rien n'y bouge, et sa date non plus) ; sur le
+   téléphone ou l'ordinateur, on prend celle de l'iPad. */
+var Z=1;
+/* écrite à l'Apple Pencil : la pression varie (au doigt ou à la souris, elle reste à .5) */
+function auCrayon(encre){
+  return (encre||[]).some(function(t){ return (t.p||[]).some(function(q){ return q[2]!=null && Math.abs(q[2]-.5)>.001; }); });
+}
+/* la largeur d'écriture la plus récente notée sur un grand écran ; sinon un iPad en portrait */
+function largeurIpad(){
+  var n0=null;
+  IDX.notes.forEach(function(n){ if(+n.largeur>=700 && (!n0 || String(n.maj||"")>String(n0.maj||""))) n0=n; });
+  return n0 ? +n0.largeur : 820;
+}
+function largeurPage(){
+  if(!COUR || !(COUR.encre||[]).length) return 0;
+  var L=+COUR.meta.largeur;
+  return L>=240 && L<=4000 ? L : (COUR.largeurSupposee || 0);
+}
+function regleLargeur(){
+  if(!COUR || !(COUR.encre||[]).length || +COUR.meta.largeur || COUR.meta.corbeille || !auCrayon(COUR.encre)) return;
+  var V=$("defile").clientWidth;
+  if(V>=700 && (navigator.maxTouchPoints||0)>0){
+    COUR.meta.largeur=V; ecrireCache();
+    appel("mesnote-ranger", {corps:{id:COUR.meta.id, largeur:V}}).catch(function(){});
+  } else COUR.largeurSupposee=largeurIpad();
+}
+/* le premier trait sur une page qui suit l'écran : elle garde désormais cette largeur */
+function noterLargeur(){
+  if(!COUR || largeurPage()) return;
+  COUR.meta.largeur=Math.round($("page").clientWidth); delete COUR.largeurSupposee;
+}
+function appliquerLargeur(){
+  var pg=$("page"), V=$("defile").clientWidth, L=largeurPage();
+  if(!V) return;
+  var z=L ? Math.min(1, V/L) : 1;
+  Z=z; PAS=34*z;
+  pg.style.setProperty("--z", String(z));
+  pg.style.width = L && L<V ? L+"px" : "";
+  pg.classList.toggle("large", (L||V)>=761);
+  pg.classList.toggle("reduite", z<.999);
+  $("infoHaut").hidden = !(z<.999);
+}
 /* le navigateur loge parfois une liste dans un paragraphe (<p><ul>…</ul></p>) : on la ressort,
    pour que chaque bloc tombe sur les lignes. Le curseur reste où il était. */
 var BLOCS_INTERNES=/^(UL|OL|P|DIV|TABLE|FIGURE|H1|H2)$/;
@@ -1107,17 +1351,18 @@ function caler(){
     if(n.tagName!=="FIGURE" && n.tagName!=="TABLE") return;
     n.style.marginBottom="0px";
     var h=n.getBoundingClientRect().height, reste=(PAS-(h%PAS))%PAS;
-    if(reste<6) reste+=PAS;
+    if(reste<6*Z) reste+=PAS;
     n.style.marginBottom=reste.toFixed(2)+"px";
   });
   /* les lignes du papier, juste sous chaque ligne de texte */
-  LIGNE0=ed.offsetTop+27;
-  $("page").style.setProperty("--ligne0", (ed.offsetTop-6)+"px");
+  LIGNE0=ed.offsetTop+27*Z;
+  $("page").style.setProperty("--ligne0", (ed.offsetTop-6*Z)+"px");
 }
 /* une page sans fin : en descendant, elle s'allonge d'un écran à chaque fois (RAB) */
 var RAB=0;
 function basEncre(){ var b=0; (COUR ? COUR.encre : []).forEach(function(t){ t.p.forEach(function(q){ if(q[1]>b) b=q[1]; }); }); return b*U; }
 function ajusterEncre(){
+  appliquerLargeur();
   caler();
   var pg=$("page"), df=$("defile"), VH=df.clientHeight;
   U=pg.clientWidth/1000;
@@ -1312,6 +1557,7 @@ page.addEventListener("pointerdown", function(e){
   ACTIF=e.pointerId; try{ page.setPointerCapture(e.pointerId); }catch(x){}
   var q=point(e);
   if(MODE.outil==="gomme"){ TRAIT={gomme:true, avant:COUR.encre.slice()}; gommer(q); if(ENCRE_SALE) dessiner(); else peindreVif(true); return; }
+  noterLargeur();
   if(MODE.outil==="formes"){
     TRAIT={o:"forme", f:MODE.forme, c:MODE.couleur, p:[[q[0],q[1]],[q[0],q[1]]]};
     if(MODE.k.forme && MODE.k.forme!==1) TRAIT.k=Math.round(MODE.k.forme*100)/100;
@@ -1794,8 +2040,8 @@ function construirePdf(){
     for(var ly=((LIGNE0%PAS)+PAS)%PAS; ly<nb*HP; ly+=PAS) poser(ly, function(y){ doc.setDrawColor(230,223,208); doc.setLineWidth(.2); doc.line(M, y, M+W, y); });
   }
   if(COUR.papier==="quadrillé"){
-    for(var pi=0;pi<nb;pi++){ doc.setPage(pi+1); doc.setDrawColor(236,229,214); doc.setLineWidth(.15); for(var gx=0; gx<=pg.clientWidth; gx+=24) doc.line(M+gx*f, M, M+gx*f, M+HP*f); }
-    for(var gy=0; gy<nb*HP; gy+=24) poser(gy, function(y){ doc.setDrawColor(236,229,214); doc.setLineWidth(.15); doc.line(M, y, M+W, y); });
+    for(var pi=0;pi<nb;pi++){ doc.setPage(pi+1); doc.setDrawColor(236,229,214); doc.setLineWidth(.15); for(var gx=0; gx<=pg.clientWidth; gx+=24*Z) doc.line(M+gx*f, M, M+gx*f, M+HP*f); }
+    for(var gy=0; gy<nb*HP; gy+=24*Z) poser(gy, function(y){ doc.setDrawColor(236,229,214); doc.setLineWidth(.15); doc.line(M, y, M+W, y); });
   }
   /* le texte, bloc par bloc, ligne par ligne, là où il est à l'écran */
   /* les tableaux : le quadrillage, puis le texte des cases comme le reste */
@@ -1826,12 +2072,12 @@ function construirePdf(){
       if(liste.classList.contains("cases")){
         poser(yHaut+lh/2, function(y){
           doc.setLineWidth(.35); doc.setDrawColor(fait ? 180 : 167, fait ? 98 : 159, fait ? 26 : 144);
-          if(fait){ doc.setFillColor(180,98,26); doc.circle(M+(r.left-R.left+11)*f, y, 11*f, "FD"); }
-          else doc.circle(M+(r.left-R.left+11)*f, y, 11*f, "S");
+          if(fait){ doc.setFillColor(180,98,26); doc.circle(M+(r.left-R.left+11*Z)*f, y, 11*Z*f, "FD"); }
+          else doc.circle(M+(r.left-R.left+11*Z)*f, y, 11*Z*f, "S");
         });
       } else {
         var marque=liste.tagName==="OL" ? (Array.prototype.indexOf.call(liste.children, b)+1)+"." : "•";
-        poser(yp, function(y){ doc.setTextColor(34,32,28); doc.text(marque, M+(r.left-R.left-16)*f, y); });
+        poser(yp, function(y){ doc.setTextColor(34,32,28); doc.text(marque, M+(r.left-R.left-16*Z)*f, y); });
       }
     }
   });
