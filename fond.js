@@ -4,8 +4,9 @@
    « Mon compte » › « Fond d'écran » › « Anthracite, sans animation » :
    un fond uni anthracite à la place des fonds animés (le ciel et les
    réseaux de l'accueil, le plan technique des applis, l'aurore des
-   outils) ; la page des to-do lists garde son crème, immobile. Réglage
-   propre à l'appareil, lu avant l'affichage : aucune animation ne démarre.
+   outils ; la to-do list éteint elle-même ses lueurs, dans sa page).
+   Réglage propre à l'appareil, lu avant l'affichage : aucune animation
+   ne démarre.
    ===================================================================== */
 (function(){
   var f=null;
@@ -17,7 +18,6 @@
   st.id="fondFixe";
   st.textContent=
     "html.fond-fixe .ciel,html.fond-fixe #fondPlan,html.fond-fixe .fond-outils{background:"+A+"!important}"
-    +"html.fond-fixe .ciel>*,html.fond-fixe #fondPlan>*,html.fond-fixe .fond-outils>*{display:none!important}"
-    +"html.fond-fixe #fondPastel i{animation:none!important}";
+    +"html.fond-fixe .ciel>*,html.fond-fixe #fondPlan>*,html.fond-fixe .fond-outils>*{display:none!important}";
   (document.head||document.documentElement).appendChild(st);
 })();
