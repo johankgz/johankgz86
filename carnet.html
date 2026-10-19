@@ -595,9 +595,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <section id="tab-document" hidden>
   <div class="block">
-    <h2>Récapitulatif</h2>
-    <div id="resume"></div>
-    <div class="tuiles-act" style="margin-top:14px">
+    <h2>Document</h2>
+    <div class="tuiles-act">
       <button class="act blue" id="btnGenerer" title="Générer le document"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/></svg>Générer</button>
       <button class="act ghost" id="btnWord" title="Exporter en Word"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="m8 12 1.4 5 1.6-4 1.6 4L14 12"/></svg>Word</button>
     </div>
@@ -940,7 +939,6 @@ function renderPages(){
     titre.type="text"; titre.value=p.titre||""; titre.placeholder="Titre de la page";
     titre.setAttribute("aria-label","Titre de la page "+(i+1));
     titre.addEventListener("input", function(){ p.titre=titre.value; save(); });
-    titre.addEventListener("change", renderResume);
     var src=document.createElement("span"); src.className="source";
     src.textContent = p.source==="image" ? ("photo — "+(p.nomFichier||""))
       : ((p.nomFichier||"PDF") + "  ·  page " + p.page);
@@ -950,17 +948,17 @@ function renderPages(){
     var haut=document.createElement("button"); haut.type="button"; haut.textContent="↑";
     haut.setAttribute("aria-label","Monter cette page"); haut.disabled = i===0;
     haut.addEventListener("click", function(){
-      S.pages.splice(i-1, 0, S.pages.splice(i,1)[0]); save(); renderPages(); renderResume();
+      S.pages.splice(i-1, 0, S.pages.splice(i,1)[0]); save(); renderPages();
     });
     var bas=document.createElement("button"); bas.type="button"; bas.textContent="↓";
     bas.setAttribute("aria-label","Descendre cette page"); bas.disabled = i===S.pages.length-1;
     bas.addEventListener("click", function(){
-      S.pages.splice(i+1, 0, S.pages.splice(i,1)[0]); save(); renderPages(); renderResume();
+      S.pages.splice(i+1, 0, S.pages.splice(i,1)[0]); save(); renderPages();
     });
     var sup=document.createElement("button"); sup.type="button"; sup.className="sup"; sup.textContent="×";
     sup.setAttribute("aria-label","Retirer cette page");
     sup.addEventListener("click", function(){
-      S.pages.splice(i,1); save(); renderPages(); renderResume();
+      S.pages.splice(i,1); save(); renderPages();
     });
     outils.appendChild(haut); outils.appendChild(bas); outils.appendChild(sup);
 
@@ -1050,7 +1048,7 @@ function validerChoix(){
                   page:i+1, nomFichier:CHOIX.nom, vignette:CHOIX.vignettes[i]});
   });
   var n=CHOIX.prises.length;
-  fermerChoix(); save(); renderPages(); renderResume();
+  fermerChoix(); save(); renderPages();
   toast(n + " page" + (n>1?"s":"") + " ajoutée" + (n>1?"s":"") + ". Donnez-leur un titre.");
 }
 
@@ -1099,7 +1097,7 @@ function importerImage(fichiers){
         garderFichier(id, data).then(function(){
           S.pages.push({id:uid(), titre:"", source:"image", fichier:id, page:1,
                         nomFichier:f.name, vignette:vg.toDataURL("image/jpeg", 0.7)});
-          if(++faits===n){ save(); renderPages(); renderResume(); toast("Photo ajoutée."); }
+          if(++faits===n){ save(); renderPages(); toast("Photo ajoutée."); }
         }).catch(function(){ if(++faits===n){ toast("Photo non gardée."); } });
       };
       img.onerror=function(){ if(++faits===n) toast("Image illisible."); };
@@ -1148,7 +1146,6 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
-  if(name==="document") renderResume();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut"); if(vieux) vieux.remove();
@@ -1199,8 +1196,8 @@ function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
   chips("ch_doc", DOCUMENTS, function(o){ return S.doc===o[0]; },
-    function(o){ S.doc=o[0]; save(); majTitre(); renderResume(); });
-  majTitre(); renderPages(); renderDest(); renderResume(); refreshHeader();
+    function(o){ S.doc=o[0]; save(); majTitre(); });
+  majTitre(); renderPages(); renderDest(); refreshHeader();
 }
 function majTitre(){
   $("titrePage").textContent = nomDoc();
@@ -1214,27 +1211,6 @@ function refreshHeader(){
   $("hdrRef").textContent=r.join("  ");
 }
 function sansTitre(){ return S.pages.filter(function(p){ return !(p.titre||"").trim(); }).length; }
-function renderResume(){
-  var host=$("resume"); if(!host) return;
-  host.textContent="";
-  var manque=sansTitre();
-  [["Document", nomDoc()],
-   ["Dossier", (S.garde.nom||"").trim() || "à renseigner"],
-   ["Lot", (S.garde.lot||"").trim() || "—"],
-   ["Date", frDate(dateFiche())],
-   ["Pages", String(S.pages.length)],
-   ["Sommaire", S.pages.length ? pagesSommaire() + " page" + (pagesSommaire()>1?"s":"") : "—"],
-   ["Titres manquants", manque ? String(manque) : "aucun"],
-   ["Total imprimé", String(1 + pagesSommaire() + S.pages.length) + " pages"]
-  ].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
-  });
-}
 
 /* =====================================================================
    LE DOCUMENT
@@ -2118,7 +2094,6 @@ function bindAll(){
     var el=$(f[0]);
     el.addEventListener("input", function(){ setPath(f[1], el.value); save(); });
     el.addEventListener("change", function(){
-      renderResume();
       if(f[0]==="c_ref" || f[0]==="c_nom") equipeDuDossier();
     });
   });

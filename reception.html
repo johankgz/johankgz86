@@ -836,9 +836,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <section id="tab-pv" hidden>
   <div class="block">
-    <h2>Récapitulatif</h2>
-    <div id="resume"></div>
-    <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer le procès-verbal</button></div>
+    <h2>PDF</h2>
+    <div class="row"><button class="act blue" id="btnPdf">Générer le procès-verbal</button></div>
     <p class="hint" id="pdfInfo"></p>
   </div>
 
@@ -1365,7 +1364,6 @@ function renderControles(){
       blocs.forEach(function(b){ host.appendChild(b); });
     }
   });
-  renderResume();
 }
 function ligneControle(m, r, a){
   var p=point(m, r, a[0]);
@@ -1419,7 +1417,7 @@ function ligneControle(m, r, a){
 /* ---------- réserves ---------- */
 function renderReserves(){
   var host=$("listeReserves"); host.textContent="";
-  if(!S.reserves.length){ renderResume(); return; }
+  if(!S.reserves.length) return;
   var card=document.createElement("div"); card.className="block";
   var h=document.createElement("h2"); h.textContent="Réserves ("+S.reserves.length+")";
   card.appendChild(h);
@@ -1443,7 +1441,6 @@ function renderReserves(){
     card.appendChild(row);
   });
   host.appendChild(card);
-  renderResume();
 }
 function reservesDepuisNC(){
   var ajout=0;
@@ -1520,7 +1517,6 @@ function effacerSignature(cle){
 function majEtatSignatures(){
   $("etatClient").textContent = S.sig.client ? "Signée" : "En attente de signature";
   $("etatTech").textContent = S.sig.tech ? "Signée" : "En attente de signature";
-  renderResume();
 }
 
 /* ---------- photos ---------- */
@@ -1537,7 +1533,7 @@ function renderPhotos(){
     var lg=document.createElement("input"); lg.type="text"; lg.placeholder="Légende"; lg.value=ph.legende||"";
     lg.addEventListener("input", function(){ ph.legende=lg.value; save(); });
     var bd=document.createElement("button"); bd.className="del"; bd.type="button"; bd.textContent="×";
-    bd.addEventListener("click", function(){ S.photos.splice(i,1); save(); renderPhotos(); renderResume(); });
+    bd.addEventListener("click", function(){ S.photos.splice(i,1); save(); renderPhotos(); });
     d.appendChild(im); d.appendChild(lg); d.appendChild(bd);
     host.appendChild(d);
   });
@@ -1614,7 +1610,6 @@ function showTab(name){
 function entreeOnglet(name){
   if(name==="controles") renderControles();
   if(name==="signatures"){ initSignature("sig_client","client"); initSignature("sig_tech","tech"); majEtatSignatures(); }
-  if(name==="pv") renderResume();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -1684,9 +1679,9 @@ function paintForm(){
     });
   chips("ch_decision", DECISIONS,
     function(o){ return S.decision===o; },
-    function(o){ S.decision = (S.decision===o)?"":o; save(); majDecision(); renderResume(); });
+    function(o){ S.decision = (S.decision===o)?"":o; save(); majDecision(); });
   majDecision();
-  renderControles(); renderReserves(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
+  renderControles(); renderReserves(); renderPhotos(); renderDest(); refreshHeader();
 }
 function majDecision(){
   var t=$("decisionInfo");
@@ -1703,27 +1698,6 @@ function refreshHeader(){
   var c=comptes();
   if(c.nc) r.push(c.nc+" non conforme"+(c.nc>1?"s":""));
   $("hdrRef").textContent=r.join("  ");
-}
-function renderResume(){
-  var host=$("resume"); if(!host) return;
-  host.textContent="";
-  var c=comptes();
-  [["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
-   ["Lots réceptionnés", S.metiers.join(", ")||"aucun"],
-   ["Points contrôlés", (c.conforme+c.nc+c.so)+" sur "+c.total],
-   ["Conformes", String(c.conforme)],
-   ["Non conformes", String(c.nc)],
-   ["Réserves", String(S.reserves.length)],
-   ["Décision", S.decision||"à prononcer"],
-   ["Signatures", (S.sig.client?"client":"")+(S.sig.client&&S.sig.tech?" et ":"")+(S.sig.tech?"entreprise":"") || "aucune"]
-  ].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
-  });
 }
 
 /* ---------- export des photos en ZIP (sans bibliothèque) ---------- */
@@ -2642,7 +2616,6 @@ function bindAll(){
   FIELDS.forEach(function(f){
     var el=$(f[0]);
     el.addEventListener("input", function(){ setPath(f[1], el.value); save(); });
-    el.addEventListener("change", renderResume);
   });
   document.querySelectorAll("[data-dictee]").forEach(function(b){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
@@ -2681,7 +2654,7 @@ function bindAll(){
     Array.prototype.forEach.call(files, function(f){
       compress(f, function(ph){
         if(ph) S.photos.push(ph);
-        if(++done===n){ save(); renderPhotos(); renderResume(); }
+        if(++done===n){ save(); renderPhotos(); }
       });
     });
     this.value="";

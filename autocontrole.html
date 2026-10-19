@@ -638,9 +638,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <section id="tab-fiche" hidden>
   <div class="block">
-    <h2>Récapitulatif</h2>
-    <div id="resume"></div>
-    <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer la fiche</button></div>
+    <h2>PDF</h2>
+    <div class="row"><button class="act blue" id="btnPdf">Générer la fiche</button></div>
     <p class="hint" id="pdfInfo"></p>
   </div>
 
@@ -988,7 +987,7 @@ function renderVerifs(){
       var val=document.createElement("input");
       val.type="text"; val.inputMode="decimal"; val.placeholder="—"; val.value=S.terre||"";
       val.setAttribute("aria-label","Valeur de la prise de terre en ohms");
-      val.addEventListener("input", function(){ S.terre=val.value; save(); renderResume(); });
+      val.addEventListener("input", function(){ S.terre=val.value; save(); });
       txt.appendChild(val);
       var unite=document.createElement("span"); unite.className="ohm";
       unite.textContent="Ω (indiquer la valeur)";
@@ -1012,7 +1011,7 @@ function renderVerifs(){
       b.setAttribute("aria-pressed", S.reponses[id]===r[0] ? "true" : "false");
       b.addEventListener("click", function(){
         S.reponses[id] = (S.reponses[id]===r[0]) ? "" : r[0];
-        save(); renderVerifs(); renderResume(); majCompte();
+        save(); renderVerifs(); majCompte();
       });
       rep.appendChild(b);
     });
@@ -1082,7 +1081,6 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
-  if(name==="fiche") renderResume();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -1135,37 +1133,16 @@ function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
   chips("ch_travaux", TRAVAUX, function(o){ return S.meta.travaux===o; },
-    function(o){ S.meta.travaux=(S.meta.travaux===o)?"":o; save(); renderResume(); });
+    function(o){ S.meta.travaux=(S.meta.travaux===o)?"":o; save(); });
   chips("ch_batiment", BATIMENTS, function(o){ return S.meta.batiment===o; },
-    function(o){ S.meta.batiment=(S.meta.batiment===o)?"":o; save(); renderResume(); });
-  renderVerifs(); renderNotice(); renderDest(); renderResume(); refreshHeader();
+    function(o){ S.meta.batiment=(S.meta.batiment===o)?"":o; save(); });
+  renderVerifs(); renderNotice(); renderDest(); refreshHeader();
 }
 function refreshHeader(){
   var r=[], c=compteReponses();
   if(refAffaire()) r.push(refAffaire());
   r.push((CONTROLES.length-c.vide) + "/" + CONTROLES.length);
   $("hdrRef").textContent=r.join("  ");
-}
-function renderResume(){
-  var host=$("resume"); if(!host) return;
-  host.textContent="";
-  var c=compteReponses();
-  [["Chantier", ligneChantier()||"à renseigner"],
-   ["Date", frDate(dateFiche())],
-   ["Type de travaux", S.meta.travaux||"à cocher"],
-   ["Type de bâtiment", S.meta.batiment||"à cocher"],
-   ["Prise de terre", (S.terre||"").trim() ? S.terre+" Ω" : "à mesurer"],
-   ["Vérifications", c.oui+" OUI, "+c.non+" NON, "+c.so+" SO"],
-   ["Lignes à renseigner", String(c.vide)],
-   ["Techniciens", (S.meta.techniciens||"").trim()||"à renseigner"]
-  ].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
-  });
 }
 
 /* ---------- destinataires et base de rapports ---------- */
@@ -1740,7 +1717,6 @@ function bindAll(){
     var el=$(f[0]);
     el.addEventListener("input", function(){ setPath(f[1], el.value); save(); });
     el.addEventListener("change", function(){
-      renderResume();
       if(f[0]==="c_client" || f[0]==="c_ref") equipeDuDossier();
     });
   });

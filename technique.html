@@ -704,11 +704,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <section id="tab-depot" hidden>
   <div class="block">
-    <h2>Récapitulatif</h2>
-    <div id="resume"></div>
-  </div>
-
-  <div class="block">
     <h2>Dépôt dans le dossier</h2>
     <p class="hint" id="pubIntro" style="margin:-8px 0 14px">Chaque document part séparément, dans le dossier ou chez la personne choisie dans l'onglet Dossier. Ceux déjà déposés ne repartent pas.</p>
     <button class="act blue" id="btnPublier" style="width:100%">Déposer les documents</button>
@@ -1040,7 +1035,7 @@ function ajouterFichiers(files, apres){
       lot[k]=d;
       if(++done===n){
         lot.forEach(function(d){ if(d) docs().push(d); });
-        save(); renderDocs(); renderResume(); majCompteur();
+        save(); renderDocs(); renderTelechargements(); majCompteur();
         if(refuses) toast(refuses+" fichier"+(refuses>1?"s trop lourds ont":" trop lourd a")
           +" été écarté"+(refuses>1?"s":"")+" : 5 Mo au maximum.");
         if(apres) apres();
@@ -1061,13 +1056,13 @@ function renderDocs(){
     else { var im=document.createElement("img"); im.src=d.data; im.alt=""; apercu.appendChild(im); }
     var champ=document.createElement("input");
     champ.type="text"; champ.value=d.titre; champ.placeholder="Titre du document";
-    champ.addEventListener("input", function(){ d.titre=champ.value; save(); renderResume(); });
+    champ.addEventListener("input", function(){ d.titre=champ.value; save(); renderTelechargements(); });
     var sup=document.createElement("button");
     sup.type="button"; sup.className="d-sup"; sup.textContent="×";
     sup.setAttribute("aria-label", "Retirer ce document");
     sup.addEventListener("click", function(){
       if(!window.confirm("Retirer « "+(d.titre||"ce document")+" » de la liste ?")) return;
-      docs().splice(i,1); save(); renderDocs(); renderResume(); majCompteur();
+      docs().splice(i,1); save(); renderDocs(); renderTelechargements(); majCompteur();
     });
     tete.appendChild(apercu); tete.appendChild(champ); tete.appendChild(sup);
 
@@ -1075,7 +1070,7 @@ function renderDocs(){
     CATEGORIES.forEach(function(c){
       var b=document.createElement("button");
       b.type="button"; b.className="chip"+(d.cat===c?" on":""); b.textContent=c;
-      b.addEventListener("click", function(){ d.cat=c; save(); renderDocs(); renderResume(); });
+      b.addEventListener("click", function(){ d.cat=c; save(); renderDocs(); renderTelechargements(); });
       cats.appendChild(b);
     });
 
@@ -1136,7 +1131,7 @@ function showTab(name){
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
   if(name==="photos") majCompteur();
-  if(name==="rapport") renderResume();
+  if(name==="rapport") renderTelechargements();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -1178,31 +1173,13 @@ function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[
 function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
-  renderDocs(); renderDest(); renderResume(); refreshHeader(); majCompteur();
+  renderDocs(); renderDest(); renderTelechargements(); refreshHeader(); majCompteur();
 }
 function refreshHeader(){
   var r=[];
   if(refAffaire()) r.push(refAffaire());
   if(docs().length) r.push(docs().length + " document" + (docs().length>1?"s":""));
   $("hdrRef").textContent=r.join("  ");
-}
-function renderResume(){
-  var host=$("resume"); if(!host) return;
-  host.textContent="";
-  [["Client", S.chantier.client||refAffaire()||"à renseigner"],
-   ["Lot", lot()||"tout le chantier"],
-   ["Date", frDate(dateFiche())],
-   ["Documents", String(docs().length)],
-   ["À déposer", String(enAttente().length)]
-  ].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
-  });
-  renderTelechargements();
 }
 
 /* ---------- récupérer un document sur l'appareil ---------- */
@@ -1580,7 +1557,7 @@ function bindAll(){
     var el=$(f[0]);
     el.addEventListener("input", function(){ setPath(f[1], el.value); save(); });
     el.addEventListener("change", function(){
-      renderResume();
+      renderTelechargements();
       if(f[0]==="c_client" || f[0]==="c_ref") equipeDuDossier();
     });
   });
