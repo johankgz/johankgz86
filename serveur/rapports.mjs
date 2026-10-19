@@ -32,7 +32,7 @@ function libelleDocument(entree) {
     entree.type === "schema" ? "Schéma unifilaire" + (entree.etape ? " — " + entree.etape : "")
     : entree.type === "commande" ? "Commande et reste à faire"
     : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
-    : entree.type === "reportage" ? "Photo/croquis" + (entree.visite ? " — " + entree.visite : "")
+    : entree.type === "reportage" ? "Photo et croquis" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
     : entree.type === "carnet" ? "Carnet d'échantillons"
     : entree.type === "memoire" ? "Mémoire technique"
@@ -2144,7 +2144,7 @@ async function traiter(req) {
     }
     const entree = {
       cle,
-      titre: d.titre || (schema ? "Schéma unifilaire" : point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Photo/croquis" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      titre: d.titre || (schema ? "Schéma unifilaire" : point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Photo et croquis" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
       type: schema ? "schema" : point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",

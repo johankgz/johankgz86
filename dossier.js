@@ -1419,7 +1419,7 @@ function carteDossier(c, i, opts){
                     : f.type==="suivi" ? (f.visite ? "Visite "+f.visite : "Suivi")
                     : f.type==="commande" ? "Commande"
                     : f.type==="photos" ? "Photos"
-                    : f.type==="reportage" ? "Photo/croquis"
+                    : f.type==="reportage" ? "Photo et croquis"
                     : f.type==="autocontrole" ? "Autocontrôle"
                     : f.type==="carnet" ? "Carnet"
                     : f.type==="memoire" ? "Mémoire"

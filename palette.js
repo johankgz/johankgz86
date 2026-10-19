@@ -41,7 +41,7 @@
     ["./reception.html", "Réception de travaux", "reception", "pv proces-verbal lots signature"],
     ["./sav.html", "SAV", "sav", "depannage intervention appel"],
     ["./etiquettes.html", "Étiquettes", "etiquettes", "tableau qr"],
-    ["./photos.html", "Photo/croquis", "photos", "images reportage croquis dessin"],
+    ["./photos.html", "Photo et croquis", "photos", "images reportage croquis dessin"],
     ["./carnet.html", "Carnet et DOE", "carnet", "dossier ouvrages"],
     ["./technique.html", "Documents", "technique", "fiches techniques"],
     ["./schema.html", "Schéma unifilaire", "schema", "tableau electrique"],
