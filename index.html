@@ -3010,7 +3010,9 @@ function chargerListes(s){
   fetch(apiUrl("notes"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
-      LISTES=d.listes||[];
+      /* les listes que j'ai masquées dans la to-do ne comptent pas ici */
+      var masquees=(d.ordre && d.ordre.masquees) || [];
+      LISTES=(d.listes||[]).filter(function(l){ return masquees.indexOf(l.id)<0; });
       var reste=LISTES.reduce(function(a,l){ return a+(l.items||[]).filter(function(i){ return !i.fait; }).length; }, 0);
       TODO_RESTE=reste; TODO_LISTES=LISTES.length; peindreTodo();
       peindreListes(s);

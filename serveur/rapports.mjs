@@ -2644,14 +2644,15 @@ async function traiter(req) {
     } catch { /* rien à retirer */ }
   }
   const cleCorbeille = (nom) => "notes-corbeille/" + slug(nom) + ".json";
-  /* L'ordre dans lequel je range mes listes (la première en haut à gauche) :
-     à moi seul — une liste partagée garde sa place chez les autres — et le
-     même sur tous mes appareils. Le rangement le plus récent l'emporte. */
+  /* L'ordre dans lequel je range mes listes (la première en haut à gauche),
+     et celles que j'ai masquées : à moi seul — une liste partagée garde sa
+     place, et reste visible, chez les autres — et les mêmes sur tous mes
+     appareils. Le rangement le plus récent l'emporte. */
   const cleOrdre = (nom) => "notes-ordre/" + slug(nom) + ".json";
   function ordreValide(o) {
     if (!o || !Array.isArray(o.ids) || typeof o.maj !== "string") return null;
-    const ids = Array.from(new Set(o.ids.filter((x) => typeof x === "string" && x && x.length <= 80))).slice(0, 1000);
-    return { ids, maj: o.maj.slice(0, 40) };
+    const propres = (t) => Array.from(new Set((Array.isArray(t) ? t : []).filter((x) => typeof x === "string" && x && x.length <= 80))).slice(0, 1000);
+    return { ids: propres(o.ids), maj: o.maj.slice(0, 40), masquees: propres(o.masquees) };
   }
   async function lireOrdre(nom) {
     try { return ordreValide(await store.get(cleOrdre(nom), { type: "json" })); } catch { return null; }
