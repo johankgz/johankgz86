@@ -1041,13 +1041,7 @@ a.act[hidden]{display:none}
   <div class="block" id="sec-enregistrer">
     <h2>Enregistrer</h2>
     <div id="resume" hidden></div>
-    <div class="choix-pub" id="choixPublication">
-      <button type="button" class="opt on" data-pub="dossier">
-        <b>Dans le dossier</b>
-      </button>
-    </div>
-    <p class="legend" id="legendeDest" hidden>Qui doit recevoir ce suivi</p>
-    <div class="chips" id="pubDest"></div>
+    <p class="hint" id="pubDossierQui" style="margin:-8px 0 14px"></p>
     <button class="act blue sv-go" id="btnPublier">Enregistrer le suivi</button>
     <div class="sv-choix" id="pubChoix" hidden role="dialog" aria-modal="true" aria-labelledby="pubChoixTxt">
       <p id="pubChoixTxt"></p>
@@ -4754,73 +4748,38 @@ function habillerBarres(){
   });
 }
 
-/* ---------- publication : dans le dossier ou à une personne ---------- */
+/* ---------- enregistrer : toujours dans le dossier du chantier ---------- */
 var PUB_MODE = "dossier";
-/* PUB_AUTO : le mode « à une personne » a été choisi par la fiche, pas par vous (pas encore de référence).
-   Dès qu'une référence se tape, l'équipe du dossier est relue et la publication revient au dossier. */
-var PUB_AUTO = false;
+/* la référence tapée : l'équipe du dossier est relue un instant après */
 document.addEventListener("input", function(ev){
-  if(!PUB_AUTO) return;
-  /* une recherche de nom (personnes.js) n'est pas la référence : elle ne relance pas l'attente */
-  if(ev && ev.target && ev.target.hasAttribute && ev.target.hasAttribute("data-sans-marque")) return;
+  if(!ev || !ev.target || (ev.target.id!=="c_ref" && ev.target.id!=="a_chantier" && ev.target.id!=="c_nom")) return;
   clearTimeout(window.__pubAutoT);
-  window.__pubAutoT = setTimeout(function(){ try{ if(refAffaire()) equipeDuDossier(); }catch(e){} }, 600);
+  window.__pubAutoT = setTimeout(function(){ try{ equipeDuDossier(); }catch(e){} }, 600);
 }, true);
 function equipeDuDossier(){
   try{ lireResteDossier(); }catch(e){}
   var ref = (typeof refAffaire === "function") ? refAffaire() : "";
   var el = document.getElementById("pubDossierQui");
-  var choix = document.getElementById("choixPublication");
-  if(!el || !choix) return;
-  if(!ref){
-    el.textContent = "renseignez la référence des travaux";
-    return;
-  }
-  /* la publication était passée d'elle-même « à une personne » faute de référence : la référence est là, elle revient au dossier */
-  if(PUB_AUTO) basculePub("dossier");
-  if(!apiPret || !apiPret(true)) { el.textContent = "visible par l'équipe du chantier"; return; }
+  if(!el) return;
+  if(!ref){ el.textContent = "Renseignez la référence des travaux."; return; }
+  if(!apiPret || !apiPret(true)) { el.textContent = "Visible par l'équipe du chantier."; return; }
   fetch(apiUrl("equipe-dossier")+"&ref="+encodeURIComponent(ref), {headers:{"x-auth":jetonSession()}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
+      if(ref !== refAffaire()) return;                    /* la référence a changé entre-temps */
       var gens=(d.equipe||[]).filter(Boolean);
-      el.textContent = gens.length ? "visible par "+gens.join(", ") : "vous serez seul à le voir";
+      el.textContent = gens.length ? "Visible par "+gens.join(", ")+"." : "Visible par l'équipe du chantier.";
     })
-    .catch(function(){
-      el.textContent = "dossier nouveau : l'équipe sera constituée à la publication";
-    });
+    .catch(function(){ el.textContent = "Visible par l'équipe du chantier."; });
 }
-function basculePub(mode, force){
-  PUB_MODE = mode;
-  PUB_AUTO = !!force;
-  var choix=document.getElementById("choixPublication");
-  if(choix){
-    Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){
-      b.classList.toggle("on", b.getAttribute("data-pub")===mode);
-    });
-  }
-  var lg=document.getElementById("legendeDest");
-  var chips=document.getElementById("pubDest");
-  if(lg) lg.hidden = (mode!=="cible");
-  if(chips) chips.hidden = (mode!=="cible");
-}
-function bindChoixPublication(){
-  var choix=document.getElementById("choixPublication");
-  if(!choix) return;
-  Array.prototype.forEach.call(choix.querySelectorAll(".opt"), function(b){
-    b.addEventListener("click", function(){ basculePub(b.getAttribute("data-pub")); });
-  });
-  basculePub("dossier");
-  equipeDuDossier();
-}
+function basculePub(){ PUB_MODE = "dossier"; }
+function bindChoixPublication(){ equipeDuDossier(); }
 
 /* ---------- démarrage ---------- */
 function adapterRole(){
   if(!TECHNICIEN) return;
   var b=$("btnOpenSite"); if(b) b.hidden=true;               /* pas de reprise de fiche */
   var r=$("btnReleveSite"); if(r) r.hidden=true;             /* relevés réservés au bureau */
-  var t=$("pubTitre"); if(t) t.textContent="Chargé d'affaires destinataire";
-  var h=$("pubIntro");
-  if(h) h.textContent="Votre rapport part directement dans l'espace du chargé d'affaires choisi. Une fois publié, il ne peut plus être modifié : c'est lui qui prend la suite.";
 }
 
 function start(){
