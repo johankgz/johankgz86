@@ -21,7 +21,7 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Travaux 360">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<title>Reportage photo — Suivi travaux 360</title>
+<title>Photo/croquis — Suivi travaux 360</title>
 <style>
 :root{
   --bg:#F4F1EA;
@@ -618,7 +618,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 </head>
 <body>
 <header>
-  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Reportage photo</h1>
+  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Photo/croquis</h1>
     <div class="ref" id="hdrRef"></div>
   </div>
   <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
@@ -673,17 +673,18 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
-    <h2>Photos</h2>
-    <p class="legend">La photo rapide rouvre l'appareil après chaque cliché, pour enchaîner sans revenir à l'écran. Chaque photo porte sa propre note, sous la vignette.</p>
+    <h2>Photos et croquis</h2>
+    <p class="legend">La photo rapide rouvre l'appareil après chaque cliché, pour enchaîner sans revenir à l'écran. Croquis ouvre une page blanche à dessiner, avec les outils de l'annotation. Chaque photo ou croquis porte sa propre note, sous la vignette.</p>
     <div class="tuiles-act">
       <button class="act solid" id="btnPhotoRapide"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="m12.8 9.5-2.3 3.4h2.6l-1.9 3.4"/></svg>Photo rapide</button>
       <button class="act blue" id="btnPhoto" title="Depuis la galerie"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 5.5h17v13h-17z"/><path d="m3.5 15.5 5-4.5 4 3.5 3-2.5 5 4"/><circle cx="15.5" cy="9" r="1.5"/></svg>Galerie</button>
+      <button class="act ghost" id="btnCroquis" title="Un croquis sur une page blanche"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4.5 3.5h15v17h-15z"/><path d="m8 15.5 5.8-5.8 2 2L10 17.5H8z"/><path d="m12.6 10.9 2 2"/></svg>Croquis</button>
       <input type="file" id="filePhoto" accept="image/*" multiple hidden>
       <input type="file" id="filePhotoRapide" accept="image/*" capture="environment" hidden>
     </div>
     <p class="hint" id="q_state"></p>
     <div class="thumbs" id="photos"></div>
-    <p class="vide" id="photosVide">Aucune photo pour l'instant.</p>
+    <p class="vide" id="photosVide">Aucune photo ni croquis pour l'instant.</p>
   </div>
 </section>
 
@@ -990,7 +991,7 @@ function adresseTravaux(){ return (S.chantier.adresse||"").replace(/\n/g,", "); 
 function dateFiche(){ return S.meta.date || aujourdhui(); }
 function titreReportage(){
   var o=(S.meta.objet||"").trim();
-  return o ? "Reportage photo — "+o : "Reportage photo";
+  return o ? "Photo/croquis — "+o : "Photo/croquis";
 }
 function notees(){
   return S.photos.filter(function(p){ return (p.legende||"").trim(); }).length;
@@ -1001,21 +1002,22 @@ function renderPhotos(){
   var host=$("photos"); host.textContent="";
   S.photos.forEach(function(ph, i){
     var d=document.createElement("div"); d.className="thumb";
-    var im=document.createElement("img"); im.src=ph.data; im.alt="Photo "+(i+1);
-    im.style.cursor="zoom-in"; im.title="Annoter la photo";
+    var quoi=ph.croquis ? "le croquis " : "la photo ";
+    var im=document.createElement("img"); im.src=ph.data; im.alt=(ph.croquis ? "Croquis " : "Photo ")+(i+1);
+    im.style.cursor="zoom-in"; im.title=ph.croquis ? "Modifier le croquis" : "Annoter la photo";
     im.addEventListener("click", function(){ openSketch(i); });
     var num=document.createElement("span"); num.className="num"; num.textContent=String(i+1);
     var note=document.createElement("textarea");
-    note.rows=2; note.placeholder="Note de cette photo"; note.value=ph.legende||"";
+    note.rows=2; note.placeholder=ph.croquis ? "Note de ce croquis" : "Note de cette photo"; note.value=ph.legende||"";
     note.addEventListener("input", function(){ ph.legende=note.value; save(); majCompteur(); });
     note.addEventListener("change", renderResume);
     var bd=document.createElement("button"); bd.className="del"; bd.type="button"; bd.textContent="×";
-    bd.setAttribute("aria-label", "Retirer la photo "+(i+1));
+    bd.setAttribute("aria-label", "Retirer "+quoi+(i+1));
     bd.addEventListener("click", function(){
       S.photos.splice(i,1); save(); renderPhotos(); renderResume(); majCompteur();
     });
     var an=document.createElement("button"); an.className="ann"; an.type="button"; an.textContent="✎";
-    an.setAttribute("aria-label","Annoter la photo "+(i+1));
+    an.setAttribute("aria-label",(ph.croquis ? "Modifier " : "Annoter ")+quoi+(i+1));
     an.addEventListener("click", function(){ openSketch(i); });
     d.appendChild(im); d.appendChild(num); d.appendChild(note); d.appendChild(an); d.appendChild(bd);
     host.appendChild(d);
@@ -1027,21 +1029,34 @@ function toutesLesPhotos(){
 }
 function majCompteur(){
   var n=S.photos.length;
+  var c=S.photos.filter(function(p){ return p.croquis; }).length, f=n-c;
+  var l=[];
+  if(f) l.push(f + " photo" + (f>1?"s":""));
+  if(c) l.push(c + " croquis");
   $("q_state").textContent = n
-    ? n + " photo" + (n>1?"s":"") + " dans ce reportage, " + notees() + " avec une note."
+    ? l.join(" et ") + " dans ce reportage, " + notees() + " avec une note."
     : "";
 }
 
 /* ---------- annotation : l'outil commun (annotation.js) ----------
    Les annotations restent des objets : on les retouche plus tard, la photo
-   d'origine restant intacte à côté. */
+   d'origine restant intacte à côté. Un croquis part d'une page blanche et
+   se range avec les photos ; on le reprend de même. */
+function nouveauCroquis(){
+  Annotation.croquis({titre:"Croquis " + (S.photos.length+1)}).then(function(ph){
+    if(!ph) return;
+    S.photos.push(ph);
+    save(); renderPhotos(); renderResume(); majCompteur();
+    toast("Croquis ajouté.");
+  });
+}
 function openSketch(index){
   var ph=S.photos[index];
   if(!ph){ toast("Photo introuvable."); return; }
-  Annotation.photo(ph, {titre:"Annoter la photo " + (index+1)}).then(function(r){
+  Annotation.photo(ph, {titre:(ph.croquis ? "Croquis " : "Annoter la photo ") + (index+1)}).then(function(r){
     if(!r) return;
     save(); renderPhotos(); renderResume();
-    toast("Photo annotée.");
+    toast(ph.croquis ? "Croquis modifié." : "Photo annotée.");
   }).catch(function(){ toast("Image illisible."); });
 }
 
@@ -1141,7 +1156,7 @@ function renderResume(){
   [["Client", S.chantier.client||refAffaire()||"à renseigner"],
    ["Objet", (S.meta.objet||"").trim()||"sans objet"],
    ["Date", frDate(dateFiche())],
-   ["Photos", String(S.photos.length)],
+   ["Photos et croquis", String(S.photos.length)],
    ["Photos annotées", notees() + " sur " + S.photos.length],
    ["Note générale", (S.note||"").trim() ? "renseignée" : "aucune"]
   ].forEach(function(l){
@@ -1662,7 +1677,7 @@ function buildPdf(){
       tx=M+lw+7;
     }
     setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Reportage photo", tx, 19);
+    doc.text("Photo/croquis", tx, 19);
     doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
     var sous="Le "+frDate(dateFiche());
     if((S.meta.objet||"").trim()) sous += "   "+S.meta.objet.trim();
@@ -1694,7 +1709,7 @@ function buildPdf(){
     footer(); doc.addPage(); page++;
     setFill(INK); doc.rect(0,0,PW,2.2,"F");
     doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.chantier.client||"Reportage photo"), M, 12);
+    doc.text((S.chantier.client||"Photo/croquis"), M, 12);
     doc.text(frDate(dateFiche()), PW-M, 12, {align:"right"});
     setText(INK); y=20;
   }
@@ -1744,7 +1759,7 @@ function buildPdf(){
   kv("Référence travaux", S.chantier.ref);
   kv("Objet", (S.meta.objet||"").trim());
   kv("Date", frDate(dateFiche()));
-  kv("Photos", String(S.photos.length));
+  kv("Photos et croquis", String(S.photos.length));
   kv("Prises par", (SESSION && SESSION.nom) || "");
 
   if((S.note||"").trim()){
@@ -1798,7 +1813,7 @@ function buildPdf(){
 }
 function pdfName(){
   var o=(S.meta.objet||"").trim();
-  return "Reportage-" + nomFichier(refAffaire()||"chantier")
+  return "Photo-croquis-" + nomFichier(refAffaire()||"chantier")
     + (o ? "-"+nomFichier(o) : "") + "-" + dateFiche() + ".pdf";
 }
 function dl(blob, name){
@@ -1812,7 +1827,7 @@ function dl(blob, name){
 /* ---------- partage : feuille de partage du téléphone ---------- */
 function messagePartage(){
   return ["Bonjour,", "",
-    "Reportage photo du " + frDate(dateFiche())
+    "Photo/croquis du " + frDate(dateFiche())
       + (S.chantier.client ? " — " + S.chantier.client : "") + ".",
     (S.note||"").trim(),
     "", (SESSION&&SESSION.nom)||"", (P&&P.societe)||""].filter(Boolean).join("\n");
@@ -1853,6 +1868,7 @@ function bindAll(){
   });
   $("btnDossierSite").addEventListener("click", ouvrirDepuisSite);
   $("btnPhoto").addEventListener("click", function(){ $("filePhoto").click(); });
+  $("btnCroquis").addEventListener("click", nouveauCroquis);
 
   /* photo rapide : l'appareil se rouvre tant qu'on enchaîne */
   var enchaine=false;
@@ -2546,7 +2562,7 @@ var CH_ICONES = {
 var CH_TECH=[
   ["commande","Commande","./commande.html","commande"],
   ["point","Le point","./point.html","point"],
-  ["photos","Reportage photo","./photos.html","photos"],
+  ["photos","Photo/croquis","./photos.html","photos"],
   ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
   ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
   ["technique","Documents techniques","./technique.html","technique"]
