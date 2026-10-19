@@ -11,6 +11,7 @@ import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
+import { encours } from "./encours.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -1148,7 +1149,7 @@ const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichi
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
-  "mesnotes-liste", "mesnote", "mesnote-photo-lire"]);
+  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1158,6 +1159,8 @@ export default async (req) => {
   if (action !== "tic") tic().catch(() => {});
   if (action === "tic") return json({ ok: true, envoyes: await tic(true) });
   if (LECTURES.has(action)) return traiter(req);
+  /* la fiche en cours de chacun (encours.mjs) a sa propre file, par personne : elle n'attend pas les publications */
+  if (action.startsWith("encours-")) return traiter(req);
   return sousVerrou("ecritures", () => traiter(req));
 };
 
@@ -1626,6 +1629,8 @@ async function traiter(req) {
     return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
   }
   if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
+  /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
+  if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
 
   if (action.startsWith("cloud-")) {
     const comptesSoc = await lireComptes(personne.societe);
