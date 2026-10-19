@@ -842,9 +842,8 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 
 <section id="tab-envoi" hidden>
   <div class="block">
-    <h2>Récapitulatif</h2>
-    <div id="resume"></div>
-    <div class="row" style="margin-top:14px"><button class="act blue" id="btnPdf">Générer le PDF</button></div>
+    <h2>PDF</h2>
+    <div class="row"><button class="act blue" id="btnPdf">Générer le PDF</button></div>
     <p class="hint" id="pdfInfo"></p>
   </div>
 
@@ -1193,13 +1192,13 @@ function renderDemandes(){
     function hauteur(){ texte.style.height="auto"; texte.style.height=Math.max(28, texte.scrollHeight)+"px"; }
     setTimeout(hauteur, 0);
     texte.addEventListener("input", function(){ d.texte=texte.value; hauteur(); save(); majCompteDemandes(); });
-    texte.addEventListener("change", function(){ renderDemandes(); renderResume(); });
+    texte.addEventListener("change", function(){ renderDemandes(); });
     texte.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); ajouterDemande(i+1); } });
     corps.appendChild(texte);
     if(d.fait){ var ch=document.createElement("span"); ch.className="n-depuis"; ch.textContent="chiffré"+(d.chiffrePar ? " par "+d.chiffrePar : ""); corps.appendChild(ch); }
     var jeter=document.createElement("button"); jeter.type="button"; jeter.className="n-petit n-del"; jeter.textContent="×";
     jeter.setAttribute("aria-label", "Retirer "+(d.texte||"la demande"));
-    jeter.addEventListener("click", function(){ S.demandes.splice(i, 1); save(); renderDemandes(); renderResume(); refreshHeader(); });
+    jeter.addEventListener("click", function(){ S.demandes.splice(i, 1); save(); renderDemandes(); refreshHeader(); });
     ligne.appendChild(puce); ligne.appendChild(corps); ligne.appendChild(jeter);
     host.appendChild(ligne);
   });
@@ -1248,7 +1247,7 @@ function reprendreReste(liste){
       change=true;
     }
   });
-  if(change){ save(); renderTaches(); renderResume(); refreshHeader(); }
+  if(change){ save(); renderTaches(); refreshHeader(); }
   return n;
 }
 function renderTaches(){
@@ -1272,7 +1271,7 @@ function renderTaches(){
     casier.setAttribute("aria-label", (t.fait?"Décocher ":"Cocher ")+(t.texte||"la tâche"));
     casier.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>';
     casier.addEventListener("click", function(){
-      t.fait=!t.fait; touche(t); save(); renderTaches(); renderResume(); refreshHeader();
+      t.fait=!t.fait; touche(t); save(); renderTaches(); refreshHeader();
     });
 
     var texte=document.createElement("textarea");
@@ -1284,7 +1283,6 @@ function renderTaches(){
     }
     setTimeout(hauteurTexte, 0);
     texte.addEventListener("input", function(){ t.texte=texte.value; touche(t); hauteurTexte(); save(); });
-    texte.addEventListener("change", function(){ renderResume(); });
     texte.addEventListener("keydown", function(e){
       if(e.key==="Enter"){ e.preventDefault(); ajouterTache(i+1); }
     });
@@ -1307,7 +1305,7 @@ function renderTaches(){
         if(!Array.isArray(S.retires)) S.retires=[];
         if(S.retires.indexOf(t.id)<0) S.retires.push(t.id);
       }
-      S.taches.splice(i,1); save(); renderTaches(); renderResume(); refreshHeader();
+      S.taches.splice(i,1); save(); renderTaches(); refreshHeader();
     });
 
     var corps=texte;
@@ -1348,7 +1346,7 @@ function renderTaches(){
       urg.addEventListener("click", function(e){
         e.preventDefault();
         t.prio = (t.prio==="Urgent") ? "Normal" : "Urgent";
-        touche(t); save(); renderTaches(); renderResume();
+        touche(t); save(); renderTaches();
       });
       det.appendChild(urg);
       var note=document.createElement("p");
@@ -1365,7 +1363,7 @@ function ajouterTache(position){
   var t={id:uid(), maj:maintenantIso(), texte:"", fait:false, prio:"Normal", quand:"", qui:""};
   if(position==null || position>S.taches.length) S.taches.push(t);
   else S.taches.splice(position, 0, t);
-  save(); renderTaches(); renderResume();
+  save(); renderTaches();
   var champs=$("listeTaches").querySelectorAll(".n-texte");
   var cible=champs[position==null ? champs.length-1 : Math.min(position, champs.length-1)];
   if(cible) cible.focus();
@@ -1378,7 +1376,7 @@ function renderPhotos(){
     var lg=document.createElement("input"); lg.type="text"; lg.placeholder="Légende"; lg.value=ph.legende||"";
     lg.addEventListener("input", function(){ ph.legende=lg.value; save(); });
     var bd=document.createElement("button"); bd.className="del"; bd.type="button"; bd.textContent="×";
-    bd.addEventListener("click", function(){ S.photos.splice(i,1); save(); renderPhotos(); renderResume(); });
+    bd.addEventListener("click", function(){ S.photos.splice(i,1); save(); renderPhotos(); });
     d.appendChild(im); d.appendChild(lg); d.appendChild(bd);
     host.appendChild(d);
   });
@@ -1450,7 +1448,6 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
-  if(name==="envoi") renderResume();
 }
 function boutonHaut(sec){
   var vieux=sec.querySelector(".haut");
@@ -1500,16 +1497,16 @@ function paintForm(){
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
   chips("ch_etat", ETATS_CHANTIER,
     function(o){ return S.etatChantier===o; },
-    function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); renderResume(); refreshHeader(); });
+    function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); refreshHeader(); });
   peindreObjets(); peindrePointsAvant();
-  renderTaches(); renderDemandes(); renderPhotos(); renderDest(); renderResume(); refreshHeader();
+  renderTaches(); renderDemandes(); renderPhotos(); renderDest(); refreshHeader();
 }
 var ETATS_CHANTIER=["Pas commencé","En cours","Presque fini","Terminé","À l'arrêt"];
 var OBJETS_POINT=["Suite RDV sur site","Réunion de chantier","Visite client","Avant réception","Fin de journée"];
 function peindreObjets(){
   chips("ch_objet", OBJETS_POINT,
     function(o){ return String(S.objet||"").trim()===o; },
-    function(o){ S.objet=(String(S.objet||"").trim()===o)?"":o; $("c_objet").value=S.objet; save(); renderResume(); });
+    function(o){ S.objet=(String(S.objet||"").trim()===o)?"":o; $("c_objet").value=S.objet; save(); });
 }
 /* les points déjà publiés dans ce dossier, sous le numéro */
 var POINTS_DOSSIER={ref:"", liste:[]};
@@ -1539,27 +1536,8 @@ function chips(host, opts, get, set){
   });
 }
 
-/* ---------- récapitulatif ---------- */
+/* ---------- lignes ---------- */
 function lignesUtiles(){ return S.lignes.filter(function(l){ return l.qte>0; }); }
-function renderResume(){
-  var host=$("resume"); if(!host) return;
-  host.textContent="";
-  var restantes=tachesRestantes().length;
-  [["Ce point", titrePoint()],
-   ["Travaux", S.chantier.client||refAffaire()||"à renseigner"],
-   ["Où j'en suis", S.etatChantier || ((S.resteNote||"").trim() ? "noté" : "à renseigner")],
-   ["Reste à faire", S.taches.length ? restantes + " sur " + S.taches.length : "rien"],
-   ["Demande client", demandesUtiles().length ? demandesUtiles().length + " → TS du chargé d'affaires" : "aucune"],
-   ["Photos", String(S.photos.length)],
-   ["Destinataires", destinataires().join(", ")||"aucun"]].forEach(function(l){
-    var d=document.createElement("div");
-    d.style.cssText="display:flex;justify-content:space-between;gap:12px;padding:7px 0;"
-      +"border-bottom:1px solid var(--rule);font-size:14.5px";
-    var a=document.createElement("span"); a.style.color="var(--ink-2)"; a.textContent=l[0];
-    var b=document.createElement("b"); b.textContent=l[1];
-    d.appendChild(a); d.appendChild(b); host.appendChild(d);
-  });
-}
 
 function toutesLesPhotos(){
   return S.photos.map(function(ph){ return {data:ph.data, legende:ph.legende, section:""}; });
@@ -2402,7 +2380,6 @@ function bindAll(){
       if(f[0]==="c_objet") peindreObjets();
       if(f[0]==="c_ref"){ peindrePointsAvant(); clearTimeout(window.__refT); window.__refT=setTimeout(function(){ try{ equipeDuDossier(); }catch(e){} }, 900); }
     });
-    el.addEventListener("change", renderResume);
   });
   document.querySelectorAll("[data-dictee]").forEach(function(b){
     b.dataset.target=b.dataset.dictee; setupDictation(b);
@@ -2416,7 +2393,7 @@ function bindAll(){
     Array.prototype.forEach.call(files, function(f){
       compress(f, function(ph){
         if(ph) S.photos.push(ph);
-        if(++done===n){ save(); renderPhotos(); renderResume(); }
+        if(++done===n){ save(); renderPhotos(); }
       });
     });
     this.value="";
@@ -3121,7 +3098,7 @@ function numeroterPoint(ref, suivant, points){
   if(S.numAuto!==false && !dejaLa && String(S.numero||"")!==String(suivant)){
     S.numero=String(suivant); S.numAuto=true;
     var c=$("c_num"); if(c) c.value=S.numero;
-    save(); renderResume();
+    save();
   }
   peindrePointsAvant();
 }
