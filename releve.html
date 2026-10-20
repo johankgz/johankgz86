@@ -2699,11 +2699,16 @@ function toitBorner(){
     var wc=parseFloat(S.pv.wc||"500")||500;
     var item={ data:out.toDataURL("image/jpeg",0.82), w:out.width, h:out.height,
                nb:nb, kwc:+(nb*wc/1000).toFixed(2), cols:TO.cols, rows:TO.rows,
-               orient: TO.portrait?"portrait":"paysage" };
-    if(TO.editIndex===null) S.pv.simuls.push(item); else S.pv.simuls[TO.editIndex]=item;
+               orient: TO.portrait?"portrait":"paysage",
+               /* de quoi rouvrir l'implantation telle quelle : la photo d'origine et le calage */
+               src:TO.src, quad:TO.quad.map(function(p){ return [p[0], p[1]]; }),
+               W:$("toit_W").value, H:$("toit_H").value, offU:TO.offU, offV:TO.offV,
+               cw:$("toit_canvas").width, ch:$("toit_canvas").height };
+    var modif = TO.editIndex!==null && !!S.pv.simuls[TO.editIndex];
+    if(modif) S.pv.simuls[TO.editIndex]=item; else S.pv.simuls.push(item);
     if(!S.pv.kwc) { S.pv.kwc=String(item.kwc); $("v_kwc").value=item.kwc; }
     $("toit").hidden=true; save(); paintSimuls();
-    toast(nb+" panneaux ajoutés au relevé.");
+    toast(modif ? "Implantation modifiée : "+nb+" panneaux." : nb+" panneaux ajoutés au relevé.");
   });
 })();
 
@@ -2712,8 +2717,9 @@ function toitDepuisPhoto(ph, vueDessus){
   img.onload=function(){
     var cv=$("toit_canvas");
     cv.width=ph.w; cv.height=ph.h;
-    TO.img=img; TO.editIndex=null; TO.portrait=true; TO.vue={k:1,dx:0,dy:0};
+    TO.img=img; TO.src=ph.data; TO.editIndex=null; TO.portrait=true; TO.vue={k:1,dx:0,dy:0};
     $("toit_orient").textContent="Portrait";
+    $("toit_save").textContent="Ajouter au relevé";
     if(vueDessus){
       /* vue du dessus : le pan occupe un rectangle proche du centre */
       TO.quad=[[cv.width*0.30,cv.height*0.32],[cv.width*0.70,cv.height*0.32],
@@ -2734,6 +2740,31 @@ function toitDepuisPhoto(ph, vueDessus){
     toitPaint();
   };
   img.src=ph.data;
+}
+
+/* rouvrir une implantation à l'échelle : la photo d'origine, le pan calé, les panneaux tels qu'on les a laissés */
+function toitRouvrir(idx){
+  var it=S.pv.simuls[idx];
+  if(!it || !it.src || !it.quad){ toast("Implantation faite avant cette mise à jour : refaites-la depuis la photo."); return; }
+  var img=new Image();
+  img.onload=function(){
+    var cv=$("toit_canvas");
+    cv.width=it.cw||img.naturalWidth; cv.height=it.ch||img.naturalHeight;
+    TO.img=img; TO.src=it.src; TO.editIndex=idx; TO.vue={k:1,dx:0,dy:0};
+    TO.quad=it.quad.map(function(p){ return [p[0], p[1]]; });
+    TO.portrait = it.orient!=="paysage";
+    $("toit_orient").textContent = TO.portrait ? "Portrait" : "Paysage";
+    if(it.W) $("toit_W").value=it.W;
+    if(it.H) $("toit_H").value=it.H;
+    TO.cols=it.cols||1; TO.rows=it.rows||1;
+    TO.offU=it.offU||0; TO.offV=it.offV||0;
+    $("toit_title").textContent="Modifier l'implantation";
+    $("toit_save").textContent="Enregistrer les modifications";
+    $("toit").hidden=false;
+    toitPaint();
+  };
+  img.onerror=function(){ toast("Image illisible."); };
+  img.src=it.src;
 }
 
 /* deux champs pour la même chose : celui de l'appareil photo porte
@@ -4331,6 +4362,13 @@ function paintSimuls(){
       im.addEventListener("click", function(){ toitDessiner(it, idx); });
     }
     var mo=null, ech=null;
+    if(!it.dessin && it.src && it.quad){
+      im.style.cursor="pointer"; im.title="Modifier l'implantation";
+      im.addEventListener("click", function(){ toitRouvrir(idx); });
+      mo=document.createElement("button"); mo.className="act ghost"; mo.type="button"; mo.textContent="Modifier";
+      mo.style.marginLeft="auto";
+      mo.addEventListener("click", function(){ toitRouvrir(idx); });
+    }
     if(it.dessin){
       mo=document.createElement("button"); mo.className="act ghost"; mo.type="button"; mo.textContent="Modifier";
       mo.style.marginLeft="auto";
@@ -4340,7 +4378,7 @@ function paintSimuls(){
       ech.addEventListener("click", function(){ toitDepuisPhoto({data:it.orig || it.data, w:it.w, h:it.h}, false); });
     }
     var ex=document.createElement("button"); ex.className="act ghost"; ex.type="button"; ex.textContent="Exporter";
-    if(!it.dessin) ex.style.marginLeft="auto";
+    if(!mo) ex.style.marginLeft="auto";
     ex.addEventListener("click", function(){
       var a=document.createElement("a"); a.href=it.data;
       a.download="Implantation-PV-"+(refAffaire()||"projet")+"-"+(idx+1)+".jpg"; a.click();
