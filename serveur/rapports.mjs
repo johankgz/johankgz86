@@ -484,6 +484,9 @@ function resumePv(fiche) {
 }
 const CACHE_PV = new Map();
 
+/* les commandes à faire d'un chantier : les cases sous l'avancement */
+const COMMANDES_CHANTIER = ["dossier", "filerie", "boites", "appareillage", "td", "finition"];
+
 /* l'avancement d'un chantier, en pourcentage, posé à la main par son
    chargé d'affaires */
 function avancementDe(c) {
@@ -3670,6 +3673,9 @@ async function traiter(req) {
         avancement: avancementDe(c),
         avancementPar: c.avancementPar || "",
         avancementLe: c.avancementLe || "",
+        commandes: c.commandes || {},
+        commandesPar: c.commandesPar || "",
+        commandesLe: c.commandesLe || "",
         equipe: c.equipe || [],
         reste: c.reste || [],
         note: c.note || null,
@@ -3941,6 +3947,28 @@ async function traiter(req) {
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, ref, avancement: n });
+  }
+
+  /* ---------- les commandes à faire du chantier ----------
+     Des cases à cocher, sous l'avancement : Dossier, Filerie, Boîtes,
+     Appareillage, TD, Finition. Tout le monde les voit ; le bureau seul
+     les coche (pas les techniciens). */
+  if (action === "commandes-chantier") {
+    if (!bureau) return json({ erreur: "Seul le bureau coche les commandes à faire." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const cases = {};
+    COMMANDES_CHANTIER.forEach((k) => { if (d.cases && d.cases[k]) cases[k] = true; });
+    c.commandes = cases;
+    c.commandesPar = personne.nom;
+    c.commandesLe = new Date().toISOString();
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, ref, commandes: cases, par: c.commandesPar, le: c.commandesLe });
   }
 
   /* ---------- mettre un dossier de côté, ou le reprendre ---------- */

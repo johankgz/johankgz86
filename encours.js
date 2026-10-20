@@ -289,6 +289,11 @@
     return e;
   }
 
+  /* la fiche de l'appli ouverte (et pas celles que la page du chantier relit au passage) */
+  function deCettePage(k){
+    var page=(location.pathname.split("/").pop()||"").replace(/\.html$/,"");
+    return k.split(":")[0]===page;
+  }
   /* ---------- un petit mot quand la fiche vient d'un autre appareil ---------- */
   function dire(texte){
     function poser(){
@@ -336,7 +341,7 @@
           });
         }
         return reprendre(k, e).then(function(r){
-          if(!r.efface && k.indexOf("@")<0 && k.indexOf("#")<0)
+          if(!r.efface && k.indexOf("@")<0 && k.indexOf("#")<0 && deCettePage(k))
             dire("Fiche reprise telle que laissée "+depuis(e)+" "+heure(e.maj)+".");
           return r.value==null ? null : {key:k, value:r.value};
         }, function(){ return local.get(k); });          /* site injoignable en route : la copie de l'appareil */
@@ -374,7 +379,7 @@
           var e=plusRecente(k, fiches, m);
           if(!e) return;
           reprendre(k, e).then(function(){
-            if(k.indexOf("@")>=0 || k.indexOf("#")>=0) return;
+            if(k.indexOf("@")>=0 || k.indexOf("#")>=0 || !deCettePage(k)) return;
             try{ sessionStorage.setItem("encours:mot", "Fiche mise à jour telle que laissée "+depuis(e)+" "+heure(e.maj)+"."); }catch(err){}
             location.reload();
           }, function(){});

@@ -624,6 +624,24 @@ nav#nav button svg{stroke-width:1.9}
 .av-echelle span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
 .av-echelle span::before{content:"";position:absolute;left:50%;top:-5px;width:1px;height:4px;background:var(--rule)}
 .avancement [hidden]{display:none}
+/* les commandes à faire : une case au-dessus de chaque mot, comme sur le papier */
+.cmd-cases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px 4px;margin:12px 0 0;padding-top:12px;border-top:1px solid var(--rule)}
+@media (max-width:520px){ .cmd-cases{grid-template-columns:repeat(3,minmax(0,1fr))} }
+.cmd-cases label{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;margin:0;padding:6px 2px;
+  border-radius:10px;font-size:12.5px;font-weight:600;color:var(--ink-2);text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.cmd-cases label span{max-width:100%;overflow-wrap:anywhere}
+.cmd-cases input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:24px!important;height:24px!important;min-height:0!important;
+  margin:0;padding:0;border:2px solid var(--ink-3);border-radius:6px;box-shadow:none;
+  background:var(--card);display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s}
+.cmd-cases input[type=checkbox]:checked{background:var(--accent);border-color:var(--accent)}
+.cmd-cases input[type=checkbox]:checked::after{content:"";width:6px;height:11px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg)}
+.cmd-cases input[type=checkbox]:disabled{opacity:1}
+.cmd-cases input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.cmd-cases input:checked + span{color:var(--ink)}
+.cmd-cases.lecture label{cursor:default}
+.cmd-cases.lecture input{cursor:default}
+.avancement #cmdNote{margin:4px 0 0;font-size:12px}
+.avancement #cmdNote:empty{display:none}
 .avancement .hint{margin:4px 0 0}
 
 /* ---------- la barre d'onglets du chantier ----------
@@ -1083,6 +1101,8 @@ header{overflow-anchor:none}
         <p class="hint" id="av_note"></p>
       </div>
     </div>
+    <div class="cmd-cases" id="cmdCases" role="group" aria-label="Commandes à faire"></div>
+    <p class="hint" id="cmdNote"></p>
   </div>
 
   <div class="block reste ts" id="tsBloc" hidden>
@@ -1127,7 +1147,7 @@ header{overflow-anchor:none}
 <script src="./dossier.js?v=20261016a"></script>
 <script src="./transfert.js?v=20261015b"></script>
 <script src="./qr.js?v=20261009a"></script>
-<script src="./encours.js?v=20261019a"></script>
+<script src="./encours.js?v=20261020a"></script>
 <script>
 (function(){
 "use strict";
@@ -1965,6 +1985,43 @@ function peindreAvancement(){
     : "";
   $("av_note").textContent = qui;
 }
+/* ---------- les commandes à faire ----------
+   Six cases sous l'avancement. Tout le monde les voit ; le bureau seul les
+   coche : chez un technicien, elles sont en lecture seule. */
+var COMMANDES=[["dossier","Dossier"],["filerie","Filerie"],["boites","Boîtes"],["appareillage","Appareillage"],["td","TD"],["finition","Finition"]];
+function peindreCommandes(){
+  var host=$("cmdCases"); if(!host) return;
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var cases=CHANTIER.commandes||{};
+  host.textContent="";
+  host.classList.toggle("lecture", !bureau);
+  COMMANDES.forEach(function(c){
+    var lab=document.createElement("label");
+    var inp=document.createElement("input"); inp.type="checkbox"; inp.checked=!!cases[c[0]];
+    inp.disabled=!bureau;
+    var sp=document.createElement("span"); sp.textContent=c[1];
+    if(bureau) inp.addEventListener("change", function(){ enregistrerCommandes(inp); });
+    lab.appendChild(inp); lab.appendChild(sp); host.appendChild(lab);
+  });
+  $("cmdNote").textContent = CHANTIER.commandesPar
+    ? "Commandes cochées par "+CHANTIER.commandesPar+(CHANTIER.commandesLe ? " le "+frDate(CHANTIER.commandesLe) : "")+"."
+    : "";
+}
+function enregistrerCommandes(inp){
+  var host=$("cmdCases"), cases={};
+  Array.prototype.forEach.call(host.querySelectorAll("input"), function(x, i){ if(x.checked) cases[COMMANDES[i][0]]=true; });
+  var avant=CHANTIER.commandes||{};
+  fetch(API+"?action=commandes-chantier", {method:"POST",
+    headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, cases:cases})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ toast(res.d.erreur || "Commandes non enregistrées."); CHANTIER.commandes=avant; peindreCommandes(); return; }
+      CHANTIER.commandes=res.d.commandes; CHANTIER.commandesPar=res.d.par; CHANTIER.commandesLe=res.d.le;
+      peindreCommandes();
+    })
+    .catch(function(){ toast("Pas de réseau : commandes non enregistrées."); CHANTIER.commandes=avant; peindreCommandes(); });
+}
 $("av_curseur").addEventListener("input", function(){ afficherAvancement(parseInt(this.value, 10) || 0); });
 $("av_curseur").addEventListener("change", function(){
   var curseur=this, avant=parseInt(CHANTIER.avancement, 10) || 0;
@@ -2240,7 +2297,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreReste(); chargerTs(); peindreRefModif(); peindreNomModif(); peindreNote(); peindreContact(); peindrePv(); chargerLiens();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreCommandes(); peindreReste(); chargerTs(); peindreRefModif(); peindreNomModif(); peindreNote(); peindreContact(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* venu du bouton « Tout publier » d'une appli : on ouvre la liste */
       if(TOUT_PUBLIER_DEMANDE){
