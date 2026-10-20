@@ -1231,7 +1231,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>Implantation sur photo</h2>
-    <p class="hint">Photographiez le pan de toiture, ou reprenez une photo de la galerie du téléphone, puis calez les quatre coins : l'appli pose les panneaux à l'échelle (1,13 × 1,76 m). Image exportable pour le dossier de mairie.</p>
+    <p class="hint">Photographiez le pan de toiture, ou reprenez une photo de la galerie du téléphone : l'outil de dessin s'ouvre dessus, et vous dessinez vous-même les panneaux (rectangles, formes, stylo, texte, cotes). « Panneaux à l'échelle », sous l'image, les pose à l'échelle si vous le voulez (1,13 × 1,76 m). Image exportable pour le dossier de mairie.</p>
     <div class="row">
       <button class="act solid" id="btnToitPhoto">Photo de toiture</button>
       <button class="act ghost" id="btnToitGalerie">Depuis la galerie</button>
@@ -2740,13 +2740,24 @@ function toitDepuisPhoto(ph, vueDessus){
    capture="environment", qui ouvre l'objectif tout de suite et prive
    donc le téléphone de sa pellicule. Le second, sans cet attribut,
    laisse reprendre une photo déjà prise dans la galerie. */
+/* la photo de toiture s'ouvre dans l'outil de dessin : les panneaux, on les dessine soi-même
+   (rectangles, formes, stylo) ; la pose à l'échelle reste proposée sous l'image */
 function toitDepuisChamp(champ){
   var f=champ.files[0]; champ.value="";
   if(!f) return;
   compress(f, function(ph){
     if(!ph){ toast("Photo illisible."); return; }
-    toitDepuisPhoto(ph, false);
+    toitDessiner(ph, null);
   });
+}
+function toitDessiner(ph, index){
+  Annotation.photo(ph, {titre:"Implantation sur la toiture"}).then(function(r){
+    if(!r) return;
+    ph.dessin=true;
+    if(index===null){ if(!S.pv.simuls) S.pv.simuls=[]; S.pv.simuls.push(ph); }
+    save(); paintSimuls();
+    toast(index===null ? "Implantation ajoutée au relevé." : "Implantation modifiée.");
+  }).catch(function(){ toast("Image illisible."); });
 }
 $("btnToitPhoto").addEventListener("click", function(){ $("toit_file").click(); });
 $("btnToitGalerie").addEventListener("click", function(){ $("toit_galerie").click(); });
@@ -4313,9 +4324,23 @@ function paintSimuls(){
     var im=document.createElement("img"); im.src=it.data; im.alt="Implantation "+(idx+1);
     var meta=document.createElement("div"); meta.className="meta";
     var t=document.createElement("span");
-    t.innerHTML="<b>"+it.nb+" panneaux</b> · "+it.kwc.toString().replace(".",",")+" kWc · "+it.cols+"×"+it.rows+" ("+it.orient+")";
+    if(it.dessin) t.innerHTML="<b>Implantation dessinée</b>";
+    else t.innerHTML="<b>"+it.nb+" panneaux</b> · "+it.kwc.toString().replace(".",",")+" kWc · "+it.cols+"×"+it.rows+" ("+it.orient+")";
+    if(it.dessin){
+      im.style.cursor="pointer"; im.title="Modifier le dessin";
+      im.addEventListener("click", function(){ toitDessiner(it, idx); });
+    }
+    var mo=null, ech=null;
+    if(it.dessin){
+      mo=document.createElement("button"); mo.className="act ghost"; mo.type="button"; mo.textContent="Modifier";
+      mo.style.marginLeft="auto";
+      mo.addEventListener("click", function(){ toitDessiner(it, idx); });
+      /* la photo d'origine, sans le dessin, pour poser les panneaux à l'échelle */
+      ech=document.createElement("button"); ech.className="act ghost"; ech.type="button"; ech.textContent="Panneaux à l'échelle";
+      ech.addEventListener("click", function(){ toitDepuisPhoto({data:it.orig || it.data, w:it.w, h:it.h}, false); });
+    }
     var ex=document.createElement("button"); ex.className="act ghost"; ex.type="button"; ex.textContent="Exporter";
-    ex.style.marginLeft="auto";
+    if(!it.dessin) ex.style.marginLeft="auto";
     ex.addEventListener("click", function(){
       var a=document.createElement("a"); a.href=it.data;
       a.download="Implantation-PV-"+(refAffaire()||"projet")+"-"+(idx+1)+".jpg"; a.click();
@@ -4325,7 +4350,10 @@ function paintSimuls(){
       if(!confirm("Supprimer cette implantation ?")) return;
       S.pv.simuls.splice(idx,1); save(); paintSimuls();
     });
-    meta.appendChild(t); meta.appendChild(ex); meta.appendChild(de);
+    meta.appendChild(t);
+    if(mo) meta.appendChild(mo);
+    if(ech) meta.appendChild(ech);
+    meta.appendChild(ex); meta.appendChild(de);
     card.appendChild(im); card.appendChild(meta); box.appendChild(card);
   });
 }
@@ -5810,7 +5838,7 @@ function buildPdf(){
         y+=ha+8;
       }
       var s0=simuls[0], So=V.soleil && V.soleil.data ? V.soleil : null, resumeSol=So ? String(So.resume||"").trim() : "";
-      var legendeSimul=function(it){ return it.nb+" panneaux de 1,13 m sur 1,76 m ("+it.cols+" x "+it.rows+", "+it.orient+") · "+dec(it.kwc, 2)+" kWc"; };
+      var legendeSimul=function(it){ if(it.dessin) return "Implantation des panneaux sur la toiture"; return it.nb+" panneaux de 1,13 m sur 1,76 m ("+it.cols+" x "+it.rows+", "+it.orient+") · "+dec(it.kwc, 2)+" kWc"; };
       var w2=(CW-6)/2;
       if(s0 && So){
         var h2=Math.max(Math.min(62, w2*(s0.h/s0.w)), Math.min(62, w2*(So.h/So.w)));
@@ -6337,7 +6365,7 @@ function toutesLesPhotos(){
     });
   });
   ((S.pv&&S.pv.simuls)||[]).forEach(function(it){
-    out.push({data:it.data, legende:it.nb+" panneaux", section:"Implantation"});
+    out.push({data:it.data, legende:it.dessin ? "implantation dessinee" : it.nb+" panneaux", section:"Implantation"});
   });
   if(S.pv && S.pv.aerienne) out.push({data:S.pv.aerienne.data, legende:"vue aerienne", section:"Toiture"});
   if(S.pv && S.pv.soleil) out.push({data:S.pv.soleil.data, legende:"course du soleil", section:"Toiture"});
