@@ -1138,7 +1138,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>Consommation mois par mois</h2>
-    <p class="hint">Relevé sur les factures ou l'espace client Enedis, en kWh. Comparé à la production PVGIS sous forme de courbes dans le rapport.</p>
+    <p class="hint">Relevé sur les factures ou l'espace client Enedis, en kWh. Les mois saisis s'additionnent dans la consommation sur 1 an. Comparé à la production PVGIS sous forme de courbes dans le rapport.</p>
     <div id="moisGrid"></div>
     <div class="row" style="margin-top:6px">
       <button class="act ghost" id="btnRepartir">Répartir la consommation annuelle</button>
@@ -3619,11 +3619,24 @@ function paintMois(){
     inp.type="number"; inp.inputMode="numeric"; inp.min="0"; inp.placeholder="kWh";
     inp.value=S.pv.consoMois[i]||"";
     inp.addEventListener("input", function(){
-      S.pv.consoMois[i]=inp.value; save(); paintCompa(); try{ paintAmorti(); }catch(e){}
+      S.pv.consoMois[i]=inp.value;
+      totalMoisVersAnnuel();
+      save(); paintCompa(); try{ paintAmorti(); }catch(e){}
     });
     lab.appendChild(sp); lab.appendChild(inp);
     host.appendChild(lab);
   });
+}
+/* les mois saisis s'additionnent dans la consommation annuelle, au fil de la frappe */
+function totalMoisVersAnnuel(){
+  var remplis=S.pv.consoMois.filter(function(v){ return String(v==null ? "" : v).trim()!==""; });
+  if(!remplis.length) return;
+  var total=remplis.reduce(function(t, v){ return t + Math.max(0, parseFloat(String(v).replace(",","."))||0); }, 0);
+  S.pv.conso=String(Math.round(total));
+  var c=$("v_conso"); if(c) c.value=S.pv.conso;
+  try{ refreshHeader(); }catch(e){}
+  try{ paintPvgis(); }catch(e){}
+  try{ paintConseil(); }catch(e){}
 }
 function moisRemplis(){
   return S.pv.consoMois.filter(function(v){ return v!=="" && v!=null; }).length;
