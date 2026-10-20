@@ -1520,7 +1520,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 </div>
 
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./annotation.js?v=20261009a"></script>
+<script src="./annotation.js?v=20261020a"></script>
 <script src="./sobre.js?v=20261010a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./courbe-charge.js?v=20261003a"></script>
@@ -2697,18 +2697,27 @@ function toitBorner(){
   $("toit_save").addEventListener("click", function(){
     var out=rendu(), nb=TO.rows*TO.cols;
     var wc=parseFloat(S.pv.wc||"500")||500;
-    var item={ data:out.toDataURL("image/jpeg",0.82), w:out.width, h:out.height,
+    var panneaux=out.toDataURL("image/jpeg",0.82);
+    var item={ data:panneaux, panneaux:panneaux, w:out.width, h:out.height,
                nb:nb, kwc:+(nb*wc/1000).toFixed(2), cols:TO.cols, rows:TO.rows,
                orient: TO.portrait?"portrait":"paysage",
                /* de quoi rouvrir l'implantation telle quelle : la photo d'origine et le calage */
                src:TO.src, quad:TO.quad.map(function(p){ return [p[0], p[1]]; }),
                W:$("toit_W").value, H:$("toit_H").value, offU:TO.offU, offV:TO.offV,
                cw:$("toit_canvas").width, ch:$("toit_canvas").height };
-    var modif = TO.editIndex!==null && !!S.pv.simuls[TO.editIndex];
-    if(modif) S.pv.simuls[TO.editIndex]=item; else S.pv.simuls.push(item);
-    if(!S.pv.kwc) { S.pv.kwc=String(item.kwc); $("v_kwc").value=item.kwc; }
-    $("toit").hidden=true; save(); paintSimuls();
-    toast(modif ? "Implantation modifiée : "+nb+" panneaux." : nb+" panneaux ajoutés au relevé.");
+    var modif = TO.editIndex!==null && !!S.pv.simuls[TO.editIndex], index=TO.editIndex;
+    var ancien = modif ? S.pv.simuls[index] : null;
+    function ranger(){
+      if(modif) S.pv.simuls[index]=item; else S.pv.simuls.push(item);
+      if(!S.pv.kwc) { S.pv.kwc=String(item.kwc); $("v_kwc").value=item.kwc; }
+      $("toit").hidden=true; save(); paintSimuls();
+      toast(modif ? "Implantation modifiée : "+nb+" panneaux." : nb+" panneaux ajoutés au relevé.");
+    }
+    /* les dessins posés sur l'implantation (symboles, formes, texte) restent, sur les panneaux replacés */
+    if(ancien && ancien.annot && ancien.annot.length && window.Annotation && Annotation.composer){
+      item.annot=ancien.annot;
+      Annotation.composer(panneaux, item.annot).then(function(d){ item.data=d; ranger(); }, function(){ ranger(); });
+    } else ranger();
   });
 })();
 
@@ -2742,6 +2751,18 @@ function toitDepuisPhoto(ph, vueDessus){
   img.src=ph.data;
 }
 
+/* dessiner sur une implantation à l'échelle : symboles, formes, texte, cotes… par-dessus les
+   panneaux ; les dessins restent des objets, à reprendre, et suivent les panneaux replacés */
+function toitAnnoter(idx){
+  var it=S.pv.simuls[idx]; if(!it) return;
+  var base=it.panneaux || it.data;
+  Annotation.ouvrir({image:base, objets:it.annot||[], titre:"Implantation sur la toiture"}).then(function(r){
+    if(!r) return;
+    it.panneaux=base; it.annot=r.objets; it.data=r.data;
+    save(); paintSimuls();
+    toast("Implantation modifiée.");
+  }).catch(function(){ toast("Image illisible."); });
+}
 /* rouvrir une implantation à l'échelle : la photo d'origine, le pan calé, les panneaux tels qu'on les a laissés */
 function toitRouvrir(idx){
   var it=S.pv.simuls[idx];
@@ -4362,12 +4383,19 @@ function paintSimuls(){
       im.addEventListener("click", function(){ toitDessiner(it, idx); });
     }
     var mo=null, ech=null;
-    if(!it.dessin && it.src && it.quad){
+    if(!it.dessin){
+      /* Modifier : l'outil de dessin (symboles, formes, texte…) par-dessus les panneaux ;
+         Panneaux : les replacer à l'échelle (rangées, colonnes, calage) */
       im.style.cursor="pointer"; im.title="Modifier l'implantation";
-      im.addEventListener("click", function(){ toitRouvrir(idx); });
+      im.addEventListener("click", function(){ toitAnnoter(idx); });
       mo=document.createElement("button"); mo.className="act ghost"; mo.type="button"; mo.textContent="Modifier";
       mo.style.marginLeft="auto";
-      mo.addEventListener("click", function(){ toitRouvrir(idx); });
+      mo.addEventListener("click", function(){ toitAnnoter(idx); });
+      if(it.src && it.quad){
+        ech=document.createElement("button"); ech.className="act ghost"; ech.type="button"; ech.textContent="Panneaux";
+        ech.title="Replacer les panneaux à l'échelle";
+        ech.addEventListener("click", function(){ toitRouvrir(idx); });
+      }
     }
     if(it.dessin){
       mo=document.createElement("button"); mo.className="act ghost"; mo.type="button"; mo.textContent="Modifier";

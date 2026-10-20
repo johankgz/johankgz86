@@ -1736,8 +1736,33 @@ function nouveauCroquis(opt){
   });
 }
 
+/* sans ouvrir l'outil : une image et ses objets, aplatis en une seule image
+   (une implantation de panneaux refaite garde les dessins posés dessus) */
+function composer(src, objets, w, h){
+  return new Promise(function(ok, non){
+    if(A){ non(new Error("outil ouvert")); return; }
+    var img=new Image();
+    img.onload=function(){
+      w=w||img.naturalWidth; h=h||img.naturalHeight;
+      A={img:img, src:src, w:w, h:h, u:Math.max(0.6, Math.max(w,h)/1000), edition:null, sel:null, fond:"blanc"};
+      FLOUS={};
+      var d=null, err=null;
+      try{
+        var cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+        dessinerScene(cv.getContext("2d"), objets||[]);
+        d=cv.toDataURL("image/jpeg", 0.82);
+      }catch(e){ err=e; }
+      A=null; FLOUS={};
+      if(err) non(err); else ok(d);
+    };
+    img.onerror=function(){ non(new Error("image illisible")); };
+    img.src=src;
+  });
+}
+
 window.Annotation = {
   ouvrir: ouvrir,
+  composer: composer,
   photo: annoterPhoto,
   croquis: nouveauCroquis,
   appliquer: appliquer,
