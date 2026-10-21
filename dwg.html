@@ -375,7 +375,7 @@ body.clair #scene{background:#FFFFFF}
 
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
-  <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
+  <button type="button" class="bs-dist" id="bsDist" title="Le placer au centre, entre deux extrémités touchées"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v10M21 7v10M3 12h5M16 12h5"/><circle cx="12" cy="12" r="2.6"/></svg>Au centre</button>
   <button type="button" class="bs-act" id="bsCote" hidden title="Donner sa cote exacte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>Coter</button>
   <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
@@ -2079,13 +2079,38 @@ function ouvrirRef(mode){
     if(MODE==="symb"){ if(SEL<0) return; c={symb:SEL}; }
     else { if(!D_SEL) return; c={t:D_SEL.t, id:D_SEL.id}; }
   }
-  REF={etape:"point", mode:mode, cible:c, pt:null, axe:"h", mesure:"bord", dir:REF && REF.dir || "e"};
+  if(mode==="centre"){
+    if(MODE==="symb"){ if(SEL<0) return; c={symb:SEL}; }
+    else { if(!D_SEL) return; c={t:D_SEL.t, id:D_SEL.id}; }
+  }
+  REF={etape:"point", mode:mode, cible:c, pt:null, pts:[], axe:"h", mesure:"bord", dir:REF && REF.dir || "e"};
   if(c && (c.t==="ouv")) REF.axe="mur";
   if(c && (c.symb!=null || c.t==="texte")) REF.mesure="centre";
   GEO_EC=null; D_PT=null; majRef(); majBarreSel(); demander();
 }
 function fermerRef(){ REF=null; $("refPanel").hidden=true; majBarreSel(); if(MODE==="dessin") majDessin(); else if(MODE==="symb") majSymb(); demander(); }
+/* Au centre : l'élément choisi se place au milieu des deux extrémités touchées (une porte, une
+   fenêtre : sur son mur, au droit de ce milieu ; un symbole au mur reste collé à son mur) */
+function placerAuCentre(){
+  var R=REF, c=R.cible, o=elementRef(c), a=R.pts[0], b=R.pts[1]; if(!o){ fermerRef(); return; }
+  var M=[(a[0]+b[0])/2, (a[1]+b[1])/2];
+  if(c.symb!=null){ garderSymb(); deplacerRef(c, o, [M[0]-o.x, M[1]-o.y]); enregistrerSymb(); }
+  else {
+    garderD();
+    if(c.t==="ouv"){
+      var m=murDe(o.mur); if(m){ var x=axes(m), sr=(M[0]-m.a[0])*x.u[0]+(M[1]-m.a[1])*x.u[1]; o.t=Math.max(o.l/2/x.L, Math.min(1-o.l/2/x.L, sr/x.L)); }
+    } else { var P=pointsRef(c, o); deplacerRef(c, o, [M[0]-P.c[0], M[1]-P.c[1]]); }
+    enregistrerD();
+  }
+  toast("Placé au centre : à "+cm(Math.hypot(b[0]-a[0], b[1]-a[1])*DESSIN_MM/2)+" cm de chaque extrémité.", 3200);
+  fermerRef();
+}
 function poserRef(pt){
+  if(REF.mode==="centre"){
+    REF.pts.push(pt.slice()); REF.pt=REF.pts[0];
+    if(REF.pts.length>=2){ placerAuCentre(); return; }
+    majRef(); demander(); return;
+  }
   REF.pt=pt.slice(); REF.etape="valeur";
   if(REF.mode==="deplacer" && REF.cible.t!=="ouv"){
     /* le sens de la mesure : celui où l'élément est le plus loin du point */
@@ -2111,8 +2136,13 @@ function majRef(){
     else if(R.cible.t==="mur") nom=o.ep*DESSIN_MM<=90 ? "la cloison" : "le mur";
     else nom="le texte";
   }
-  $("rpTitre").textContent = R.mode==="deplacer" ? "Placer « "+nom+" » à distance d'un point" : "Le prochain point, à distance d'un point";
+  $("rpTitre").textContent = R.mode==="centre" ? "Placer « "+nom+" » au centre" : R.mode==="deplacer" ? "Placer « "+nom+" » à distance d'un point" : "Le prochain point, à distance d'un point";
   var valeur = R.etape==="valeur";
+  if(R.mode==="centre"){
+    $("rpAide").textContent = R.pts.length ? "Touchez la seconde extrémité : il se placera au milieu." : "Touchez la première extrémité : un angle de mur, un bout de mur, un coin de meuble…";
+    $("rpValeurs").hidden=$("rpOk").hidden=$("rpAxe").hidden=$("rpDir").hidden=$("rpMes").hidden=true;
+    return;
+  }
   $("rpAide").textContent = !valeur ? "Touchez le point de départ : un angle de mur, un bout de trait, un coin de meuble…"
     : R.mode==="deplacer" ? "Tapez la distance voulue, puis Placer." : "Tapez la distance et choisissez la direction, puis Placer.";
   $("rpValeurs").hidden=!valeur; $("rpOk").hidden=!valeur;
@@ -2156,6 +2186,7 @@ function peindreRef(c, E){
   c.save(); c.strokeStyle=or; c.fillStyle=or; c.lineWidth=2;
   c.beginPath(); c.arc(P[0], P[1], 7, 0, Math.PI*2); c.stroke(); c.beginPath(); c.arc(P[0], P[1], 2.5, 0, Math.PI*2); c.fill();
   c.setLineDash([7,5]);
+  if(R.mode==="centre"){ c.restore(); return; }
   if(R.mode==="deplacer"){
     var M=mesureRef();
     if(M){ var A=E(M.de), B=E(M.a); c.beginPath(); c.moveTo(A[0],A[1]); c.lineTo(B[0],B[1]); c.stroke(); c.setLineDash([]); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-16, cm(M.dist*DESSIN_MM)+" cm"); }
@@ -2167,7 +2198,7 @@ function peindreRef(c, E){
   }
   c.restore();
 }
-$("bsDist").addEventListener("click", function(){ ouvrirRef("deplacer"); });
+$("bsDist").addEventListener("click", function(){ ouvrirRef("centre"); });
 $("btDepuisD").addEventListener("click", function(){ ouvrirRef("point"); });
 $("btDepuisS").addEventListener("click", function(){ ouvrirRef("point"); });
 $("rpAnnuler").addEventListener("click", fermerRef);
