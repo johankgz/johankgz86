@@ -383,7 +383,7 @@ body.clair #scene{background:#FFFFFF}
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
-  <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
+  <button type="button" class="bs-supp" id="bsFermer" aria-label="Supprimer" title="Supprimer (Annuler le remet)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg></button>
 </div>
 
 <div class="ref-panel" id="refPanel" hidden role="dialog" aria-label="À distance d'un point">
@@ -2283,7 +2283,13 @@ function majBarreSel(){
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
-$("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; GRP=null; majDessin(); } majBarreSel(); demander(); });
+/* la corbeille de la barre : l'élément choisi (ou la sélection) est supprimé ; Annuler le remet */
+$("bsFermer").addEventListener("click", function(){
+  if(MODE==="symb") supprimerSymb();
+  else if(grpTaille(GRP)) supprimerGrp();
+  else supprimerD();
+  majBarreSel(); demander();
+});
 $("bsDup").addEventListener("click", function(){ dupliquerSel(); });
 $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; garderTout(); grpTourner(GRP); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); });
 
@@ -2390,6 +2396,7 @@ function supprimerGrp(){
   DESSIN.murs=DESSIN.murs.filter(function(m){ return !ids[m.id]; }); DESSIN.ouv=DESSIN.ouv.filter(function(o){ return !ids[o.mur]; });
   DESSIN.mob=mobs().filter(function(o){ return g.mob.indexOf(o)<0; }); DESSIN.geo=geos().filter(function(o){ return g.geo.indexOf(o)<0; });
   DESSIN.textes=DESSIN.textes.filter(function(t){ return g.textes.indexOf(t)<0; }); SYMB=SYMB.filter(function(o){ return g.symb.indexOf(o)<0; });
+  g.symb.forEach(function(x){ if(x.id) SYMB.forEach(function(o){ delier(o, x.id); }); });
   GRP=null; enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Supprimé. « Annuler » le remet.", 2500);
 }
 function grpEcran(g){ var b=grpBoite(g); if(!b) return null; var a=versEcran(b.x0, b.y1), c=versEcran(b.x1, b.y0); return {x0:a[0]-8, y0:a[1]-8, x1:c[0]+8, y1:c[1]+8}; }
