@@ -1225,13 +1225,18 @@ function styleCategorie(){
   if(STYLE_CATEGORIE) return; STYLE_CATEGORIE=true;
   var st=document.createElement("style");
   st.textContent=
-    ".f .meta{min-width:0;overflow:hidden}"
-    +"select.cat-doc{-webkit-appearance:none;appearance:none;flex:0 0 auto;min-width:0!important;width:auto!important;max-width:124px!important;"
-    +"height:22px!important;min-height:0!important;margin:0!important;padding:0 18px 0 8px!important;box-sizing:border-box;"
-    +"font:inherit;font-size:11.5px!important;font-weight:600;line-height:20px;border:1px solid var(--rule,#d9d4ca)!important;border-radius:999px!important;"
-    +"background:transparent!important;color:inherit;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:none!important;"
-    +"background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%)!important;"
-    +"background-position:calc(100% - 10px) 9px,calc(100% - 6px) 9px!important;background-size:4px 4px,4px 4px!important;background-repeat:no-repeat!important}";
+    /* une pastille à la taille de son texte : le menu natif, invisible, est posé dessus
+       (Safari sur iPhone donnait au menu la largeur de sa plus longue catégorie, coupée à droite) */
+    ".f .meta{min-width:0;overflow:hidden;flex-wrap:wrap;row-gap:4px}"
+    +".cat-doc{position:relative;display:inline-flex;align-items:center;flex:0 1 auto;min-width:0;max-width:140px;height:22px;"
+    +"padding:0 20px 0 9px;box-sizing:border-box;border:1px solid var(--rule,#d9d4ca);border-radius:999px;"
+    +"font-size:11.5px;font-weight:600;line-height:20px;color:inherit;cursor:pointer}"
+    +".cat-doc>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;font:inherit;color:inherit}"
+    +".cat-doc::after{content:\"\";position:absolute;right:8px;top:50%;width:5px;height:5px;margin-top:-4px;"
+    +"border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.75}"
+    +".cat-doc>select{position:absolute;inset:0;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;"
+    +"opacity:0;border:0!important;font-size:16px!important;cursor:pointer;-webkit-appearance:none;appearance:none}"
+    +".cat-doc.off{opacity:.55}";
   document.head.appendChild(st);
 }
 function categorieDocument(f, bureau, apres){
@@ -1242,7 +1247,10 @@ function categorieDocument(f, bureau, apres){
     var s=document.createElement("span"); s.className="infos"; s.textContent=actuelle; return s;
   }
   styleCategorie();
-  var sel=document.createElement("select"); sel.className="cat-doc";
+  var pastille=document.createElement("span"); pastille.className="cat-doc";
+  var lib=document.createElement("span");
+  var sel=document.createElement("select");
+  pastille.appendChild(lib); pastille.appendChild(sel);
   sel.title="Changer la catégorie de ce document";
   sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
   var liste=CATEGORIES_TECHNIQUE.slice();
@@ -1250,22 +1258,24 @@ function categorieDocument(f, bureau, apres){
   if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
   liste.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
   sel.value=actuelle;
-  ["click","pointerdown","touchstart"].forEach(function(ev){ sel.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+  function montrer(){ lib.textContent = sel.value || "Catégorie…"; pastille.classList.toggle("off", sel.disabled); }
+  montrer();
+  ["click","pointerdown","touchstart"].forEach(function(ev){ pastille.addEventListener(ev, function(e){ e.stopPropagation(); }); });
   sel.addEventListener("change", function(e){
     e.stopPropagation();
     var c=sel.value; if(!c || c===actuelle) return;
-    sel.disabled=true;
+    sel.disabled=true; montrer();
     fetch(API+"?action=categorie-document", {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
       body:JSON.stringify({cle:f.cle, categorie:c})})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
       .then(function(res){
-        if(!res.ok){ alert(res.d.erreur || "Catégorie non changée."); sel.disabled=false; sel.value=actuelle; return; }
+        if(!res.ok){ alert(res.d.erreur || "Catégorie non changée."); sel.disabled=false; sel.value=actuelle; montrer(); return; }
         f.visite=c;
         if(apres) apres();
       })
-      .catch(function(){ alert("Pas de réseau."); sel.disabled=false; sel.value=actuelle; });
+      .catch(function(){ alert("Pas de réseau."); sel.disabled=false; sel.value=actuelle; montrer(); });
   });
-  return sel;
+  return pastille;
 }
 
 /* le sous-dossier où range un document, s'il y en a un */
