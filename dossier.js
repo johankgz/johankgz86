@@ -1129,6 +1129,21 @@ var SOUS_DOSSIERS={
    Montrée à côté de l'étiquette ; le bureau, ou celui qui l'a déposé, la
    change d'un choix : le document passe dans le bon sous-dossier. */
 var CATEGORIES_TECHNIQUE=["Plan","Fiche technique","Schéma","Notice","Photo","Autre"];
+/* un petit menu, à la taille d'une étiquette : il ne déborde plus sur « Ouvrir » */
+var STYLE_CATEGORIE=false;
+function styleCategorie(){
+  if(STYLE_CATEGORIE) return; STYLE_CATEGORIE=true;
+  var st=document.createElement("style");
+  st.textContent=
+    ".f .meta{min-width:0;overflow:hidden}"
+    +"select.cat-doc{-webkit-appearance:none;appearance:none;flex:0 0 auto;min-width:0!important;width:auto!important;max-width:124px!important;"
+    +"height:22px!important;min-height:0!important;margin:0!important;padding:0 18px 0 8px!important;box-sizing:border-box;"
+    +"font:inherit;font-size:11.5px!important;font-weight:600;line-height:20px;border:1px solid var(--rule,#d9d4ca)!important;border-radius:999px!important;"
+    +"background:transparent!important;color:inherit;cursor:pointer;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;box-shadow:none!important;"
+    +"background-image:linear-gradient(45deg,transparent 50%,currentColor 50%),linear-gradient(135deg,currentColor 50%,transparent 50%)!important;"
+    +"background-position:calc(100% - 10px) 9px,calc(100% - 6px) 9px!important;background-size:4px 4px,4px 4px!important;background-repeat:no-repeat!important}";
+  document.head.appendChild(st);
+}
 function categorieDocument(f, bureau, apres){
   var actuelle=String(f.visite||"").trim();
   var peut = bureau || (MOI && f.auteur===MOI.nom);
@@ -1136,11 +1151,10 @@ function categorieDocument(f, bureau, apres){
     if(!actuelle) return null;
     var s=document.createElement("span"); s.className="infos"; s.textContent=actuelle; return s;
   }
+  styleCategorie();
   var sel=document.createElement("select"); sel.className="cat-doc";
   sel.title="Changer la catégorie de ce document";
   sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
-  sel.style.cssText="font:inherit;font-size:12px;font-weight:600;padding:2px 6px;height:auto;min-height:0;width:auto;max-width:140px;"
-    +"border:1px solid var(--rule,#d9d4ca);border-radius:999px;background:var(--card,#fff);color:inherit;cursor:pointer;margin:0 6px 0 0";
   var liste=CATEGORIES_TECHNIQUE.slice();
   if(actuelle && liste.indexOf(actuelle)<0) liste.unshift(actuelle);
   if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
@@ -1411,33 +1425,13 @@ function carteDossier(c, i, opts){
   c.fichiers.forEach(function(f){
     var a=document.createElement("a"); a.className="f";
     var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
-    /* Un document s'ouvre dans son propre onglet : c'est un vrai lien,
-       pas un lecteur qui recouvre la page. Le site reste ouvert à
-       côté, « précédent » du navigateur marche comme partout ailleurs,
-       et on peut ouvrir plusieurs documents en même temps, chacun dans
-       le sien. Un ensemble de photos reste une galerie sur place : un
-       ZIP ne s'affiche pas tout seul dans un onglet. */
-    if(zip){
-      a.style.cursor="pointer";
-      a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
-    } else if(/\.(dwg|dxf)$/i.test(f.cle||"")){
-      /* un plan DWG ou DXF : le navigateur ne l'affiche pas, l'outil Plan si (cotes, symboles) */
-      a.href="./dwg.html?cle="+encodeURIComponent(f.cle);
-    } else {
-      a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
-      /* toujours à part, même dans l'appli installée : le téléphone l'ouvre
-         alors dans sa fenêtre avec OK en haut à gauche, qui ramène ici.
-         Dans la même fenêtre, le PDF remplaçait l'appli, sans barre ni retour. */
-      a.target="_blank"; a.rel="noopener";
-    }
+    var dwg = /\.(dwg|dxf)$/i.test(f.cle||"");
+    /* la ligne n'ouvre rien : seul le bouton « Ouvrir » ouvre le document
+       (un toucher au hasard en faisant défiler n'ouvre plus un PDF) ;
+       à l'ordinateur, on la glisse toujours vers un dossier */
+    a.style.cursor="default";
+    a.style.webkitUserSelect="none"; a.style.userSelect="none"; a.style.webkitTouchCallout="none";
     glisserVersOrdinateur(a, f);
-    a.addEventListener("click", function(){
-      /* accusé de lecture immédiat, sans dépendre du chargement du PDF */
-      fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if(d && d.lectures){ f.lectures=d.lectures; setTimeout(charger, 1200); } })
-        .catch(function(){});
-    });
     var t=document.createElement("div"); t.className="t";
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
@@ -1509,6 +1503,9 @@ function carteDossier(c, i, opts){
     bPartage.setAttribute("aria-label","Ouvrir "+(f.titre||"ce document"));
     bPartage.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation();
+      /* un lot de photos s'ouvre en galerie, un plan DWG ou DXF dans l'outil Plan */
+      if(zip){ marquerLu(f); ouvrirGalerie(f); return; }
+      if(dwg){ marquerLu(f); location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
