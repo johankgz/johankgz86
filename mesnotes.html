@@ -1210,7 +1210,7 @@ $("oPapier").addEventListener("click", function(){
    fois le stylet posé, la main sur l'écran fait défiler sans tracer. La gomme
    retire les traits qu'elle touche. */
 var U=1;
-function largeurs(o, p){ return o==="stylo" ? 2+4.6*(p==null ? .5 : p) : o==="feutre" ? 7 : o==="surligneur" ? 26 : o==="forme" ? 4 : 0; }
+function largeurs(o, p){ return o==="stylo" ? 2.9+2.8*(p==null ? .5 : p) : o==="feutre" ? 7 : o==="surligneur" ? 26 : o==="forme" ? 4 : 0; }
 /* ---------- les formes : trait, rectangle, nuage, flèche, spline, cercle ----------
    Une forme garde ses deux coins (ou les points de la spline) ; son contour se
    calcule à l'affichage : des lignes brisées, en unités de page (largeur 1000). */
@@ -1547,6 +1547,21 @@ function gommer(q){
   if(d){ var n=Math.ceil(Math.hypot(q[0]-d[0], q[1]-d[1])/(r/2)); for(var k=1;k<n;k++) effacerPres([d[0]+(q[0]-d[0])*k/n, d[1]+(q[1]-d[1])*k/n]); }
   effacerPres(q); TRAIT.pos=q;
 }
+/* le tremblement de la main, filtré (filtre « 1 € ») : lent, le trait est lissé ; rapide, il suit
+   la pointe presque sans retard. Le dernier point vrai est gardé : le trait finit où l'on lève le crayon. */
+function filtreTrait(){
+  var x=null, vx=0, vy=0, t0=0;
+  function a(fc, dt){ return 1/(1+1/(2*Math.PI*fc*dt)); }
+  return function(q, t){
+    if(!x){ x=[q[0], q[1]]; t0=t; return q; }
+    var dt=t-t0>.5 ? Math.min(50, t-t0)/1000 : 1/240; t0=t;
+    var ad=a(1, dt);
+    vx+=((q[0]-x[0])/dt-vx)*ad; vy+=((q[1]-x[1])/dt-vy)*ad;
+    var al=a(2.5+.06*Math.hypot(vx, vy), dt);
+    x=[x[0]+(q[0]-x[0])*al, x[1]+(q[1]-x[1])*al];
+    return [Math.round(x[0]*10)/10, Math.round(x[1]*10)/10, q[2]];
+  };
+}
 var page=$("page"), ACTIF=null;
 page.addEventListener("pointerdown", function(e){
   if(!MODE.stylet || !COUR || COUR.meta.corbeille) return;
@@ -1564,6 +1579,7 @@ page.addEventListener("pointerdown", function(e){
     peindreVif(true); return;
   }
   TRAIT={o:MODE.outil, c:MODE.outil==="surligneur" ? MODE.surl : MODE.couleur, p:[q], fait:0};
+  if(e.pointerType!=="mouse"){ TRAIT.filtre=filtreTrait(); TRAIT.filtre(q, e.timeStamp); }
   if(MODE.k[MODE.outil] && MODE.k[MODE.outil]!==1) TRAIT.k=Math.round(MODE.k[MODE.outil]*100)/100;
   peindreVif(true);
 }, true);
@@ -1579,6 +1595,7 @@ page.addEventListener("pointermove", function(e){
       else TRAIT.p[1]=[q[0],q[1]];
       return;
     }
+    if(TRAIT.filtre){ TRAIT.brut=q; q=TRAIT.filtre(q, ev.timeStamp); }
     var d=TRAIT.p[TRAIT.p.length-1];
     if(Math.abs(q[0]-d[0])+Math.abs(q[1]-d[1]) >= 1.2){
       /* la pression lissée : l'épaisseur varie en douceur, sans grumeaux */
@@ -1616,7 +1633,12 @@ function lacher(e){
     /* une simple touche ne pose pas de forme */
     if(Math.hypot(b0[0]-a0[0], b0[1]-a0[1])>=4 || TRAIT.p.length>2){ COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   }
-  else if(TRAIT){ delete TRAIT.fait; delete TRAIT.predits; COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
+  else if(TRAIT){
+    /* le filtre a un peu de retard : le trait rejoint le point où le crayon s'est levé */
+    var bq=TRAIT.brut, dq=TRAIT.p[TRAIT.p.length-1];
+    if(bq && Math.hypot(bq[0]-dq[0], bq[1]-dq[1])>=.5) TRAIT.p.push([bq[0], bq[1], dq[2]]);
+    delete TRAIT.fait; delete TRAIT.predits; delete TRAIT.filtre; delete TRAIT.brut;
+    COUR.encre.push(TRAIT); ANNULER.push({ajout:TRAIT}); sale(); }
   if(DESSIN_RAF){ cancelAnimationFrame(DESSIN_RAF); DESSIN_RAF=0; }
   var fini=TRAIT && !TRAIT.gomme && COUR.encre.indexOf(TRAIT)>=0 ? TRAIT : null;
   TRAIT=null;

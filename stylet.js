@@ -425,8 +425,23 @@
     function epaisseur(e){
       if(M.outil==="feutre") return 7*M.k.feutre;
       if(M.outil==="surligneur") return 26*M.k.surligneur;
-      if(e.pointerType==="pen"){ var p=e.pressure||0.5; return tailleCrayon*(0.45+p*1.1); }
+      if(e.pointerType==="pen"){ var p=e.pressure||0.5; return tailleCrayon*(0.7+p*0.6); }
       return tailleCrayon;
+    }
+    /* le tremblement de la main, filtré (filtre « 1 € ») : lent, le trait est lissé ; rapide, il suit
+       la pointe presque sans retard. Le dernier point vrai est gardé : le trait finit où l'on lève le crayon. */
+    function filtreTrait(){
+      var x=null, vx=0, vy=0, t0=0;
+      function a(fc, dt){ return 1/(1+1/(2*Math.PI*fc*dt)); }
+      return function(p, t){
+        if(!x){ x={x:p.x, y:p.y}; t0=t; return p; }
+        var dt=t-t0>.5 ? Math.min(50, t-t0)/1000 : 1/240; t0=t;
+        var ad=a(1, dt);
+        vx+=((p.x-x.x)/dt-vx)*ad; vy+=((p.y-x.y)/dt-vy)*ad;
+        var al=a(2.5+.06*Math.hypot(vx, vy), dt);
+        x={x:x.x+(p.x-x.x)*al, y:x.y+(p.y-x.y)*al};
+        return {x:x.x, y:x.y};
+      };
     }
     var actif=null;
     cv.addEventListener("pointerdown", function(e){
@@ -439,6 +454,7 @@
       if(M.outil==="gomme"){ courant={gomme:true, avant:traits.slice()}; posGomme=null; gommer(p); return; }
       if(M.outil==="formes"){ courant={o:"forme", f:M.forme, c:M.couleur, w:Math.round(3.5*M.k.forme*100)/100, pts:[{x:p.x, y:p.y}, {x:p.x, y:p.y}]}; peindreCourant(); return; }
       courant={c:couleurOutil(), pts:[{x:p.x, y:p.y, w:epaisseur(e)}], fait:0};
+      if(e.pointerType!=="mouse"){ courant.filtre=filtreTrait(); courant.filtre(p, e.timeStamp); }
       if(M.outil!=="stylo") courant.o=M.outil;
       peindreCourant(true);
     });
@@ -454,6 +470,7 @@
           else courant.pts[1]={x:p.x, y:p.y};
           return;
         }
+        if(courant.filtre){ courant.brut=p; p=courant.filtre(p, ev.timeStamp); }
         var d=courant.pts[courant.pts.length-1];
         if(Math.abs(p.x-d.x)+Math.abs(p.y-d.y) < 0.8) return;
         /* la pression lissée : l'épaisseur varie en douceur, sans grumeaux */
@@ -473,6 +490,12 @@
       var t=courant; courant=null; posGomme=null;
       if(image_){ cancelAnimationFrame(image_); image_=0; }
       if(t) delete t.predits;
+      /* le filtre a un peu de retard : le trait rejoint le point où le crayon s'est levé */
+      if(t && t.filtre){
+        var bq=t.brut, dq=t.pts[t.pts.length-1];
+        if(bq && Math.hypot(bq.x-dq.x, bq.y-dq.y)>=.5) t.pts.push({x:bq.x, y:bq.y, w:dq.w});
+        delete t.filtre; delete t.brut;
+      }
       if(t && t.gomme){ if(t.change) retours.push(t.avant); }
       else if(t && t.o==="forme"){
         if(t.f==="spline") t.pts=simplifier(t.pts, 2.5);
