@@ -1655,47 +1655,60 @@ var RELIER=false;
 function idS(o){ if(!o.id) o.id="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); return o.id; }
 function symbParId(id){ if(!id) return null; for(var i=0;i<SYMB.length;i++) if(SYMB[i].id===id) return SYMB[i]; return null; }
 function relies(a, b){ return !!(a.id && b.id) && ((a.lien||[]).indexOf(b.id)>=0 || (b.lien||[]).indexOf(a.id)>=0); }
-function delier(o, id){ if(!o.lien) return; o.lien=o.lien.filter(function(x){ return x!==id; }); if(!o.lien.length) delete o.lien; }
+function delier(o, id){
+  if(o.lien){ o.lien=o.lien.filter(function(x){ return x!==id; }); if(!o.lien.length) delete o.lien; }
+  if(o.inv){ o.inv=o.inv.filter(function(x){ return x!==id; }); if(!o.inv.length) delete o.inv; }
+}
+/* touché une fois : relié ; deux fois : l'arc passe de l'autre côté ; trois fois : délié */
 function basculerLien(a, b){
   idS(a); idS(b);
-  if(relies(a, b)){ delier(a, b.id); delier(b, a.id); return false; }
-  a.lien=(a.lien||[]).concat([b.id]); return true;
+  var de = (a.lien||[]).indexOf(b.id)>=0 ? a : (b.lien||[]).indexOf(a.id)>=0 ? b : null, vers = de===a ? b : a;
+  if(!de){ a.lien=(a.lien||[]).concat([b.id]); return "relie"; }
+  if((de.inv||[]).indexOf(vers.id)<0){ de.inv=(de.inv||[]).concat([vers.id]); return "inverse"; }
+  delier(a, b.id); delier(b, a.id); return "delie";
 }
 function basculerRelier(v){
   RELIER = v===undefined ? !RELIER : !!v;
   if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
-  if(RELIER){ ARME_S=false; toast(COMMANDES_S[SYMB[SEL].cle] ? "Touchez les spots à relier à cette commande. Retouché : délié. Le vide : terminé." : "Touchez le symbole suivant du circuit : la liaison suit. Retouché : délié. Le vide : terminé.", 4200); }
+  if(RELIER){ ARME_S=false; toast(COMMANDES_S[SYMB[SEL].cle] ? "Touchez les spots à relier à cette commande. Retouché : l'arc change de côté, puis délié. Le vide : terminé." : "Touchez le symbole suivant du circuit : la liaison suit. Retouché : l'arc change de côté, puis délié. Le vide : terminé.", 4500); }
   majSymb(); demander();
 }
 function toucherRelier(ti){
   if(ti<0 || ti===SEL || SEL<0){ basculerRelier(false); return; }
   garderSymb();
-  var a=SYMB[SEL], b=SYMB[ti], ajoute=basculerLien(a, b);
+  var a=SYMB[SEL], b=SYMB[ti], fait=basculerLien(a, b);
   enregistrerSymb();
-  if(ajoute && !COMMANDES_S[a.cle]) SEL=ti;
+  if(fait==="relie" && !COMMANDES_S[a.cle]) SEL=ti;
   majSymb(); demander();
 }
-/* au plan : un arc tireté d'un symbole à l'autre, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
-function arcLien(a, b, k){
+/* un arc de cercle bien rond (la flèche fait 30 % de la corde), du bord d'un symbole au bord de
+   l'autre, bombé à gauche du départ (à droite si on l'a retourné) : ses points, en coordonnées du plan */
+function arcLien(a, b){
   var dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx, dy); if(!L) return null;
-  var ux=dx/L, uy=dy/L, ra=a.r*1.15*k, rb=b.r*1.15*k; if(L<=ra+rb) return null;
-  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], f=(L-ra-rb)*0.2;
-  return {p0:P0, p1:P1, m:[(P0[0]+P1[0])/2+uy*f, (P0[1]+P1[1])/2-ux*f]};
+  var ux=dx/L, uy=dy/L, ra=a.r*1.15, rb=b.r*1.15; if(L<=ra+rb) return null;
+  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], d=L-ra-rb, h=d*0.3;
+  var inv=(a.inv||[]).indexOf(b.id)>=0, n = inv ? [uy, -ux] : [-uy, ux];
+  var R=(d*d/4+h*h)/(2*h), M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2], C=[M[0]+n[0]*(h-R), M[1]+n[1]*(h-R)];
+  var a0=Math.atan2(P0[1]-C[1], P0[0]-C[0]), sw=Math.atan2(P1[1]-C[1], P1[0]-C[0])-a0;
+  while(sw>Math.PI) sw-=2*Math.PI; while(sw<-Math.PI) sw+=2*Math.PI;
+  var pts=[]; for(var k=0;k<=24;k++){ var an=a0+sw*k/24; pts.push([C[0]+R*Math.cos(an), C[1]+R*Math.sin(an)]); }
+  return pts;
 }
 function couleurLien(b){
   var def=SymbolesElec.trouver(b.cle), col=def ? def.couleur : "#FF0000";
   if(!CLAIR && !IMPRIME && col==="#0000FF") col="#6B8BFF";
   return col;
 }
+/* au plan : l'arc en pointillés, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
 function peindreLiens(c){
   SYMB.forEach(function(a){
     (a.lien||[]).forEach(function(id){
       var b=symbParId(id); if(!b) return;
-      var arc=arcLien(a, b, 1); if(!arc) return;
-      var P0=versEcran(arc.p0[0], arc.p0[1]), M=versEcran(arc.m[0], arc.m[1]), P1=versEcran(arc.p1[0], arc.p1[1]), R=Math.max(a.r, b.r)*V.k;
-      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09));
-      c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
-      c.beginPath(); c.moveTo(P0[0], P0[1]); c.quadraticCurveTo(M[0], M[1], P1[0], P1[1]); c.stroke(); c.restore();
+      var pts=arcLien(a, b); if(!pts) return;
+      var R=Math.max(a.r, b.r)*V.k, lw=Math.max(2, Math.min(3.2, R*0.13));
+      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=lw; c.lineCap="round"; c.lineJoin="round";
+      c.setLineDash([0.01, lw*2.6]);
+      c.beginPath(); pts.forEach(function(q, k){ var e=versEcran(q[0], q[1]); if(k) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.stroke(); c.restore();
     });
   });
 }
@@ -1705,10 +1718,10 @@ function dxfLiens(){
   function g(){ for(var i=0;i<arguments.length;i+=2) L.push(String(arguments[i]), typeof arguments[i+1]==="number" ? String(Math.round(arguments[i+1]*1000)/1000) : String(arguments[i+1])); }
   SYMB.forEach(function(a){
     (a.lien||[]).forEach(function(id){
-      var b=symbParId(id), arc=b ? arcLien(a, b, 1) : null; if(!arc) return;
+      var b=symbParId(id), pts=b ? arcLien(a, b) : null; if(!pts) return;
       var def=SymbolesElec.trouver(b.cle), aci = def && def.couleur==="#0000FF" ? 5 : def && def.couleur==="#FF8000" ? 30 : 1;
       g(0,"POLYLINE", 8,"ELEC-LIAISONS", 62,aci, 66,1, 10,0,20,0,30,0, 70,0);
-      for(var k=0;k<=16;k++){ var t=k/16, u=1-t, x=u*u*arc.p0[0]+2*u*t*arc.m[0]+t*t*arc.p1[0], y=u*u*arc.p0[1]+2*u*t*arc.m[1]+t*t*arc.p1[1]; g(0,"VERTEX", 8,"ELEC-LIAISONS", 10,x,20,y,30,0); }
+      pts.forEach(function(q){ g(0,"VERTEX", 8,"ELEC-LIAISONS", 10,q[0],20,q[1],30,0); });
       g(0,"SEQEND", 8,"ELEC-LIAISONS");
     });
   });
@@ -1774,7 +1787,7 @@ function majSymb(){
   $("btRelier").disabled=!o || vueD()!=="dessus"; $("btRelier").classList.toggle("on", RELIER); $("btRelier").setAttribute("aria-pressed", RELIER ? "true" : "false");
   $("btRelier").textContent = RELIER ? "Terminer les liaisons" : "Relier";
   $("symbDetail").textContent = RELIER && def
-    ? "Liaisons depuis : "+def.nom+". "+(COMMANDES_S[o.cle] ? "Touchez ses spots l'un après l'autre." : "Touchez le symbole suivant : la liaison suit.")+" Retouché : délié. Le vide : terminé."
+    ? "Liaisons depuis : "+def.nom+". "+(COMMANDES_S[o.cle] ? "Touchez ses spots l'un après l'autre." : "Touchez le symbole suivant : la liaison suit.")+" Retouché : l'arc change de côté, puis délié. Le vide : terminé."
     : def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
     : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
@@ -2230,7 +2243,7 @@ function grpColler(txt, d){
   c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
   var corrS={};
   c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; if(o.id){ delete n.id; corrS[o.id]=idS(n); } SYMB.push(n); g.symb.push(n); });
-  g.symb.forEach(function(n){ if(!n.lien) return; n.lien=n.lien.map(function(id){ return corrS[id]; }).filter(Boolean); if(!n.lien.length) delete n.lien; });
+  g.symb.forEach(function(n){ ["lien","inv"].forEach(function(k){ if(!n[k]) return; n[k]=n[k].map(function(id){ return corrS[id]; }).filter(Boolean); if(!n[k].length) delete n[k]; }); });
   return g;
 }
 /* où poser la copie : une pièce juste à côté (sa largeur et 50 cm de plus), un élément seul un peu en biais */
@@ -4366,7 +4379,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
+    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"POINTILLES"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
