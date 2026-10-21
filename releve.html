@@ -5892,9 +5892,12 @@ function buildPdf(){
     var C2=lignes("Une énergie propre, locale et durable pour réduire vos factures et valoriser votre habitat.", wL, 8.8);
     doc.text(C2, xL, yL+3.6); yL+=3.6+C2.length*lh(8.8)+5;
     sousTitre("Les caractéristiques de votre installation", xL, yL+3, 10); yL+=7;
-    var nbPanneaux = (V.simuls||[]).reduce(function(t, s){ return t+(Number(s.nb)||0); }, 0);
-    var wc=parseFloat(String(V.wc||"").replace(",", "."))||0;
-    if(!nbPanneaux && kwc>0 && wc>0) nbPanneaux=Math.round(kwc*1000/wc);
+    /* le nombre de panneaux découle de la puissance envisagée et de la puissance d'un panneau
+       (500 Wc si la case est vide, comme partout dans le relevé) ; les implantations sur photo
+       ne comptent qu'à défaut de puissance : elles peuvent ne montrer qu'un pan, ou un essai */
+    var wc=parseFloat(String(V.wc||"").replace(",", "."))||500;
+    var nbPanneaux = kwc>0 ? Math.round(kwc*1000/wc)
+      : (V.simuls||[]).reduce(function(t, s){ return t+(Number(s.nb)||0); }, 0);
     [["soleil","Type d'installation", typeInstallation()],
      ["jauge","Puissance envisagée", kwc>0 ? dec(kwc, 2)+" kWc" : ""],
      ["panneau","Panneaux", nbPanneaux ? nbPanneaux+" panneaux"+(wc ? " de "+nb(wc)+" Wc" : "") : ""],
