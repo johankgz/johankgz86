@@ -528,14 +528,38 @@ var TYPES_GLISSER={pdf:"application/pdf", zip:"application/zip", jpg:"image/jpeg
   xls:"application/vnd.ms-excel", xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ppt:"application/vnd.ms-powerpoint", pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",
   odt:"application/vnd.oasis.opendocument.text", ods:"application/vnd.oasis.opendocument.spreadsheet", txt:"text/plain", csv:"text/csv"};
+/* Glisser un document de la liste hors du site (Chrome, Edge) :
+   - vers le bureau, un dossier, l'Explorateur, le Finder, Outlook, l'appli
+     Mail : le fichier est posé là où on le lâche (DownloadURL), une seule
+     fois — rien d'autre n'est glissé avec (ni lien, ni raccourci) ;
+   - vers une messagerie ouverte dans le navigateur (iCloud Mail, Gmail,
+     Outlook web) : le fichier lui-même, en pièce jointe. Il est préparé dès
+     que la souris passe sur la ligne, pour être prêt quand on commence à glisser. */
+var FICHIERS_PRETS={};
+function preparerGlisser(f){
+  if(FICHIERS_PRETS[f.cle] || (f.taille && f.taille > 25*1024*1024)) return;
+  FICHIERS_PRETS[f.cle]="…";
+  telecharger(f).then(function(blob){
+    var ext=String(f.cle).split(".").pop().toLowerCase();
+    var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
+    try{ FICHIERS_PRETS[f.cle]=new File([blob], nom, {type:TYPES_GLISSER[ext]||blob.type||"application/octet-stream"}); }
+    catch(e){ delete FICHIERS_PRETS[f.cle]; }
+  }).catch(function(){ delete FICHIERS_PRETS[f.cle]; });
+}
 function glisserVersOrdinateur(a, f){
   a.draggable=true;
+  a.addEventListener("mouseenter", function(){ preparerGlisser(f); });
+  a.addEventListener("pointerdown", function(e){ if(e.pointerType==="mouse") preparerGlisser(f); });
   a.addEventListener("dragstart", function(e){
     if(!e.dataTransfer) return;
     var ext=String(f.cle).split(".").pop().toLowerCase();
     var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
     var url=location.origin+API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+    /* rien que le fichier : pas de lien ni de texte, qui faisaient un second élément (raccourci, page) */
+    try{ e.dataTransfer.clearData(); }catch(er){}
     try{ e.dataTransfer.setData("DownloadURL", (TYPES_GLISSER[ext]||"application/octet-stream")+":"+nom+":"+url); }catch(er){}
+    var pret=FICHIERS_PRETS[f.cle];
+    if(pret && typeof pret==="object"){ try{ e.dataTransfer.items.add(pret); }catch(er){} }
     try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
   });
 }
