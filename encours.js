@@ -94,7 +94,7 @@
   })();
 
   /* ---------- les fiches qui suivent la personne ---------- */
-  var APPLIS="releve|suivi|commande|point|autocontrole|reception|sav|etiquettes|photos|carnet|technique";
+  var APPLIS="releve|suivi|commande|point|autocontrole|reception|sav|etiquettes|photos|carnet|technique|note";
   var SUIVIES=new RegExp("^(?:"+APPLIS+"):courante?(?:[@#].*)?$");
   function suivie(k){ return typeof k==="string" && SUIVIES.test(k) && k.length<=160; }
   var META="encours§";                          /* ce que l'appareil sait de chaque fiche */

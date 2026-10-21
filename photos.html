@@ -667,26 +667,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 </section>
 
-<section id="tab-note" hidden>
-  <div class="block" id="sec-note">
-    <h2>Note</h2>
-    <p class="hint" style="margin:-8px 0 12px">Une note sur le chantier, à part du reportage. Commencée, elle reste là et se reprend quand vous revenez ; enregistrée, elle se range dans le dossier du chantier, sous « Notes ».</p>
-    <div class="barre-fiche" style="margin:0 0 12px">
-      <button class="act ghost mini" id="btnNoteReprendre" type="button" title="Reprendre une note déjà enregistrée dans le dossier"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/><path d="M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>Reprendre une note</button>
-      <button class="act ghost mini" id="btnNoteNouvelle" type="button" title="Commencer une autre note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg>Nouvelle note</button>
-    </div>
-    <label class="f"><span>Titre</span><input type="text" id="n_titre" data-sans-marque placeholder="Ex. Réunion avec le client, accès au tableau…"></label>
-    <label class="f"><span>Texte</span><textarea id="n_texte" data-sans-marque rows="7" placeholder="Ce qu'il faut retenir."></textarea></label>
-    <div class="row" style="margin-top:2px">
-      <button class="act rec" type="button" data-dictee="n_texte">Dicter</button>
-      <button class="act ghost" type="button" id="btnNoteStylet">Écrire au stylet</button>
-    </div>
-    <div id="n_encre" style="margin-top:12px"></div>
-    <button class="act blue" type="button" id="btnNoteEnregistrer" style="width:100%;margin-top:14px">Enregistrer la note</button>
-    <p class="hint" id="noteEtat"></p>
-  </div>
-</section>
-
 <section id="tab-rapport" hidden>
   <div class="block" id="sec-enregistrer">
     <h2>Enregistrer</h2>
@@ -708,11 +688,10 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./annotation.js?v=20261020a"></script>
-<script src="./stylet.js?v=20261015b"></script>
 <script src="./sobre.js?v=20261010a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261001b"></script>
-<script src="./encours.js?v=20261020a"></script>
+<script src="./encours.js?v=20261021a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -1043,184 +1022,12 @@ function openSketch(index){
   }).catch(function(){ toast("Image illisible."); });
 }
 
-/* ---------- la note ----------
-   Une note sur le chantier, à part du reportage : un titre, du texte (tapé
-   ou dicté) et, au besoin, une écriture au stylet. Commencée, elle reste
-   dans la fiche (sur l'appareil, et d'un appareil à l'autre) et se reprend
-   telle quelle. « Enregistrer la note » la range dans le dossier du
-   chantier, sous « Notes » (son PDF, et de quoi la rouvrir) ; réenregistrée,
-   elle se met à jour. « Reprendre une note » rouvre une note du dossier. */
-function noteVierge(){ return {id:"pc"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), titre:"", texte:"", encre:null, cle:"", enregistree:""}; }
-function N(){ if(!S.noteC) S.noteC=noteVierge(); return S.noteC; }
-function noteRemplie(n){ return !!(n && (String(n.titre||"").trim() || String(n.texte||"").trim() || n.encre)); }
-function paintNote(){
-  if(!$("n_titre")) return;
-  var n=N();
-  $("n_titre").value=n.titre||""; $("n_texte").value=n.texte||"";
-  var h=$("n_encre"); h.textContent="";
-  if(n.encre && window.Stylet && Stylet.valide(n.encre)){
-    var im=Stylet.image(n.encre); im.style.cssText="display:block;max-width:100%;border:1px solid var(--rule);border-radius:8px;background:#fff;cursor:pointer";
-    im.title="Reprendre l'écriture"; im.addEventListener("click", ecrireNoteStylet);
-    var x=document.createElement("button"); x.type="button"; x.className="act ghost mini"; x.textContent="Retirer l'écriture"; x.style.marginTop="8px";
-    x.addEventListener("click", function(){ n.encre=null; noteModifiee(); paintNote(); });
-    h.appendChild(im); h.appendChild(x);
-  }
-  $("btnNoteStylet").textContent = n.encre ? "Compléter au stylet" : "Écrire au stylet";
-  $("btnNoteEnregistrer").textContent = n.cle ? "Mettre à jour la note" : "Enregistrer la note";
-  var e=$("noteEtat");
-  if(e && !e.dataset.vif) e.textContent = n.enregistree ? "Enregistrée dans le dossier (Notes) le "+frDate(n.enregistree)+" à "+heureDe(n.enregistree)+(n.modifiee ? " — modifiée depuis." : ".") : "";
-}
-function heureDe(iso){ var d=new Date(iso); return isNaN(d) ? "" : String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
-function noteModifiee(){ var n=N(); if(n.cle) n.modifiee=true; save(); }
-function ecrireNoteStylet(){
-  if(!window.Stylet){ toast("Écriture au stylet indisponible."); return; }
-  var n=N();
-  var e=n.encre;
-  var opt={titre: e ? "Compléter la note" : (n.titre||"Note"), bouton: e ? "Enregistrer" : "Ajouter",
-    ok:function(encre){ n.encre=encre; noteModifiee(); paintNote(); }};
-  /* l'écriture déjà faite revient, pour la compléter */
-  if(e && e.traits && e.traits.length) opt.traits=e.traits;
-  else if(e && e.src){ opt.fond=e.src; opt.fondL=e.l; opt.fondH=e.h; }
-  Stylet.ouvrir(opt);
-}
-function buildNotePdf(n){
-  var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var INK=[34,32,28], GREY=[110,103,92], LIGHT=[226,220,206], y;
-  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
-  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-  var page=1;
-  function pied(){
-    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
-    doc.text((refAffaire()?refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-    setText(INK);
-  }
-  function suite(h){ if(y+h > PH-22){ pied(); doc.addPage(); page++; setFill(INK); doc.rect(0,0,PW,2.2,"F"); y=20; } }
-  setFill(INK); doc.rect(0,0,PW,3.2,"F");
-  var L=P&&P.logo, tx=M;
-  if(L){ var lh=15, lw=lh*(L.w/L.h); if(lw>40){ lw=40; lh=lw*(L.h/L.w); } try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){} tx=M+lw+7; }
-  setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.text("Note", tx, 19);
-  doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-  doc.text(doc.splitTextToSize(["Le "+frDate(aujourdhui()), (SESSION&&SESSION.nom)||"", refAffaire()].filter(Boolean).join("     "), CW-60)[0], tx, 25);
-  var soc=(P&&P.societe)||"";
-  if(soc){ doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK); doc.text(soc, PW-M, 13.5, {align:"right"}); }
-  setFill(LIGHT); doc.rect(M,31,CW,0.4,"F"); y=40;
-  doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-  [["Client", S.chantier.client], ["Adresse", adresseTravaux()]].forEach(function(l){
-    if(!String(l[1]||"").trim()) return;
-    var v=doc.splitTextToSize(String(l[1]), CW-30);
-    setText(GREY); doc.text(l[0], M, y); setText(INK); doc.text(v, M+28, y); y+=v.length*4.8+2;
-  });
-  y+=4;
-  if(String(n.titre||"").trim()){
-    doc.setFont("helvetica","bold"); doc.setFontSize(14); setText(INK);
-    var t=doc.splitTextToSize(n.titre.trim(), CW); suite(t.length*6.5); doc.text(t, M, y); y+=t.length*6.5+3;
-  }
-  if(String(n.texte||"").trim()){
-    doc.setFont("helvetica","normal"); doc.setFontSize(10.5); setText(INK);
-    doc.splitTextToSize(n.texte.trim(), CW).forEach(function(l){ suite(5.4); doc.text(l, M, y); y+=5.4; });
-    y+=4;
-  }
-  if(n.encre && n.encre.src){
-    var w=Math.min(CW, (n.encre.l||900)*0.21), h=w*((n.encre.h||300)/(n.encre.l||900));
-    if(h > PH-60){ h=PH-60; w=h*((n.encre.l||900)/(n.encre.h||300)); }
-    suite(h+2);
-    try{ doc.addImage(n.encre.src, "PNG", M, y, w, h); }catch(e){}
-    y+=h+4;
-  }
-  pied();
-  return doc;
-}
-function enregistrerNote(){
-  var n=N(), el=$("noteEtat");
-  if(!noteRemplie(n)){ toast("La note est vide."); return; }
-  if(!apiPret()) return;
-  if(!refAffaire()){ toast("Indiquez le client ou la référence des travaux : la note se range dans son dossier."); showTab("dossier"); return; }
-  var doc; try{ doc=buildNotePdf(n); }catch(e){ toast(!window.jspdf ? "Le module PDF finit de se charger : réessayez dans quelques secondes." : "Note impossible à générer."); return; }
-  var b64=doc.output("datauristring").split(",")[1];
-  var b=$("btnNoteEnregistrer"); if(b.disabled) return; b.disabled=true;
-  el.dataset.vif="1"; el.textContent="Enregistrement de la note…";
-  fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({pdf:b64,
-    chantier:refAffaire(), client:S.chantier.client, adresse:S.chantier.adresse, type:"note", noteId:n.id,
-    date:aujourdhui(), titre:"Note — "+(String(n.titre||"").trim() || "sans titre"), dossier:true, destinataires:[],
-    auteur:(SESSION&&SESSION.nom)||""})})
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
-    .then(function(res){
-      b.disabled=false; delete el.dataset.vif;
-      if(!res.ok){ el.textContent=res.d.erreur || "Enregistrement refusé."; return; }
-      n.cle=res.d.cle; n.enregistree=new Date().toISOString(); n.modifiee=false; save();
-      /* de quoi la rouvrir plus tard, depuis n'importe quel appareil */
-      fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:res.d.cle, donnees:JSON.stringify({noteC:n})})}).catch(function(){});
-      paintNote();
-      toast(res.d.remplace ? "Note mise à jour dans le dossier." : "Note enregistrée dans le dossier, sous « Notes ».");
-    })
-    .catch(function(){ b.disabled=false; delete el.dataset.vif; el.textContent="Pas de réseau : la note reste ici, réessayez une fois connecté."; });
-}
-function nouvelleNote(){
-  var n=N();
-  if(noteRemplie(n) && (!n.cle || n.modifiee) && !window.confirm("Laisser cette note et en commencer une autre ?\n\nCe qui n'a pas été enregistré sera perdu.")) return;
-  S.noteC=noteVierge(); save(); paintNote();
-  try{ $("n_titre").focus(); }catch(e){}
-}
-/* les notes déjà enregistrées dans le dossier : on en rouvre une */
-function reprendreNote(){
-  if(!apiPret()) return;
-  var ref=refAffaire();
-  if(!ref){ toast("Indiquez d'abord le dossier."); showTab("dossier"); return; }
-  toast("Recherche des notes du dossier…");
-  fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
-    .then(function(r){ return r.json(); })
-    .then(function(d){
-      var c=(d.chantiers||[]).filter(function(x){ return String(x.ref).toUpperCase()===String(ref).toUpperCase(); })[0];
-      var notes=c ? (c.fichiers||[]).filter(function(f){ return f.type==="note" && f.donnees; }) : [];
-      notes.sort(function(a,b){ return String(b.publie||"").localeCompare(String(a.publie||"")); });
-      if(!notes.length){ toast("Aucune note à reprendre dans ce dossier."); return; }
-      choisirNote(notes);
-    })
-    .catch(function(){ toast("Pas de réseau."); });
-}
-function choisirNote(notes){
-  var ov=document.createElement("div");
-  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);display:flex;align-items:flex-end;justify-content:center";
-  var box=document.createElement("div");
-  box.style.cssText="background:var(--card,#fff);color:var(--ink,#222);width:100%;max-width:560px;max-height:75vh;overflow:auto;border-radius:18px 18px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px))";
-  var h=document.createElement("h2"); h.textContent="Reprendre une note"; h.style.margin="0 0 12px"; box.appendChild(h);
-  notes.forEach(function(f){
-    var b=document.createElement("button"); b.type="button";
-    b.style.cssText="display:block;width:100%;text-align:left;margin:0 0 8px;padding:12px 14px;border:1px solid var(--rule,#ddd);border-radius:12px;background:var(--field,#f6f6f6);color:inherit;font:inherit;cursor:pointer";
-    var t=document.createElement("b"); t.textContent=String(f.titre||"Note").replace(/^Note — /,"");
-    var m=document.createElement("span"); m.style.cssText="display:block;font-size:12.5px;color:var(--ink-3,#777);margin-top:2px";
-    m.textContent=frDate(f.publie || f.date)+(f.auteur ? " · "+f.auteur : "");
-    b.appendChild(t); b.appendChild(m);
-    b.addEventListener("click", function(){
-      fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":jetonSession()}})
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){
-          if(!d || !d.noteC){ toast("Cette note ne se rouvre pas."); return; }
-          var n=N();
-          if(noteRemplie(n) && (!n.cle || n.modifiee) && n.cle!==f.cle && !window.confirm("Laisser la note en cours pour rouvrir celle-ci ?")) return;
-          S.noteC=d.noteC; S.noteC.cle=f.cle; S.noteC.modifiee=false; save(); paintNote();
-          ov.remove(); toast("Note reprise.");
-        })
-        .catch(function(){ toast("Pas de réseau."); });
-    });
-    box.appendChild(b);
-  });
-  var x=document.createElement("button"); x.type="button"; x.className="act ghost"; x.textContent="Fermer"; x.style.width="100%";
-  x.addEventListener("click", function(){ ov.remove(); });
-  box.appendChild(x);
-  ov.addEventListener("click", function(e){ if(e.target===ov) ov.remove(); });
-  ov.appendChild(box); document.body.appendChild(ov);
-}
-
 /* ---------- onglets ---------- */
-var TABS=[["dossier","Dossier"],["photos","Photos"],["note","Note"],["rapport","Rapport"]];
+var TABS=[["dossier","Dossier"],["photos","Photos"],["rapport","Rapport"]];
 var ICONES_ONGLET={
   dossier:'<path d="M3.5 6.2h6l2 2.4h9v10.2a.9.9 0 0 1-.9.9H4.4a.9.9 0 0 1-.9-.9z"/><path d="M3.5 6.2V5a.9.9 0 0 1 .9-.9h4.2"/>',
   photos:'<path d="M3.5 8.4h3.3l1.6-2.5h7.2l1.6 2.5h3.3v10.5h-17z"/><circle cx="12" cy="13.2" r="3.6"/>',
   rapport:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 13h7M8.5 16.5h4.5"/>',
-  note:'<path d="M5 3.5h14v17H5z"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4"/>',
   defaut:'<circle cx="12" cy="12" r="7.5"/><path d="M12 8.5v4l2.6 1.6"/>'
 };
 function buildNav(){
@@ -1296,7 +1103,7 @@ function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[
 function paintForm(){
   if(!window.__pubLie){ window.__pubLie=1; setTimeout(bindChoixPublication, 0); }
   FIELDS.forEach(function(f){ $(f[0]).value=getPath(f[1])||""; });
-  renderPhotos(); refreshHeader(); majCompteur(); paintNote();
+  renderPhotos(); refreshHeader(); majCompteur();
 }
 function refreshHeader(){
   var r=[];
@@ -1773,44 +1580,30 @@ function buildPdf(){
   }
 
   if(S.photos.length){
-    h2("Photos", 80);
-    var cw=(CW-6)/2;
-    /* Une seule paire par page : il reste largement la place de les
-       montrer grandes. 120 mm au lieu des 62 d'avant, en gardant les
-       proportions — une photo plus haute que large (portrait) se
-       rétrécit en largeur plutôt que de s'étirer, et se recentre dans
-       sa colonne. */
-    var MAXH=120;
-    for(var i=0;i<S.photos.length;i+=2){
-      var paire=[S.photos[i], S.photos[i+1]].filter(Boolean);
-      var cellules=paire.map(function(p, k){
-        var ww=cw, hh=cw*(p.h/p.w);
-        if(hh>MAXH){ hh=MAXH; ww=MAXH*(p.w/p.h); }
-        doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-        var lignes=(p.legende||"").trim() ? doc.splitTextToSize(p.legende.trim(), cw-1) : [];
-        if(lignes.length>9) lignes=lignes.slice(0,9);
-        return {photo:p, num:i+k+1, w:ww, h:hh, ox:(cw-ww)/2, lignes:lignes, total:hh + 5 + lignes.length*4};
-      });
-      var hauteur=cellules.reduce(function(m,c){ return Math.max(m, c.total); }, 0);
-      need(hauteur+8);
-      var haut=y;
-      cellules.forEach(function(c, k){
-        var xCol=M+k*(cw+6);
-        try{ doc.addImage(photoPdf(c.photo), "JPEG", xCol+c.ox, haut, c.w, c.h); }catch(e){}
-        doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(ACC);
-        doc.text("Photo "+c.num, xCol, haut+c.h+4);
-        if(c.lignes.length){
-          doc.setFont("helvetica","normal"); setText(GREY);
-          doc.text(c.lignes, xCol, haut+c.h+8);
-        }
-        setText(INK);
-      });
-      y = haut + hauteur + 8;
-      /* deux photos au maximum par page, pour qu'on les voie bien : la
-         paire suivante commence toujours sur une page neuve, pas à la
-         suite sur la même page. */
-      if(i+2 < S.photos.length) newPage();
-    }
+    /* une photo par page, la plus grande possible : toute la largeur, et la
+       hauteur qui reste jusqu'au pied de page, en gardant ses proportions
+       (une photo en hauteur se rétrécit en largeur et se centre). Sa note,
+       et son numéro, dessous. */
+    S.photos.forEach(function(p, i){
+      newPage();
+      doc.setFont("helvetica","normal"); doc.setFontSize(10);
+      var lignes=(p.legende||"").trim() ? doc.splitTextToSize(p.legende.trim(), CW) : [];
+      if(lignes.length>12) lignes=lignes.slice(0,12);
+      var place=(PH-22) - y - 8 - lignes.length*4.8;
+      var ww=CW, hh=CW*((p.h||3)/(p.w||4));
+      if(hh>place){ hh=place; ww=place*((p.w||4)/(p.h||3)); }
+      var ox=M+(CW-ww)/2;
+      try{ doc.addImage(photoPdf(p), "JPEG", ox, y, ww, hh); }catch(e){}
+      var yt=y+hh+6;
+      doc.setFont("helvetica","bold"); doc.setFontSize(10); setText(ACC);
+      doc.text((p.croquis ? "Croquis " : "Photo ")+(i+1)+" / "+S.photos.length, M, yt);
+      if(lignes.length){
+        doc.setFont("helvetica","normal"); setText(INK);
+        doc.text(lignes, M, yt+5.2);
+      }
+      setText(INK);
+      y = yt + 5 + lignes.length*4.8;
+    });
   }
 
   footer();
@@ -1845,12 +1638,6 @@ function bindAll(){
   $("btnDossierSite").addEventListener("click", ouvrirDepuisSite);
   $("btnPhoto").addEventListener("click", function(){ $("filePhoto").click(); });
   $("btnCroquis").addEventListener("click", nouveauCroquis);
-  $("n_titre").addEventListener("input", function(){ N().titre=this.value; noteModifiee(); });
-  $("n_texte").addEventListener("input", function(){ N().texte=this.value; noteModifiee(); });
-  $("btnNoteStylet").addEventListener("click", ecrireNoteStylet);
-  $("btnNoteEnregistrer").addEventListener("click", enregistrerNote);
-  $("btnNoteNouvelle").addEventListener("click", nouvelleNote);
-  $("btnNoteReprendre").addEventListener("click", reprendreNote);
 
   /* photo rapide : l'appareil se rouvre tant qu'on enchaîne */
   var enchaine=false;
@@ -1915,10 +1702,7 @@ function bindAll(){
 /* remise à zéro : appelée par « Nouveau reportage », et automatiquement
    après une publication dans le dossier (voir publierRapport). */
 function reinitialiserFormulaire(msg){
-  /* la note a sa propre vie : le reportage enregistré ne l'emporte pas */
-  var garde=S && S.noteC;
   S=blank();
-  if(garde) S.noteC=garde;
   save(); paintForm(); showTab("dossier");
   toast(msg);
 }
@@ -2525,6 +2309,7 @@ start();
    sous la main : une touche suffit pour passer d'un document à l'autre
    sans repasser par la liste. */
 var CH_ICONES = {
+  note:'<path d="M5 3.5h14v17H5z"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4"/>',
   releve:'<path d="M9 3h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
   suivi:'<path d="M4 18.5l5-5.5 3.5 3L20 7.5"/><path d="M15.5 7.5H20v4.5"/>',
   commande:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>',
@@ -2539,6 +2324,7 @@ var CH_ICONES = {
 var CH_TECH=[
   ["commande","Commande","./commande.html","commande"],
   ["point","Le point","./point.html","point"],
+  ["note","Note","./note.html","photos"],
   ["photos","Photo et croquis","./photos.html","photos"],
   ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
   ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
@@ -2549,6 +2335,7 @@ var CH_BUREAU=[
   ["suivi","Suivi","./suivi.html","suivi"],
   ["commande","Commande","./commande.html","commande"],
   ["point","Le point","./point.html","point"],
+  ["note","Note","./note.html","photos"],
   ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
   ["photos","Photos","./photos.html","photos"],
   ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
