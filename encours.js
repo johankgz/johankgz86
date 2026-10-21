@@ -139,9 +139,24 @@
       EMPREINTES.set(t, h); return h;
     });
   }
+  /* ce que l'accueil des autres appareils en dit : « il reste un relevé à enregistrer » */
+  function resumeDe(o){
+    if(!o || typeof o!=="object") return null;
+    function t(v){ return String(v==null ? "" : v).trim(); }
+    var cl=o.client||{}, ch=o.chantier||{}, af=o.affaire||{}, ga=o.garde||{};
+    var client=t(cl.nom) || t(ch.client) || t(ga.nom);
+    var ref=t(af.chantier) || t(ch.ref) || t(cl.ref);
+    var photos=Array.isArray(o.photos) && o.photos.length;
+    var rempli=!!(client || ref || photos);
+    /* les applis notent les cases changées depuis le dernier enregistrement (_modifs) :
+       une fiche publiée puis laissée telle quelle n'est plus « à enregistrer » */
+    var modifs = (o._modifs && typeof o._modifs==="object") ? Object.keys(o._modifs).length>0 : true;
+    return {client:client, ref:ref, aEnregistrer: rempli && modifs};
+  }
   /* la fiche, ses photos remplacées par leur empreinte */
   function alleger(texte){
     var obj; try{ obj=JSON.parse(texte); }catch(e){ return Promise.resolve({v:texte, blobs:{}}); }
+    var resume=resumeDe(obj);
     var blobs={}, attente=[];
     (function parcourir(o){
       if(!o || typeof o!=="object") return;
@@ -152,7 +167,7 @@
         } else if(v && typeof v==="object") parcourir(v);
       });
     })(obj);
-    return Promise.all(attente).then(function(){ return {v:JSON.stringify(obj), blobs:blobs}; });
+    return Promise.all(attente).then(function(){ return {v:JSON.stringify(obj), blobs:blobs, resume:resume}; });
   }
   /* la fiche du site, ses photos remises */
   function regarnir(texte){
@@ -231,7 +246,7 @@
             : Promise.resolve();
           return avant.then(function(){
             return fetch(url("encours-ecrire"), {method:"POST", headers:entetes("application/json"),
-              body:JSON.stringify({k:k, v:a.v, blobs:hs, appareil:appareil()})})
+              body:JSON.stringify({k:k, v:a.v, blobs:hs, appareil:appareil(), resume:a.resume||null})})
               .then(function(rep){ return rep.ok ? rep.json() : null; });
           });
         });

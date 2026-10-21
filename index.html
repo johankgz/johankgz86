@@ -3366,6 +3366,62 @@ function peindreSavATerminer(){
   host.insertBefore(n, host.firstChild);
   host.hidden=false;
 }
+/* ---------- les fiches commencées qui restent à enregistrer ----------
+   Un relevé, un suivi, une commande… commencé sur le téléphone suit la
+   personne (encours.js) : en se connectant sur l'ordinateur ou la tablette,
+   l'accueil dit ce qui reste à enregistrer, et où on l'a laissé. Un toucher
+   rouvre la fiche, telle quelle. */
+var FICHES_A_ENREGISTRER=[];
+var APPLIS_FICHE={releve:["Relevé","un relevé","./releve.html"], suivi:["Suivi","un suivi","./suivi.html"],
+  commande:["Commande","une commande","./commande.html"], point:["Le point","un point de chantier","./point.html"],
+  autocontrole:["Autocontrôle","un autocontrôle","./autocontrole.html"], reception:["Réception","une réception","./reception.html"],
+  sav:["SAV","une intervention SAV","./sav.html"], etiquettes:["Étiquettes","des étiquettes","./etiquettes.html"],
+  photos:["Photo et croquis","un reportage photo et croquis","./photos.html"], carnet:["Carnet","un carnet","./carnet.html"],
+  technique:["Documents","des documents techniques","./technique.html"]};
+function fichesAEnregistrer(s){
+  fetch(apiUrl("encours-liste"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var l=[];
+      Object.keys(d.fiches||{}).forEach(function(k){
+        var e=d.fiches[k], m=/^([a-z]+):courante?(?:@(.+))?$/.exec(k);
+        if(!m || !APPLIS_FICHE[m[1]] || e.efface || !e.resume || !e.resume.aEnregistrer) return;
+        l.push({k:k, appli:m[1], ref:e.resume.ref || m[2] || "", client:e.resume.client || "", maj:e.maj, appareil:e.appareil||"", cote:!!m[2]});
+      });
+      l.sort(function(a,b){ return String(b.maj).localeCompare(String(a.maj)); });
+      FICHES_A_ENREGISTRER=l;
+      peindreFichesAEnregistrer();
+    })
+    .catch(function(){});
+}
+function surAppareil(a){
+  if(!a) return "";
+  if(/^tablette/.test(a)) return "sur la "+a;
+  if(/^téléphone/.test(a)) return "sur le "+a;
+  return "sur l'"+a;
+}
+function quandFiche(iso){
+  var d=new Date(iso); if(isNaN(d)) return "";
+  var h=String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0");
+  return d.toDateString()===new Date().toDateString() ? "à "+h : "le "+d.toLocaleDateString("fr-FR",{day:"numeric",month:"long"})+" à "+h;
+}
+function peindreFichesAEnregistrer(){
+  var host=$("notifs"); if(!host) return;
+  Array.prototype.forEach.call(host.querySelectorAll(".fiche-a-enregistrer"), function(x){ x.remove(); });
+  var l=FICHES_A_ENREGISTRER; if(!l.length){ host.hidden=!host.children.length; return; }
+  l.slice(0,6).reverse().forEach(function(x){
+    var A=APPLIS_FICHE[x.appli], qui=x.client || x.ref || "sans client";
+    var href=A[2];
+    if(x.cote && x.ref){                           /* mise de côté sur un autre chantier : on rouvre ce chantier */
+      var p=new URLSearchParams(); p.set("ref", x.ref); if(x.client) p.set("client", x.client); href+="?"+p.toString();
+    }
+    var n=notif("amb fiche-a-enregistrer", "!", "Il reste "+A[1]+" à enregistrer",
+      qui+(x.ref && x.client ? " · "+x.ref : "")+" — laissé"+(x.appareil ? " "+surAppareil(x.appareil) : "")+" "+quandFiche(x.maj)+".",
+      href);
+    host.insertBefore(n, host.firstChild);
+  });
+  host.hidden=false;
+}
 /* la session a expiré (trois jours) : on se déconnecte et on revient à la page du site.
    Les chantiers restent sur le serveur : on ne repeint surtout pas une liste vide. */
 var FIN_SESSION=false;
@@ -3377,6 +3433,7 @@ function finSession(){
 function charger(s){
   DERNIER_CHARGEMENT=Date.now();
   relevesEnCours(s);
+  fichesAEnregistrer(s);
   savATerminer(s);
   demandesContact(s);
   facturationRappel(s);
@@ -3618,6 +3675,7 @@ function peindreNotifs(s, ch, relances){
   if(DEMANDES.length) setTimeout(function(){ peindreDemandes(s); }, 0);
   if(!tech && aRelancer.length) peindreSansNouvelle(s, host, aRelancer);
   peindreSavATerminer();
+  peindreFichesAEnregistrer();   /* les fiches commencées, ici ou sur un autre appareil */
   peindreDemandesClient();       /* la liste vient d'être refaite : les demandes des clients y reviennent */
   peindreContacts();
   peindreFacturation();

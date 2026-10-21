@@ -38,6 +38,11 @@ const cleValide = (k) => typeof k === "string" && k.length <= 160
   && /^[a-z]+:[a-z]+(?:[@#][^\u0000-\u001f/\\]{0,120})?$/.test(k);
 const hValide = (h) => /^[0-9a-f]{40}$/.test(String(h || ""));
 const court = (t, n) => String(t || "").replace(/[\u0000-\u001f]+/g, " ").trim().slice(0, n);
+/* ce que l'accueil en dit : le client, la référence, et s'il reste à enregistrer */
+function resumeDe(r) {
+  if (!r || typeof r !== "object") return null;
+  return { client: court(r.client, 80), ref: court(r.ref, 60), aEnregistrer: !!r.aEnregistrer };
+}
 function slugNom(n) {
   return String(n || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "sans-nom";
 }
@@ -74,7 +79,7 @@ export async function encours(action, o) {
     const fiches = {};
     Object.entries(x.fiches).forEach(([k, e]) => {
       if (e.efface && Date.parse(e.maj) < limite) return;
-      fiches[k] = { maj: e.maj, appareil: e.appareil || "", efface: !!e.efface };
+      fiches[k] = { maj: e.maj, appareil: e.appareil || "", efface: !!e.efface, resume: e.resume || null };
     });
     return json({ fiches });
   }
@@ -143,7 +148,7 @@ export async function encours(action, o) {
       const e = x.fiches[k], maj = new Date().toISOString();
       await store.set(base + "f/" + sha1(k) + ".json", d.v, { metadata: { type: "application/json" } });
       const avant = (e && e.blobs) || [];
-      x.fiches[k] = { maj, appareil: court(d.appareil, 40), blobs };
+      x.fiches[k] = { maj, appareil: court(d.appareil, 40), blobs, resume: resumeDe(d.resume) };
       await ranger(x, avant);
       return json({ ok: true, maj });
     });
