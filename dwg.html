@@ -380,6 +380,8 @@ body.clair #scene{background:#FFFFFF}
   <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
+  <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
+  <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
 </div>
@@ -1132,6 +1134,7 @@ function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
   var vue=vueD();
   if(vue==="dessus") peindreLiens(c);
+  peindreGuidesS(c);
   SYMB.forEach(function(o, i){
     var q = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), p=versEcran(q[0], q[1]), R=o.r*V.k;
     if(R<0.8 || p[0]<-R*4 || p[0]>W+R*4 || p[1]<-R*4 || p[1]>H+R*4) return;
@@ -1442,6 +1445,7 @@ cv.addEventListener("pointermove", function(e){
     var brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
     var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0));
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
+    alignerSymbole(os, ac);
     SEL=G.symb; demander(); return;
   }
   if(G.bouge && (G.ouvD || G.murD)){
@@ -1570,11 +1574,11 @@ function lacher(e){
     }
     if(RELIER){ if(e.type!=="pointercancel" && !G.bouge) toucherRelier(symboleSous(p)); G=null; demander(); return; }
     if(e.type!=="pointercancel"){
-      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
+      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; GUIDES_S=null; }
       else if(!G.bouge){ if(ARME_S || garderOutil()) poserSymbole(versPlan(p[0], p[1])); else SEL=-1; }
       majSymb();
     }
-    G=null; demander(); return;
+    GUIDES_S=null; G=null; demander(); return;
   }
   if(e.type!=="pointercancel"){
     if(G.visee && VISEE) poserPoint(VISEE);
@@ -1712,6 +1716,86 @@ function peindreLiens(c){
     });
   });
 }
+/* ---------- relier et aligner les symboles d'une sélection (outil Sélection) ----------
+   Relier : s'il y a une commande, elle est reliée à chacun des autres ; sinon, ils sont reliés
+   de proche en proche, en partant d'un bout. Aligner : sur une ligne (horizontale ou verticale,
+   selon leur étalement), à intervalles égaux entre les deux du bout. */
+function relierGroupe(l){
+  if(l.length<2) return 0;
+  garderSymb();
+  var n=0, cmd=l.filter(function(o){ return COMMANDES_S[o.cle]; });
+  function lier(a, b){ idS(a); idS(b); if(relies(a, b)) return; a.lien=(a.lien||[]).concat([b.id]); n++; }
+  if(cmd.length){ var c0=cmd[0]; l.forEach(function(o){ if(o!==c0) lier(c0, o); }); }
+  else {
+    /* de proche en proche, depuis le symbole le plus à l'écart */
+    var cx=0, cy=0; l.forEach(function(o){ cx+=o.x/l.length; cy+=o.y/l.length; });
+    var reste=l.slice().sort(function(a, b){ return Math.hypot(b.x-cx, b.y-cy)-Math.hypot(a.x-cx, a.y-cy); }), cour=reste.shift();
+    while(reste.length){
+      reste.sort(function(a, b){ return Math.hypot(a.x-cour.x, a.y-cour.y)-Math.hypot(b.x-cour.x, b.y-cour.y); });
+      var suiv=reste.shift(); lier(cour, suiv); cour=suiv;
+    }
+  }
+  if(!n) HISTO_S.pop(); else enregistrerSymb();
+  return n;
+}
+function alignerGroupe(l){
+  if(l.length<2) return false;
+  garderSymb();
+  var x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity, mx=0, my=0;
+  l.forEach(function(o){ x0=Math.min(x0,o.x); x1=Math.max(x1,o.x); y0=Math.min(y0,o.y); y1=Math.max(y1,o.y); mx+=o.x/l.length; my+=o.y/l.length; });
+  var horiz=(x1-x0)>=(y1-y0), tri=l.slice().sort(function(a, b){ return horiz ? a.x-b.x : a.y-b.y; }), pas=10/DESSIN_MM;
+  tri.forEach(function(o, i){
+    var t = tri.length>1 ? i/(tri.length-1) : 0;
+    if(horiz){ o.x=Math.round((x0+(x1-x0)*t)/pas)*pas; o.y=Math.round(my/pas)*pas; }
+    else { o.y=Math.round((y0+(y1-y0)*t)/pas)*pas; o.x=Math.round(mx/pas)*pas; }
+  });
+  enregistrerSymb();
+  return horiz ? "horizontale" : "verticale";
+}
+$("bsRelierG").addEventListener("click", function(){
+  if(!grpTaille(GRP)) return;
+  var n=relierGroupe(GRP.symb);
+  toast(n ? n+" liaison"+(n>1?"s":"")+" ajoutée"+(n>1?"s":"")+"." : "Déjà reliés.", 2500);
+  majDessin(); majBarreSel(); demander();
+});
+$("bsAligner").addEventListener("click", function(){
+  if(!grpTaille(GRP)) return;
+  var sens=alignerGroupe(GRP.symb);
+  if(sens) toast(GRP.symb.length+" symboles alignés sur une ligne "+sens+", à intervalles égaux.", 2800);
+  majDessin(); majBarreSel(); demander();
+});
+/* ---------- les repères d'alignement : un symbole qu'on pose ou qu'on glisse se cale sur la ligne d'un autre ----------
+   Au centre d'une pièce, le deuxième spot se met sur la ligne du premier, le troisième aussi… une
+   ligne fictive (en pointillés cyan) montre l'alignement. Contre un mur, le symbole reste où le mur le met. */
+var GUIDES_S=null;
+function alignerSymbole(o, ac){
+  GUIDES_S=null;
+  if(!ACCR_D || vueD()!=="dessus" || (ac && ac.acc && ac.acc.genre===5)) return;
+  var tol=12/V.k, bx=null, by=null, dxm=tol, dym=tol;
+  SYMB.forEach(function(s2){
+    if(s2===o) return;
+    var dx=Math.abs(s2.x-o.x), dy=Math.abs(s2.y-o.y);
+    if(dx<dxm){ dxm=dx; bx=s2; }
+    if(dy<dym){ dym=dy; by=s2; }
+  });
+  var g=[];
+  if(bx){ o.x=bx.x; g.push({v:true, s:bx}); }
+  if(by){ o.y=by.y; g.push({v:false, s:by}); }
+  if(g.length) GUIDES_S={o:o, g:g};
+}
+function peindreGuidesS(c){
+  if(!GUIDES_S || IMPRIME) return;
+  var o=GUIDES_S.o;
+  c.save(); c.strokeStyle="#22D3EE"; c.lineWidth=1.5; c.setLineDash([5,5]);
+  GUIDES_S.g.forEach(function(gd){
+    /* la ligne fictive, sur tous les symboles déjà alignés */
+    var alignes=SYMB.filter(function(s2){ return gd.v ? Math.abs(s2.x-o.x)<1e-6 : Math.abs(s2.y-o.y)<1e-6; });
+    var a0=Infinity, a1=-Infinity; alignes.forEach(function(s2){ var v=gd.v ? s2.y : s2.x; a0=Math.min(a0,v); a1=Math.max(a1,v); });
+    var m=60/V.k, A=gd.v ? versEcran(o.x, a0-m) : versEcran(a0-m, o.y), B=gd.v ? versEcran(o.x, a1+m) : versEcran(a1+m, o.y);
+    c.beginPath(); c.moveTo(A[0], A[1]); c.lineTo(B[0], B[1]); c.stroke();
+  });
+  c.restore();
+}
 /* au DXF : chaque liaison en polyligne, calque ELEC-LIAISONS, en tirets */
 function dxfLiens(){
   var L=[];
@@ -1765,7 +1849,9 @@ function poserSymbole(pt){
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
   var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
-  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
+  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""};
+  alignerSymbole(o, a); GUIDES_S=null;
+  var hc=hauteurContexte(CHOIX, [o.x, o.y]);
   if(longueurS(o)) o.long=longueurDefaut(o.cle);
   if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
   SYMB.push(o);
@@ -2146,6 +2232,8 @@ function majBarreSel(){
   var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
   if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
+  var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
+  $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
   $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
   $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
