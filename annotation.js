@@ -34,7 +34,15 @@ var OUTILS = [
   ["formes","Formes",'<rect x="3.5" y="11" width="9" height="9" rx="1"/><circle cx="16" cy="8" r="4.5"/>'],
   ["gomme","Gomme",'<path d="M8.5 19.5 3.8 14.8a1.6 1.6 0 0 1 0-2.3l8-8a1.6 1.6 0 0 1 2.3 0l5.4 5.4a1.6 1.6 0 0 1 0 2.3l-7 7z"/><path d="M20.5 19.5H9"/>'],
   ["choisir","Choisir",'<path d="M5 3l14 8-6 1.5L10 19z"/>'],
-  ["reperes","Repères",'<circle cx="12" cy="12" r="8"/><path d="M10.5 9.5 12 8.5V15.5"/>']
+  ["reperes","Symboles",'<path d="M13.5 2.5 5.5 13h6l-1 8.5 8-10.5h-6z"/>']
+];
+/* la colonne, en trois parties bien distinctes : dessiner, poser une forme, poser un symbole ;
+   « Choisir » reste à part, dessous */
+var GROUPES_OUTILS = [
+  ["Dessin", ["stylo","surligneur","texte","gomme"]],
+  ["Formes", ["formes"]],
+  ["Symboles", ["reperes"]],
+  ["", ["choisir"]]
 ];
 var ASTUCES = {
   stylo: "Dessinez. Gardez le doigt immobile une seconde en fin de tracé : le trait devient une forme parfaite.",
@@ -46,6 +54,7 @@ var ASTUCES = {
   choisir: "Touchez un élément : déplacez-le, changez sa couleur ou sa taille.",
   pastille: "Chaque touche pose le numéro suivant, repris dans la légende de la photo.",
   symbole: "Choisissez un symbole puis touchez l'endroit où le poser.",
+  pose: "Posé. Pour en ajouter un autre, retouchez l'outil.",
   flou: "Tirez un cadre sur une plaque ou un visage : il sera flouté."
 };
 var EPAISSEURS = {fin:2.5, moyen:5, epais:10};
@@ -1050,6 +1059,7 @@ function surLacher(e){
       }
       A.sel=g.o;
       valider(g.avant);
+      apresPose();
       majUI();
       if(g.o.t==="ligne" && g.o.f==="cote" && D.champ) focusChamp();
       break;
@@ -1064,6 +1074,7 @@ function surLacher(e){
         }
       } else {
         valider(g.avant);
+        if(g.pose) apresPose();
       }
       break;
     case "tap":
@@ -1149,6 +1160,9 @@ var CSS = [
   ".an-outil span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
   ".an-outil.on{background:rgba(234,122,30,.22);color:#FDBA74}",
   ".an-rail-sep{width:26px;height:1px;background:rgba(255,255,255,.14);margin:4px 0;flex:0 0 auto}",
+  ".an-groupe-t{display:block;width:46px;margin:6px 0 1px;font-size:10px;font-weight:700;letter-spacing:-.01em;text-align:center;color:#8A97A6;white-space:nowrap}",
+  ".an-outils .an-groupe-t:first-child{margin-top:2px}",
+  ".an-outils .an-rail-sep{align-self:center;margin:6px 0 2px}",
   ".an-pastille{width:46px;height:46px;flex:0 0 auto;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;border-radius:12px}",
   ".an-pastille i{display:block;width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.4)}",
   ".an-pastille.on{background:rgba(255,255,255,.12)}",
@@ -1216,13 +1230,17 @@ function construire(){
   var flot=el("div","an-flottant"); flot.appendChild(selr); flot.appendChild(opts); flot.appendChild(coul);
   scene.appendChild(cv); scene.appendChild(saisie); scene.appendChild(ast); scene.appendChild(flot);
   var outils=el("div","an-outils");
-  OUTILS.forEach(function(o){
+  GROUPES_OUTILS.forEach(function(gr, k){
+    if(k) outils.appendChild(el("span","an-rail-sep"));
+    if(gr[0]) outils.appendChild(el("span","an-groupe-t", gr[0]));
+    OUTILS.filter(function(o){ return gr[1].indexOf(o[0])>=0; }).forEach(function(o){
     var b=el("button","an-outil"); b.type="button"; b.dataset.outil=o[0];
     b.innerHTML=svg(o[2]) + "<span>"+o[1]+"</span>";
     b.setAttribute("aria-label", o[1]);
     b.title=o[1];
     b.addEventListener("click", function(){ choisirOutil(o[0]); });
     outils.appendChild(b);
+    });
   });
   /* la pastille de couleur : elle ouvre la palette et les épaisseurs, en bas */
   var past=el("button","an-pastille"); past.type="button"; past.id="an_palette";
@@ -1297,6 +1315,13 @@ function choisirOutil(o){
   if(o==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !A.img))) PREFS.repere="symbole";
   astuceOutil();
   peindre(); majUI();
+}
+/* une forme ou un symbole posé : l'outil repasse sur « Choisir » (la pièce posée reste
+   choisie, à ajuster) ; une autre touche n'en pose pas un second par mégarde */
+function apresPose(){
+  if(!A || A.outil==="choisir") return;
+  A.outil="choisir";
+  astuce(ASTUCES.pose);
 }
 function supprimerSel(){
   if(!A.sel) return;
@@ -1416,7 +1441,7 @@ function rangEpaisseurs(box){
 function majUI(){
   if(!A) return;
   majHaut();
-  Array.prototype.forEach.call(D.outils.children, function(b){
+  Array.prototype.forEach.call(D.outils.querySelectorAll(".an-outil"), function(b){
     var on=b.dataset.outil===A.outil;
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
