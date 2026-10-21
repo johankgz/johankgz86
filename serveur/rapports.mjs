@@ -4530,6 +4530,23 @@ async function traiter(req) {
     return json({ ok: true, categorie: cat });
   }
 
+  /* ---------- renommer un plan, une photo ou un document technique ----------
+     Seul son nom change (celui de la liste et du fichier téléchargé) : le
+     fichier reste où il est. Le bureau, ou celui qui l'a déposé. */
+  if (action === "renommer-document") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const titre = String(d.titre || "").normalize("NFC").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+    if (!titre) return json({ erreur: "Donnez un nom." }, 400);
+    const idx = await lireIndex();
+    const f = trouver(idx, String(d.cle || ""));
+    if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
+    if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, le renomme." }, 403);
+    f.titre = titre;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, titre });
+  }
+
   if (action === "supprimer") {
     if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
     const cle = url.searchParams.get("cle") || "";

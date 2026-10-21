@@ -1278,6 +1278,44 @@ function categorieDocument(f, bureau, apres){
   return pastille;
 }
 
+/* renommer un document importé : seul son nom change, dans la liste et au téléchargement */
+var STYLE_RENOMMER=false;
+function boutonRenommer(f, bureau, apres){
+  if(!(bureau || (MOI && f.auteur===MOI.nom))) return null;
+  if(!STYLE_RENOMMER){
+    STYLE_RENOMMER=true;
+    var st=document.createElement("style");
+    st.textContent=".ren-doc{flex:0 0 auto;width:30px;height:30px;min-width:0!important;min-height:0!important;margin:-6px 0!important;padding:0!important;"
+      +"border:0!important;border-radius:8px;background:transparent!important;color:inherit;opacity:.55;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none!important}"
+      +".ren-doc:hover,.ren-doc:focus-visible{opacity:1}"
+      +".ren-doc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}";
+    document.head.appendChild(st);
+  }
+  var b=document.createElement("button"); b.type="button"; b.className="ren-doc";
+  b.title="Renommer"; b.setAttribute("aria-label","Renommer "+(f.titre||"ce document"));
+  b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg>';
+  ["pointerdown","touchstart"].forEach(function(ev){ b.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+  b.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    var nv=window.prompt("Nouveau nom", f.titre||"");
+    if(nv==null) return;
+    nv=String(nv).replace(/\s+/g, " ").trim();
+    if(!nv || nv===f.titre) return;
+    b.disabled=true;
+    fetch(API+"?action=renommer-document", {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify({cle:f.cle, titre:nv})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        b.disabled=false;
+        if(!res.ok){ alert(res.d.erreur || "Nom non changé."); return; }
+        f.titre=res.d.titre; delete FICHIERS_PRETS[f.cle];
+        if(apres) apres();
+      })
+      .catch(function(){ b.disabled=false; alert("Pas de réseau."); });
+  });
+  return b;
+}
+
 /* le sous-dossier où range un document, s'il y en a un */
 function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
@@ -1536,6 +1574,11 @@ function carteDossier(c, i, opts){
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
     tl.appendChild(tb);
+    /* un plan, une photo, un document : le renommer (le bureau, ou celui qui l'a déposé) */
+    if(f.type==="technique"){
+      var bRen=boutonRenommer(f, bureau, charger);
+      if(bRen) tl.appendChild(bRen);
+    }
     if(pasEncoreLu(f)){
       var neuf=document.createElement("span"); neuf.className="neuf";
       neuf.textContent="Nouveau";
