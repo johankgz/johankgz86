@@ -6344,7 +6344,13 @@ function buildPdf(){
     }));
     if(S.rdv.objet){ garderAvecNote("Objet du rendez-vous", [["Objet", S.rdv.objet]], S.rdv.description); tableau("Objet du rendez-vous", [["Objet", S.rdv.objet]], {apres: S.rdv.description ? 2 : 6}); }
     if(S.rdv.description){ if(S.rdv.objet) carte(S.rdv.description); else blocTexte("Objet du rendez-vous", S.rdv.description); }
-    if(PV) cote("Branchement & communication", [["Alimentation", V.pvAlim], ["Emplacement du coffret", V.coffret], ["Raccordement", V.reseau],
+    /* dit en clair : l'alimentation, le branchement du coffret photovoltaïque, la connexion internet
+       (monophasé et « RJ45 ou WiFi » quand rien n'a été coché, le cas d'une maison) */
+    var alimPv = /tri/i.test(V.pvAlim||"") ? "Triphasé" : "Monophasé";
+    var coffretPv = alimPv==="Triphasé" ? "En triphasé (3 phases + neutre)" : "En monophasé (phase + neutre)";
+    var netPv = V.reseau==="RJ45" ? "Par câble RJ45" : V.reseau==="WiFi" ? "En WiFi" : "En RJ45 ou en WiFi";
+    if(PV) cote("Branchement & communication", [["Alimentation", alimPv], ["Branchement du coffret photovoltaïque", coffretPv],
+        ["Connexion internet", netPv], ["Emplacement du coffret", V.coffret],
         ["Longueur coffret vers TGBT", V.lgTgbt ? V.lgTgbt+" ml" : ""]],
       "Batterie", [["Nombre de batteries", V.nbBat], ["Coffret backup", V.backup], ["Emplacement de la batterie", V.empBat],
         ["Longueur batterie vers coffret", V.lgBat ? V.lgBat+" ml" : ""]]);
