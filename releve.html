@@ -3118,9 +3118,10 @@ function solTuile(z, x, y){
   var cle=COURSE.source+"/"+z+"/"+x+"/"+y;
   if(COURSE.cache[cle]) return Promise.resolve(COURSE.cache[cle]);
   if(COURSE.echec[cle]) return Promise.reject(new Error("tuile"));
+  COURSE.enCours=(COURSE.enCours||0)+1;
   return chargerTuile(urlsTuile(COURSE.source, z, x, y))
-    .then(function(b){ COURSE.cache[cle]=b; return b; })
-    .catch(function(e){ COURSE.echec[cle]=true; throw e; });
+    .then(function(b){ COURSE.enCours--; COURSE.cache[cle]=b; return b; })
+    .catch(function(e){ COURSE.enCours--; COURSE.echec[cle]=true; throw e; });
 }
 function solRedessiner(){
   if(COURSE.rendu) return;
@@ -3371,6 +3372,7 @@ function solOuvrir(){
     COURSE.pan=parseInt(S.pv.azimut||"0",10) || 0;
     if(S.pv.soleil && typeof S.pv.soleil.pan==="number") COURSE.pan=S.pv.soleil.pan;
     if(S.pv.soleil && S.pv.soleil.cle) COURSE.cle=S.pv.soleil.cle;
+    if(S.pv.soleil && typeof S.pv.soleil.minute==="number") COURSE.minute=S.pv.soleil.minute;
     COURSE.vue = (S.pv.soleil && S.pv.soleil.vue) || "face";
     solBoutonVue();
     if(S.pv.soleil && S.pv.soleil.centre){ COURSE.lat=S.pv.soleil.centre[0]; COURSE.lon=S.pv.soleil.centre[1]; }
@@ -3399,11 +3401,23 @@ function solGarder(){
     +" · Pan "+panNom(COURSE.pan), bande*0.4, haut+bande/2);
   var data;
   try{ data=out.toDataURL("image/jpeg", 0.84); }catch(e){ toast("Image impossible à enregistrer."); return; }
-  S.pv.soleil={data:data, w:out.width, h:out.height, cle:COURSE.cle, minute:COURSE.minute, pan:COURSE.pan, vue:COURSE.vue,
+  S.pv.soleil={v:SOLEIL_DESSIN, data:data, w:out.width, h:out.height, cle:COURSE.cle, minute:COURSE.minute, pan:COURSE.pan, vue:COURSE.vue,
                centre:[COURSE.lat, COURSE.lon], resume:COURSE.resume||""};
   save(); paintSoleil();
   $("soleil").hidden=true;
   toast("Course du soleil ajoutée au relevé.");
+}
+/* la version du dessin : une image faite avant (le rectangle de panneaux bleus) se refait d'un toucher */
+var SOLEIL_DESSIN=2;
+function solRefaire(){
+  solOuvrir();
+  var debut=Date.now();
+  (function attendre(){
+    if($("soleil").hidden && Date.now()-debut>1500){ return; }        /* position introuvable : le message le dit */
+    var pret = !$("soleil").hidden && !(COURSE.enCours>0) && Date.now()-debut>900;
+    if(pret || Date.now()-debut>9000){ solDessiner(); solGarder(); return; }
+    setTimeout(attendre, 300);
+  })();
 }
 function paintSoleil(){
   var box=$("soleilBox"); if(!box) return;
@@ -3421,6 +3435,13 @@ function paintSoleil(){
   b1.addEventListener("click", solOuvrir);
   var b2=document.createElement("button"); b2.className="act danger"; b2.type="button"; b2.textContent="Retirer";
   b2.addEventListener("click", function(){ S.pv.soleil=null; save(); paintSoleil(); });
+  if((a.v||1) < SOLEIL_DESSIN){
+    /* image faite avant la mise à jour du dessin : on la refait, mêmes réglages */
+    var b0=document.createElement("button"); b0.className="act blue"; b0.type="button"; b0.textContent="Mettre à jour l'image";
+    b0.title="Refaire l'image avec le nouveau dessin (croix blanche au centre)";
+    b0.addEventListener("click", solRefaire);
+    row.appendChild(b0);
+  }
   row.appendChild(b1); row.appendChild(b2); card.appendChild(row);
   box.appendChild(card);
 }
