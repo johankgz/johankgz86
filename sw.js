@@ -69,7 +69,7 @@ self.addEventListener("install", function(e){
 });
 self.addEventListener("activate", function(e){
   e.waitUntil(caches.keys().then(function(ks){
-    return Promise.all(ks.filter(function(k){ return [COQUILLE, CDN, DONNEES, REGLAGES].indexOf(k) < 0; }).map(function(k){ return caches.delete(k); }));
+    return Promise.all(ks.filter(function(k){ return [COQUILLE, CDN, DONNEES, REGLAGES, "partage-recu"].indexOf(k) < 0; }).map(function(k){ return caches.delete(k); }));
   }).then(function(){ return self.clients.claim(); }));
 });
 self.addEventListener("message", function(e){
@@ -190,8 +190,28 @@ function elaguer(c){
     return Promise.all(ks.slice(0, ks.length - MAX_DONNEES).map(function(k){ return c.delete(k); }));
   });
 }
+/* Partagé depuis une autre appli (Android : Messages, WhatsApp, Photos… › Partager ›
+   Travaux 360) : le téléphone envoie les fichiers ici (manifest, share_target). On les
+   garde, et la page d'import les reprend pour choisir le chantier. */
+var CACHE_PARTAGE = "partage-recu";
+function recevoirPartage(req){
+  return req.formData().then(function(fd){
+    var fichiers = fd.getAll("fichiers").filter(function(f){ return f && typeof f === "object" && f.size; });
+    return caches.open(CACHE_PARTAGE).then(function(c){
+      return c.keys().then(function(ks){ return Promise.all(ks.map(function(k){ return c.delete(k); })); }).then(function(){
+        return Promise.all(fichiers.map(function(f, i){
+          return c.put(new Request("/__partage/" + i), new Response(f, {headers:{
+            "content-type": f.type || "application/octet-stream", "x-nom": encodeURIComponent(f.name || "")}}));
+        }));
+      });
+    }).then(function(){ return Response.redirect("/importer.html?partage=" + fichiers.length, 303); });
+  }).catch(function(){ return Response.redirect("/importer.html?partage=0", 303); });
+}
 self.addEventListener("fetch", function(e){
   var req = e.request;
+  if(req.method === "POST"){
+    try{ if(new URL(req.url).pathname === "/partage"){ e.respondWith(recevoirPartage(req)); return; } }catch(er){}
+  }
   if(req.method !== "GET") return;                          /* les envois passent tels quels */
   var u; try{ u = new URL(req.url); }catch(er){ return; }
   var navigation = req.mode === "navigate";

@@ -275,7 +275,8 @@ function importer(){
       /* les documents arrivés comptent tout de suite, dans l'export aussi */
       LISTE=null;
       chargerListe().then(function(){ if(FEN && !FEN.hidden) peindre(); }, function(){});
-      try{ if(OPT.apres) OPT.apres(c.ref); }catch(e){}
+      /* les fichiers arrivés, pour qui veut savoir lesquels (les fichiers partagés depuis le téléphone) */
+      try{ if(OPT.apres) OPT.apres(c.ref, lot.filter(function(i){ return i.etat==="fait"; }).map(function(i){ return i.file; })); }catch(e){}
     }
   }
   suivant();

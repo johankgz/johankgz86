@@ -1305,7 +1305,7 @@ body.connexion .ciel{display:none}
 <script src="./carte.js?v=20261009a" defer></script>
 <script src="./finitions.js?v=20261010a" defer></script>
 <script src="./palette.js?v=20261015a" defer></script>
-<script src="./transfert.js?v=20261015b" defer></script>
+<script src="./transfert.js?v=20261022a" defer></script>
 <style data-theme-propre>
 /* ---------- le menu à gauche ----------
    iPad et ordinateur : un rail d'icônes sombre (88 px), chaque entrée avec son nom court ;
@@ -3423,7 +3423,16 @@ var APPLIS_FICHE={releve:["Relevé","un relevé","./releve.html"], suivi:["Suivi
   sav:["SAV","une intervention SAV","./sav.html"], etiquettes:["Étiquettes","des étiquettes","./etiquettes.html"],
   photos:["Photo et croquis","un reportage photo et croquis","./photos.html"], carnet:["Carnet","un carnet","./carnet.html"],
   technique:["Documents","des documents techniques","./technique.html"]};
+/* les fichiers partagés depuis le téléphone (Raccourci de l'iPhone), pas encore rangés */
+var RECUS_EN_ATTENTE=0;
+function recusEnAttente(s){
+  fetch(apiUrl("recus-liste"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ RECUS_EN_ATTENTE=(d.items||[]).length; peindreFichesAEnregistrer(); })
+    .catch(function(){});
+}
 function fichesAEnregistrer(s){
+  recusEnAttente(s);
   fetch(apiUrl("encours-liste"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
@@ -3453,6 +3462,12 @@ function quandFiche(iso){
 function peindreFichesAEnregistrer(){
   var host=$("notifs"); if(!host) return;
   Array.prototype.forEach.call(host.querySelectorAll(".fiche-a-enregistrer"), function(x){ x.remove(); });
+  if(RECUS_EN_ATTENTE){
+    var nr=RECUS_EN_ATTENTE;
+    host.insertBefore(notif("amb fiche-a-enregistrer", String(nr), nr>1 ? nr+" fichiers reçus à ranger" : "Un fichier reçu à ranger",
+      "Partagé depuis le téléphone : choisissez le chantier où le ranger.", "./importer.html?recus=1"), host.firstChild);
+    host.hidden=false;
+  }
   var l=FICHES_A_ENREGISTRER; if(!l.length){ host.hidden=!host.children.length; return; }
   l.slice(0,6).reverse().forEach(function(x){
     var A=APPLIS_FICHE[x.appli], qui=x.client || x.ref || "sans client";
