@@ -294,7 +294,8 @@ export async function repererRappelsDus(store, maintenant = maintenantParis()) {
     /* marqué avant l'envoi : deux passages ne l'enverront jamais deux fois */
     t.notifie = echeance;
     try { await store.setJSON(b.key, t); } catch { continue; }
-    const quoi = t.cal ? "" : t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
+    /* un rappel du calendrier posé par quelqu'un d'autre : on dit de qui il vient */
+    const quoi = t.cal ? (t.auteur && t.auteur !== t.qui ? "de " + t.auteur : "") : t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
     aEnvoyer.push({ qui: t.qui, charge: {
       titre: (t.rappel ? "Rappel" : "À faire aujourd'hui") + (quoi ? " — " + quoi : ""),
       texte: String(t.texte || "").slice(0, 180),

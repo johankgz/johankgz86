@@ -2881,7 +2881,7 @@ async function traiter(req) {
 
   /* ---------- tâches datées ---------- */
   if (action === "taches") {
-    const out = [];
+    const out = [], envoyes = [];
     try {
       const res = await store.list({ prefix: "taches/" });
       for (const b of (res.blobs || [])) {
@@ -2891,14 +2891,32 @@ async function traiter(req) {
         if (t.rappel && t.qui !== personne.nom) continue;  /* un rappel n'est qu'à son conducteur de travaux */
         out.push({ cle: b.key, ...t });
       }
+      /* les rappels du calendrier posés pour quelqu'un d'autre : celui qui les a posés les
+         voit dans son calendrier (fait ou pas) ; ils ne sonnent que chez la personne visée */
+      for (const b of (res.blobs || [])) {
+        if (b.key.indexOf("taches/cal-") !== 0) continue;
+        const t = await store.get(b.key, { type: "json" });
+        if (!t || !t.cal || t.auteur !== personne.nom || t.qui === personne.nom) continue;
+        if (t.faite && Date.now() - Date.parse(t.faiteLe || 0) > 30 * 864e5) continue;
+        envoyes.push({ cle: b.key, ...t, pourAutre: true });
+      }
     } catch { /* rien de stocké */ }
     out.sort((a, b) => (a.quand || "").localeCompare(b.quand || ""));
-    return json({ taches: out });
+    return json({ taches: out, envoyes });
   }
 
   /* ---------- le calendrier de l'accueil : un rappel à un jour, une heure ----------
-     « Téléphoner à M. Dupont » le 5 octobre à 9 h : une tâche datée, pour
-     soi seul, notifiée à l'heure dite comme les autres rappels. */
+     « Téléphoner à M. Dupont » le 5 octobre à 9 h : une tâche datée, notifiée à
+     l'heure dite comme les autres rappels. Pour soi, ou pour une personne de
+     l'équipe (« pour » : son nom) : il sonne alors chez elle, « Rappel — de Johan ». */
+  async function destinataireRappel(pour) {
+    const p = String(pour || "").trim();
+    if (!p || p === personne.nom) return { qui: personne.nom };
+    const comptes = await lireComptes(personne.societe);
+    const qui = nomDuCompte(p, comptes);
+    if (!comptes.some((u) => u.nom === qui)) return { erreur: "« " + p + " » n'est pas une personne de l'équipe." };
+    return { qui };
+  }
   if (action === "rappel-creer") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -2907,9 +2925,11 @@ async function traiter(req) {
     if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
     const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : "09:00";
+    const dest = await destinataireRappel(d.pour);
+    if (dest.erreur) return json({ erreur: dest.erreur }, 400);
     const id = Date.now().toString(36) + randomBytes(3).toString("hex");
-    const cle = "taches/cal-" + slug(personne.nom) + "-" + id + ".json";
-    const t = { texte, prio: "", qui: personne.nom, quand, heure, rappel: true, cal: true,
+    const cle = "taches/cal-" + slug(dest.qui) + "-" + id + ".json";
+    const t = { texte, prio: "", qui: dest.qui, quand, heure, rappel: true, cal: true,
       auteur: personne.nom, cree: new Date().toISOString(), faite: false, notifie: "" };
     await store.setJSON(cle, t);
     return json({ ok: true, tache: { cle, ...t } });
@@ -2924,15 +2944,22 @@ async function traiter(req) {
     let t = null;
     try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
     if (!t) return json({ erreur: "Ce rappel n'existe plus." }, 404);
-    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    if (t.qui !== personne.nom && t.auteur !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
     const texte = String(d.texte || "").trim().slice(0, 300);
     const quand = String(d.quand || t.quand || "").slice(0, 10);
     if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
     const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : (t.heure || "09:00");
-    const autreMoment = quand !== t.quand || heure !== t.heure;
-    Object.assign(t, { texte, quand, heure, modifie: new Date().toISOString() });
-    if (autreMoment) t.notifie = "";
+    let qui = t.qui;
+    /* celui qui l'a posé peut le donner à quelqu'un d'autre */
+    if (d.pour !== undefined && t.auteur === personne.nom) {
+      const dest = await destinataireRappel(d.pour);
+      if (dest.erreur) return json({ erreur: dest.erreur }, 400);
+      qui = dest.qui;
+    }
+    const autreMoment = quand !== t.quand || heure !== t.heure || qui !== t.qui;
+    Object.assign(t, { texte, quand, heure, qui, modifie: new Date().toISOString() });
+    if (autreMoment) { t.notifie = ""; t.faite = false; }
     await store.setJSON(cle, t);
     return json({ ok: true, tache: { cle, ...t } });
   }
@@ -2942,7 +2969,7 @@ async function traiter(req) {
     let t = null;
     try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
     if (!t) return json({ ok: true });
-    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    if (t.qui !== personne.nom && t.auteur !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
     try { await store.delete(cle); } catch { /* déjà parti */ }
     return json({ ok: true });
   }
