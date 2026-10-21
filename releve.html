@@ -1496,6 +1496,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <button type="button" id="toit_rowP">Rangée +</button>
     <button type="button" id="toit_colM">Colonne −</button>
     <button type="button" id="toit_colP">Colonne +</button>
+    <button type="button" id="toit_cases" aria-pressed="false" title="Toucher un panneau le retire, toucher une place vide en ajoute un">Ajouter / retirer</button>
   </div>
   <div class="sk-bar" id="toit_dims">
     <label class="mini">Largeur du pan (m)<input type="number" id="toit_W" value="8" min="1" step="0.1" inputmode="decimal"></label>
@@ -2414,7 +2415,8 @@ function compressionBrute(file, cb){
 /* ---------- implantation panneaux sur photo ---------- */
 var PAN_W = 1.13, PAN_H = 1.76, PAN_GAP = 0.02, PAN_MARGE = 0.35;
 var TO = { img:null, quad:null, drag:-1, portrait:true, rows:0, cols:0, vue:{k:1,dx:0,dy:0},
-           offU:0, offV:0, auto:true, editIndex:null };
+           offU:0, offV:0, auto:true, editIndex:null,
+           retires:[], ajouts:[], cases:false };
 
 function toitCtx(){ return $("toit_canvas").getContext("2d"); }
 function homographie(q){
@@ -2452,6 +2454,106 @@ function toitAuto(){
   TO.cols = Math.min(6, m.cols);
   TO.rows = Math.min(1, m.rows);
   TO.offU=0; TO.offV=0;
+  TO.retires=[]; TO.ajouts=[];
+}
+/* ---------- panneau par panneau ----------
+   Le bloc rangées × colonnes, moins les panneaux retirés, plus ceux ajoutés à
+   côté (sur la même grille, tant qu'ils tiennent sur le pan). En mode
+   « Ajouter / retirer », toucher un panneau le retire, toucher une place vide
+   en pose un. */
+function toitOrigine(){
+  var d=toitDims();
+  var totW = TO.cols*d.pw + (TO.cols-1)*PAN_GAP, totH = TO.rows*d.ph + (TO.rows-1)*PAN_GAP;
+  return {d:d, x0:(d.W-totW)/2 + TO.offU, y0:(d.H-totH)/2 + TO.offV};
+}
+function toitCle(r, k){ return r+","+k; }
+function toitDansBloc(r, k){ return r>=0 && r<TO.rows && k>=0 && k<TO.cols; }
+/* les places de la grille qui tiennent sur le pan */
+function toitPlaces(){
+  var o=toitOrigine(), d=o.d, sx=d.pw+PAN_GAP, sy=d.ph+PAN_GAP, out=[];
+  var k0=Math.ceil(-o.x0/sx), k1=Math.floor((d.W-d.pw-o.x0)/sx);
+  var r0=Math.ceil(-o.y0/sy), r1=Math.floor((d.H-d.ph-o.y0)/sy);
+  for(var r=Math.min(r0,0); r<=Math.max(r1,TO.rows-1); r++) for(var k=Math.min(k0,0); k<=Math.max(k1,TO.cols-1); k++){
+    var xa=o.x0+k*sx, ya=o.y0+r*sy;
+    var tient = xa>=-1e-6 && xa+d.pw<=d.W+1e-6 && ya>=-1e-6 && ya+d.ph<=d.H+1e-6;
+    if(tient || toitDansBloc(r, k)) out.push({r:r, k:k, xa:xa, ya:ya});
+  }
+  return out;
+}
+function toitPresent(r, k){
+  var c=toitCle(r, k);
+  return toitDansBloc(r, k) ? (TO.retires||[]).indexOf(c)<0 : (TO.ajouts||[]).indexOf(c)>=0;
+}
+function toitCellules(){ return toitPlaces().filter(function(p){ return toitPresent(p.r, p.k); }); }
+function toitNb(){ return toitCellules().length; }
+function toitLibre(){ return !!((TO.retires||[]).length || (TO.ajouts||[]).length); }
+/* les ajouts et retraits qui n'ont plus de sens (bloc agrandi, pan réduit) s'en vont */
+function toitNettoyer(){
+  var places={}; toitPlaces().forEach(function(p){ places[toitCle(p.r,p.k)]=p; });
+  TO.retires=(TO.retires||[]).filter(function(c){ var p=c.split(","); return toitDansBloc(+p[0], +p[1]); });
+  TO.ajouts=(TO.ajouts||[]).filter(function(c){ var p=c.split(","); return places[c] && !toitDansBloc(+p[0], +p[1]); });
+}
+function toitQuadCase(map, d, xa, ya){
+  return [map(xa/d.W, ya/d.H), map((xa+d.pw)/d.W, ya/d.H), map((xa+d.pw)/d.W, (ya+d.ph)/d.H), map(xa/d.W, (ya+d.ph)/d.H)];
+}
+function dansPoly(pt, poly){
+  var dedans=false;
+  for(var i=0, j=poly.length-1; i<poly.length; j=i++){
+    var a=poly[i], b=poly[j];
+    if(((a[1]>pt[1])!==(b[1]>pt[1])) && (pt[0] < (b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1]) + a[0])) dedans=!dedans;
+  }
+  return dedans;
+}
+function toitBasculer(pt){
+  var d=toitDims(), map=homographie(TO.quad);
+  var choisie=null, proche=null, bd=1e9;
+  toitPlaces().forEach(function(p){
+    var q=toitQuadCase(map, d, p.xa, p.ya);
+    if(!choisie && dansPoly(pt, q)) choisie=p;
+    /* l'interstice entre deux panneaux : la place la plus proche, si elle est tout près */
+    var cx=(q[0][0]+q[1][0]+q[2][0]+q[3][0])/4, cy=(q[0][1]+q[1][1]+q[2][1]+q[3][1])/4;
+    var dd=Math.hypot(cx-pt[0], cy-pt[1]), demi=Math.hypot(q[2][0]-q[0][0], q[2][1]-q[0][1])/2;
+    if(dd<demi && dd<bd){ bd=dd; proche=p; }
+  });
+  var p=choisie || proche;
+  if(!p) return false;
+  var c=toitCle(p.r, p.k);
+  if(toitDansBloc(p.r, p.k)){
+    var j=TO.retires.indexOf(c);
+    if(j>=0) TO.retires.splice(j,1); else TO.retires.push(c);
+  } else {
+    var a=TO.ajouts.indexOf(c);
+    if(a>=0) TO.ajouts.splice(a,1); else TO.ajouts.push(c);
+  }
+  toitPaint();
+  return true;
+}
+/* passer en « Ajouter / retirer » : la grille couvre tout le pan (le plus de panneaux
+   qui y tiennent), et les panneaux déjà posés se calent sur la place la plus proche */
+function toitGrillePleine(){
+  var m=toitMax();
+  if(m.cols<=TO.cols && m.rows<=TO.rows) return;
+  var avant=toitCellules().map(function(p){ var d=toitDims(); return [p.xa+d.pw/2, p.ya+d.ph/2]; });
+  TO.cols=m.cols; TO.rows=m.rows; TO.offU=0; TO.offV=0; TO.ajouts=[]; TO.retires=[];
+  var d=toitDims(), places=toitPlaces().filter(function(p){ return toitDansBloc(p.r, p.k); }), garder={};
+  avant.forEach(function(c){
+    var best=null, bd=1e9;
+    places.forEach(function(p){
+      var cle=toitCle(p.r, p.k); if(garder[cle]) return;
+      var dd=Math.hypot(p.xa+d.pw/2-c[0], p.ya+d.ph/2-c[1]);
+      if(dd<bd){ bd=dd; best=cle; }
+    });
+    if(best) garder[best]=true;
+  });
+  TO.retires=places.map(function(p){ return toitCle(p.r, p.k); }).filter(function(c){ return !garder[c]; });
+}
+function toitDessinerPanneau(c, q, gras, lw){
+  c.beginPath(); c.moveTo(q[0][0],q[0][1]); c.lineTo(q[1][0],q[1][1]); c.lineTo(q[2][0],q[2][1]); c.lineTo(q[3][0],q[3][1]); c.closePath();
+  var gr=c.createLinearGradient(q[0][0],q[0][1],q[2][0],q[2][1]);
+  gr.addColorStop(0,"#1C2126"); gr.addColorStop(0.55,"#0C0F12"); gr.addColorStop(1,"#191E23");
+  c.fillStyle=gr; c.fill();
+  c.strokeStyle = gras ? "rgba(255,255,255,.95)" : "rgba(150,165,180,.55)";
+  c.lineWidth=lw; c.stroke();
 }
 function toitVue(){ if(!TO.vue) TO.vue={k:1,dx:0,dy:0}; return TO.vue; }
 function toitBornerVue(){
@@ -2487,23 +2589,19 @@ function toitPaint(){
   TO.quad.forEach(function(p,i){ i?c.lineTo(p[0],p[1]):c.moveTo(p[0],p[1]); });
   c.closePath(); c.stroke(); c.restore();
 
-  // panneaux
-  var totW = TO.cols*d.pw + (TO.cols-1)*PAN_GAP;
-  var totH = TO.rows*d.ph + (TO.rows-1)*PAN_GAP;
-  var x0 = (d.W-totW)/2 + TO.offU, y0 = (d.H-totH)/2 + TO.offV;
-  for(var r=0;r<TO.rows;r++){
-    for(var k=0;k<TO.cols;k++){
-      var xa = x0 + k*(d.pw+PAN_GAP), ya = y0 + r*(d.ph+PAN_GAP);
-      var p1=map(xa/d.W, ya/d.H), p2=map((xa+d.pw)/d.W, ya/d.H),
-          p3=map((xa+d.pw)/d.W, (ya+d.ph)/d.H), p4=map(xa/d.W, (ya+d.ph)/d.H);
-      c.beginPath(); c.moveTo(p1[0],p1[1]); c.lineTo(p2[0],p2[1]); c.lineTo(p3[0],p3[1]); c.lineTo(p4[0],p4[1]); c.closePath();
-      var gr=c.createLinearGradient(p1[0],p1[1],p3[0],p3[1]);
-      gr.addColorStop(0,"#1C2126"); gr.addColorStop(0.55,"#0C0F12"); gr.addColorStop(1,"#191E23");
-      c.fillStyle=gr; c.fill();
-      c.strokeStyle = TO.bouge ? "rgba(255,255,255,.95)" : "rgba(150,165,180,.55)";
-      c.lineWidth=Math.max(1,cv.width/1100)*(TO.bouge?2.2:1)/v.k; c.stroke();
+  // panneaux (et, en mode « Ajouter / retirer », les places libres en pointillé)
+  toitPlaces().forEach(function(p){
+    var q=toitQuadCase(map, d, p.xa, p.ya);
+    if(toitPresent(p.r, p.k)){
+      toitDessinerPanneau(c, q, TO.bouge, Math.max(1,cv.width/1100)*(TO.bouge?2.2:1)/v.k);
+    } else if(TO.cases){
+      c.save();
+      c.beginPath(); c.moveTo(q[0][0],q[0][1]); c.lineTo(q[1][0],q[1][1]); c.lineTo(q[2][0],q[2][1]); c.lineTo(q[3][0],q[3][1]); c.closePath();
+      c.fillStyle="rgba(255,255,255,.12)"; c.fill();
+      c.strokeStyle="rgba(255,255,255,.8)"; c.lineWidth=Math.max(1.5,cv.width/900)/v.k; c.setLineDash([6/v.k,5/v.k]); c.stroke();
+      c.restore();
     }
-  }
+  });
 
   // poignées
   var rP=Math.max(12,cv.width/70)/v.k;
@@ -2516,9 +2614,9 @@ function toitPaint(){
     c.fillText(["HG","HD","BD","BG"][i], p[0], p[1]);
   });
 
-  var nb=TO.rows*TO.cols;
+  var nb=toitNb();
   var wc=parseFloat(S.pv.wc||"500")||500;
-  $("toit_info").textContent = nb+" panneaux ("+TO.cols+" × "+TO.rows+")  ·  "
+  $("toit_info").textContent = nb+" panneaux ("+(toitLibre() ? "à la carte" : TO.cols+" × "+TO.rows)+")  ·  "
     + (nb*wc/1000).toFixed(2).replace(".",",")+" kWc  ·  "
     + (nb*PAN_W*PAN_H).toFixed(1).replace(".",",")+" m²";
 }
@@ -2550,6 +2648,7 @@ function toitBorner(){
 (function toitBind(){
   var cv=$("toit_canvas");
   var bloc=null;                       /* déplacement du bloc de panneaux */
+  var tape=null;                       /* un toucher en mode « Ajouter / retirer » */
   var doigts=new Map(), pince=null;    /* gestes à deux doigts */
 
   function centre(){
@@ -2564,7 +2663,7 @@ function toitBorner(){
     doigts.set(e.pointerId, toitPosEcran(e));
     if(doigts.size===2){
       /* deuxième doigt : on abandonne le geste en cours et on passe en pince */
-      TO.drag=-1; bloc=null; TO.bouge=false;
+      TO.drag=-1; bloc=null; TO.bouge=false; tape=null;
       var v=toitVue();
       pince={d:ecart(), c:centre(), k:v.k, dx:v.dx, dy:v.dy};
       toitPaint();
@@ -2579,6 +2678,8 @@ function toitBorner(){
     if(bd < Math.max(50, cv.width/14)/toitVue().k){
       TO.drag=best; toitPaint(); return;
     }
+    /* mode « Ajouter / retirer » : un toucher (sans glisser) retire ou pose un panneau */
+    if(TO.cases){ tape={id:e.pointerId, pt:pt, ecran:toitPosEcran(e)}; return; }
     /* ailleurs sur l'image : on saisit le bloc de panneaux */
     if(TO.rows>0 && TO.cols>0){
       bloc={x:pt[0], y:pt[1], u:TO.offU, v:TO.offV, ech:toitEchelle()};
@@ -2612,6 +2713,12 @@ function toitBorner(){
   });
   ["pointerup","pointercancel","pointerleave"].forEach(function(ev){
     cv.addEventListener(ev, function(e){
+      if(tape && tape.id===e.pointerId){
+        var ici=toitPosEcran(e), t=tape; tape=null;
+        if(ev==="pointerup" && Math.hypot(ici[0]-t.ecran[0], ici[1]-t.ecran[1]) < Math.max(14, cv.width/60)){
+          if(!toitBasculer(t.pt)) toast("Touchez un panneau pour le retirer, ou une place en pointillé pour en ajouter un.");
+        }
+      }
       doigts.delete(e.pointerId);
       if(doigts.size<2) pince=null;
       doigts.delete(e.pointerId);
@@ -2626,6 +2733,14 @@ function toitBorner(){
     toitZoom(e.deltaY<0 ? 1.15 : 1/1.15, p[0], p[1]);
   }, {passive:false});
 
+  $("toit_cases").addEventListener("click", function(){
+    TO.cases=!TO.cases;
+    if(TO.cases) toitGrillePleine();
+    this.setAttribute("aria-pressed", TO.cases ? "true" : "false");
+    this.classList.toggle("go", TO.cases);
+    if(TO.cases) toast("Touchez un panneau pour le retirer, une place en pointillé pour en ajouter un.");
+    toitPaint();
+  });
   $("toit_orient").addEventListener("click", function(){
     TO.portrait=!TO.portrait;
     $("toit_orient").textContent = TO.portrait ? "Portrait" : "Paysage";
@@ -2634,15 +2749,15 @@ function toitBorner(){
   $("toit_rowP").addEventListener("click", function(){
     var m=toitMax();
     if(TO.rows>=m.rows){ toast("Le pan ne permet pas une rangée de plus."); return; }
-    TO.rows++; toitPaint();
+    TO.rows++; toitNettoyer(); toitPaint();
   });
-  $("toit_rowM").addEventListener("click", function(){ TO.rows=Math.max(0,TO.rows-1); toitPaint(); });
+  $("toit_rowM").addEventListener("click", function(){ TO.rows=Math.max(0,TO.rows-1); toitNettoyer(); toitPaint(); });
   $("toit_colP").addEventListener("click", function(){
     var m=toitMax();
     if(TO.cols>=m.cols){ toast("Le pan ne permet pas une colonne de plus."); return; }
-    TO.cols++; toitPaint();
+    TO.cols++; toitNettoyer(); toitPaint();
   });
-  $("toit_colM").addEventListener("click", function(){ TO.cols=Math.max(0,TO.cols-1); toitPaint(); });
+  $("toit_colM").addEventListener("click", function(){ TO.cols=Math.max(0,TO.cols-1); toitNettoyer(); toitPaint(); });
   $("toit_up").addEventListener("click", function(){ TO.offV-=0.15; toitBorner(); toitPaint(); });
   $("toit_down").addEventListener("click", function(){ TO.offV+=0.15; toitBorner(); toitPaint(); });
   $("toit_left").addEventListener("click", function(){ TO.offU-=0.15; toitBorner(); toitPaint(); });
@@ -2658,7 +2773,7 @@ function toitBorner(){
       var m=toitMax();
       TO.cols=Math.max(1, Math.min(TO.cols, m.cols));
       TO.rows=Math.max(1, Math.min(TO.rows, m.rows));
-      toitPaint();
+      toitNettoyer(); toitPaint();
     });
   });
   $("toit_cancel").addEventListener("click", function(){ $("toit").hidden=true; });
@@ -2670,18 +2785,9 @@ function toitBorner(){
     var c=out.getContext("2d"), d=toitDims();
     c.drawImage(TO.img,0,0,out.width,out.height);
     var map=homographie(TO.quad);
-    var totW=TO.cols*d.pw+(TO.cols-1)*PAN_GAP, totH=TO.rows*d.ph+(TO.rows-1)*PAN_GAP;
-    var x0=(d.W-totW)/2+TO.offU, y0=(d.H-totH)/2+TO.offV;
-    for(var r=0;r<TO.rows;r++) for(var k=0;k<TO.cols;k++){
-      var xa=x0+k*(d.pw+PAN_GAP), ya=y0+r*(d.ph+PAN_GAP);
-      var p1=map(xa/d.W,ya/d.H), p2=map((xa+d.pw)/d.W,ya/d.H),
-          p3=map((xa+d.pw)/d.W,(ya+d.ph)/d.H), p4=map(xa/d.W,(ya+d.ph)/d.H);
-      c.beginPath(); c.moveTo(p1[0],p1[1]); c.lineTo(p2[0],p2[1]); c.lineTo(p3[0],p3[1]); c.lineTo(p4[0],p4[1]); c.closePath();
-      var gr=c.createLinearGradient(p1[0],p1[1],p3[0],p3[1]);
-      gr.addColorStop(0,"#1C2126"); gr.addColorStop(0.55,"#0C0F12"); gr.addColorStop(1,"#191E23");
-      c.fillStyle=gr; c.fill();
-      c.strokeStyle="rgba(150,165,180,.5)"; c.lineWidth=Math.max(1,out.width/1100); c.stroke();
-    }
+    toitCellules().forEach(function(p){
+      toitDessinerPanneau(c, toitQuadCase(map, d, p.xa, p.ya), false, Math.max(1,out.width/1100));
+    });
     return out;
   }
   $("toit_export").addEventListener("click", function(){
@@ -2695,7 +2801,7 @@ function toitBorner(){
     }, "image/png");
   });
   $("toit_save").addEventListener("click", function(){
-    var out=rendu(), nb=TO.rows*TO.cols;
+    var out=rendu(), nb=toitNb();
     var wc=parseFloat(S.pv.wc||"500")||500;
     var panneaux=out.toDataURL("image/jpeg",0.82);
     var item={ data:panneaux, panneaux:panneaux, w:out.width, h:out.height,
@@ -2704,7 +2810,8 @@ function toitBorner(){
                /* de quoi rouvrir l'implantation telle quelle : la photo d'origine et le calage */
                src:TO.src, quad:TO.quad.map(function(p){ return [p[0], p[1]]; }),
                W:$("toit_W").value, H:$("toit_H").value, offU:TO.offU, offV:TO.offV,
-               cw:$("toit_canvas").width, ch:$("toit_canvas").height };
+               cw:$("toit_canvas").width, ch:$("toit_canvas").height,
+               retires:(TO.retires||[]).slice(), ajouts:(TO.ajouts||[]).slice(), libre:toitLibre() };
     var modif = TO.editIndex!==null && !!S.pv.simuls[TO.editIndex], index=TO.editIndex;
     var ancien = modif ? S.pv.simuls[index] : null;
     function ranger(){
@@ -2727,6 +2834,7 @@ function toitDepuisPhoto(ph, vueDessus){
     var cv=$("toit_canvas");
     cv.width=ph.w; cv.height=ph.h;
     TO.img=img; TO.src=ph.data; TO.editIndex=null; TO.portrait=true; TO.vue={k:1,dx:0,dy:0};
+    TO.retires=[]; TO.ajouts=[];
     $("toit_orient").textContent="Portrait";
     $("toit_save").textContent="Ajouter au relevé";
     if(vueDessus){
@@ -2779,6 +2887,7 @@ function toitRouvrir(idx){
     if(it.H) $("toit_H").value=it.H;
     TO.cols=it.cols||1; TO.rows=it.rows||1;
     TO.offU=it.offU||0; TO.offV=it.offV||0;
+    TO.retires=(it.retires||[]).slice(); TO.ajouts=(it.ajouts||[]).slice();
     $("toit_title").textContent="Modifier l'implantation";
     $("toit_save").textContent="Enregistrer les modifications";
     $("toit").hidden=false;
@@ -4377,7 +4486,7 @@ function paintSimuls(){
     var meta=document.createElement("div"); meta.className="meta";
     var t=document.createElement("span");
     if(it.dessin) t.innerHTML="<b>Implantation dessinée</b>";
-    else t.innerHTML="<b>"+it.nb+" panneaux</b> · "+it.kwc.toString().replace(".",",")+" kWc · "+it.cols+"×"+it.rows+" ("+it.orient+")";
+    else t.innerHTML="<b>"+it.nb+" panneaux</b> · "+it.kwc.toString().replace(".",",")+" kWc · "+(it.libre ? it.orient : it.cols+"×"+it.rows+" ("+it.orient+")");
     if(it.dessin){
       im.style.cursor="pointer"; im.title="Modifier le dessin";
       im.addEventListener("click", function(){ toitDessiner(it, idx); });
@@ -5904,7 +6013,7 @@ function buildPdf(){
         y+=ha+8;
       }
       var s0=simuls[0], So=V.soleil && V.soleil.data ? V.soleil : null, resumeSol=So ? String(So.resume||"").trim() : "";
-      var legendeSimul=function(it){ if(it.dessin) return "Implantation des panneaux sur la toiture"; return it.nb+" panneaux de 1,13 m sur 1,76 m ("+it.cols+" x "+it.rows+", "+it.orient+") · "+dec(it.kwc, 2)+" kWc"; };
+      var legendeSimul=function(it){ if(it.dessin) return "Implantation des panneaux sur la toiture"; return it.nb+" panneaux de 1,13 m sur 1,76 m ("+(it.libre ? "" : it.cols+" x "+it.rows+", ")+it.orient+") · "+dec(it.kwc, 2)+" kWc"; };
       var w2=(CW-6)/2;
       if(s0 && So){
         var h2=Math.max(Math.min(62, w2*(s0.h/s0.w)), Math.min(62, w2*(So.h/So.w)));
