@@ -1352,7 +1352,12 @@ cv.addEventListener("pointerdown", function(e){
   }
   if(MODE==="dessin" && !REF && FAM_D==="pv"){
     var hpv=pvPoigneeSous(p);
-    if(hpv){ var chv=pvChemins()[hpv.ic]; G.pvch={ch:chv, E0:chv.E.map(function(q){ return q.slice(); }), seg:hpv.seg, coin:hpv.coin, sel:{t:D_SEL.t, id:D_SEL.id}}; return; }
+    if(hpv){
+      var chv=pvChemins()[hpv.ic], E0v=chv.E.map(function(q){ return q.slice(); });
+      G.pvch={ch:chv, E0:E0v, seg:hpv.seg, coin:hpv.coin, ic:hpv.ic, sel:{t:D_SEL.t, id:D_SEL.id}};
+      if(hpv.seg!=null && !hpv.milieu) G.pvch.inser={j:hpv.seg, q:pvPointSurTroncon(E0v, hpv.seg, p)};
+      return;
+    }
   }
   if(MODE==="dessin"){
     if(OUTIL_D==="choisir" && !REF && vueD()==="dessus"){
@@ -1458,7 +1463,7 @@ cv.addEventListener("pointermove", function(e){
     SEL=G.symb; demander(); return;
   }
   if(G.bouge && G.pvch){
-    if(!G.garde){ garderD(); G.garde=true; }
+    if(!G.garde){ garderD(); G.garde=true; pvInsererPoint(G.pvch); }
     var pasC=10/DESSIN_MM, dC=[Math.round((p[0]-G.depart[0])/V.k/pasC)*pasC, Math.round(-(p[1]-G.depart[1])/V.k/pasC)*pasC];
     pvGlisserChemin(G.pvch, dC); D_SEL=G.pvch.sel; demander(); return;
   }
@@ -1533,6 +1538,17 @@ function lacher(e){
       }
     }
     RECT_SEL=null; G=null; majDessin(); majBarreSel(); demander(); return;
+  }
+  if(MODE==="dessin" && G.pvch && !G.bouge && e.type!=="pointercancel"){
+    var hq=G.pvch, maint=Date.now();
+    if(hq.inser){ garderD(); pvInsererPoint(hq); hq.ch.ecrire(pvOrtho(hq.E0)); enregistrerD(); toast("Point ajouté : glissez-le où le câble doit passer (deux touchers l'enlèvent).", 3000); PV_TAP=null; }
+    else if(hq.coin!=null){
+      if(PV_TAP && PV_TAP.ic===hq.ic && PV_TAP.coin===hq.coin && maint-PV_TAP.t<450 && hq.coin<hq.E0.length-1){
+        garderD(); hq.E0.splice(hq.coin, 1); hq.ch.ecrire(pvOrtho(hq.E0)); enregistrerD(); PV_TAP=null;
+      } else PV_TAP={ic:hq.ic, coin:hq.coin, t:maint};
+    }
+    D_SEL=hq.sel; majDessin(); majBarreSel();
+    G=null; demander(); return;
   }
   if(MODE==="dessin" && G.pvch){
     if(e.type==="pointercancel" && G.garde){ var hv=JSON.parse(HISTO_D.pop()); DESSIN=normD(hv && hv.__groupe ? hv.d : hv); }
@@ -7400,11 +7416,23 @@ function pvPoigneeSous(p){
     for(var j=Math.max(0, ch.fixe-1); j<ch.E.length-1; j++){
       var A=versEcran(ch.E[j][0], ch.E[j][1]), B=versEcran(ch.E[j+1][0], ch.E[j+1][1]);
       if(Math.hypot(B[0]-A[0], B[1]-A[1])<8) continue;
-      var r=distSeg(p, A, B); if(r.d<bd){ bd=r.d; best={ic:ic, seg:j}; }
+      var r=distSeg(p, A, B); if(r.d<bd){ bd=r.d; best={ic:ic, seg:j, milieu:Math.hypot(p[0]-(A[0]+B[0])/2, p[1]-(A[1]+B[1])/2)<16}; }
     }
   });
   return best;
 }
+/* le point du câble sous le doigt, ramené sur le tronçon, au centimètre */
+function pvPointSurTroncon(E, j, pEcran){
+  var a=E[j], b=E[j+1], q=versPlan(pEcran[0], pEcran[1]), pas=10/DESSIN_MM;
+  if(pvHoriz(a, b)){ var x=Math.round(q[0]/pas)*pas; return [Math.max(Math.min(a[0], b[0]), Math.min(Math.max(a[0], b[0]), x)), a[1]]; }
+  var y=Math.round(q[1]/pas)*pas; return [a[0], Math.max(Math.min(a[1], b[1]), Math.min(Math.max(a[1], b[1]), y))];
+}
+/* un point ajouté dans le câble (touché ou tiré hors du milieu d'un tronçon) : il devient un coin libre */
+function pvInsererPoint(h){
+  if(!h.inser) return;
+  h.E0.splice(h.inser.j+1, 0, h.inser.q); h.coin=h.inser.j+1; h.seg=null; h.libre=true; h.inser=null;
+}
+var PV_TAP=null;
 function pvGlisserChemin(h, d){
   var ch=h.ch, E=h.E0.map(function(q){ return q.slice(); });
   if(h.seg!=null){
@@ -7414,12 +7442,15 @@ function pvGlisserChemin(h, d){
   } else {
     var k=h.coin, a=h.E0[k];
     E[k]=[a[0]+d[0], a[1]+d[1]];
-    [k-1, k+1].forEach(function(v){
+    /* un point au milieu d'une ligne droite (ou tout juste ajouté) se tire seul : le câble passe par lui */
+    var droit = k-1>=0 && k+1<E.length && pvHoriz(h.E0[k-1], a)===pvHoriz(a, h.E0[k+1]);
+    if(!h.libre && !droit) [k-1, k+1].forEach(function(v){
       if(v<ch.fixe || v>=E.length) return;
       if(pvHoriz(h.E0[v], a)) E[v]=[E[v][0], E[v][1]+d[1]]; else E[v]=[E[v][0]+d[0], E[v][1]];
     });
   }
   ch.ecrire(pvOrtho(E));
+  h.dernier=E;
 }
 function peindrePoigneesPv(c, E){
   var l=pvChemins(); if(!l.length) return;
