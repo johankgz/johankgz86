@@ -256,6 +256,10 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
 .barre-sel button[hidden]{display:none}
+.barre-sel .bs-coul{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;overflow:visible}
+.barre-sel .bs-coul[hidden]{display:none}
+.barre-sel .bs-coul button{width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.25);justify-content:center;font-size:10px;font-weight:800;color:#0B0E12}
+.barre-sel .bs-coul button.on{border-color:#fff;box-shadow:0 0 0 2px #EA7A1E}
 .barre-sel .bs-act.on{background:#EA7A1E;color:#0B0E12}
 .barre-sel .bs-act span{font-size:14px;font-weight:700;color:inherit;overflow:visible}
 .barre-sel .bs-act svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
@@ -379,6 +383,7 @@ body.clair #scene{background:#FFFFFF}
   <button type="button" class="bs-act" id="bsCote" hidden title="Donner sa cote exacte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>Coter</button>
   <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
+  <span class="bs-coul" id="bsCoul" hidden role="group" aria-label="Couleur des liaisons"></span>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
@@ -1662,19 +1667,20 @@ function relies(a, b){ return !!(a.id && b.id) && ((a.lien||[]).indexOf(b.id)>=0
 function delier(o, id){
   if(o.lien){ o.lien=o.lien.filter(function(x){ return x!==id; }); if(!o.lien.length) delete o.lien; }
   if(o.inv){ o.inv=o.inv.filter(function(x){ return x!==id; }); if(!o.inv.length) delete o.inv; }
+  if(o.lc && o.lc[id]){ delete o.lc[id]; if(!Object.keys(o.lc).length) delete o.lc; }
 }
 /* touché une fois : relié ; deux fois : l'arc passe de l'autre côté ; trois fois : délié */
 function basculerLien(a, b){
   idS(a); idS(b);
   var de = (a.lien||[]).indexOf(b.id)>=0 ? a : (b.lien||[]).indexOf(a.id)>=0 ? b : null, vers = de===a ? b : a;
-  if(!de){ a.lien=(a.lien||[]).concat([b.id]); return "relie"; }
+  if(!de){ a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); return "relie"; }
   if((de.inv||[]).indexOf(vers.id)<0){ de.inv=(de.inv||[]).concat([vers.id]); return "inverse"; }
   delier(a, b.id); delier(b, a.id); return "delie";
 }
 function basculerRelier(v){
   RELIER = v===undefined ? !RELIER : !!v;
   if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
-  if(RELIER){ ARME_S=false; toast(COMMANDES_S[SYMB[SEL].cle] ? "Touchez les spots à relier à cette commande. Retouché : l'arc change de côté, puis délié. Le vide : terminé." : "Touchez le symbole suivant du circuit : la liaison suit. Retouché : l'arc change de côté, puis délié. Le vide : terminé.", 4500); }
+  if(RELIER) ARME_S=false;
   majSymb(); demander();
 }
 function toucherRelier(ti){
@@ -1698,10 +1704,38 @@ function arcLien(a, b){
   var pts=[]; for(var k=0;k<=24;k++){ var an=a0+sw*k/24; pts.push([C[0]+R*Math.cos(an), C[1]+R*Math.sin(an)]); }
   return pts;
 }
-function couleurLien(b){
-  var def=SymbolesElec.trouver(b.cle), col=def ? def.couleur : "#FF0000";
-  if(!CLAIR && !IMPRIME && col==="#0000FF") col="#6B8BFF";
+/* la couleur d'une liaison : celle choisie (o.lc, par symbole relié), sinon celle du symbole relié */
+var COULEURS_LIEN=[["auto","Auto : la couleur du symbole relié"],["#0000FF","Bleu"],["#FF0000","Rouge"],["#16A34A","Vert"],["#FF8000","Orange"],["#9333EA","Violet"],["#000000","Noir"]];
+var LIEN_COUL=lire("dwg:lienCoul","auto");
+function couleurLien(a, b){
+  var lc=a && a.lc && a.lc[b.id], def=SymbolesElec.trouver(b.cle), col=lc || (def ? def.couleur : "#FF0000");
+  if(!CLAIR && !IMPRIME){ if(col==="#0000FF") col="#6B8BFF"; else if(col==="#000000") col="#E5E7EB"; else if(col==="#9333EA") col="#C084FC"; }
   return col;
+}
+function aciLien(a, b){
+  var lc=a && a.lc && a.lc[b.id], def=SymbolesElec.trouver(b.cle), col=lc || (def ? def.couleur : "#FF0000");
+  return {"#0000FF":5, "#FF0000":1, "#16A34A":3, "#FF8000":30, "#9333EA":6, "#000000":7}[col] || 1;
+}
+function colorerLien(a, id){
+  if(LIEN_COUL==="auto"){ if(a.lc){ delete a.lc[id]; if(!Object.keys(a.lc).length) delete a.lc; } }
+  else { a.lc=a.lc||{}; a.lc[id]=LIEN_COUL; }
+}
+/* changer de couleur en reliant : les liaisons du symbole de départ la prennent aussi */
+function recolorerLiens(o){ if(!o) return false; var ch=false; (o.lien||[]).forEach(function(id){ colorerLien(o, id); ch=true; }); return ch; }
+function peindrePaletteLiens(){
+  var z=$("bsCoul"); if(z.childNodes.length) { Array.prototype.forEach.call(z.children, function(b){ b.classList.toggle("on", b.dataset.c===LIEN_COUL); b.setAttribute("aria-pressed", b.dataset.c===LIEN_COUL ? "true" : "false"); }); return; }
+  COULEURS_LIEN.forEach(function(c){
+    var b=document.createElement("button"); b.type="button"; b.dataset.c=c[0]; b.title=c[1]; b.setAttribute("aria-label", "Liaison : "+c[1]);
+    if(c[0]==="auto"){ b.textContent="A"; b.style.background="conic-gradient(#0000FF 0 33%, #FF0000 0 66%, #FF8000 0)"; b.style.color="#fff"; }
+    else b.style.background=c[0];
+    b.addEventListener("click", function(){
+      LIEN_COUL=c[0]; garder("dwg:lienCoul", LIEN_COUL);
+      if(MODE==="symb" && RELIER && SEL>=0 && (SYMB[SEL].lien||[]).length){ garderSymb(); recolorerLiens(SYMB[SEL]); enregistrerSymb(); }
+      peindrePaletteLiens(); demander();
+    });
+    z.appendChild(b);
+  });
+  peindrePaletteLiens();
 }
 /* au plan : l'arc en tirets, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
 function peindreLiens(c){
@@ -1710,7 +1744,7 @@ function peindreLiens(c){
       var b=symbParId(id); if(!b) return;
       var pts=arcLien(a, b); if(!pts) return;
       var R=Math.max(a.r, b.r)*V.k;
-      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09)); c.lineJoin="round";
+      c.save(); c.strokeStyle=couleurLien(a, b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09)); c.lineJoin="round";
       c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
       c.beginPath(); pts.forEach(function(q, k){ var e=versEcran(q[0], q[1]); if(k) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.stroke(); c.restore();
     });
@@ -1724,7 +1758,7 @@ function relierGroupe(l){
   if(l.length<2) return 0;
   garderSymb();
   var n=0, cmd=l.filter(function(o){ return COMMANDES_S[o.cle]; });
-  function lier(a, b){ idS(a); idS(b); if(relies(a, b)) return; a.lien=(a.lien||[]).concat([b.id]); n++; }
+  function lier(a, b){ idS(a); idS(b); if(relies(a, b)) return; a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); n++; }
   if(cmd.length){ var c0=cmd[0]; l.forEach(function(o){ if(o!==c0) lier(c0, o); }); }
   else {
     /* de proche en proche, depuis le symbole le plus à l'écart */
@@ -1803,7 +1837,7 @@ function dxfLiens(){
   SYMB.forEach(function(a){
     (a.lien||[]).forEach(function(id){
       var b=symbParId(id), pts=b ? arcLien(a, b) : null; if(!pts) return;
-      var def=SymbolesElec.trouver(b.cle), aci = def && def.couleur==="#0000FF" ? 5 : def && def.couleur==="#FF8000" ? 30 : 1;
+      var aci=aciLien(a, b);
       g(0,"POLYLINE", 8,"ELEC-LIAISONS", 62,aci, 66,1, 10,0,20,0,30,0, 70,0);
       pts.forEach(function(q){ g(0,"VERTEX", 8,"ELEC-LIAISONS", 10,q[0],20,q[1],30,0); });
       g(0,"SEQEND", 8,"ELEC-LIAISONS");
@@ -2265,6 +2299,8 @@ function majBarreSel(){
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
+  var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2;
+  $("bsCoul").hidden=!coul; if(coul) peindrePaletteLiens();
   var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
   $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
   $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
@@ -2272,7 +2308,7 @@ function majBarreSel(){
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || !!nG || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = gA || !!nG || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* Coter : le bouton, ou la saisie de la cote à sa place (les autres boutons s'effacent le temps de taper) */
   var cs=coteSel();
   if(BS_COTE && (!cs || cs.o!==BS_COTE)) BS_COTE=null;
@@ -2368,7 +2404,10 @@ function grpColler(txt, d){
   c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
   var corrS={};
   c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; if(o.id){ delete n.id; corrS[o.id]=idS(n); } SYMB.push(n); g.symb.push(n); });
-  g.symb.forEach(function(n){ ["lien","inv"].forEach(function(k){ if(!n[k]) return; n[k]=n[k].map(function(id){ return corrS[id]; }).filter(Boolean); if(!n[k].length) delete n[k]; }); });
+  g.symb.forEach(function(n){
+    ["lien","inv"].forEach(function(k){ if(!n[k]) return; n[k]=n[k].map(function(id){ return corrS[id]; }).filter(Boolean); if(!n[k].length) delete n[k]; });
+    if(n.lc){ var lc={}; Object.keys(n.lc).forEach(function(id){ if(corrS[id]) lc[corrS[id]]=n.lc[id]; }); if(Object.keys(lc).length) n.lc=lc; else delete n.lc; }
+  });
   return g;
 }
 /* où poser la copie : une pièce juste à côté (sa largeur et 50 cm de plus), un élément seul un peu en biais */
