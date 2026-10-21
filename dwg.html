@@ -1703,15 +1703,15 @@ function couleurLien(b){
   if(!CLAIR && !IMPRIME && col==="#0000FF") col="#6B8BFF";
   return col;
 }
-/* au plan : l'arc en pointillés, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
+/* au plan : l'arc en tirets, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
 function peindreLiens(c){
   SYMB.forEach(function(a){
     (a.lien||[]).forEach(function(id){
       var b=symbParId(id); if(!b) return;
       var pts=arcLien(a, b); if(!pts) return;
-      var R=Math.max(a.r, b.r)*V.k, lw=Math.max(2, Math.min(3.2, R*0.13));
-      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=lw; c.lineCap="round"; c.lineJoin="round";
-      c.setLineDash([0.01, lw*2.6]);
+      var R=Math.max(a.r, b.r)*V.k;
+      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09)); c.lineJoin="round";
+      c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
       c.beginPath(); pts.forEach(function(q, k){ var e=versEcran(q[0], q[1]); if(k) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.stroke(); c.restore();
     });
   });
@@ -4467,7 +4467,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"POINTILLES"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
+    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
