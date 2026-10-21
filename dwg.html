@@ -1338,6 +1338,12 @@ cv.addEventListener("pointerdown", function(e){
     G.rect=versPlan(p[0], p[1]); return;
   }
   if(MODE==="dessin"){
+    if(OUTIL_D==="choisir" && !REF && vueD()==="dessus"){
+      /* une porte ou une fenêtre se glisse directement ; un mur, une fois choisi */
+      var pvd=versPlan(p[0], p[1]), sous=objetSous(pvd);
+      if(sous && sous.t==="ouv"){ var ovd=DESSIN.ouv.filter(function(x){ return x.id===sous.id; })[0]; if(ovd){ G.ouvD={id:ovd.id, mur:ovd.mur, t:ovd.t}; return; } }
+      if(sous && sous.t==="mur" && D_SEL && D_SEL.t==="mur" && D_SEL.id===sous.id){ var mmd=murDe(sous.id); if(mmd){ G.murD={id:mmd.id, a:mmd.a.slice(), b:mmd.b.slice(), colle:bouAccroche(mmd), n:axes(mmd).n}; return; } }
+    }
     if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
       if(hp){ G.geoH={id:gsel.id, h:hp}; return; }
@@ -1432,6 +1438,12 @@ cv.addEventListener("pointermove", function(e){
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
     SEL=G.symb; demander(); return;
   }
+  if(G.bouge && (G.ouvD || G.murD)){
+    if(!G.garde){ garderD(); G.garde=true; }
+    if(G.ouvD){ var ogo=DESSIN.ouv.filter(function(x){ return x.id===G.ouvD.id; })[0]; if(ogo){ glisserOuv(ogo, versPlan(p[0], p[1])); D_SEL={t:"ouv", id:ogo.id}; } }
+    else { var mgo=murDe(G.murD.id); if(mgo){ glisserMur(mgo, G.murD, [(p[0]-G.depart[0])/V.k, -(p[1]-G.depart[1])/V.k]); D_SEL={t:"mur", id:mgo.id}; } }
+    demander(); return;
+  }
   if(G.bouge && (G.geo!=null || G.geoH)){
     if(!G.garde){ garderD(); G.garde=true; }
     if(G.geoH){ var og=geoDe(G.geoH.id); if(og){ GEO_EXCLU=og.id; var ci=chercherD(p[0], p[1]); GEO_EXCLU=null; D_SOURIS=ci; tirerPoignee(og, G.geoH.h, ci, versPlan(p[0], p[1])); D_SEL={t:"geo", id:og.id}; } demander(); return; }
@@ -1499,6 +1511,20 @@ function lacher(e){
     RECT_SEL=null; G=null; majDessin(); majBarreSel(); demander(); return;
   }
   if(MODE==="dessin"){
+    if(G.ouvD || G.murD){
+      var gd=G;
+      if(e.type==="pointercancel" && gd.garde){
+        /* geste interrompu : tout revient en place */
+        if(gd.ouvD){ var oc=DESSIN.ouv.filter(function(x){ return x.id===gd.ouvD.id; })[0]; if(oc){ oc.mur=gd.ouvD.mur; oc.t=gd.ouvD.t; } }
+        else { var mc=murDe(gd.murD.id); if(mc){ mc.a=gd.murD.a; mc.b=gd.murD.b; } }
+        HISTO_D.pop();
+      } else if(e.type!=="pointercancel"){
+        D_SEL = gd.ouvD ? {t:"ouv", id:gd.ouvD.id} : {t:"mur", id:gd.murD.id};
+        if(gd.garde) enregistrerD();
+      }
+      majDessin(); majBarreSel();
+      D_SOURIS=null; G=null; demander(); return;
+    }
     if(G.geo!=null || G.geoH){
       if(e.type!=="pointercancel"){
         if(G.garde) enregistrerD();
@@ -2395,8 +2421,8 @@ function pointsDessin(){
   var vue=vueD();
   pointsAutresVues(vue).forEach(function(q){ out.push(q); });
   if(vue!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vue).forEach(function(q){ out.push(q); }); return out; }
-  DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
-  coinsMurs().forEach(function(q){ out.push(q); });
+  DESSIN.murs.forEach(function(m){ if(m.id===MUR_EXCLU) return; out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
+  if(MUR_EXCLU==null) coinsMurs().forEach(function(q){ out.push(q); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   pointsGeo().forEach(function(q){ out.push(q); });
   return out;
@@ -2594,7 +2620,7 @@ function majDessin(){
   else if(OUTIL_D==="piece") det="Tapez largeur × longueur × hauteur, puis touchez le coin intérieur en haut à gauche de la pièce.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
   else if(OUTIL_D==="selection") det = grpTaille(GRP) ? grpTaille(GRP)+" élément"+(grpTaille(GRP)>1?"s":"")+" sélectionné"+(grpTaille(GRP)>1?"s":"")+" : glissez-les pour les déplacer ; Dupliquer et Tourner dans la barre, Supprimer dans le panneau. Ctrl+C / Ctrl+V sur un ordinateur." : "Glissez un cadre autour de la pièce (murs, portes, meubles, formes, textes, symboles), ou touchez un élément.";
-  else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier.";
+  else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier. Glissez une porte ou une fenêtre, ou un mur déjà choisi, pour le déplacer.";
   else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
   else if(GEO_OUTILS[OUTIL_D]){
     var nb=GEO_EC ? GEO_EC.pts.length : 0, T=OUTIL_D;
@@ -2885,6 +2911,41 @@ function projectionG(o, vue){
    la hauteur touchée ; on le glisse de côté et en hauteur, sa profondeur ne
    bouge pas (elle se règle en vue de dessus). */
 var MOB_EXCLU=null;
+/* ---------- déplacer une porte, une fenêtre, un mur ou une cloison (outil Choisir, vue de dessus) ----------
+   Une ouverture glisse le long de son mur, et passe sur un autre mur dès que le doigt
+   s'en approche. Un mur ou une cloison déjà choisi se glisse en entier, au centimètre,
+   avec ses ouvertures ; s'il touche un autre mur par un bout (une cloison entre deux
+   murs), il ne glisse qu'en travers : il reste collé à ses voisins. */
+var MUR_EXCLU=null;
+function bouAccroche(m){
+  var x=axes(m);
+  return [m.a, m.b].some(function(q){
+    return DESSIN.murs.some(function(m2){ return m2.id!==m.id && distSeg(q, m2.a, m2.b).d <= m2.ep/2+10/DESSIN_MM; });
+  });
+}
+function glisserOuv(o, pv){
+  var best=null, bd=Infinity;
+  DESSIN.murs.forEach(function(m){
+    var L=axes(m).L; if(o.l > L-20/DESSIN_MM) return;
+    var r=distSeg(pv, m.a, m.b), d=r.d-m.ep/2;
+    /* le mur d'origine garde l'ouverture tant qu'un autre n'est pas nettement plus près */
+    if(m.id===o.mur) d-=14/V.k;
+    if(d<bd){ bd=d; best={m:m, t:r.t, L:L}; }
+  });
+  if(!best) return;
+  var pas=10/DESSIN_MM, s=Math.round(best.t*best.L/pas)*pas;
+  o.mur=best.m.id; o.t=Math.max(o.l/2/best.L, Math.min(1-o.l/2/best.L, s/best.L));
+}
+function glisserMur(m, base, dv){
+  var pas=10/DESSIN_MM, d=[Math.round(dv[0]/pas)*pas, Math.round(dv[1]/pas)*pas];
+  if(base.colle){ var n=base.n, k=d[0]*n[0]+d[1]*n[1]; k=Math.round(k/pas)*pas; d=[n[0]*k, n[1]*k]; }
+  m.a=[base.a[0]+d[0], base.a[1]+d[1]]; m.b=[base.b[0]+d[0], base.b[1]+d[1]];
+  MUR_EXCLU=m.id; var ai=aimanter([m.a, m.b]); MUR_EXCLU=null;
+  if(ai){
+    var e=ai.d; if(base.colle){ var k2=e[0]*base.n[0]+e[1]*base.n[1]; e=[base.n[0]*k2, base.n[1]*k2]; }
+    m.a=[m.a[0]+e[0], m.a[1]+e[1]]; m.b=[m.b[0]+e[0], m.b[1]+e[1]]; D_SOURIS={pt:ai.pt, acc:true, genre:1};
+  } else D_SOURIS=null;
+}
 function horizV(vue, q){ return vue==="cote" ? q[1] : q[0]; }
 function profV(vue, q){ return vue==="cote" ? -q[0] : q[1]; }          /* plus grand : plus loin de soi */
 function planDeV(vue, h, pr){ return vue==="cote" ? [-pr, h] : [h, pr]; }
