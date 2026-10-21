@@ -256,6 +256,8 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
 .barre-sel button[hidden]{display:none}
+.barre-sel .bs-act.on{background:#EA7A1E;color:#0B0E12}
+.barre-sel .bs-act span{font-size:14px;font-weight:700;color:inherit;overflow:visible}
 .barre-sel .bs-act svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 /* la cote tapée directement dans la barre de l'élément choisi */
 .barre-sel .bs-cote{display:inline-flex;align-items:center;gap:6px;overflow:visible}
@@ -376,6 +378,7 @@ body.clair #scene{background:#FFFFFF}
   <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
   <button type="button" class="bs-act" id="bsCote" hidden title="Donner sa cote exacte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>Coter</button>
   <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
+  <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
@@ -446,6 +449,7 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btEnchainerS" type="button" aria-pressed="false" title="Poser le même symbole plusieurs fois (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
+    <button class="bt" id="btRelier" type="button" disabled aria-pressed="false" title="Relier le symbole choisi : l'interrupteur à ses spots, les prises entre elles">Relier</button>
     <label class="champ-h" id="grpLSym" hidden>Longueur <input id="symbL" type="text" inputmode="decimal" autocomplete="off" list="lTypes" aria-label="Longueur de la réglette en cm"> <span class="u-saisie">cm</span></label>
     <datalist id="lBandeau"><option value="50 cm" label="bandeau 50 cm"><option value="100 cm" label="bandeau 1 m"><option value="200 cm" label="bandeau 2 m"><option value="300 cm" label="bandeau 3 m"><option value="500 cm" label="rouleau 5 m"></datalist>
     <datalist id="lTypes"><option value="60 cm" label="réglette 60"><option value="120 cm" label="réglette 120"><option value="150 cm" label="réglette 150"></datalist>
@@ -1127,6 +1131,7 @@ function peindre(){
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
   var vue=vueD();
+  if(vue==="dessus") peindreLiens(c);
   SYMB.forEach(function(o, i){
     var q = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), p=versEcran(q[0], q[1]), R=o.r*V.k;
     if(R<0.8 || p[0]<-R*4 || p[0]>W+R*4 || p[1]<-R*4 || p[1]>H+R*4) return;
@@ -1367,6 +1372,7 @@ cv.addEventListener("pointerdown", function(e){
     return;
   }
   if(MODE==="symb"){
+    if(RELIER) return;           /* relier : un toucher relie, un glissé déplace le plan */
     var ti=REF ? -1 : symboleSous(p);
     if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y, hauteurDe(SYMB[ti])]; }
     return;
@@ -1562,6 +1568,7 @@ function lacher(e){
       if(e.type!=="pointercancel" && !G.bouge) poserRef((G.visee && VISEE ? VISEE : chercherD(p[0], p[1])).pt);
       VISEE=null; G=null; demander(); return;
     }
+    if(RELIER){ if(e.type!=="pointercancel" && !G.bouge) toucherRelier(symboleSous(p)); G=null; demander(); return; }
     if(e.type!=="pointercancel"){
       if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
       else if(!G.bouge){ if(ARME_S || garderOutil()) poserSymbole(versPlan(p[0], p[1])); else SEL=-1; }
@@ -1637,6 +1644,76 @@ function symboleSous(p){
   return best;
 }
 function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
+/* ---------- les liaisons : l'interrupteur et ses points lumineux, les prises d'un même circuit ----------
+   Une liaison va d'un symbole à un autre (o.lien : les id des symboles reliés), tracée en arc
+   tireté comme sur un plan d'électricien. « Relier » : le symbole choisi est le départ, chaque
+   symbole touché lui est relié (retouché, il est délié). Depuis une commande (interrupteur,
+   va-et-vient, bouton poussoir…), le départ reste la commande : on touche ses spots l'un après
+   l'autre. Depuis une prise (ou un spot), la liaison suit : le symbole touché devient le départ
+   du suivant, d'une prise à l'autre. Toucher le vide, ou le départ lui-même, termine. */
+var RELIER=false;
+function idS(o){ if(!o.id) o.id="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); return o.id; }
+function symbParId(id){ if(!id) return null; for(var i=0;i<SYMB.length;i++) if(SYMB[i].id===id) return SYMB[i]; return null; }
+function relies(a, b){ return !!(a.id && b.id) && ((a.lien||[]).indexOf(b.id)>=0 || (b.lien||[]).indexOf(a.id)>=0); }
+function delier(o, id){ if(!o.lien) return; o.lien=o.lien.filter(function(x){ return x!==id; }); if(!o.lien.length) delete o.lien; }
+function basculerLien(a, b){
+  idS(a); idS(b);
+  if(relies(a, b)){ delier(a, b.id); delier(b, a.id); return false; }
+  a.lien=(a.lien||[]).concat([b.id]); return true;
+}
+function basculerRelier(v){
+  RELIER = v===undefined ? !RELIER : !!v;
+  if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
+  if(RELIER){ ARME_S=false; toast(COMMANDES_S[SYMB[SEL].cle] ? "Touchez les spots à relier à cette commande. Retouché : délié. Le vide : terminé." : "Touchez le symbole suivant du circuit : la liaison suit. Retouché : délié. Le vide : terminé.", 4200); }
+  majSymb(); demander();
+}
+function toucherRelier(ti){
+  if(ti<0 || ti===SEL || SEL<0){ basculerRelier(false); return; }
+  garderSymb();
+  var a=SYMB[SEL], b=SYMB[ti], ajoute=basculerLien(a, b);
+  enregistrerSymb();
+  if(ajoute && !COMMANDES_S[a.cle]) SEL=ti;
+  majSymb(); demander();
+}
+/* au plan : un arc tireté d'un symbole à l'autre, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
+function arcLien(a, b, k){
+  var dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx, dy); if(!L) return null;
+  var ux=dx/L, uy=dy/L, ra=a.r*1.15*k, rb=b.r*1.15*k; if(L<=ra+rb) return null;
+  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], f=(L-ra-rb)*0.2;
+  return {p0:P0, p1:P1, m:[(P0[0]+P1[0])/2+uy*f, (P0[1]+P1[1])/2-ux*f]};
+}
+function couleurLien(b){
+  var def=SymbolesElec.trouver(b.cle), col=def ? def.couleur : "#FF0000";
+  if(!CLAIR && !IMPRIME && col==="#0000FF") col="#6B8BFF";
+  return col;
+}
+function peindreLiens(c){
+  SYMB.forEach(function(a){
+    (a.lien||[]).forEach(function(id){
+      var b=symbParId(id); if(!b) return;
+      var arc=arcLien(a, b, 1); if(!arc) return;
+      var P0=versEcran(arc.p0[0], arc.p0[1]), M=versEcran(arc.m[0], arc.m[1]), P1=versEcran(arc.p1[0], arc.p1[1]), R=Math.max(a.r, b.r)*V.k;
+      c.save(); c.strokeStyle=couleurLien(b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09));
+      c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
+      c.beginPath(); c.moveTo(P0[0], P0[1]); c.quadraticCurveTo(M[0], M[1], P1[0], P1[1]); c.stroke(); c.restore();
+    });
+  });
+}
+/* au DXF : chaque liaison en polyligne, calque ELEC-LIAISONS, en tirets */
+function dxfLiens(){
+  var L=[];
+  function g(){ for(var i=0;i<arguments.length;i+=2) L.push(String(arguments[i]), typeof arguments[i+1]==="number" ? String(Math.round(arguments[i+1]*1000)/1000) : String(arguments[i+1])); }
+  SYMB.forEach(function(a){
+    (a.lien||[]).forEach(function(id){
+      var b=symbParId(id), arc=b ? arcLien(a, b, 1) : null; if(!arc) return;
+      var def=SymbolesElec.trouver(b.cle), aci = def && def.couleur==="#0000FF" ? 5 : def && def.couleur==="#FF8000" ? 30 : 1;
+      g(0,"POLYLINE", 8,"ELEC-LIAISONS", 62,aci, 66,1, 10,0,20,0,30,0, 70,0);
+      for(var k=0;k<=16;k++){ var t=k/16, u=1-t, x=u*u*arc.p0[0]+2*u*t*arc.m[0]+t*t*arc.p1[0], y=u*u*arc.p0[1]+2*u*t*arc.m[1]+t*t*arc.p1[1]; g(0,"VERTEX", 8,"ELEC-LIAISONS", 10,x,20,y,30,0); }
+      g(0,"SEQEND", 8,"ELEC-LIAISONS");
+    });
+  });
+  return L;
+}
 function enregistrerSymb(){ if(SYMB_CLE){ try{ localStorage.setItem(SYMB_CLE, JSON.stringify(SYMB)); }catch(e){} } }
 /* une carte {clé:1} des symboles de la bibliothèque qui passent le test */
 function carteS(test){ var o={}; if(window.SymbolesElec) SymbolesElec.liste.forEach(function(s){ if(test(s)) o[s.cle]=1; }); return o; }
@@ -1684,16 +1761,21 @@ function poserSymbole(pt){
   enregistrerSymb();
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
-function supprimerSymb(){ if(SEL<0) return; garderSymb(); SYMB.splice(SEL,1); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function supprimerSymb(){ if(SEL<0) return; garderSymb(); var parti=SYMB.splice(SEL,1)[0]; if(parti && parti.id) SYMB.forEach(function(o){ delier(o, parti.id); }); SEL=-1; RELIER=false; enregistrerSymb(); majSymb(); demander(); }
 function defaireSymb(){ if(!HISTO_S.length) return; SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
 function compter(){
   var n={}; SYMB.forEach(function(o){ n[o.cle]=(n[o.cle]||0)+1; }); return n;
 }
 function majSymb(){
   if(!window.SymbolesElec) return;
+  if(RELIER && (SEL<0 || vueD()!=="dessus")) RELIER=false;
   var o=SEL>=0 ? SYMB[SEL] : null, def=o ? SymbolesElec.trouver(o.cle) : null, n=compter();
   $("symbNb").textContent=String(SYMB.length);
-  $("symbDetail").textContent = def
+  $("btRelier").disabled=!o || vueD()!=="dessus"; $("btRelier").classList.toggle("on", RELIER); $("btRelier").setAttribute("aria-pressed", RELIER ? "true" : "false");
+  $("btRelier").textContent = RELIER ? "Terminer les liaisons" : "Relier";
+  $("symbDetail").textContent = RELIER && def
+    ? "Liaisons depuis : "+def.nom+". "+(COMMANDES_S[o.cle] ? "Touchez ses spots l'un après l'autre." : "Touchez le symbole suivant : la liaison suit.")+" Retouché : délié. Le vide : terminé."
+    : def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
     : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
                    : "Choisissez un symbole, puis touchez le plan pour le poser.");
@@ -2051,6 +2133,10 @@ function majBarreSel(){
   var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
   if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
+  var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
+  $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
+  $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
+  if(rel && RELIER) nom="Liaisons : "+nom;
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
@@ -2142,7 +2228,9 @@ function grpColler(txt, d){
   c.mob.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; n.l=o.l*k; n.p=o.p*k; DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(n); g.mob.push(n); });
   c.geo.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); n.pts=o.pts.map(sc); if(n.r) n.r=o.r*k; DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(n); g.geo.push(n); });
   c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
-  c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; SYMB.push(n); g.symb.push(n); });
+  var corrS={};
+  c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; if(o.id){ delete n.id; corrS[o.id]=idS(n); } SYMB.push(n); g.symb.push(n); });
+  g.symb.forEach(function(n){ if(!n.lien) return; n.lien=n.lien.map(function(id){ return corrS[id]; }).filter(Boolean); if(!n.lien.length) delete n.lien; });
   return g;
 }
 /* où poser la copie : une pièce juste à côté (sa largeur et 50 cm de plus), un élément seul un peu en biais */
@@ -4278,7 +4366,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:PV_CALQUES.concat([["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
+    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
@@ -6196,6 +6284,8 @@ $("etalon").addEventListener("submit", function(e){
 });
 $("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
 $("btTourner").addEventListener("click", tournerSymb);
+$("btRelier").addEventListener("click", function(){ basculerRelier(); });
+$("bsRelier").addEventListener("click", function(){ basculerRelier(); });
 $("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majSymb(); });
 $("btSuppSymb").addEventListener("click", supprimerSymb);
 $("btDefaireS").addEventListener("click", defaireSymb);
