@@ -1350,6 +1350,10 @@ cv.addEventListener("pointerdown", function(e){
     if(rg && p[0]>=rg.x0 && p[0]<=rg.x1 && p[1]>=rg.y0 && p[1]<=rg.y1){ G.grp=true; G.grpD=[0,0]; return; }
     G.rect=versPlan(p[0], p[1]); return;
   }
+  if(MODE==="dessin" && !REF && FAM_D==="pv"){
+    var hpv=pvPoigneeSous(p);
+    if(hpv){ var chv=pvChemins()[hpv.ic]; G.pvch={ch:chv, E0:chv.E.map(function(q){ return q.slice(); }), seg:hpv.seg, coin:hpv.coin, sel:{t:D_SEL.t, id:D_SEL.id}}; return; }
+  }
   if(MODE==="dessin"){
     if(OUTIL_D==="choisir" && !REF && vueD()==="dessus"){
       /* une porte ou une fenêtre se glisse directement ; un mur, une fois choisi */
@@ -1453,6 +1457,11 @@ cv.addEventListener("pointermove", function(e){
     alignerSymbole(os, ac);
     SEL=G.symb; demander(); return;
   }
+  if(G.bouge && G.pvch){
+    if(!G.garde){ garderD(); G.garde=true; }
+    var pasC=10/DESSIN_MM, dC=[Math.round((p[0]-G.depart[0])/V.k/pasC)*pasC, Math.round(-(p[1]-G.depart[1])/V.k/pasC)*pasC];
+    pvGlisserChemin(G.pvch, dC); D_SEL=G.pvch.sel; demander(); return;
+  }
   if(G.bouge && (G.ouvD || G.murD)){
     if(!G.garde){ garderD(); G.garde=true; }
     if(G.ouvD){ var ogo=DESSIN.ouv.filter(function(x){ return x.id===G.ouvD.id; })[0]; if(ogo){ glisserOuv(ogo, versPlan(p[0], p[1])); D_SEL={t:"ouv", id:ogo.id}; } }
@@ -1524,6 +1533,12 @@ function lacher(e){
       }
     }
     RECT_SEL=null; G=null; majDessin(); majBarreSel(); demander(); return;
+  }
+  if(MODE==="dessin" && G.pvch){
+    if(e.type==="pointercancel" && G.garde){ var hv=JSON.parse(HISTO_D.pop()); DESSIN=normD(hv && hv.__groupe ? hv.d : hv); }
+    else if(G.garde) enregistrerD();
+    D_SEL=G.pvch.sel; majDessin(); majBarreSel();
+    G=null; demander(); return;
   }
   if(MODE==="dessin"){
     if(G.ouvD || G.murD){
@@ -2652,6 +2667,7 @@ function peindreDessin(c){
   peindreToits(c, E, orange);
   /* l'étude photovoltaïque : panneaux, strings, câbles, onduleurs */
   peindrePv(c, E, orange, coulTrait);
+  if(!IMPRIME) peindrePoigneesPv(c, E);
   } else peindreElevation(c, E, fin, coulTrait, orange);
   /* le dessin technique : traits, formes, cotes */
   peindreGeo(c, E, coulTrait, orange);
@@ -7352,6 +7368,71 @@ function pvToucherChemin(cible, q){
   if(o){ garderD(); s.ch=ec.pts.slice(); if(s.ond!==o.id){ s.ond=o.id; s.m=pvMpptLibre(o, s); } PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin(); toast(pvResumeStr(s), 6000); return; }
   var prec = ec.pts.length ? ec.pts[ec.pts.length-1] : pvGeo(s).B[0];
   ec.pts.push(pvContraindre(prec, cible.pt)); majDessin();
+}
+/* ---------- modifier un cheminement à la volée, comme une polyligne ----------
+   La string choisie (ou l'onduleur choisi, pour ses câbles AC et RJ45) montre ses poignées :
+   un carré à chaque coin, un trait au milieu de chaque tronçon. On glisse un tronçon : il se
+   décale en travers, ses voisins s'allongent ; on glisse un coin : les deux tronçons qui s'y
+   rejoignent le suivent. Le départ (le premier panneau, la sortie de l'onduleur) ne bouge pas :
+   tirer le premier tronçon y ajoute un décroché. Tout reste à l'équerre, au centimètre. */
+function pvChemins(){
+  var out=[], sel=D_SEL; if(!sel || PV_EC || vueD()!=="dessus") return out;
+  if(sel.t==="pvs" || sel.t==="pvp"){
+    var s = sel.t==="pvs" ? pvStr(sel.id) : pvStrDe(sel.id); if(!s || !s.ond) return out;
+    var g=pvGeo(s); if(g.tronc.length<3) return out;
+    out.push({E:g.tronc.slice(0, g.tronc.length-2), fixe:1, ecrire:function(En){ s.ch=En.slice(1); }});
+  }
+  if(sel.t==="pvo"){
+    var o=pvOnd(sel.id); if(!o) return out;
+    ["ac","rj"].forEach(function(t){ var pts=pvLiaison(o, t); if(pts && pts.length>2) out.push({E:pts, fixe:2, ecrire:function(En){ o[t]={pts:En.slice(2)}; }}); });
+  }
+  return out;
+}
+function pvHoriz(a, b){ return Math.abs(a[1]-b[1]) <= Math.abs(a[0]-b[0]); }
+function pvPoigneeSous(p){
+  var best=null, bd=16;
+  pvChemins().forEach(function(ch, ic){
+    ch.E.forEach(function(q, j){ if(j<ch.fixe) return; var Q=versEcran(q[0], q[1]), d=Math.hypot(Q[0]-p[0], Q[1]-p[1]); if(d<bd){ bd=d; best={ic:ic, coin:j}; } });
+  });
+  if(best) return best;
+  bd=12;
+  pvChemins().forEach(function(ch, ic){
+    for(var j=Math.max(0, ch.fixe-1); j<ch.E.length-1; j++){
+      var A=versEcran(ch.E[j][0], ch.E[j][1]), B=versEcran(ch.E[j+1][0], ch.E[j+1][1]);
+      if(Math.hypot(B[0]-A[0], B[1]-A[1])<8) continue;
+      var r=distSeg(p, A, B); if(r.d<bd){ bd=r.d; best={ic:ic, seg:j}; }
+    }
+  });
+  return best;
+}
+function pvGlisserChemin(h, d){
+  var ch=h.ch, E=h.E0.map(function(q){ return q.slice(); });
+  if(h.seg!=null){
+    var j=h.seg, hz=pvHoriz(E[j], E[j+1]), dd = hz ? [0, d[1]] : [d[0], 0];
+    if(j<ch.fixe){ E.splice(j+1, 1, [E[j][0]+dd[0], E[j][1]+dd[1]], [E[j+1][0]+dd[0], E[j+1][1]+dd[1]]); }
+    else { E[j]=[E[j][0]+dd[0], E[j][1]+dd[1]]; E[j+1]=[E[j+1][0]+dd[0], E[j+1][1]+dd[1]]; }
+  } else {
+    var k=h.coin, a=h.E0[k];
+    E[k]=[a[0]+d[0], a[1]+d[1]];
+    [k-1, k+1].forEach(function(v){
+      if(v<ch.fixe || v>=E.length) return;
+      if(pvHoriz(h.E0[v], a)) E[v]=[E[v][0], E[v][1]+d[1]]; else E[v]=[E[v][0]+d[0], E[v][1]];
+    });
+  }
+  ch.ecrire(pvOrtho(E));
+}
+function peindrePoigneesPv(c, E){
+  var l=pvChemins(); if(!l.length) return;
+  c.save(); c.lineWidth=2; c.strokeStyle="#FB923C"; c.fillStyle=CLAIR ? "#FFFFFF" : "#0B0E12";
+  l.forEach(function(ch){
+    for(var j=Math.max(0, ch.fixe-1); j<ch.E.length-1; j++){
+      var A=E(ch.E[j]), B=E(ch.E[j+1]); if(Math.hypot(B[0]-A[0], B[1]-A[1])<30) continue;
+      var M=[(A[0]+B[0])/2, (A[1]+B[1])/2], hz=Math.abs(B[1]-A[1])<=Math.abs(B[0]-A[0]);
+      c.beginPath(); if(hz) c.rect(M[0]-9, M[1]-4, 18, 8); else c.rect(M[0]-4, M[1]-9, 8, 18); c.fill(); c.stroke();
+    }
+    ch.E.forEach(function(q, j){ if(j<ch.fixe) return; var Q=E(q); c.beginPath(); c.rect(Q[0]-6, Q[1]-6, 12, 12); c.fill(); c.stroke(); });
+  });
+  c.restore();
 }
 function pvDebutLiaison(t, o){
   PV_EC={t:t, id:o.id, pts:[]}; D_SEL=null; OUTIL_D = t==="ac" ? "pvac" : "pvrj"; majDessin();
