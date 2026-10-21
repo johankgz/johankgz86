@@ -256,6 +256,14 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
 .barre-sel button[hidden]{display:none}
+.barre-sel .bs-act svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* la cote tapée directement dans la barre de l'élément choisi */
+.barre-sel .bs-cote{display:inline-flex;align-items:center;gap:6px;overflow:visible}
+.barre-sel .bs-cote[hidden]{display:none}
+.barre-sel .bs-cote span{font-size:13px;color:var(--ink-3,#8B949E)}
+.barre-sel .bs-cote input{width:84px;min-height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#0B0E12;color:var(--ink);font:inherit;font-size:16px;font-weight:700;padding:0 10px;text-align:right}
+.barre-sel .bs-cote input[hidden]{display:none}
+.barre-sel .bs-ok{padding:0 16px;background:#EA7A1E;color:#0B0E12}
 .barre-sel .bs-dist svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ref-panel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:8;width:min(560px,calc(100vw - 16px));padding:10px 12px;border-radius:16px;
   background:rgba(20,25,32,.97);border:1px solid rgba(251,146,60,.55);box-shadow:0 14px 34px -12px rgba(0,0,0,.85);color:var(--ink);display:flex;flex-direction:column;gap:8px}
@@ -366,6 +374,8 @@ body.clair #scene{background:#FFFFFF}
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
+  <button type="button" class="bs-act" id="bsCote" hidden title="Donner sa cote exacte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>Coter</button>
+  <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
   <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
@@ -1960,6 +1970,47 @@ $("rpDist").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.prev
 $("rpAxe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.axe=b.dataset.a; var M=mesureRef(); if(M) $("rpDist").value=enUnite(M.dist*DESSIN_MM); majRef(); demander(); });
 $("rpDir").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.dir=b.dataset.d; majRef(); demander(); });
 $("rpMes").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.mesure=b.dataset.m; var M=mesureRef(); if(M) $("rpDist").value=enUnite(M.dist*DESSIN_MM); majRef(); demander(); });
+/* Coter : la longueur exacte d'un mur ou d'une cloison, les cotes d'une forme, tapées dans la barre
+   (les mêmes que dans le panneau du bas : un mur s'allonge depuis son départ) */
+var BS_COTE=null;
+function coteSel(){
+  if(MODE!=="dessin" || !D_SEL || grpTaille(GRP)) return null;
+  var o=objetSel(); if(!o) return null;
+  if(D_SEL.t==="mur") return {o:o, t:"mur"};
+  if(D_SEL.t==="geo" && vueDe(o)===vueD() && /^(rect|rond|ellipse|trait|fleche)$/.test(o.t)) return {o:o, t:(o.t==="rect" || o.t==="ellipse") ? "deux" : o.t==="rond" ? "rond" : "un"};
+  return null;
+}
+function ouvrirCote(){
+  var c=coteSel(); if(!c) return;
+  BS_COTE=c.o;
+  var L, H=0;
+  if(c.t==="mur") L=axes(c.o).L;
+  else { var g=c.o; L = g.t==="rect" ? lng(sub(g.pts[1],g.pts[0])) : g.t==="rond" ? 2*g.r : g.t==="ellipse" ? 2*g.rx : lng(sub(g.pts[1],g.pts[0]));
+    H = g.t==="rect" ? lng(sub(g.pts[3],g.pts[0])) : g.t==="ellipse" ? 2*g.ry : 0; }
+  $("bsCoteLabL").textContent = c.t==="deux" ? "L" : c.t==="rond" ? "Ø" : "Longueur";
+  $("bsCoteLabH").hidden=$("bsCoteH").hidden = c.t!=="deux";
+  $("bsCoteL").value=enUnite(L*DESSIN_MM); $("bsCoteH").value = c.t==="deux" ? enUnite(H*DESSIN_MM) : "";
+  majBarreSel();
+  try{ $("bsCoteL").focus(); $("bsCoteL").select(); }catch(e){}
+}
+function validerCote(){
+  var c=coteSel(); if(!c || c.o!==BS_COTE){ BS_COTE=null; majBarreSel(); return; }
+  var L=lireCm($("bsCoteL").value), H=lireCm($("bsCoteH").value);
+  if(!(L>0)){ $("bsCoteL").focus(); return; }
+  BS_COTE=null;
+  if(c.t==="mur"){ $("dsLong").value=$("bsCoteL").value; $("dsLong").dispatchEvent(new Event("change")); }
+  else { $("dL").value=$("bsCoteL").value; $("dH").value = c.t==="deux" && H>0 ? $("bsCoteH").value : $("dH").value; $("dL").dispatchEvent(new Event("change")); }
+  majBarreSel(); demander();
+}
+$("bsCote").addEventListener("click", ouvrirCote);
+$("bsCoteOk").addEventListener("click", validerCote);
+["bsCoteL","bsCoteH"].forEach(function(id){
+  $(id).addEventListener("keydown", function(e){
+    if(e.key==="Enter"){ e.preventDefault(); if(id==="bsCoteL" && !$("bsCoteH").hidden) { $("bsCoteH").focus(); $("bsCoteH").select(); } else validerCote(); }
+    if(e.key==="Escape"){ e.preventDefault(); BS_COTE=null; majBarreSel(); }
+    e.stopPropagation();
+  });
+});
 /* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
 function majBarreSel(){
   var b=$("barreSel"); if(!b) return;
@@ -1978,6 +2029,13 @@ function majBarreSel(){
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
   $("bsDist").hidden = gA || !!nG || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  /* Coter : le bouton, ou la saisie de la cote à sa place (les autres boutons s'effacent le temps de taper) */
+  var cs=coteSel();
+  if(BS_COTE && (!cs || cs.o!==BS_COTE)) BS_COTE=null;
+  var enCote=!!BS_COTE;
+  $("bsCote").hidden = !cs || enCote;
+  $("bsCoteEd").hidden = !enCote;
+  if(enCote){ $("bsDist").hidden=$("bsDup").hidden=$("bsTourne").hidden=true; }
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
