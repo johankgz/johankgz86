@@ -1125,6 +1125,45 @@ var SOUS_DOSSIERS={
   photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document", exporter:true,
     ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
 };
+/* ---------- la catégorie d'un document technique ----------
+   Montrée à côté de l'étiquette ; le bureau, ou celui qui l'a déposé, la
+   change d'un choix : le document passe dans le bon sous-dossier. */
+var CATEGORIES_TECHNIQUE=["Plan","Fiche technique","Schéma","Notice","Photo","Autre"];
+function categorieDocument(f, bureau, apres){
+  var actuelle=String(f.visite||"").trim();
+  var peut = bureau || (MOI && f.auteur===MOI.nom);
+  if(!peut){
+    if(!actuelle) return null;
+    var s=document.createElement("span"); s.className="infos"; s.textContent=actuelle; return s;
+  }
+  var sel=document.createElement("select"); sel.className="cat-doc";
+  sel.title="Changer la catégorie de ce document";
+  sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
+  sel.style.cssText="font:inherit;font-size:12px;font-weight:600;padding:2px 6px;height:auto;min-height:0;width:auto;max-width:140px;"
+    +"border:1px solid var(--rule,#d9d4ca);border-radius:999px;background:var(--card,#fff);color:inherit;cursor:pointer;margin:0 6px 0 0";
+  var liste=CATEGORIES_TECHNIQUE.slice();
+  if(actuelle && liste.indexOf(actuelle)<0) liste.unshift(actuelle);
+  if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
+  liste.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+  sel.value=actuelle;
+  ["click","pointerdown","touchstart"].forEach(function(ev){ sel.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+  sel.addEventListener("change", function(e){
+    e.stopPropagation();
+    var c=sel.value; if(!c || c===actuelle) return;
+    sel.disabled=true;
+    fetch(API+"?action=categorie-document", {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify({cle:f.cle, categorie:c})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ alert(res.d.erreur || "Catégorie non changée."); sel.disabled=false; sel.value=actuelle; return; }
+        f.visite=c;
+        if(apres) apres();
+      })
+      .catch(function(){ alert("Pas de réseau."); sel.disabled=false; sel.value=actuelle; });
+  });
+  return sel;
+}
+
 /* le sous-dossier où range un document, s'il y en a un */
 function sousDossierDe(f){
   if(f.type==="suivi") return "suivi";
@@ -1429,6 +1468,11 @@ function carteDossier(c, i, opts){
                     : f.type==="sav" ? "SAV" : "Relevé";
     var meta=document.createElement("div"); meta.className="meta";
     meta.appendChild(tag);
+    /* un document technique : sa catégorie (Plan, Notice…), à changer s'il a été mal rangé */
+    if(f.type==="technique"){
+      var cat=categorieDocument(f, bureau, charger);
+      if(cat) meta.appendChild(cat);
+    }
     var ts=document.createElement("span"); ts.className="infos";
     ts.textContent=[frDate(f.date), f.etape, f.auteur,
       (f.versions>1 ? "mis à jour "+f.versions+" fois" : ""), octets(f.taille)].filter(Boolean).join(" · ");

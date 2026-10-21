@@ -4439,6 +4439,25 @@ async function traiter(req) {
     return json({ ok: true });
   }
 
+  /* ---------- changer la catégorie d'un document technique ----------
+     Déposé comme plan, c'était une notice : il change de nature, et donc de
+     sous-dossier (« Plans », « Documents techniques », « Photos du chantier »).
+     Le bureau, ou celui qui l'a déposé. */
+  if (action === "categorie-document") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const CATS = ["Plan", "Fiche technique", "Schéma", "Notice", "Photo", "Autre"];
+    const cat = String(d.categorie || "");
+    if (CATS.indexOf(cat) < 0) return json({ erreur: "Catégorie inconnue." }, 400);
+    const idx = await lireIndex();
+    const f = trouver(idx, String(d.cle || ""));
+    if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
+    if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, change sa catégorie." }, 403);
+    f.visite = cat;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, categorie: cat });
+  }
+
   if (action === "supprimer") {
     if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
     const cle = url.searchParams.get("cle") || "";
