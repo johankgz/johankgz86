@@ -1327,14 +1327,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <div class="chips" data-multi="acces">
       <label class="chip"><input type="checkbox" value="Plain-pied">Plain-pied</label>
       <label class="chip"><input type="checkbox" value="Étage">Étage</label>
-      <label class="chip"><input type="checkbox" value="Ascenseur">Ascenseur</label>
+      <label class="chip"><input type="checkbox" value="Toiture">Toiture</label>
+      <label class="chip"><input type="checkbox" value="Combles">Combles</label>
+      <label class="chip"><input type="checkbox" value="Sous-sol / vide sanitaire">Sous-sol / vide sanitaire</label>
       <label class="chip"><input type="checkbox" value="Escalier étroit">Escalier étroit</label>
-      <label class="chip"><input type="checkbox" value="Grutage nécessaire">Grutage</label>
-      <label class="chip"><input type="checkbox" value="Nacelle / échafaudage">Nacelle / échafaudage</label>
-    </div>
-    <div class="grid2">
-      <label class="f"><span>Niveau d'intervention</span><input type="text" id="l_etage" placeholder="Ex. RDC + R+1"></label>
-      <label class="f"><span>Hauteur de toiture (m)</span><input type="number" id="l_toiture" inputmode="decimal" min="0" step="0.1"></label>
+      <label class="chip"><input type="checkbox" value="Ascenseur">Ascenseur</label>
     </div>
     <p class="legend">Stationnement</p>
     <div class="chips" data-single="stationnement">
@@ -1342,6 +1339,21 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <label class="chip"><input type="radio" name="stationnement" value="À proximité">À proximité</label>
       <label class="chip"><input type="radio" name="stationnement" value="Difficile">Difficile</label>
       <label class="chip"><input type="radio" name="stationnement" value="Autorisation de voirie à demander">Voirie à demander</label>
+    </div>
+  </div>
+
+  <div class="block">
+    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20h18M6 20V9l6-5 6 5v11M12 4v16"/></svg>Moyens et hauteurs</h2>
+    <p class="legend">Moyens</p>
+    <div class="chips" data-multi="moyens">
+      <label class="chip"><input type="checkbox" value="Nacelle">Nacelle</label>
+      <label class="chip"><input type="checkbox" value="Échafaudage">Échafaudage</label>
+      <label class="chip"><input type="checkbox" value="Grutage">Grutage</label>
+      <label class="chip"><input type="checkbox" value="Manitou">Manitou</label>
+    </div>
+    <div class="grid2">
+      <label class="f"><span>Hauteur d'intervention</span><input type="text" id="l_etage" placeholder="Ex. 6 m, R+1"></label>
+      <label class="f"><span>Hauteur de toiture (m)</span><input type="number" id="l_toiture" inputmode="decimal" min="0" step="0.1"></label>
     </div>
   </div>
 
@@ -1692,7 +1704,7 @@ function blank(){
         aerienne:null, consoMois:["","","","","","","","","","","",""],
         irve:{actif:false,type:"",puissance:"",raccordement:"",delestage:"",badge:"",nbBadges:"",pied:"",longueur:"",note:"",photos:[]},
         pvAlim:"",coffret:"",reseau:"",lgTgbt:"",nbBat:"",lgBat:"",backup:"",empBat:""},
-    logistique:{occupe:"",occupNote:"",accessibilite:[],code:"",acces:[],etage:"",toiture:"",stationnement:"",contraintes:""},
+    logistique:{occupe:"",occupNote:"",accessibilite:[],code:"",acces:[],moyens:[],etage:"",toiture:"",stationnement:"",contraintes:""},
     clim:climVide(),
     charge:chargeVide(),
     conclusion:{synthese:"",points:"",encres:[]}
@@ -1929,7 +1941,19 @@ function assign(key,val){
   }
   else S.logistique[key]=val;
 }
+/* les moyens (nacelle, grutage…) étaient cochés avec l'accès : ils passent dans « Moyens » */
+function migrerMoyens(){
+  var L=S.logistique||(S.logistique={}), acc=L.acces||[], moy=Array.isArray(L.moyens) ? L.moyens : (L.moyens=[]);
+  var VERS={"Grutage nécessaire":["Grutage"], "Nacelle / échafaudage":["Nacelle","Échafaudage"]};
+  if(!acc.some(function(v){ return VERS[v]; })) return;
+  L.acces=acc.filter(function(v){
+    if(!VERS[v]) return true;
+    VERS[v].forEach(function(m){ if(moy.indexOf(m)<0) moy.push(m); });
+    return false;
+  });
+}
 function readAssign(key){
+  if(key==="acces" || key==="moyens") migrerMoyens();
   if(IRVE_MAP[key]) return S.pv.irve[IRVE_MAP[key]];
   if(CLIM_MAP[key]) return CL()[CLIM_MAP[key]];
   if(key==="statut") return S.meta.statut;
@@ -6333,7 +6357,7 @@ function buildPdf(){
   var demande = rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length || encresDemPdf.length;
   var prep = rempli.apply(null, GRP_TRAVAUX.map(function(p){ return p[1]; })) || (S.pieces||[]).length || rempli(S.rdv.objet, S.rdv.description)
     || (PV && rempli(V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat, V.conso, V.foyer, V.chauffage, V.toitureType, V.exposition, V.masques))
-    || IRVE || CLIM || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
+    || IRVE || CLIM || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.moyens, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
   if(prep){
     chapitre("Informations complémentaires", "Préparer l'intervention", null, "Les éléments pratiques relevés lors de la visite.");
     grille("Travaux", GRP_TRAVAUX);
@@ -6395,8 +6419,10 @@ function buildPdf(){
       photosBloc(climP, function(it){ return it.genre==="ext" ? "Emplacement du groupe extérieur"+(it.support ? ", sur support" : "") : "Emplacement de l'unité murale"; });
     }
     cote("Accès et logistique", [["Occupation", G0.occupe], ["Précisions", G0.occupNote], ["Accessibilité", (G0.accessibilite||[]).join(", ")],
-        ["Code et consignes", G0.code], ["Accès", (G0.acces||[]).join(", ")], ["Niveau d'intervention", G0.etage],
-        ["Hauteur de toiture", G0.toiture ? G0.toiture+" m" : ""], ["Stationnement", G0.stationnement]],
+        ["Code et consignes", G0.code], ["Accès", (G0.acces||[]).filter(function(v){ return v!=="Grutage nécessaire" && v!=="Nacelle / échafaudage"; }).join(", ")],
+        ["Stationnement", G0.stationnement],
+        ["Moyens", (G0.moyens||[]).concat((G0.acces||[]).filter(function(v){ return v==="Grutage nécessaire" || v==="Nacelle / échafaudage"; })).join(", ")],
+        ["Hauteur d'intervention", G0.etage], ["Hauteur de toiture", G0.toiture ? G0.toiture+" m" : ""]],
       "Consommation et foyer", PV ? [["Consommation annuelle relevée", V.conso ? nb(Number(String(V.conso).replace(",", ".")))+" kWh" : ""],
         ["Personnes au foyer", V.foyer], ["Chauffage", (V.chauffage||[]).join(", ")],
         ["Toiture", [V.toitureType, (V.exposition||[]).length ? "exposition "+V.exposition.join(", ").toLowerCase() : ""].filter(Boolean).join(" · ")],
