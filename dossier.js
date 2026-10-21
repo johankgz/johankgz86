@@ -94,12 +94,55 @@ function nomLisible(f){
     +".actions button.accepte{background:rgba(21,128,61,.12);color:#15803D;border:1px solid rgba(21,128,61,.28);font-weight:700}";
   (document.head||document.documentElement).appendChild(st);
 })();
+/* Archiver : télécharger le ZIP du dossier puis le retirer du site, ou le
+   retirer sans rien télécharger quand on n'en a pas besoin (dossier en
+   double, essai, déjà sauvegardé). */
 function archiver(c, bouton){
-  if(!window.confirm("Exporter tous les documents de " + (c.client||c.ref) + " ("
-    + c.fichiers.length + " document" + (c.fichiers.length>1?"s":"")
-    + "), puis le supprimer du site ?\n\nLe fichier ZIP sera téléchargé sur cet appareil. "
-    + "La suppression est définitive.")) return;
-  bouton.textContent="Export en cours…"; bouton.disabled=true;
+  choisirSuppression(c).then(function(mode){
+    if(!mode) return;
+    var avecZip = mode==="zip";
+    bouton.disabled=true;
+    bouton.textContent = avecZip ? "Export en cours…" : "Suppression…";
+    (avecZip ? exporterArchive(c, bouton) : Promise.resolve()).then(function(){
+      return supprimerApresArchive(c, bouton, avecZip);
+    }).catch(function(){
+      window.alert(avecZip ? "Export interrompu. Rien n'a été supprimé." : "Pas de réseau. Rien n'a été supprimé.");
+      bouton.textContent="Archiver"; bouton.disabled=false;
+    });
+  });
+}
+function choisirSuppression(c){
+  return new Promise(function(fini){
+    var ov=document.createElement("div");
+    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
+      +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+    var f=document.createElement("div");
+    f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
+      +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+    var n=c.fichiers.length;
+    var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
+    h.textContent="Archiver "+(c.client||c.ref)+" ?";
+    var p=document.createElement("p"); p.className="hint"; p.style.margin="0 0 14px";
+    p.textContent=n+" document"+(n>1?"s":"")+". Le dossier est retiré du site : c'est définitif.";
+    f.appendChild(h); f.appendChild(p);
+    function choix(txt, sous, cls, val){
+      var b=document.createElement("button"); b.type="button"; b.className="act "+cls;
+      b.style.cssText="display:block;width:100%;text-align:left;margin-bottom:10px;padding:12px 14px;min-height:56px";
+      var t=document.createElement("b"); t.style.display="block"; t.textContent=txt;
+      var s2=document.createElement("span"); s2.style.cssText="display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px"; s2.textContent=sous;
+      b.appendChild(t); b.appendChild(s2);
+      b.addEventListener("click", function(){ document.body.removeChild(ov); fini(val); });
+      f.appendChild(b);
+    }
+    choix("Télécharger le ZIP, puis supprimer", "Tous les documents, les fiches et la discussion, dans un ZIP sur cet appareil.", "blue", "zip");
+    choix("Supprimer sans télécharger", "Rien n'est gardé sur l'appareil.", "ghost", "sans");
+    choix("Annuler", "Rien n'est supprimé.", "ghost", null);
+    ov.appendChild(f);
+    ov.addEventListener("click", function(e){ if(e.target===ov){ document.body.removeChild(ov); fini(null); } });
+    document.body.appendChild(ov);
+  });
+}
+function exporterArchive(c, bouton){
   var fichiers=[], manifeste=["Travaux : "+(c.client||"")+" ("+c.ref+")",
     c.adresse||"", "Archivé le "+new Date().toLocaleString("fr-FR"), "", "Documents :"];
   var suite=Promise.resolve();
@@ -124,7 +167,7 @@ function archiver(c, bouton){
       });
     }
   });
-  suite.then(function(){
+  return suite.then(function(){
     fichiers.push({nom:c.ref+"/00-contenu.txt", octets:new TextEncoder().encode(manifeste.join("\n"))});
     return fetch(API+"?action=messages&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
       .then(function(r){ return r.ok ? r.json() : null; })
@@ -153,37 +196,36 @@ function archiver(c, bouton){
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
     bouton.textContent="Suppression…";
     return new Promise(function(res){ setTimeout(res, 1200); });
-  }).then(function(){
-    /* le client a un lien ou un QR de tableau : on lui garde son espace, ou on supprime tout */
-    return fetch(API+"?action=liens&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
-      .then(function(d){
-        var liens=(d && d.liens) || [];
-        if(!liens.length){
-          return window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\nSupprimer maintenant ce dossier du site ?") ? "tout" : null;
-        }
-        return choixArchivage(c, liens);
-      });
-  }).then(function(choix){
-    if(!choix){
-      bouton.textContent="Archiver"; bouton.disabled=false;
-      return null;
-    }
-    return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
-      {headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-      .then(function(res){
-        if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
-        if(CFG.apresArchive) CFG.apresArchive(c); else charger();
-      });
-  }).catch(function(){
-    window.alert("Export interrompu. Rien n'a été supprimé.");
-    bouton.textContent="Archiver"; bouton.disabled=false;
   });
+}
+function supprimerApresArchive(c, bouton, avecZip){
+  /* le client a un lien ou un QR de tableau : on lui garde son espace, ou on supprime tout */
+  return fetch(API+"?action=liens&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    .then(function(d){
+      var liens=(d && d.liens) || [];
+      if(!liens.length){
+        if(!avecZip) return "tout";             /* déjà confirmé : « Supprimer sans télécharger » */
+        return window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\nSupprimer maintenant ce dossier du site ?") ? "tout" : null;
+      }
+      return choixArchivage(c, liens, avecZip);
+    }).then(function(choix){
+      if(!choix){
+        bouton.textContent="Archiver"; bouton.disabled=false;
+        return null;
+      }
+      return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
+        {headers:{"x-auth":S.jeton}})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+        .then(function(res){
+          if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
+          if(CFG.apresArchive) CFG.apresArchive(c); else charger();
+        });
+    });
 }
 
 /* après l'export : garder l'espace du client (ses documents et ses liens), ou tout supprimer */
-function choixArchivage(c, liens){
+function choixArchivage(c, liens, avecZip){
   return new Promise(function(fini){
     var ov=document.createElement("div");
     ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
@@ -193,10 +235,10 @@ function choixArchivage(c, liens){
       +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
     var nbQr=liens.filter(function(l){ return l.genre==="tableau"; }).length, client=liens.some(function(l){ return l.genre==="client"; });
     var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
-    h.textContent="Le ZIP est téléchargé. Et l'espace du client ?";
+    h.textContent=(avecZip===false ? "" : "Le ZIP est téléchargé. ")+"Et l'espace du client ?";
     var p=document.createElement("p"); p.className="hint"; p.style.margin="0 0 14px";
     p.textContent=(c.client||c.ref)+" a "+[client ? "un lien client" : "", nbQr ? nbQr+" QR code"+(nbQr>1?"s":"")+" de tableau" : ""].filter(Boolean).join(" et ")
-      +". Vous pouvez lui garder ses documents (PV, DOE, schéma, étiquettes, mise en service, interventions SAV) : ses liens restent ouverts. Le reste du dossier (relevé, suivi, commandes, point, photos) part avec l'archive.";
+      +". Vous pouvez lui garder ses documents (PV, DOE, schéma, étiquettes, mise en service, interventions SAV) : ses liens restent ouverts. Le reste du dossier (relevé, suivi, commandes, point, photos) "+(avecZip===false ? "est supprimé." : "part avec l'archive.");
     f.appendChild(h); f.appendChild(p);
     function choix(txt, sous, cls, val){
       var b=document.createElement("button"); b.type="button"; b.className="act "+cls;
