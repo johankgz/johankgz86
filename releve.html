@@ -3266,14 +3266,8 @@ function solCalque(ctx, L, H){
     }
   });
 
-  /* le pan de toiture : un rectangle de panneaux, sa flèche vers le ciel qu'il regarde */
+  /* le pan de toiture : sa flèche vers le ciel qu'il regarde (la maison, au centre, est une croix blanche) */
   var pa=panAzimut(), ar=solRad(pa+rot);
-  ctx.save();
-  ctx.translate(cx, cy); ctx.rotate(ar);
-  ctx.fillStyle="rgba(30,58,138,.88)"; ctx.strokeStyle="#93C5FD"; ctx.lineWidth=1.2;
-  ctx.fillRect(-R*0.2, -R*0.08, R*0.4, R*0.16); ctx.strokeRect(-R*0.2, -R*0.08, R*0.4, R*0.16);
-  for(var k=1; k<4; k++){ ctx.beginPath(); ctx.moveTo(-R*0.2 + k*R*0.1, -R*0.08); ctx.lineTo(-R*0.2 + k*R*0.1, R*0.08); ctx.stroke(); }
-  ctx.restore();
   var bout=[cx+R*0.62*Math.sin(ar), cy-R*0.62*Math.cos(ar)];
   ctx.save(); ctx.lineWidth=3.4; ctx.strokeStyle="#60A5FA"; ctx.fillStyle="#60A5FA";
   ctx.beginPath(); ctx.moveTo(cx+R*0.08*Math.sin(ar), cy-R*0.08*Math.cos(ar)); ctx.lineTo(bout[0], bout[1]); ctx.stroke();
@@ -3305,9 +3299,13 @@ function solCalque(ctx, L, H){
     ctx.fillStyle="#FCD34D"; ctx.fill(); ctx.lineWidth=2; ctx.strokeStyle="#F59E0B"; ctx.stroke();
     solTexte(ctx, hhmm(COURSE.minute), q[0], q[1]-24, "#FDE68A");
   }
-  /* la maison au centre */
-  ctx.beginPath(); ctx.arc(cx, cy, 4, 0, Math.PI*2); ctx.fillStyle="#fff"; ctx.fill();
-  ctx.lineWidth=2; ctx.strokeStyle="#1A1815"; ctx.stroke();
+  /* la maison au centre : une croix blanche, discrète, sur l'axe */
+  ctx.save(); ctx.translate(cx, cy); ctx.lineCap="round";
+  [[5,"rgba(10,14,20,.75)"],[2.4,"#fff"]].forEach(function(t){
+    ctx.lineWidth=t[0]; ctx.strokeStyle=t[1];
+    ctx.beginPath(); ctx.moveTo(-9,0); ctx.lineTo(9,0); ctx.moveTo(0,-9); ctx.lineTo(0,9); ctx.stroke();
+  });
+  ctx.restore();
   solResume(J, ps);
 }
 /* les heures où le soleil est devant le pan (moins de 90° d'écart) */
