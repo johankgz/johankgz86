@@ -563,6 +563,36 @@ function glisserVersOrdinateur(a, f){
     try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
   });
 }
+/* le partage de fichiers du système (Chrome et Edge sous Windows, Chrome et Safari sur Mac) */
+var PEUT_ENVOYER=null;
+function peutEnvoyerFichiers(){
+  if(PEUT_ENVOYER!==null) return PEUT_ENVOYER;
+  PEUT_ENVOYER=false;
+  try{ PEUT_ENVOYER = surOrdinateur() && !!navigator.canShare && navigator.canShare({files:[new File(["x"], "essai.pdf", {type:"application/pdf"})]}); }catch(e){ PEUT_ENVOYER=false; }
+  return PEUT_ENVOYER;
+}
+function envoyerDocument(f, bouton){
+  var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
+  function partager(fichier){
+    navigator.share({files:[fichier], title:f.titre||nom}).then(function(){ marquerLu(f); }).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      /* le navigateur veut un clic tout frais : le fichier est prêt, un second clic l'envoie aussitôt */
+      if(err && err.name==="NotAllowedError") toast("Fichier prêt : touchez de nouveau « Envoyer ».");
+      else toast("Le partage n'a pas abouti. Ouvrez le document et enregistrez-le, puis joignez-le.");
+    });
+  }
+  var pret=FICHIERS_PRETS[f.cle];
+  if(pret && typeof pret==="object"){ partager(pret); return; }
+  var avant=bouton.textContent; bouton.disabled=true; bouton.textContent="…";
+  telecharger(f).then(function(blob){
+    bouton.disabled=false; bouton.textContent=avant;
+    var ext=String(f.cle).split(".").pop().toLowerCase(), fichier;
+    try{ fichier=new File([blob], nom, {type:TYPES_GLISSER[ext]||blob.type||"application/octet-stream"}); }catch(e){ fichier=null; }
+    if(!fichier){ toast("Fichier illisible."); return; }
+    FICHIERS_PRETS[f.cle]=fichier;
+    partager(fichier);
+  }).catch(function(){ bouton.disabled=false; bouton.textContent=avant; toast("Document indisponible. Vérifiez la connexion."); });
+}
 function partagerDocument(f, bouton){
   var avant = bouton ? bouton.textContent : "";
   if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
@@ -1669,6 +1699,16 @@ function carteDossier(c, i, opts){
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
+    /* Envoyer (ordinateur) : le partage de Windows ou du Mac, avec le fichier en pièce jointe
+       (Outlook, Courrier, Teams…) — un glisser vers l'Outlook installé n'emporte pas le fichier */
+    if(peutEnvoyerFichiers() && !zip){
+      var bEnv=document.createElement("button"); bEnv.type="button"; bEnv.className="part env";
+      bEnv.textContent="Envoyer"; bEnv.title="Envoyer en pièce jointe (Outlook, Courrier, Teams…)";
+      bEnv.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" en pièce jointe");
+      bEnv.addEventListener("mouseenter", function(){ preparerGlisser(f); });
+      bEnv.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); envoyerDocument(f, bEnv); });
+      droite.appendChild(bEnv);
+    }
     /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour prendre des cotes */
     if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
       var bCote=document.createElement("a");
