@@ -1642,6 +1642,8 @@ async function traiter(req) {
     const entree = { cle, titre: "Note — " + (String(d.titre || "").replace(/\s+/g, " ").trim().slice(0, 100) || "sans titre"), type: "note",
       visite: "", etape: "", date: jourParis(), auteur: personne.nom, destinataires: [], versDossier: true, taille: octets.length,
       publie: quand, donnees: false, versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {} };
+    /* un nom donné par le bureau (Renommer) survit à la republication */
+    if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
@@ -2220,6 +2222,8 @@ async function traiter(req) {
       lectures: (ancien && ancien.lectures) ? ancien.lectures : {}
     };
     if (sav && d.savFiche === "appel") entree.fiche = "appel";
+    /* un nom donné par le bureau (Renommer) survit à la republication */
+    if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     /* une intervention SAV confiée, une fois publiée, n'est plus « à terminer »
        (la fiche d'appel, elle, la laisse en attente) */
@@ -4599,9 +4603,10 @@ async function traiter(req) {
     return json({ ok: true, categorie: cat });
   }
 
-  /* ---------- renommer un plan, une photo ou un document technique ----------
-     Seul son nom change (celui de la liste et du fichier téléchargé) : le
-     fichier reste où il est. Le bureau, ou celui qui l'a déposé. */
+  /* ---------- renommer un document du dossier (plan, photos, suivi, commande…) ----------
+     Seul son nom change (celui de la liste, et du fichier téléchargé pour un
+     document importé) : le fichier reste où il est, et le nom survit à une
+     republication. Le bureau seulement. */
   if (action === "renommer-document") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -4609,9 +4614,9 @@ async function traiter(req) {
     if (!titre) return json({ erreur: "Donnez un nom." }, 400);
     const idx = await lireIndex();
     const f = trouver(idx, String(d.cle || ""));
-    if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
-    if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, le renomme." }, 403);
-    f.titre = titre;
+    if (!f || f.brouillon) return json({ erreur: "Document introuvable." }, 404);
+    if (!bureau) return json({ erreur: "Seul le bureau renomme un document." }, 403);
+    f.titre = titre; f.titreBureau = titre;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, titre });
   }

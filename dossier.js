@@ -1278,10 +1278,11 @@ function categorieDocument(f, bureau, apres){
   return pastille;
 }
 
-/* renommer un document importé : seul son nom change, dans la liste et au téléchargement */
+/* renommer un document : seul son nom change, dans la liste (et au téléchargement d'un document importé) ;
+   le bureau seulement, et le nom tient même si le document est republié */
 var STYLE_RENOMMER=false;
 function boutonRenommer(f, bureau, apres){
-  if(!(bureau || (MOI && f.auteur===MOI.nom))) return null;
+  if(!bureau) return null;
   if(!STYLE_RENOMMER){
     STYLE_RENOMMER=true;
     var st=document.createElement("style");
@@ -1574,8 +1575,8 @@ function carteDossier(c, i, opts){
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
     tl.appendChild(tb);
-    /* un plan, une photo, un document : le renommer (le bureau, ou celui qui l'a déposé) */
-    if(f.type==="technique"){
+    /* tout document du dossier (plan, photos, suivi, commande…) : le bureau seul le renomme */
+    if(!f.brouillon){
       var bRen=boutonRenommer(f, bureau, charger);
       if(bRen) tl.appendChild(bRen);
     }
