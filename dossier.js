@@ -676,7 +676,7 @@ function lireZip(octets){
   }
   return out;
 }
-/* la photo en grand : toujours sur fond noir, en mode clair comme en sombre
+/* la galerie et la photo en grand : toujours sur fond noir, en mode clair comme en sombre
    (data-theme-propre : le thème n'y touche pas) */
 var STYLE_GALERIE=false;
 function styleGalerie(){
@@ -685,31 +685,155 @@ function styleGalerie(){
   var st=document.createElement("style");
   st.setAttribute("data-theme-propre","");
   st.textContent=
-    ".dg-plein{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:#0F0E0C;color:#F4F1EA;outline:none;"
-    +"padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}"
-    +".dg-haut{flex:0 0 auto;display:flex;justify-content:flex-end;padding:8px 12px 4px}"
-    +".dg-x{width:44px;height:44px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(244,241,234,.14);color:#F4F1EA;"
-    +"display:flex;align-items:center;justify-content:center;cursor:pointer}"
-    +".dg-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
-    +".dg-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}"
+    /* les boutons communs : rond (icône seule), et ceux de la barre flottante */
+    ".dg-x{width:42px;height:42px;min-height:0;flex:0 0 auto;padding:0;border:0;border-radius:50%;background:rgba(244,241,234,.14);color:#F4F1EA;"
+    +"display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}"
+    +".dg-x svg,.dg-b svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}"
+    +".dg-flot{position:absolute;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3;"
+    +"display:flex;gap:4px;padding:6px;border-radius:30px;max-width:calc(100% - 24px);box-sizing:border-box;white-space:nowrap;"
+    +"background:rgba(40,38,34,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.45);transition:opacity .2s}"
+    +".dg-b{height:46px;min-height:0;padding:0 16px;border:0;border-radius:23px;background:transparent;color:#F4F1EA;display:flex;align-items:center;gap:8px;"
+    +"font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer}"
+    +".dg-b.o{background:#FB923C;color:#1A1208}.dg-b:disabled{opacity:.4;cursor:default}"
+    +".dg-bulle{position:absolute;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;max-width:calc(100% - 32px);"
+    +"padding:9px 15px;border-radius:18px;background:rgba(40,38,34,.94);color:#F4F1EA;font-size:13.5px;font-weight:600;text-align:center;pointer-events:none;"
+    +"box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .25s}"
+    +".dg-bulle[hidden]{display:block;opacity:0}"
+    /* ---- la galerie : une mosaïque, la 1re photo en grand ---- */
+    +".dg-gal{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;background:#0B0B0A;color:#F4F1EA;"
+    +"padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}"
+    +".dg-gtete{flex:0 0 auto;display:flex;align-items:flex-start;gap:10px;width:100%;max-width:1200px;margin:0 auto;box-sizing:border-box;padding:14px 16px 12px}"
+    +".dg-gtit{flex:1;min-width:0}"
+    +".dg-gtit h2{margin:0;font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.02em;color:#F4F1EA;overflow-wrap:anywhere}"
+    +".dg-gtit p{margin:5px 0 0;font-size:13px;color:#A8A091}"
+    +".dg-gtit p b{color:#FB923C;font-weight:700}"
+    +".dg-gtit p button{margin-left:10px;padding:0;min-height:0;border:0;background:none;color:#F4F1EA;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}"
+    +".dg-choisir{height:42px;min-height:0;padding:0 15px;border:0;border-radius:21px;background:rgba(244,241,234,.14);color:#F4F1EA;"
+    +"font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex:0 0 auto}"
+    +".dg-choisir.on{background:#F4F1EA;color:#1A1208}"
+    +".dg-gcorps{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 3px calc(100px + env(safe-area-inset-bottom,0px))}"
+    +".dg-mos{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-flow:dense;gap:3px;max-width:1200px;margin:0 auto}"
+    +"@media (min-width:700px){.dg-mos{grid-template-columns:repeat(5,1fr)}}"
+    +"@media (min-width:1100px){.dg-mos{grid-template-columns:repeat(6,1fr)}}"
+    +".dg-etat{grid-column:1/-1;margin:8px 13px;color:#A8A091;font-size:14px}"
+    +".dg-tuile{position:relative;display:block;width:100%;aspect-ratio:1/1;min-height:0;margin:0;padding:0;border:0;border-radius:6px;overflow:hidden;"
+    +"background:#1D1B18;cursor:zoom-in;-webkit-tap-highlight-color:transparent}"
+    +".dg-tuile.g{grid-column:span 2;grid-row:span 2}"
+    +".dg-tuile img{display:block;width:100%;height:100%;object-fit:cover;-webkit-user-drag:none;transition:transform .15s}"
+    +".dg-choix .dg-tuile{cursor:pointer}"
+    +".dg-choix .dg-tuile::after{content:\"\";position:absolute;right:7px;bottom:7px;width:22px;height:22px;box-sizing:border-box;border-radius:50%;"
+    +"border:2px solid #fff;background:rgba(0,0,0,.25);box-shadow:0 1px 4px rgba(0,0,0,.4)}"
+    +".dg-tuile.sel::before{content:\"\";position:absolute;inset:0;z-index:1;border:3px solid #FB923C;border-radius:6px}"
+    +".dg-tuile.sel img{transform:scale(.94)}"
+    +".dg-choix .dg-tuile.sel::after{border:0;background:#FB923C url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='%231A1208' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\") center/15px no-repeat}"
+    +".dg-tuile:focus-visible,.dg-x:focus-visible,.dg-b:focus-visible,.dg-choisir:focus-visible,.dg-fl:focus-visible{outline:3px solid #FB923C;outline-offset:2px}"
+    /* ---- la photo en grand : tout l'écran pour la photo, les boutons par-dessus ---- */
+    +".dg-plein{position:fixed;inset:0;z-index:90;background:#0B0B0A;color:#F4F1EA;outline:none;overflow:hidden}"
+    +".dg-scene{position:absolute;inset:0;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}"
     +".dg-piste{position:absolute;inset:0;will-change:transform}"
-    +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;justify-content:center}"
+    +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center}"
     +".dg-case img{display:block;max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;transform-origin:50% 50%}"
     +".dg-case img[hidden]{display:none}"
-    +".dg-fl{display:none;position:absolute;top:50%;z-index:1;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
-    +"background:rgba(15,14,12,.55);color:#F4F1EA;align-items:center;justify-content:center;cursor:pointer}"
+    +".dg-haut{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:10px;pointer-events:none;transition:opacity .2s;"
+    +"padding:calc(8px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) 36px calc(12px + env(safe-area-inset-left,0px));"
+    +"background:linear-gradient(rgba(0,0,0,.62),rgba(0,0,0,0))}"
+    +".dg-haut>*{pointer-events:auto}"
+    +".dg-tc{flex:1;min-width:0;text-align:center;font-size:14.5px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.5)}"
+    +".dg-tc span{display:block;margin-top:1px;font-size:12px;font-weight:500;color:#D9D2C4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+    +".dg-esp{width:42px;flex:0 0 auto}"
+    +".dg-pts{position:absolute;left:0;right:0;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:2;display:flex;justify-content:center;gap:6px;"
+    +"pointer-events:none;transition:opacity .2s}"
+    +".dg-pts i{width:6px;height:6px;border-radius:3px;background:rgba(244,241,234,.4);box-shadow:0 0 3px rgba(0,0,0,.4);transition:width .2s}"
+    +".dg-pts i.on{width:18px;background:#F4F1EA}"
+    +".dg-fl{display:none;position:absolute;top:50%;z-index:2;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
+    +"background:rgba(15,14,12,.55);color:#F4F1EA;align-items:center;justify-content:center;cursor:pointer;transition:opacity .2s}"
     +".dg-fl svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
     +".dg-fl.g{left:16px}.dg-fl.d{right:16px}"
-    +".dg-nom{flex:0 0 auto;margin:10px 16px 0;color:#BDB5A6;font-size:12.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-    +".dg-bas{flex:0 0 auto;display:flex;justify-content:center;padding:14px 16px 18px}"
-    +".dg-enr{min-height:48px;min-width:170px;padding:0 28px;border:0;border-radius:var(--r-field,10px);background:rgba(244,241,234,.14);"
-    +"color:#F4F1EA;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}"
-    +".dg-x:focus-visible,.dg-fl:focus-visible,.dg-enr:focus-visible{outline:3px solid #FB923C;outline-offset:2px}"
+    /* un toucher sur la photo cache les boutons, un autre les remet */
+    +".dg-cache .dg-haut,.dg-cache .dg-flot,.dg-cache .dg-pts,.dg-cache .dg-fl{opacity:0;pointer-events:none}"
+    +".dg-cache .dg-haut>*{pointer-events:none}"
     /* à la souris : la main qui saisit, les deux flèches sur les côtés, le survol */
     +"@media (hover:hover) and (pointer:fine){.dg-scene{cursor:grab}.dg-scene.dg-tient{cursor:grabbing}"
     +".dg-fl{display:flex}.dg-fl[hidden]{display:none}"
-    +".dg-x:hover,.dg-enr:hover{background:rgba(244,241,234,.24)}.dg-fl:hover{background:rgba(15,14,12,.8)}}";
+    +".dg-x:hover,.dg-choisir:hover{background:rgba(244,241,234,.26)}.dg-choisir.on:hover{background:#fff}"
+    +".dg-b:hover{background:rgba(244,241,234,.12)}.dg-b.o:hover{background:#FDA762}.dg-fl:hover{background:rgba(15,14,12,.8)}"
+    +".dg-tuile:hover img{transform:scale(1.03)}.dg-tuile.sel:hover img{transform:scale(.94)}}"
+    +"@media (prefers-reduced-motion:reduce){.dg-tuile img,.dg-pts i,.dg-haut,.dg-flot,.dg-fl{transition:none}}";
   (document.head||document.documentElement).appendChild(st);
+}
+var ICONE={
+  partager:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>',
+  enregistrer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
+  fermer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  retour:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'
+};
+function boutonGalerie(classe, icone, texte, etiquette){
+  var b=document.createElement("button"); b.type="button"; b.className=classe;
+  b.innerHTML=(icone ? ICONE[icone] : "")+(texte ? "<span></span>" : "");
+  if(texte) b.querySelector("span").textContent=texte;
+  if(etiquette){ b.setAttribute("aria-label", etiquette); b.title=etiquette; }
+  return b;
+}
+/* un petit message posé sur la galerie ou la photo (le toast de la page reste dessous) */
+function bulleGalerie(dans){
+  var b=document.createElement("div"); b.className="dg-bulle"; b.hidden=true; b.setAttribute("role","status");
+  dans.appendChild(b);
+  var t;
+  return function(texte){ b.textContent=texte; b.hidden=false; clearTimeout(t); t=setTimeout(function(){ b.hidden=true; }, 2600); };
+}
+
+/* ---------- enregistrer et partager les photos ---------- */
+function surIOS(){
+  var ua=navigator.userAgent||"";
+  return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform==="MacIntel" && (navigator.maxTouchPoints||0)>1);
+}
+function fichierPhoto(f, ph){
+  var type=ph.type || (/\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg");
+  var nom=nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()).replace(/:/g, " ");
+  var blob=new Blob([ph.octets], {type:type}), fichier=null;
+  try{ fichier=new File([blob], nom, {type:type}); }catch(e){}
+  return {blob:blob, nom:nom, fichier:fichier};
+}
+function peutPartagerPhotos(liste){
+  var fics=liste.map(function(p){ return p.fichier; });
+  try{ return fics.length>0 && fics.every(Boolean) && !!navigator.canShare && navigator.canShare({files:fics}); }catch(e){ return false; }
+}
+function telechargerPhotos(liste){
+  /* l'une après l'autre : le navigateur refuse plusieurs téléchargements d'un coup */
+  liste.forEach(function(p, i){ setTimeout(function(){ enregistrer(p.blob, p.nom); }, i*350); });
+}
+/* « Enregistrer » : la photo va dans la galerie du téléphone.
+   Sur iPhone et iPad, un site n'a pas le droit d'écrire lui-même dans
+   Photos : la feuille de partage s'ouvre, « Enregistrer l'image » (ou
+   « Enregistrer N images ») en tête — un toucher et c'est dans Photos.
+   Sur Android, la photo est téléchargée : Galerie et Google Photos la
+   montrent (album Download). Sur ordinateur : un téléchargement. */
+function photosVersGalerie(f, photos, dire){
+  var liste=photos.map(function(ph){ return fichierPhoto(f, ph); });
+  if(!liste.length) return;
+  if(surIOS() && peutPartagerPhotos(liste)){
+    navigator.share({files:liste.map(function(p){ return p.fichier; })}).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      telechargerPhotos(liste);
+    });
+    return;
+  }
+  telechargerPhotos(liste);
+  if(dire) dire(liste.length>1 ? liste.length+" photos enregistrées" : "Photo enregistrée");
+}
+/* « Partager » : les photos elles-mêmes (Mail, WhatsApp, SMS…) ; sans partage
+   de fichiers, on retombe sur « secours » (l'archive) ou le téléchargement */
+function partagerPhotos(f, photos, secours){
+  var liste=photos.map(function(ph){ return fichierPhoto(f, ph); });
+  if(!liste.length) return;
+  if(peutPartagerPhotos(liste)){
+    navigator.share({files:liste.map(function(p){ return p.fichier; })}).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      if(secours) secours(); else telechargerPhotos(liste);
+    });
+    return;
+  }
+  if(secours) secours(); else telechargerPhotos(liste);
 }
 /* Une photo en grand. On passe de l'une à l'autre en la faisant glisser
    du doigt : vers la gauche la suivante, vers la droite la précédente.
@@ -718,13 +842,15 @@ function styleGalerie(){
    l'endroit pincé (jusqu'à 5 fois) ; un double toucher l'agrandit là où
    l'on touche, un autre la remet entière. Agrandie, un doigt la promène
    (sans qu'elle sorte du cadre) et le glissé ne change plus de photo.
-   La croix en haut à droite referme ; « Enregistrer », seul au centre,
-   garde la photo affichée. À l'ordinateur : la souris fait glisser de
+   En haut : la flèche (ou la croix) referme, au milieu « 3 sur 9 » et
+   le nom. En bas, une barre flottante : « Partager » et « Enregistrer »
+   (la photo affichée, dans la galerie du téléphone). Un toucher sur la
+   photo cache les boutons, un autre les remet. À l'ordinateur : la souris fait glisser de
    même ; la molette (ou le pincement du pavé tactile) et le double clic
    zooment, + et − aussi, 0 remet la photo entière ; les flèches du
    clavier et les deux flèches sur les côtés changent de photo, Échap
    referme. */
-function pleinEcran(f, photos, urls, depart, quandFerme){
+function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   styleGalerie();
   var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false;
   /* les doigts posés, et le geste en cours : null (pas encore décidé), « glisse »
@@ -736,10 +862,10 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
   var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
   vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
   var haut=document.createElement("div"); haut.className="dg-haut";
-  var croix=document.createElement("button"); croix.type="button"; croix.className="dg-x";
-  croix.setAttribute("aria-label","Fermer"); croix.title="Fermer";
-  croix.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
-  haut.appendChild(croix);
+  var croix=boutonGalerie("dg-x", retour ? "retour" : "fermer", "", retour ? "Retour aux photos" : "Fermer");
+  var titre=document.createElement("div"); titre.className="dg-tc"; titre.setAttribute("aria-live","polite");
+  var esp=document.createElement("div"); esp.className="dg-esp";
+  haut.appendChild(croix); haut.appendChild(titre); haut.appendChild(esp);
   var scene=document.createElement("div"); scene.className="dg-scene";
   var piste=document.createElement("div"); piste.className="dg-piste";
   /* trois cases côte à côte : la précédente, celle qu'on voit, la suivante */
@@ -757,11 +883,15 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
   }
   var flG=fleche("g", "Photo précédente", "M15 5l-7 7 7 7");
   var flD=fleche("d", "Photo suivante", "M9 5l7 7-7 7");
-  var nom=document.createElement("p"); nom.className="dg-nom"; nom.setAttribute("aria-live","polite");
-  var bas=document.createElement("div"); bas.className="dg-bas";
-  var enr=document.createElement("button"); enr.type="button"; enr.className="dg-enr"; enr.textContent="Enregistrer";
-  bas.appendChild(enr);
-  vue.appendChild(haut); vue.appendChild(scene); vue.appendChild(nom); vue.appendChild(bas);
+  /* les petits points : où l'on en est dans le lot */
+  var pts=document.createElement("div"); pts.className="dg-pts"; pts.setAttribute("aria-hidden","true");
+  if(n>1 && n<=15) for(var ip=0; ip<n; ip++) pts.appendChild(document.createElement("i"));
+  var flot=document.createElement("div"); flot.className="dg-flot";
+  var part=boutonGalerie("dg-b", "partager", "Partager");
+  var enr=boutonGalerie("dg-b o", "enregistrer", "Enregistrer");
+  flot.appendChild(part); flot.appendChild(enr);
+  vue.appendChild(scene); vue.appendChild(pts); vue.appendChild(haut); vue.appendChild(flot);
+  var dire=bulleGalerie(vue);
 
   function remplir(c, i){
     var im=c.firstChild;
@@ -776,7 +906,11 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
     cases[0].style.left="-100%"; cases[1].style.left="0"; cases[2].style.left="100%";
     remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
     cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
-    nom.textContent=(n>1 ? (k+1)+" sur "+n+"  ·  " : "")+photos[k].nom.split("/").pop();
+    titre.textContent = n>1 ? (k+1)+" sur "+n : "";
+    var lib=document.createElement("span");
+    lib.textContent = retour ? joliNomPhoto(photos[k].nom) : (f.titre || photos[k].nom.split("/").pop());
+    titre.appendChild(lib);
+    Array.prototype.forEach.call(pts.children, function(p, i){ p.className = i===k ? "on" : ""; });
     vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
     flG.hidden = k<=0; flD.hidden = k>=n-1;
   }
@@ -930,11 +1064,18 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
     }
     if(g===null && !bouge && e.type!=="pointercancel") toucher(e);
   }
-  /* deux touchers rapprochés : la photo s'agrandit là, ou redevient entière */
+  /* deux touchers rapprochés : la photo s'agrandit là, ou redevient entière ;
+     un toucher seul (sans second qui le suive) cache ou remet les boutons */
+  var unToucher=null;
   function toucher(e){
     var t=e.timeStamp, x=e.clientX, y=e.clientY, avant=toucherAvant;
     toucherAvant={t:t, x:x, y:y};
-    if(!avant || t-avant.t>320 || Math.hypot(x-avant.x, y-avant.y)>30) return;
+    if(!avant || t-avant.t>320 || Math.hypot(x-avant.x, y-avant.y)>30){
+      clearTimeout(unToucher);
+      unToucher=setTimeout(function(){ unToucher=null; vue.classList.toggle("dg-cache"); }, 330);
+      return;
+    }
+    clearTimeout(unToucher); unToucher=null;
     toucherAvant=null;
     if(Z.s>1.01) remettre(true); else zoomerVers(ZDOUBLE, x, y, true);
   }
@@ -951,12 +1092,9 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
   flG.addEventListener("click", function(){ aller(-1); });
   flD.addEventListener("click", function(){ aller(1); });
 
-  /* enregistrer juste cette photo, à l'unité (pour n'avoir que la photo) */
-  enr.addEventListener("click", function(){
-    var ph=photos[k];
-    var blob=new Blob([ph.octets], {type: ph.type || (/\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg")});
-    enregistrer(blob, nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()));
-  });
+  /* enregistrer juste cette photo, à l'unité : dans la galerie du téléphone */
+  enr.addEventListener("click", function(){ photosVersGalerie(f, [photos[k]], dire); });
+  part.addEventListener("click", function(){ partagerPhotos(f, [photos[k]]); });
   function touche(e){
     var c;
     if(e.key==="Escape") fermer();
@@ -972,6 +1110,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme){
   /* l'écran tourne : la photo agrandie reste dans le cadre */
   function recaler(){ if(Z.s>1.01){ borner(); zoomer(false); } }
   function fermer(){
+    clearTimeout(unToucher);
     document.removeEventListener("keydown", touche, true);
     window.removeEventListener("resize", recaler);
     if(vue.parentNode) vue.parentNode.removeChild(vue);
@@ -1007,77 +1146,127 @@ function ouvrirPhoto(f, bouton){
       alert("Photo indisponible. Vérifiez la connexion.");
     });
 }
+/* le nom d'une photo de l'archive, lisible : « 03-Passage-des-gaines.jpg » → « Passage des gaines » */
+function joliNomPhoto(nom){
+  var t=String(nom||"").split("/").pop().replace(/\.(jpe?g|png|webp|gif)$/i, "").replace(/^\d+-?/, "").replace(/-/g, " ").trim();
+  return t || String(nom||"").split("/").pop();
+}
+/* La galerie d'un lot de photos : une mosaïque (la 1re photo en grand),
+   une barre flottante en bas — « Partager » et « Tout enregistrer ».
+   « Choisir » permet de cocher plusieurs photos : la barre devient
+   « Partager (n) » et « Enregistrer (n) », pour ces photos-là seulement.
+   Un toucher sur une photo l'ouvre en grand. */
 function ouvrirGalerie(f){
-  var ov=document.createElement("div");
-  ov.style.cssText="position:fixed;inset:0;z-index:80;background:#1A1815;display:flex;flex-direction:column;"
-    +"padding-top:env(safe-area-inset-top,0px)";
-  var barre=document.createElement("div");
-  barre.style.cssText="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#262320;flex:0 0 auto";
-  var titre=document.createElement("span");
-  titre.style.cssText="flex:1;color:#BDB5A6;font-size:13.5px;font-weight:600";
-  titre.textContent=f.titre || "Photos";
-  var telecharger=document.createElement("button");
-  telecharger.type="button"; telecharger.textContent="Partager";
-  telecharger.style.cssText="padding:9px 13px;border:0;background:rgba(244,241,234,.12);"
-    +"color:#F4F1EA;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
-  telecharger.addEventListener("click", function(){ partagerDocument(f, telecharger); });
-  var fermer=document.createElement("button"); fermer.type="button"; fermer.textContent="Fermer";
-  fermer.style.cssText="padding:9px 13px;border:0;border-radius:var(--r-field);background:#B4621A;color:#fff;"
-    +"font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
-  barre.appendChild(titre); barre.appendChild(telecharger); barre.appendChild(fermer);
-  var corps=document.createElement("div");
-  corps.style.cssText="flex:1;overflow:auto;padding:12px;display:grid;"
-    +"grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start";
-  var etat=document.createElement("p");
-  etat.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px;margin:6px 2px";
-  etat.textContent="Ouverture des photos…";
-  corps.appendChild(etat);
-  ov.appendChild(barre); ov.appendChild(corps);
+  styleGalerie();
+  var ov=document.createElement("div"); ov.className="dg-gal";
+  ov.setAttribute("role","dialog"); ov.setAttribute("aria-modal","true"); ov.setAttribute("aria-label", f.titre || "Photos");
+  var tete=document.createElement("div"); tete.className="dg-gtete";
+  var tit=document.createElement("div"); tit.className="dg-gtit";
+  var h=document.createElement("h2"); h.textContent=f.titre || "Photos";
+  var sous=document.createElement("p"); sous.textContent="Ouverture des photos…";
+  tit.appendChild(h); tit.appendChild(sous);
+  var choisir=document.createElement("button"); choisir.type="button"; choisir.className="dg-choisir"; choisir.textContent="Choisir";
+  choisir.hidden=true;
+  var croix=boutonGalerie("dg-x", "fermer", "", "Fermer");
+  tete.appendChild(tit); tete.appendChild(choisir); tete.appendChild(croix);
+  var corps=document.createElement("div"); corps.className="dg-gcorps";
+  var mos=document.createElement("div"); mos.className="dg-mos";
+  corps.appendChild(mos);
+  var flot=document.createElement("div"); flot.className="dg-flot"; flot.hidden=true;
+  var part=boutonGalerie("dg-b", "partager", "Partager");
+  var enr=boutonGalerie("dg-b o", "enregistrer", "Tout enregistrer");
+  flot.appendChild(part); flot.appendChild(enr);
+  ov.appendChild(tete); ov.appendChild(corps); ov.appendChild(flot);
+  var dire=bulleGalerie(ov);
   document.body.appendChild(ov);
 
-  var urls=[];
-  function refermer(){
-    urls.forEach(function(u){ URL.revokeObjectURL(u); });
-    if(ov.parentNode) document.body.removeChild(ov);
+  var urls=[], photos=[], tuiles=[], CHOIX=null;   /* CHOIX : null, ou les numéros des photos cochées */
+  function etat(texte){
+    mos.textContent="";
+    var v=document.createElement("p"); v.className="dg-etat"; v.textContent=texte;
+    mos.appendChild(v);
   }
-  fermer.addEventListener("click", refermer);
+  etat("Ouverture des photos…");
+  function retenues(){ return CHOIX ? photos.filter(function(p, i){ return CHOIX[i]; }) : photos; }
+  function peindre(){
+    var n=photos.length, nb=CHOIX ? Object.keys(CHOIX).length : 0;
+    ov.classList.toggle("dg-choix", !!CHOIX);
+    choisir.textContent = CHOIX ? "Annuler" : "Choisir";
+    choisir.classList.toggle("on", !!CHOIX);
+    sous.textContent="";
+    if(CHOIX){
+      var b=document.createElement("b");
+      b.textContent = nb ? nb+(nb>1 ? " sélectionnées" : " sélectionnée") : "Touchez les photos à garder";
+      sous.appendChild(b);
+      var tout=document.createElement("button"); tout.type="button";
+      tout.textContent = nb===n ? "Tout décocher" : "Tout cocher";
+      tout.addEventListener("click", function(){
+        if(Object.keys(CHOIX).length===n) CHOIX={};
+        else { CHOIX={}; photos.forEach(function(p, i){ CHOIX[i]=true; }); }
+        peindre();
+      });
+      sous.appendChild(tout);
+    } else {
+      sous.textContent = n+(n>1 ? " photos" : " photo")+(f.date ? " · "+frDate(f.date) : "");
+    }
+    tuiles.forEach(function(t, i){
+      var s=!!(CHOIX && CHOIX[i]);
+      t.classList.toggle("sel", s);
+      if(CHOIX) t.setAttribute("aria-pressed", s ? "true" : "false"); else t.removeAttribute("aria-pressed");
+    });
+    part.querySelector("span").textContent = CHOIX ? "Partager ("+nb+")" : "Partager";
+    enr.querySelector("span").textContent = CHOIX ? "Enregistrer ("+nb+")" : "Tout enregistrer";
+    part.disabled = enr.disabled = !!CHOIX && !nb;
+  }
+  function refermer(){
+    document.removeEventListener("keydown", touche, true);
+    urls.forEach(function(u){ URL.revokeObjectURL(u); });
+    if(ov.parentNode) ov.parentNode.removeChild(ov);
+  }
+  /* Échap : quitte le choix, puis referme (la photo en grand, au-dessus, garde la main) */
+  function touche(e){
+    if(e.key!=="Escape" || document.querySelector(".dg-plein")) return;
+    e.preventDefault(); e.stopPropagation();
+    if(CHOIX){ CHOIX=null; peindre(); } else refermer();
+  }
+  document.addEventListener("keydown", touche, true);
+  croix.addEventListener("click", refermer);
+  choisir.addEventListener("click", function(){ CHOIX = CHOIX ? null : {}; peindre(); });
+  part.addEventListener("click", function(){
+    /* toutes les photos : si le téléphone ne sait pas partager des fichiers, l'archive comme avant */
+    partagerPhotos(f, retenues(), CHOIX ? null : function(){ partagerDocument(f, null); });
+  });
+  enr.addEventListener("click", function(){
+    var r=retenues(); if(!r.length) return;
+    photosVersGalerie(f, r, dire);
+  });
 
   fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
     .then(function(r){ if(!r.ok) throw new Error("refus"); return r.arrayBuffer(); })
     .then(function(buf){
-      var photos=lireZip(new Uint8Array(buf));
-      corps.textContent="";
-      if(!photos.length){
-        var v=document.createElement("p");
-        v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
-        v.textContent="Archive illisible dans le navigateur. Utilisez Télécharger.";
-        corps.appendChild(v); return;
-      }
+      photos=lireZip(new Uint8Array(buf));
+      if(!photos.length){ sous.textContent=""; etat("Archive illisible dans le navigateur. Utilisez Télécharger."); return; }
       marquerLu(f);
+      mos.textContent="";
       photos.forEach(function(p, i){
         var blob=new Blob([p.octets], {type: /\.png$/i.test(p.nom) ? "image/png" : "image/jpeg"});
         var url=URL.createObjectURL(blob); urls.push(url);
-        var fig=document.createElement("figure");
-        fig.style.cssText="margin:0;background:#262320;border:1px solid rgba(244,241,234,.10)";
-        var im=document.createElement("img");
-        im.src=url; im.alt=p.nom; im.loading="lazy";
-        im.style.cssText="display:block;width:100%;height:150px;object-fit:cover;cursor:zoom-in";
-        im.addEventListener("click", function(){ pleinEcran(f, photos, urls, i); });
-        var cap=document.createElement("figcaption");
-        cap.style.cssText="padding:7px 9px;color:#BDB5A6;font-size:11.5px;overflow:hidden;"
-          +"text-overflow:ellipsis;white-space:nowrap";
-        cap.textContent=p.nom.split("/").pop().replace(/\.(jpe?g|png)$/i,"").replace(/^\d+-?/,"").replace(/-/g," ");
-        fig.appendChild(im); fig.appendChild(cap);
-        corps.appendChild(fig);
+        var t=document.createElement("button"); t.type="button";
+        t.className="dg-tuile"+(i===0 && photos.length>=4 ? " g" : "");
+        t.setAttribute("aria-label", joliNomPhoto(p.nom));
+        var im=document.createElement("img"); im.src=url; im.alt=""; im.loading="lazy"; im.draggable=false;
+        t.appendChild(im);
+        t.addEventListener("click", function(){
+          if(CHOIX){ if(CHOIX[i]) delete CHOIX[i]; else CHOIX[i]=true; peindre(); return; }
+          pleinEcran(f, photos, urls, i, null, true);
+        });
+        mos.appendChild(t); tuiles.push(t);
       });
+      choisir.hidden = photos.length<2;
+      flot.hidden=false;
+      peindre();
     })
-    .catch(function(){
-      corps.textContent="";
-      var v=document.createElement("p");
-      v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
-      v.textContent="Photos indisponibles. Réessayez ou utilisez Télécharger.";
-      corps.appendChild(v);
-    });
+    .catch(function(){ sous.textContent=""; etat("Photos indisponibles. Réessayez ou utilisez Télécharger."); });
 }
 function marquerLu(f){
   fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
