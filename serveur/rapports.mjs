@@ -3701,17 +3701,27 @@ async function traiter(req) {
     const ref = slug(d.ref || "").toUpperCase();
     const texte = String(d.texte || "").trim();
     const photo = typeof d.photo === "string" ? d.photo : "";
-    if (!texte && !photo) return json({ erreur: "Message vide." }, 400);
+    const docCle = d.doc && typeof d.doc.cle === "string" ? d.doc.cle : "";
+    if (!texte && !photo && !docCle) return json({ erreur: "Message vide." }, 400);
     if (texte.length > 4000) return json({ erreur: "Message trop long." }, 400);
     if (photo && photo.length > 900000) return json({ erreur: "Photo trop lourde." }, 400);
     const idx = await lireIndex();
     const c = idx.chantiers[ref];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     if (!membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    /* un document du dossier (plan, notice, note, photo…) : le message le désigne,
+       sans le recopier ; seul celui qui le voit dans le dossier peut l'envoyer */
+    let doc = null;
+    if (docCle) {
+      const f = (c.fichiers || []).find((x) => x.cle === docCle && !x.brouillon);
+      if (!f || !voit(personne, f, c)) return json({ erreur: "Document introuvable dans ce dossier." }, 404);
+      doc = { cle: f.cle, titre: String(f.titre || f.cle.split("/").pop()).slice(0, 160), type: f.type || "", taille: f.taille || 0 };
+    }
 
     const fil = await lireMessages(ref);
     const message = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       auteur: personne.nom, texte, photo, quand: new Date().toISOString() };
+    if (doc) message.doc = doc;
     fil.messages.push(message);
     if (fil.messages.length > 200) fil.messages = fil.messages.slice(-200);
     fil.lectures[personne.nom] = message.id;
@@ -3721,7 +3731,7 @@ async function traiter(req) {
     const prevenus = [];
     prevenirPush(store, magasinAnnuaire(), c.equipe || [], "messages", {
       titre: "Message — " + (c.client || ref),
-      texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : "une photo"),
+      texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : doc ? "« " + doc.titre + " »" : "une photo"),
       url: "./rapports.html?discussion=" + encodeURIComponent(ref),
       tag: "discu-" + ref
     }, contactPush(url.origin), { comptes, exclure: [personne.nom] }).catch(() => {});

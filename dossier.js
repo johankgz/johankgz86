@@ -180,6 +180,7 @@ function exporterArchive(c, bouton){
               +" "+heureLocale(m.quand));
             if(m.texte) lignes.push("  "+m.texte.replace(/\n/g, "\n  "));
             if(m.photo) lignes.push("  [photo jointe]");
+            if(m.doc) lignes.push("  [document du dossier : "+m.doc.titre+"]");
             lignes.push("");
           });
           fichiers.push({nom:c.ref+"/discussion.txt",
@@ -326,19 +327,40 @@ function ouvrirAcces(c){
     .catch(function(){ hote.textContent="Pas de réseau."; });
 }
 
-var DISCU_RETOUR=null;
-function ouvrirDiscussion(c){
-  var vue=document.createElement("div");
-  vue.style.cssText="position:fixed;inset:0;z-index:75;background:#F7F3EA;display:flex;flex-direction:column;"
+/* Les fenêtres pleine page s'empilent (la galerie, la photo en grand, la
+   discussion) : chacune s'ouvre au-dessus de celles déjà ouvertes. */
+function zDessus(base){
+  var z=base;
+  Array.prototype.forEach.call(document.querySelectorAll(".dg-gal,.dg-plein,.dg-discu"), function(e){
+    var v=parseInt(e.style.zIndex || getComputedStyle(e).zIndex, 10); if(v>=z) z=v+1;
+  });
+  return z;
+}
+/* une autre de ces fenêtres est-elle posée au-dessus de « el » ? */
+function auDessus(el){
+  var z=parseInt(el.style.zIndex, 10)||0;
+  return Array.prototype.some.call(document.querySelectorAll(".dg-gal,.dg-plein,.dg-discu"), function(e){
+    return e!==el && (parseInt(e.style.zIndex, 10)||0) > z;
+  });
+}
+var DISCU_RETOUR=null, DOSSIERS_VUS={};
+/* La discussion du chantier. « joint » (facultatif) : ce qu'on veut y envoyer,
+   prêt à partir — {photo:"data:image/jpeg…"} (une photo d'un lot) ou {doc:f}
+   (un document du dossier : plan, notice, note, photo…) ; on ajoute un mot
+   si besoin, puis « Envoyer ». */
+function ouvrirDiscussion(c, joint){
+  var vue=document.createElement("div"); vue.className="dg-discu";
+  vue.style.cssText="position:fixed;inset:0;z-index:"+zDessus(75)+";background:var(--bg,#F4F6FB);display:flex;flex-direction:column;"
     +"padding-top:env(safe-area-inset-top,0px)";
   var barre=document.createElement("div");
-  barre.style.cssText="display:flex;align-items:center;gap:8px;padding:11px 13px;background:#22201C;flex:0 0 auto";
+  barre.style.cssText="display:flex;align-items:center;gap:8px;padding:11px 13px;flex:0 0 auto;"
+    +"background:linear-gradient(160deg,#0B1220 0%,#172554 60%,#1E3A8A 100%)";
   var t=document.createElement("span");
-  t.style.cssText="flex:1;color:#E8D9C4;font-size:13.5px;font-weight:600;overflow:hidden;"
+  t.style.cssText="flex:1;color:#E2E8F0;font-size:14.5px;font-weight:700;overflow:hidden;"
     +"white-space:nowrap;text-overflow:ellipsis";
   t.textContent=(c.client||c.ref)+" · "+c.ref;
   var bf=document.createElement("button"); bf.type="button"; bf.textContent="Fermer";
-  bf.style.cssText="padding:7px 12px;border:0;background:#B4621A;color:#fff;font-size:12.5px;"
+  bf.style.cssText="min-height:0;padding:8px 14px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:13px;"
     +"font-weight:600;font-family:inherit;cursor:pointer";
   bf.addEventListener("click", function(){
     if(DISCU_RETOUR){ location.href=DISCU_RETOUR; return; }
@@ -359,7 +381,7 @@ function ouvrirDiscussion(c){
     +"padding-bottom:calc(11px + env(safe-area-inset-bottom,0px))";
   var photoBtn=document.createElement("button"); photoBtn.type="button";
   photoBtn.setAttribute("aria-label","Joindre une photo");
-  photoBtn.style.cssText="width:40px;height:40px;min-height:40px;border:1px solid var(--rule);"
+  photoBtn.style.cssText="width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;flex:0 0 auto;border:1px solid var(--rule);"
     +"background:var(--card);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center";
   photoBtn.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" '
     +'style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;'
@@ -368,26 +390,61 @@ function ouvrirDiscussion(c){
   champPhoto.type="file"; champPhoto.accept="image/*"; champPhoto.hidden=true;
   var champ=document.createElement("textarea");
   champ.rows=1; champ.placeholder="Écrire un message…";
-  champ.style.cssText="flex:1;min-height:40px;max-height:110px;padding:10px 12px;border:0;border-radius:var(--r-field);"
+  champ.style.cssText="flex:1;min-height:40px;max-height:110px;padding:10px 14px;border:0;border-radius:20px;"
     +"background:var(--field);font-size:16px;font-family:inherit;resize:none";
   var envoi=document.createElement("button"); envoi.type="button"; envoi.textContent="Envoyer";
-  envoi.style.cssText="padding:11px 14px;border:0;background:var(--accent);color:#fff;font-size:13.5px;"
+  envoi.style.cssText="min-height:40px;padding:10px 16px;border:0;border-radius:20px;background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff;font-size:13.5px;"
     +"font-weight:600;font-family:inherit;cursor:pointer";
   pied.appendChild(photoBtn); pied.appendChild(champPhoto); pied.appendChild(champ); pied.appendChild(envoi);
+  /* ce qui part avec le prochain message : une photo, ou un document du dossier */
+  var jointBarre=document.createElement("div");
+  jointBarre.style.cssText="flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:9px 13px;"
+    +"border-top:1px solid var(--rule);background:var(--card)";
+  jointBarre.style.display="none";
 
-  vue.appendChild(barre); vue.appendChild(fil); vue.appendChild(pied);
+  vue.appendChild(barre); vue.appendChild(fil); vue.appendChild(jointBarre); vue.appendChild(pied);
   document.body.appendChild(vue);
 
-  var enAttente=null;
+  var enAttente=null, docAttente=null;
+  function peindreJoint(){
+    jointBarre.textContent="";
+    var vide=!enAttente && !docAttente;
+    jointBarre.style.display = vide ? "none" : "flex";
+    if(vide){ champ.placeholder="Écrire un message…"; photoBtn.style.borderColor="var(--rule)"; return; }
+    if(enAttente){
+      var im=document.createElement("img"); im.src=enAttente; im.alt="";
+      im.style.cssText="width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 auto";
+      jointBarre.appendChild(im);
+    } else {
+      var ic=document.createElement("span"); ic.textContent=extDoc(docAttente).toUpperCase();
+      ic.style.cssText="flex:0 0 auto;width:38px;height:44px;border-radius:7px;background:var(--accent);color:#fff;"
+        +"font-size:10px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px";
+      jointBarre.appendChild(ic);
+    }
+    var nom=document.createElement("span");
+    nom.style.cssText="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis";
+    nom.textContent = enAttente ? "Photo prête à partir" : (docAttente.titre || nomFichier(docAttente));
+    jointBarre.appendChild(nom);
+    var x=document.createElement("button"); x.type="button"; x.textContent="×";
+    x.setAttribute("aria-label","Ne pas joindre");
+    x.style.cssText="flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border:1px solid var(--rule);border-radius:50%;"
+      +"background:var(--card);color:var(--ink-2);font-size:18px;line-height:1;cursor:pointer";
+    x.addEventListener("click", function(){ enAttente=null; docAttente=null; peindreJoint(); });
+    jointBarre.appendChild(x);
+    champ.placeholder="Ajoutez un mot si besoin, puis Envoyer";
+  }
+  if(joint && joint.photo) enAttente=joint.photo;
+  if(joint && joint.doc) docAttente=joint.doc;
+  peindreJoint();
   photoBtn.addEventListener("click", function(){ champPhoto.click(); });
   champPhoto.addEventListener("change", function(){
     var f=this.files[0]; this.value="";
     if(!f) return;
     compresserPhoto(f, function(data){
       if(!data){ alert("Photo illisible."); return; }
-      enAttente=data;
+      enAttente=data; docAttente=null;
       photoBtn.style.borderColor="var(--accent)";
-      champ.placeholder="Photo jointe — ajoutez un mot si besoin";
+      peindreJoint();
     });
   });
 
@@ -408,17 +465,20 @@ function ouvrirDiscussion(c){
       qui.style.cssText="margin:0 0 3px;font-size:11.5px;color:var(--ink-3);"+(mien?"text-align:right":"");
       qui.textContent=(mien ? "Vous" : m.auteur)+" · "+quandLisible(m.quand);
       var bulle=document.createElement("div");
-      bulle.style.cssText="border:1px solid "+(mien?"#F0DCC6":"var(--rule)")+";background:"
-        +(mien?"var(--accent-soft)":"var(--card)")+";padding:10px 12px;font-size:14.5px;"
-        +"color:var(--ink);line-height:1.5;white-space:pre-wrap;word-break:break-word";
+      bulle.style.cssText=(mien
+          ? "background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff;border-radius:18px 18px 6px 18px;"
+          : "background:var(--card);color:var(--ink);border-radius:18px 18px 18px 6px;box-shadow:0 1px 2px rgba(16,24,40,.06);")
+        +"padding:10px 13px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;overflow:hidden";
       if(m.texte) bulle.appendChild(document.createTextNode(m.texte));
       if(m.photo){
         var im=document.createElement("img");
         im.src=m.photo; im.alt="Photo jointe"; im.loading="lazy";
-        im.style.cssText="display:block;width:100%;margin-top:"+(m.texte?"8px":"0")+";cursor:zoom-in";
+        im.style.cssText="display:block;width:100%;margin-top:"+(m.texte?"8px":"0")+";cursor:zoom-in;border-radius:"+(m.texte?"10px":"15px");
+        if(!m.texte && !m.doc) bulle.style.padding="4px";
         im.addEventListener("click", function(){ agrandir(m.photo); });
         bulle.appendChild(im);
       }
+      if(m.doc) bulle.appendChild(carteDocMessage(c, m.doc, !!m.texte, mien));
       bloc.appendChild(qui); bloc.appendChild(bulle);
       fil.appendChild(bloc);
     });
@@ -435,7 +495,7 @@ function ouvrirDiscussion(c){
   }
   function agrandir(src){
     var g=document.createElement("div");
-    g.style.cssText="position:fixed;inset:0;z-index:95;background:#0F0E0C;display:flex;"
+    g.style.cssText="position:fixed;inset:0;z-index:"+zDessus(95)+";background:#0B0B0A;display:flex;"
       +"align-items:center;justify-content:center;padding:12px";
     var im=document.createElement("img");
     im.src=src; im.style.cssText="max-width:100%;max-height:88vh;object-fit:contain";
@@ -455,18 +515,19 @@ function ouvrirDiscussion(c){
   }
   function envoyer(){
     var texte=champ.value.trim();
-    if(!texte && !enAttente) return;
+    if(!texte && !enAttente && !docAttente) return;
     envoi.disabled=true; envoi.textContent="…";
+    var corps={ref:c.ref, texte:texte, photo:enAttente||""};
+    if(docAttente) corps.doc={cle:docAttente.cle};
     fetch(API+"?action=message-envoyer", {method:"POST",
       headers:{"Content-Type":"application/json","x-auth":S.jeton},
-      body:JSON.stringify({ref:c.ref, texte:texte, photo:enAttente||""})})
+      body:JSON.stringify(corps)})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
       .then(function(res){
         envoi.disabled=false; envoi.textContent="Envoyer";
         if(!res.ok){ alert(res.d.erreur||"Envoi refusé."); return; }
-        champ.value=""; enAttente=null;
-        photoBtn.style.borderColor="var(--rule)";
-        champ.placeholder="Écrire un message…";
+        champ.value=""; enAttente=null; docAttente=null;
+        peindreJoint();
         charge();
       })
       .catch(function(){
@@ -480,6 +541,36 @@ function ouvrirDiscussion(c){
     champ.style.height=Math.min(110, champ.scrollHeight)+"px";
   });
   charge();
+}
+function extDoc(f){ return (String((f && f.cle) || "").split(".").pop() || "doc").slice(0, 4); }
+/* un document du dossier, dans une bulle : son nom, et « Ouvrir » comme dans la liste */
+function carteDocMessage(c, d, apresTexte, mien){
+  var f=(c.fichiers||[]).filter(function(x){ return x.cle===d.cle; })[0];
+  var box=document.createElement("div");
+  box.style.cssText="display:flex;align-items:center;gap:10px;margin-top:"+(apresTexte?"8px":"0")+";padding:8px;"
+    +"border-radius:12px;background:"+(mien ? "rgba(255,255,255,.18)" : "rgba(10,18,32,.05)")+";white-space:normal";
+  var ic=document.createElement("span"); ic.textContent=extDoc(d).toUpperCase();
+  ic.style.cssText="flex:0 0 auto;width:34px;height:40px;border-radius:6px;background:"+(mien ? "rgba(255,255,255,.25)" : "var(--accent)")+";color:#fff;"
+    +"font-size:9.5px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px";
+  var t=document.createElement("span");
+  t.style.cssText="flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere";
+  t.textContent=(f && f.titre) || d.titre;
+  box.appendChild(ic); box.appendChild(t);
+  var b=document.createElement("button"); b.type="button";
+  b.style.cssText="flex:0 0 auto;min-height:0;padding:6px 12px;border:1px solid "+(mien ? "transparent" : "var(--rule)")+";border-radius:999px;"
+    +"background:#fff;color:#0B1220;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer";
+  if(!f){ b.disabled=true; b.textContent="Retiré"; b.title="Ce document n'est plus dans le dossier"; }
+  else {
+    b.textContent="Ouvrir";
+    b.addEventListener("click", function(){
+      if(/\.zip$/i.test(f.cle)){ marquerLu(f); ouvrirGalerie(f); return; }
+      if(/\.(dwg|dxf)$/i.test(f.cle)){ location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
+      if(PHOTO_AFFICHABLE.test(f.cle)){ ouvrirPhoto(f, b); return; }
+      ouvrirDocument(f, b);
+    });
+  }
+  box.appendChild(b);
+  return box;
 }
 function quandLisible(iso){
   var d=new Date(iso), maintenant=new Date();
@@ -695,6 +786,7 @@ function styleGalerie(){
     +".dg-b{height:46px;min-height:0;padding:0 16px;border:0;border-radius:23px;background:transparent;color:#F4F1EA;display:flex;align-items:center;gap:8px;"
     +"font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer}"
     +".dg-b.o{background:#FB923C;color:#1A1208}.dg-b:disabled{opacity:.4;cursor:default}.dg-b[hidden]{display:none}"
+    +".dg-b.dg-ic{width:46px;padding:0;justify-content:center}"
     +".dg-bulle{position:absolute;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;max-width:calc(100% - 32px);"
     +"padding:9px 15px;border-radius:18px;background:rgba(40,38,34,.94);color:#F4F1EA;font-size:13.5px;font-weight:600;text-align:center;pointer-events:none;"
     +"box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .25s}"
@@ -767,7 +859,8 @@ var ICONE={
   partager:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>',
   enregistrer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
   fermer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
-  retour:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>'
+  retour:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  discu:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>'
 };
 function boutonGalerie(classe, icone, texte, etiquette){
   var b=document.createElement("button"); b.type="button"; b.className=classe;
@@ -874,6 +967,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   var Z={s:1, x:0, y:0}, ZMAX=5, ZDOUBLE=2.5;
   var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
+  vue.style.zIndex=zDessus(90);
   vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
   var haut=document.createElement("div"); haut.className="dg-haut";
   var croix=boutonGalerie("dg-x", retour ? "retour" : "fermer", "", retour ? "Retour aux photos" : "Fermer");
@@ -904,7 +998,9 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   var part=boutonGalerie(UN_SEUL_BOUTON ? "dg-b o" : "dg-b", "partager", "Partager");
   var enr=boutonGalerie("dg-b o", "enregistrer", "Enregistrer");
   enr.hidden=UN_SEUL_BOUTON;
-  flot.appendChild(part); flot.appendChild(enr);
+  /* la photo affichée part dans la discussion du chantier */
+  var dis=boutonGalerie("dg-b dg-ic", "discu", "", "Envoyer dans la discussion du chantier");
+  flot.appendChild(part); flot.appendChild(enr); flot.appendChild(dis);
   vue.appendChild(scene); vue.appendChild(pts); vue.appendChild(haut); vue.appendChild(flot);
   var dire=bulleGalerie(vue);
 
@@ -1159,8 +1255,20 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   /* enregistrer juste cette photo, à l'unité : dans la galerie du téléphone */
   enr.addEventListener("click", function(){ photosVersGalerie(f, [photos[k]], dire); });
   part.addEventListener("click", function(){ partagerPhotos(f, [photos[k]]); });
+  dis.addEventListener("click", function(){
+    var ph=photos[k], ref=refDeCle(f.cle);
+    var c=DOSSIERS_VUS[ref] || {ref:ref, client:CLIENTS[ref]||"", fichiers:[]};
+    /* une photo seule rangée dans le dossier : le document lui-même ; une photo d'un lot : l'image */
+    if(!retour && f.cle && PHOTO_AFFICHABLE.test(f.cle)){ ouvrirDiscussion(c, {doc:f}); return; }
+    var type=ph.type || (/\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg");
+    compresserPhoto(new Blob([ph.octets], {type:type}), function(data){
+      if(!data){ dire("Photo illisible."); return; }
+      ouvrirDiscussion(c, {photo:data});
+    });
+  });
   function touche(e){
     var c;
+    if(auDessus(vue)) return;     /* une fenêtre ouverte par-dessus (la discussion) garde le clavier */
     if(e.key==="Escape") fermer();
     else if(e.key==="ArrowRight") aller(1);
     else if(e.key==="ArrowLeft") aller(-1);
@@ -1224,6 +1332,7 @@ function joliNomPhoto(nom){
 function ouvrirGalerie(f){
   styleGalerie();
   var ov=document.createElement("div"); ov.className="dg-gal";
+  ov.style.zIndex=zDessus(80);
   ov.setAttribute("role","dialog"); ov.setAttribute("aria-modal","true"); ov.setAttribute("aria-label", f.titre || "Photos");
   var tete=document.createElement("div"); tete.className="dg-gtete";
   var tit=document.createElement("div"); tit.className="dg-gtit";
@@ -1291,7 +1400,7 @@ function ouvrirGalerie(f){
   }
   /* Échap : quitte le choix, puis referme (la photo en grand, au-dessus, garde la main) */
   function touche(e){
-    if(e.key!=="Escape" || document.querySelector(".dg-plein")) return;
+    if(e.key!=="Escape" || auDessus(ov)) return;
     e.preventDefault(); e.stopPropagation();
     if(CHOIX){ CHOIX=null; peindre(); } else refermer();
   }
@@ -1758,7 +1867,7 @@ function carteDossier(c, i, opts){
   trierDocs(c);
   var ouvertParDefaut = opts.ouvertParDefaut !== undefined ? !!opts.ouvertParDefaut : true;
   var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin"));
-  if(c && c.ref) CLIENTS[c.ref]=c.client||"";
+  if(c && c.ref){ CLIENTS[c.ref]=c.client||""; DOSSIERS_VUS[c.ref]=c; }
   var box=document.createElement("div"); box.className="travaux"+(opts.integree ? " integree" : "");
   box.setAttribute("data-ref", c.ref);
   if(c.etat === "attente") box.classList.add("attente");
@@ -1954,6 +2063,15 @@ function carteDossier(c, i, opts){
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
+    /* le document part dans la discussion du chantier (plan, notice, note, photo…) */
+    var bDis=document.createElement("button"); bDis.type="button"; bDis.className="part dis";
+    bDis.innerHTML=icone("discu");
+    bDis.firstChild.style.cssText="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round";
+    bDis.title="Envoyer dans la discussion du chantier";
+    bDis.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" dans la discussion du chantier");
+    bDis.style.cssText="padding:0;width:32px;min-width:32px;justify-content:center";
+    bDis.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c, {doc:f}); });
+    droite.appendChild(bDis);
     /* Envoyer (ordinateur) : le partage de Windows ou du Mac, avec le fichier en pièce jointe
        (Outlook, Courrier, Teams…) — un glisser vers l'Outlook installé n'emporte pas le fichier */
     if(peutEnvoyerFichiers() && !zip){
