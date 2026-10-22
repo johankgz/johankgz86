@@ -65,7 +65,7 @@
   function pdf(blob, nom, opts){
     fermer(false); opts = opts || {};
     nom = nom || "document.pdf";
-    var ov=style(document.createElement("div"), "position:fixed;inset:0;z-index:2147483000;background:#2A2723;display:flex;flex-direction:column;"
+    var ov=style(document.createElement("div"), "position:fixed;inset:0;z-index:2147483000;background:#23252A;display:flex;flex-direction:column;"
       +"font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif");
     ov.setAttribute("role", "dialog"); ov.setAttribute("aria-modal", "true"); ov.setAttribute("aria-label", nom);
     ov.className="visionneuse";
@@ -89,7 +89,7 @@
     var corps=style(document.createElement("div"), "flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 10px calc(env(safe-area-inset-bottom,0px) + 16px);"
       +"display:flex;flex-direction:column;align-items:center;gap:12px;touch-action:pan-x pan-y pinch-zoom");
     corps.className="vis-pages";
-    var etat=style(document.createElement("p"), "color:#D8D2C6;font-size:14px;margin:24px 0");
+    var etat=style(document.createElement("p"), "color:#C7CCD7;font-size:14px;margin:24px 0");
     etat.textContent="Ouverture du document…";
     corps.appendChild(etat);
     ov.appendChild(barre); ov.appendChild(corps);

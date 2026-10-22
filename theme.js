@@ -14,7 +14,7 @@
    Chargé tôt dans <head> : pas d'éclair sombre à l'ouverture en clair.
    ===================================================================== */
 (function(){
-  var CLE="site:theme", MATIN=7, SOIR=20, FOND="#EEF1F4";
+  var CLE="site:theme", MATIN=7, SOIR=20, FOND="#F4F6FB";
   var mq=null; try{ mq=window.matchMedia("(prefers-color-scheme: dark)"); }catch(e){}
   function reglage(){ var v=null; try{ v=localStorage.getItem(CLE); }catch(e){} return /^(auto|heure|sombre|clair)$/.test(v||"") ? v : "auto"; }
   function veutClair(m){
@@ -115,7 +115,7 @@
   function fondNuit(c){
     var t=hsl(c.r, c.g, c.b), h=t[0], s=t[1], l=t[2];
     if(c.a>=.6 && l>.8){
-      if(s<.35) return ecrire(rgb(h, s*.45, .175+(1-l)*.55), c.a);           /* blanc → graphite ; gris clair → un peu plus clair */
+      if(s<.35) return ecrire(rgb(.6, .24, .175+(1-l)*.55), c.a);           /* blanc → bleu nuit grisé ; gris clair → un peu plus clair */
       return ecrire(rgb(h, Math.min(s, .55)*.55, .2+(1-l)*.5), c.a);         /* teinte pâle (orange doux, bleu doux) → teinte sombre */
     }
     return null;
@@ -190,11 +190,51 @@
       RE.lastIndex=0; return RE.test(o) ? o : t;
     });
   }
+  /* ---------- l'en-tête bleu nuit ----------
+     Le site est dessiné en sombre ; en clair, tout s'éclaircit… sauf l'en-tête,
+     qui reste foncé (bleu nuit) avec ses textes clairs. Une règle qui ne vise que
+     des éléments de l'en-tête (header h1, header .ref…) garde donc ses couleurs
+     d'origine ; ses variables (--g-900…) reprennent leur valeur sombre. */
+  var ENTETE={};
+  function sansPseudo(t){ return t.replace(/::?[a-zA-Z-]+(\((?:[^()]|\([^()]*\))*\))?/g, ""); }
+  function regleEntete(sel){
+    if(!sel) return false;
+    if(sel in ENTETE) return ENTETE[sel];
+    var vu=false, ok=true;
+    sel.split(",").forEach(function(part){
+      if(!ok) return;
+      var p=sansPseudo(part).trim(); if(!p){ ok=false; return; }
+      var l; try{ l=document.querySelectorAll(p); }catch(e){ ok=false; return; }
+      /* une partie qui ne vise rien sur cette page (.menu-link d'une autre page) ne compte pas */
+      if(!l.length){ if(/(^|[\s>+~])header\b/.test(p)) vu=true; return; }
+      for(var i=0;i<l.length;i++){ if(!l[i].closest || !l[i].closest("header")){ ok=false; return; } }
+      vu=true;
+    });
+    return (ENTETE[sel] = ok && vu);
+  }
+  function figerTout(v){
+    return v.replace(/var\(\s*(--[\w-]+)\s*(?:,[^()]*)?\)/g, function(t, n){
+      var o=ORIG[n]; if(!o) return t; RE.lastIndex=0; return RE.test(o) ? o : t;
+    });
+  }
   function convertir(feuille){
     if(VUES.indexOf(feuille)>=0) return;
     VUES.push(feuille);
     regles(feuille, function(r, genre){
       if(genre==="media"){ if(FN===FN_NUIT) return; FAITS.push({media:r.media, avant:r.media.mediaText}); r.media.mediaText="not all"; return; }
+      if(FN===FN_CLAIR && !SANS_NUIT && regleEntete(r.selectorText)){
+        /* l'en-tête reste sombre : ses variables gardent leur valeur d'origine */
+        var se=r.style, pe=proprietes(se);
+        pe.forEach(function(p){
+          if(p.indexOf("--")===0) return;
+          var v=se.getPropertyValue(p); if(!v || v.indexOf("var(")<0) return;
+          var n=figerTout(v); if(n===v) return;
+          var prio=se.getPropertyPriority(p);
+          FAITS.push({st:se, p:p, avant:v, prio:prio});
+          try{ se.setProperty(p, n, prio); }catch(e){}
+        });
+        return;
+      }
       if(FN===FN_NUIT){
         if(GARDE_CLAIR.test(r.selectorText||"")) return;
         for(var pr=r.parentRule; pr; pr=pr.parentRule) if(pr.media && /print/.test(pr.media.mediaText||"")) return;
@@ -231,12 +271,14 @@
     origines();
     for(i=0;i<fs.length;i++) if(!propre(fs[i])) convertir(fs[i]);
   }
+  /* une page dont l'en-tête est clair par nature (data-entete="clair") */
+  var SANS_NUIT=document.documentElement.getAttribute("data-entete")==="clair";
   function toutDefaire(){
     for(var i=FAITS.length-1;i>=0;i--){
       var f=FAITS[i];
       try{ if(f.media) f.media.mediaText=f.avant; else f.st.setProperty(f.p, f.avant, f.prio); }catch(e){}
     }
-    FAITS=[]; VUES=[]; USAGE={}; ORIG={};
+    FAITS=[]; VUES=[]; USAGE={}; ORIG={}; ENTETE={};
   }
 
   /* ---------- appliquer ---------- */
@@ -249,13 +291,22 @@
     +"html.theme-clair .ciel>*,html.theme-clair #fondPlan>*,html.theme-clair .fond-outils>*{display:none!important}"
     +"html.theme-attente body{visibility:hidden}"
     +"html.theme-sombre{color-scheme:dark}"
+    /* l'en-tête bleu nuit, en clair comme en sombre */
+    +"html:not([data-theme-fixe]):not([data-entete=clair]) header{background:linear-gradient(160deg,#0B1220 0%,#172554 62%,#1E3A8A 100%)!important;"
+    +"border-bottom-color:rgba(255,255,255,.08)!important;color:#E2E8F0}"
+    /* « Menu », ☰ et le titre : lisibles sur le bleu nuit, quel que soit le dessin de la page */
+    +"html:not([data-theme-fixe]):not([data-entete=clair]) header a[href='./index.html'],html:not([data-theme-fixe]):not([data-entete=clair]) header .nv-paire>a{"
+    +"background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.18)!important;color:#EDF1F6!important;box-shadow:none!important}"
+    +"html:not([data-theme-fixe]):not([data-entete=clair]) header h1,html:not([data-theme-fixe]):not([data-entete=clair]) header .np-titre{color:#F8FAFC!important}"
     /* en verre : les fiches laissent voir le fond (sans flou, léger pour l'ordinateur) */
     +"html.fiches-verre .block,html.fiches-verre .carte,html.fiches-verre .tuile,html.fiches-verre .travaux{background:rgba(22,26,32,.58)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:none!important}";
   (document.head||html).appendChild(css);
   function metaCouleur(){
     var m=document.querySelector('meta[name="theme-color"]'); if(!m) return;
     if(!m.dataset.sombre) m.dataset.sombre=m.getAttribute("content")||"";
-    m.setAttribute("content", CLAIR ? FOND : m.dataset.sombre);
+    /* l'en-tête est bleu nuit, en clair comme en sombre : la barre du téléphone aussi */
+    var nuit = !html.hasAttribute("data-theme-fixe") && html.getAttribute("data-entete")!=="clair";
+    m.setAttribute("content", nuit ? "#0B1220" : (CLAIR ? FOND : m.dataset.sombre));
   }
   /* en sombre, les fiches : sombres (par défaut), blanches (comme avant) ou en verre */
   var CLE_FICHES="site:fiches";

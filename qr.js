@@ -232,20 +232,20 @@
   function etiquette(doc, x, y, l, h, o){
     o = o || {};
     var k = l / 60, bande = 13 * k, cx = x + l / 2;
-    doc.setDrawColor(200, 192, 178); doc.setLineWidth(0.3);
+    doc.setDrawColor(179, 186, 199); doc.setLineWidth(0.3);
     doc.setFillColor(255, 255, 255); doc.roundedRect(x, y, l, h, 3 * k, 3 * k, "FD");
-    doc.setFillColor(34, 32, 28); doc.roundedRect(x, y, l, bande, 3 * k, 3 * k, "F"); doc.rect(x, y + bande - 3 * k, l, 3 * k, "F");
+    doc.setFillColor(28, 30, 34); doc.roundedRect(x, y, l, bande, 3 * k, 3 * k, "F"); doc.rect(x, y + bande - 3 * k, l, 3 * k, "F");
     doc.setFont("helvetica", "bold"); doc.setFontSize(13 * k);
     var t1 = "Suivi travaux ", t2 = "360", w1 = doc.getTextWidth(t1), w2 = doc.getTextWidth(t2), x0 = cx - (w1 + w2) / 2, yb = y + bande / 2 + 1.6 * k;
     doc.setTextColor(255, 255, 255); doc.text(t1, x0, yb);
-    doc.setTextColor(243, 161, 90); doc.text(t2, x0 + w1, yb);
+    doc.setTextColor(147, 197, 253); doc.text(t2, x0 + w1, yb);
     var cote = Math.min(l - 14 * k, h - bande - 34 * k), qy = y + bande + 4 * k;
     pdf(doc, o.url || "", cx - cote / 2, qy, cote, {niveau: "Q"});
     var ty = qy + cote + 6 * k;
     /* « Nous contacter », le nom de l'entreprise, ce qu'on peut demander */
-    doc.setTextColor(34, 32, 28); doc.setFont("helvetica", "bold"); doc.setFontSize(11 * k);
+    doc.setTextColor(28, 30, 34); doc.setFont("helvetica", "bold"); doc.setFontSize(11 * k);
     doc.text("Nous contacter", cx, ty, {align: "center"});
-    doc.setTextColor(180, 98, 26);
+    doc.setTextColor(37, 99, 235);
     /* le nom entier de l'entreprise : la taille se réduit plutôt que de couper un mot */
     var largeur = l - 6 * k;
     function ajuste(texte, taille, mini){
@@ -256,13 +256,13 @@
     var soc = String(o.societe || "").replace(/\s+/g, " ").trim();
     if(ajuste(soc, 8.6 * k, 6 * k)) doc.text(soc, cx, ty + 4.6 * k, {align: "center"});
     else { doc.setFontSize(6 * k); doc.text(doc.splitTextToSize(soc, largeur).slice(0, 2), cx, ty + 3.8 * k, {align: "center", lineHeightFactor: 1.05}); }
-    doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(110, 103, 92);
+    doc.setFont("helvetica", "normal"); doc.setFontSize(7.4 * k); doc.setTextColor(93, 98, 109);
     doc.text("Dépannage  ·  Devis  ·  Information", cx, ty + 9 * k, {align: "center"});
     /* en bas : le téléphone et le site de la fiche société, sur une ligne s'ils tiennent, sinon sur deux */
     var web = String(o.web || "").replace(/^https?:\/\//i, "").replace(/\/$/, "").trim(), tel = String(o.tel || "").trim();
     if(tel || web){
-      doc.setFillColor(226, 220, 206); doc.rect(x + 5 * k, y + h - 9 * k, l - 10 * k, 0.25, "F");
-      doc.setFont("helvetica", "bold"); doc.setTextColor(34, 32, 28);
+      doc.setFillColor(207, 213, 225); doc.rect(x + 5 * k, y + h - 9 * k, l - 10 * k, 0.25, "F");
+      doc.setFont("helvetica", "bold"); doc.setTextColor(28, 30, 34);
       var une = [tel, web].filter(Boolean).join("  ·  ");
       if(ajuste(une, 8 * k, 6.4 * k)) doc.text(une, cx, y + h - 4.4 * k, {align: "center"});
       else {

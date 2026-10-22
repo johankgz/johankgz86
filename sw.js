@@ -131,7 +131,7 @@ function page(req){
 }
 function horsLignePage(){
   return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>Hors ligne</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#22201C;background:#F4F1EA">'
+    + '<title>Hors ligne</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#1C1E22;background:#EAEDF4">'
     + '<h2>Hors ligne</h2><p>Cette page n\'a pas encore été ouverte sur cet appareil. Elle sera disponible hors connexion '
     + 'dès que vous l\'aurez ouverte une fois avec du réseau.</p><p><a href="/index.html">Revenir à l\'accueil</a></p>',
     {status:200, headers:{"content-type":"text/html; charset=utf-8"}});
