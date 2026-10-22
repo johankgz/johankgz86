@@ -1892,7 +1892,8 @@ function carteDossier(c, i, opts){
     iti.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation();
       var q=String(c.adresse).replace(/\n/g, ", ");
-      window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
+      if(window.Itineraire) Itineraire.ouvrir(q);
+      else window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
     });
     outils.appendChild(iti);
   }
