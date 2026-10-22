@@ -495,22 +495,41 @@ function avancementDe(c) {
   return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
 }
 
-/* Un devis accepté, c'est définitif : posé depuis le chantier (bouton du bureau)
-   ou par un relevé publié au statut « Devis accepté », le dossier ne repasse
-   plus jamais en attente de réponse. */
+/* Les travaux ont commencé : un suivi, une commande, un autocontrôle, une
+   réception ou un DOE publiés, ou un avancement posé. Le premier de ces
+   documents dit quand. (Un point de chantier ne compte pas : il peut venir
+   d'un rendez-vous avant le devis.) */
+const TYPES_TRAVAUX = new Set(["suivi", "commande", "autocontrole", "reception", "doe"]);
+function premiersTravaux(c) {
+  let vu = null;
+  for (const f of (c && c.fichiers) || []) {
+    if (f.brouillon || !TYPES_TRAVAUX.has(f.type)) continue;
+    const quand = f.publie || f.date || "";
+    if (!vu || String(quand) < String(vu.publie || vu.date || "")) vu = f;
+  }
+  return vu;
+}
+/* Un devis accepté, c'est définitif : posé depuis le chantier (bouton du bureau),
+   par un relevé publié au statut « Devis accepté », ou parce que les travaux
+   ont commencé ; le dossier ne repasse plus jamais en attente de réponse. */
 function estAccepte(c) {
   if (!c) return false;
   if (c.etat === "accepte") return true;
   const r = dernierReleve(c);
-  return statutAttendu(r && r.etape) === "actif";
+  if (statutAttendu(r && r.etape) === "actif") return true;
+  return !!premiersTravaux(c) || avancementDe(c) > 0;
 }
 function etatDossier(c) {
   if (!c) return { etat: "actif" };
   if (estAccepte(c)) {
-    const r = c.etat === "accepte" ? null : dernierReleve(c);
+    let r = null;
+    if (c.etat !== "accepte") {
+      r = dernierReleve(c);
+      if (statutAttendu(r && r.etape) !== "actif") r = premiersTravaux(c);
+    }
     return { etat: "actif", accepte: true,
-      accepteLe: c.accepteLe || (r && (r.publie || r.date)) || "",
-      acceptePar: c.acceptePar || (r && r.auteur) || "",
+      accepteLe: c.accepteLe || (r && (r.publie || r.date)) || c.avancementLe || "",
+      acceptePar: c.acceptePar || (r && r.auteur) || c.avancementPar || "",
       accepteAuto: c.etat !== "accepte" };
   }
   let etat = c.etat === "attente" ? "attente" : (c.etat === "actif" ? "actif" : "");
