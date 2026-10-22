@@ -752,6 +752,8 @@ function styleGalerie(){
     /* un toucher sur la photo cache les boutons, un autre les remet */
     +".dg-cache .dg-haut,.dg-cache .dg-flot,.dg-cache .dg-pts,.dg-cache .dg-fl{opacity:0;pointer-events:none}"
     +".dg-cache .dg-haut>*{pointer-events:none}"
+    /* tirée vers le bas pour fermer : les boutons s'effacent, le fond s'éclaircit */
+    +".dg-tire .dg-haut,.dg-tire .dg-flot,.dg-tire .dg-pts,.dg-tire .dg-fl{opacity:0;pointer-events:none}"
     /* à la souris : la main qui saisit, les deux flèches sur les côtés, le survol */
     +"@media (hover:hover) and (pointer:fine){.dg-scene{cursor:grab}.dg-scene.dg-tient{cursor:grabbing}"
     +".dg-fl{display:flex}.dg-fl[hidden]{display:none}"
@@ -849,6 +851,8 @@ function partagerPhotos(f, photos, secours){
    l'endroit pincé (jusqu'à 5 fois) ; un double toucher l'agrandit là où
    l'on touche, un autre la remet entière. Agrandie, un doigt la promène
    (sans qu'elle sorte du cadre) et le glissé ne change plus de photo.
+   Tirée du doigt vers le bas, la photo rapetisse, le fond s'efface, et
+   lâchée assez bas (ou d'un coup vif) elle se ferme : retour aux photos.
    En haut : la flèche (ou la croix) referme, au milieu « 3 sur 9 » et
    le nom. En bas, une barre flottante : « Partager » et « Enregistrer »
    (la photo affichée, dans la galerie du téléphone). Un toucher sur la
@@ -859,10 +863,13 @@ function partagerPhotos(f, photos, secours){
    referme. */
 function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   styleGalerie();
-  var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false;
+  var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false, finir=null;
+  /* l'espace noir entre deux photos, pendant qu'on passe de l'une à l'autre */
+  var ECART=24, COURBE="cubic-bezier(.2,.85,.3,1)";
   /* les doigts posés, et le geste en cours : null (pas encore décidé), « glisse »
      (changer de photo), « promene » (déplacer la photo agrandie), « pince »
-     (zoomer à deux doigts), « rien » (un glissé vertical) */
+     (zoomer à deux doigts), « ferme » (tirer la photo vers le bas pour la fermer),
+     « rien » (un glissé vers le haut) */
   var DOIGTS={}, geste=null, bouge=false, origine={x:0, y:0}, pince=null, toucherAvant=null;
   var Z={s:1, x:0, y:0}, ZMAX=5, ZDOUBLE=2.5;
   var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
@@ -911,7 +918,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   }
   function placer(){
     Z={s:1, x:0, y:0}; scene.classList.remove("dg-zoom");
-    cases[0].style.left="-100%"; cases[1].style.left="0"; cases[2].style.left="100%";
+    cases[0].style.left="calc(-100% - "+ECART+"px)"; cases[1].style.left="0"; cases[2].style.left="calc(100% + "+ECART+"px)";
     remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
     cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
     titre.textContent = n>1 ? (k+1)+" sur "+n : "";
@@ -922,9 +929,17 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
     vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
     flG.hidden = k<=0; flD.hidden = k>=n-1;
   }
-  function poser(x, anime){
-    piste.style.transition = anime && !reduit ? "transform .28s cubic-bezier(.2,.8,.2,1)" : "none";
+  function poser(x, anime, duree){
+    piste.style.transition = anime && !reduit ? "transform "+(duree||240)+"ms "+COURBE : "none";
     piste.style.transform = "translate3d("+x+"px,0,0)";
+  }
+  /* la vitesse du doigt (px/ms) sur ses 100 derniers millisecondes */
+  function vitesse(e, axe){
+    var t=e.timeStamp, a=null;
+    for(var i=0; i<traces.length; i++){ if(t-traces[i].t<=100){ a=traces[i]; break; } }
+    if(!a) a=traces[traces.length-1];
+    if(!a) return 0;
+    return ((axe==="y" ? e.clientY-a.y : e.clientX-a.x))/Math.max(16, t-a.t);
   }
 
   /* ---------- le zoom de la photo affichée ---------- */
@@ -959,24 +974,59 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
     borner(); zoomer(true);
   }
 
-  /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place */
-  function aller(sens){
-    if(enCours) return;
-    if(k+sens<0 || k+sens>=n){ poser(0, true); return; }
+  /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place.
+     Lancée du doigt, la photo garde l'élan : plus le geste est vif, plus elle file vite
+     (entre 140 et 300 ms), et elle ralentit en douceur en arrivant. */
+  function aller(sens, v){
+    if(enCours && finir) finir();
+    if(k+sens<0 || k+sens>=n){ poser(0, true, 220); return; }
     if(Z.s!==1 || Z.x || Z.y) remettre(false);
     enCours=true; W=scene.clientWidth||1;
-    var fini=false;
+    var fini=false, but=-sens*(W+ECART), reste=Math.abs(but-dx);
+    var duree = v && Math.abs(v)>.15 ? Math.round(Math.max(140, Math.min(300, 1.8*reste/Math.abs(v)))) : 260;
     function fin(){
-      if(fini) return; fini=true;
-      k+=sens;
+      if(fini) return; fini=true; finir=null;
+      k+=sens; dx=0;
       /* la case arrivée au milieu y reste : son image ne se recharge pas */
       if(sens>0) cases.push(cases.shift()); else cases.unshift(cases.pop());
       placer(); poser(0, false); enCours=false;
     }
+    finir=fin;
     if(reduit){ fin(); return; }
-    poser(-sens*W, true);
+    poser(but, true, duree);
     piste.addEventListener("transitionend", fin, {once:true});
-    setTimeout(fin, 360);
+    setTimeout(fin, duree+80);
+  }
+  /* ---------- tirer la photo vers le bas : elle se ferme ---------- */
+  function tirer(mx, my){
+    var H=scene.clientHeight||1, ty = my>0 ? my : my*.2;
+    var sc=1-Math.min(.3, Math.max(0, ty)/H*.6), al=1-Math.min(1, Math.max(0, ty)/(H*.55));
+    var im=image();
+    im.style.transition="none";
+    im.style.transform="translate("+mx+"px,"+ty+"px) scale("+sc+")";
+    vue.style.transition="none";
+    vue.style.backgroundColor="rgba(11,11,10,"+al.toFixed(3)+")";
+  }
+  function lacherTire(e, annule){
+    var my=e.clientY-y0, mx=e.clientX-x0, vy=vitesse(e, "y"), H=scene.clientHeight||1, im=image();
+    if(!annule && !reduit && (my>H*.16 || (vy>.45 && my>24))){
+      /* elle part vers le bas en suivant l'élan, le fond s'efface, on revient aux photos */
+      var d=Math.round(Math.max(140, Math.min(260, (H-my)/Math.max(.8, vy))));
+      im.style.transition="transform "+d+"ms cubic-bezier(.4,0,.8,.6), opacity "+d+"ms ease";
+      im.style.transform="translate("+mx+"px,"+H+"px) scale(.7)";
+      im.style.opacity="0";
+      vue.style.transition="background-color "+d+"ms ease";
+      vue.style.backgroundColor="rgba(11,11,10,0)";
+      setTimeout(fermer, d);
+      return;
+    }
+    if(!annule && reduit && my>H*.16){ fermer(); return; }
+    /* pas assez loin : elle revient en place */
+    im.style.transition="transform 260ms "+COURBE;
+    im.style.transform="";
+    vue.style.transition="background-color 260ms ease";
+    vue.style.backgroundColor="";
+    vue.classList.remove("dg-tire");
   }
 
   /* ---------- les doigts (ou la souris) ---------- */
@@ -984,6 +1034,8 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   scene.addEventListener("pointerdown", function(e){
     if(e.pointerType==="mouse" && e.button!==0) return;
     if(e.target.closest && e.target.closest(".dg-fl")) return;
+    /* un doigt posé pendant que la photo file : elle arrive tout de suite, et le geste suivant part */
+    if(enCours && finir) finir();
     if(enCours) return;
     /* le premier doigt posé : aucun autre ne compte encore (un lâcher perdu ne bloque rien) */
     if(e.isPrimary) DOIGTS={};
@@ -993,7 +1045,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
     if(l.length===1){
       geste = Z.s>1.01 ? "promene" : null; bouge=false;
       x0=e.clientX; y0=e.clientY; dx=0; W=scene.clientWidth||1;
-      traces=[{x:e.clientX, t:e.timeStamp}];
+      traces=[{x:e.clientX, y:e.clientY, t:e.timeStamp}];
       origine={x:Z.x, y:Z.y};
       if(geste==="promene"){ image().style.transition="none"; scene.classList.add("dg-tient"); }
     } else if(l.length===2){
@@ -1029,15 +1081,17 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
       zoomer(false);
       return;
     }
+    traces.push({x:e.clientX, y:e.clientY, t:e.timeStamp}); if(traces.length>12) traces.shift();
     if(geste===null){
       if(!bouge) return;
-      geste = Math.abs(mx)>Math.abs(my) ? "glisse" : "rien";
+      geste = Math.abs(mx)>Math.abs(my) ? "glisse" : my>0 ? "ferme" : "rien";
       if(geste==="glisse") scene.classList.add("dg-tient");
+      if(geste==="ferme"){ clearTimeout(unToucher); unToucher=null; vue.classList.add("dg-tire"); }
     }
+    if(geste==="ferme"){ tirer(mx, my); return; }
     if(geste!=="glisse") return;
     /* au premier et au dernier bout, la photo résiste */
     dx = (k<=0 && mx>0) || (k>=n-1 && mx<0) ? mx*.3 : mx;
-    traces.push({x:e.clientX, t:e.timeStamp}); if(traces.length>6) traces.shift();
     poser(dx, false);
   });
   function lacher(e){
@@ -1061,13 +1115,15 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
       if(!bouge && e.type!=="pointercancel") toucher(e);
       return;
     }
+    if(g==="ferme"){ lacherTire(e, e.type==="pointercancel"); return; }
     if(g==="glisse"){
-      if(e.type==="pointercancel"){ poser(0, true); return; }
-      /* un petit coup sec suffit : la vitesse des derniers instants compte */
-      var a=traces[0], v=a ? (e.clientX-a.x)/Math.max(16, e.timeStamp-a.t) : 0;
-      if(k<n-1 && (dx<-W*.2 || (v<-.35 && dx<-24))) aller(1);
-      else if(k>0 && (dx>W*.2 || (v>.35 && dx>24))) aller(-1);
-      else poser(0, true);
+      if(e.type==="pointercancel"){ poser(0, true, 220); return; }
+      /* un petit coup suffit : la vitesse des derniers instants compte, et un
+         geste qui revient en arrière au dernier moment ne change pas de photo */
+      var v=vitesse(e, "x");
+      if(k<n-1 && ((dx<-W*.15 && v<.2) || (v<-.2 && dx<-10))) aller(1, v);
+      else if(k>0 && ((dx>W*.15 && v>-.2) || (v>.2 && dx>10))) aller(-1, v);
+      else poser(0, true, 220);
       return;
     }
     if(g===null && !bouge && e.type!=="pointercancel") toucher(e);
@@ -1119,6 +1175,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   function recaler(){ if(Z.s>1.01){ borner(); zoomer(false); } }
   function fermer(){
     clearTimeout(unToucher);
+    if(finir) finir();
     document.removeEventListener("keydown", touche, true);
     window.removeEventListener("resize", recaler);
     if(vue.parentNode) vue.parentNode.removeChild(vue);
