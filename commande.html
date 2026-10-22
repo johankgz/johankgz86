@@ -836,6 +836,7 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
 <div class="toast" id="toast" hidden></div>
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
+<script defer src="./pdf-design.js?v=20261024c"></script>
 <script src="./sobre.js?v=20261015a"></script>
 <script src="./une-page.js?v=20261002a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
@@ -1906,178 +1907,50 @@ function recupererFiche(f){
 var M=14, PW=210, PH=297, CW=PW-2*M;
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var y=M, page=1;
-  var INK=[28,30,34], GREY=[93,98,109], LIGHT=[207,213,225];
-  var ACC=[37,99,235], ACC_BG=[234,241,255];
-  var SOL=[138,90,20], SOL_BG=[250,239,222];
-  var GREEN=[94,110,66], AMBER=[232,163,61], RED=[166,41,31], RED_BG=[248,228,224];
-  var theme=ACC, themeBg=ACC_BG;
-  function fmtDate(d){ if(!d) return ""; var a=d.split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
-  function nb(n){ return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
-  function vide(v){ return v===null || v===undefined || v==="" || (v.join && !v.length); }
-  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
-  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-
-  /* ---------- structure de page ---------- */
-
-  /* ---------- blocs de contenu ---------- */
-  function h2(t, est, couleur){
-    theme = couleur || ACC; themeBg = (couleur===SOL) ? SOL_BG : ACC_BG;
-    if(est && (y + est > PH-22) && y > 45) newPage();
-    need(34); y+=4;
-    setFill(themeBg); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
-    setFill(theme); doc.roundedRect(M, y, 2.6, 9.5, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setText(theme);
-    doc.text(t, M+7, y+6.4);
-    setText(INK); y+=15;
-  }
-  function sousTitre(t){
-    need(20); doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme);
-    doc.text(t, M+1, y); setText(INK); y+=5.8;
-  }
-  function ecrireExp(txt, x, yy, taille){   // gère le "²" absent des polices PDF de base
-    var parts = String(txt).split("²");
-    var cx = x;
-    for(var i=0;i<parts.length;i++){
-      doc.setFontSize(taille);
-      doc.text(parts[i], cx, yy);
-      cx += doc.getTextWidth(parts[i]);
-      if(i < parts.length-1){
-        doc.setFontSize(taille*0.68);
-        doc.text("2", cx, yy-1.3);
-        cx += doc.getTextWidth("2");
-        doc.setFontSize(taille);
-      }
-    }
-  }
-  function kv(k,v){
-    if(vide(v)) return;
-    v = String(v);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-    var kL=doc.splitTextToSize(k, 42), vL=doc.splitTextToSize(v, CW-50);
-    var n=Math.max(kL.length, vL.length);
-    need(n*4.8+3);
-    setText(GREY); doc.text(kL, M+1, y);
-    setText(INK); doc.setFont("helvetica","bold");
-    if(v.indexOf("²")>=0 && vL.length===1) ecrireExp(vL[0], M+48, y, 9.5);
-    else doc.text(vL, M+48, y);
-    y += n*4.8 + 3.4;
-  }
-  function para(txt){
-    if(vide(txt) || !txt.trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-    var lines=doc.splitTextToSize(txt.trim(), CW-4);
-    for(var i=0;i<lines.length;i++){ need(6); doc.text(lines[i], M+2, y); y+=5.2; }
-    y+=2;
-  }
-  function encadre(txt){
-    if(vide(txt) || !txt.trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var lines=doc.splitTextToSize(txt.trim(), CW-14);
-    var h = lines.length*5.2 + 11;
-    need(h+2);
-    setFill(themeBg); doc.roundedRect(M, y, CW, h, 0.8, 0.8, "F");
-    setText(INK); doc.text(lines, M+7, y+7.5);
-    y += h + 5;
-  }
-  function bloc(titre, paires){          // sous-partie : rien d'affiché si tout est vide
-    var utiles = paires.filter(function(pp){ return !vide(pp[1]); });
-    if(!utiles.length) return false;
-    if(titre){ y+=1.5; sousTitre(titre); }
-    utiles.forEach(function(pp){ kv(pp[0], pp[1]); });
-    return true;
-  }
-  function rempli(){
-    for(var i=0;i<arguments.length;i++) if(!vide(arguments[i])) return true;
-    return false;
-  }
-
-
-
-  function bandeau(){
-    setFill(INK); doc.rect(0,0,PW,3.2,"F");
-    var L=P&&P.logo, tx=M;
-    if(L){
-      var lh=15, lw=lh*(L.w/L.h);
-      if(lw>40){ lw=40; lh=lw*(L.h/L.w); }
-      try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){}
-      tx=M+lw+7;
-    }
-    setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Commande de matériel", tx, 19);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous="Travaux du "+frDate(S.date);
-    if(refAffaire()) sous += "     "+refAffaire();
-    doc.text(sous, tx, 25);
-    var soc=(P&&P.societe)||"";
-    if(soc){
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(soc, PW-M, 13.5, {align:"right"});
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-      var ly=18;
-      [telPoints(P&&P.socTel),(P&&P.socWeb)].forEach(function(t){ if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; } });
-    }
-    setFill(LIGHT); doc.rect(M,31,CW,0.4,"F");
-    setText(INK); y=39;
-  }
-  function footer(){
-    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
-    doc.text((refAffaire()?refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-        doc.setFontSize(6.5); setText([118,125,139]);
-    doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-5.5, {align:"center"});
-    setText(INK);
-  }
-  function newPage(){
-    footer(); doc.addPage(); page++;
-    setFill(INK); doc.rect(0,0,PW,2.2,"F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.chantier.client||"Commande"), M, 12);
-    doc.text(frDate(S.date), PW-M, 12, {align:"right"});
-    setText(INK); y=20;
-  }
-  function need(h){ if(y+h > PH-22) newPage(); }
-
-  bandeau();
-
   var lignes=lignesUtiles();
-  var bc = ACC;
-  setFill(bc); doc.roundedRect(M, y, CW, 11, 0.8, 0.8, "F");
-  doc.setFont("helvetica","bold"); doc.setFontSize(10.5); doc.setTextColor(255,255,255);
-  doc.text(S.metier + "  -  " + lignes.length + " article" + (lignes.length>1?"s":"")
-    + " à commander", M+5, y+7.2);
-  setText(INK); y+=16;
+  var K = PdfDesign.kit(doc, {M:M, PW:PW, PH:PH,
+    genre:"Commande de matériel",
+    titre:S.chantier.client || "Commande de matériel",
+    sousTitre:(S.chantier.adresse||"").replace(/\n/g, ", "),
+    pastilles:["Travaux du "+frDate(S.date), refAffaire() ? "Réf. "+refAffaire() : "", S.metier||""],
+    entete:[refAffaire(), frDate(S.date)].filter(Boolean).join("  ·  "),
+    P:{logo:P&&P.logo, societe:(P&&P.societe)||"", lignes:[telPoints(P&&P.socTel), P&&P.socWeb], legal:(P&&P.socLegal)||""}});
+  var C=K.C, y=K.couverture();
+  function need(h){ if(y+h > K.BAS){ doc.addPage(); y=K.enteteSuite(); } }
 
-  h2("Travaux", 45);
-  kv("Client", S.chantier.client);
-  kv("Référence travaux", S.chantier.ref);
-  kv("Adresse", S.chantier.adresse);
-  kv("Relevé par", S.auteur||"");
+  /* ---------- l'essentiel, en tuiles et en chiffres ---------- */
+  y=K.tuiles(y, [["Client", S.chantier.client], ["Référence travaux", S.chantier.ref], ["Relevé par", S.auteur||""],
+    ["Adresse des travaux", (S.chantier.adresse||"").replace(/\n/g, ", "), true]], 3);
+  var cats=[];
+  lignes.forEach(function(l){ if(cats.indexOf(l.cat)<0) cats.push(l.cat); });
+  y=K.chiffres(y, [[lignes.length, lignes.length>1 ? "articles à commander" : "article à commander", C.BLEU],
+    [cats.length, cats.length>1 ? "familles" : "famille", C.CYAN], [S.metier||"—", "métier", C.NUIT3]]);
 
+  /* ---------- le matériel, famille par famille ---------- */
   if(lignes.length){
-    h2("Commande de matériel", 60);
-    var cats=[];
-    lignes.forEach(function(l){ if(cats.indexOf(l.cat)<0) cats.push(l.cat); });
+    y=K.section(y+2, 1, "Matériel à commander");
+    var xQ=PW-M-4;
+    y=K.enteteTableau(y, [["Article", M+4], ["Quantité", xQ, "right"]]);
     cats.forEach(function(cat){
-      need(20);
-      doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme);
-      doc.text(cat, M+1, y); setText(INK); y+=5.4;
-      setFill([244,241,234]); doc.roundedRect(M, y-3.6, CW, 0.3, 0.8, 0.8, "F");
-      lignes.filter(function(l){ return l.cat===cat; }).forEach(function(l){
-        need(8);
-        doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-        doc.text(doc.splitTextToSize(l.nom, CW-40)[0], M+2, y);
-        doc.setFont("helvetica","bold");
-        doc.text(String(l.qte).replace(".",",")+" "+l.unite, PW-M-2, y, {align:"right"});
-        setFill(LIGHT); doc.rect(M, y+2, CW, 0.25, "F");
-        y+=7;
+      var dela=lignes.filter(function(l){ return l.cat===cat; });
+      need(18);
+      K.pastille(M+1, y, cat+"  ·  "+dela.length, C.BLEU_C, C.BLEU, {capitales:true, taille:6.8});
+      y+=9;
+      dela.forEach(function(l, k){
+        K.texte(false); doc.setFontSize(9.8);
+        var nom=doc.splitTextToSize(l.nom, CW-44).slice(0,3), h=nom.length*4.4+4.2;
+        need(h+1);
+        if(k%2===0){ K.fill(C.FOND); doc.roundedRect(M, y-4.3, CW, h, 1.6, 1.6, "F"); }
+        K.ink(C.ENCRE); doc.text(nom, M+4, y);
+        var q=String(l.qte).replace(".",",")+" "+(l.unite||"");
+        K.pastille(xQ, y+0.2, q.trim(), C.BLEU, C.BLANC, {droite:true, taille:8.2, h:5.8, pad:7});
+        y+=h;
       });
-      y+=3;
+      y+=4;
     });
   }
 
-  footer();
+  K.pieds();
   return doc;
 }
 function pdfName(){ return "Commande-"+(refAffaire()||"chantier")+"-"+S.date+".pdf"; }

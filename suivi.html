@@ -1095,6 +1095,7 @@ a.act[hidden]{display:none}
 <datalist id="dl_pieces"></datalist>
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
+<script defer src="./pdf-design.js?v=20261024c"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./annotation.js?v=20261024b"></script>
 <script src="./sobre.js?v=20261010a"></script>
@@ -2042,139 +2043,24 @@ function openSketch(p, index, after, options){
 var M=14, PW=210, PH=297, CW=PW-2*M;
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var y=M, page=1;
-  var INK=[28,30,34], GREY=[93,98,109], LIGHT=[207,213,225];
-  var ACC=[37,99,235], ACC_BG=[234,241,255];
-  var OK=[63,107,82], OK_BG=[234,242,237], RED=[166,41,31], RED_BG=[248,228,224];
-  var theme=ACC, themeBg=ACC_BG;
-  function vide(v){ return v===null || v===undefined || v==="" || (v.join && !v.length); }
-  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
-  function setDraw(c){ doc.setDrawColor(c[0],c[1],c[2]); }
-  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-  function need(h){ if(y+h > PH-22) newPage(); }
-  function h2(t, est){
-    if(est && (y + est > PH-22) && y > 45) newPage();
-    need(30); y+=4;
-    setFill(themeBg); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
-    setFill(theme); doc.roundedRect(M, y, 2.6, 9.5, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setText(theme);
-    doc.text(t, M+7, y+6.4);
-    setText(INK); y+=15;
+  var adresse=(S.client.adresse||"").replace(/\n/g,", ");
+  var K = PdfDesign.kit(doc, {M:M, PW:PW, PH:PH,
+    genre:"Suivi de chantier",
+    titre:S.client.nom || "Suivi de chantier",
+    sousTitre:adresse,
+    pastilles:["Visite du "+frDate(S.visite.date)+(S.visite.heure ? " à "+S.visite.heure : ""), refAffaire() ? "Réf. "+refAffaire() : "", (S.visite.type||"").trim()],
+    entete:[refAffaire(), frDate(S.visite.date)].filter(Boolean).join("  ·  "),
+    P:{logo:P&&P.logo, societe:(P&&P.societe)||"", lignes:[telPoints(P&&P.socTel), P&&P.socWeb, P&&P.socAdr], legal:(P&&P.socLegal)||""}});
+  var C=K.C, y=K.couverture(), num=1;
+  function nouvellePage(){ doc.addPage(); y=K.enteteSuite(); }
+  function need(h){ if(y+h > K.BAS) nouvellePage(); }
+  function section(t, est){
+    if(est && y+est > K.BAS && y > 80) nouvellePage();
+    need(26); y=K.section(y+3, num++, t);
   }
-  function kv(k,v){
-    if(vide(v)) return;
-    v = String(v);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-    var kL=doc.splitTextToSize(k, 42), vL=doc.splitTextToSize(v, CW-50);
-    var n=Math.max(kL.length, vL.length);
-    need(n*4.8+3);
-    setText(GREY); doc.text(kL, M+1, y);
-    setText(INK); doc.setFont("helvetica","bold"); doc.text(vL, M+48, y);
-    y += n*4.8 + 3.4;
-  }
-  function para(txt){
-    if(vide(txt) || !String(txt).trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK);
-    var lines=doc.splitTextToSize(String(txt).trim(), CW-4);
-    for(var i=0;i<lines.length;i++){ need(6); doc.text(lines[i], M+2, y); y+=5.2; }
-    y+=2;
-  }
-  function encadre(titre, txt){
-    if(vide(txt) || !String(txt).trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var lines=doc.splitTextToSize(String(txt).trim(), CW-14);
-    var h = lines.length*5.2 + 16;
-    need(h+2);
-    setFill(themeBg); doc.roundedRect(M, y, CW, h, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme); doc.text(titre, M+7, y+6.5);
-    doc.setFont("helvetica","normal"); doc.setFontSize(10); setText(INK); doc.text(lines, M+7, y+12.5);
-    y += h + 5;
-  }
-  /* une case dessinée : les polices de base du PDF n'ont pas de ☐ */
-  function caseDessinee(x, yy, cochee, couleur){
-    setDraw(cochee ? couleur : GREY); doc.setLineWidth(0.35);
-    if(cochee){ setFill(couleur); doc.roundedRect(x, yy-3.2, 3.6, 3.6, 0.5, 0.5, "FD");
-      doc.setDrawColor(255,255,255); doc.setLineWidth(0.5);
-      doc.line(x+0.8, yy-1.4, x+1.6, yy-0.6); doc.line(x+1.6, yy-0.6, x+2.9, yy-2.4); }
-    else doc.roundedRect(x, yy-3.2, 3.6, 3.6, 0.5, 0.5, "S");
-  }
-  function bandeau(){
-    setFill(INK); doc.rect(0,0,PW,3.2,"F");
-    var L=P&&P.logo, tx=M;
-    if(L){
-      var lh=15, lw=lh*(L.w/L.h);
-      if(lw>40){ lw=40; lh=lw*(L.h/L.w); }
-      try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){}
-      tx = M + lw + 7;
-    }
-    setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Suivi de chantier", tx, 19);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous = "Visite du " + frDate(S.visite.date) + (S.visite.heure ? " à "+S.visite.heure : "");
-    if(refAffaire()) sous += "     Travaux "+refAffaire();
-    doc.text(sous, tx, 25);
-    var soc=(P&&P.societe)||"";
-    if(soc){
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(soc, PW-M, 13.5, {align:"right"});
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-      var ly=18;
-      [telPoints(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){ if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; } });
-    }
-    setFill(LIGHT); doc.rect(M,31,CW,0.4,"F");
-    setText(INK); y=39;
-  }
-  function footer(){
-    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
-    doc.text((refAffaire()?"Travaux "+refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-    doc.setFontSize(6.5); setText([118,125,139]);
-    doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-5.5, {align:"center"});
-    setText(INK);
-  }
-  function newPage(){
-    footer(); doc.addPage(); page++;
-    setFill(INK); doc.rect(0,0,PW,2.2,"F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.client.nom||"Suivi de chantier"), M, 12);
-    doc.text(titreSuivi(), PW-M, 12, {align:"right"});
-    setText(INK); y=20;
-  }
-
-  bandeau();
-
-  /* ---------- 1. le client ---------- */
-  h2("Client et travaux", 40);
-  kv("Client", S.client.nom);
-  kv("Adresse des travaux", (S.client.adresse||"").replace(/\n/g,", "));
-  kv("Interlocuteur sur place", S.client.contact);
-  kv("Téléphone", telPoints(S.client.tel));
-  kv("Référence travaux", refAffaire());
-  kv("Conducteur de travaux", [S.meta.ca, telPoints(S.meta.caTel)].filter(Boolean).join("  ·  "));
-
-  /* ---------- 2. l'objet de la visite ---------- */
-  if((S.visite.type||"").trim() || (S.visite.objet||"").trim()){
-    h2("Objet de la visite", 26);
-    if((S.visite.type||"").trim()){
-      need(8); doc.setFont("helvetica","bold"); doc.setFontSize(11); setText(INK);
-      doc.text(S.visite.type, M+2, y); y+=6.5;
-    }
-    para(S.visite.objet);
-  }
-  /* la note générale : celle du suivi, en tête, sous l'objet de la visite ; son écriture au stylet dessous */
-  var encreNote=S.visite.noteEncre && window.Stylet && Stylet.valide(S.visite.noteEncre) ? S.visite.noteEncre : null;
-  if((S.visite.note||"").trim() || encreNote){
-    if(!((S.visite.type||"").trim() || (S.visite.objet||"").trim())) h2("Objet de la visite", 26);
-    if((S.visite.note||"").trim()) encadre("Note générale", S.visite.note);
-    else { need(10); doc.setFont("helvetica","bold"); doc.setFontSize(9); setText(theme); doc.text("Note générale", M+2, y+3); y+=6; setText(INK); }
-    if(encreNote && encreNote.l && encreNote.h){
-      var lN=Math.min(CW, encreNote.l/2*0.2646), hN=lN*encreNote.h/encreNote.l;
-      if(hN>150){ hN=150; lN=hN*encreNote.l/encreNote.h; }
-      need(hN+4);
-      try{ doc.addImage(encreNote.src, "PNG", M+2, y, lN, hN); }catch(e){}
-      y+=hN+4;
-    }
+  function petiteNote(t){
+    need(8); y+=2.4; K.texte(false); doc.setFontSize(7.4); K.ink(C.GRIS2);
+    doc.text(t, M+1, y); K.ink(C.ENCRE); y+=6;
   }
 
   /* une note écrite au stylet, sous le texte de sa ligne (au plus 110 × 40 mm) */
@@ -2191,187 +2077,175 @@ function buildPdf(){
   /* le titre d'une note manuscrite sans texte n'est pas répété au PDF */
   function texteLigne(it){ return it.encre && it.texte===NOTE_MAIN ? "" : it.texte; }
 
-  /* ---------- 3. les travaux supplémentaires ---------- */
+  /* une ligne de liste : la case, le texte (et son écriture), une date dessous, une pastille à droite */
+  function ligne(it, k, o){
+    var largT=K.CW-14-(o.largDroite||0);
+    K.texte(false); doc.setFontSize(10);
+    var tx=o.texte!=null ? o.texte : texteLigne(it), lignes=tx ? doc.splitTextToSize(tx, largT) : [];
+    var te=tailleEncre(it, largT);
+    var hT=lignes.length*4.8, hE=te ? te.h+(hT ? 1.5 : 0) : 0, hD=o.sous ? 4.2 : 0;
+    var h=Math.max(hT+hE+hD, 4.8)+5.2;
+    need(h+1);
+    if(k%2===0){ K.fill(C.FOND); doc.roundedRect(M, y, K.CW, h, 2, 2, "F"); }
+    var yb=y+5.6;
+    K.caseCoche(M+3.2, yb+0.4, !!it.fait, C.OK);
+    K.ink(it.fait ? C.GRIS : C.ENCRE); K.texte(false); doc.setFontSize(10);
+    if(lignes.length) doc.text(lignes, M+10, yb);
+    if(te) poserEncre(it, te, M+10, yb-3.4+(hT ? hT+1.5 : 0));
+    if(o.sous){ doc.setFontSize(7.6); K.ink(C.GRIS2); doc.text(o.sous, M+10, yb+hT+hE-0.4); }
+    if(o.droite) K.pastille(PW-M-3, yb+0.3, o.droite[0], o.droite[1], o.droite[2], {droite:true, taille:7.4});
+    y+=h+1.6;
+  }
+
+  /* ---------- l'essentiel ---------- */
+  y=K.tuiles(y, [["Interlocuteur sur place", S.client.contact], ["Téléphone", telPoints(S.client.tel)], ["Référence travaux", refAffaire()],
+    ["Conducteur de travaux", [S.meta.ca, telPoints(S.meta.caTel)].filter(Boolean).join("  ·  ")], ["Adresse des travaux", adresse, true]], 4);
   var ts=(S.ts||[]).filter(function(x){ return (x.texte||"").trim(); });
-  if(ts.length){
-    h2("Travaux supplémentaires", 40);
-    var cQui=44, xQui=PW-M-cQui;
-    need(10);
-    setFill([246,244,239]); doc.rect(M, y-4.6, CW, 7, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(GREY);
-    doc.text("Demande", M+9, y); doc.text("Demandée par", xQui+2, y);
-    y+=5.5;
-    ts.forEach(function(it){
-      doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var tx=texteLigne(it), lignes=tx ? doc.splitTextToSize(tx, xQui-M-12) : [];
-      var te=tailleEncre(it, xQui-M-12);
-      var hT=lignes.length*5, h=hT+3+(it.depuis ? 4 : 0)+(te ? te.h+(hT?1.5:0) : 0);
-      need(h+2);
-      caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
-      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
-      if(it.depuis){
-        doc.setFontSize(8); setText(GREY);
-        doc.text("demandée le "+frDate(it.depuis), M+9, y+hT+(te ? te.h+(hT?1.5:0) : 0)-0.6);
-        doc.setFontSize(10);
-      }
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(it.qui ? ACC : GREY);
-      doc.text(it.qui || "—", xQui+2, y);
-      y += h;
-      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
-      y += 1.5;
-    });
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    need(6); doc.text("Case cochée : demande chiffrée ou validée. Les demandes pas encore chiffrées sont reprises au suivi suivant.", M+1, y+1); setText(INK); y+=7;
-  }
-
-  /* ---------- le reste à faire ---------- */
   var rf=(S.reste||[]).filter(function(x){ return (x.texte||"").trim(); });
-  if(rf.length){
-    h2("Reste à faire", 24);
-    rf.forEach(function(it){
-      doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var tx=texteLigne(it), lignes=tx ? doc.splitTextToSize(tx, CW-12) : [];
-      var te=tailleEncre(it, CW-12);
-      var hT=lignes.length*5, h=hT+3+(it.depuis ? 4 : 0)+(te ? te.h+(hT?1.5:0) : 0);
-      need(h+2);
-      caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
-      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
-      if(it.depuis){
-        doc.setFontSize(8); setText(GREY);
-        doc.text("notée le "+frDate(it.depuis), M+9, y+hT+(te ? te.h+(hT?1.5:0) : 0)-0.6);
-        doc.setFontSize(10);
-      }
-      y += h;
-      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
-      y += 1.5;
-    });
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    need(6); doc.text("Case cochée : tâche faite. Les tâches pas encore faites sont reprises au suivi suivant.", M+1, y+1); setText(INK); y+=7;
-  }
+  var pts=(S.points||[]).filter(function(x){ return (x.texte||"").trim(); });
+  var ph=(S.photos||[]), plans=(S.plans||[]);
+  function ouverts(l){ return l.filter(function(x){ return !x.fait; }).length; }
+  y=K.chiffres(y, [[ouverts(ts), "travaux supplémentaires", C.BLEU], [ouverts(rf), "reste à faire", C.AMBRE],
+    [ouverts(pts), "points bloquants", C.ROUGE], [ph.length, "photos et croquis", C.CYAN]]);
 
-  /* ---------- 4. le reportage photo ---------- */
-  var ph=(S.photos||[]);
-  if(ph.length){
-    h2("Photo et croquis", 80);
-    {
-      var cw=(CW-6)/2, ci=0, rowH=0, startY=y;
-      ph.forEach(function(p, k){
-        var h=Math.min(70, cw*(p.h/p.w)), w=h*(p.w/p.h);
-        if(ci===0){ need(h+12); startY=y; rowH=0; }
-        var x=M+ci*(cw+6)+(cw-w)/2;
-        try{ doc.addImage(p.data,"JPEG", x, startY, w, h); }catch(e){}
-        doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(GREY);
-        var lg=(p.legende||"").trim() || "Photo "+(k+1);
-        doc.text(doc.splitTextToSize(lg + (p.annotee ? "  (annotée)" : ""), cw)[0], M+ci*(cw+6), startY+h+4.2);
-        rowH=Math.max(rowH, h+8);
-        ci++;
-        if(ci===2 || k===ph.length-1){ y=startY+rowH+2; ci=0; }
-      });
-      setText(INK);
+  /* ---------- l'objet de la visite et la note générale ---------- */
+  var encreNote=S.visite.noteEncre && window.Stylet && Stylet.valide(S.visite.noteEncre) ? S.visite.noteEncre : null;
+  var aObjet=(S.visite.type||"").trim() || (S.visite.objet||"").trim(), aNote=(S.visite.note||"").trim() || encreNote;
+  if(aObjet || aNote){
+    section("Objet de la visite", 30);
+    if((S.visite.type||"").trim()){ need(9); K.pastille(M, y, S.visite.type.trim(), C.BLEU_C, C.BLEU, {capitales:true, taille:7.4, h:6, pad:7}); y+=7; }
+    if((S.visite.objet||"").trim()){
+      K.texte(false); doc.setFontSize(10.5); K.ink(C.ENCRE);
+      doc.splitTextToSize(S.visite.objet.trim(), K.CW-2).forEach(function(l){ need(6); doc.text(l, M+1, y+1); y+=5.3; });
+      y+=3;
+    }
+    if((S.visite.note||"").trim()){
+      K.texte(false); doc.setFontSize(10);
+      var ln=doc.splitTextToSize(S.visite.note.trim(), K.CW-12), i=0;
+      while(i<ln.length){
+        var place=Math.floor((K.BAS-y-13)/5);
+        if(place<3){ nouvellePage(); place=Math.floor((K.BAS-y-13)/5); }
+        var bout=ln.slice(i, i+place);
+        y=K.encadre(y, i===0 ? "Note générale" : "Note générale (suite)", bout);
+        i+=bout.length;
+      }
+    }
+    if(encreNote && encreNote.l && encreNote.h){
+      var lN=Math.min(K.CW, encreNote.l/2*0.2646), hN=lN*encreNote.h/encreNote.l;
+      if(hN>150){ hN=150; lN=hN*encreNote.l/encreNote.h; }
+      need(hN+4);
+      try{ doc.addImage(encreNote.src, "PNG", M+2, y, lN, hN); }catch(e){}
+      y+=hN+4;
     }
   }
 
-  /* ---------- 5. les plans ---------- */
-  var plans=(S.plans||[]);
-  if(plans.length){
-    h2("Plans", 90);
-    plans.forEach(function(pl){
-      var hMax=150, w=CW, h=w*(pl.h/pl.w);
-      if(h>hMax){ h=hMax; w=h*(pl.w/pl.h); }
-      need(h+14);
-      var modifie = pl.etat==="modifie";
-      doc.setFont("helvetica","bold"); doc.setFontSize(10); setText(INK);
-      doc.text(doc.splitTextToSize(pl.legende||"Plan", CW-50)[0], M+1, y);
-      var etiquette = modifie ? "Modifié" : "Sans modification";
-      doc.setFontSize(8.5);
-      var lw=doc.getTextWidth(etiquette)+6;
-      setFill(modifie ? ACC_BG : OK_BG); doc.roundedRect(PW-M-lw, y-3.9, lw, 5.4, 1.2, 1.2, "F");
-      setText(modifie ? ACC : OK); doc.text(etiquette, PW-M-lw/2, y-0.1, {align:"center"});
-      y+=3.5;
-      try{ doc.addImage(pl.data,"JPEG", M+(CW-w)/2, y, w, h); }catch(e){}
-      setDraw(LIGHT); doc.setLineWidth(0.3); doc.rect(M+(CW-w)/2, y, w, h, "S");
-      /* les repères : leurs pastilles sur le plan, puis leur tableau */
-      var rps=reperesDe(pl), x0=M+(CW-w)/2;
-      rps.forEach(function(it){
-        var c=RP_RGB[statutRp(it)], nm=numRp(it), cx=x0+it.x*w, cy=y+it.y*h;
-        doc.setFont("helvetica","bold"); doc.setFontSize(7);
-        var rr=Math.max(3.1, doc.getTextWidth(nm)/2+1.3);
-        doc.setDrawColor(255,255,255); doc.setLineWidth(0.7); setFill(c);
-        doc.roundedRect(cx-rr, cy-3.1, 2*rr, 6.2, 3.1, 3.1, "FD");
-        doc.setTextColor(255,255,255); doc.text(nm, cx, cy+1.1, {align:"center"});
-      });
-      setText(INK);
-      y += h + 6;
-      if(rps.length) tableauReperes(rps);
-      y += 2;
+  /* ---------- les travaux supplémentaires ---------- */
+  if(ts.length){
+    section("Travaux supplémentaires", 40);
+    ts.forEach(function(it, k){
+      ligne(it, k, {largDroite:42, sous:it.depuis ? "demandée le "+frDate(it.depuis) : "",
+        droite:[it.qui || "—", it.qui ? C.BLEU_C : C.FOND, it.qui ? C.BLEU : C.GRIS2]});
     });
-    setText(INK);
+    petiteNote("Case cochée : demande chiffrée ou validée. Les demandes pas encore chiffrées sont reprises au suivi suivant.");
+  }
+
+  /* ---------- le reste à faire ---------- */
+  if(rf.length){
+    section("Reste à faire", 30);
+    rf.forEach(function(it, k){ ligne(it, k, {sous:it.depuis ? "notée le "+frDate(it.depuis) : ""}); });
+    petiteNote("Case cochée : tâche faite. Les tâches pas encore faites sont reprises au suivi suivant.");
+  }
+
+  /* ---------- les photos et croquis ---------- */
+  if(ph.length){
+    section("Photos et croquis", 80);
+    var cw=(K.CW-6)/2, ci=0, rowH=0, startY=y;
+    ph.forEach(function(p, k){
+      var h=Math.min(68, (cw-3.2)*(p.h/p.w)), w=h*(p.w/p.h);
+      if(ci===0){ need(h+16); startY=y+1.6; rowH=0; }
+      var xc=M+ci*(cw+6);
+      K.cadreImage(p.data, xc+1.6+(cw-3.2-w)/2, startY, w, h, "JPEG");
+      var lg=(p.legende||"").trim() || (p.croquis ? "Croquis" : "Photo")+" "+(k+1);
+      var wp=K.pastille(xc, startY+h+7, String(k+1), C.BLEU, C.BLANC, {taille:6.8, h:4.8, pad:4});
+      K.texte(false); doc.setFontSize(8.6); K.ink(C.ENCRE);
+      doc.text(doc.splitTextToSize(lg + (p.annotee ? "  (annotée)" : ""), cw-wp-3)[0], xc+wp+2, startY+h+6.6);
+      rowH=Math.max(rowH, h+12);
+      ci++;
+      if(ci===2 || k===ph.length-1){ y=startY+rowH+2; ci=0; }
+    });
   }
 
   /* le tableau des repères d'un plan : numéro, statut, à faire, qui et quand, photos */
   function tableauReperes(rps){
     var nb={afaire:0, encours:0, fait:0}; rps.forEach(function(p){ nb[statutRp(p)]++; });
-    need(14);
-    doc.setFont("helvetica","bold"); doc.setFontSize(8.5); setText(ACC);
-    doc.text(("Repères ("+rps.length+") · "+nb.afaire+" à faire · "+nb.encours+" en cours · "+nb.fait+" fait"+(nb.fait>1?"s":"")).toUpperCase(), M+1, y);
-    y+=5;
-    var cN=M+1, cS=M+14, cT=M+34, cQ=M+CW-62, cP=M+CW-34;
-    doc.setFont("helvetica","bold"); doc.setFontSize(7); setText(GREY);
-    doc.text("N°", cN, y); doc.text("STATUT", cS, y); doc.text("À FAIRE", cT, y); doc.text("QUI · QUAND", cQ, y); doc.text("PHOTOS", cP, y);
-    y+=1.6; setFill(LIGHT); doc.rect(M, y, CW, 0.3, "F"); y+=4.2;
-    rps.forEach(function(it){
+    need(24);
+    var cN=M+3, cS=M+16, cT=M+38, cQ=M+K.CW-62, cP=M+K.CW-34;
+    y=K.enteteTableau(y, [["N°", cN], ["Statut", cS], ["À faire", cT], ["Qui · quand", cQ], ["Photos", cP]]);
+    rps.forEach(function(it, k){
       var st=statutRp(it), c=RP_RGB[st];
-      doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
+      K.texte(false); doc.setFontSize(8.6);
       var lignes=doc.splitTextToSize((it.texte||"").trim() || "À décrire", cQ-cT-3);
-      var phs=(it.photos||[]).slice(0,2), hT=(lignes.length+(it.depuis ? 1 : 0))*3.8, hP=phs.length ? 13 : 0, hRow=Math.max(hT, hP, 6)+3;
+      var phs=(it.photos||[]).slice(0,2), hT=(lignes.length+(it.depuis ? 1 : 0))*3.9, hP=phs.length ? 13 : 0, hRow=Math.max(hT, hP, 6)+4;
       need(hRow+2);
-      var nm=numRp(it); doc.setFont("helvetica","bold"); doc.setFontSize(7);
-      var rr=Math.max(3, doc.getTextWidth(nm)/2+1.2); setFill(c);
-      doc.roundedRect(cN, y-3.4, 2*rr, 5.6, 2.8, 2.8, "F"); doc.setTextColor(255,255,255); doc.text(nm, cN+rr, y+0.5, {align:"center"});
-      doc.setFontSize(8.5); doc.setTextColor(c[0],c[1],c[2]); doc.text(RP_MOT[st], cS, y+0.5);
-      doc.setFont("helvetica","normal"); setText(INK);
-      doc.text(lignes, cT, y+0.5);
-      if(it.depuis){ setText(GREY); doc.setFontSize(7.5); doc.text("depuis le "+frDate(it.depuis), cT, y+0.5+lignes.length*3.8); setText(INK); doc.setFontSize(8.5); }
+      if(k%2===0){ K.fill(C.FOND); doc.roundedRect(M, y-4.4, K.CW, hRow, 1.6, 1.6, "F"); }
+      K.pastille(cN, y+0.6, numRp(it), c, C.BLANC, {taille:7, h:5, pad:4});
+      K.texte(true); doc.setFontSize(8.2); doc.setTextColor(c[0],c[1],c[2]); doc.text(RP_MOT[st], cS, y+0.5);
+      K.texte(false); doc.setFontSize(8.6); K.ink(C.ENCRE); doc.text(lignes, cT, y+0.5);
+      if(it.depuis){ K.ink(C.GRIS2); doc.setFontSize(7.4); doc.text("depuis le "+frDate(it.depuis), cT, y+0.5+lignes.length*3.9); K.ink(C.ENCRE); doc.setFontSize(8.6); }
       var qq=[it.qui||"", it.quand ? frDate(it.quand) : ""].filter(Boolean);
       doc.text(qq.length ? qq : ["—"], cQ, y+0.5);
-      phs.forEach(function(ph, k){ try{ var pw=16, phh=Math.min(12, pw*(ph.h||3)/(ph.w||4)); doc.addImage(ph.data, "JPEG", cP+k*17, y-3.4, pw, phh); }catch(e){} });
-      y+=hRow;
-      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
-      y+=1.5;
+      phs.forEach(function(phx, n){ try{ var pw=16, phh=Math.min(12, pw*(phx.h||3)/(phx.w||4)); doc.addImage(phx.data, "JPEG", cP+n*17, y-3.4, pw, phh); }catch(e){} });
+      y+=hRow+0.8;
     });
-    y+=3;
+    need(8);
+    K.texte(false); doc.setFontSize(7.4); K.ink(C.GRIS2);
+    doc.text(rps.length+" repère"+(rps.length>1?"s":"")+" · "+nb.afaire+" à faire · "+nb.encours+" en cours · "+nb.fait+" fait"+(nb.fait>1?"s":""), M+1, y+1);
+    K.ink(C.ENCRE); y+=7;
   }
 
-  /* ---------- 6. les points bloquants ---------- */
-  var pts=(S.points||[]).filter(function(x){ return (x.texte||"").trim(); });
+  /* ---------- les plans ---------- */
+  if(plans.length){
+    section("Plans", 100);
+    plans.forEach(function(pl){
+      var hMax=150, w=K.CW-3.2, h=w*(pl.h/pl.w);
+      if(h>hMax){ h=hMax; w=h*(pl.w/pl.h); }
+      need(h+18);
+      var modifie = pl.etat==="modifie";
+      K.titre(true); doc.setFontSize(11); K.ink(C.ENCRE);
+      doc.text(doc.splitTextToSize(pl.legende||"Plan", K.CW-50)[0], M+1, y+1);
+      K.pastille(PW-M, y+1.3, modifie ? "Modifié" : "Sans modification", modifie ? C.BLEU_C : C.OK_C, modifie ? C.BLEU : C.OK, {droite:true, taille:7.4});
+      y+=6;
+      var x0=M+1.6+(K.CW-3.2-w)/2;
+      K.cadreImage(pl.data, x0, y+1.6, w, h, "JPEG");
+      /* les repères : leurs pastilles sur le plan, puis leur tableau */
+      var rps=reperesDe(pl);
+      rps.forEach(function(it){
+        var c=RP_RGB[statutRp(it)], nm=numRp(it), cx=x0+it.x*w, cy=y+1.6+it.y*h;
+        K.texte(true); doc.setFontSize(7);
+        var rr=Math.max(3.1, doc.getTextWidth(nm)/2+1.3);
+        doc.setDrawColor(255,255,255); doc.setLineWidth(0.7); K.fill(c);
+        doc.roundedRect(cx-rr, cy-3.1, 2*rr, 6.2, 3.1, 3.1, "FD");
+        doc.setTextColor(255,255,255); doc.text(nm, cx, cy+1.1, {align:"center"});
+      });
+      K.ink(C.ENCRE);
+      y += h + 9;
+      if(rps.length) tableauReperes(rps);
+      y += 2;
+    });
+  }
+
+  /* ---------- les points bloquants ---------- */
   if(pts.length){
-    h2("Points bloquants", 30);
-    pts.forEach(function(it){
-      doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var txp=(it.plan ? "Repère "+numRp(it)+" · " : "")+texteLigne(it), lignes=txp ? doc.splitTextToSize(txp, CW-58) : [];
-      var te=tailleEncre(it, CW-58);
-      var hT=lignes.length*5, h=hT+3+(te ? te.h+(hT?1.5:0) : 0);
-      need(h+2);
-      caseDessinee(M+2, y, !!it.fait, OK);
-      setText(INK); if(lignes.length) doc.text(lignes, M+9, y);
-      if(te) poserEncre(it, te, M+9, y-3.6+(hT ? hT+1.5 : 0));
-      doc.setFontSize(8.5);
+    section("Points bloquants", 30);
+    pts.forEach(function(it, k){
       var enCours = it.plan && statutRp(it)==="encours";
       var etat = it.fait ? "Levé" : enCours ? "En cours" : (it.rappel && it.quand ? "Rappel le "+frDate(it.quand)+(it.heure ? " à "+it.heure : "") : "À lever");
-      if(enCours) doc.setTextColor(RP_RGB.encours[0], RP_RGB.encours[1], RP_RGB.encours[2]); else
-      setText(it.fait ? OK : (it.rappel ? ACC : RED));
-      doc.setFont("helvetica","bold");
-      doc.text(etat, PW-M, y, {align:"right"});
-      y += h;
-      setFill(LIGHT); doc.rect(M, y-2.6, CW, 0.25, "F");
-      y += 1.5;
+      var pal = it.fait ? [C.OK_C, C.OK] : enCours ? [C.BLEU_C, C.BLEU] : it.rappel ? [C.AMBRE_C, C.AMBRE] : [C.ROUGE_C, C.ROUGE];
+      ligne(it, k, {largDroite:50, texte:(it.plan ? "Repère "+numRp(it)+" · " : "")+texteLigne(it), droite:[etat, pal[0], pal[1]]});
     });
-    setText(INK);
   }
 
-  footer();
+  K.pieds();
   return doc;
 }
 function pdfName(){

@@ -686,6 +686,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <div class="toast" id="toast" hidden></div>
 
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
+<script defer src="./pdf-design.js?v=20261024c"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./annotation.js?v=20261024b"></script>
 <script src="./sobre.js?v=20261010a"></script>
@@ -1472,141 +1473,85 @@ function reprendreDossier(d){
 var M=14, PW=210, PH=297, CW=PW-2*M;
 function buildPdf(){
   var doc = new window.jspdf.jsPDF({unit:"mm", format:"a4"});
-  var y=M, page=1;
-  var INK=[28,30,34], GREY=[93,98,109], LIGHT=[207,213,225];
-  var ACC=[37,99,235], ACC_BG=[234,241,255];
-  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
-  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
-  function vide(v){ return v===null || v===undefined || v===""; }
+  var objet=(S.meta.objet||"").trim(), photos=S.photos||[];
+  var nCroquis=photos.filter(function(p){ return p.croquis; }).length, nPhotos=photos.length-nCroquis;
+  var K = PdfDesign.kit(doc, {M:M, PW:PW, PH:PH,
+    genre:"Reportage photo",
+    titre:S.chantier.client || "Photo et croquis",
+    sousTitre:adresseTravaux(),
+    pastilles:["Le "+frDate(dateFiche()), refAffaire() ? "Réf. "+refAffaire() : "", objet],
+    entete:[refAffaire(), frDate(dateFiche())].filter(Boolean).join("  ·  "),
+    P:{logo:P&&P.logo, societe:(P&&P.societe)||"", lignes:[telPoints(P&&P.socTel), P&&P.socWeb, P&&P.socAdr], legal:(P&&P.socLegal)||""}});
+  var C=K.C, y=K.couverture();
+  function nouvellePage(){ doc.addPage(); y=K.enteteSuite(); }
+  function need(h){ if(y+h > K.BAS) nouvellePage(); }
 
-  function bandeau(){
-    setFill(INK); doc.rect(0,0,PW,3.2,"F");
-    var L=P&&P.logo, tx=M;
-    if(L){
-      var lh=15, lw=lh*(L.w/L.h);
-      if(lw>40){ lw=40; lh=lw*(L.h/L.w); }
-      try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){}
-      tx=M+lw+7;
-    }
-    setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17);
-    doc.text("Photo et croquis", tx, 19);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
-    var sous="Le "+frDate(dateFiche());
-    if((S.meta.objet||"").trim()) sous += "   "+S.meta.objet.trim();
-    if(refAffaire()) sous += "     "+refAffaire();
-    doc.text(doc.splitTextToSize(sous, CW-60)[0], tx, 25);
-    var soc=(P&&P.societe)||"";
-    if(soc){
-      doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK);
-      doc.text(soc, PW-M, 13.5, {align:"right"});
-      doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-      var ly=18;
-      [telPoints(P&&P.socTel),(P&&P.socWeb),(P&&P.socAdr)].forEach(function(t){
-        if(t){ doc.text(t, PW-M, ly, {align:"right"}); ly+=4; }
-      });
-    }
-    setFill(LIGHT); doc.rect(M,31,CW,0.4,"F");
-    setText(INK); y=39;
-  }
-  function footer(){
-    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
-    doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
-    doc.text((refAffaire()?refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
-    doc.setFontSize(6.5); setText([118,125,139]);
-    doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-5.5, {align:"center"});
-    setText(INK);
-  }
-  function newPage(){
-    footer(); doc.addPage(); page++;
-    setFill(INK); doc.rect(0,0,PW,2.2,"F");
-    doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(GREY);
-    doc.text((S.chantier.client||"Photo et croquis"), M, 12);
-    doc.text(frDate(dateFiche()), PW-M, 12, {align:"right"});
-    setText(INK); y=20;
-  }
-  function need(h){ if(y+h > PH-22) newPage(); }
-  function h2(t, est){
-    if(est && (y + est > PH-22) && y > 45) newPage();
-    need(34); y+=4;
-    setFill(ACC_BG); doc.roundedRect(M, y, CW, 9.5, 0.8, 0.8, "F");
-    setFill(ACC); doc.roundedRect(M, y, 2.6, 9.5, 0.8, 0.8, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(11.5); setText(ACC);
-    doc.text(t, M+7, y+6.4);
-    setText(INK); y+=15;
-  }
-  function kv(k,v){
-    if(vide(v)) return;
-    v=String(v);
-    doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
-    var kL=doc.splitTextToSize(k, 42), vL=doc.splitTextToSize(v, CW-50);
-    var n=Math.max(kL.length, vL.length);
-    need(n*4.8+3);
-    setText(GREY); doc.text(kL, M+1, y);
-    setText(INK); doc.setFont("helvetica","bold"); doc.text(vL, M+48, y);
-    y += n*4.8 + 3.4;
-  }
-  function encadre(txt){
-    if(vide(txt) || !String(txt).trim()) return;
-    doc.setFont("helvetica","normal"); doc.setFontSize(10);
-    var lines=doc.splitTextToSize(String(txt).trim(), CW-14);
-    var i=0;
-    while(i < lines.length){
-      var reste = Math.floor((PH-22-y-11)/5.2);
-      if(reste < 3){ newPage(); reste = Math.floor((PH-22-y-11)/5.2); }
-      var bout = lines.slice(i, i+reste);
-      var h = bout.length*5.2 + 11;
-      setFill(ACC_BG); doc.roundedRect(M, y, CW, h, 0.8, 0.8, "F");
-      setText(INK); doc.text(bout, M+7, y+7.5);
-      y += h + 5;
-      i += bout.length;
-    }
-  }
+  /* ---------- l'essentiel ---------- */
+  y=K.tuiles(y, [["Client", S.chantier.client], ["Référence travaux", S.chantier.ref], ["Date", frDate(dateFiche())],
+    ["Prises par", (SESSION && SESSION.nom) || ""], ["Objet du reportage", objet, true]], 4);
+  y=K.chiffres(y, [[nPhotos, nPhotos>1 ? "photos" : "photo", C.BLEU], [nCroquis, "croquis", C.CYAN],
+    [photos.filter(function(p){ return (p.legende||"").trim(); }).length, "avec une note", C.NUIT3]]);
 
-  bandeau();
-
-  h2("Dossier", 50);
-  kv("Client", S.chantier.client);
-  kv("Adresse", adresseTravaux());
-  kv("Référence travaux", S.chantier.ref);
-  kv("Objet", (S.meta.objet||"").trim());
-  kv("Date", frDate(dateFiche()));
-  kv("Photos et croquis", String(S.photos.length));
-  kv("Prises par", (SESSION && SESSION.nom) || "");
-
+  var num=1;
+  /* ---------- la note générale (elle peut tenir sur plusieurs pages) ---------- */
   if((S.note||"").trim()){
-    h2("Note générale", 34);
-    encadre(S.note);
+    y=K.section(y+2, num++, "Note générale");
+    K.texte(false); doc.setFontSize(10);
+    var lignes=doc.splitTextToSize(String(S.note).trim(), K.CW-12), i=0;
+    while(i<lignes.length){
+      var place=Math.floor((K.BAS-y-13)/5);
+      if(place<3){ nouvellePage(); place=Math.floor((K.BAS-y-13)/5); }
+      var bout=lignes.slice(i, i+place);
+      y=K.encadre(y, i===0 ? "Note" : "Note (suite)", bout);
+      i+=bout.length;
+    }
   }
 
-  if(S.photos.length){
-    /* une photo par page, la plus grande possible : toute la largeur, et la
-       hauteur qui reste jusqu'au pied de page, en gardant ses proportions
-       (une photo en hauteur se rétrécit en largeur et se centre). Sa note,
-       et son numéro, dessous. */
-    S.photos.forEach(function(p, i){
-      newPage();
-      doc.setFont("helvetica","normal"); doc.setFontSize(10);
-      var lignes=(p.legende||"").trim() ? doc.splitTextToSize(p.legende.trim(), CW) : [];
-      if(lignes.length>12) lignes=lignes.slice(0,12);
-      var place=(PH-22) - y - 8 - lignes.length*4.8;
-      var ww=CW, hh=CW*((p.h||3)/(p.w||4));
-      if(hh>place){ hh=place; ww=place*((p.w||4)/(p.h||3)); }
-      var ox=M+(CW-ww)/2;
-      try{ doc.addImage(photoPdf(p), "JPEG", ox, y, ww, hh); }catch(e){}
-      var yt=y+hh+6;
-      doc.setFont("helvetica","bold"); doc.setFontSize(10); setText(ACC);
-      doc.text((p.croquis ? "Croquis " : "Photo ")+(i+1)+" / "+S.photos.length, M, yt);
-      if(lignes.length){
-        doc.setFont("helvetica","normal"); setText(INK);
-        doc.text(lignes, M, yt+5.2);
-      }
-      setText(INK);
-      y = yt + 5 + lignes.length*4.8;
+  /* ---------- la planche : toutes les photos d'un coup d'œil ---------- */
+  if(photos.length){
+    var col=photos.length>4 ? 5 : 4, gap=3, cote=(K.CW-gap*(col-1))/col;
+    /* la planche tient d'un bloc : si elle tient sur une page mais pas dans la place qui reste, elle passe à la page */
+    var hPlanche=11+Math.ceil(photos.length/col)*(cote+gap);
+    if(y+hPlanche > K.BAS && 23+hPlanche <= K.BAS) nouvellePage(); else need(cote+20);
+    y=K.section(y+2, num++, "Aperçu");
+    photos.forEach(function(p, k){
+      var c=k%col;
+      if(c===0){ need(cote+gap); }
+      var x=M+c*(cote+gap);
+      K.fill(C.FOND); doc.roundedRect(x, y, cote, cote, 2.2, 2.2, "F");
+      var r=(p.w||4)/(p.h||3), w=cote-3, h=w/r;
+      if(h>cote-3){ h=cote-3; w=h*r; }
+      try{ doc.addImage(photoPdf(p), "JPEG", x+(cote-w)/2, y+(cote-h)/2, w, h); }catch(e){}
+      K.pastille(x+2, y+cote-2, String(k+1), p.croquis ? C.CYAN : C.BLEU, C.BLANC, {taille:6.8, h:4.8, pad:4});
+      if(c===col-1 || k===photos.length-1) y+=cote+gap;
     });
+    y+=3;
   }
 
-  footer();
+  /* ---------- une photo par page, la plus grande possible, sa note dessous ---------- */
+  photos.forEach(function(p, i){
+    nouvellePage();
+    var genre=(p.croquis ? "Croquis " : "Photo ")+(i+1)+" / "+photos.length;
+    K.pastille(M, y, genre, p.croquis ? C.CYAN : C.BLEU, C.BLANC, {taille:7.6, h:6, pad:7});
+    y+=7;
+    K.texte(false); doc.setFontSize(10.5);
+    var lignes=(p.legende||"").trim() ? doc.splitTextToSize(p.legende.trim(), K.CW-6) : [];
+    if(lignes.length>12) lignes=lignes.slice(0,12);
+    var basNote = lignes.length ? lignes.length*5+10 : 0;
+    var place=K.BAS - y - 4 - basNote;
+    var ww=K.CW-3.2, hh=ww*((p.h||3)/(p.w||4));
+    if(hh>place){ hh=place; ww=place*((p.w||4)/(p.h||3)); }
+    K.cadreImage(photoPdf(p), M+1.6+(K.CW-3.2-ww)/2, y+1.6, ww, hh, "JPEG");
+    y+=hh+8;
+    if(lignes.length){
+      K.fill(C.BLEU); doc.roundedRect(M, y-3.4, 1.2, lignes.length*5+1, 0.6, 0.6, "F");
+      K.texte(false); doc.setFontSize(10.5); K.ink(C.ENCRE);
+      doc.text(lignes, M+4.5, y);
+      y+=lignes.length*5+4;
+    }
+  });
+
+  K.pieds();
   return doc;
 }
 function pdfName(){
