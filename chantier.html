@@ -652,6 +652,10 @@ nav#nav button svg{stroke-width:1.9}
 .av-echelle span{position:absolute;top:0;transform:translateX(-50%);white-space:nowrap}
 .av-echelle span::before{content:"";position:absolute;left:50%;top:-5px;width:1px;height:4px;background:var(--rule)}
 .avancement [hidden]{display:none}
+/* fermé d'office comme le contact client : le titre et le pourcentage seuls ; un toucher sur le titre ouvre la barre et les commandes */
+.avancement .tete h2{flex:1;min-width:0}
+.avancement.ferme .av-barre,.avancement.ferme input[type=range],.avancement.ferme #av_note,.avancement.ferme .cmd-cases{display:none!important}
+.avancement.ferme{padding-top:8px;padding-bottom:8px}
 /* les commandes à faire : compactes, la case à gauche du mot, trois par ligne au téléphone */
 .cmd-cases{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px 6px;margin:8px 0 0;padding-top:8px;border-top:1px solid var(--rule)}
 @media (max-width:520px){ .cmd-cases{grid-template-columns:repeat(3,minmax(0,1fr))} }
@@ -1115,8 +1119,8 @@ header{overflow-anchor:none}
 
   <div class="block avancement" id="avancement" hidden>
     <div class="av-corps">
-      <div class="av-droite">
-        <div class="tete"><h2>Avancement</h2><span class="valeur" id="av_valeur">0 %</span></div>
+      <div class="av-droite" id="av_detail">
+        <div class="tete"><h2><button type="button" class="cc-titre" id="av_titre" aria-expanded="false" aria-controls="av_detail">Avancement<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2><span class="valeur" id="av_valeur">0 %</span></div>
         <div class="av-barre" id="av_jauge" aria-hidden="true"><i id="av_rempli"></i></div>
         <input type="range" id="av_curseur" min="0" max="100" step="5" value="0" hidden
           aria-label="Avancement du chantier, en pourcentage">
@@ -1959,7 +1963,14 @@ function chargeDuDossier(){
   var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
   return !!bureau && (CHANTIER.equipe||[]).indexOf(SESSION.nom) >= 0;
 }
-var AV_VU = false;
+var AV_VU = false, AV_OUVERT = false;   /* fermé à chaque ouverture de la page */
+$("av_titre").addEventListener("click", function(){
+  AV_OUVERT=!AV_OUVERT;
+  $("avancement").classList.toggle("ferme", !AV_OUVERT);
+  $("av_titre").setAttribute("aria-expanded", AV_OUVERT ? "true" : "false");
+  /* la barre se remplit à l'ouverture */
+  if(AV_OUVERT){ var b=$("av_rempli"), w=b.style.width; b.style.width="0"; void b.getBoundingClientRect(); b.style.width=w; }
+});
 function afficherAvancement(pct){
   $("av_valeur").textContent = pct+"\u00A0%";
   var barre=$("av_rempli");
@@ -1973,6 +1984,8 @@ function peindreAvancement(){
   var pct=Math.max(0, Math.min(100, parseInt(CHANTIER.avancement, 10) || 0));
   var moi=chargeDuDossier();
   $("avancement").hidden=false;
+  $("avancement").classList.toggle("ferme", !AV_OUVERT);
+  $("av_titre").setAttribute("aria-expanded", AV_OUVERT ? "true" : "false");
   afficherAvancement(pct);
   var curseur=$("av_curseur");
   curseur.hidden=!moi;
