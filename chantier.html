@@ -517,6 +517,14 @@ nav#nav button svg{stroke-width:1.9}
 .contact-client[hidden],.contact-client [hidden]{display:none}
 .cc-tete{display:flex;align-items:center;gap:10px;margin:0 0 8px}
 .cc-tete h2{margin:0;flex:1;min-width:0}
+/* fermé d'office : un toucher sur le titre l'ouvre ou le referme */
+.cc-titre{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;margin:0;padding:0;border:0;background:none;color:inherit;
+  font:inherit;text-align:left;cursor:pointer}
+.cc-titre svg{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:var(--ink-3);stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s}
+.cc-titre[aria-expanded="true"] svg{transform:rotate(180deg)}
+.contact-client.ferme .cc-tete{margin:0}
+.cc-tete .ref-modif[hidden]{display:none}
+.contact-client.ferme{padding-top:8px;padding-bottom:8px}
 .cc-tete .ref-modif{flex:0 0 auto;width:36px;height:36px;min-height:0;padding:0;border-radius:50%;border:1px solid var(--rule,#D5DBE1);
   background:transparent;color:var(--ink-2);display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
 .cc-tete .ref-modif svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
@@ -1064,7 +1072,7 @@ header{overflow-anchor:none}
 
   <div class="block contact-client" id="cc" hidden>
     <div class="cc-tete">
-      <h2>Contact client</h2>
+      <h2><button type="button" class="cc-titre" id="cc_titre" aria-expanded="false" aria-controls="cc_vue">Contact client<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></button></h2>
       <button type="button" class="ref-modif" id="cc_modif" aria-label="Modifier le téléphone et l'e-mail du client" title="Modifier">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg></button>
     </div>
@@ -1309,13 +1317,17 @@ $("c_noteEffacer").addEventListener("click", function(){ enregistrerNote(""); })
 $("c_noteChamp").addEventListener("input", compteNote);
 $("c_noteEdit").addEventListener("submit", function(e){ e.preventDefault(); enregistrerNote($("c_noteChamp").value.replace(/\s+/g, " ").trim()); });
 /* le contact du client : téléphone et e-mail, à portée de doigt */
+var CC_OUVERT=false;   /* l'encadré est fermé à chaque ouverture de la page */
 function telLien(t){ return String(t||"").replace(/[^\d+]/g, ""); }
 function peindreContact(){
   if(!CHANTIER) return;
   var c=CHANTIER.contact||{}, edit=!$("cc_edit").hidden, tel=c.tel||"", mail=c.email||"";
   $("cc").hidden=false;
-  $("cc_vue").hidden=edit;
-  $("cc_modif").hidden=edit;
+  var ouvert=CC_OUVERT || edit;
+  $("cc").classList.toggle("ferme", !ouvert);
+  $("cc_titre").setAttribute("aria-expanded", ouvert ? "true" : "false");
+  $("cc_vue").hidden=edit || !ouvert;
+  $("cc_modif").hidden=edit || !ouvert;
   $("cc_modif").setAttribute("aria-label", tel||mail ? "Modifier le téléphone et l'e-mail du client" : "Ajouter le téléphone et l'e-mail du client");
   var n=telLien(tel);
   $("cc_tel").hidden=!tel; $("cc_telVide").hidden=!!tel; $("cc_appel").hidden=!tel; $("cc_sms").hidden=!tel;
@@ -1340,6 +1352,10 @@ function ouvrirContact(){
 }
 function fermerContact(){ $("cc_edit").hidden=true; peindreContact(); }
 $("cc_modif").addEventListener("click", ouvrirContact);
+$("cc_titre").addEventListener("click", function(){
+  if(!$("cc_edit").hidden) return;
+  CC_OUVERT=!CC_OUVERT; peindreContact();
+});
 $("cc_annuler").addEventListener("click", fermerContact);
 $("cc_edit").addEventListener("submit", function(e){
   e.preventDefault();

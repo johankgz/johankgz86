@@ -129,6 +129,15 @@ main.disc{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;max-wi
 .plus-ancien{align-self:center;margin:4px 0 8px}
 
 /* ---------- écrire ---------- */
+/* glisser-déposer : des fichiers de l'ordinateur vers la discussion, et les pièces de la discussion vers l'ordinateur */
+#vueFil{position:relative}
+.depot{position:absolute;inset:10px;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;text-align:center;
+  border:2.5px dashed var(--accent,#B45309);border-radius:16px;background:rgba(253,244,234,.95);color:var(--accent-fonce,#92400E);font-size:17px;font-weight:700;pointer-events:none}
+.depot[hidden]{display:none}
+.depot svg{width:38px;height:38px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.depot small{font-size:13px;font-weight:500;color:var(--ink-3)}
+.bulle .img[draggable="true"],.pj[draggable="true"]{cursor:grab}
+.bulle .img[draggable="true"]:active,.pj[draggable="true"]:active{cursor:grabbing}
 .attente{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px 0;background:#fff;border-top:1px solid var(--rule)}
 .attente[hidden]{display:none}
 .att{position:relative;display:flex;align-items:center;gap:8px;padding:6px 34px 6px 6px;border-radius:10px;background:var(--field);max-width:100%}
@@ -215,6 +224,7 @@ main.disc{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;max-wi
     <ul class="fils" id="fils" aria-live="polite"><li class="vide">Chargement…</li></ul>
   </section>
   <section class="pan" id="vueFil" aria-label="Discussion">
+    <div class="depot" id="depot" hidden aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 15V4M7 9l5-5 5 5"/><path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4"/></svg>Déposez ici pour joindre à la discussion<small>Photos et fichiers (10 Mo au plus) — ils attendent « Envoyer »</small></div>
     <div class="sans-fil" id="sansFil">Choisissez une discussion, ou créez-en une avec « Nouvelle ».</div>
     <div class="fil-tete" id="filTete" hidden>
       <button type="button" class="retour" id="retour"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>Discussions</button>
@@ -442,9 +452,10 @@ function rendrePiece(m){
     var b=el("button","img"); b.type="button"; b.setAttribute("aria-label", (p.genre==="croquis" ? "Croquis" : "Photo")+" de "+m.auteur+" : voir en grand");
     var im=el("img"); im.loading="lazy"; im.alt=p.genre==="croquis" ? "Croquis" : "Photo";
     if(p.w && p.h){ im.width=p.w; im.height=p.h; }
-    im.src=urlPiece(m);
+    im.src=urlPiece(m); im.draggable=false;
     b.appendChild(im);
     b.addEventListener("click", function(){ voir(m); });
+    glisserDehors(b, m);
     return b;
   }
   var c=el("div","pj"), ext=(p.nom.split(".").pop()||"").toLowerCase();
@@ -457,6 +468,7 @@ function rendrePiece(m){
   var t=el("a"); t.href=urlPiece(m, true); t.title="Télécharger"; t.setAttribute("aria-label","Télécharger "+p.nom); t.setAttribute("download", p.nom);
   t.innerHTML=svg('<path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 19.5h14"/>');
   acts.appendChild(o); acts.appendChild(t); c.appendChild(acts);
+  glisserDehors(c, m);
   return c;
 }
 function voir(m){
@@ -532,13 +544,96 @@ $("inPhoto").addEventListener("change", function(){ ajouterPhotos(this.files, "p
 $("inGalerie").addEventListener("change", function(){ ajouterPhotos(this.files, "photo"); this.value=""; });
 $("inFichier").addEventListener("change", function(){
   var fs=[].slice.call(this.files||[]); this.value="";
+  ajouterFichiers(fs);
+});
+function ajouterFichiers(fs){
   fs.forEach(function(f){
     if(f.size>MAX_PIECE){ toast("« "+f.name+" » est trop lourd : 10 Mo au plus."); return; }
     if(!f.size){ toast("« "+f.name+" » est vide."); return; }
     lireDataUrl(f).then(function(d){ ATTENTE.push({genre:"fichier", nom:f.name, type:f.type||"", data:d, taille:f.size}); peindreAttente(); })
       .catch(function(){ toast("Impossible de lire « "+f.name+" »."); });
   });
-});
+}
+
+/* ---------- glisser-déposer, dans les deux sens ----------
+   De l'ordinateur vers la discussion : des fichiers lâchés sur la
+   discussion ouverte s'y joignent, comme avec l'appareil photo ou le
+   trombone (une photo est réduite et peut s'annoter) ; ils attendent
+   « Envoyer ». De la discussion vers l'ordinateur (Chrome, Edge) : une
+   photo ou une pièce jointe se glisse sur le bureau, dans un dossier ou
+   dans un e-mail ouvert dans le navigateur. */
+var SORTIE=false, DEPOT=0, PRETS={};
+function aDesFichiers(e){ var t=e.dataTransfer; return !!t && [].indexOf.call(t.types||[], "Files")>=0; }
+function deposable(e){ return !!COURANT && !SORTIE && aDesFichiers(e); }
+function joindreDeposes(liste){
+  var fs=[].slice.call(liste||[]).filter(function(f){ return f && (f.size || f.type); });
+  if(!fs.length){ toast("Rien à joindre : déposez des fichiers (pas un dossier)."); return; }
+  var photos=fs.filter(function(f){ return /^image\/(jpeg|png|webp|heic|heif)$/i.test(f.type) || (!f.type && /\.(jpe?g|png|webp|heic|heif)$/i.test(f.name)); });
+  var autres=fs.filter(function(f){ return photos.indexOf(f)<0; });
+  if(photos.length) ajouterPhotos(photos, "photo");
+  if(autres.length) ajouterFichiers(autres);
+  $("texte").focus();
+}
+(function(){
+  var vf=$("vueFil"), dep=$("depot");
+  function cacher(){ DEPOT=0; dep.hidden=true; }
+  vf.addEventListener("dragenter", function(e){ if(!deposable(e)) return; e.preventDefault(); DEPOT++; dep.hidden=false; });
+  vf.addEventListener("dragover", function(e){ if(!deposable(e)) return; e.preventDefault(); e.dataTransfer.dropEffect="copy"; dep.hidden=false; });
+  vf.addEventListener("dragleave", function(){ if(DEPOT>0 && --DEPOT===0) dep.hidden=true; });
+  vf.addEventListener("drop", function(e){ if(!deposable(e)) return; e.preventDefault(); cacher(); joindreDeposes(e.dataTransfer.files); });
+  /* lâché ailleurs sur la page : le navigateur n'ouvre pas le fichier à la place du site */
+  window.addEventListener("dragover", function(e){ if(aDesFichiers(e) && !SORTIE){ e.preventDefault(); e.dataTransfer.dropEffect = COURANT ? "copy" : "none"; } });
+  window.addEventListener("drop", function(e){
+    if(!aDesFichiers(e) || SORTIE || e.defaultPrevented) return;   /* déjà pris par la discussion */
+    e.preventDefault(); cacher();
+    if(COURANT) joindreDeposes(e.dataTransfer.files);
+    else toast("Ouvrez d'abord une discussion pour y déposer des fichiers.");
+  });
+  window.addEventListener("dragend", cacher);
+})();
+var TYPES_PIECE={pdf:"application/pdf", jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", zip:"application/zip",
+  dwg:"application/acad", dxf:"application/dxf", doc:"application/msword", docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  xls:"application/vnd.ms-excel", xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", txt:"text/plain", csv:"text/csv"};
+/* le nom du fichier posé sur l'ordinateur : celui de la pièce, ou « Photo Alban 2026-10-22 14h05.jpg » */
+function nomSortie(m){
+  var p=m.piece||{}, nom=p.nom||"piece";
+  if(p.genre==="photo" || p.genre==="croquis"){
+    var d=new Date(m.quand||Date.now()), z=function(n){ return (n<10 ? "0" : "")+n; };
+    var ext=(/\.(jpe?g|png|webp)$/i.exec(nom)||[".jpg"])[0];
+    nom=(p.genre==="croquis" ? "Croquis" : "Photo")+" "+(m.auteur||"")+" "+d.getFullYear()+"-"+z(d.getMonth()+1)+"-"+z(d.getDate())+" "+z(d.getHours())+"h"+z(d.getMinutes())+ext;
+  }
+  return nom.replace(/[\/\\:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function typeSortie(m){
+  var p=m.piece||{}, ext=(String(p.nom||"").split(".").pop()||"").toLowerCase();
+  return p.type || TYPES_PIECE[ext] || (p.genre!=="fichier" ? "image/jpeg" : "application/octet-stream");
+}
+/* le fichier est préparé dès que la souris passe dessus, pour être prêt au moment de glisser */
+function preparerSortie(m){
+  var k=COURANT+"/"+m.id;
+  if(PRETS[k]) return;
+  PRETS[k]="…";
+  fetch(urlPiece(m, true)).then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); })
+    .then(function(b){ try{ PRETS[k]=new File([b], nomSortie(m), {type:typeSortie(m)}); }catch(e){ delete PRETS[k]; } })
+    .catch(function(){ delete PRETS[k]; });
+}
+function glisserDehors(node, m){
+  if(!m.piece || !window.matchMedia || !window.matchMedia("(pointer:fine)").matches) return;
+  node.draggable=true;
+  node.title="Glissez vers le bureau, un dossier ou un e-mail";
+  node.addEventListener("mouseenter", function(){ preparerSortie(m); });
+  node.addEventListener("dragstart", function(e){
+    if(!e.dataTransfer) return;
+    SORTIE=true;
+    var url=location.origin+urlPiece(m, true), pret=PRETS[COURANT+"/"+m.id];
+    /* rien que le fichier : pas de lien ni de texte, qui feraient un second élément */
+    try{ e.dataTransfer.clearData(); }catch(er){}
+    try{ e.dataTransfer.setData("DownloadURL", typeSortie(m)+":"+nomSortie(m)+":"+url); }catch(er){}
+    if(pret && typeof pret==="object"){ try{ e.dataTransfer.items.add(pret); }catch(er){} }
+    try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
+  });
+  node.addEventListener("dragend", function(){ SORTIE=false; });
+}
 $("btnCroquis").addEventListener("click", function(){
   if(!window.Annotation){ toast("L'outil de croquis se charge : réessayez."); return; }
   Annotation.croquis({titre:"Croquis"}).then(function(ph){
