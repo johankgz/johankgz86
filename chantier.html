@@ -547,6 +547,14 @@ nav#nav button svg{stroke-width:1.9}
 .pv-case span{font-size:11.5px;font-weight:600;color:var(--ink-3);text-transform:uppercase;letter-spacing:.05em}
 .pv-case small{font-size:11.5px;color:var(--ink-3);min-height:14px}
 /* le reste à faire du chantier : toutes les tâches de ses points */
+/* l'adresse et l'icône de localisation à sa droite */
+.adr-ligne{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+.adr-ligne #c_adresse{min-width:0}
+.adr-loc{flex:0 0 34px;width:34px!important;height:34px!important;min-width:34px;min-height:0!important;max-height:34px;align-self:center;padding:0!important;margin:0;border-radius:50%;border:1px solid var(--rule);background:var(--card);color:var(--accent,#B4621A);
+  display:inline-flex;align-items:center;justify-content:center;cursor:pointer}
+.adr-loc[hidden]{display:none}
+.adr-loc.vide{color:var(--ink-3);border-style:dashed}
+.adr-loc svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .reste-tete{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:6px}
 .reste-tete h2{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
 .reste-tete span{font-size:12.5px;font-weight:600;color:var(--ink-3)}
@@ -1037,7 +1045,7 @@ header{overflow-anchor:none}
       <button type="button" class="act ghost" id="c_refAnnuler">Annuler</button>
       <p class="ref-aide">Possible tant qu'aucun relevé technique n'est publié : tous les documents du dossier suivent.</p>
     </form>
-    <p class="adr" id="c_adresse"></p>
+    <p class="adr adr-ligne"><span id="c_adresse"></span><button type="button" class="adr-loc" id="c_loc" hidden aria-label="Itinéraire jusqu'au chantier" title="Itinéraire jusqu'au chantier"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/></svg></button></p>
     <div class="note-chantier" id="c_note" hidden>
       <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.6v.01"/></svg>
       <p><span id="c_noteTexte"></span><small id="c_noteQui"></small></p>
@@ -1133,16 +1141,6 @@ header{overflow-anchor:none}
     <p class="hint" style="margin:8px 0 0">Les tâches de tous les points de chantier. Cochez ici ce qui est fait : le point suivant le reprend.</p>
   </div>
 
-  <div class="block" id="loc" hidden>
-    <h2>Localisation du chantier</h2>
-    <p class="adr" id="loc_adresse" style="margin:0 0 2px"></p>
-    <p class="coord" id="loc_coord"></p>
-    <div class="btns">
-      <button class="act blue" id="btnItineraire">Itinéraire</button>
-      <button class="act ghost" id="btnCarte">Voir sur la carte</button>
-    </div>
-    <p class="hint" id="loc_etat" style="margin-top:10px"></p>
-  </div>
 
   <div class="block" id="client" hidden>
     <h2>Le client</h2>
@@ -1546,25 +1544,6 @@ function peindreActions(){
     el.appendChild(b);
     hote.appendChild(el);
   });
-  /* la localisation n'ouvre pas une appli : elle déplie un bloc ici,
-     et l'onglet reste allumé tant que le bloc est ouvert */
-  var loc=document.createElement("button");
-  loc.type="button"; loc.className="loc"; loc.id="ongletLoc";
-  loc.setAttribute("aria-expanded","false");
-  loc.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICONES.localisation+'</svg>';
-  var t=document.createElement("span"); t.textContent="Localisation chantier";
-  loc.appendChild(t);
-  loc.addEventListener("click", function(){
-    var bloc=$("loc");
-    bloc.hidden = !bloc.hidden;
-    loc.setAttribute("aria-expanded", bloc.hidden ? "false" : "true");
-    if(bloc.hidden) loc.removeAttribute("aria-current");
-    else{
-      loc.setAttribute("aria-current","true");
-      bloc.scrollIntoView({behavior:"smooth", block:"nearest"});
-    }
-  });
-  hote.appendChild(loc);
   /* la discussion du dossier, avec ses messages non lus */
   var dis=document.createElement("a");
   dis.id="ongletDiscussion"; dis.className="discu";
@@ -1659,24 +1638,18 @@ function destination(){
   var a=String(CHANTIER.adresse||"").replace(/\n/g, ", ").trim();
   return a || "";
 }
+/* la localisation : une icône à droite de l'adresse, qui lance l'itinéraire (plus de bloc à part) */
 function peindreLoc(){
-  var a=String(CHANTIER.adresse||"").replace(/\n/g, ", ").trim();
-  $("loc_adresse").textContent = a || "Aucune adresse enregistrée pour ce chantier.";
-  $("loc_coord").textContent = (CHANTIER.lat != null && CHANTIER.lon != null)
-    ? CHANTIER.lat.toFixed(5).replace(".",",") + ", " + CHANTIER.lon.toFixed(5).replace(".",",")
-    : "";
-  var sansPoint = !destination();
-  $("btnItineraire").disabled = sansPoint;
-  $("loc_etat").textContent = sansPoint
-    ? "Ni adresse ni position : posez le point depuis la carte des chantiers."
-    : "";
+  var b=$("c_loc"), d=destination();
+  b.hidden=false;
+  b.classList.toggle("vide", !d);
+  b.title = d ? "Itinéraire jusqu'au chantier" : "Ni adresse ni position : poser le point sur la carte";
+  b.setAttribute("aria-label", b.title);
 }
-$("btnItineraire").addEventListener("click", function(){
+$("c_loc").addEventListener("click", function(){
   var d=destination();
-  if(!d){ toast("Ni adresse ni position pour ce chantier."); return; }
-  window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(d), "_blank");
-});
-$("btnCarte").addEventListener("click", function(){
+  if(d){ window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(d), "_blank"); return; }
+  /* sans adresse ni position : la carte des chantiers, pour poser le point */
   try{ sessionStorage.setItem("carte:chantier", CHANTIER.ref); }catch(e){}
   location.href="./rapports.html?carte=" + encodeURIComponent(CHANTIER.ref);
 });
