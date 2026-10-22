@@ -564,6 +564,18 @@ nav#nav button svg{stroke-width:1.9}
 .rt-ligne.fait .rt-corps b{font-weight:500;color:var(--ink-3);text-decoration:line-through}
 .rt-corps small{display:block;font-size:12px;color:var(--ink-3);margin-top:2px;line-height:1.35}
 .rt-urgent{color:var(--danger)!important;font-weight:700}
+/* ajouter une tâche ou un TS sans faire de suivi (bureau) */
+.rt-ajout{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 8px}
+.rt-ajout input[type=text]{flex:1 1 200px;min-width:0;min-height:40px;margin:0;padding:8px 11px;border-radius:10px;font-size:15px}
+.rt-ajout select{flex:0 0 auto;min-height:40px;margin:0;width:auto;font-size:14px;border-radius:10px;padding:6px 8px}
+.rt-ajout label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-2);margin:0;cursor:pointer}
+.rt-ajout label input{width:18px;height:18px;margin:0}
+.rt-ajout button{flex:0 0 auto;min-height:40px;padding:0 16px;border-radius:999px;border:0;background:var(--accent-vif,#EA7A1E);color:#fff;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.rt-ajout button:disabled{opacity:.5}
+.rt-retirer{flex:0 0 auto;width:32px;height:32px;min-height:0;padding:0;border:0;border-radius:50%;background:none;color:var(--ink-3);font-size:18px;line-height:1;cursor:pointer}
+.rt-tech{margin:8px 0 0}
+.reste-faits[hidden],.rt-ajout[hidden],.rt-tech[hidden]{display:none}
+.rt-tech a{font-weight:700}
 /* les travaux supplémentaires pas encore chiffrés, d'un coup d'œil */
 .ts .rt-ligne{align-items:center}
 .ts .ts-pastille{flex:0 0 auto;width:8px;height:8px;border-radius:50%;background:var(--accent-vif,#EA7A1E);margin:0 2px}
@@ -1107,15 +1119,17 @@ header{overflow-anchor:none}
 
   <div class="block reste ts" id="tsBloc" hidden>
     <button type="button" class="reste-tete reste-bascule" id="tsBascule" aria-expanded="false" aria-controls="tsCorps"><h2>Travaux supplémentaires à chiffrer</h2><span id="tsNb"></span><i class="chev" aria-hidden="true"></i></button>
-    <div id="tsCorps" hidden><div id="tsListe"></div></div>
+    <div id="tsCorps" hidden><div class="rt-ajout" id="tsAjout" hidden></div><div id="tsListe"></div><p class="hint rt-tech" id="tsTech" hidden></p></div>
   </div>
   <div class="block reste" id="reste" hidden>
     <button type="button" class="reste-tete reste-bascule" id="resteBascule" aria-expanded="false" aria-controls="resteCorps"><h2>Reste à faire</h2><span id="resteNb"></span><i class="chev" aria-hidden="true"></i></button>
     <div id="resteCorps" hidden>
+    <div class="rt-ajout" id="resteAjout" hidden></div>
     <div id="resteListe"></div>
     <button type="button" class="reste-faits" id="resteFaitsBtn" aria-expanded="false" hidden></button>
     <div id="resteFaits" hidden></div>
     </div>
+    <p class="hint rt-tech" id="resteTech" hidden></p>
     <p class="hint" style="margin:8px 0 0">Les tâches de tous les points de chantier. Cochez ici ce qui est fait : le point suivant le reprend.</p>
   </div>
 
@@ -2082,12 +2096,73 @@ function ligneReste(t){
   if(!t.fait && t.prio==="Urgent"){ var u=document.createElement("span"); u.className="rt-urgent"; u.textContent="Urgent · "; m.insertBefore(u, m.firstChild); }
   corps.appendChild(m);
   l.appendChild(c); l.appendChild(corps);
+  /* une tâche ajoutée ici (pas par un point ni un suivi) : le bureau peut la retirer */
+  if(t.chantier && !t.fait && bureauUI()){
+    var rx=document.createElement("button"); rx.type="button"; rx.className="rt-retirer"; rx.textContent="×";
+    rx.title="Retirer cette tâche"; rx.setAttribute("aria-label","Retirer « "+t.texte+" »");
+    rx.addEventListener("click", function(){ retirerAjout(false, t, rx); });
+    l.appendChild(rx);
+  }
   return l;
 }
 /* ---------- les travaux supplémentaires à chiffrer : ceux du dernier suivi et des points ----------
    Sans ouvrir les suivis : la demande, qui l'a faite, depuis quand, d'où elle vient ;
    le bureau la marque « Chiffré » d'ici (elle quitte alors la liste). */
 var TS_DOSSIER=[], TS_CHIFFRER=false;
+/* Ajouter une ou deux choses sans faire de suivi : le bureau les note ici ; un technicien passe par Le point */
+function bureauUI(){ return !!(SESSION && SESSION.role !== "technicien"); }
+function formAjout(hote, ts){
+  if(hote.firstChild) return;
+  var i=document.createElement("input"); i.type="text"; i.maxLength=400; i.autocomplete="off";
+  i.placeholder = ts ? "Une demande à chiffrer (ex. une prise en plus au salon)" : "Une tâche à faire (ex. reprendre le spot de l'entrée)";
+  i.setAttribute("aria-label", ts ? "Nouvelle demande à chiffrer" : "Nouvelle tâche");
+  hote.appendChild(i);
+  var opt=null;
+  if(ts){
+    opt=document.createElement("select"); opt.setAttribute("aria-label","Demandée par");
+    ["Client","Architecte","Maître d'œuvre","Bureau","Technicien"].forEach(function(q){ var o=document.createElement("option"); o.value=q; o.textContent="Par : "+q; opt.appendChild(o); });
+    hote.appendChild(opt);
+  } else {
+    var lb=document.createElement("label"); opt=document.createElement("input"); opt.type="checkbox"; lb.appendChild(opt); lb.appendChild(document.createTextNode("Urgent")); hote.appendChild(lb);
+  }
+  var b=document.createElement("button"); b.type="button"; b.textContent="Ajouter"; hote.appendChild(b);
+  function envoyer(){
+    var t=i.value.trim(); if(!t){ i.focus(); return; }
+    b.disabled=true;
+    var corps = ts ? {ref:CHANTIER.ref, texte:t, qui:opt.value} : {ref:CHANTIER.ref, texte:t, urgent:!!opt.checked};
+    fetch(API+"?action="+(ts ? "ts-ajouter" : "reste-ajouter"), {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton}, body:JSON.stringify(corps)})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        b.disabled=false;
+        if(!res.ok){ toast(res.d.erreur || "Non enregistré."); return; }
+        i.value=""; if(!ts) opt.checked=false;
+        if(ts){ chargerTs(); toast("Ajoutée aux travaux supplémentaires à chiffrer."); }
+        else { CHANTIER.reste=res.d.reste||CHANTIER.reste; peindreReste(); toast("Ajoutée au reste à faire."); }
+        try{ i.focus(); }catch(e){}
+      })
+      .catch(function(){ b.disabled=false; toast("Pas de réseau : rien n'a été ajouté."); });
+  }
+  b.addEventListener("click", envoyer);
+  i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); envoyer(); } });
+}
+function retirerAjout(ts, t, bouton){
+  if(!window.confirm("Retirer « "+t.texte.slice(0,60)+" » ?")) return;
+  bouton.disabled=true;
+  fetch(API+"?action="+(ts ? "ts-retirer" : "reste-retirer"), {method:"POST", headers:{"content-type":"application/json","x-auth":SESSION.jeton}, body:JSON.stringify({ref:CHANTIER.ref, id:t.id})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      bouton.disabled=false;
+      if(!res.ok){ toast(res.d.erreur || "Non retiré."); return; }
+      if(ts) chargerTs(); else { CHANTIER.reste=res.d.reste||[]; peindreReste(); }
+    })
+    .catch(function(){ bouton.disabled=false; toast("Pas de réseau : rien n'a changé."); });
+}
+function lienPoint(hote, quoi){
+  hote.textContent="";
+  hote.appendChild(document.createTextNode(quoi+" : passez par "));
+  var a=document.createElement("a"); a.href=lienAppli("./point.html", "todo"); a.textContent="Le point";
+  hote.appendChild(a); hote.appendChild(document.createTextNode("."));
+}
 function chargerTs(){
   if(!CHANTIER) return;
   fetch(API+"?action=ts-dossier&ref="+encodeURIComponent(CHANTIER.ref), {headers:{"x-auth":SESSION.jeton}})
@@ -2097,8 +2172,11 @@ function chargerTs(){
 }
 function peindreTs(){
   var bloc=$("tsBloc"); if(!bloc) return;
-  bloc.hidden=!TS_DOSSIER.length;
-  $("tsNb").textContent=TS_DOSSIER.length ? TS_DOSSIER.length+" à chiffrer" : "";
+  var bu=bureauUI();
+  bloc.hidden=!TS_DOSSIER.length && !bu;
+  $("tsNb").textContent=TS_DOSSIER.length ? TS_DOSSIER.length+" à chiffrer" : "aucun";
+  $("tsAjout").hidden=!bu; if(bu) formAjout($("tsAjout"), true);
+  $("tsTech").hidden=bu; if(!bu) lienPoint($("tsTech"), "Une demande du client à ajouter");
   var h=$("tsListe"); h.textContent="";
   TS_DOSSIER.forEach(function(t){
     var l=document.createElement("div"); l.className="rt-ligne";
@@ -2127,14 +2205,22 @@ function peindreTs(){
       });
       l.appendChild(bt);
     }
+    if(TS_CHIFFRER && t.retirable){
+      var rx=document.createElement("button"); rx.type="button"; rx.className="rt-retirer"; rx.textContent="×";
+      rx.title="Retirer cette demande"; rx.setAttribute("aria-label","Retirer « "+t.texte+" »");
+      rx.addEventListener("click", function(){ retirerAjout(true, t, rx); });
+      l.appendChild(rx);
+    }
     h.appendChild(l);
   });
 }
 function peindreReste(){
   var liste=(CHANTIER && CHANTIER.reste) || [];
-  var bloc=$("reste");
-  if(!liste.length){ bloc.hidden=true; return; }
+  var bloc=$("reste"), bu=bureauUI();
+  if(!liste.length && !bu){ bloc.hidden=true; return; }
   bloc.hidden=false;
+  $("resteAjout").hidden=!bu; if(bu) formAjout($("resteAjout"), false);
+  $("resteTech").hidden=bu; if(!bu) lienPoint($("resteTech"), "Une tâche à ajouter");
   var ouvertes=liste.filter(function(t){ return !t.fait; });
   var faites=liste.filter(function(t){ return t.fait; })
     .sort(function(a, b){ return String(b.faitLe||"").localeCompare(String(a.faitLe||"")); });
@@ -2145,11 +2231,11 @@ function peindreReste(){
     if((a.quand||"")!==(b.quand||"")) return (a.quand||"9999").localeCompare(b.quand||"9999");
     return String(a.cree||"").localeCompare(String(b.cree||""));
   });
-  $("resteNb").textContent = ouvertes.length ? ouvertes.length+" à faire" : "tout est fait";
+  $("resteNb").textContent = ouvertes.length ? ouvertes.length+" à faire" : liste.length ? "tout est fait" : "aucune tâche";
   var hote=$("resteListe"); hote.textContent="";
   if(!ouvertes.length){
     var v=document.createElement("p"); v.className="hint"; v.style.margin="4px 0";
-    v.textContent="Plus rien à faire sur ce chantier.";
+    v.textContent = liste.length ? "Plus rien à faire sur ce chantier." : "Aucune tâche pour l'instant.";
     hote.appendChild(v);
   }
   ouvertes.forEach(function(t){ hote.appendChild(ligneReste(t)); });

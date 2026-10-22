@@ -3136,6 +3136,52 @@ async function traiter(req) {
     return json({ ok: true, tache: it });
   }
 
+  /* ---------- ajouter une tâche ou un TS sans faire de suivi ----------
+     Une ou deux choses à noter : le bureau les ajoute directement sur la page du
+     chantier. Un technicien passe par Le point (ses tâches et ses « Demande client »). */
+  if (action === "reste-ajouter" || action === "reste-retirer" || action === "ts-ajouter" || action === "ts-retirer") {
+    if (!bureau) return json({ erreur: "Réservé au bureau : un technicien passe par Le point." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = slug(d.ref || "").toUpperCase();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const maintenant = new Date().toISOString();
+    const nouvelId = (p) => p + Date.now().toString(36) + randomBytes(3).toString("hex");
+    const texte = String(d.texte || "").replace(/\s+/g, " ").trim().slice(0, 400);
+    if (action === "reste-ajouter") {
+      if (!texte) return json({ erreur: "Écrivez la tâche." }, 400);
+      c.reste = Array.isArray(c.reste) ? c.reste : [];
+      const it = { id: nouvelId("c"), texte, prio: d.urgent ? "Urgent" : "", qui: "", quand: "", fait: false, maj: maintenant, cree: maintenant,
+        point: "Ajoutée sur le chantier", pointId: "", auteur: personne.nom, chantier: true };
+      c.reste.push(it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, tache: it, reste: c.reste });
+    }
+    if (action === "reste-retirer") {
+      const it = (c.reste || []).find((x) => x.id === String(d.id || ""));
+      if (!it) return json({ erreur: "Tâche introuvable." }, 404);
+      if (!it.chantier) return json({ erreur: "Cette tâche vient d'un point ou d'un suivi : retirez-la là-bas, ou cochez-la." }, 400);
+      c.reste = c.reste.filter((x) => x !== it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, reste: c.reste });
+    }
+    if (action === "ts-ajouter") {
+      if (!texte) return json({ erreur: "Écrivez la demande." }, 400);
+      c.tsDossier = Array.isArray(c.tsDossier) ? c.tsDossier : [];
+      const it = { id: nouvelId("t"), texte, qui: String(d.qui || "").trim().slice(0, 80), depuis: maintenant.slice(0, 10), auteur: personne.nom, cree: maintenant, fait: false };
+      c.tsDossier.push(it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, ts: it });
+    }
+    const avant = (c.tsDossier || []).length;
+    c.tsDossier = (c.tsDossier || []).filter((x) => x.id !== String(d.id || ""));
+    if (c.tsDossier.length === avant) return json({ erreur: "Demande introuvable." }, 404);
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true });
+  }
+
   if (action === "equipe-dossier-enregistrer") {
     if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
     let d;
@@ -3742,7 +3788,7 @@ async function traiter(req) {
       if (visibles.length) { try { pv = await pvDe(c); } catch { pv = null; } }
       /* combien de travaux supplémentaires restent à chiffrer : la pastille de la liste */
       let nbTs = 0;
-      if (visibles.length) { try { nbTs = (await tsDuDossier(visibles)).length; } catch { nbTs = 0; } }
+      if (visibles.length) { try { nbTs = (await tsDuDossier(visibles, c)).length; } catch { nbTs = 0; } }
       if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, pv, ts: nbTs,
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
@@ -3843,8 +3889,14 @@ async function traiter(req) {
 
   /* les travaux supplémentaires pas encore chiffrés d'un dossier : ceux de son dernier suivi
      (ils passent d'un suivi au suivant) et les « Demande client » de ses points de chantier */
-  async function tsDuDossier(visibles) {
-    const out = [];
+  /* les TS notés directement sur le chantier, par le bureau, sans suivi */
+  function tsNotesChantier(c) {
+    return ((c && c.tsDossier) || []).filter((t) => !t.fait && String(t.texte || "").trim())
+      .map((t) => ({ id: t.id, texte: t.texte, qui: t.qui || "", depuis: t.depuis || "", cle: "dossier:" + c.ref, source: "dossier",
+        origine: "Ajoutée sur le chantier" + (t.auteur ? " par " + t.auteur : ""), retirable: true }));
+  }
+  async function tsDuDossier(visibles, c) {
+    const out = c ? tsNotesChantier(c) : [];
     const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees).sort((x, y) =>
       String(y.date || "").localeCompare(String(x.date || "")) || String(y.publie || "").localeCompare(String(x.publie || "")));
     if (suivis[0]) for (const t of await tsDuSuivi(suivis[0])) out.push({ ...t, cle: suivis[0].cle, source: "suivi", origine: suivis[0].titre || "Suivi de chantier" });
@@ -3860,7 +3912,7 @@ async function traiter(req) {
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     const visibles = c.fichiers.filter((f) => voit(personne, f, c) && !f.brouillon);
     if (!visibles.length && !bureau) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
-    const ts = (await tsDuDossier(visibles)).map((t) => ({ ...t, jours: joursDepuis(t.depuis) }))
+    const ts = (await tsDuDossier(visibles, c)).map((t) => ({ ...t, jours: joursDepuis(t.depuis) }))
       .sort((a, b) => String(a.depuis || "").localeCompare(String(b.depuis || "")));
     /* les demandes chiffrées depuis le site (bureau, tableau de bord) : le suivi resté ouvert
        sur un téléphone les coche aussi, sans quoi il les republierait « à chiffrer » */
@@ -3948,6 +4000,11 @@ async function traiter(req) {
             depuis: t.depuis, jours: joursDepuis(t.depuis), source: "point", origine: pf.titre || "Point de chantier" });
         }
       }
+      for (const t of tsNotesChantier(c)) {
+        n.ts++; tsIci++;
+        aTraiter.push({ genre: "ts", ...chez, cle: t.cle, id: t.id, titre: t.texte, qui: t.qui,
+          depuis: t.depuis, jours: joursDepuis(t.depuis), source: "dossier", origine: t.origine });
+      }
       if (tsIci) n.tsChantiers++;
     }
     /* les points bloquants des suivis, avec leur rappel */
@@ -3984,6 +4041,18 @@ async function traiter(req) {
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const cle = String(d.cle || "");
     const idx = await lireIndex();
+    if (cle.indexOf("dossier:") === 0) {
+      const cd = idx.chantiers[cle.slice(8)];
+      if (!cd) return json({ erreur: "Dossier introuvable." }, 404);
+      if (!membreDe(cd)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+      const td = (cd.tsDossier || []).find((x) => String(x.id) === String(d.id));
+      if (!td) return json({ erreur: "Travaux supplémentaire introuvable." }, 404);
+      td.fait = d.fait !== false;
+      if (td.fait) { td.chiffrePar = personne.nom; td.chiffreLe = new Date().toISOString(); }
+      else { delete td.chiffrePar; delete td.chiffreLe; }
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, fait: td.fait });
+    }
     const f = trouver(idx, cle);
     if (!f || (f.type !== "suivi" && f.type !== "point")) return json({ erreur: "Suivi introuvable." }, 404);
     if (!membreDe(chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
