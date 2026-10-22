@@ -115,8 +115,9 @@
   function fondNuit(c){
     var t=hsl(c.r, c.g, c.b), h=t[0], s=t[1], l=t[2];
     if(c.a>=.6 && l>.8){
-      if(s<.35) return ecrire(rgb(.6, .24, .175+(1-l)*.55), c.a);           /* blanc → bleu nuit grisé ; gris clair → un peu plus clair */
-      return ecrire(rgb(h, Math.min(s, .55)*.55, .2+(1-l)*.5), c.a);         /* teinte pâle (orange doux, bleu doux) → teinte sombre */
+      /* blanc → bleu nuit, à peine plus clair que le fond ; gris clair → un cran plus clair */
+      if(s<.35) return ecrire(rgb(.61, .42, .105+(1-l)*.5), c.a);
+      return ecrire(rgb(h, Math.min(s, .6)*.6, .15+(1-l)*.45), c.a);         /* teinte pâle (bleu doux, vert doux) → teinte sombre */
     }
     return null;
   }
@@ -298,6 +299,10 @@
     +"html:not([data-theme-fixe]):not([data-entete=clair]) header a[href='./index.html'],html:not([data-theme-fixe]):not([data-entete=clair]) header .nv-paire>a{"
     +"background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.18)!important;color:#EDF1F6!important;box-shadow:none!important}"
     +"html:not([data-theme-fixe]):not([data-entete=clair]) header h1,html:not([data-theme-fixe]):not([data-entete=clair]) header .np-titre{color:#F8FAFC!important}"
+    /* en sombre : un halo bleu en haut de page, des fiches bordées d'un filet de lumière */
+    +"html.fiches-sombres body{background-image:radial-gradient(900px 520px at 0% -8%,rgba(37,99,235,.20),transparent 62%),radial-gradient(760px 460px at 105% 4%,rgba(6,182,212,.10),transparent 60%)!important;background-attachment:fixed!important}"
+    +"html.fiches-sombres .block,html.fiches-sombres .carte,html.fiches-sombres .tuile,html.fiches-sombres .travaux{border:1px solid rgba(148,180,255,.09)!important;"
+    +"box-shadow:inset 0 1px 0 rgba(255,255,255,.04),0 10px 28px -18px rgba(0,0,0,.7)!important}"
     /* en verre : les fiches laissent voir le fond (sans flou, léger pour l'ordinateur) */
     +"html.fiches-verre .block,html.fiches-verre .carte,html.fiches-verre .tuile,html.fiches-verre .travaux{background:rgba(22,26,32,.58)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:none!important}";
   (document.head||html).appendChild(css);
