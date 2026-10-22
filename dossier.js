@@ -694,7 +694,7 @@ function styleGalerie(){
     +"background:rgba(40,38,34,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.45);transition:opacity .2s}"
     +".dg-b{height:46px;min-height:0;padding:0 16px;border:0;border-radius:23px;background:transparent;color:#F4F1EA;display:flex;align-items:center;gap:8px;"
     +"font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer}"
-    +".dg-b.o{background:#FB923C;color:#1A1208}.dg-b:disabled{opacity:.4;cursor:default}"
+    +".dg-b.o{background:#FB923C;color:#1A1208}.dg-b:disabled{opacity:.4;cursor:default}.dg-b[hidden]{display:none}"
     +".dg-bulle{position:absolute;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;max-width:calc(100% - 32px);"
     +"padding:9px 15px;border-radius:18px;background:rgba(40,38,34,.94);color:#F4F1EA;font-size:13.5px;font-weight:600;text-align:center;pointer-events:none;"
     +"box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .25s}"
@@ -821,6 +821,13 @@ function photosVersGalerie(f, photos, dire){
   telechargerPhotos(liste);
   if(dire) dire(liste.length>1 ? liste.length+" photos enregistrées" : "Photo enregistrée");
 }
+/* Sur iPhone et iPad (Safari comme Chrome), « Enregistrer » et « Partager »
+   ouvraient la même feuille de partage, où « Enregistrer l'image » est en
+   tête : un seul bouton, « Partager », suffit. Ailleurs (Android,
+   ordinateur), « Enregistrer » télécharge : les deux restent. */
+var UN_SEUL_BOUTON=surIOS() && (function(){
+  try{ return !!navigator.canShare && navigator.canShare({files:[new File(["x"], "essai.jpg", {type:"image/jpeg"})]}); }catch(e){ return false; }
+})();
 /* « Partager » : les photos elles-mêmes (Mail, WhatsApp, SMS…) ; sans partage
    de fichiers, on retombe sur « secours » (l'archive) ou le téléchargement */
 function partagerPhotos(f, photos, secours){
@@ -887,8 +894,9 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
   var pts=document.createElement("div"); pts.className="dg-pts"; pts.setAttribute("aria-hidden","true");
   if(n>1 && n<=15) for(var ip=0; ip<n; ip++) pts.appendChild(document.createElement("i"));
   var flot=document.createElement("div"); flot.className="dg-flot";
-  var part=boutonGalerie("dg-b", "partager", "Partager");
+  var part=boutonGalerie(UN_SEUL_BOUTON ? "dg-b o" : "dg-b", "partager", "Partager");
   var enr=boutonGalerie("dg-b o", "enregistrer", "Enregistrer");
+  enr.hidden=UN_SEUL_BOUTON;
   flot.appendChild(part); flot.appendChild(enr);
   vue.appendChild(scene); vue.appendChild(pts); vue.appendChild(haut); vue.appendChild(flot);
   var dire=bulleGalerie(vue);
@@ -1173,8 +1181,9 @@ function ouvrirGalerie(f){
   var mos=document.createElement("div"); mos.className="dg-mos";
   corps.appendChild(mos);
   var flot=document.createElement("div"); flot.className="dg-flot"; flot.hidden=true;
-  var part=boutonGalerie("dg-b", "partager", "Partager");
+  var part=boutonGalerie(UN_SEUL_BOUTON ? "dg-b o" : "dg-b", "partager", "Partager");
   var enr=boutonGalerie("dg-b o", "enregistrer", "Tout enregistrer");
+  enr.hidden=UN_SEUL_BOUTON;
   flot.appendChild(part); flot.appendChild(enr);
   ov.appendChild(tete); ov.appendChild(corps); ov.appendChild(flot);
   var dire=bulleGalerie(ov);
