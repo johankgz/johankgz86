@@ -596,7 +596,22 @@ function enregistrer(blob, nom){
    En passant par le même téléchargement que « Partager », le
    téléphone montre sa propre visionneuse, avec tous ses boutons —
    dont celui pour partager, si besoin. */
+/* Sur ordinateur (Chrome, Edge, Firefox, Safari du Mac), un PDF s'affiche dans un nouvel onglet,
+   avec la visionneuse du navigateur (imprimer, enregistrer sous son nom) : rien n'est téléchargé.
+   L'onglet s'ouvre tout de suite, au clic, pour que le navigateur ne le bloque pas. */
+function surOrdinateur(){
+  var ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod|Android|Mobile/i.test(ua)) return false;
+  if(navigator.platform==="MacIntel" && (navigator.maxTouchPoints||0)>1) return false;   /* un iPad qui se dit Mac */
+  return true;
+}
 function ouvrirDocument(f, bouton){
+  if(surOrdinateur() && /\.pdf$/i.test(f.cle||"")){
+    var lien=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+    var w=window.open(lien, "_blank");
+    if(w){ try{ w.opener=null; }catch(e){} marquerLu(f); return; }
+    /* fenêtre bloquée : on retombe sur le téléchargement */
+  }
   var avant = bouton ? bouton.textContent : "";
   if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
   telecharger(f)
