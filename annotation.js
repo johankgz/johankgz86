@@ -34,7 +34,15 @@ var OUTILS = [
   ["formes","Formes",'<rect x="3.5" y="11" width="9" height="9" rx="1"/><circle cx="16" cy="8" r="4.5"/>'],
   ["gomme","Gomme",'<path d="M8.5 19.5 3.8 14.8a1.6 1.6 0 0 1 0-2.3l8-8a1.6 1.6 0 0 1 2.3 0l5.4 5.4a1.6 1.6 0 0 1 0 2.3l-7 7z"/><path d="M20.5 19.5H9"/>'],
   ["choisir","Choisir",'<path d="M5 3l14 8-6 1.5L10 19z"/>'],
-  ["reperes","Repères",'<circle cx="12" cy="12" r="8"/><path d="M10.5 9.5 12 8.5V15.5"/>']
+  ["reperes","Symboles",'<path d="M13.5 2.5 5.5 13h6l-1 8.5 8-10.5h-6z"/>']
+];
+/* la colonne, en trois parties bien distinctes : dessiner, poser une forme, poser un symbole ;
+   « Choisir » reste à part, dessous */
+var GROUPES_OUTILS = [
+  ["Dessin", ["stylo","surligneur","texte","gomme"]],
+  ["Formes", ["formes"]],
+  ["Symboles", ["reperes"]],
+  ["", ["choisir"]]
 ];
 var ASTUCES = {
   stylo: "Dessinez. Gardez le doigt immobile une seconde en fin de tracé : le trait devient une forme parfaite.",
@@ -46,6 +54,7 @@ var ASTUCES = {
   choisir: "Touchez un élément : déplacez-le, changez sa couleur ou sa taille.",
   pastille: "Chaque touche pose le numéro suivant, repris dans la légende de la photo.",
   symbole: "Choisissez un symbole puis touchez l'endroit où le poser.",
+  pose: "Posé. Pour en ajouter un autre, retouchez l'outil.",
   flou: "Tirez un cadre sur une plaque ou un visage : il sera flouté."
 };
 var EPAISSEURS = {fin:2.5, moyen:5, epais:10};
@@ -455,7 +464,7 @@ function dessinerSelection(c){
   var o=A.sel; if(!o) return;
   var k=A.vue.k;
   c.save();
-  c.strokeStyle="#EA7A1E"; c.lineWidth=1.6/k; c.setLineDash([7/k, 5/k]);
+  c.strokeStyle="#06B6D4"; c.lineWidth=1.6/k; c.setLineDash([7/k, 5/k]);
   if(o.t==="ligne"){
     c.beginPath(); c.moveTo(o.x1,o.y1); c.lineTo(o.x2,o.y2); c.stroke();
   } else {
@@ -470,8 +479,8 @@ function dessinerSelection(c){
   c.save();
   poignees(o).forEach(function(h){
     c.beginPath(); c.arc(h.x, h.y, (h.id==="rot" ? 8 : 9)/k, 0, Math.PI*2);
-    c.fillStyle = h.id==="rot" ? "#EA7A1E" : "#FFFFFF"; c.fill();
-    c.lineWidth=2/k; c.strokeStyle = h.id==="rot" ? "#FFFFFF" : "#EA7A1E"; c.stroke();
+    c.fillStyle = h.id==="rot" ? "#06B6D4" : "#FFFFFF"; c.fill();
+    c.lineWidth=2/k; c.strokeStyle = h.id==="rot" ? "#FFFFFF" : "#06B6D4"; c.stroke();
   });
   c.restore();
 }
@@ -1050,6 +1059,7 @@ function surLacher(e){
       }
       A.sel=g.o;
       valider(g.avant);
+      apresPose();
       majUI();
       if(g.o.t==="ligne" && g.o.f==="cote" && D.champ) focusChamp();
       break;
@@ -1064,6 +1074,7 @@ function surLacher(e){
         }
       } else {
         valider(g.avant);
+        if(g.pose) apresPose();
       }
       break;
     case "tap":
@@ -1095,7 +1106,7 @@ var CSS = [
   "-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}",
   ".an-rond{width:44px;height:44px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}",
   ".an-rond svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}",
-  ".an-pill.or{background:#EA7A1E;border-color:#EA7A1E;color:#0B0E12;font-weight:800}",
+  ".an-pill.or{background:#3B82F6;border-color:#3B82F6;color:#fff;font-weight:800}",
   ".an-ic{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(20,25,32,.82);display:inline-flex;align-items:center;justify-content:center;padding:0;color:#E5E9EF;",
   "-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}",
   ".an-ic[disabled]{opacity:.35;cursor:default}",
@@ -1107,7 +1118,7 @@ var CSS = [
   "font-size:12.5px;line-height:1.4;pointer-events:none;opacity:0;transition:opacity .25s;max-width:560px;margin:0 auto}",
   ".an-astuce.vue{opacity:1}",
   ".an-saisie{position:absolute;margin:0;padding:0 6px;border:0;outline:0;background:transparent;",
-  "resize:none;overflow:hidden;white-space:pre;text-align:center;caret-color:#EA7A1E;transform-origin:50% 50%;-webkit-user-select:text;user-select:text}",
+  "resize:none;overflow:hidden;white-space:pre;text-align:center;caret-color:#3B82F6;transform-origin:50% 50%;-webkit-user-select:text;user-select:text}",
   ".an-rang{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;min-height:52px;box-sizing:border-box;background:#141920;",
   "border-top:1px solid rgba(255,255,255,.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}",
   ".an-rang::-webkit-scrollbar{display:none}",
@@ -1117,7 +1128,7 @@ var CSS = [
   ".an-flottant .an-rang{background:transparent;border-top:1px solid rgba(255,255,255,.08)}",
   ".an-flottant .an-sel{background:rgba(27,34,43,.96)}",
   ".an-dot{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.28);padding:0}",
-  ".an-dot.on{border-color:#fff;box-shadow:0 0 0 2px #EA7A1E}",
+  ".an-dot.on{border-color:#fff;box-shadow:0 0 0 2px #3B82F6}",
   ".an-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:4px 12px;border-radius:999px;",
   "border:1px solid rgba(255,255,255,.2);background:transparent;color:#C7CED6;font-size:12.5px;font-weight:600;white-space:nowrap}",
   ".an-chip.on{background:#F2F5F9;color:#0B0E12;border-color:#F2F5F9}",
@@ -1147,15 +1158,18 @@ var CSS = [
   ".an-outil{position:relative;width:46px;height:46px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:0;border-radius:12px;border:0;background:none;color:#C7CED6}",
   ".an-outil svg{width:24px;height:24px;stroke-width:1.9}",
   ".an-outil span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
-  ".an-outil.on{background:rgba(234,122,30,.22);color:#FDBA74}",
+  ".an-outil.on{background:rgba(59,130,246,.22);color:#93C5FD}",
   ".an-rail-sep{width:26px;height:1px;background:rgba(255,255,255,.14);margin:4px 0;flex:0 0 auto}",
+  ".an-groupe-t{display:block;width:46px;margin:6px 0 1px;font-size:10px;font-weight:700;letter-spacing:-.01em;text-align:center;color:#8A97A6;white-space:nowrap}",
+  ".an-outils .an-groupe-t:first-child{margin-top:2px}",
+  ".an-outils .an-rail-sep{align-self:center;margin:6px 0 2px}",
   ".an-pastille{width:46px;height:46px;flex:0 0 auto;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;border-radius:12px}",
   ".an-pastille i{display:block;width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.4)}",
   ".an-pastille.on{background:rgba(255,255,255,.12)}",
   ".an-plier{position:relative;width:52px;height:52px;flex:0 0 auto;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(20,25,32,.9);color:#F2F5F9;",
   "display:flex;align-items:center;justify-content:center;padding:0;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 10px 30px -12px rgba(0,0,0,.8)}",
   ".an-plier svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
-  ".an-rail.ferme .an-plier{background:#EA7A1E;border-color:#EA7A1E;color:#0B0E12}",
+  ".an-rail.ferme .an-plier{background:#3B82F6;border-color:#3B82F6;color:#fff}",
   ".an-plier b{position:absolute;right:3px;bottom:3px;width:12px;height:12px}",
   ".an-plier b svg{width:12px;height:12px;stroke-width:2.6}",
   "@media (prefers-reduced-motion:reduce){.an-astuce{transition:none}}"
@@ -1181,6 +1195,29 @@ function chip(label, on, fn, cls){
   return b;
 }
 
+/* Apple Pencil : sur iPad, un toucher de bouton où la pointe glisse d'un rien ne donne pas de « click »
+   (au doigt, si). On le fait donc nous-mêmes : posé puis levé sur le même bouton, au crayon, le bouton
+   est actionné ; le « click » du système, s'il arrive quand même dans l'instant, est ignoré. */
+function toucherCrayon(racine){
+  var vise=null, ignorer=null, jusqua=0;
+  racine.addEventListener("pointerdown", function(e){
+    vise=null;
+    if(e.pointerType!=="pen" || !e.target || !e.target.closest) return;
+    var b=e.target.closest("button"); if(b && !b.disabled && racine.contains(b)) vise=b;
+  }, true);
+  racine.addEventListener("pointerup", function(e){
+    if(e.pointerType!=="pen" || !vise) return;
+    var b=vise, r=b.getBoundingClientRect(); vise=null;
+    if(e.clientX<r.left-10 || e.clientX>r.right+10 || e.clientY<r.top-10 || e.clientY>r.bottom+10) return;
+    ignorer=b; jusqua=Date.now()+700;
+    b.click();
+  }, true);
+  racine.addEventListener("click", function(e){
+    if(!e.isTrusted || !ignorer || Date.now()>jusqua) return;
+    e.stopPropagation(); e.preventDefault();   /* le bouton a pu être redessiné : tout « click » du système dans l'instant est le doublon */
+    ignorer=null;
+  }, true);
+}
 function construire(){
   if(D) return;
   var st=el("style"); st.textContent=CSS; document.head.appendChild(st);
@@ -1216,13 +1253,17 @@ function construire(){
   var flot=el("div","an-flottant"); flot.appendChild(selr); flot.appendChild(opts); flot.appendChild(coul);
   scene.appendChild(cv); scene.appendChild(saisie); scene.appendChild(ast); scene.appendChild(flot);
   var outils=el("div","an-outils");
-  OUTILS.forEach(function(o){
+  GROUPES_OUTILS.forEach(function(gr, k){
+    if(k) outils.appendChild(el("span","an-rail-sep"));
+    if(gr[0]) outils.appendChild(el("span","an-groupe-t", gr[0]));
+    OUTILS.filter(function(o){ return gr[1].indexOf(o[0])>=0; }).forEach(function(o){
     var b=el("button","an-outil"); b.type="button"; b.dataset.outil=o[0];
     b.innerHTML=svg(o[2]) + "<span>"+o[1]+"</span>";
     b.setAttribute("aria-label", o[1]);
     b.title=o[1];
     b.addEventListener("click", function(){ choisirOutil(o[0]); });
     outils.appendChild(b);
+    });
   });
   /* la pastille de couleur : elle ouvre la palette et les épaisseurs, en bas */
   var past=el("button","an-pastille"); past.type="button"; past.id="an_palette";
@@ -1234,6 +1275,7 @@ function construire(){
   rail.appendChild(corps); rail.appendChild(plier);
   [scene, haut, rail].forEach(function(x){ r.appendChild(x); });
   document.body.appendChild(r);
+  toucherCrayon(r);
   D={racine:r, cv:cv, scene:scene, saisie:saisie, astuce:ast, selection:selr, options:opts, couleurs:coul, outils:outils,
      rail:rail, plier:plier, palette:past, flottant:flot,
      titre:titre, annuler:und, retablir:red, grille:grille, entier:entier, fermer:fermer, ok:ok, champ:null};
@@ -1297,6 +1339,13 @@ function choisirOutil(o){
   if(o==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !A.img))) PREFS.repere="symbole";
   astuceOutil();
   peindre(); majUI();
+}
+/* une forme ou un symbole posé : l'outil repasse sur « Choisir » (la pièce posée reste
+   choisie, à ajuster) ; une autre touche n'en pose pas un second par mégarde */
+function apresPose(){
+  if(!A || A.outil==="choisir") return;
+  A.outil="choisir";
+  astuce(ASTUCES.pose);
 }
 function supprimerSel(){
   if(!A.sel) return;
@@ -1416,7 +1465,7 @@ function rangEpaisseurs(box){
 function majUI(){
   if(!A) return;
   majHaut();
-  Array.prototype.forEach.call(D.outils.children, function(b){
+  Array.prototype.forEach.call(D.outils.querySelectorAll(".an-outil"), function(b){
     var on=b.dataset.outil===A.outil;
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
@@ -1736,8 +1785,33 @@ function nouveauCroquis(opt){
   });
 }
 
+/* sans ouvrir l'outil : une image et ses objets, aplatis en une seule image
+   (une implantation de panneaux refaite garde les dessins posés dessus) */
+function composer(src, objets, w, h){
+  return new Promise(function(ok, non){
+    if(A){ non(new Error("outil ouvert")); return; }
+    var img=new Image();
+    img.onload=function(){
+      w=w||img.naturalWidth; h=h||img.naturalHeight;
+      A={img:img, src:src, w:w, h:h, u:Math.max(0.6, Math.max(w,h)/1000), edition:null, sel:null, fond:"blanc"};
+      FLOUS={};
+      var d=null, err=null;
+      try{
+        var cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+        dessinerScene(cv.getContext("2d"), objets||[]);
+        d=cv.toDataURL("image/jpeg", 0.82);
+      }catch(e){ err=e; }
+      A=null; FLOUS={};
+      if(err) non(err); else ok(d);
+    };
+    img.onerror=function(){ non(new Error("image illisible")); };
+    img.src=src;
+  });
+}
+
 window.Annotation = {
   ouvrir: ouvrir,
+  composer: composer,
   photo: annoterPhoto,
   croquis: nouveauCroquis,
   appliquer: appliquer,

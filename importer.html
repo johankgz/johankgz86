@@ -2,11 +2,12 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261007a"></script>
-<script src="./commun.js?v=20261007a" defer></script>
+<script src="./theme.js?v=20261024f"></script>
+<script src="./commun.js?v=20261023b" defer></script>
 <script src="./reseau.js?v=20261010a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0E14">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B1220">
 <link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
 <link rel="manifest" href="/manifest.webmanifest">
@@ -23,7 +24,7 @@
 @font-face{font-family:"Plus Jakarta Sans";src:url("./polices/jakarta-var.woff2") format("woff2-variations");font-weight:200 800;font-style:normal;font-display:swap}
 :root{
   --g-900:#0A0E14;--trait-tech:rgba(255,255,255,.10);
-  --bg:#383E42;--ink:#0C1119;--accent-vif:#FB923C;--data-vif:#22D3EE;
+  --bg:#0A0F1A;--ink:#0C1119;--accent-vif:#3B82F6;--data-vif:#22D3EE;
   --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
 }
 [hidden]{display:none!important}
@@ -40,7 +41,7 @@ header h1{margin:0;font-size:19px;font-weight:600;color:#F2F5F9;flex:1;min-width
 header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}
 main{max-width:860px;margin:0 auto;padding:18px 16px 40px}
 .hors{background:#FFFFFF;color:#1E2329;border-radius:16px;padding:22px 20px;font-size:15.5px}
-.hors a{color:#B4621A;font-weight:700}
+.hors a{color:#2563EB;font-weight:700}
 @media (max-width:720px){ main{padding:0 0 24px} #hote .tr-boite{border-radius:0;border-left:0;border-right:0} .hors{border-radius:0} }
 </style>
 </head>
@@ -53,7 +54,7 @@ main{max-width:860px;margin:0 auto;padding:18px 16px 40px}
   <div id="hote"></div>
   <p class="hors" id="hors" hidden>Connectez-vous d'abord : <a href="./index.html">ouvrir Suivi travaux 360</a>, puis revenez ici (ou rouvrez le fichier avec Suivi travaux 360).</p>
 </main>
-<script src="./transfert.js?v=20261015b"></script>
+<script src="./transfert.js?v=20261024b"></script>
 <script>
 (function(){
 "use strict";
@@ -64,6 +65,78 @@ var q=new URLSearchParams(location.search);
 Transfert.ouvrir({hote:document.getElementById("hote"), onglet:q.get("onglet")==="exporter" ? "exporter" : "importer", ref:q.get("ref")||""});
 /* déposé n'importe où sur la page, ou collé (Ctrl V) */
 Transfert.depot({});
+/* ---------- partagé depuis le téléphone ----------
+   Android : Messages, WhatsApp, Photos… › Partager › Travaux 360 : sw.js a gardé les
+   fichiers (?partage=N). iPhone : le Raccourci les a envoyés dans la boîte de réception
+   du site (?recus=1). Dans les deux cas, ils arrivent ici : on choisit le chantier. */
+function enJpeg(f){
+  /* une photo HEIC de l'iPhone : en JPEG, si ce navigateur sait la lire (Safari) */
+  if(!/heic|heif/i.test(f.type) && !/\.hei[cf]$/i.test(f.name)) return Promise.resolve(f);
+  return new Promise(function(ok){
+    var u=URL.createObjectURL(f), im=new Image();
+    im.onload=function(){
+      try{
+        var cv=document.createElement("canvas"); cv.width=im.naturalWidth; cv.height=im.naturalHeight;
+        cv.getContext("2d").drawImage(im, 0, 0);
+        cv.toBlob(function(b){ URL.revokeObjectURL(u); ok(b ? new File([b], f.name.replace(/\.hei[cf]$/i, "")+".jpg", {type:"image/jpeg"}) : f); }, "image/jpeg", 0.88);
+      }catch(e){ URL.revokeObjectURL(u); ok(f); }
+    };
+    im.onerror=function(){ URL.revokeObjectURL(u); ok(f); };
+    im.src=u;
+  });
+}
+function ouvrirAvec(fichiers, apres){
+  if(!fichiers.length) return;
+  Promise.all(fichiers.map(enJpeg)).then(function(l){
+    var o={onglet:"importer", fichiers:l.map(function(f){ return {file:f, chemin:""}; })};
+    if(q.get("ref")) o.ref=q.get("ref");
+    if(apres) o.apres=function(ref, faits){ apres(ref, faits, l, fichiers); };
+    Transfert.ouvrir(o);
+  });
+}
+if(q.has("partage") && window.caches){
+  caches.open("partage-recu").then(function(c){
+    return c.keys().then(function(ks){
+      return Promise.all(ks.map(function(k){
+        return c.match(k).then(function(r){
+          if(!r) return null;
+          var nom=""; try{ nom=decodeURIComponent(r.headers.get("x-nom")||""); }catch(e){}
+          return r.blob().then(function(b){ return new File([b], nom || ("Photo."+((b.type.split("/")[1])||"jpg")), {type:b.type}); });
+        });
+      })).then(function(l){
+        ks.forEach(function(k){ c.delete(k); });
+        ouvrirAvec(l.filter(Boolean));
+      });
+    });
+  }).catch(function(){});
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
+}
+if(q.has("recus")){
+  var API="/api/rapports";
+  fetch(API+"?action=recus-liste", {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var items=d.items||[];
+      return Promise.all(items.map(function(it){
+        return fetch(API+"?action=recu-fichier&id="+encodeURIComponent(it.id), {headers:{"x-auth":s.jeton}})
+          .then(function(r){ return r.ok ? r.blob() : null; })
+          .then(function(b){ return b ? {id:it.id, file:new File([b], it.nom, {type:it.type})} : null; })
+          .catch(function(){ return null; });
+      }));
+    })
+    .then(function(l){
+      l=(l||[]).filter(Boolean);
+      var depart=l.map(function(x){ return x.file; });
+      /* rangés dans un chantier : ils quittent la boîte de réception */
+      ouvrirAvec(depart, function(ref, faits, convertis, originaux){
+        var ids=[];
+        (faits||[]).forEach(function(f){ var i=convertis.indexOf(f); if(i>=0 && l[i]) ids.push(l[i].id); });
+        if(ids.length) fetch(API+"?action=recus-retirer", {method:"POST", headers:{"content-type":"application/json","x-auth":s.jeton}, body:JSON.stringify({ids:ids})}).catch(function(){});
+      });
+    })
+    .catch(function(){});
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
+}
 /* ouvert depuis l'Explorateur ou le Finder : « Ouvrir avec Suivi travaux 360 » (logiciel installé, Edge ou Chrome) */
 if(window.launchQueue && window.launchQueue.setConsumer){
   window.launchQueue.setConsumer(function(p){
@@ -76,6 +149,6 @@ if(window.launchQueue && window.launchQueue.setConsumer){
 }
 })();
 </script>
-<script src="./navigation.js?v=20261015b" defer></script>
+<script src="./navigation.js?v=20261024b" defer></script>
 </body>
 </html>

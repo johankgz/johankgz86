@@ -314,7 +314,7 @@
   }
 
   /* ---------- dessins ---------- */
-  var COUL = {semaine: "#B4621A", weekend: "#1E60AA", barre: "#B4621A", pointe: "#A6291F", grille: "rgba(128,128,128,.28)", texte: "#8A8478"};
+  var COUL = {semaine: "#2563EB", weekend: "#1E60AA", barre: "#2563EB", pointe: "#A6291F", grille: "rgba(128,128,128,.28)", texte: "#797E89"};
   function preparer(cv, hauteur){
     var r = (typeof devicePixelRatio !== "undefined" && devicePixelRatio) || 1, l = cv.clientWidth || cv.parentNode.clientWidth || 320;
     cv.width = Math.round(l * r); cv.height = Math.round(hauteur * r); cv.style.height = hauteur + "px";
@@ -379,14 +379,14 @@
     doc.setFont("helvetica", "normal"); doc.setFontSize(6.5);
     for(var k = 0; k <= E.haut / E.pas + 1e-9; k++){
       var yy = y0 + h - h * k * E.pas / E.haut;
-      doc.setFillColor(232, 228, 220); doc.rect(x0, yy, l, 0.2, "F");
+      doc.setFillColor(221, 224, 231); doc.rect(x0, yy, l, 0.2, "F");
       doc.setTextColor(gris[0], gris[1], gris[2]); doc.text(kw(k * E.pas), x0 - 1.8, yy + 1, {align: "right"});
     }
     doc.text(unite, x0 - 1.8, y0 - 2.2, {align: "right"});
   }
   function pdfProfil(doc, x0, y0, l, h, a, o){
     o = o || {};
-    var gris = o.gris || [110, 103, 92], c1 = o.c1 || [180, 98, 26], c2 = o.c2 || [30, 96, 170];
+    var gris = o.gris || [93, 98, 109], c1 = o.c1 || [37, 99, 235], c2 = o.c2 || [30, 96, 170];
     var maxi = 0; [a.profilSemaine, a.profilWeekend].forEach(function(s){ s.forEach(function(v){ if(v > maxi) maxi = v; }); });
     var E = echelle(maxi / 1000 * 1.08), xs = function(s){ return x0 + l * s / 48; }, yv = function(v){ return y0 + h - h * v / 1000 / E.haut; };
     var a1 = minutes(a.hcDebut), b1 = minutes(a.hcFin);
@@ -405,13 +405,13 @@
   }
   function pdfJours(doc, x0, y0, l, h, a, o){
     o = o || {};
-    var gris = o.gris || [110, 103, 92], c1 = o.c1 || [180, 98, 26], J = a.listeJours;
+    var gris = o.gris || [93, 98, 109], c1 = o.c1 || [37, 99, 235], J = a.listeJours;
     var maxi = 0; J.forEach(function(j){ if(j.e > maxi) maxi = j.e; });
     var E = echelle(maxi * 1.08), lb = l / Math.max(1, J.length);
     pdfAxes(doc, x0, y0, l, h, E, gris, "kWh/j");
     J.forEach(function(j, i){
       var hb = h * j.e / E.haut;
-      if(j.complet) doc.setFillColor(c1[0], c1[1], c1[2]); else doc.setFillColor(226, 196, 170);
+      if(j.complet) doc.setFillColor(c1[0], c1[1], c1[2]); else doc.setFillColor(214, 226, 245);
       doc.rect(x0 + i * lb, y0 + h - hb, Math.max(0.15, lb * 0.82), hb, "F");
     });
     var MO = ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"], dernier = -1, ecart = -99;

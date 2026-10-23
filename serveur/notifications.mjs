@@ -17,6 +17,16 @@
    Chaque personne a sa fiche, dans le magasin de sa société :
        push/<NOM>.json  { abonnements:[{endpoint, keys, appareil, le}],
                           prefs:{messages, documents, rappels} }
+
+   Vue sur un appareil, une notification n'a plus à sonner sur les autres :
+       push/vus/<NOM>.json  { actif:{<appareil>: quand}, tags:{<tag>: quand} }
+   Chaque notification porte son sujet (tag), son heure d'envoi, et de
+   quoi retrouver cette fiche sans session (le magasin, le nom, une
+   signature du serveur). Touchée ou balayée sur l'iPhone, elle est notée
+   vue, et elle se ferme sur l'ordinateur. Un ordinateur en veille la
+   reçoit en retard, au réveil : avant de l'afficher, il demande si elle
+   a déjà été vue, ou si la personne s'est servie du site sur un autre
+   appareil depuis — dans ce cas, elle ne s'affiche pas.
    ===================================================================== */
 
 import { createECDH, createHmac, createCipheriv, createPrivateKey, createSign,
@@ -78,6 +88,7 @@ export async function clesVapid(annuaire) {
   }
   const publique = Buffer.concat([Buffer.from([4]), deB64u(k.x), deB64u(k.y)]);
   VAPID = {
+    d: k.d,
     publique: b64u(publique),
     privee: createPrivateKey({ key: { kty: "EC", crv: "P-256", d: k.d, x: k.x, y: k.y }, format: "jwk" })
   };
@@ -130,7 +141,7 @@ export async function envoyerA(vapid, abonnement, charge, contact) {
       headers: {
         "content-type": "application/octet-stream",
         "content-encoding": "aes128gcm",
-        ttl: "86400",
+        ttl: charge.fermer ? "43200" : "86400",
         urgency: charge.urgent ? "high" : "normal",
         authorization: "vapid t=" + jetonVapid(vapid, abonnement.endpoint, contact) + ", k=" + vapid.publique
       },
@@ -207,8 +218,9 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     }
     let recu = false, oublies = 0;
     const gardes = [];
+    const marquee = marquer(charge, vapid, store, nom);
     for (const a of f.abonnements) {
-      const r = await envoyerA(vapid, a, charge, a.contact || contact);
+      const r = await envoyerA(vapid, a, marquee, a.contact || contact);
       if (r === "perime") { oublies++; continue; }
       gardes.push(a);
       if (r === true) recu = true;
@@ -226,6 +238,78 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
     } catch { /* le journal n'empêche rien */ }
   }
   return prevenus;
+}
+
+/* ---------- vue sur un appareil, la notification se tait sur les autres ---------- */
+const cleVus = (nom) => "push/vus/" + nomDeCle(nom) + ".json";
+const RETARD = 3 * 60 * 1000;                          /* reçue plus de 3 min après son envoi : en retard */
+const GARDE_VUS = 4 * 864e5;
+/* les navigateurs d'ordinateur (Chrome, Edge) acceptent qu'un message ferme une notification sans en montrer
+   une autre ; Safari (iPhone, iPad, Mac) et Firefox retirent l'abonnement d'un site qui le fait : jamais pour eux */
+const FERMABLE = /(^|\.)fcm\.googleapis\.com$|(^|\.)notify\.windows\.com$/;
+function signature(vapid, magasin, nom) {
+  return b64u(hmac(Buffer.concat([deB64u(vapid.d), Buffer.from("vu")]), String(magasin) + "|" + String(nom))).slice(0, 32);
+}
+function nid() { return Date.now().toString(36) + randomBytes(4).toString("hex"); }
+/* ce qu'ajoute chaque envoi : le sujet, l'heure, et de quoi revenir dire « vue » */
+function marquer(charge, vapid, store, nom) {
+  if (!store || !store.nom) return charge;
+  return { ...charge, tag: charge.tag || "n-" + nid(), le: Date.now(), mg: store.nom, qui: nom, jv: signature(vapid, store.nom, nom) };
+}
+async function lireVus(store, nom) {
+  let v = null; try { v = await store.get(cleVus(nom), { type: "json" }); } catch { v = null; }
+  v = v && typeof v === "object" ? v : {};
+  const limite = Date.now() - GARDE_VUS, tags = {}, actif = {};
+  Object.keys(v.tags || {}).forEach((t) => { if (v.tags[t] > limite) tags[t] = v.tags[t]; });
+  if (v.actif && typeof v.actif === "object") Object.keys(v.actif).forEach((a) => { if (v.actif[a] > limite) actif[a] = v.actif[a]; });
+  return { actif, tags };
+}
+/* un appareil, par son abonnement (sans abonnement : « web ») */
+function appareil(endpoint) { return endpoint ? b64u(hmac(Buffer.from("appareil"), String(endpoint))).slice(0, 16) : "web"; }
+/* la dernière fois que la personne s'est servie du site sur un autre appareil que celui-ci */
+function actifAilleurs(v, endpoint) {
+  const ici = appareil(endpoint);
+  return Object.keys(v.actif).reduce((m, a) => (a !== ici && v.actif[a] > m ? v.actif[a] : m), 0);
+}
+/* la personne se sert du site (une page ouverte) : noté au plus une fois par minute et par appareil */
+export async function noterActif(store, nom, endpoint) {
+  const v = await lireVus(store, nom), a = appareil(endpoint);
+  if (Date.now() - (v.actif[a] || 0) < 60000) return;
+  v.actif[a] = Date.now();
+  try { await store.setJSON(cleVus(nom), v); } catch { /* tant pis */ }
+}
+/* une demande venue d'un appareil, sans session : la signature dit à qui elle s'applique */
+async function demandeValide(annuaire, ouvrir, d) {
+  if (!d || typeof d !== "object") return null;
+  const mg = String(d.mg || ""), qui = String(d.qui || ""), jv = String(d.jv || "");
+  if (!/^rapports(-[A-Za-z0-9_-]{1,40})?$/.test(mg) || !qui || qui.length > 80 || !jv) return null;
+  const vapid = await clesVapid(annuaire);
+  if (jv !== signature(vapid, mg, qui)) return null;
+  return { vapid, store: ouvrir(mg), qui, tag: String(d.tag || "").slice(0, 160), le: Number(d.le) || 0 };
+}
+/* « faut-il encore l'afficher ? » — demandé par l'appareil qui la reçoit */
+export async function pushEncore(annuaire, ouvrir, d) {
+  const q = await demandeValide(annuaire, ouvrir, d);
+  if (!q || !q.le) return { montrer: true };
+  const v = await lireVus(q.store, q.qui);
+  if (q.tag && v.tags[q.tag] && v.tags[q.tag] >= q.le) return { montrer: false, raison: "vue" };
+  if (Date.now() - q.le > RETARD && actifAilleurs(v, d.endpoint) > q.le) return { montrer: false, raison: "actif-ailleurs" };
+  return { montrer: true };
+}
+/* touchée ou balayée sur un appareil : notée vue, et fermée sur les autres ordinateurs */
+export async function pushVu(annuaire, ouvrir, d, contact) {
+  const q = await demandeValide(annuaire, ouvrir, d);
+  if (!q || !q.tag) return { ok: false };
+  const v = await lireVus(q.store, q.qui);
+  v.tags[q.tag] = Date.now(); v.actif[appareil(d.endpoint)] = Date.now();
+  try { await q.store.setJSON(cleVus(q.qui), v); } catch { /* tant pis */ }
+  const f = await lireAbonne(q.store, q.qui);
+  const autres = f.abonnements.filter((a) => {
+    if (a.endpoint === d.endpoint) return false;
+    try { return FERMABLE.test(new URL(a.endpoint).hostname); } catch { return false; }
+  });
+  await Promise.all(autres.map((a) => envoyerA(q.vapid, a, { fermer: [q.tag] }, a.contact || contact).catch(() => false)));
+  return { ok: true, fermees: autres.length };
 }
 
 /* ---------- la fin du silence : ce qui a attendu part en une notification ---------- */
@@ -246,7 +330,8 @@ export async function envoyerAttentes(store, annuaire, contact, maintenant = new
           texte: l.slice(-3).reverse().map((x) => x.titre).join(" · ") + (l.length > 3 ? " …" : ""),
           url: "./index.html", tag: "nuit" };
     const vapid = await clesVapid(annuaire);
-    for (const a of f.abonnements) { try { await envoyerA(vapid, a, charge, a.contact || contact); } catch { /* suivant */ } }
+    const marquee = marquer(charge, vapid, store, at.nom);
+    for (const a of f.abonnements) { try { await envoyerA(vapid, a, marquee, a.contact || contact); } catch { /* suivant */ } }
     n++;
     try {
       const avant = (await store.get("push/journal.json", { type: "json" })) || [];
@@ -294,7 +379,8 @@ export async function repererRappelsDus(store, maintenant = maintenantParis()) {
     /* marqué avant l'envoi : deux passages ne l'enverront jamais deux fois */
     t.notifie = echeance;
     try { await store.setJSON(b.key, t); } catch { continue; }
-    const quoi = t.cal ? "" : t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
+    /* un rappel du calendrier posé par quelqu'un d'autre : on dit de qui il vient */
+    const quoi = t.cal ? (t.auteur && t.auteur !== t.qui ? "de " + t.auteur : "") : t.todo ? (t.liste || "to-do list") : (t.client || t.chantier || "");
     aEnvoyer.push({ qui: t.qui, charge: {
       titre: (t.rappel ? "Rappel" : "À faire aujourd'hui") + (quoi ? " — " + quoi : ""),
       texte: String(t.texte || "").slice(0, 180),

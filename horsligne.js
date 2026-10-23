@@ -44,7 +44,7 @@
     if(duree) minuteur=setTimeout(function(){ bandeau(""); }, duree);
   }
   function etat(){
-    if(navigator.onLine===false) bandeau("Hors ligne · vos saisies restent sur l'appareil ; les envois partiront au retour du réseau", "#7C2D12");
+    if(navigator.onLine===false) bandeau("Hors ligne · vos saisies restent sur l'appareil ; les envois partiront au retour du réseau", "#1E3A8A");
     else if(b && /Hors ligne/.test(b.textContent)) bandeau("Réseau revenu", "#166534", 2500);
   }
   window.addEventListener("offline", etat);
