@@ -109,6 +109,16 @@ header.tete{border-radius:22px;padding:16px 18px 18px;border-bottom:0;box-shadow
 header.tete::after{display:none}
 header.tete .salut em{background:linear-gradient(135deg,#60A5FA,#22D3EE);-webkit-background-clip:text;background-clip:text;color:transparent}
 header.tete .marque-app{color:#7DD3FC}
+/* le logo : l'écrou (le chantier, la main), la flèche du 360° (le suivi), l'éclair (l'électricité) ;
+   au milieu de l'en-tête quand il y a la place, l'emblème seul s'il en manque, rien sur le téléphone */
+header.tete{position:relative}
+.logo-site{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);display:none;align-items:center;gap:14px;pointer-events:none;white-space:nowrap}
+.logo-site.vu{display:flex}
+.logo-site .ls-embleme{width:60px;height:60px;flex:0 0 auto;filter:drop-shadow(0 6px 14px rgba(37,99,235,.35))}
+.logo-site b{display:block;font-weight:800;font-size:30px;letter-spacing:-.04em;color:#fff;line-height:1}
+.logo-site b span{color:#22D3EE;margin-left:2px}
+.logo-site small{display:block;margin-top:6px;font-size:10px;font-weight:700;letter-spacing:.32em;color:#7DD3FC;text-transform:uppercase}
+.logo-site.court .ls-mot{display:none}
 header.tete .meta{color:#A9B6CC}
 header.tete .cherche-k{background:rgba(255,255,255,.10)!important;border:1px solid rgba(255,255,255,.16)!important;color:#C9D4E5!important;box-shadow:none!important}
 header.tete .btn-menu-g{background:#fff!important;color:#0B1220!important}
@@ -1764,6 +1774,18 @@ body.connexion .ciel{display:none}
         <a class="avatar" id="btnCompte" href="./compte.html" aria-label="Mon compte"><span id="initiale"></span><span class="mg-compte-lib"><b id="mgNom"></b><span>Mon compte</span></span></a>
       </div>
       <p class="meta" id="meta"></p>
+      <div class="logo-site" id="logoSite" aria-hidden="true">
+        <svg class="ls-embleme" viewBox="0 0 64 64" aria-hidden="true">
+          <path d="M60 32 46.5 55.4h-29L4 32 17.5 8.6h29z" fill="#2563EB" stroke="#2563EB" stroke-width="5" stroke-linejoin="round"/>
+          <path d="M4 32 17.5 8.6h29L60 32z" fill="#3B82F6"/>
+          <path d="M4 32 17.5 8.6h29L60 32" fill="none" stroke="#3B82F6" stroke-width="5" stroke-linejoin="round"/>
+          <circle cx="32" cy="32" r="16" fill="#0B1220"/>
+          <path d="M42.9 25.6A11.8 11.8 0 1 0 43.6 36" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round"/>
+          <path d="M38.6 24.4l5.2 1.9 1.1-5.4" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/>
+          <path d="M34.2 21.6 25.8 34.2h5.9l-2.6 9.2 9.6-13.6h-6z" fill="#A3E635"/>
+        </svg>
+        <div class="ls-mot"><b>Travaux<span>360°</span></b><small>Suivi de chantier</small></div>
+      </div>
     </header>
 
     <div class="bulletin plie" id="bulletin">
@@ -1776,7 +1798,7 @@ body.connexion .ciel{display:none}
           <p class="heure" id="bulHeure"></p>
           <p class="lieu" id="bulLieu"></p>
         </div>
-        <div class="bul-droite" id="bulMeteo" hidden>
+        <div class="bul-droite" id="bulMeteo" hidden title="Météo : Open-Meteo.com (CC BY 4.0)">
           <div class="bul-icone" id="bulIcone"></div>
           <div class="bul-temp">
             <b id="bulTemp"></b>
@@ -1786,7 +1808,6 @@ body.connexion .ciel{display:none}
         <button type="button" class="bul-pli" id="bulPli" aria-expanded="false" aria-controls="bulJours" title="Déplier la météo" aria-label="Déplier la météo"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
       </div>
       <div class="bul-jours" id="bulJours" hidden></div>
-      <p class="bul-credit" id="bulCredit" hidden style="margin:2px 0 0;font-size:11px;opacity:.8;text-align:right">Météo : Open-Meteo.com (CC BY 4.0)</p>
     </div>
 
     <div class="tableau" id="tableau" hidden></div>
@@ -2265,7 +2286,7 @@ function bulletin(lieu){
     $("bulIcone").innerHTML = '<svg viewBox="0 0 24 24"'+(st.icone==="soleil" ? ' class="tourne"' : '')+'>'+ICONES_METEO[st.icone]+'</svg>';
     $("bulTemp").textContent = now.temp + "°";
     $("bulCiel").textContent = st.ciel;
-    $("bulMeteo").hidden = false; $("bulCredit").hidden = false;
+    $("bulMeteo").hidden = false;
     peindreJours(m.jours);
   });
 }
@@ -2572,7 +2593,7 @@ function bandeauPublic(){
     $("bulCielP").textContent = st.ciel;
     $("bulMinMaxP").textContent = m.jours.map(function(j, i){
       return nomJour(j.date, i)+" "+j.max+"° / "+j.min+"°";
-    }).join("   ·   ") + "   ·   Météo Open-Meteo.com";
+    }).join("   ·   ");
     $("bulMeteoP").hidden = false;
   });
 }
@@ -3442,6 +3463,34 @@ function peindreFichesAEnregistrer(){
     host.hidden=false;
   }else host.hidden=!host.children.length;
 }
+/* le logo de l'en-tête : au milieu de l'espace libre entre le bonjour et la recherche ;
+   l'emblème seul si le nom n'y tient pas ; rien s'il n'y a pas la place (téléphone) */
+(function(){
+  var L=document.getElementById("logoSite"); if(!L) return;
+  var t=L.parentNode;
+  function texte(e){ var g=document.createRange(); g.selectNodeContents(e); return g.getBoundingClientRect(); }
+  function placer(){
+    L.className="logo-site";
+    if(window.innerWidth<760) return;
+    var T=t.getBoundingClientRect(), gauche=T.left+20, droite=T.right-20;
+    Array.prototype.forEach.call(t.querySelectorAll(".marque-app,.salut,.meta,.btn-menu-g,.avatar"), function(e){
+      if(!e.getClientRects().length) return;
+      var q=(e.classList.contains("salut") || e.classList.contains("meta") || e.classList.contains("marque-app")) ? texte(e) : e.getBoundingClientRect();
+      if(q.width && q.left < T.left+T.width/2) gauche=Math.max(gauche, q.right);
+    });
+    var k=t.querySelector(".cherche-k");
+    if(k && k.getClientRects().length){ var c=k.getBoundingClientRect(); if(c.left > T.left+T.width/2) droite=Math.min(droite, c.left); }
+    var place=droite-gauche-48;
+    L.style.left=((gauche+droite)/2 - T.left)+"px";
+    L.className="logo-site vu"; if(L.offsetWidth<=place) return;
+    L.className="logo-site vu court"; if(L.offsetWidth<=place) return;
+    L.className="logo-site";
+  }
+  placer();
+  window.addEventListener("resize", placer);
+  if(document.fonts && document.fonts.ready) document.fonts.ready.then(placer);
+  setTimeout(placer, 1500);          /* le bonjour et le compte arrivent un instant après */
+})();
 /* la session a expiré (trois jours) : on se déconnecte et on revient à la page du site.
    Les chantiers restent sur le serveur : on ne repeint surtout pas une liste vide. */
 var FIN_SESSION=false;
