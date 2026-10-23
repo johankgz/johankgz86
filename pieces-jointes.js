@@ -6,8 +6,7 @@
    relevé soit publié.
    - « Joindre un fichier » : PDF, photo, plan, Word, Excel…, ou un e-mail
      enregistré (.eml, ou .msg glissé depuis Outlook) ;
-   - « Coller un e-mail » : on colle le texte (et, si on veut, l'expéditeur,
-     l'objet) ;
+   - « Depuis le site » : un document du Cloud ou du dossier d'un chantier ;
    - sur l'ordinateur, on glisse les fichiers (ou l'e-mail depuis Outlook)
      sur le bloc, ou on les colle (Ctrl+V).
    Un e-mail (.eml, .msg) est ouvert ici : son texte devient une pièce
@@ -368,32 +367,12 @@
     var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=j.fichier||j.nom; a.click();
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 4000);
   }
-  function collerEmail(){
-    var s=feuille("Coller un e-mail");
-    s.f.appendChild(el("p","pj-aide","Dans l'e-mail : tout sélectionner, copier, puis coller ici. L'expéditeur et l'objet sont facultatifs."));
-    function champ(lib, tag){ var l=el("label","",lib), c=document.createElement(tag||"input"); if(!tag) c.type="text"; s.f.appendChild(l); s.f.appendChild(c); return c; }
-    var de=champ("Expéditeur"), ob=champ("Objet"), tx=champ("Texte de l'e-mail", "textarea");
-    var bas=el("div","pj-bas"), an=el("button","act ghost","Annuler"), ok=el("button","act blue","Joindre");
-    an.type=ok.type="button"; an.addEventListener("click", s.fermer);
-    ok.addEventListener("click", function(){
-      var t=tx.value.trim(); if(!t){ tx.focus(); dire("Collez le texte de l'e-mail."); return; }
-      /* collé en entier (De : … Objet : …), on reprend l'en-tête s'il est là */
-      var m={de:de.value.trim(), objet:ob.value.trim(), a:"", date:"", texte:t};
-      var d2=/^(?:De|From)\s*:\s*(.+)$/im.exec(t), o2=/^(?:Objet|Subject)\s*:\s*(.+)$/im.exec(t), dt=/^(?:Date|Envoyé|Sent)\s*:\s*(.+)$/im.exec(t), a2=/^(?:À|A|To)\s*:\s*(.+)$/im.exec(t);
-      if(!m.de && d2) m.de=d2[1].trim(); if(!m.objet && o2) m.objet=o2[1].trim(); if(dt) m.date=dt[1].trim(); if(a2) m.a=a2[1].trim();
-      if(!m.date) m.date=dateLisible(new Date())+" (collé)";
-      ajouterEmail(m, ""); O.enregistrer && O.enregistrer(); peindre(); s.fermer(); dire("E-mail joint.");
-    });
-    bas.appendChild(an); bas.appendChild(ok); s.f.appendChild(bas);
-    setTimeout(function(){ tx.focus(); }, 50);
-  }
   function construire(h){
     style();
     h.innerHTML="";
     var zone=el("div","pj-zone");
     var rang=el("div","row");
     var bF=el("button","act blue","Joindre un fichier"); bF.type="button";
-    var bM=el("button","act ghost","Coller un e-mail"); bM.type="button";
     rang.appendChild(bF);
     /* un document déjà sur le site : du Cloud, ou du dossier d'un chantier (doc-cote.js) */
     if(window.DocCote && DocCote.choisir){
@@ -406,7 +385,6 @@
         if(!ok) dire("Connectez-vous pour reprendre un document du site.");
       });
     }
-    rang.appendChild(bM);
     var cpt=el("span","pj-compte"); cpt.style.cssText="margin-left:auto;font-size:12.5px;color:var(--ink-3,#767D8B)"; rang.appendChild(cpt);
     zone.appendChild(rang);
     var lst=el("div","pj-liste"); zone.appendChild(lst);
@@ -417,7 +395,6 @@
     h.appendChild(zone);
     bF.addEventListener("click", function(){ inp.value=""; inp.click(); });
     inp.addEventListener("change", function(){ ajouterFichiers(inp.files); });
-    bM.addEventListener("click", collerEmail);
     /* glisser-déposer, sur le bloc */
     ["dragenter","dragover"].forEach(function(t){ zone.addEventListener(t, function(e){ if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types||[], "Files")>=0){ e.preventDefault(); zone.classList.add("survol"); } }); });
     ["dragleave","drop"].forEach(function(t){ zone.addEventListener(t, function(){ zone.classList.remove("survol"); }); });
