@@ -2141,10 +2141,10 @@ async function traiter(req) {
     /* un document technique n'est pas toujours un PDF : plan, photo, schéma,
        et, importé depuis l'ordinateur, un plan DWG ou DXF, un Word, un Excel.
        Jamais une page web ni un programme : rien qui s'exécuterait. */
-    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv"];
+    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip"];
     const extDemandee = String(d.ext || "pdf").toLowerCase();
     if (technique && FORMATS_TECHNIQUE.indexOf(extDemandee) < 0) {
-      return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte." }, 415);
+      return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte, ZIP." }, 415);
     }
     const ext = technique ? extDemandee : "pdf";
     if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);

@@ -31,7 +31,7 @@
     ppt:"application/vnd.ms-powerpoint", pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",
     odt:"application/vnd.oasis.opendocument.text", ods:"application/vnd.oasis.opendocument.spreadsheet", dwg:"application/acad", dxf:"application/dxf"};
   /* ce que le dossier accepte (serveur : documents techniques) */
-  var DEPOSABLES=/^(pdf|jpe?g|png|webp|dwg|dxf|docx?|xlsx?|pptx?|odt|ods|txt|csv)$/;
+  var DEPOSABLES=/^(pdf|jpe?g|png|webp|dwg|dxf|docx?|xlsx?|pptx?|odt|ods|txt|csv|zip)$/;
 
   function liste(){ var l=O.liste ? O.liste() : null; return Array.isArray(l) ? l : []; }
   function dire(t){ if(O.toast) O.toast(t); }
@@ -68,6 +68,8 @@
         if(ext==="eml") return lireOctets(f).then(function(o){ n+=ajouterEmail(lireEml(o), f.name); });
         if(ext==="msg") return lireOctets(f).then(function(o){ var m=lireMsg(o); if(!m) throw new Error("msg"); n+=ajouterEmail(m, f.name); })
           .catch(function(){ dire("« "+f.name+" » n'a pas pu être ouvert."); });
+        /* ce que le dossier ne sait pas garder est refusé tout de suite, pas à la publication */
+        if(!DEPOSABLES.test(ext)){ dire("« "+(f.name||"fichier")+" » : format non accepté (PDF, photo JPG/PNG, plan, Word, Excel, texte, ZIP, e-mail)."); return; }
         return lireDataUrl(f).then(function(u){
           var mime=f.type||MIMES[ext]||"application/octet-stream";
           if(ajouterPiece({genre:"fichier", nom:sansExt(f.name)||"Document", fichier:f.name||"document", ext:ext, mime:mime, taille:f.size, contenu:u})) n++;
@@ -392,11 +394,23 @@
     var rang=el("div","row");
     var bF=el("button","act blue","Joindre un fichier"); bF.type="button";
     var bM=el("button","act ghost","Coller un e-mail"); bM.type="button";
-    rang.appendChild(bF); rang.appendChild(bM);
+    rang.appendChild(bF);
+    /* un document déjà sur le site : du Cloud, ou du dossier d'un chantier (doc-cote.js) */
+    if(window.DocCote && DocCote.choisir){
+      var bS=el("button","act ghost","Depuis le site"); bS.type="button"; rang.appendChild(bS);
+      bS.addEventListener("click", function(){
+        var ok=DocCote.choisir({titre:"Ajouter une pièce jointe", ok:function(f){
+          var fichier; try{ fichier=new File([f.blob], f.nom, {type:f.mime}); }catch(e){ fichier=f.blob; fichier.name=f.nom; }
+          return ajouterFichiers([fichier]);
+        }});
+        if(!ok) dire("Connectez-vous pour reprendre un document du site.");
+      });
+    }
+    rang.appendChild(bM);
     var cpt=el("span","pj-compte"); cpt.style.cssText="margin-left:auto;font-size:12.5px;color:var(--ink-3,#767D8B)"; rang.appendChild(cpt);
     zone.appendChild(rang);
     var lst=el("div","pj-liste"); zone.appendChild(lst);
-    zone.appendChild(el("p","pj-aide","PDF, photo, plan, Word, Excel, ou un e-mail (.eml, .msg). Sur l'ordinateur : glissez-les ici, ou collez-les (Ctrl+V)."));
+    zone.appendChild(el("p","pj-aide","PDF, photo, plan, Word, Excel, ou un e-mail (.eml, .msg) ; « Depuis le site » reprend un document du Cloud ou du dossier d'un chantier. Sur l'ordinateur : glissez-les ici, ou collez-les (Ctrl+V)."));
     var inp=document.createElement("input"); inp.type="file"; inp.multiple=true; inp.hidden=true;
     inp.accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.dwg,.dxf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.odt,.ods,.txt,.csv,.eml,.msg,image/*,application/pdf,message/rfc822";
     zone.appendChild(inp);

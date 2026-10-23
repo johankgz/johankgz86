@@ -17,6 +17,9 @@
    Le dernier document ouvert est retenu le temps de la visite.
 
    DocCote.installer({libelle:"Relevé", ref:function(){ return "2026-041"; }})
+   DocCote.choisir({ok:function(f){ … f.blob, f.nom, f.mime … }})
+     le même panneau, pour prendre des fichiers (tous formats) du Cloud ou
+     d'un dossier : chaque toucher en ajoute un, « Terminé » referme.
    ===================================================================== */
 (function(){
   "use strict";
@@ -24,6 +27,8 @@
 
   var OPT={libelle:"Fiche", ref:function(){ return ""; }};
   var EL={}, ETAT={ouvert:false, doc:null, zoom:1, chargeId:0}, LISTE=null, CLE_DERNIER="doccote:dernier";
+  /* en mode « choisir » (une pièce jointe) : {ok, tous} ; sinon null */
+  var PICK=null;
 
   function session(){ try{ var s=JSON.parse(localStorage.getItem("outils:session")||"null"); return s && s.jeton ? s : null; }catch(e){ return null; } }
   function api(action){ return "/api/rapports?action="+action; }
@@ -107,12 +112,12 @@
     var c=el("div","dc-corps");
     p.appendChild(t); p.appendChild(c);
     document.body.appendChild(o); document.body.appendChild(p);
-    EL={onglet:o, pan:p, tete:t, corps:c, titre:tb, sous:ts, zm:bM, zp:bP};
+    EL={onglet:o, pan:p, tete:t, corps:c, titre:tb, sous:ts, zm:bM, zp:bP, retour:bR, chg:bC};
 
     o.addEventListener("click", function(){ if(o.__glisse) return; montrer(); });
     bR.addEventListener("click", cacher);
     bC.addEventListener("click", choisir);
-    bX.addEventListener("click", fermer);
+    bX.addEventListener("click", function(){ if(PICK) cacher(); else fermer(); });
     bM.addEventListener("click", function(){ zoomer(ETAT.zoom/1.25); });
     bP.addEventListener("click", function(){ zoomer(ETAT.zoom*1.25); });
     gestes();
@@ -123,7 +128,32 @@
     ETAT.ouvert=true;
     if(!ETAT.doc && !EL.corps.firstChild) choisir();
   }
-  function cacher(){ document.documentElement.classList.remove("dc-ouvert"); ETAT.ouvert=false; }
+  function cacher(){
+    document.documentElement.classList.remove("dc-ouvert"); ETAT.ouvert=false;
+    if(!PICK) return;
+    /* fin du choix : le panneau redevient celui du document (rouvert, rangé) */
+    var fin=PICK.fin; PICK=null;
+    EL.retour.textContent="‹ "+OPT.libelle; EL.zm.style.display=EL.zp.style.display="";
+    if(ETAT.doc){ ouvrirDoc(ETAT.doc); document.documentElement.classList.remove("dc-ouvert"); ETAT.ouvert=false; }
+    else { EL.corps.textContent=""; EL.titre.textContent="Document"; EL.sous.textContent="Choisissez un document"; }
+    if(fin) try{ fin(); }catch(e){}
+  }
+  /* un document du dossier ou du Cloud, touché : affiché, ou (mode choisir) récupéré et donné */
+  function prendre(d, bouton){
+    if(!PICK){ ouvrirDoc(d); return; }
+    var s=session(); if(!s) return;
+    var p=PICK, adr = d.cloud ? api("cloud-fichier")+"&id="+encodeURIComponent(d.cloud) : api("fichier")+"&cle="+encodeURIComponent(d.cle);
+    if(bouton){ bouton.disabled=true; bouton.style.opacity=".6"; }
+    EL.sous.textContent="Récupération de « "+d.titre+" »…";
+    fetch(adr, {headers:{"x-auth":s.jeton}})
+      .then(function(r){ if(!r.ok) throw new Error("fichier"); return r.blob(); })
+      .then(function(blob){ return Promise.resolve(p.ok({blob:blob, nom:d.fichier||d.titre, mime:blob.type||""})); })
+      .then(function(){
+        EL.sous.textContent="Ajouté : « "+d.titre+" ». Touchez-en d'autres, ou Terminé.";
+        if(bouton){ bouton.style.opacity="1"; var x=bouton.querySelector(".ici"); if(!x){ x=el("span","ici","AJOUTÉ"); bouton.appendChild(x); } }
+      })
+      .catch(function(){ EL.sous.textContent="Fichier indisponible : vérifiez la connexion."; if(bouton){ bouton.disabled=false; bouton.style.opacity="1"; } });
+  }
   function fermer(){
     cacher(); ETAT.doc=null; ETAT.chargeId++;
     EL.corps.textContent=""; EL.titre.textContent="Document"; EL.sous.textContent="Choisissez un document";
@@ -180,10 +210,10 @@
     var s=session(); if(!s) return Promise.reject(new Error("session"));
     return fetch(api("liste"), {headers:{"x-auth":s.jeton}})
       .then(function(r){ if(!r.ok) throw new Error("liste"); return r.json(); })
-      .then(function(d){ LISTE=(d.chantiers||[]).filter(function(c){ return documentsDe(c).length; }); return LISTE; });
+      .then(function(d){ LISTE=(d.chantiers||[]).filter(function(c){ return (c.fichiers||[]).length; }); return LISTE; });
   }
   function documentsDe(c){
-    return (c.fichiers||[]).filter(function(f){ return !f.brouillon && LISIBLE.test(f.cle||""); })
+    return (c.fichiers||[]).filter(function(f){ return !f.brouillon && (PICK && PICK.tous || LISIBLE.test(f.cle||"")); })
       .sort(function(a, b){ return String(b.publie||b.date||"").localeCompare(String(a.publie||a.date||"")); });
   }
   var SOURCE="chantiers";
@@ -201,7 +231,7 @@
   function choisirChantier(){
     SOURCE="chantiers";
     var c=EL.corps; c.textContent="";
-    EL.titre.textContent="Ouvrir un document"; EL.sous.textContent="Le chantier, puis le document";
+    EL.titre.textContent=PICK ? PICK.titre : "Ouvrir un document"; EL.sous.textContent="Le chantier, puis le document";
     var box=el("div","dc-choix"); c.appendChild(box);
     sources(box, "chantiers");
     var q=el("input","dc-cherche"); q.type="search"; q.placeholder="Chercher un chantier (client, référence, ville)"; q.setAttribute("aria-label","Chercher un chantier");
@@ -243,7 +273,7 @@
       var tx=el("span","tx"); tx.appendChild(el("b","",f.titre || String(f.cle).split("/").pop()));
       tx.appendChild(el("small","",[frDate(f.date), f.auteur, f.etape].filter(Boolean).join(" · ")));
       b.appendChild(tx);
-      b.addEventListener("click", function(){ ouvrirDoc({cle:f.cle, titre:f.titre || String(f.cle).split("/").pop(), chantier:ch.client || ch.ref}); });
+      b.addEventListener("click", function(){ var ext=String(f.cle).split(".").pop(); prendre({cle:f.cle, titre:f.titre || String(f.cle).split("/").pop(), fichier:(f.titre || "document").replace(/[\\/:*?"<>|]+/g, " ").trim()+"."+ext, chantier:ch.client || ch.ref}, b); });
       box.appendChild(b);
     });
   }
@@ -254,7 +284,7 @@
   function choisirCloud(dossier){
     SOURCE="cloud";
     var c=EL.corps; c.textContent="";
-    EL.titre.textContent="Ouvrir un document"; EL.sous.textContent="Le Cloud : un dossier, puis le fichier";
+    EL.titre.textContent=PICK ? PICK.titre : "Ouvrir un document"; EL.sous.textContent="Le Cloud : un dossier, puis le fichier";
     var box=el("div","dc-choix"); c.appendChild(box);
     sources(box, "cloud");
     var liste=el("div","dc-choix"); box.appendChild(liste);
@@ -275,7 +305,7 @@
           if((a.type==="dossier")!==(b.type==="dossier")) return a.type==="dossier" ? -1 : 1;
           return a.type==="dossier" ? String(a.nom).localeCompare(String(b.nom)) : String(b.maj||"").localeCompare(String(a.maj||""));
         });
-        var dos=els.filter(function(e){ return e.type==="dossier"; }), fic=els.filter(function(e){ return e.type==="fichier" && LISIBLE_MIME.test(e.mime||""); });
+        var dos=els.filter(function(e){ return e.type==="dossier"; }), fic=els.filter(function(e){ return e.type==="fichier" && (PICK && PICK.tous || LISIBLE_MIME.test(e.mime||"")); });
         dos.forEach(function(e){
           var b=el("button","dc-l"); b.type="button"; b.appendChild(icoDossier());
           var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", (e.nb||0)+" élément"+((e.nb||0)>1?"s":"")+(e.acces==="partage" ? " · partagé par "+e.proprio : ""))); b.appendChild(tx);
@@ -285,7 +315,7 @@
           var b=el("button","dc-l"); b.type="button";
           b.appendChild(el("span","ic", /pdf/.test(e.mime) ? "PDF" : String(e.nom).split(".").pop().toUpperCase().replace("JPEG","JPG").slice(0,4)));
           var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", [frDate(e.maj||e.cree), e.par].filter(Boolean).join(" · "))); b.appendChild(tx);
-          b.addEventListener("click", function(){ ouvrirDoc({cloud:e.id, pdf:/pdf/.test(e.mime), titre:e.nom, chantier:"Cloud"+(chemin.length ? " › "+chemin[chemin.length-1].nom : "")}); });
+          b.addEventListener("click", function(){ prendre({cloud:e.id, pdf:/pdf/.test(e.mime), titre:e.nom, fichier:e.nom, chantier:"Cloud"+(chemin.length ? " › "+chemin[chemin.length-1].nom : "")}, b); });
           liste.appendChild(b);
         });
         if(!dos.length && !fic.length) liste.appendChild(el("p","dc-etat", dossier ? "Rien à afficher dans ce dossier (PDF et photos seulement)." : "Votre Cloud est vide."));
@@ -377,6 +407,15 @@
       var d=null; try{ d=JSON.parse(sessionStorage.getItem(CLE_DERNIER)||"null"); }catch(e){}
       if(d && (d.cle || d.cloud)){ ouvrirDoc(d); cacher(); }
     },
-    montrer:montrer, cacher:cacher, fermer:fermer
+    montrer:montrer, cacher:cacher, fermer:fermer,
+    /* prendre des fichiers du Cloud ou d'un dossier (une pièce jointe) */
+    choisir:function(o){
+      if(!EL.pan) return false;
+      PICK={ok:(o && o.ok) || function(){}, tous:!o || o.tous!==false, fin:o && o.fin, titre:(o && o.titre) || "Ajouter un document"};
+      EL.retour.textContent="Terminé"; EL.zm.style.display=EL.zp.style.display="none";
+      document.documentElement.classList.add("dc-ouvert"); ETAT.ouvert=true;
+      choisir();
+      return true;
+    }
   };
 })();
