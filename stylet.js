@@ -68,6 +68,29 @@
   (document.head||document.documentElement).appendChild(css);
 
   function el(t, c, txt){ var e=document.createElement(t); if(c) e.className=c; if(txt!=null) e.textContent=txt; return e; }
+  /* Apple Pencil : sur iPad, un toucher de bouton où la pointe glisse d'un rien ne donne pas de « click »
+     (au doigt, si). On le fait donc nous-mêmes : posé puis levé sur le même bouton, au crayon, le bouton
+     est actionné ; le « click » du système, s'il arrive quand même dans l'instant, est ignoré. */
+  function toucherCrayon(racine){
+    var vise=null, ignorer=null, jusqua=0;
+    racine.addEventListener("pointerdown", function(e){
+      vise=null;
+      if(e.pointerType!=="pen" || !e.target || !e.target.closest) return;
+      var b=e.target.closest("button"); if(b && !b.disabled && racine.contains(b)) vise=b;
+    }, true);
+    racine.addEventListener("pointerup", function(e){
+      if(e.pointerType!=="pen" || !vise) return;
+      var b=vise, r=b.getBoundingClientRect(); vise=null;
+      if(e.clientX<r.left-10 || e.clientX>r.right+10 || e.clientY<r.top-10 || e.clientY>r.bottom+10) return;
+      ignorer=b; jusqua=Date.now()+700;
+      b.click();
+    }, true);
+    racine.addEventListener("click", function(e){
+      if(!e.isTrusted || !ignorer || Date.now()>jusqua) return;
+      e.stopPropagation(); e.preventDefault();   /* le bouton a pu être redessiné : tout « click » du système dans l'instant est le doublon */
+      ignorer=null;
+    }, true);
+  }
   function bouton(t, f, cls){ var b=el("button", cls||"", t); b.type="button"; b.addEventListener("click", f); return b; }
 
   /* ---------- les outils, comme dans les Notes ---------- */
@@ -311,6 +334,7 @@
     fond.addEventListener("selectstart", bloquer);
     fond.addEventListener("contextmenu", bloquer);
     fond.addEventListener("dblclick", bloquer);
+    toucherCrayon(fond);
 
     function taille(){
       var r=page.getBoundingClientRect();
