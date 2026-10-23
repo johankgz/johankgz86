@@ -63,6 +63,46 @@
   }
   function demarrer(){ retirerAides(); balayer(); setInterval(function(){ if(!document.hidden) balayer(); }, 1500); }
 
+  /* ---------- 4. après une publication, retour à l'accueil ----------
+     RetourAccueil("Suivi publié dans le dossier.") : une fiche enregistrée
+     (relevé, suivi, commande, point…), on revient au menu d'accueil. Mais
+     pas avant la fin des envois en cours (la fiche à rouvrir, les photos) :
+     on les compte, et l'on attend qu'il n'y en ait plus (une minute au plus),
+     et au moins 1,6 s pour lire la confirmation. L'accueil la redit. */
+  var ENVOIS=0;
+  if(window.fetch && !window.fetch.__compte){
+    var f0=window.fetch;
+    var fc=function(entree, init){
+      var m=String((init && init.method) || (entree && entree.method) || "GET").toUpperCase(), compte = m!=="GET" && m!=="HEAD";
+      if(compte) ENVOIS++;
+      var pr; try{ pr=f0.apply(this, arguments); }catch(e){ if(compte) ENVOIS--; throw e; }
+      return compte ? pr.then(function(r){ ENVOIS--; return r; }, function(e){ ENVOIS--; throw e; }) : pr;
+    };
+    fc.__compte=true; window.fetch=fc;
+  }
+  window.RetourAccueil=function(msg){
+    if(window.top!==window) return;                       /* une page ouverte dans une autre : elle reste */
+    try{ if(msg) sessionStorage.setItem("accueil:message", String(msg)); }catch(e){}
+    var t0=Date.now();
+    (function attendre(){
+      if(ENVOIS>0 && Date.now()-t0<60000){ setTimeout(attendre, 250); return; }
+      setTimeout(function(){ location.href="./index.html"; }, Math.max(0, 1600-(Date.now()-t0)));
+    })();
+  };
+  /* sur l'accueil : la confirmation de ce qui vient d'être publié */
+  function messageAccueil(){
+    if(!/(\/|index\.html)$/.test(location.pathname)) return;
+    var m=null; try{ m=sessionStorage.getItem("accueil:message"); sessionStorage.removeItem("accueil:message"); }catch(e){}
+    if(!m) return;
+    var b=document.createElement("div"); b.setAttribute("role","status"); b.textContent="✓  "+m;
+    b.style.cssText="position:fixed;left:50%;bottom:calc(22px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:2147481000;"
+      +"max-width:calc(100% - 32px);padding:12px 18px;border-radius:999px;background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff;"
+      +"font:600 14.5px/1.3 inherit;font-family:inherit;box-shadow:0 12px 30px -10px rgba(11,18,32,.6);text-align:center;transition:opacity .4s";
+    document.body.appendChild(b);
+    setTimeout(function(){ b.style.opacity="0"; setTimeout(function(){ if(b.parentNode) b.parentNode.removeChild(b); }, 450); }, 3800);
+  }
+  if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", messageAccueil); else messageAccueil();
+
   /* ---------- 3. l'itinéraire, dans l'appli de cartes ----------
      Itineraire.ouvrir(destination, {chercher:true}) : une adresse ou « lat,lon ».
      Sur iPhone et iPad, un lien web vers Google Maps passe bien la main à
