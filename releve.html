@@ -5753,22 +5753,51 @@ function buildPdf(){
     setFill(FOND);
     degrade(n, function(k){ return k===n ? 1 : (k-0.5)/n; }, function(k){ doc.rect(x, yy, l*(n-k+1)/n, h, "F"); });
   }
-  /* sans photo du bâtiment : un dessin sobre plutôt qu'une page vide */
+  /* sans photo du bâtiment : une bande bleu nuit façon plan technique (quadrillage fin, le tracé d'un plan
+     et de ses circuits), avec la date de la visite et la référence — plutôt qu'un dessin de maison */
   function illustration(x, yy, w, h){
     var coupe = typeof doc.clip==="function" && typeof doc.saveGraphicsState==="function";
     if(coupe){ try{ doc.saveGraphicsState(); doc.roundedRect(x, yy, w, h, 3, 3, null); doc.clip(); if(doc.discardPath) doc.discardPath(); }catch(e){ coupe=false; } }
-    setFill(SABLE2); doc.rect(x, yy, w, h, "F");
-    setFill([244,214,140]); doc.circle(x+w*0.8, yy+h*0.3, h*0.13, "F");
-    setFill(VERT_C); doc.ellipse(x+w*0.22, yy+h*1.02, w*0.42, h*0.3, "F"); doc.ellipse(x+w*0.82, yy+h*1.06, w*0.38, h*0.26, "F");
-    var bw=Math.min(w*0.34, h*1.05), bh=h*0.3, bx=x+w*0.5-bw/2, by=yy+h*0.86-bh, th=h*0.26;
-    setFill(BLANC); doc.rect(bx, by, bw, bh, "F");
-    setFill(TOIT); poly([[bx-bw*0.07, by+0.2],[bx+bw*1.07, by+0.2],[bx+bw*0.8, by-th],[bx+bw*0.2, by-th]], "F");
-    var cols=6, rows=2, px=bx+bw*0.19, pw=(bw*0.62)/cols, ph=th*0.34, py=by-th*0.86;
-    for(var r=0;r<rows;r++) for(var c=0;c<cols;c++){ setFill(BLEU_PV); doc.rect(px+c*pw+0.25+r*pw*0.12, py+r*(ph+0.6), pw-0.5, ph, "F"); }
-    setFill([70,86,96]);
-    [0.12,0.36,0.6].forEach(function(k){ doc.rect(bx+bw*k, by+bh*0.26, bw*0.13, bh*0.4, "F"); });
-    doc.rect(bx+bw*0.8, by+bh*0.3, bw*0.11, bh*0.7, "F");
-    setFill([62,107,58]); doc.circle(x+w*0.12, yy+h*0.72, h*0.12, "F"); doc.circle(x+w*0.9, yy+h*0.7, h*0.15, "F");
+    var NUIT=[11,18,32], BLEU=[37,99,235], CYAN=[34,211,238];
+    /* la transparence des traits aussi (op() ne règle que le remplissage) */
+    function op(o){ try{ if(doc.GState && doc.setGState) doc.setGState(new doc.GState({opacity:o, "stroke-opacity":o})); }catch(e){} }
+    setFill(NUIT); doc.rect(x, yy, w, h, "F");
+    /* le bleu monte vers la droite */
+    var n=40;           /* des voiles superposés, chacun jusqu'au bord droit : un dégradé sans couture */
+    for(var k=Math.round(n*0.15);k<n;k++){ op(0.03); setFill(BLEU); doc.rect(x+w*k/n, yy, w-w*k/n, h, "F"); }
+    /* le quadrillage du papier millimétré */
+    op(0.07); setDraw(BLANC); doc.setLineWidth(0.12);
+    for(var gx=x+5; gx<x+w; gx+=5) doc.line(gx, yy, gx, yy+h);
+    for(var gy=yy+5; gy<yy+h; gy+=5) doc.line(x, gy, x+w, gy);
+    /* le plan : les pièces, puis les points lumineux et les prises reliés par leur circuit */
+    var px=x+w*0.52, py=yy+h*0.17, pw=w*0.4, ph=h*0.66;
+    op(0.75); setDraw(CYAN); doc.setLineWidth(0.6);
+    doc.rect(px, py, pw, ph, "S");
+    doc.setLineWidth(0.4);
+    doc.line(px+pw*0.42, py, px+pw*0.42, py+ph*0.42); doc.line(px+pw*0.42, py+ph*0.56, px+pw*0.42, py+ph);
+    doc.line(px, py+ph*0.55, px+pw*0.3, py+ph*0.55); doc.line(px+pw*0.42, py+ph*0.6, px+pw*0.72, py+ph*0.6); doc.line(px+pw*0.84, py+ph*0.6, px+pw, py+ph*0.6);
+    var pts=[[0.2,0.27],[0.72,0.3],[0.16,0.8],[0.62,0.82],[0.9,0.82]].map(function(p){ return [px+pw*p[0], py+ph*p[1]]; });
+    op(0.45); doc.setLineWidth(0.3);
+    try{ if(doc.setLineDashPattern) doc.setLineDashPattern([1.2, 1], 0); }catch(e){}
+    for(var q=1;q<pts.length;q++) doc.line(pts[q-1][0], pts[q-1][1], pts[q][0], pts[q][1]);
+    try{ if(doc.setLineDashPattern) doc.setLineDashPattern([], 0); }catch(e){}
+    op(0.9); doc.setLineWidth(0.35);
+    pts.forEach(function(p, k){
+      if(k%2===0){ doc.circle(p[0], p[1], 1.5, "S"); doc.line(p[0]-1.05, p[1]-1.05, p[0]+1.05, p[1]+1.05); doc.line(p[0]-1.05, p[1]+1.05, p[0]+1.05, p[1]-1.05); }
+      else { setFill(CYAN); doc.circle(p[0], p[1], 0.9, "F"); }
+    });
+    op(1);
+    /* la visite, en clair */
+    var jour = S.meta.date ? new Date(S.meta.date+"T12:00:00") : null;
+    var quand = jour && !isNaN(jour) ? jour.toLocaleDateString("fr-FR", {day:"numeric", month:"long", year:"numeric"}) : "";
+    texte(true); doc.setFontSize(6.8); setText(CYAN);
+    doc.text("VISITE TECHNIQUE DU SITE", x+9, yy+h*0.36, {charSpace:0.25});
+    titre(true); doc.setFontSize(19); setText(BLANC);
+    doc.text(quand || "Relevé de site", x+9, yy+h*0.36+9.5);
+    texte(false); doc.setFontSize(8.6); setText([169,182,204]);
+    var bas=[refAffaire() ? "Référence "+refAffaire() : "", S.meta.ca ? "Relevé établi par "+S.meta.ca : ""].filter(Boolean);
+    bas.forEach(function(t, k){ doc.text(lignes(t, w*0.42, 8.6)[0], x+9, yy+h*0.36+17+k*4.6); });
+    doc.setLineWidth(0.2);
     if(coupe){ try{ doc.restoreGraphicsState(); }catch(e){} }
   }
   /* une phrase écrite à la main, penchée, soulignée ; posée par son coin bas droit */
@@ -5958,8 +5987,6 @@ function buildPdf(){
     if(PV) phrase(["Le soleil,", "une énergie", "à votre portée"], PW-M-8, y+hHero-9, 21, BLANC, true);
   } else {
     illustration(M, y, CW, hHero);
-    /* sur le dessin, la phrase prend le ciel libre à gauche de la maison */
-    if(PV) phrase(["Le soleil,", "une énergie", "à votre portée"], M+CW*0.3, y+33, 18, VERT_F, false);
   }
   y+=hHero+7;
 
