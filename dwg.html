@@ -403,6 +403,7 @@ body.clair #scene{background:#FFFFFF}
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
   <span class="bs-coul" id="bsCoul" hidden role="group" aria-label="Couleur des liaisons"></span>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
+  <button type="button" class="bs-act" id="bsSupPt" hidden title="Retirer ce point du passage du câble (le câble se redresse)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="8" height="8"/><path d="M4 4l16 16"/></svg>Supprimer le point</button>
   <button type="button" class="bs-act" id="bsDefOnd" hidden title="Ses caractéristiques : puissance, MPPT, tensions, courants">Définir</button>
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
@@ -1546,11 +1547,19 @@ function lacher(e){
   if(G.grp || G.rect){
     if(e.type!=="pointercancel"){
       if(G.grp && G.garde){ enregistrerD(); enregistrerSymb(); }
-      else if(G.rect && G.bouge && RECT_SEL){ var ng=grpDeRect(RECT_SEL[0], RECT_SEL[1]); GRP=grpTaille(ng) ? ng : null; if(!GRP) toast("Rien dans le cadre : entourez entièrement les murs et les meubles.", 2500); }
+      else if(G.rect && G.bouge && RECT_SEL){ var ng=grpDeRect(RECT_SEL[0], RECT_SEL[1]); GRP=grpTaille(ng) ? ng : null; if(!GRP) toast(FAM_D==="pv" ? "Rien dans le cadre : entourez entièrement les panneaux." : "Rien dans le cadre : entourez entièrement les murs et les meubles.", 2500); }
       else if(!G.bouge){
         /* un toucher : l'élément sous le doigt, seul ; ailleurs, plus rien de sélectionné */
-        var cib=objetSous(versPlan(p[0], p[1]));
+        var cib=objetSous(versPlan(p[0], p[1])), avant=GRP;
         GRP=null;
+        /* un panneau ou un onduleur : il s'ajoute à la sélection en cours (ou s'en retire) */
+        if(cib && (cib.t==="pvp" || cib.t==="pvo")){
+          var opv = cib.t==="pvp" ? pvPan(cib.id) : pvOnd(cib.id), gp = avant && grpTaille(avant) ? avant : grpNeuf(), lp = cib.t==="pvp" ? gp.pan : gp.ond;
+          if(opv){ var ix=lp.indexOf(opv); if(ix>=0) lp.splice(ix, 1); else lp.push(opv); }
+          GRP = grpTaille(gp) ? gp : null; cib=null;
+          if(GRP && GRP.pan.length===1 && grpTaille(GRP)===1) toast("Touchez d'autres panneaux pour les ajouter, ou encadrez-les ; glissez la sélection pour la déplacer.", 4000);
+        }
+        if(cib && /^pv/.test(cib.t)) cib=null;
         if(cib && cib.t==="ouv"){ var ov=DESSIN.ouv.filter(function(x){ return x.id===cib.id; })[0]; cib = ov ? {t:"mur", id:ov.mur} : null; }
         if(!cib){ var si=symboleSous(p); if(si>=0){ GRP=grpNeuf(); GRP.symb.push(SYMB[si]); } }
         if(cib){ var gg=grpNeuf(), oo=(cib.t==="mur" ? murDe(cib.id) : cib.t==="mob" ? mobDe(cib.id) : cib.t==="geo" ? geoDe(cib.id) : DESSIN.textes.filter(function(t){ return t.id===cib.id; })[0]); if(oo){ ({mur:gg.murs, mob:gg.mob, geo:gg.geo, texte:gg.textes})[cib.t].push(oo); GRP=gg; } }
@@ -1562,9 +1571,9 @@ function lacher(e){
     var hq=G.pvch, maint=Date.now();
     if(hq.inser){ garderD(); pvInsererPoint(hq); hq.ch.ecrire(pvOrtho(hq.E0)); enregistrerD(); toast("Point ajouté : glissez-le où le câble doit passer (deux touchers l'enlèvent).", 3000); PV_TAP=null; }
     else if(hq.coin!=null){
-      if(PV_TAP && PV_TAP.ic===hq.ic && PV_TAP.coin===hq.coin && maint-PV_TAP.t<450 && hq.coin<hq.E0.length-1){
-        garderD(); hq.E0.splice(hq.coin, 1); hq.ch.ecrire(pvOrtho(hq.E0)); enregistrerD(); PV_TAP=null;
-      } else PV_TAP={ic:hq.ic, coin:hq.coin, t:maint};
+      if(PV_TAP && PV_TAP.ic===hq.ic && PV_TAP.coin===hq.coin && maint-PV_TAP.t<450 && pvPointRetirable(hq.ch, hq.coin)){
+        garderD(); hq.ch.ecrire(pvSansPoint(hq.E0, hq.coin, hq.ch.fixe)); enregistrerD(); PV_TAP=null; PV_PT=null;
+      } else { PV_TAP={ic:hq.ic, coin:hq.coin, t:maint}; PV_PT={ic:hq.ic, coin:hq.coin, sel:hq.sel && hq.sel.id}; }
     }
     D_SEL=hq.sel; majDessin(); majBarreSel();
     G=null; demander(); return;
@@ -2345,11 +2354,16 @@ function majBarreSel(){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
   var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
-  if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
+  if(MODE==="dessin" && nG){
+    var nPan=GRP.pan.length, nOnd=GRP.ond.length;
+    nom = nPan===nG ? nPan+" panneau"+(nPan>1?"x":"") : nPan+nOnd===nG ? [nPan ? nPan+" panneau"+(nPan>1?"x":"") : "", nOnd ? nOnd+" onduleur"+(nOnd>1?"s":"") : ""].filter(Boolean).join(" + ") : nG+" élément"+(nG>1?"s":"");
+  }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
+  var ptPv = MODE==="dessin" && FAM_D==="pv" && !nG ? pvPointChoisi() : null;
+  $("bsSupPt").hidden = !ptPv;
   if(!$("bsDefOnd").hidden){ var oD=pvOnd(D_SEL.id); $("bsDefOnd").classList.toggle("on", pvOndAFaire(oD)); }
   var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2;
   $("bsCoul").hidden=!coul; if(coul) peindrePaletteLiens();
@@ -2357,6 +2371,7 @@ function majBarreSel(){
   $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
   $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
   if(rel && RELIER) nom="Liaisons : "+nom;
+  if(ptPv && nom) nom="Point du passage · "+nom;
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
@@ -2379,6 +2394,7 @@ $("bsFermer").addEventListener("click", function(){
   majBarreSel(); demander();
 });
 $("bsDup").addEventListener("click", function(){ dupliquerSel(); });
+$("bsSupPt").addEventListener("click", function(){ pvRetirerPoint(); });
 $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; garderTout(); grpTourner(GRP); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); });
 
 /* ---------- la sélection d'un groupe : une pièce entière, d'un coup ----------
@@ -2388,8 +2404,24 @@ $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; 
    supprime. Ctrl+C / Ctrl+V / Ctrl+D copient, collent et dupliquent aussi
    un élément seul (un mur, un meuble…). */
 var GRP=null, PRESSE=null, RECT_SEL=null;
-function grpNeuf(){ return {murs:[], mob:[], geo:[], textes:[], symb:[]}; }
-function grpTaille(g){ return g ? g.murs.length+g.mob.length+g.geo.length+g.textes.length+g.symb.length : 0; }
+function grpNeuf(){ return {murs:[], mob:[], geo:[], textes:[], symb:[], pan:[], ond:[]}; }
+function grpTaille(g){ return g ? g.murs.length+g.mob.length+g.geo.length+g.textes.length+g.symb.length+(g.pan||[]).length+(g.ond||[]).length : 0; }
+/* Les panneaux d'un groupe : un champ dont on n'a pris qu'une partie se scinde,
+   les panneaux pris passent dans un champ à eux (même pose, même place) ;
+   le groupe déplace ou tourne alors des champs entiers. */
+function grpChampsPans(g){
+  if(!g.pan || !g.pan.length) return [];
+  var P=PVD(), par={}, out=[];
+  g.pan.forEach(function(p){ (par[p.ch]=par[p.ch]||[]).push(p); });
+  Object.keys(par).forEach(function(cid){
+    var ch=pvChamp(cid); if(!ch) return;
+    if(pvPansDe(ch).length===par[cid].length){ out.push(ch); return; }
+    var n=JSON.parse(JSON.stringify(ch)); n.id=idD(); P.ch.push(n);
+    par[cid].forEach(function(p){ p.ch=n.id; });
+    out.push(n);
+  });
+  return out;
+}
 function garderTout(){ HISTO_D.push(JSON.stringify({__groupe:true, d:DESSIN, s:SYMB})); if(HISTO_D.length>100) HISTO_D.shift(); }
 function grpDeRect(a, b){
   var x0=Math.min(a[0],b[0]), x1=Math.max(a[0],b[0]), y0=Math.min(a[1],b[1]), y1=Math.max(a[1],b[1]), g=grpNeuf();
@@ -2399,12 +2431,18 @@ function grpDeRect(a, b){
   geosVue().forEach(function(o){ var pts=o.t==="rond" ? [[o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]] : o.pts; if(pts.every(dans)) g.geo.push(o); });
   DESSIN.textes.forEach(function(t){ if(dans([t.x, t.y])) g.textes.push(t); });
   SYMB.forEach(function(o){ if(dans([o.x, o.y])) g.symb.push(o); });
+  if(DESSIN.pv && vueD()==="dessus"){
+    DESSIN.pv.pan.forEach(function(x){ var cs=pvCoins(x); if(cs.length && cs.every(dans)) g.pan.push(x); });
+    DESSIN.pv.ond.forEach(function(o){ var b=pvOndBoite(o); if(dans([b[0], b[1]]) && dans([b[2], b[3]])) g.ond.push(o); });
+  }
   return g;
 }
-function grpTout(){ var g=grpNeuf(); g.murs=DESSIN.murs.slice(); g.mob=mobs().slice(); g.geo=geosVue().slice(); g.textes=DESSIN.textes.slice(); g.symb=SYMB.slice(); return g; }
+function grpTout(){ var g=grpNeuf(); g.murs=DESSIN.murs.slice(); g.mob=mobs().slice(); g.geo=geosVue().slice(); g.textes=DESSIN.textes.slice(); g.symb=SYMB.slice(); if(DESSIN.pv && vueD()==="dessus"){ g.pan=DESSIN.pv.pan.slice(); g.ond=DESSIN.pv.ond.slice(); } return g; }
 function grpDeSel(){
   var o=objetSel(); if(!o || !D_SEL || D_SEL.t==="ouv") return null;
-  var g=grpNeuf(); ({mur:g.murs, mob:g.mob, geo:g.geo, texte:g.textes})[D_SEL.t].push(o); return g;
+  var g=grpNeuf(), l=({mur:g.murs, mob:g.mob, geo:g.geo, texte:g.textes, pvp:g.pan, pvo:g.ond})[D_SEL.t];
+  if(!l) return null;
+  l.push(o); return g;
 }
 function grpPoints(g){
   var pts=[];
@@ -2413,6 +2451,8 @@ function grpPoints(g){
   g.geo.forEach(function(o){ if(o.t==="rond"){ pts.push([o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]); } else o.pts.forEach(function(q){ pts.push(q); }); });
   g.textes.forEach(function(t){ pts.push([t.x, t.y]); });
   g.symb.forEach(function(o){ pts.push([o.x-o.r, o.y-o.r], [o.x+o.r, o.y+o.r]); });
+  (g.pan||[]).forEach(function(x){ pvCoins(x).forEach(function(q){ pts.push(q); }); });
+  (g.ond||[]).forEach(function(o){ var b=pvOndBoite(o); pts.push([b[0], b[1]], [b[2], b[3]]); });
   return pts;
 }
 function grpBoite(g){
@@ -2427,6 +2467,8 @@ function grpTranslater(g, d){
   g.geo.forEach(function(o){ o.pts=o.pts.map(function(q){ return [q[0]+d[0], q[1]+d[1]]; }); });
   g.textes.forEach(function(t){ t.x+=d[0]; t.y+=d[1]; });
   g.symb.forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
+  grpChampsPans(g).forEach(function(ch){ ch.x+=d[0]; ch.y+=d[1]; });
+  (g.ond||[]).forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
 }
 /* un quart de tour autour du centre du groupe : sens inverse des aiguilles, ou des aiguilles (horaire) */
 function grpTourner(g, horaire){
@@ -2440,11 +2482,16 @@ function grpTourner(g, horaire){
   g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+da)%360; });
   g.textes.forEach(function(t){ var q=f([t.x, t.y]); t.x=q[0]; t.y=q[1]; });
   g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+da)%360; });
+  grpChampsPans(g).forEach(function(ch){ var q=f([ch.x, ch.y]); ch.x=q[0]; ch.y=q[1]; ch.a=((ch.a||0)+da)%360; });
+  (g.ond||[]).forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; });
 }
 /* la copie d'un groupe : ses murs avec leurs portes et fenêtres */
 function grpCopier(g){
   var ids={}; g.murs.forEach(function(m){ ids[m.id]=1; });
-  return JSON.stringify({murs:g.murs, ouv:DESSIN.ouv.filter(function(o){ return ids[o.mur]; }), mob:g.mob, geo:g.geo, textes:g.textes, symb:g.symb, mm:DESSIN_MM});
+  /* les panneaux : avec leur champ (sa pose, sa place) ; leurs strings ne suivent pas */
+  var chs={}; (g.pan||[]).forEach(function(x){ var ch=pvChamp(x.ch); if(ch) chs[ch.id]=ch; });
+  return JSON.stringify({murs:g.murs, ouv:DESSIN.ouv.filter(function(o){ return ids[o.mur]; }), mob:g.mob, geo:g.geo, textes:g.textes, symb:g.symb,
+    pan:(g.pan||[]).map(function(x){ return {ch:x.ch, r:x.r, c:x.c}; }), chs:chs, mm:DESSIN_MM});
 }
 function grpColler(txt, d){
   var c=JSON.parse(txt), k=(c.mm||DESSIN_MM)/DESSIN_MM, g=grpNeuf(), corr={};
@@ -2454,6 +2501,13 @@ function grpColler(txt, d){
   c.mob.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; n.l=o.l*k; n.p=o.p*k; DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(n); g.mob.push(n); });
   c.geo.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); n.pts=o.pts.map(sc); if(n.r) n.r=o.r*k; DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(n); g.geo.push(n); });
   c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
+  if(c.pan && c.pan.length){
+    var P=PVD(), corrC={};
+    c.pan.forEach(function(x){
+      if(!corrC[x.ch]){ var ch0=c.chs[x.ch]; if(!ch0) return; var nc=JSON.parse(JSON.stringify(ch0)); nc.id=idD(); var q=sc([ch0.x, ch0.y]); nc.x=q[0]; nc.y=q[1]; P.ch.push(nc); corrC[x.ch]=nc; }
+      g.pan.push(pvAjouterPan(corrC[x.ch], x.r, x.c));
+    });
+  }
   var corrS={};
   c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; if(o.id){ delete n.id; corrS[o.id]=idS(n); } SYMB.push(n); g.symb.push(n); });
   g.symb.forEach(function(n){
@@ -2476,7 +2530,7 @@ function dupliquerSel(){
 }
 function apresCollage(n, msg){
   enregistrerD(); enregistrerSymb();
-  if(grpTaille(n)===1 && !n.symb.length){ var t=n.murs.length ? "mur" : n.mob.length ? "mob" : n.geo.length ? "geo" : "texte"; D_SEL={t:t, id:(n.murs[0]||n.mob[0]||n.geo[0]||n.textes[0]).id}; GRP=null; if(OUTIL_D==="selection") OUTIL_D="choisir"; }
+  if(grpTaille(n)===1 && !n.symb.length && !n.pan.length && !n.ond.length){ var t=n.murs.length ? "mur" : n.mob.length ? "mob" : n.geo.length ? "geo" : "texte"; D_SEL={t:t, id:(n.murs[0]||n.mob[0]||n.geo[0]||n.textes[0]).id}; GRP=null; if(OUTIL_D==="selection") OUTIL_D="choisir"; }
   else { OUTIL_D="selection"; GRP=n; D_SEL=null; }
   majDessin(); majBarreSel(); demander(); toast(msg, 2500);
 }
@@ -2488,6 +2542,8 @@ function supprimerGrp(){
   DESSIN.mob=mobs().filter(function(o){ return g.mob.indexOf(o)<0; }); DESSIN.geo=geos().filter(function(o){ return g.geo.indexOf(o)<0; });
   DESSIN.textes=DESSIN.textes.filter(function(t){ return g.textes.indexOf(t)<0; }); SYMB=SYMB.filter(function(o){ return g.symb.indexOf(o)<0; });
   g.symb.forEach(function(x){ if(x.id) SYMB.forEach(function(o){ delier(o, x.id); }); });
+  (g.pan||[]).forEach(function(x){ pvSupprimer("pvp", x); });
+  (g.ond||[]).forEach(function(o){ pvSupprimer("pvo", o); });
   GRP=null; enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Supprimé. « Annuler » le remet.", 2500);
 }
 function grpEcran(g){ var b=grpBoite(g); if(!b) return null; var a=versEcran(b.x0, b.y1), c=versEcran(b.x1, b.y0); return {x0:a[0]-8, y0:a[1]-8, x1:c[0]+8, y1:c[1]+8}; }
@@ -2508,6 +2564,8 @@ function peindreGroupe(c){
     GRP.geo.forEach(function(o){ if(o.t==="rond"){ var e=versEcran(o.pts[0][0], o.pts[0][1]); c.beginPath(); c.arc(e[0], e[1], o.r*V.k, 0, 2*Math.PI); c.stroke(); } else poly(o.pts); });
     GRP.symb.forEach(function(o){ var e=versEcran(o.x, o.y); c.beginPath(); c.arc(e[0], e[1], Math.max(8, o.r*V.k*1.2), 0, 2*Math.PI); c.stroke(); });
     GRP.textes.forEach(function(t){ var e=versEcran(t.x, t.y); c.strokeRect(e[0]-20, e[1]-10, 40, 20); });
+    (GRP.pan||[]).forEach(function(x){ var cs=pvCoins(x); if(!cs.length) return; c.fillStyle="rgba(59,130,246,.28)"; c.beginPath(); cs.forEach(function(q, i){ var e=versEcran(q[0], q[1]); if(i) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.closePath(); c.fill(); c.stroke(); });
+    (GRP.ond||[]).forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]]); });
     var r=grpEcran(GRP);
     if(r){ c.setLineDash([7,5]); c.lineWidth=1.5; c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); }
   }
@@ -3043,7 +3101,7 @@ function majFamille(){
   majVues();
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button[data-o]"), function(b){
     var o=b.dataset.o;
-    b.classList.toggle("hors-fam", (o==="selection" && FAM_D==="pv") || (o!=="choisir" && o!=="selection" && famDe(o)!==FAM_D));
+    b.classList.toggle("hors-fam", o!=="choisir" && o!=="selection" && famDe(o)!==FAM_D);
     b.classList.toggle("hors-vue", !outilVue(o));
   });
   Array.prototype.forEach.call($("segFamD").children, function(b){ b.classList.toggle("on", b.dataset.f===FAM_D); });
@@ -3052,7 +3110,7 @@ $("segFamD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   FAM_D=b.dataset.f; garder("dwg:famD", FAM_D);
   /* l'outil en cours suit la famille (en Face et en Côté, le plan, c'est le mobilier) */
-  if(OUTIL_D!=="choisir" && famDe(OUTIL_D)!==FAM_D){ OUTIL_D = FAM_D==="dessin" ? "trait" : FAM_D==="pv" ? (VUE_D!=="dessus" ? "choisir" : "pvchamp") : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
+  if(OUTIL_D!=="choisir" && OUTIL_D!=="selection" && famDe(OUTIL_D)!==FAM_D){ OUTIL_D = FAM_D==="dessin" ? "trait" : FAM_D==="pv" ? (VUE_D!=="dessus" ? "choisir" : "pvchamp") : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
   if(FAM_D!=="pv"){ $("etudePv").hidden=true; }
   D_PT=null; GEO_EC=null; PV_EC=null; majFamille(); majDessin();
 });
@@ -7508,6 +7566,40 @@ function pvInsererPoint(h){
   h.E0.splice(h.inser.j+1, 0, h.inser.q); h.coin=h.inser.j+1; h.seg=null; h.libre=true; h.inser=null;
 }
 var PV_TAP=null;
+/* le point du passage choisi d'un toucher (en bleu plein) : « Supprimer le point » le retire */
+var PV_PT=null;
+/* Le câble sans le point k. Le câble ne fait que des angles droits : retirer un
+   coin le recréerait aussitôt, au même endroit. Le coude passe donc de l'autre
+   côté (l'autre coin du rectangle). Puis les points devenus inutiles, au milieu
+   d'une ligne droite, s'en vont aussi. */
+function pvSansPoint(E0, k, fixe){
+  var E=E0.map(function(q){ return q.slice(); }), A=E[k-1], B=E[k], C=E[k+1], e=1e-6;
+  var R=E.slice(0, k).concat(E.slice(k+1));
+  if(A && C && Math.abs(A[0]-C[0])>e && Math.abs(A[1]-C[1])>e){
+    var alt = (Math.abs(B[0]-C[0])<e && Math.abs(B[1]-A[1])<e) ? [A[0], C[1]] : [C[0], A[1]];
+    R.splice(k, 0, alt);
+  }
+  R=pvOrtho(R);
+  for(var i=Math.max(1, fixe); i<R.length-1; i++){
+    var a=R[i-1], q=R[i], n=R[i+1];
+    if((Math.abs(a[0]-q[0])<e && Math.abs(q[0]-n[0])<e) || (Math.abs(a[1]-q[1])<e && Math.abs(q[1]-n[1])<e)){ R.splice(i, 1); i--; }
+  }
+  return R;
+}
+/* le dernier point d'un câble AC ou RJ45 est le tableau ou la box : il reste */
+function pvPointRetirable(ch, j){ return j>=ch.fixe && (ch.fixe===1 || j<ch.E.length-1); }
+function pvPointChoisi(){
+  if(!PV_PT || !D_SEL || D_SEL.id!==PV_PT.sel) return null;
+  var ch=pvChemins()[PV_PT.ic];
+  if(!ch || PV_PT.coin>=ch.E.length || !pvPointRetirable(ch, PV_PT.coin)){ PV_PT=null; return null; }
+  return {ch:ch, coin:PV_PT.coin};
+}
+function pvRetirerPoint(){
+  var pc=pvPointChoisi(); if(!pc) return;
+  garderD();
+  pc.ch.ecrire(pvSansPoint(pc.ch.E, pc.coin, pc.ch.fixe)); enregistrerD(); PV_PT=null;
+  majDessin(); majBarreSel(); demander(); toast("Point retiré : le câble se redresse. « Annuler » le remet.", 2500);
+}
 function pvGlisserChemin(h, d){
   var ch=h.ch, E=h.E0.map(function(q){ return q.slice(); });
   if(h.seg!=null){
@@ -7538,6 +7630,8 @@ function peindrePoigneesPv(c, E){
     }
     ch.E.forEach(function(q, j){ if(j<ch.fixe) return; var Q=E(q); c.beginPath(); c.rect(Q[0]-6, Q[1]-6, 12, 12); c.fill(); c.stroke(); });
   });
+  var pc=pvPointChoisi();
+  if(pc){ var Q=E(pc.ch.E[pc.coin]); c.fillStyle="#3B82F6"; c.strokeStyle="#FFFFFF"; c.beginPath(); c.rect(Q[0]-8, Q[1]-8, 16, 16); c.fill(); c.stroke(); }
   c.restore();
 }
 function pvDebutLiaison(t, o){
