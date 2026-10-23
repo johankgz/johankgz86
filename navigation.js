@@ -13,6 +13,7 @@
 (function(){
 "use strict";
 if(window.__navigation) return;
+var EMBLEME='<path d="M60 32 46.5 55.4h-29L4 32 17.5 8.6h29z" fill="#2563EB" stroke="#2563EB" stroke-width="5" stroke-linejoin="round"/> <path d="M4 32 17.5 8.6h29L60 32z" fill="#3B82F6"/> <path d="M4 32 17.5 8.6h29L60 32" fill="none" stroke="#3B82F6" stroke-width="5" stroke-linejoin="round"/> <circle cx="32" cy="32" r="16" fill="#0B1220"/> <path d="M42.9 25.6A11.8 11.8 0 1 0 43.6 36" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round"/> <path d="M38.6 24.4l5.2 1.9 1.1-5.4" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/> <path d="M34.2 21.6 25.8 34.2h5.9l-2.6 9.2 9.6-13.6h-6z" fill="#A3E635"/>';
 window.__navigation=true;
 
 var API="/api/rapports";
@@ -67,6 +68,7 @@ var STYLE=
 +".nv-tete{display:flex;align-items:center;gap:10px;padding:0 2px 10px 4px}"
 +".nv-logo{width:38px;height:38px;border-radius:11px;background:#2B323A;display:flex;align-items:center;justify-content:center;flex:0 0 auto}"
 +".nv-logo svg{width:21px;height:21px;fill:none;stroke:#3B82F6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
++".nv-logo svg.embleme{width:28px;height:28px;fill:initial;stroke:none}.nv-logo{background:#0B1220}"
 +".nv-tete b{flex:1;min-width:0;font-size:15px;font-weight:800;letter-spacing:-.01em}"
 +".nv-x{width:44px;height:44px;flex:0 0 auto;border:0;border-radius:50%;background:#F1F3F6;color:#1E2329;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0}"
 +".nv-x svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
@@ -146,7 +148,8 @@ function construire(){
   TIROIR=el("nav", "nv-tiroir"); TIROIR.id="nvTiroir"; TIROIR.hidden=true;
   TIROIR.setAttribute("aria-label", "Menu");
   var tete=el("div", "nv-tete");
-  var logo=el("span", "nv-logo"); logo.innerHTML=svg('<path d="M6 12.5l4 4 8-9"/>');
+  /* l'emblème du site (logo-embleme.svg) : l'écrou, la flèche du 360°, l'éclair */
+  var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 64 64" aria-hidden="true">'+EMBLEME+'</svg>';
   var x=el("button", "nv-x"); x.type="button"; x.setAttribute("aria-label", "Fermer le menu"); x.innerHTML=svg(ICO.x);
   tete.appendChild(logo); tete.appendChild(el("b", "", "Suivi travaux 360")); tete.appendChild(x);
   TIROIR.appendChild(tete);
