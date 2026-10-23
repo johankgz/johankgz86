@@ -286,12 +286,16 @@
   var html=document.documentElement, CLAIR=false, attente=null, FICHES_EN_ATTENTE=false, DEJA=false;
   /* ce que les règles ne savent pas faire : les fonds animés laissent place à un fond clair uni */
   var css=document.createElement("style"); css.id="themeClair";
+  /* ses couleurs sont déjà les bonnes, en clair comme en sombre : la conversion n'y touche pas */
+  css.setAttribute("data-theme-propre","");
   css.textContent=
     "html.theme-clair{color-scheme:light}html.theme-attente{background:"+FOND+"}"
     +"html.theme-clair .ciel,html.theme-clair #fondPlan,html.theme-clair .fond-outils{background:"+FOND+"!important}"
     +"html.theme-clair .ciel>*,html.theme-clair #fondPlan>*,html.theme-clair .fond-outils>*{display:none!important}"
     +"html.theme-attente body{visibility:hidden}"
     +"html.theme-sombre{color-scheme:dark}"
+    /* sous l'heure et la batterie (appli installée sur iPhone, iPad) : une bande bleu nuit pleine, pas le flou du système */
+    +".barre-etat{position:fixed;top:0;left:0;right:0;height:env(safe-area-inset-top,0px);background:#0B1220;z-index:2147483000;pointer-events:none}"
     /* l'en-tête bleu nuit, en clair comme en sombre */
     +"html:not([data-theme-fixe]):not([data-entete=clair]) header{background:linear-gradient(160deg,#0B1220 0%,#172554 62%,#1E3A8A 100%)!important;"
     +"border-bottom-color:rgba(255,255,255,.08)!important;color:#E2E8F0}"
@@ -306,6 +310,12 @@
     /* en verre : les fiches laissent voir le fond (sans flou, léger pour l'ordinateur) */
     +"html.fiches-verre .block,html.fiches-verre .carte,html.fiches-verre .tuile,html.fiches-verre .travaux{background:rgba(22,26,32,.58)!important;border:1px solid rgba(255,255,255,.10)!important;box-shadow:none!important}";
   (document.head||html).appendChild(css);
+  (function barreEtat(){
+    if(!document.body){ document.addEventListener("DOMContentLoaded", barreEtat, {once:true}); return; }
+    if(document.querySelector(".barre-etat")) return;
+    var b=document.createElement("div"); b.className="barre-etat"; b.setAttribute("aria-hidden","true");
+    document.body.appendChild(b);
+  })();
   function metaCouleur(){
     var m=document.querySelector('meta[name="theme-color"]'); if(!m) return;
     if(!m.dataset.sombre) m.dataset.sombre=m.getAttribute("content")||"";
