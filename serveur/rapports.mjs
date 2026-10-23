@@ -15,7 +15,7 @@ import { mesnotes, noterChantier } from "./mesnotes.mjs";
 import { encours } from "./encours.mjs";
 import { recus, empreinteCle, nouvelleCle } from "./recus.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
 function jourParis() { return maintenantParis().slice(0, 10); }
 
@@ -1183,6 +1183,8 @@ export default async (req) => {
   if (action !== "tic") tic().catch(() => {});
   if (action === "tic") return json({ ok: true, envoyes: await tic(true) });
   if (LECTURES.has(action)) return traiter(req);
+  /* une notification vue sur un appareil, ou à afficher sur un autre (notifications.mjs) : petit, rapide, sans file */
+  if (action === "push-vu" || action === "push-encore" || action === "push-actif") return traiter(req);
   /* la fiche en cours de chacun (encours.mjs) a sa propre file, par personne : elle n'attend pas les publications */
   if (action.startsWith("encours-")) return traiter(req);
   /* la lecture de la photo du tableau (analyse-tableau.mjs) dure une minute : elle ne bloque pas les publications */
@@ -1567,6 +1569,13 @@ async function traiter(req) {
     return recus(action, { req, url, store: magasinSociete(k.societe), personne: pK, json });
   }
 
+  /* le service des notifications d'un appareil, sans session : la notification porte sa signature */
+  if (action === "push-vu" || action === "push-encore") {
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ouvrir = (nom) => getStore({ name: nom, consistency: "strong" });
+    return json(action === "push-vu" ? await pushVu(magasinAnnuaire(), ouvrir, d, contactPush(url.origin)) : await pushEncore(magasinAnnuaire(), ouvrir, d));
+  }
+
   const personne = await identifier(req.headers.get("x-auth") || url.searchParams.get("auth"));
   if (personne === "perimee") {
     return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
@@ -1750,6 +1759,8 @@ async function traiter(req) {
     return c.fichiers.find((f) => f.cle === cle) || null;
   }
 
+  /* une page ouverte : la personne se sert du site (une notification en retard ailleurs n'a plus à sonner) */
+  if (action === "push-actif") { await noterActif(store, personne.nom, url.searchParams.get("ap") || ""); return json({ ok: true }); }
   if (action === "moi") {
     return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
       proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,

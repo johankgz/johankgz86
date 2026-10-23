@@ -65,6 +65,8 @@ export function magasinFichiers(options) {
   const magasin = typeof options === "string" ? options : (options && options.name) || "defaut";
 
   return {
+    /* son nom : une notification le porte, pour retrouver la fiche « déjà vu » de son destinataire */
+    nom: magasin,
     async get(cle, opts) {
       const brut = await lire(chemin(magasin, cle));
       if (brut === null) return null;

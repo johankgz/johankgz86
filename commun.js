@@ -193,3 +193,31 @@
   });
   if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", demarrer); else demarrer();
 })();
+
+/* ---------- la personne se sert du site ----------
+   Une page ouverte (ou revenue au premier plan) le dit au serveur, au plus
+   une fois par minute, avec l'appareil (son abonnement aux notifications) :
+   une notification qui arrive en retard sur un AUTRE appareil — un
+   ordinateur qui sort de veille — n'a plus à s'afficher (notifications.mjs). */
+(function(){
+  var s=null; try{ s=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+  if(!s || !s.jeton || !/^https?:$/.test(location.protocol)) return;
+  function abonnement(){
+    try{
+      if(!("serviceWorker" in navigator) || !window.Notification || Notification.permission!=="granted") return Promise.resolve("");
+      return navigator.serviceWorker.getRegistration().then(function(r){ return r && r.pushManager ? r.pushManager.getSubscription() : null; })
+        .then(function(ab){ return ab ? ab.endpoint : ""; }).catch(function(){ return ""; });
+    }catch(e){ return Promise.resolve(""); }
+  }
+  function signaler(){
+    if(document.hidden) return;
+    var k="push:actif", t=0; try{ t=+localStorage.getItem(k)||0; }catch(e){}
+    if(Date.now()-t < 60000) return;
+    try{ localStorage.setItem(k, String(Date.now())); }catch(e){}
+    abonnement().then(function(ep){
+      fetch("/api/rapports?action=push-actif"+(ep ? "&ap="+encodeURIComponent(ep) : ""), {headers:{"x-auth":s.jeton}}).catch(function(){});
+    });
+  }
+  signaler();
+  document.addEventListener("visibilitychange", signaler);
+})();
