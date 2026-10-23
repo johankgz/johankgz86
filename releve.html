@@ -845,6 +845,12 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
   </div>
 
+  <div class="block" id="blocJoints">
+    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.1-8.1a3.4 3.4 0 0 1 4.8 4.8l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/></svg>Pièces jointes</h2>
+    <p class="hint" style="margin-top:-6px">L'e-mail du client, un PDF, des photos, un plan : ils partent dans le dossier du chantier avec le relevé.</p>
+    <div id="pjHote"></div>
+  </div>
+
   <div class="block">
     <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>Adresse</h2>
     <div class="tuiles-act">
@@ -1538,6 +1544,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./courbe-charge.js?v=20261024b"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261023e"></script>
+<script src="./pieces-jointes.js?v=20261023a"></script>
 <script src="./boussole.js?v=20261024b"></script>
 <script src="./stylet.js?v=20261022a"></script>
 <script src="./encours.js?v=20261021a"></script>
@@ -2055,6 +2062,12 @@ function peindrePoints(focus){
 })();
 /* la « Demande du client » n'est plus saisie à part : ce qu'une fiche y portait
    rejoint la description du rendez-vous, et ses notes au stylet les points */
+/* ---------- les pièces jointes (pieces-jointes.js) : un e-mail, un PDF, des photos, joints au relevé ---------- */
+if(window.PiecesJointes) PiecesJointes.installer({
+  hote: $("pjHote"),
+  liste: function(){ if(!S) return []; if(!Array.isArray(S.joints)) S.joints=[]; return S.joints; },
+  enregistrer: function(){ save(); }, toast: toast
+});
 function migrerDemande(){
   var c=S.conclusion; if(!c) return;
   var t=String(c.synthese||"").trim();
@@ -2158,6 +2171,7 @@ function paintForm(){
   migrerDemande();
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
   peindrePoints();
+  if(window.PiecesJointes) PiecesJointes.peindre();
   if(S.pv && S.pv.azimut!==undefined && S.pv.azimut!==""){ optionAzimut(S.pv.azimut); $("v_azimut").value=String(S.pv.azimut); }
   peindreEncresPoints();
   document.querySelectorAll("[data-single]").forEach(function(box){
@@ -6441,7 +6455,7 @@ function buildPdf(){
   var pointsPdf=String(S.conclusion.points||"").split(/\n+/).map(function(t){ return t.trim(); }).filter(Boolean).map(function(t, i){ return (i+1)+".  "+t; }).join("\n");
   var prep = rempli.apply(null, GRP_TRAVAUX.map(function(p){ return p[1]; })) || (S.pieces||[]).length || rempli(S.rdv.objet, S.rdv.description)
     || (PV && rempli(V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat, V.conso, V.foyer, V.chauffage, V.toitureType, V.exposition, V.masques))
-    || IRVE || CLIM || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.moyens, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
+    || IRVE || CLIM || (S.joints||[]).length || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.moyens, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
   if(prep){
     chapitre("Informations complémentaires", "Préparer l'intervention", null, "Les éléments pratiques relevés lors de la visite.");
     grille("Travaux", GRP_TRAVAUX);
@@ -6452,6 +6466,15 @@ function buildPdf(){
     }));
     if(S.rdv.objet){ garderAvecNote("Objet du rendez-vous", [["Objet", S.rdv.objet]], S.rdv.description); tableau("Objet du rendez-vous", [["Objet", S.rdv.objet]], {apres: S.rdv.description ? 2 : 6}); }
     if(S.rdv.description){ if(S.rdv.objet) carte(S.rdv.description); else blocTexte("Objet du rendez-vous", S.rdv.description); }
+    /* les pièces jointes : le texte des e-mails, en clair ; les autres, par leur nom (elles sont dans le dossier) */
+    (S.joints||[]).filter(function(j){ return j.genre==="email" && j.email; }).forEach(function(j){
+      var m=j.email, t=String(m.texte||"").replace(/[\uD800-\uDFFF]|[\u2600-\u27BF\uFE0F\u200D]/g, "");
+      if(t.length>6000) t=t.slice(0, 6000)+"…\n(suite dans le PDF de l'e-mail, au dossier)";
+      blocTexte("E-mail"+(m.objet ? " — "+m.objet : ""), [m.de ? "De : "+m.de : "", m.date ? "Le : "+m.date : "", m.de || m.date ? "" : null, t].filter(function(x){ return x!==null; }).join("\n").replace(/^\n+/, ""));
+    });
+    grille("Pièces jointes au dossier", (S.joints||[]).filter(function(j){ return j.genre!=="email"; }).map(function(j){
+      return [j.nom, [(j.ext||"").toUpperCase(), j.deEmail ? "jointe à l'e-mail" : ""].filter(Boolean).join(" · ")];
+    }));
     /* dit en clair : l'alimentation, le branchement du coffret photovoltaïque, la connexion internet
        (monophasé et « RJ45 ou WiFi » quand rien n'a été coché, le cas d'une maison) */
     var alimPv = /tri/i.test(V.pvAlim||"") ? "Triphasé" : "Monophasé";
@@ -7082,12 +7105,23 @@ function publierRapport(meta){
        le dépôt n'a pas abouti, on garde tout. */
     /* les photos partent dans le dossier du chantier, lues avant que le formulaire se vide */
     var photos = APP_TYPE==="releve" ? photosApresPublication(el) : Promise.resolve(true);
+    /* puis les pièces jointes (e-mail, PDF…), dans le dossier, sous « Documents techniques » */
+    var joints = photos.then(function(){
+      if(!window.PiecesJointes || !(S.joints||[]).some(function(j){ return !j.depose; })) return {faits:0, echecs:0};
+      return PiecesJointes.deposer({ref: res.d.ref || meta.chantier, client: meta.client, adresse: meta.adresse, date: meta.date,
+        origine: "Relevé", auteur: meta.auteur, url: apiUrl, entetes: apiEnTetes, etat: function(t){ el.textContent=t; }});
+    });
     deposerFiche(res.d.cle, el, function(ok){
       if(!versDossier || !ok) return;
-      photos.then(function(){
+      joints.then(function(pj){
+      if(pj && pj.echecs){
+        el.textContent = "Relevé publié, mais "+pj.echecs+" pièce"+(pj.echecs>1?"s jointes n'ont":" jointe n'a")+" pas pu partir ("+pj.erreur+"). Publiez de nouveau : seules les pièces manquantes repartiront.";
+        toast("Pièces jointes incomplètes : le relevé reste ouvert.");
+        return;
+      }
       S=ficheVierge(); save(); paintForm(); showTab("client");
       try{ peindreNavChantier(); }catch(e){}
-      toast("Relevé publié. Formulaire vidé pour un nouveau relevé.");
+      toast("Relevé publié"+(pj && pj.faits ? " avec "+pj.faits+" pièce"+(pj.faits>1?"s jointes":" jointe") : "")+". Formulaire vidé pour un nouveau relevé.");
       el.textContent += "  ·  Formulaire vidé pour un nouveau relevé.";
       if(window.RetourAccueil) RetourAccueil("Relevé publié dans le dossier.");
       });
