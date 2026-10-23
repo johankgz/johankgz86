@@ -10,6 +10,7 @@ import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
+import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
 import { encours } from "./encours.mjs";
 import { recus, empreinteCle, nouvelleCle } from "./recus.mjs";
@@ -1184,6 +1185,8 @@ export default async (req) => {
   if (LECTURES.has(action)) return traiter(req);
   /* la fiche en cours de chacun (encours.mjs) a sa propre file, par personne : elle n'attend pas les publications */
   if (action.startsWith("encours-")) return traiter(req);
+  /* la lecture de la photo du tableau (analyse-tableau.mjs) dure une minute : elle ne bloque pas les publications */
+  if (action === "analyse-tableau" || action === "analyse-tableau-etat") return traiter(req);
   /* la boîte des fichiers partagés depuis le téléphone (recus.mjs) : sa propre file, par personne */
   if (action.startsWith("recu-") || action.startsWith("recus-")) return traiter(req);
   return sousVerrou("ecritures", () => traiter(req));
@@ -1700,6 +1703,9 @@ async function traiter(req) {
   }
   /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
   if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
+
+  /* la photo du tableau de l'autocontrôle, lue au regard de la NF C 15-100 (serveur/analyse-tableau.mjs) */
+  if (action === "analyse-tableau" || action === "analyse-tableau-etat") return analyseTableau(action, { req, url, store, personne, json });
 
   if (action.startsWith("cloud-")) {
     const comptesSoc = await lireComptes(personne.societe);

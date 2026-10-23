@@ -5,8 +5,9 @@
    notice, une photo — du même chantier ou d'un autre — sans quitter la
    fiche :
    - l'onglet « Document », sur le bord droit de l'écran, ouvre le choix :
-     le chantier en cours en tête, puis les autres (une recherche), et
-     leurs documents (PDF et photos) ;
+     les chantiers (celui en cours en tête, puis les autres, une
+     recherche) et leurs documents (PDF et photos) — ou le Cloud, ses
+     dossiers et ses fichiers ;
    - le document s'ouvre dans un panneau qui glisse de la droite. Un
      glissé du doigt vers la droite (ou « ‹ Relevé ») le range : il reste
      chargé, son onglet sur le bord ; un glissé depuis le bord (ou un
@@ -62,9 +63,15 @@
       +".dc-etat{color:#9FB0CC;font-size:14px;text-align:center;margin:30px 12px}"
       /* le choix : chantiers puis documents */
       +".dc-choix{display:flex;flex-direction:column;gap:8px;max-width:640px;margin:0 auto}"
+      +".dc-choix .dc-choix{width:100%}"
       +".dc-cherche{width:100%;box-sizing:border-box;height:42px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);color:#fff;"
       +"padding:0 14px;font:inherit;font-size:15px;outline:none}"
       +".dc-cherche::placeholder{color:#8C9BB6}"
+      +".dc-src{display:flex;gap:4px;padding:4px;border-radius:12px;background:rgba(255,255,255,.06)}"
+      +".dc-src button{flex:1;min-height:38px;border:0;border-radius:9px;background:transparent;color:#9FB0CC;font:700 14px/1 inherit;font-family:inherit;cursor:pointer}"
+      +".dc-src button.on{background:linear-gradient(160deg,#2563EB,#06B6D4);color:#fff}"
+      +".dc-l .ic.dos{background:rgba(125,211,252,.16);color:#7DD3FC;align-items:center;padding-bottom:0}"
+      +".dc-l .ic.dos svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linejoin:round}"
       +".dc-sect{font-size:11px;font-weight:700;letter-spacing:.12em;color:#7DD3FC;margin:10px 4px 2px;text-transform:uppercase}"
       +".dc-l{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:11px 12px;border:1px solid rgba(148,180,255,.10);border-radius:12px;"
       +"background:rgba(255,255,255,.045);color:#E2E8F0;font:inherit;cursor:pointer}"
@@ -104,7 +111,7 @@
 
     o.addEventListener("click", function(){ if(o.__glisse) return; montrer(); });
     bR.addEventListener("click", cacher);
-    bC.addEventListener("click", function(){ choisirChantier(); });
+    bC.addEventListener("click", choisir);
     bX.addEventListener("click", fermer);
     bM.addEventListener("click", function(){ zoomer(ETAT.zoom/1.25); });
     bP.addEventListener("click", function(){ zoomer(ETAT.zoom*1.25); });
@@ -114,7 +121,7 @@
   function montrer(){
     document.documentElement.classList.add("dc-ouvert");
     ETAT.ouvert=true;
-    if(!ETAT.doc && !EL.corps.firstChild) choisirChantier();
+    if(!ETAT.doc && !EL.corps.firstChild) choisir();
   }
   function cacher(){ document.documentElement.classList.remove("dc-ouvert"); ETAT.ouvert=false; }
   function fermer(){
@@ -179,10 +186,24 @@
     return (c.fichiers||[]).filter(function(f){ return !f.brouillon && LISIBLE.test(f.cle||""); })
       .sort(function(a, b){ return String(b.publie||b.date||"").localeCompare(String(a.publie||a.date||"")); });
   }
+  var SOURCE="chantiers";
+  /* en tête du choix : Chantiers ou Cloud */
+  function sources(box, active){
+    var b=el("div","dc-src");
+    [["chantiers","Chantiers"],["cloud","Cloud"]].forEach(function(x){
+      var t=el("button", x[0]===active ? "on" : "", x[1]); t.type="button";
+      t.addEventListener("click", function(){ if(x[0]===active) return; SOURCE=x[0]; if(x[0]==="cloud") choisirCloud(""); else choisirChantier(); });
+      b.appendChild(t);
+    });
+    box.appendChild(b);
+  }
+  function choisir(){ if(SOURCE==="cloud") choisirCloud(""); else choisirChantier(); }
   function choisirChantier(){
+    SOURCE="chantiers";
     var c=EL.corps; c.textContent="";
     EL.titre.textContent="Ouvrir un document"; EL.sous.textContent="Le chantier, puis le document";
     var box=el("div","dc-choix"); c.appendChild(box);
+    sources(box, "chantiers");
     var q=el("input","dc-cherche"); q.type="search"; q.placeholder="Chercher un chantier (client, référence, ville)"; q.setAttribute("aria-label","Chercher un chantier");
     box.appendChild(q);
     var liste=el("div","dc-choix"); box.appendChild(liste);
@@ -227,6 +248,51 @@
     });
   }
 
+  /* ---------- le Cloud : ses dossiers, puis un fichier ---------- */
+  var LISIBLE_MIME=/^(application\/pdf|image\/(jpeg|png|webp|gif))/;
+  function icoDossier(){ var i=el("span","ic dos"); i.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/></svg>'; return i; }
+  function choisirCloud(dossier){
+    SOURCE="cloud";
+    var c=EL.corps; c.textContent="";
+    EL.titre.textContent="Ouvrir un document"; EL.sous.textContent="Le Cloud : un dossier, puis le fichier";
+    var box=el("div","dc-choix"); c.appendChild(box);
+    sources(box, "cloud");
+    var liste=el("div","dc-choix"); box.appendChild(liste);
+    liste.appendChild(el("p","dc-etat","Chargement du Cloud…"));
+    var s=session(); if(!s) return;
+    fetch(api("cloud-liste")+(dossier ? "&dossier="+encodeURIComponent(dossier) : ""), {headers:{"x-auth":s.jeton}})
+      .then(function(r){ if(!r.ok) throw new Error("cloud"); return r.json(); })
+      .then(function(d){
+        liste.textContent="";
+        var chemin=d.chemin||[];
+        if(dossier){
+          var parent=chemin.length>1 ? chemin[chemin.length-2].id : "";
+          var ret=el("button","dc-l","‹  "+(chemin.length>1 ? chemin[chemin.length-2].nom : "Le Cloud")); ret.type="button"; ret.style.fontWeight="700";
+          ret.addEventListener("click", function(){ choisirCloud(parent); }); liste.appendChild(ret);
+          EL.sous.textContent=chemin.map(function(x){ return x.nom; }).join(" › ");
+        }
+        var els=(d.elements||[]).slice().sort(function(a, b){
+          if((a.type==="dossier")!==(b.type==="dossier")) return a.type==="dossier" ? -1 : 1;
+          return a.type==="dossier" ? String(a.nom).localeCompare(String(b.nom)) : String(b.maj||"").localeCompare(String(a.maj||""));
+        });
+        var dos=els.filter(function(e){ return e.type==="dossier"; }), fic=els.filter(function(e){ return e.type==="fichier" && LISIBLE_MIME.test(e.mime||""); });
+        dos.forEach(function(e){
+          var b=el("button","dc-l"); b.type="button"; b.appendChild(icoDossier());
+          var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", (e.nb||0)+" élément"+((e.nb||0)>1?"s":"")+(e.acces==="partage" ? " · partagé par "+e.proprio : ""))); b.appendChild(tx);
+          b.addEventListener("click", function(){ choisirCloud(e.id); }); liste.appendChild(b);
+        });
+        fic.forEach(function(e){
+          var b=el("button","dc-l"); b.type="button";
+          b.appendChild(el("span","ic", /pdf/.test(e.mime) ? "PDF" : String(e.nom).split(".").pop().toUpperCase().replace("JPEG","JPG").slice(0,4)));
+          var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", [frDate(e.maj||e.cree), e.par].filter(Boolean).join(" · "))); b.appendChild(tx);
+          b.addEventListener("click", function(){ ouvrirDoc({cloud:e.id, pdf:/pdf/.test(e.mime), titre:e.nom, chantier:"Cloud"+(chemin.length ? " › "+chemin[chemin.length-1].nom : "")}); });
+          liste.appendChild(b);
+        });
+        if(!dos.length && !fic.length) liste.appendChild(el("p","dc-etat", dossier ? "Rien à afficher dans ce dossier (PDF et photos seulement)." : "Votre Cloud est vide."));
+      })
+      .catch(function(){ liste.textContent=""; liste.appendChild(el("p","dc-etat","Cloud indisponible : vérifiez la connexion.")); });
+  }
+
   /* ---------- le document : les pages du PDF, ou la photo ---------- */
   function ouvrirDoc(d){
     var s=session(); if(!s) return;
@@ -238,11 +304,12 @@
     var pages=el("div","dc-pages"); c.appendChild(pages);
     var etat=el("p","dc-etat","Ouverture du document…"); pages.appendChild(etat);
     montrer();
-    fetch(api("fichier")+"&cle="+encodeURIComponent(d.cle), {headers:{"x-auth":s.jeton}})
+    var adr = d.cloud ? api("cloud-fichier")+"&id="+encodeURIComponent(d.cloud) : api("fichier")+"&cle="+encodeURIComponent(d.cle);
+    fetch(adr, {headers:{"x-auth":s.jeton}})
       .then(function(r){ if(!r.ok) throw new Error("fichier"); return r.blob(); })
       .then(function(blob){
         if(id!==ETAT.chargeId) return;
-        if(/\.pdf$/i.test(d.cle)) return pdf(blob, pages, etat, id);
+        if(d.cloud ? (d.pdf || /pdf/.test(blob.type)) : /\.pdf$/i.test(d.cle)) return pdf(blob, pages, etat, id);
         var url=URL.createObjectURL(blob), im=new Image(); im.alt=d.titre; im.src=url;
         pages.removeChild(etat); pages.appendChild(im); appliquerZoom();
       })
@@ -308,7 +375,7 @@
       construire();
       /* le document de tout à l'heure, retrouvé (rangé, prêt à revenir) */
       var d=null; try{ d=JSON.parse(sessionStorage.getItem(CLE_DERNIER)||"null"); }catch(e){}
-      if(d && d.cle){ ouvrirDoc(d); cacher(); }
+      if(d && (d.cle || d.cloud)){ ouvrirDoc(d); cacher(); }
     },
     montrer:montrer, cacher:cacher, fermer:fermer
   };
