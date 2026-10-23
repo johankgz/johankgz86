@@ -98,6 +98,15 @@ label.f > span{display:block;font-size:13.5px;font-weight:500;color:var(--ink-2)
 .az-champ{margin-bottom:14px}
 button.act.stylo-btn{display:inline-flex;align-items:center;gap:5px;min-height:32px;padding:4px 12px;font-size:12.5px;background:var(--accent-soft);color:var(--accent);border:0}
 .stylo-btn svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.pts-lignes{display:flex;flex-direction:column;gap:6px}
+.pts-ligne{display:flex;align-items:flex-start;gap:8px}
+.pts-ligne .n,.pts-ligne .x{margin-top:9px}
+.pts-ligne .n{flex:0 0 auto;width:26px;height:26px;border-radius:50%;background:var(--accent-soft,#EAF1FF);color:var(--accent,#2563EB);
+  font-size:12.5px;font-weight:800;display:flex;align-items:center;justify-content:center}
+.pts-ligne.vide .n{background:transparent;border:1.5px dashed var(--rule,#CFD5E1);color:var(--ink-3,#767D8B)}
+.pts-ligne textarea{flex:1;min-width:0;margin:0;min-height:0;resize:none;overflow:hidden;line-height:1.35}
+.pts-ligne .x{flex:0 0 auto;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:var(--ink-3,#767D8B);font-size:20px;line-height:1;cursor:pointer}
+.pts-ligne.vide .x{visibility:hidden}
 .encres-points{display:flex;flex-direction:column;gap:10px;margin-top:10px}
 .encres-points:empty{display:none}
 .encre-ligne{display:flex;align-items:flex-start;gap:8px}
@@ -905,6 +914,18 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
     <label class="f"><span>Emplacement compteur / tableau (GTL)</span><input type="text" id="s_gtl" autocomplete="off"></label>
   </div>
+
+  <div class="block" id="blocPoints">
+    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6.5h11M9 12h11M9 17.5h11"/><path d="M4 6.5l1 1 1.8-2M4 12l1 1 1.8-2M4 17.5l1 1 1.8-2"/></svg>Points à chiffrer / à vérifier</h2>
+    <p class="hint" style="margin-top:-6px">Un poste par ligne : Entrée passe à la ligne suivante.</p>
+    <div id="k_lignes" class="pts-lignes"></div>
+    <div class="row" style="margin-top:8px">
+      <button type="button" class="act ghost" id="btnPointAjout">+ Ajouter une ligne</button>
+      <button type="button" class="act rec" id="btnPointDicte">Dicter</button>
+      <button type="button" class="act ghost stylo-btn" id="btnStyletPoints" title="Écrire à l'Apple Pencil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg>Stylet</button>
+    </div>
+    <div id="k_pointsEncre" class="encres-points"></div>
+  </div>
 </section>
 
 <!-- 3. PIÈCES -->
@@ -1369,28 +1390,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <!-- 5. CONCLUSION -->
 <section id="tab-conclusion" hidden>
   <div class="block">
-    <h2>Demande du client — synthèse</h2>
-    <p class="hint">Ce que le client demande, reformulé par vos soins. C'est le texte que liront le chiffreur et le technicien.</p>
-    <div class="row" style="margin-bottom:8px">
-      <button class="act rec dict" data-target="k_conclusion">Dicter</button>
-      <button type="button" class="act ghost stylo-btn" id="btnStyletDemande" title="Écrire à l'Apple Pencil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg>Stylet</button>
-    </div>
-    <textarea id="k_conclusion" style="min-height:220px"></textarea>
-    <div id="k_conclusionEncre" class="encres-points"></div>
-  </div>
-
-  <div class="block">
-    <h2>Points à chiffrer / à vérifier</h2>
-    <p class="hint">Postes identifiés, réserves, éléments manquants avant devis.</p>
-    <div class="row" style="margin-bottom:8px">
-      <button class="act rec dict" data-target="k_points">Dicter</button>
-      <button type="button" class="act ghost stylo-btn" id="btnStyletPoints" title="Écrire à l'Apple Pencil"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1.2-4.4L16 4.8a2 2 0 0 1 2.8 0l.4.4a2 2 0 0 1 0 2.8L8.4 18.8z"/><path d="M14.5 6.5l3 3"/></svg>Stylet</button>
-    </div>
-    <textarea id="k_points" style="min-height:150px"></textarea>
-    <div id="k_pointsEncre" class="encres-points"></div>
-  </div>
-
-  <div class="block">
     <h2>Statut du relevé</h2>
     <p class="hint">Détermine ce que le destinataire doit faire du rapport.</p>
     <div class="chips" data-single="statut">
@@ -1806,8 +1805,7 @@ var FIELDS = [
   ["v_prixKwh","pv.prixKwh"],["v_coutInstall","pv.coutInstall"],["v_rachat","pv.rachat"],
   ["v_inflation","pv.inflation"],["v_couv","pv.couverture"],
   ["l_occup_note","logistique.occupNote"],["l_code","logistique.code"],["l_etage","logistique.etage"],
-  ["l_toiture","logistique.toiture"],["l_contraintes","logistique.contraintes"],
-  ["k_conclusion","conclusion.synthese"],["k_points","conclusion.points"]
+  ["l_toiture","logistique.toiture"],["l_contraintes","logistique.contraintes"]
 ];
 function getPath(p){ var a=p.split("."); return S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); S[a[0]][a[1]]=v; }
@@ -1985,7 +1983,88 @@ function peindreEncres(cle, hote){
     l.appendChild(im); l.appendChild(x); h.appendChild(l);
   });
 }
-function peindreEncresPoints(){ peindreEncres("encres", "k_pointsEncre"); peindreEncres("encresDemande", "k_conclusionEncre"); }
+function peindreEncresPoints(){ peindreEncres("encres", "k_pointsEncre"); }
+
+/* ---------- points à chiffrer : une ligne par poste ----------
+   Rangés comme avant, en un texte (une ligne par point) : le PDF et les
+   fiches déjà enregistrées s'y retrouvent. Il y a toujours une ligne vide
+   en bas, prête à taper ; Entrée ouvre la suivante, effacer une ligne vide
+   remonte à la précédente. */
+function pointsListe(){ return String((S.conclusion && S.conclusion.points) || "").split(/\n+/).map(function(t){ return t.trim(); }).filter(Boolean); }
+function pointsLire(){
+  var v=[]; document.querySelectorAll("#k_lignes textarea").forEach(function(i){ if(i.value.trim()) v.push(i.value.trim()); });
+  S.conclusion.points=v.join("\n"); save();
+}
+function peindrePoints(focus){
+  var h=$("k_lignes"); if(!h) return;
+  h.textContent="";
+  function ligne(t, k){
+    var r=document.createElement("div"); r.className="pts-ligne"+(t ? "" : " vide");
+    var n=document.createElement("span"); n.className="n"; n.textContent=t ? String(k+1) : "+";
+    /* une zone d'une ligne qui grandit avec le texte : un point long se lit en entier */
+    var i=document.createElement("textarea"); i.rows=1; i.value=t; i.enterKeyHint="next"; i.autocomplete="off";
+    function hauteur(){ i.style.height="auto"; i.style.height=i.scrollHeight+"px"; }
+    i.placeholder = t ? "" : (k ? "Point suivant…" : "Ex. Remplacement du tableau, 3 rangées");
+    i.setAttribute("aria-label","Point à chiffrer "+(k+1));
+    var x=document.createElement("button"); x.type="button"; x.className="x"; x.textContent="×"; x.setAttribute("aria-label","Retirer le point "+(k+1));
+    i.addEventListener("input", function(){
+      /* la ligne vide du bas se remplit : elle devient un point, une autre vide l'attend (sans redessiner : le clavier reste ouvert) */
+      if(r.classList.contains("vide") && i.value.trim()){
+        r.classList.remove("vide"); n.textContent=String(k+1); i.placeholder="";
+        h.appendChild(ligne("", k+1));
+      }
+      hauteur(); pointsLire();
+    });
+    i.addEventListener("keydown", function(e){
+      if(e.key==="Enter"){ e.preventDefault(); if(!i.value.trim()) return; var s=h.querySelectorAll("textarea"); if(s[k+1]) s[k+1].focus(); }
+      else if(e.key==="Backspace" && !i.value && k>0){ e.preventDefault(); pointsLire(); peindrePoints(k-1); }
+    });
+    x.addEventListener("click", function(){ var a=pointsListe(); a.splice(k, 1); S.conclusion.points=a.join("\n"); save(); peindrePoints(); });
+    r.appendChild(n); r.appendChild(i); r.appendChild(x);
+    requestAnimationFrame(hauteur);
+    return r;
+  }
+  var l=pointsListe(); l.push("");
+  l.forEach(function(t, k){ h.appendChild(ligne(t, k)); });
+  if(focus!=null){ var f=h.querySelectorAll("textarea")[focus]; if(f){ f.focus(); try{ f.setSelectionRange(f.value.length, f.value.length); }catch(e){} } }
+}
+/* la dictée : chaque phrase dite devient un point */
+(function(){
+  var b=$("btnPointDicte"); if(!b) return;
+  var SRp=window.SpeechRecognition || window.webkitSpeechRecognition, rec=null;
+  if(!SRp){ b.disabled=true; b.textContent="Dictée non disponible"; b.classList.remove("rec"); b.classList.add("ghost"); return; }
+  b.addEventListener("click", function(){
+    if(rec){ rec.stop(); return; }
+    rec=new SRp(); rec.lang="fr-FR"; rec.continuous=true; rec.interimResults=false;
+    rec.onresult=function(e){
+      for(var i=e.resultIndex;i<e.results.length;i++){
+        if(!e.results[i].isFinal) continue;
+        var t=e.results[i][0].transcript.trim(); if(!t) continue;
+        var a=pointsListe(); a.push(t.charAt(0).toUpperCase()+t.slice(1)); S.conclusion.points=a.join("\n"); save(); peindrePoints();
+      }
+    };
+    rec.onerror=function(e){ toast("Dictée interrompue ("+e.error+")"); };
+    rec.onend=function(){ b.classList.remove("dictating"); b.textContent="Dicter"; rec=null; };
+    try{ rec.start(); }catch(err){ rec=null; toast("Dictée indisponible"); return; }
+    b.classList.add("dictating"); b.textContent="Arrêter la dictée";
+  });
+})();
+(function(){
+  var b=$("btnPointAjout"); if(!b) return;
+  b.addEventListener("click", function(){ peindrePoints(pointsListe().length); });
+})();
+/* la « Demande du client » n'est plus saisie à part : ce qu'une fiche y portait
+   rejoint la description du rendez-vous, et ses notes au stylet les points */
+function migrerDemande(){
+  var c=S.conclusion; if(!c) return;
+  var t=String(c.synthese||"").trim();
+  if(t){
+    var d=String(S.rdv.description||"");
+    if(d.indexOf(t)<0) S.rdv.description=(d.trim() ? d.replace(/\s*$/,"")+"\n\n" : "")+"Demande du client : "+t;
+    c.synthese="";
+  }
+  if(Array.isArray(c.encresDemande) && c.encresDemande.length){ encresDe("encres").unshift.apply(encresDe("encres"), c.encresDemande); c.encresDemande=[]; }
+}
 /* rouvrir une note pour la compléter : on reprend ses tracés (qualité intacte) ;
    une note écrite avant cette mise à jour (sans tracés) est montrée en fond,
    pour écrire par-dessus — et ce fond est reporté d'une fois sur l'autre. */
@@ -2076,7 +2155,9 @@ function paintForm(){
   if(!peindreIrve) initBascules(); else rafraichirBascules();
   paintConseil();
   try{ renderDest(); peindreParQui(); }catch(e){}
+  migrerDemande();
   FIELDS.forEach(function(f){ $(f[0]).value = getPath(f[1]) || ""; });
+  peindrePoints();
   if(S.pv && S.pv.azimut!==undefined && S.pv.azimut!==""){ optionAzimut(S.pv.azimut); $("v_azimut").value=String(S.pv.azimut); }
   peindreEncresPoints();
   document.querySelectorAll("[data-single]").forEach(function(box){
@@ -4601,7 +4682,6 @@ $("btnPvgisSite").addEventListener("click", function(){
   window.open(u,"_blank");
 });
 $("btnStyletPoints").addEventListener("click", function(){ ecrireAuStylet("encres", "Points à chiffrer / à vérifier", "aux points à chiffrer"); });
-$("btnStyletDemande").addEventListener("click", function(){ ecrireAuStylet("encresDemande", "Demande du client", "à la demande du client"); });
 $("btnBoussole").addEventListener("click", function(){
   mesurerPan(function(a, cap){
     optionAzimut(a); $("v_azimut").value=String(a); S.pv.azimut=String(a); save();
@@ -6357,6 +6437,8 @@ function buildPdf(){
   var encresPdf=(S.conclusion.encres||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
   var encresDemPdf=(S.conclusion.encresDemande||[]).filter(function(e){ return window.Stylet && Stylet.valide(e) && e.l && e.h; });
   var demande = rempli(S.conclusion.synthese, S.conclusion.points) || encresPdf.length || encresDemPdf.length;
+  /* les points à chiffrer, un par ligne, numérotés */
+  var pointsPdf=String(S.conclusion.points||"").split(/\n+/).map(function(t){ return t.trim(); }).filter(Boolean).map(function(t, i){ return (i+1)+".  "+t; }).join("\n");
   var prep = rempli.apply(null, GRP_TRAVAUX.map(function(p){ return p[1]; })) || (S.pieces||[]).length || rempli(S.rdv.objet, S.rdv.description)
     || (PV && rempli(V.pvAlim, V.coffret, V.reseau, V.lgTgbt, V.nbBat, V.backup, V.empBat, V.lgBat, V.conso, V.foyer, V.chauffage, V.toitureType, V.exposition, V.masques))
     || IRVE || CLIM || rempli(G0.occupe, G0.occupNote, G0.accessibilite, G0.code, G0.acces, G0.moyens, G0.etage, G0.toiture, G0.stationnement, G0.contraintes) || demande;
@@ -6431,10 +6513,12 @@ function buildPdf(){
         ["Inclinaison", V.inclinaison ? V.inclinaison+"°" : ""], ["Masques et observations", V.masques]] : []);
     blocTexte("Contraintes particulières", G0.contraintes);
     if(demande){
-      if(!blocTexte("Demande du client", S.conclusion.synthese)){ need(30); etiquette("Demande du client", M+1, y+3); y+=6.5; }
-      encresDemPdf.forEach(poserEncre);
-      if((S.conclusion.points && String(S.conclusion.points).trim()) || encresPdf.length){
-        if(!blocTexte("Points à chiffrer et à vérifier", S.conclusion.points)){ need(30); etiquette("Points à chiffrer et à vérifier", M+1, y+3); y+=6.5; }
+      if(String(S.conclusion.synthese||"").trim() || encresDemPdf.length){
+        if(!blocTexte("Demande du client", S.conclusion.synthese)){ need(30); etiquette("Demande du client", M+1, y+3); y+=6.5; }
+        encresDemPdf.forEach(poserEncre);
+      }
+      if(pointsPdf || encresPdf.length){
+        if(!blocTexte("Points à chiffrer et à vérifier", pointsPdf)){ need(30); etiquette("Points à chiffrer et à vérifier", M+1, y+3); y+=6.5; }
         encresPdf.forEach(poserEncre);
       }
     }
