@@ -287,17 +287,36 @@ function ouvrirAcces(c){
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ hote.textContent=res.d.erreur||"Accès refusé."; return; }
-      var equipe=res.d.equipe.slice(), auteur=res.d.auteur;
+      var equipe=res.d.equipe.slice(), auteur=res.d.auteur, revoques=(res.d.revoques||[]).slice();
       function peindre(){
         hote.textContent="";
         var dedans=document.createElement("div");
         dedans.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
         equipe.forEach(function(nom){
           dedans.appendChild(PastillePersonne(nom,
-            res.d.peutModifier && nom!==auteur ? function(){ equipe=equipe.filter(function(n){ return n!==nom; }); enregistrer(); } : null,
+            res.d.peutModifier ? function(){
+              /* le bureau peut retirer tout le monde, l'auteur du dossier compris : on le dit avant */
+              if(!window.confirm(nom===auteur
+                ? nom+" est l'auteur de ce dossier.\n\nLui retirer l'accès ? Il ne verra plus le dossier, ni même les documents qu'il y a publiés, et ne pourra plus y publier. Vous pourrez lui rendre l'accès ensuite."
+                : "Retirer l'accès de "+nom+" à ce dossier ?\n\nIl ne verra plus le dossier, ni les documents qu'il y a publiés. Vous pourrez lui rendre l'accès ensuite.")) return;
+              equipe=equipe.filter(function(n){ return n!==nom; }); enregistrer();
+            } : null,
             {etiquette: nom===auteur ? "auteur" : ""}));
         });
         hote.appendChild(dedans);
+        /* ceux à qui le bureau a retiré l'accès : un toucher le leur rend */
+        if(res.d.peutModifier && revoques.length){
+          var lr=document.createElement("p"); lr.className="legend"; lr.textContent="Accès retiré";
+          hote.appendChild(lr);
+          var bloc=document.createElement("div"); bloc.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
+          revoques.forEach(function(nom){
+            var b=document.createElement("button"); b.type="button"; b.className="act ghost mini";
+            b.textContent="Rendre l'accès à "+nom;
+            b.addEventListener("click", function(){ if(equipe.indexOf(nom)<0) equipe.push(nom); enregistrer(); });
+            bloc.appendChild(b);
+          });
+          hote.appendChild(bloc);
+        }
         if(!res.d.peutModifier){
           var note=document.createElement("p"); note.className="hint"; note.style.margin="0";
           note.textContent="Seul le bureau peut modifier les accès.";
@@ -318,7 +337,7 @@ function ouvrirAcces(c){
           .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
           .then(function(res2){
             if(!res2.ok){ alert(res2.d.erreur||"Modification refusée."); return; }
-            equipe=res2.d.equipe; peindre();
+            equipe=res2.d.equipe; revoques=res2.d.revoques||[]; peindre();
           })
           .catch(function(){ alert("Pas de réseau."); });
       }

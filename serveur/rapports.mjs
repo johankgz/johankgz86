@@ -757,10 +757,22 @@ async function rappelFait(store, ref, id, qui) {
     if (t && !t.faite) { t.faite = true; t.faitePar = qui; t.faiteLe = new Date().toISOString(); await store.setJSON(cleR, t); }
   } catch { /* pas de rappel pour cette tâche */ }
 }
+/* retiré du dossier par le bureau (même son auteur) : il ne le voit plus, ses propres documents non plus */
+function revoque(chantier, nom) {
+  return !!chantier && (chantier.revoques || []).some((n) => n === nom || memeNom(n, nom));
+}
+/* qui a vraiment accès au dossier : son équipe, et les auteurs de ses documents (des comptes de la société)
+   que le bureau n'a pas retirés */
+function accesEffectif(c, connus) {
+  const s = (c.equipe || []).slice();
+  (c.fichiers || []).forEach((f) => { if (f.auteur && connus.indexOf(f.auteur) >= 0 && s.indexOf(f.auteur) < 0 && !revoque(c, f.auteur)) s.push(f.auteur); });
+  return s;
+}
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
+  if (personne.role !== "bureau" && personne.role !== "admin" && revoque(chantier, personne.nom)) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
   /* celui qui l'a enregistré le voit, même au nom d'un autre conducteur de travaux */
@@ -2195,6 +2207,11 @@ async function traiter(req) {
     /* un plan d'architecte pèse vite 10 ou 20 Mo : 25 Mo pour un document technique */
     if (technique && octets.length > 25 * 1024 * 1024) return json({ erreur: "Document trop lourd : 25 Mo au plus." }, 413);
     if (!technique && octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Rapport trop lourd pour la publication." }, 413);
+    /* retiré du dossier par le bureau : on n'y publie plus (avant d'écrire quoi que ce soit) */
+    if (!bureau) {
+      const cR = (await lireIndex()).chantiers[ref];
+      if (cR && revoque(cR, personne.nom)) return json({ erreur: "Le bureau vous a retiré l'accès à ce dossier : voyez avec lui pour y publier." }, 403);
+    }
     await store.set(cle, octets, { metadata: { type: typeDuFichier(cle) } });
 
     const idx = await lireIndex();
@@ -2289,13 +2306,14 @@ async function traiter(req) {
       const equipe = new Set((c.equipe || []).map((n) => nomDuCompte(n, comptesEq)));
       equipe.add(nomDuCompte(entree.auteur, comptesEq));
       (entree.destinataires || []).forEach((n) => equipe.add(nomDuCompte(n, comptesEq)));
-      c.equipe = Array.from(equipe).filter(Boolean);
+      /* ceux que le bureau a retirés n'y reviennent pas par un relevé */
+      c.equipe = Array.from(equipe).filter((n) => n && !revoque(c, n));
     } else if (!c.equipe || !c.equipe.length) {
       /* premier document d'un dossier sans relevé : son auteur en est
          responsable, sous le nom de son compte, avec celui qui l'enregistre */
       let comptesEq = [];
       try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
-      c.equipe = Array.from(new Set([nomDuCompte(entree.auteur, comptesEq), nomDuCompte(personne.nom, comptesEq)])).filter(Boolean);
+      c.equipe = Array.from(new Set([nomDuCompte(entree.auteur, comptesEq), nomDuCompte(personne.nom, comptesEq)])).filter((n) => n && !revoque(c, n));
     }
     /* chaque photo du lot, aussi rangée seule : <REF>/Photos/<date> <titre>/ */
     if (photos && cle.endsWith(".zip")) {
@@ -3133,6 +3151,7 @@ async function traiter(req) {
       || c.fichiers.some((f) => voit(personne, f, c));
     if (!membre) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const comptes = await lireComptes(personne.societe);
+    const equipeVue = accesEffectif(c, comptes.map((u) => u.nom));
     /* les points déjà publiés : le suivant prend le numéro d'après */
     const pts = c.fichiers.filter((f) => f.type === "point");
     const numeroSuivant = Math.max(pts.length, ...pts.map((f) => parseInt(f.visite, 10) || 0)) + 1;
@@ -3140,7 +3159,7 @@ async function traiter(req) {
       .map((f) => ({ titre: f.titre || "", numero: f.visite || "", date: f.date || "", auteur: f.auteur || "" }))
       .sort((x, y) => (parseInt(x.numero, 10) || 0) - (parseInt(y.numero, 10) || 0) || String(x.date).localeCompare(String(y.date)));
     return json({
-      ref, client: c.client || "", equipe, points, numeroSuivant, reste: c.reste || [], accepte: estAccepte(c),
+      ref, client: c.client || "", equipe: equipeVue, revoques: bureau ? (c.revoques || []) : [], points, numeroSuivant, reste: c.reste || [], accepte: estAccepte(c),
       auteur: (c.fichiers[0] || {}).auteur || "",
       personnes: comptes.map((u) => ({ nom: u.nom, role: u.role })),
       peutModifier: bureau
@@ -3233,12 +3252,19 @@ async function traiter(req) {
     const comptes = await lireComptes(personne.societe);
     const connus = comptes.map((u) => u.nom);
     const equipe = (Array.isArray(d.equipe) ? d.equipe : []).filter((n) => connus.indexOf(n) >= 0);
-    /* l'auteur des documents garde toujours son dossier */
-    c.fichiers.forEach((f) => { if (f.auteur && equipe.indexOf(f.auteur) < 0) equipe.push(f.auteur); });
+    /* qui le bureau retire (l'auteur du dossier compris) est révoqué : il ne voit plus le dossier,
+       même ses propres documents, et n'y publie plus ; le remettre dans l'équipe lui rend l'accès */
+    const avant = accesEffectif(c, connus);
+    const revoques = new Set((c.revoques || []).filter((n) => equipe.indexOf(n) < 0 && !equipe.some((e) => memeNom(e, n))));
+    avant.forEach((n) => { if (n && equipe.indexOf(n) < 0) revoques.add(n); });
+    c.revoques = [...revoques];
+    /* l'auteur des documents garde son dossier, sauf si le bureau le lui a retiré */
     c.equipe = equipe;
+    c.equipe = accesEffectif(c, connus);
+    if (!c.revoques.length) delete c.revoques;
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, equipe });
+    return json({ ok: true, equipe: c.equipe, revoques: c.revoques || [] });
   }
 
   /* ---------- notifications sur le téléphone ---------- */

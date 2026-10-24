@@ -136,7 +136,8 @@
     var n = document.createElement("span"); n.className = "cp-pn"; n.textContent = nom; p.appendChild(n);
     if(o.etiquette){
       var t = document.createElement("span"); t.className = "cp-tag"; t.textContent = o.etiquette; p.appendChild(t);
-    } else if(retirer){
+    }
+    if(retirer){
       var x = document.createElement("button"); x.type = "button"; x.className = "cp-x";
       /* un dessin plutôt que le caractère « × » : la police le posait trop bas dans le rond */
       x.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="display:block;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round"><path d="M6 6l12 12M18 6 6 18"/></svg>';
