@@ -86,6 +86,19 @@
       +".dc-l .tx{flex:1;min-width:0}"
       +".dc-l .tx b{display:block;font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
       +".dc-l .tx small{display:block;font-size:12px;color:#9FB0CC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+      /* la vignette d'un document (1re page d'un PDF, la photo), et l'aperçu de l'appui long */
+      +".dc-l{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}"
+      +".dc-l .ic.vg{width:44px;height:56px;padding:0;background:#fff;overflow:hidden;position:relative;border-radius:6px;box-shadow:0 1px 4px rgba(0,0,0,.35)}"
+      +".dc-l .ic.vg img{display:block;width:100%;height:100%;object-fit:cover;object-position:top center}"
+      +".dc-apercu{position:absolute;inset:0;z-index:5;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:24px;"
+      +"background:rgba(5,9,18,.74);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:none}"
+      +".dc-apercu.vu{display:flex;animation:dcAp .16s ease-out}"
+      +"@keyframes dcAp{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:none}}"
+      +".dc-ap-cadre{max-width:88%;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;min-width:150px;min-height:190px}"
+      +".dc-ap-cadre img{display:block;max-width:100%;max-height:calc(100vh - 230px);object-fit:contain}"
+      +".dc-ap-cadre .dc-etat{color:#5D626D}"
+      +".dc-ap-t{margin:0;max-width:88%;color:#fff;font-weight:700;font-size:14.5px;text-align:center;overflow-wrap:anywhere}"
+      +".dc-ap-s{margin:-6px 0 0;color:#9FB0CC;font-size:12px}"
       +".dc-l .ici{flex:0 0 auto;font-size:10.5px;font-weight:800;color:#0B1220;background:#22D3EE;border-radius:999px;padding:3px 8px}"
       /* tablette en paysage, ordinateur : côte à côte */
       +"@media (min-width:1000px){.dc-pan{width:min(48vw,760px)}html.dc-ouvert body{margin-right:min(48vw,760px);transition:margin-right .32s}"
@@ -269,13 +282,127 @@
     documentsDe(ch).forEach(function(f){
       var b=el("button","dc-l"); b.type="button";
       var ext=String(f.cle).split(".").pop().toUpperCase().replace("JPEG","JPG");
-      b.appendChild(el("span","ic",ext));
+      var ic=el("span","ic",ext); b.appendChild(ic);
       var tx=el("span","tx"); tx.appendChild(el("b","",f.titre || String(f.cle).split("/").pop()));
-      tx.appendChild(el("small","",[frDate(f.date), f.auteur, f.etape].filter(Boolean).join(" · ")));
+      var sousT=[frDate(f.date), f.auteur, f.etape].filter(Boolean).join(" · ");
+      tx.appendChild(el("small","",sousT));
       b.appendChild(tx);
+      var dv={cle:f.cle, titre:f.titre || String(f.cle).split("/").pop(), sous:sousT, taille:f.taille||0, v:f.publie||f.date||""};
+      vignette(ic, dv); appuiLong(b, dv);
       b.addEventListener("click", function(){ var ext=String(f.cle).split(".").pop(); prendre({cle:f.cle, titre:f.titre || String(f.cle).split("/").pop(), fichier:(f.titre || "document").replace(/[\\/:*?"<>|]+/g, " ").trim()+"."+ext, chantier:ch.client || ch.ref}, b); });
       box.appendChild(b);
     });
+  }
+
+  /* ---------- la vignette d'un document, et son aperçu à l'appui long ----------
+     d : {cle} (un document d'un dossier) ou {cloud, mime, mini} (un fichier du Cloud), avec titre, taille, v (sa version) */
+  var VIGN={}, APERCUS={}, BLOBS=[], FILE_V=[], ACTIFS=0, OBS_V=null, APERCU_ID=0;
+  function cleV(d){ return (d.cloud ? "c:"+d.cloud : "f:"+d.cle)+"|"+(d.v||""); }
+  function genreDe(d){
+    var n=String(d.cloud ? (d.nom||d.titre||"") : d.cle).toLowerCase();
+    if(/\.pdf$/.test(n) || /pdf/.test(d.mime||"")) return "pdf";
+    if(/\.(jpe?g|png|webp|gif)$/.test(n) || /^image\//.test(d.mime||"")) return "image";
+    return "";
+  }
+  /* le fichier, gardé un moment (les huit derniers) : la vignette puis l'aperçu ne le téléchargent qu'une fois */
+  function blobDe(d){
+    var k=cleV(d), b=BLOBS.filter(function(x){ return x.k===k; })[0];
+    if(b) return Promise.resolve(b.blob);
+    var s=session(); if(!s) return Promise.reject(new Error("session"));
+    var adr = d.cloud ? api("cloud-fichier")+"&id="+encodeURIComponent(d.cloud) : api("fichier")+"&cle="+encodeURIComponent(d.cle);
+    return fetch(adr, {headers:{"x-auth":s.jeton}}).then(function(r){ if(!r.ok) throw new Error("fichier"); return r.blob(); })
+      .then(function(blob){ BLOBS.push({k:k, blob:blob}); if(BLOBS.length>8) BLOBS.shift(); return blob; });
+  }
+  /* une image (adresse) du document, large de L points */
+  function rendu(d, L){
+    var g=genreDe(d);
+    if(g==="image" && d.cloud && d.mini && L<=200){
+      return Promise.resolve(api("cloud-vignette")+"&id="+encodeURIComponent(d.cloud)+"&auth="+encodeURIComponent((session()||{}).jeton||""));
+    }
+    return blobDe(d).then(function(blob){
+      if(g==="pdf"){
+        if(!window.Visionneuse || !Visionneuse.pdfjs) throw new Error("pdfjs");
+        return Visionneuse.pdfjs().then(function(pdfjs){
+          return blob.arrayBuffer().then(function(buf){ return pdfjs.getDocument({data:new Uint8Array(buf)}).promise; });
+        }).then(function(doc){
+          return doc.getPage(1).then(function(page){
+            var v1=page.getViewport({scale:1}), v=page.getViewport({scale:L/v1.width});
+            var cv=document.createElement("canvas"); cv.width=Math.round(v.width); cv.height=Math.round(v.height);
+            var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0, 0, cv.width, cv.height);
+            return page.render({canvasContext:cx, viewport:v}).promise.then(function(){ var u=cv.toDataURL("image/jpeg", 0.82); try{ doc.destroy(); }catch(e){} return u; });
+          });
+        });
+      }
+      return new Promise(function(ok, ko){
+        var u=URL.createObjectURL(blob), im=new Image();
+        im.onload=function(){
+          var k=Math.min(1, L/im.naturalWidth), cv=document.createElement("canvas");
+          cv.width=Math.max(1, Math.round(im.naturalWidth*k)); cv.height=Math.max(1, Math.round(im.naturalHeight*k));
+          cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u); ok(cv.toDataURL("image/jpeg", 0.82));
+        };
+        im.onerror=function(){ URL.revokeObjectURL(u); ko(new Error("image")); };
+        im.src=u;
+      });
+    });
+  }
+  function poserVignette(ic, u){ ic.textContent=""; ic.removeAttribute("style"); ic.classList.add("vg"); var im=new Image(); im.alt=""; im.src=u; ic.appendChild(im); }
+  /* les vignettes se font à mesure qu'on les approche, deux à la fois ; un très gros fichier garde son étiquette */
+  function vignette(ic, d){
+    var g=genreDe(d); if(!g) return;
+    if((d.taille||0) > 8*1024*1024 && !(g==="image" && d.mini)) return;
+    var k=cleV(d); ic.__d=d;
+    if(VIGN[k]){ poserVignette(ic, VIGN[k]); return; }
+    if(!("IntersectionObserver" in window)) return;
+    if(!OBS_V) OBS_V=new IntersectionObserver(function(es){
+      es.forEach(function(e){ if(e.isIntersecting){ OBS_V.unobserve(e.target); FILE_V.push(e.target); pomper(); } });
+    }, {root:EL.corps, rootMargin:"240px 0px"});
+    OBS_V.observe(ic);
+  }
+  function pomper(){
+    while(ACTIFS<2 && FILE_V.length){
+      var ic=FILE_V.shift(); if(!ic.isConnected) continue;
+      ACTIFS++;
+      (function(ic){
+        var d=ic.__d, k=cleV(d);
+        rendu(d, 120).then(function(u){ VIGN[k]=u; if(ic.isConnected) poserVignette(ic, u); })
+          .catch(function(){}).then(function(){ ACTIFS--; pomper(); });
+      })(ic);
+    }
+  }
+  /* l'appui long : le document en grand, tant que le doigt reste posé ; on lâche, il s'en va */
+  function montrerApercu(d){
+    var o=EL.apercu; if(!o){ o=EL.apercu=el("div","dc-apercu"); o.setAttribute("aria-hidden","true"); EL.pan.appendChild(o); }
+    o.textContent="";
+    var cadre=el("div","dc-ap-cadre"), etat=el("p","dc-etat", genreDe(d) ? "Aperçu…" : "Pas d'aperçu pour ce format");
+    cadre.appendChild(etat); o.appendChild(cadre);
+    o.appendChild(el("p","dc-ap-t", d.titre||"Document"));
+    if(d.sous) o.appendChild(el("p","dc-ap-s", d.sous));
+    o.classList.add("vu");
+    try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
+    if(!genreDe(d)) return;
+    var L=Math.min(1100, Math.round(EL.pan.clientWidth*0.88*Math.min(2, window.devicePixelRatio||1)));
+    var k=cleV(d)+"@"+L, id=++APERCU_ID;
+    (APERCUS[k] ? Promise.resolve(APERCUS[k]) : rendu(d, L)).then(function(u){
+      APERCUS[k]=u; if(id!==APERCU_ID) return;
+      cadre.textContent=""; var im=new Image(); im.alt=""; im.src=u; cadre.appendChild(im);
+    }).catch(function(){ if(id===APERCU_ID) etat.textContent="Aperçu indisponible."; });
+  }
+  function cacherApercu(){ APERCU_ID++; if(EL.apercu) EL.apercu.classList.remove("vu"); }
+  function appuiLong(b, d){
+    var t=null, x0=0, y0=0, montre=false;
+    b.addEventListener("pointerdown", function(e){
+      if(e.pointerType==="mouse" && e.button!==0) return;
+      x0=e.clientX; y0=e.clientY; clearTimeout(t);
+      t=setTimeout(function(){ t=null; montre=true; b.__long=true; montrerApercu(d); }, 430);
+    });
+    b.addEventListener("pointermove", function(e){
+      if(t && (Math.abs(e.clientX-x0)>10 || Math.abs(e.clientY-y0)>10)){ clearTimeout(t); t=null; }   /* on fait défiler : rien */
+    });
+    function fin(){ clearTimeout(t); t=null; if(!montre) return; montre=false; cacherApercu(); setTimeout(function(){ b.__long=false; }, 400); }
+    b.addEventListener("pointerup", fin); b.addEventListener("pointercancel", fin); b.addEventListener("pointerleave", function(e){ if(e.pointerType==="mouse") fin(); });
+    b.addEventListener("contextmenu", function(e){ e.preventDefault(); });
+    /* lâcher après un aperçu n'ouvre pas le document */
+    b.addEventListener("click", function(e){ if(b.__long){ e.stopImmediatePropagation(); e.preventDefault(); } }, true);
   }
 
   /* ---------- le Cloud : ses dossiers, puis un fichier ---------- */
@@ -313,8 +440,11 @@
         });
         fic.forEach(function(e){
           var b=el("button","dc-l"); b.type="button";
-          b.appendChild(el("span","ic", /pdf/.test(e.mime) ? "PDF" : String(e.nom).split(".").pop().toUpperCase().replace("JPEG","JPG").slice(0,4)));
-          var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", [frDate(e.maj||e.cree), e.par].filter(Boolean).join(" · "))); b.appendChild(tx);
+          var ic=el("span","ic", /pdf/.test(e.mime) ? "PDF" : String(e.nom).split(".").pop().toUpperCase().replace("JPEG","JPG").slice(0,4)); b.appendChild(ic);
+          var sousC=[frDate(e.maj||e.cree), e.par].filter(Boolean).join(" · ");
+          var tx=el("span","tx"); tx.appendChild(el("b","",e.nom)); tx.appendChild(el("small","", sousC)); b.appendChild(tx);
+          var dv={cloud:e.id, mime:e.mime, mini:e.mini, nom:e.nom, titre:e.nom, sous:sousC, taille:e.taille||0, v:e.maj||""};
+          vignette(ic, dv); appuiLong(b, dv);
           b.addEventListener("click", function(){ prendre({cloud:e.id, pdf:/pdf/.test(e.mime), titre:e.nom, fichier:e.nom, chantier:"Cloud"+(chemin.length ? " › "+chemin[chemin.length-1].nom : "")}, b); });
           liste.appendChild(b);
         });
