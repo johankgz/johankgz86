@@ -714,6 +714,8 @@ function peindre(){
   c.setTransform(1,0,0,1,0,0);
   c.fillStyle="#1A1F26"; c.fillRect(0, 0, D.cv.width, D.cv.height);
   c.setTransform(dpr*v.k, 0, 0, dpr*v.k, dpr*v.x, dpr*v.y);
+  /* un plan en haute définition, vu en entier : la réduction soignée garde les traits fins lisibles */
+  c.imageSmoothingEnabled=true; try{ c.imageSmoothingQuality="high"; }catch(e){}
   c.save();
   c.beginPath(); c.rect(0, 0, A.w, A.h); c.clip();
   dessinerScene(c, A.objs);
@@ -1846,13 +1848,15 @@ function allegerImage(src, maxPx, q){
 }
 /* construire() rend un doc jsPDF à partir de photos[].data ; limiteOctets en octets.
    Rend { b64, allege } sous la limite, ou null si même au plus léger c'est trop. */
-function pdfSousLimite(construire, photos, limiteOctets){
+function pdfSousLimite(construire, photos, limiteOctets, plans){
   function b64De(doc){ var s=doc.output("datauristring"); return s.slice(s.indexOf(",")+1); }
   function taille(b64){ return b64.length*0.75; }
   var doc, b64;
   try{ doc=construire(); b64=b64De(doc); }catch(e){ return Promise.reject(e); }
   if(taille(b64) <= limiteOctets) return Promise.resolve({ b64:b64, allege:false });
-  var utiles=(photos||[]).filter(function(p){ return p && p.data; });
+  /* les plans (fins traits, petits textes) s'allègent moins que les photos : 1,75 fois la taille */
+  var nPhotos=(photos||[]).filter(function(p){ return p && p.data; }).length;
+  var utiles=(photos||[]).filter(function(p){ return p && p.data; }).concat((plans||[]).filter(function(p){ return p && p.data; }));
   if(!utiles.length) return Promise.resolve(null);
   var paliers=[[1280,0.6],[1040,0.5],[840,0.42],[680,0.36]];
   var origines=utiles.map(function(p){ return p.data; });
@@ -1861,7 +1865,7 @@ function pdfSousLimite(construire, photos, limiteOctets){
   function essayer(){
     if(i>=paliers.length){ rendre(); return Promise.resolve(null); }
     var px=paliers[i][0], q=paliers[i][1]; i++;
-    return Promise.all(utiles.map(function(p,k){ return allegerImage(origines[k], px, q); }))
+    return Promise.all(utiles.map(function(p,k){ return k<nPhotos ? allegerImage(origines[k], px, q) : allegerImage(origines[k], Math.round(px*1.75), Math.min(0.8, q+0.2)); }))
       .then(function(legers){
         utiles.forEach(function(p,k){ if(legers[k]) p.data=legers[k]; });
         var d, b;

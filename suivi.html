@@ -1097,7 +1097,7 @@ a.act[hidden]{display:none}
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script defer src="./pdf-design.js?v=20261024c"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./annotation.js?v=20261024c"></script>
+<script src="./annotation.js?v=20261024d"></script>
 <script src="./sobre.js?v=20261010a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261023g"></script>
@@ -2545,7 +2545,7 @@ function publierRapport(meta){
      même au plus léger, il ne passe toujours pas. */
   if(window.Annotation && Annotation.pdfSousLimite){
     el.textContent="Préparation du PDF…";
-    Annotation.pdfSousLimite(buildPdf, S.photos||[], 5.4*1024*1024).then(function(r){
+    Annotation.pdfSousLimite(buildPdf, S.photos||[], 5.4*1024*1024, S.plans||[]).then(function(r){
       if(!r){ el.textContent=""; toast("Rapport trop lourd même en allégeant les photos. Retirez-en quelques-unes."); return; }
       if(r.allege) toast("Photos allégées pour tenir dans un seul envoi.");
       envoyerRapport(r.b64);
@@ -4073,29 +4073,31 @@ function chargerPdfJs(){
   });
   return chargerPdfJs.p;
 }
-/* la première page d'un PDF, en image JPEG (2000 px au plus) */
+/* la première page d'un PDF, en image JPEG, assez fine pour zoomer et écrire au stylet :
+   jusqu'à 4400 px de long et 12 millions de points (au-delà, l'iPad refuse de dessiner la page) */
+var PLAN_LONG=4400, PLAN_POINTS=12e6;
 function pdfEnImage(octets){
   return chargerPdfJs().then(function(lib){
     return lib.getDocument({data:octets}).promise.then(function(pdf){
       return pdf.getPage(1).then(function(pg){
         var v1=pg.getViewport({scale:1});
-        var ech=Math.min(3, 2000/Math.max(v1.width, v1.height));
+        var ech=Math.min(12, PLAN_LONG/Math.max(v1.width, v1.height), Math.sqrt(PLAN_POINTS/(v1.width*v1.height)));
         var v=pg.getViewport({scale:ech});
         var cv=document.createElement("canvas");
         cv.width=Math.round(v.width); cv.height=Math.round(v.height);
         var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,cv.width,cv.height);
         return pg.render({canvasContext:cx, viewport:v}).promise.then(function(){
-          return {data:cv.toDataURL("image/jpeg", 0.85), w:cv.width, h:cv.height};
+          return {data:cv.toDataURL("image/jpeg", 0.88), w:cv.width, h:cv.height};
         });
       });
     });
   });
 }
-/* une image quelconque, ramenée à 2000 px au plus */
+/* une image quelconque (un plan scanné, photographié), ramenée à 4000 px au plus */
 function imageEnPlan(blob){
   return new Promise(function(ok, ko){
     var f=new File([blob], "plan", {type:blob.type||"image/jpeg"});
-    compress(f, function(ph){ if(ph) ok(ph); else ko(new Error("Image illisible.")); }, 2000);
+    compress(f, function(ph){ if(ph) ok(ph); else ko(new Error("Image illisible.")); }, 4000);
   });
 }
 function planDepuisBlob(blob, nom){
@@ -4210,9 +4212,27 @@ function renderPlans(){
   renderResume();
 }
 function annoterPlan(i){
-  var porteur={nom:(S.plans[i].legende||"du chantier"), photos:S.plans};
+  var pl=S.plans[i]; if(!pl) return;
+  var porteur={nom:(pl.legende||"du chantier"), photos:S.plans};
   /* un plan annoté est un plan modifié */
-  openSketch(porteur, i, function(){ S.plans[i].etat="modifie"; save(); renderPlans(); }, {plan:true});
+  function ouvrirPlan(){ openSketch(porteur, i, function(){ S.plans[i].etat="modifie"; save(); renderPlans(); }, {plan:true}); }
+  /* un plan PDF du dossier importé avant (2000 px), pas encore annoté : on le refait en haute
+     définition depuis le dossier avant de l'ouvrir (ses repères, placés en proportion, ne bougent pas) */
+  var basse = Math.max(pl.w||0, pl.h||0) <= 2100, vierge = !pl.annot && !pl.orig;
+  if(basse && vierge && pl.source && /\.pdf$/i.test(pl.source) && apiPret(true)){
+    toast("Plan mis en haute définition…");
+    fetch(apiUrl("fichier")+"&cle="+encodeURIComponent(pl.source)+"&auth="+encodeURIComponent(jetonSession()))
+      .then(function(r){ if(!r.ok) throw new Error("source"); return r.blob(); })
+      .then(function(blob){ return planDepuisBlob(blob, pl.source); })
+      .then(function(ph){ pl.data=ph.data; pl.w=ph.w; pl.h=ph.h; save(); renderPlans(); ouvrirPlan(); })
+      .catch(function(){ ouvrirPlan(); });
+    return;
+  }
+  if(basse && !vierge && pl.source && !pl.__avisNet){
+    pl.__avisNet=true;
+    toast("Plan importé en basse définition : pour un plan plus net, ajoutez-le de nouveau depuis le dossier.");
+  }
+  ouvrirPlan();
 }
 /* ---------- les repères sur les plans ----------
    « Repère », puis un toucher sur le plan : une pastille numérotée
