@@ -13,7 +13,9 @@
      chargé, son onglet sur le bord ; un glissé depuis le bord (ou un
      toucher sur l'onglet) le ramène. On passe ainsi de l'un à l'autre ;
    - sur une tablette en paysage ou un ordinateur, les deux côte à côte ;
-   - − et + pour zoomer ; « Changer » pour un autre document.
+   - zoomer : deux doigts qui s'écartent (téléphone, tablette), la molette
+     ou le pavé tactile (ordinateur ; Maj + molette fait défiler), ou − et + ;
+     le plan se redessine net au zoom. « Changer » pour un autre document.
    Le dernier document ouvert est retenu le temps de la visite.
 
    DocCote.installer({libelle:"Relevé", ref:function(){ return "2026-041"; }})
@@ -62,7 +64,7 @@
       +".dc-t{flex:1;min-width:0}"
       +".dc-t b{display:block;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}"
       +".dc-t span{display:block;font-size:11.5px;color:#9FB0CC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-      +".dc-corps{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 18px)}"
+      +".dc-corps{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior:contain;padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 18px)}"
       +".dc-pages{display:flex;flex-direction:column;align-items:center;gap:10px;margin:0 auto}"
       +".dc-pages canvas,.dc-pages img{display:block;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.45);border-radius:2px}"
       +".dc-etat{color:#9FB0CC;font-size:14px;text-align:center;margin:30px 12px}"
@@ -133,7 +135,7 @@
     bX.addEventListener("click", function(){ if(PICK) cacher(); else fermer(); });
     bM.addEventListener("click", function(){ zoomer(ETAT.zoom/1.25); });
     bP.addEventListener("click", function(){ zoomer(ETAT.zoom*1.25); });
-    gestes();
+    gestes(); gestesZoom();
   }
 
   function montrer(){
@@ -240,7 +242,7 @@
     });
     box.appendChild(b);
   }
-  function choisir(){ if(SOURCE==="cloud") choisirCloud(""); else choisirChantier(); }
+  function choisir(){ EL.corps.style.cursor=""; if(SOURCE==="cloud") choisirCloud(""); else choisirChantier(); }
   function choisirChantier(){
     SOURCE="chantiers";
     var c=EL.corps; c.textContent="";
@@ -490,11 +492,27 @@
       }, {root:EL.corps, rootMargin:"600px 0px"}) : null;
       function dessiner(cv){
         if(cv.__fait || id!==ETAT.chargeId) return; cv.__fait=true;
+        cv.__rendre=function(base){ return rendre(cv, base); };
+        rendre(cv);
+      }
+      /* la page, à la finesse du zoom : dessinée à part puis posée d'un coup (pas d'écran blanc),
+         sans dépasser ce qu'un iPhone accepte pour une image (15 Mpx) ; « base » : une page
+         sortie de l'écran revient à la finesse d'ouverture (la mémoire d'un téléphone est comptée) */
+      function rendre(cv, base){
+        if(id!==ETAT.chargeId) return;
+        var veut=Math.round(larg*(base ? 1.6 : Math.max(1.6, ETAT.zoom*1.15))*dpr);
+        veut=Math.min(veut, Math.floor(Math.sqrt(15e6/(cv.__ratio||1.414))));
+        if(cv.__enCours || (cv.__rendu && (base ? cv.__rendu<=veut*1.1 : cv.__rendu>=veut*0.9))) return;
+        cv.__enCours=true;
         doc.getPage(cv.__n).then(function(page){
-          var v1=page.getViewport({scale:1}), k=larg*1.6*dpr/v1.width, v=page.getViewport({scale:k});
-          cv.width=Math.floor(v.width); cv.height=Math.floor(v.height);
-          return page.render({canvasContext:cv.getContext("2d"), viewport:v}).promise;
-        }).catch(function(){});
+          var v1=page.getViewport({scale:1}), v=page.getViewport({scale:veut/v1.width});
+          var tmp=document.createElement("canvas"); tmp.width=Math.floor(v.width); tmp.height=Math.floor(v.height);
+          return page.render({canvasContext:tmp.getContext("2d"), viewport:v}).promise.then(function(){
+            if(id!==ETAT.chargeId) return;
+            cv.width=tmp.width; cv.height=tmp.height; cv.getContext("2d").drawImage(tmp, 0, 0);
+            cv.__rendu=tmp.width; tmp.width=tmp.height=0;
+          });
+        }).catch(function(){}).then(function(){ cv.__enCours=false; });
       }
       var n=0;
       (function suivante(){
@@ -517,13 +535,81 @@
       pages.appendChild(f);
     });
   }
-  function zoomer(z){ ETAT.zoom=Math.max(1, Math.min(4, z)); appliquerZoom(); }
+  /* zoomer en gardant sous le doigt (ou la souris) le même endroit du document */
+  var ZOOM_MAX=6, tNet=0;
+  function zoomer(z, x, y){
+    var pages=EL.corps.querySelector(".dc-pages"), c=EL.corps;
+    z=Math.max(1, Math.min(ZOOM_MAX, z));
+    if(!pages || Math.abs(z-ETAT.zoom)<0.001){ ETAT.zoom=z; appliquerZoom(); return; }
+    var rc=c.getBoundingClientRect();
+    if(x==null){ x=rc.left+rc.width/2; y=rc.top+rc.height/2; }
+    var r0=pages.getBoundingClientRect(), fx=(x-r0.left)/(r0.width||1), fy=(y-r0.top)/(r0.height||1);
+    ETAT.zoom=z; appliquerZoom();
+    var r1=pages.getBoundingClientRect();
+    c.scrollLeft+=(r1.left+fx*r1.width)-x;
+    c.scrollTop+=(r1.top+fy*r1.height)-y;
+    /* le zoom posé : les pages en vue se redessinent nettes */
+    clearTimeout(tNet); tNet=setTimeout(netete, 280);
+  }
+  function netete(){
+    var pages=EL.corps.querySelector(".dc-pages"); if(!pages) return;
+    var rc=EL.corps.getBoundingClientRect();
+    Array.prototype.forEach.call(pages.querySelectorAll("canvas"), function(cv){
+      if(!cv.__rendre) return;
+      var r=cv.getBoundingClientRect();
+      if(r.bottom>rc.top-400 && r.top<rc.bottom+400) cv.__rendre();
+      else if(r.bottom<rc.top-1500 || r.top>rc.bottom+1500) cv.__rendre(true);
+    });
+  }
+  /* les gestes du zoom, sur le document seulement (pas sur la liste du choix) */
+  function gestesZoom(){
+    var c=EL.corps, p=null;
+    function surDoc(){ return !PICK && ETAT.doc && c.querySelector(".dc-pages canvas, .dc-pages img"); }
+    function ecart(t){ var dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy)||1; }
+    /* deux doigts : téléphone, tablette */
+    c.addEventListener("touchstart", function(e){
+      if(e.touches.length===2 && surDoc()) p={d:ecart(e.touches), z:ETAT.zoom};
+    }, {passive:true});
+    c.addEventListener("touchmove", function(e){
+      if(!p || e.touches.length!==2) return;
+      e.preventDefault();
+      var t=e.touches;
+      zoomer(p.z*ecart(t)/p.d, (t[0].clientX+t[1].clientX)/2, (t[0].clientY+t[1].clientY)/2);
+    }, {passive:false});
+    function finPince(e){ if(p && (!e.touches || e.touches.length<2)) p=null; }
+    c.addEventListener("touchend", finPince, {passive:true});
+    c.addEventListener("touchcancel", finPince, {passive:true});
+    /* Safari (iPhone, iPad, Mac) : son zoom de page ne prend pas la main sur le document */
+    var g0=1;
+    c.addEventListener("gesturestart", function(e){ if(!surDoc()) return; e.preventDefault(); g0=ETAT.zoom; }, {passive:false});
+    c.addEventListener("gesturechange", function(e){ if(!surDoc()) return; e.preventDefault(); if(!p) zoomer(g0*e.scale, e.clientX, e.clientY); }, {passive:false});
+    c.addEventListener("gestureend", function(e){ if(surDoc()) e.preventDefault(); }, {passive:false});
+    /* la molette (Maj + molette : défiler) ; le pavé tactile qui pince arrive ici avec Ctrl */
+    c.addEventListener("wheel", function(e){
+      if(!surDoc()) return;
+      e.preventDefault();
+      if(e.shiftKey && !e.ctrlKey){ c.scrollTop+=(e.deltaY||e.deltaX)*(e.deltaMode===1 ? 33 : 1); return; }
+      var d=e.deltaY*(e.deltaMode===1 ? 33 : e.deltaMode===2 ? 400 : 1);
+      zoomer(ETAT.zoom*Math.exp(-d*(e.ctrlKey ? 0.01 : 0.0022)), e.clientX, e.clientY);
+    }, {passive:false});
+    /* à la souris, zoomé : le document se tire à la main */
+    var m=null;
+    c.addEventListener("mousedown", function(e){
+      if(e.button!==0 || !surDoc() || ETAT.zoom<=1.01 || e.target.closest("button,a,input")) return;
+      m={x:e.clientX, y:e.clientY, l:c.scrollLeft, t:c.scrollTop}; c.style.cursor="grabbing"; e.preventDefault();
+    });
+    document.addEventListener("mousemove", function(e){ if(!m) return; c.scrollLeft=m.l-(e.clientX-m.x); c.scrollTop=m.t-(e.clientY-m.y); });
+    document.addEventListener("mouseup", function(){ if(m){ m=null; c.style.cursor=ETAT.zoom>1.01 ? "grab" : ""; } });
+    c.addEventListener("scroll", function(){ if(ETAT.zoom>1.01){ clearTimeout(tNet); tNet=setTimeout(netete, 280); } }, {passive:true});
+  }
   function appliquerZoom(){
     var w=Math.round(largeurUtile()*ETAT.zoom), pages=EL.corps.querySelector(".dc-pages"); if(!pages) return;
     pages.style.width=w+"px";
     Array.prototype.forEach.call(pages.querySelectorAll("canvas"), function(cv){ cv.style.width=w+"px"; cv.style.height=Math.round(w*(cv.__ratio||1.414))+"px"; });
     Array.prototype.forEach.call(pages.querySelectorAll("img"), function(im){ im.style.width=w+"px"; im.style.height="auto"; });
     EL.zm.disabled = ETAT.zoom<=1; EL.zm.style.opacity = ETAT.zoom<=1 ? .4 : 1;
+    EL.zp.disabled = ETAT.zoom>=ZOOM_MAX; EL.zp.style.opacity = ETAT.zoom>=ZOOM_MAX ? .4 : 1;
+    EL.corps.style.cursor = ETAT.zoom>1.01 ? "grab" : "";
   }
   window.addEventListener("resize", function(){ if(ETAT.doc) appliquerZoom(); });
 
