@@ -2649,14 +2649,14 @@ async function traiter(req) {
     if (!visibles.length) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees && !f.brouillon)
       .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.publie || "").localeCompare(String(a.publie || "")));
-    let suivi = null, cleSuivi = "";
+    let suivi = null, cleSuivi = "", nbPhotos = 0;
     for (const f of suivis.slice(0, 6)) {
       let d = null;
       try { d = await store.get(String(f.cle).replace(/\.pdf$/, ".json"), { type: "json" }); } catch { d = null; }
       /* ses photos ne servent pas à la reprise (repères et plans, oui) : la réponse reste légère */
-      if (d && d.version === 2 && d.suiviId !== exclure) { suivi = { ...d, photos: [] }; cleSuivi = f.cle; break; }
+      if (d && d.version === 2 && d.suiviId !== exclure) { suivi = { ...d, photos: [] }; nbPhotos = (d.photos || []).length; cleSuivi = f.cle; break; }
     }
-    return json({ dossier: { ref: c.ref, client: c.client || "", adresse: c.adresse || "" }, suivi, cle: cleSuivi });
+    return json({ dossier: { ref: c.ref, client: c.client || "", adresse: c.adresse || "" }, suivi, cle: cleSuivi, nbPhotos });
   }
 
   if (action === "fiches") {

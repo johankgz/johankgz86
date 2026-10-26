@@ -1367,6 +1367,25 @@ function sigSuivi(x){
   var hsh=5381; for(var i=0;i<t.length;i++) hsh=((hsh<<5)+hsh+t.charCodeAt(i))|0;
   return t.length+"-"+(hsh>>>0).toString(36);
 }
+/* la même empreinte, sans ce que le bureau change de son côté après la publication
+   (une demande cochée « chiffrée ») ni les photos (le site ne les renvoie pas) :
+   elle dit si le technicien a encore touché à la fiche depuis qu'il l'a publiée */
+function sigLeger(x, sansPhotos){
+  if(!x) return "";
+  var y={client:x.client, affaire:x.affaire, visite:x.visite, points:x.points, plans:x.plans,
+    photos: sansPhotos ? [] : x.photos,
+    ts:(x.ts||[]).map(function(it){ return {id:it.id, texte:it.texte, qui:it.qui}; })};
+  return sigSuivi(y);
+}
+/* publiée, et pas touchée depuis : rien à garder « en cours », tout est sur le site */
+function publieTelQuel(x){
+  if(!x || !x.publie || !x.publie.cle) return false;
+  try{
+    if(x.publie.sig && x.publie.sig===sigSuivi(x)) return true;
+    if(x.publie.sigL && x.publie.sigL===sigLeger(x)) return true;
+  }catch(e){}
+  return false;
+}
 /* le jour (AAAA-MM-JJ, heure locale) de la dernière publication de ce suivi */
 function jourDePublication(){
   if(!S || !S.publie) return "";
@@ -2630,7 +2649,7 @@ function publierRapport(meta){
   meta.auteur = meta.auteur || (SESSION && SESSION.nom) || "";
   el.textContent="Publication en cours…";
   /* l'empreinte de ce qui part : ce qu'on ajoute pendant l'envoi reste « à publier » */
-  var sigEnvoi = APP_TYPE==="suivi" ? sigSuivi(S) : "";
+  var sigEnvoi = APP_TYPE==="suivi" ? sigSuivi(S) : "", sigEnvoiL = APP_TYPE==="suivi" ? sigLeger(S) : "";
   fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(Object.assign({pdf:b64}, meta))})
   .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
   .then(function(res){
@@ -2653,7 +2672,11 @@ function publierRapport(meta){
     if(APP_TYPE==="suivi"){
       /* ce suivi est enregistré : le prochain enregistrement demandera
          s'il s'agit d'un nouveau suivi ou d'une correction de celui-ci */
-      S.publie={cle:res.d.cle, le:new Date().toISOString(), titre:meta.titre||"", sig:sigEnvoi, jour:aujourdhui()};
+      S.publie={cle:res.d.cle, le:new Date().toISOString(), titre:meta.titre||"", sig:sigEnvoi, sigL:sigEnvoiL, jour:aujourdhui()};
+      /* la même fiche, mise de côté plus tôt (ou sur un autre appareil) : elle est publiée, elle n'est plus « en cours » */
+      try{ var refPub=refFiche(), monIdPub=S.suiviId;
+        if(refPub) lireDeCote(refPub).then(function(g){ if(g && g.suiviId===monIdPub) return jeterBrouillon(refPub).then(function(){ try{ proposerBrouillons(); }catch(e){} }); });
+      }catch(e){}
       save();
     }
     deposerFiche(res.d.cle, el);
@@ -3884,10 +3907,12 @@ function lireIndexBrouillons(){
 function ecrireIndexBrouillons(ix){
   return window.storage.set(CLE_FICHE+"#brouillons", JSON.stringify(ix)).catch(function(){});
 }
-/* "ok" : mise de côté ; "rien" : rien à garder ; "echec" : pas pu l'écrire */
+/* "ok" : mise de côté ; "publie" : publiée et pas touchée depuis, rien à garder (elle est
+   sur le site) ; "rien" : rien à garder ; "echec" : pas pu l'écrire */
 function mettreDeCote(){
   var ref=refFiche();
   if(!S || !ficheRemplie(S)) return Promise.resolve("rien");
+  if(publieTelQuel(S)) return Promise.resolve("publie");
   if(!ref) return Promise.resolve("echec");
   var charge; try{ S._sig=sigSuivi(S); charge=JSON.stringify(S); }catch(e){ return Promise.resolve("echec"); }
   var client=(S.chantier && S.chantier.client) || (S.client && S.client.nom) || "";
@@ -3909,6 +3934,38 @@ function reprendreBrouillon(ref){
       .then(function(){ return s; });
   }).catch(function(){ return null; });
 }
+/* lire une fiche mise de côté, sans la reprendre */
+function lireDeCote(ref){
+  return window.storage.get(cleBrouillon(ref))
+    .then(function(r){ try{ return (r && r.value) ? JSON.parse(r.value) : null; }catch(e){ return null; } })
+    .catch(function(){ return null; });
+}
+/* les fiches mises de côté déjà publiées telles quelles s'en vont d'elles-mêmes :
+   d'abord ce que sait l'appareil, puis le site (le dernier suivi publié de ce chantier
+   est-il celui-ci, au même contenu ?) — une fiche qui a changé depuis reste proposée */
+function ecarterPubliees(ix){
+  var refs=Object.keys(ix);
+  return Promise.all(refs.map(function(k){
+    var ref=ix[k].ref;
+    return lireDeCote(ref).then(function(g){
+      if(!g) return k;                                   /* l'index pointe dans le vide */
+      if(publieTelQuel(g)) return k;
+      if(!g.publie || !g.publie.cle || !g.suiviId || !baseSite() || !jetonSession()) return null;
+      return lireSite("suivi-precedent", "ref="+encodeURIComponent(ref)).then(function(res){
+        var d=res && res.ok && res.d && res.d.suivi;
+        if(!d || d.suiviId!==g.suiviId) return null;
+        if((res.d.nbPhotos!=null ? res.d.nbPhotos : -1)!==(g.photos||[]).length) return null;
+        return sigLeger(d, true)===sigLeger(g, true) ? k : null;
+      }, function(){ return null; });
+    });
+  })).then(function(aJeter){
+    aJeter=aJeter.filter(Boolean);
+    if(!aJeter.length) return ix;
+    return Promise.all(aJeter.map(function(k){ return window.storage.delete(cleBrouillon(ix[k].ref)).catch(function(){}); }))
+      .then(function(){ return lireIndexBrouillons(); })
+      .then(function(ix2){ aJeter.forEach(function(k){ delete ix2[k]; }); return ecrireIndexBrouillons(ix2).then(function(){ return ix2; }); });
+  });
+}
 /* jeter une fiche mise de côté : elle ne revient plus */
 function jeterBrouillon(ref){
   return window.storage.delete(cleBrouillon(ref)).catch(function(){})
@@ -3917,7 +3974,7 @@ function jeterBrouillon(ref){
 }
 /* ouverte sans chantier, l'appli propose de reprendre les fiches mises de côté */
 function proposerBrouillons(){
-  lireIndexBrouillons().then(function(ix){
+  lireIndexBrouillons().then(ecarterPubliees).then(function(ix){
     var vieux=document.getElementById("brouillonsEnCours"); if(vieux) vieux.remove();
     var refs=Object.keys(ix).sort(function(a,b){ return String(ix[b].quand).localeCompare(String(ix[a].quand)); });
     if(!refs.length) return;
@@ -4035,6 +4092,11 @@ function ecrireFiche(){
     var r = new URL(document.referrer);
     depuisMenu = r.origin === location.origin && /\/(index\.html)?$/.test(r.pathname);
   }catch(e){}
+  /* la fiche avait été réduite (reduire.js) : on revient la retrouver telle quelle */
+  try{
+    var pg=(location.pathname.split("/").pop()||"").toLowerCase();
+    if((JSON.parse(localStorage.getItem("fenetres:reduites")||"[]")||[]).some(function(x){ return x && x.page===pg; })) depuisMenu=false;
+  }catch(e){}
   if(!depuisMenu) return;
   var essais = 0;
   (function attendre(){
@@ -4044,7 +4106,7 @@ function ecrireFiche(){
       return;
     }
     mettreDeCote().then(function(etat){
-      if(etat === "ok"){
+      if(etat === "ok" || etat === "publie"){
         S = ficheVierge(); save(); paintForm();
         try{ showTab(TABS[0][0]); }catch(e){}
         try{ peindreNavChantier(); }catch(e){}
@@ -4676,7 +4738,11 @@ function pleinEcranPlan(i){
 /* pour les essais automatiques */
 window.__suivi={etat:function(){ return S; }, buildPdf:function(){ return buildPdf(); }, nouveauSuivi:function(d){ nouveauSuivi(d); },
   rappelsActifs:function(){ return rappelsActifs(); }, poserStatut:function(it, st){ poserStatut(it, st); save(); rafraichirReperes(); },
-  ecrire:function(){ return ecrireFiche(); }, reprise:function(){ proposerReprise(); }};
+  ecrire:function(){ return ecrireFiche(); }, reprise:function(){ proposerReprise(); },
+  /* les fiches mises de côté (essais) */
+  marquerPublie:function(cle, ancien){ S.publie={cle:cle, le:new Date().toISOString(), sig:sigSuivi(S), jour:aujourdhui()}; if(!ancien) S.publie.sigL=sigLeger(S); save(); return ecrireFiche(); },
+  mettreDeCote:function(){ return mettreDeCote(); }, deCote:function(){ return lireIndexBrouillons(); },
+  proposerBrouillons:function(){ proposerBrouillons(); }};
 function ajouterPlan(f){
   if(!f) return;
   planDepuisBlob(f, f.name)
