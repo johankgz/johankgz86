@@ -1680,7 +1680,9 @@ function ouvrir(opt){
         sel:null, edition:null, avantEdition:null, hist:[], redo:[], modifie:false, curseur:null,
         outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve};
       FLOUS={};
-      if(opt.plan){ A.outil="reperes"; PREFS.repere="symbole"; }
+      /* un plan s'ouvre sur « Choisir » : on zoome et on se place d'abord (un doigt fait glisser, deux zooment),
+         puis on prend l'outil ; « Symboles » proposera bien les symboles */
+      if(opt.plan){ A.outil="choisir"; PREFS.repere="symbole"; }
       /* les pastilles numérotées ont laissé la place aux repères des plans du suivi : ici, symboles et flou */
       if(A.outil==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !img))) PREFS.repere="symbole";
       DOIGTS={}; G=null;
