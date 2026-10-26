@@ -846,12 +846,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     </div>
   </div>
 
-  <div class="block" id="blocJoints">
-    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.1-8.1a3.4 3.4 0 0 1 4.8 4.8l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/></svg>Pièces jointes</h2>
-    <p class="hint" style="margin-top:-6px">L'e-mail du client, un PDF, des photos, un plan : ils partent dans le dossier du chantier avec le relevé.</p>
-    <div id="pjHote"></div>
-  </div>
-
   <div class="block">
     <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-6.5-6.2-6.5-11A6.5 6.5 0 0 1 18.5 10c0 4.8-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.4"/></svg>Adresse</h2>
     <div class="tuiles-act">
@@ -959,6 +953,22 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
   <div id="rooms"></div>
   <p class="hint" id="noRooms">Aucune pièce relevée pour l'instant.</p>
+
+  <!-- les pièces jointes : fermées tant qu'on n'en a pas besoin, comme la borne -->
+  <div class="bascule" id="bascJoints" style="margin-top:18px">
+    <div class="bascule-txt">
+      <b>Pièces jointes</b>
+      <span id="jointsResume">Activez cette partie pour joindre l'e-mail du client, un PDF, des photos ou un plan au relevé.</span>
+    </div>
+    <button type="button" class="switch" id="swJoints" role="switch" aria-checked="false" aria-label="Afficher les pièces jointes"><span></span></button>
+  </div>
+  <div id="jointsCorps">
+  <div class="block" id="blocJoints">
+    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 11.5 12.2 19.3a5 5 0 0 1-7.1-7.1l8.1-8.1a3.4 3.4 0 0 1 4.8 4.8l-8.1 8.1a1.7 1.7 0 0 1-2.4-2.4l7.4-7.4"/></svg>Pièces jointes</h2>
+    <p class="hint" style="margin-top:-6px">L'e-mail du client, un PDF, des photos, un plan : ils partent dans le dossier du chantier avec le relevé.</p>
+    <div id="pjHote"></div>
+  </div>
+  </div>
 </section>
 
 <!-- 3bis. PHOTOVOLTAÏQUE -->
@@ -2067,7 +2077,7 @@ function peindrePoints(focus){
 if(window.PiecesJointes) PiecesJointes.installer({
   hote: $("pjHote"),
   liste: function(){ if(!S) return []; if(!Array.isArray(S.joints)) S.joints=[]; return S.joints; },
-  enregistrer: function(){ save(); }, toast: toast
+  enregistrer: function(){ save(); if(peindreJoints) peindreJoints(); }, toast: toast
 });
 function migrerDemande(){
   var c=S.conclusion; if(!c) return;
@@ -4833,8 +4843,21 @@ function bascule(idBouton, idCorps, lire, ecrire){
   peindre();
   return peindre;
 }
-var peindreIrve=null, peindrePv=null, peindreClim=null, peindreCharge=null;
+var peindreIrve=null, peindrePv=null, peindreClim=null, peindreCharge=null, peindreJoints=null;
+/* les pièces jointes : ouvertes d'office quand il y en a (on ne cache pas un fichier joint
+   sans le vouloir), sinon fermées ; fermées à la main, le résumé dit combien il y en a */
+function nbJoints(){ return (S && Array.isArray(S.joints)) ? S.joints.length : 0; }
+function jointsOuverts(){ return S.jointsVue ? S.jointsVue==="oui" : nbJoints()>0; }
 function initBascules(){
+  var pj=bascule("swJoints", "jointsCorps", jointsOuverts, function(v){ S.jointsVue=v; });
+  peindreJoints=function(){
+    pj(); var n=nbJoints(), r=$("jointsResume"); if(!r) return;
+    r.textContent = (n && !jointsOuverts())
+      ? n+" pièce"+(n>1?"s":"")+" jointe"+(n>1?"s":"")+" au relevé : activez pour "+(n>1?"les":"la")+" voir."
+      : "Activez cette partie pour joindre l'e-mail du client, un PDF, des photos ou un plan au relevé.";
+  };
+  $("swJoints").addEventListener("click", function(){ peindreJoints(); });
+  peindreJoints();
   peindreCharge = bascule("swCharge", "chargeCorps",
     function(){ return CK().actif === "oui"; },
     function(v){ CK().actif = v; });
@@ -4848,7 +4871,7 @@ function initBascules(){
     function(){ return S.pv.actif === "oui"; },
     function(v){ S.pv.actif = v; });
 }
-function rafraichirBascules(){ if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); if(peindreCharge) peindreCharge(); }
+function rafraichirBascules(){ if(peindreJoints) peindreJoints(); if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); if(peindreCharge) peindreCharge(); }
 
 /* ---------- dimensionnement conseillé ---------- */
 var PRODUCTIBLE_DEFAUT = 1150;      /* kWh par kWc et par an, Vendée, sud 30° */
