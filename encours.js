@@ -339,6 +339,58 @@
     return "sur l'"+a;                                /* l'iPhone, l'iPad, l'ordinateur */
   }
 
+  /* ---------- tant que la fiche de la page n'est pas chargée, on n'y touche pas ----------
+     Reprise d'un autre appareil (et ses photos), sur un réseau faible : la fiche peut mettre
+     plusieurs secondes à arriver. Le formulaire est déjà là, mais la fiche pas encore : un
+     toucher (Rouvrir, une case, un onglet) partait dans le vide (« null is not an object »),
+     ou ce qu'on tapait était effacé à l'arrivée de la fiche. Le formulaire attend donc, grisé,
+     que les lectures du démarrage soient faites ; au-delà d'une demi-seconde, il le dit. */
+  var VOILE={attente:0, courant:false, fini:false, debut:Date.now(), t:0, mot:0};
+  function voileStyle(){
+    if(document.getElementById("ficheChargeStyle")) return;
+    var st=document.createElement("style"); st.id="ficheChargeStyle";
+    st.textContent="html.fiche-charge main,html.fiche-charge #nav{pointer-events:none!important}"
+      +"html.fiche-charge main{opacity:.55;transition:opacity .2s}"
+      +"#ficheCharge{position:fixed;left:50%;top:calc(env(safe-area-inset-top,0px) + 96px);transform:translateX(-50%);z-index:3000;"
+      +"display:flex;align-items:center;gap:10px;max-width:min(92vw,440px);padding:11px 16px;border-radius:14px;background:#1E2329;color:#fff;"
+      +"font:600 13.5px/1.35 system-ui,sans-serif;box-shadow:0 8px 24px rgba(0,0,0,.3)}"
+      +"#ficheCharge i{flex:0 0 auto;width:16px;height:16px;border-radius:50%;border:2.5px solid rgba(255,255,255,.25);border-top-color:#22D3EE;animation:ficheTourne .8s linear infinite}"
+      +"@keyframes ficheTourne{to{transform:rotate(360deg)}}";
+    (document.head||document.documentElement).appendChild(st);
+  }
+  function voileDire(t){
+    if(!document.body) return;
+    var b=document.getElementById("ficheCharge");
+    if(!b){ b=document.createElement("div"); b.id="ficheCharge"; b.setAttribute("role","status"); b.innerHTML="<i></i><span></span>"; document.body.appendChild(b); }
+    b.lastChild.textContent=t;
+  }
+  function voileFin(){
+    if(VOILE.fini) return;
+    VOILE.fini=true; clearTimeout(VOILE.t); clearTimeout(VOILE.mot); clearTimeout(VOILE.mot2);
+    document.documentElement.classList.remove("fiche-charge");
+    var b=document.getElementById("ficheCharge"); if(b) b.remove();
+  }
+  function voile(k, p){
+    if(VOILE.fini) return p;
+    /* rien à attendre si la page n'ouvre pas sa fiche dès son démarrage */
+    if(!VOILE.courant && Date.now()-VOILE.debut > 5000){ VOILE.fini=true; return p; }
+    if(!VOILE.courant && deCettePage(k) && /:courante?$/.test(k)){
+      VOILE.courant=true;
+      voileStyle(); document.documentElement.classList.add("fiche-charge");
+      VOILE.mot=setTimeout(function(){ voileDire("Ouverture de la fiche…"); }, 500);
+      VOILE.mot2=setTimeout(function(){ voileDire("La fiche arrive du site (réseau faible)… un instant."); }, 6000);
+      VOILE.t=setTimeout(voileFin, 45000);           /* quoi qu'il arrive, la page ne reste pas figée */
+    }
+    VOILE.attente++;
+    function fait(){
+      VOILE.attente--;
+      /* la page reçoit la fiche juste après : on la laisse la poser avant de rendre la main */
+      if(VOILE.courant && VOILE.attente<=0) setTimeout(function(){ if(VOILE.attente<=0) voileFin(); }, 80);
+    }
+    p.then(fait, fait);
+    return p;
+  }
+
   /* ---------- window.storage : comme avant, la copie sur le site en plus ---------- */
   window.storage = {
     get:function(k){
@@ -381,6 +433,9 @@
     },
     list:function(p){ return local.list(p); }
   };
+  /* la lecture, vue par le voile du démarrage (ci-dessus) */
+  var lireFiche=window.storage.get;
+  window.storage.get=function(k){ return voile(k, lireFiche(k)); };
 
   /* ---------- l'appli restée ouverte : la fiche a-t-elle été poursuivie ailleurs ? ---------- */
   function verifier(){

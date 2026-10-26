@@ -1103,7 +1103,7 @@ a.act[hidden]{display:none}
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261026a"></script>
 <script src="./stylet.js?v=20261023b"></script>
-<script src="./encours.js?v=20261021a"></script>
+<script src="./encours.js?v=20261026a"></script>
 <script>
 (function(){
 /* ---------- session expirée : retour à la connexion ---------- */
@@ -2286,7 +2286,11 @@ function dl(blob, name){
 
 var APP_TYPE="suivi";
 function destinataires(){ if(!S.destinataires) S.destinataires=[]; return S.destinataires; }
+/* la fiche de l'appareil n'est pas encore chargée (elle arrive du site) : ce qui l'attend passe après */
+var APRES_CHARGEMENT=[];
+function quandPret(fn){ if(S) return fn(); APRES_CHARGEMENT.push(fn); toast("La fiche s'ouvre encore… un instant."); }
 function ficheCharger(d, f){
+  if(!S) return quandPret(function(){ ficheCharger(d, f); });
   if(f && f.type==="releve"){ importerReleve(JSON.stringify(d)); showTab("suivi"); return; }
   if(d && d.client && (d.version===2 || d.visite)){
     S=migrerFiche(d); save(); majDateDuJour(); paintForm(); showTab("suivi"); proposerReprise();
@@ -2719,6 +2723,7 @@ function ouvrirDepuisSite(mode, titre){
     }, function(g){ toast(messageLecture(g)); });
 }
 function choisirDossier(dossiers, mode, titre){
+  if(!S) return quandPret(function(){ choisirDossier(dossiers, mode, titre); });
   /* mode "releve" : seuls les dossiers ayant un relevé technique */
   var liste = (mode==="releve") ? dossiers.filter(function(d){ return d.releve; })
             : (mode==="suivi")  ? dossiers.filter(function(d){ return d.suivi; })
@@ -4852,6 +4857,7 @@ function start(){
     paintForm(); showTab("suivi");
     chargerEquipe();
     setTimeout(proposerReprise, 0);
+    APRES_CHARGEMENT.splice(0).forEach(function(fn){ try{ fn(); }catch(e){ erreurOuverture(e, "suivi"); } });
   }
   function fini(){ if(--pending===0) go(); }
   try{
