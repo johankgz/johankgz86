@@ -12,10 +12,10 @@ import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
 import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
-import { encours } from "./encours.mjs";
+import { encours, oublisARappeler, laisseSur } from "./encours.mjs";
 import { recus, empreinteCle, nouvelleCle } from "./recus.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore, enSilence } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
 function jourParis() { return maintenantParis().slice(0, 10); }
 
@@ -72,6 +72,38 @@ let DERNIER_TIC = 0;
    change pas. */
 const CACHE_TS = new Map();
 let DERNIERE_PURGE = 0;
+let DERNIERS_OUBLIS = 0;
+/* un abonnement de l'ordinateur (notifications.js note « Mac · Chrome », « Windows · Edge », « Ordinateur »…) */
+const surOrdinateur = (a) => !!(a && a.appareil) && !/^(iPhone|iPad|Android)/.test(a.appareil);
+/* Une fiche laissée sur l'iPhone ou l'iPad sans être publiée (encours.mjs) : un rappel sur
+   l'ordinateur, une fois par version de la fiche. Pas pendant le silence de la nuit (ni un
+   jour de silence, ni en vacances) : le rappel part au premier passage après. */
+async function rappelerOublis(store, code, annuaire) {
+  let comptes = [];
+  try { comptes = await lireComptes(code); } catch { return 0; }
+  let n = 0;
+  for (const c of comptes) {
+    if (!c || !c.nom || c.actif === false) continue;
+    try {
+      const o = await oublisARappeler(store, c.nom);
+      if (!o.liste.length) continue;
+      const f = await lireAbonne(store, c.nom);
+      if (enSilence(f.prefs)) continue;
+      if (f.prefs.rappels !== false && f.abonnements.some(surOrdinateur)) {
+        const l = o.liste, un = l[0];
+        const qui = (x) => [x.client, x.ref].filter(Boolean).join(" · ") || "sans client";
+        const charge = l.length === 1
+          ? { titre: "Pas encore publié : " + un.quoi, texte: qui(un) + " — " + laisseSur(un) + ". Ouvrez-le ici pour le publier.", url: un.page, tag: "oubli-" + un.k + "-" + un.maj }
+          : { titre: l.length + " fiches pas encore publiées", texte: l.slice(0, 4).map((x) => x.quoi.replace(/^(un|une|des) /, "") + " " + qui(x)).join(", ") + (l.length > 4 ? "…" : "") + " — laissées sur l'iPhone ou l'iPad.",
+              url: "./index.html", tag: "oublis-" + un.maj };
+        n += (await prevenirPush(store, annuaire, [c.nom], "rappels", charge, contactPush(""), { comptes, filtre: surOrdinateur })).length;
+      }
+      /* sans ordinateur abonné, l'accueil de l'ordinateur le dit quand même (encours-oublis) */
+      await o.noter();
+    } catch { /* personne suivante */ }
+  }
+  return n;
+}
 const DUREE_DEMANDES = 3 * 365.25 * 24 * 3600 * 1000;
 export async function purgerDemandesAcces(maintenant) {
   const t = maintenant || Date.now();
@@ -108,6 +140,11 @@ async function tic(force) {
   let n = 0;
   /* la fin du silence de la nuit : ce qui a attendu part maintenant */
   for (const l of lots) { try { n += await envoyerAttentes(l.store, annuaire, contactPush("")); } catch { /* minute suivante */ } }
+  /* les fiches oubliées sur le téléphone : un coup d'œil toutes les dix minutes suffit */
+  if (force || Date.now() - DERNIERS_OUBLIS > 10 * 60 * 1000) {
+    DERNIERS_OUBLIS = Date.now();
+    for (const l of lots) { try { n += await rappelerOublis(l.store, l.code, annuaire); } catch { /* plus tard */ } }
+  }
   for (const l of lots) {
     let comptes = [];
     if (l.dus.length) { try { comptes = await lireComptes(l.code); } catch { comptes = []; } }
@@ -1185,7 +1222,7 @@ const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichi
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
-  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire"]);
+  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire", "encours-oublis"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }

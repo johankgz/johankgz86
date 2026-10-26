@@ -183,6 +183,8 @@ body.connexion button.lien{color:var(--accent)}
 .notif b{font-size:15px;font-weight:700}
 .notif span{font-size:13.5px;color:var(--ink-3)}
 .notif.amb .pic{color:var(--ambre)}
+.notif .oubli-x{flex:0 0 auto;width:34px;height:34px;margin-right:4px;border:0;border-radius:9px;background:transparent;color:var(--ink-3);font-size:20px;line-height:1;cursor:pointer}
+.notif .oubli-x:hover{background:var(--field,rgba(127,127,127,.12));color:var(--ink)}
 .notif.vrt .pic{color:var(--vert)}
 .notif.rge .pic{color:var(--rouge)}
 .notif.urgent .pic{color:var(--rouge)}
@@ -3466,10 +3468,29 @@ function recusEnAttente(s){
     .then(function(d){ RECUS_EN_ATTENTE=(d.items||[]).length; peindreFichesAEnregistrer(); })
     .catch(function(){});
 }
-/* l'accueil ne signale plus les fiches laissées en cours sur un autre appareil (« Il reste un
-   relevé à enregistrer… ») : la fiche suit toujours la personne d'un appareil à l'autre
-   (encours.js). Il reste les fichiers reçus du téléphone, à ranger. */
-function fichesAEnregistrer(s){ recusEnAttente(s); }
+/* Sur l'ordinateur seulement : les fiches laissées sur l'iPhone ou l'iPad sans être publiées,
+   plus touchées depuis une heure (encours-oublis). Le site en prévient aussi par une
+   notification sur l'ordinateur. Un toucher rouvre la fiche ici, telle quelle (encours.js) ;
+   la croix masque ce rappel, jusqu'à ce que la fiche soit de nouveau modifiée. Le
+   téléphone et la tablette n'affichent rien : on y est déjà. */
+var FICHES_OUBLIEES=[], CLE_OUBLIS_MASQUES="accueil:oublis-masques";
+function surOrdinateur(){
+  var ua=navigator.userAgent||"";
+  return !(/iPhone|iPad|Android/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints>1));
+}
+function oublisMasques(){ try{ return JSON.parse(localStorage.getItem(CLE_OUBLIS_MASQUES)||"{}")||{}; }catch(e){ return {}; } }
+function fichesAEnregistrer(s){
+  recusEnAttente(s);
+  if(!surOrdinateur()) return;
+  fetch(apiUrl("encours-oublis"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      var m=oublisMasques();
+      FICHES_OUBLIEES=(d.fiches||[]).filter(function(f){ return m[f.k]!==f.maj; });
+      peindreFichesAEnregistrer();
+    })
+    .catch(function(){});
+}
 function peindreFichesAEnregistrer(){
   var host=$("notifs"); if(!host) return;
   Array.prototype.forEach.call(host.querySelectorAll(".fiche-a-enregistrer"), function(x){ x.remove(); });
@@ -3478,7 +3499,22 @@ function peindreFichesAEnregistrer(){
     host.insertBefore(notif("amb fiche-a-enregistrer", String(nr), nr>1 ? nr+" fichiers reçus à ranger" : "Un fichier reçu à ranger",
       "Partagé depuis le téléphone : choisissez le chantier où le ranger.", "./importer.html?recus=1"), host.firstChild);
     host.hidden=false;
-  }else host.hidden=!host.children.length;
+  }
+  FICHES_OUBLIEES.slice(0,6).reverse().forEach(function(f){
+    var qui=[f.client, f.ref].filter(Boolean).join(" · ") || "sans client";
+    var n=notif("amb fiche-a-enregistrer", "!", "Pas encore publié : "+f.quoi, qui+" — "+f.laisse+". Touchez pour l'ouvrir ici et le publier.", f.page);
+    var x=document.createElement("button"); x.type="button"; x.className="oubli-x"; x.textContent="×";
+    x.title="Masquer ce rappel"; x.setAttribute("aria-label", "Masquer le rappel : "+f.quoi+" "+qui);
+    x.addEventListener("click", function(e){
+      e.preventDefault(); e.stopPropagation();
+      var m=oublisMasques(); m[f.k]=f.maj; try{ localStorage.setItem(CLE_OUBLIS_MASQUES, JSON.stringify(m)); }catch(err){}
+      FICHES_OUBLIEES=FICHES_OUBLIEES.filter(function(y){ return y.k!==f.k; });
+      peindreFichesAEnregistrer();
+    });
+    n.appendChild(x);
+    host.insertBefore(n, host.firstChild);
+  });
+  host.hidden=!host.children.length;
 }
 /* le logo de l'en-tête : au milieu de l'espace libre entre le bonjour et la recherche ;
    l'emblème seul si le nom n'y tient pas ; rien s'il n'y a pas la place (téléphone) */

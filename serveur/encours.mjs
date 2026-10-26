@@ -84,6 +84,12 @@ export async function encours(action, o) {
     return json({ fiches });
   }
 
+  /* ---------- oubliées sur le téléphone ou la tablette, pas encore publiées (l'accueil de l'ordinateur) ---------- */
+  if (action === "encours-oublis") {
+    const x = await lire();
+    return json({ fiches: fichesOubliees(x).map((f) => ({ ...f, laisse: laisseSur(f) })) });
+  }
+
   /* ---------- une fiche ---------- */
   if (action === "encours-lire") {
     const k = url.searchParams.get("k") || "";
@@ -170,4 +176,67 @@ export async function encours(action, o) {
   }
 
   return json({ erreur: "Action inconnue." }, 400);
+}
+
+/* =====================================================================
+   Oubliée sur le téléphone : un rappel sur l'ordinateur
+   ---------------------------------------------------------------------
+   Une fiche laissée sur l'iPhone ou l'iPad avec des changements pas
+   encore publiés, et plus touchée depuis une heure : la personne en est
+   prévenue sur son ordinateur (notification, et l'accueil). Une fois par
+   version de la fiche : retouchée puis laissée de nouveau, elle revient.
+   Ce qui a été rappelé est noté dans encours/<u>/oublis.json {<clé>: maj}.
+   ===================================================================== */
+export const OUBLI_APRES = 60 * 60 * 1000;            /* une heure sans y toucher */
+const OUBLI_JUSQUA = 7 * 864e5;                       /* au-delà d'une semaine, on ne rappelle plus */
+const MOBILE = /^(iPhone|iPad|téléphone Android|tablette Android)$/;
+export const APPLIS_FICHE = {
+  releve: ["un relevé", "./releve.html"], suivi: ["un suivi", "./suivi.html"], commande: ["une commande", "./commande.html"],
+  point: ["un point de chantier", "./point.html"], autocontrole: ["un autocontrôle", "./autocontrole.html"],
+  reception: ["une réception", "./reception.html"], sav: ["une intervention SAV", "./sav.html"],
+  etiquettes: ["des étiquettes", "./etiquettes.html"], photos: ["un reportage photo", "./photos.html"],
+  carnet: ["un carnet", "./carnet.html"], technique: ["des documents techniques", "./technique.html"], note: ["une note", "./note.html"]
+};
+/* les fiches d'un index qui attendent d'être publiées, laissées sur un téléphone ou une tablette */
+export function fichesOubliees(x, maintenant = Date.now()) {
+  const l = [];
+  Object.keys((x && x.fiches) || {}).forEach((k) => {
+    const e = x.fiches[k], m = /^([a-z]+):courante?(?:@(.+))?$/.exec(k);
+    if (!m || !APPLIS_FICHE[m[1]] || !e || e.efface || !e.resume || !e.resume.aEnregistrer) return;
+    if (!MOBILE.test(e.appareil || "")) return;
+    const age = maintenant - Date.parse(e.maj);
+    if (!(age >= OUBLI_APRES && age <= OUBLI_JUSQUA)) return;
+    const ref = e.resume.ref || m[2] || "", client = e.resume.client || "";
+    let page = APPLIS_FICHE[m[1]][1];
+    /* mise de côté sous un autre chantier : on rouvre ce chantier, sa fiche revient */
+    if (m[2] && ref) page += "?ref=" + encodeURIComponent(ref) + (client ? "&client=" + encodeURIComponent(client) : "");
+    l.push({ k, appli: m[1], quoi: APPLIS_FICHE[m[1]][0], page, ref, client, maj: e.maj, appareil: e.appareil });
+  });
+  return l.sort((a, b) => String(b.maj).localeCompare(String(a.maj)));
+}
+/* pour une personne : les oublis pas encore rappelés, et de quoi noter qu'ils l'ont été */
+export async function oublisARappeler(store, nom, maintenant = Date.now()) {
+  const base = "encours/" + slugNom(nom) + "/";
+  let x = null, vus = null;
+  try { x = await store.get(base + "index.json", { type: "json" }); } catch { x = null; }
+  if (!x || !x.fiches) return { liste: [], noter: async () => {} };
+  try { vus = await store.get(base + "oublis.json", { type: "json" }); } catch { vus = null; }
+  vus = vus && typeof vus === "object" ? vus : {};
+  const liste = fichesOubliees(x, maintenant).filter((f) => vus[f.k] !== f.maj);
+  return {
+    liste,
+    noter: async () => {
+      const garde = {};
+      Object.keys(vus).forEach((k) => { if (x.fiches[k] && !x.fiches[k].efface) garde[k] = vus[k]; });
+      liste.forEach((f) => { garde[f.k] = f.maj; });
+      try { await store.setJSON(base + "oublis.json", garde); } catch { /* au prochain passage */ }
+    }
+  };
+}
+/* « laissé sur l'iPhone à 14:32 » (heure de Paris) */
+export function laisseSur(f) {
+  let h = "";
+  try { h = new Date(f.maj).toLocaleTimeString("fr-FR", { timeZone: "Europe/Paris", hour: "2-digit", minute: "2-digit" }); } catch { h = ""; }
+  const ou = !f.appareil ? "" : /^tablette/.test(f.appareil) ? " sur la " : /^téléphone/.test(f.appareil) ? " sur le " : " sur l'";
+  return "laissé" + (ou ? ou + f.appareil : "") + (h ? " à " + h : "");
 }

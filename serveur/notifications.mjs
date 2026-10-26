@@ -186,7 +186,8 @@ export function nomDuCompte(nom, comptes) {
 /* Prévenir des personnes, selon ce qu'elles ont choisi de recevoir.
    genre : "messages" | "documents" | "rappels" | "essai"
    o.comptes : les comptes de la société (pour retrouver les noms) ;
-   o.exclure : qui ne doit pas être prévenu (l'auteur). Chaque envoi
+   o.exclure : qui ne doit pas être prévenu (l'auteur) ; o.filtre : les
+   appareils à prévenir (par exemple l'ordinateur seulement). Chaque envoi
    est noté dans le journal (push/journal.json, les 60 derniers). */
 export async function prevenirPush(store, annuaire, noms, genre, charge, contact, o = {}) {
   const exclure = new Set((o.exclure || []).map((n) => nomDuCompte(n, o.comptes)));
@@ -198,8 +199,9 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
   const prevenus = [], journal = [];
   await Promise.all(vises.map(async (nom) => {
     const f = await lireAbonne(store, nom);
-    const note = (resultat) => journal.push({ le: new Date().toISOString(), genre, pour: nom, ecrit: ecrits.get(nom), titre: String(charge.titre || "").slice(0, 120), resultat, appareils: f.abonnements.length });
-    if (!f.abonnements.length) { note("pas-abonne"); return; }
+    const abos = typeof o.filtre === "function" ? f.abonnements.filter(o.filtre) : f.abonnements;
+    const note = (resultat) => journal.push({ le: new Date().toISOString(), genre, pour: nom, ecrit: ecrits.get(nom), titre: String(charge.titre || "").slice(0, 120), resultat, appareils: abos.length });
+    if (!abos.length) { note("pas-abonne"); return; }
     if (genre !== "essai" && f.prefs[genre] === false) { note("coupe"); return; }
     const motif = genre !== "essai" && enSilence(f.prefs, o.maintenant || new Date());
     if (motif) {
@@ -216,17 +218,18 @@ export async function prevenirPush(store, annuaire, noms, genre, charge, contact
       } catch { /* tant pis */ }
       note(motif === "nuit" ? "nuit" : motif === "jour" ? "silence" : "vacances"); return;
     }
-    let recu = false, oublies = 0;
-    const gardes = [];
+    let recu = false;
+    const perimes = new Set(), gardes = [];
     const marquee = marquer(charge, vapid, store, nom);
-    for (const a of f.abonnements) {
+    for (const a of abos) {
       const r = await envoyerA(vapid, a, marquee, a.contact || contact);
-      if (r === "perime") { oublies++; continue; }
+      if (r === "perime") { perimes.add(a.endpoint); continue; }
       gardes.push(a);
       if (r === true) recu = true;
     }
-    if (oublies) {
-      try { await store.setJSON(cleAbonne(nom), { abonnements: gardes, prefs: f.prefs }); } catch { /* tant pis */ }
+    if (perimes.size) {
+      /* les abonnements périmés s'en vont ; ceux qu'on n'a pas visés restent */
+      try { await store.setJSON(cleAbonne(nom), { abonnements: f.abonnements.filter((a) => !perimes.has(a.endpoint)), prefs: f.prefs }); } catch { /* tant pis */ }
     }
     note(recu ? "envoye" : (gardes.length ? "echec" : "perime"));
     if (recu) prevenus.push(nom);
