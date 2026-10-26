@@ -1325,6 +1325,20 @@ body.connexion .ciel{display:none}
 <script src="./finitions.js?v=20261024b" defer></script>
 <script src="./palette.js?v=20261024b" defer></script>
 <script src="./transfert.js?v=20261024b" defer></script>
+<script src="./visionneuse.js?v=20261024b" defer></script>
+<script src="./doc-cote.js?v=20261023g" defer></script>
+<script>
+/* l'onglet « Document » (doc-cote.js), comme dans le relevé, le suivi, le point et la commande :
+   un document d'un chantier ou du Cloud, ouvert à côté de l'accueil. Seulement une fois connecté :
+   s'il n'y a pas encore de session (page de connexion), on réessaie jusqu'à ce qu'elle arrive. */
+document.addEventListener("DOMContentLoaded", function(){
+  (function essayer(){
+    if(!window.DocCote) return;
+    DocCote.installer({libelle:"Accueil"});
+    if(!document.querySelector(".dc-onglet")) setTimeout(essayer, 2500);
+  })();
+});
+</script>
 <style data-theme-propre>
 /* ---------- le menu à gauche ----------
    iPad et ordinateur : un rail d'icônes sombre (88 px), chaque entrée avec son nom court ;
@@ -3490,6 +3504,8 @@ function peindreFichesAEnregistrer(){
   }
   placer();
   window.addEventListener("resize", placer);
+  /* l'en-tête change de largeur sans que la fenêtre bouge (le panneau Document posé à côté) */
+  if(window.ResizeObserver){ var attente=0; new ResizeObserver(function(){ cancelAnimationFrame(attente); attente=requestAnimationFrame(placer); }).observe(t); }
   if(document.fonts && document.fonts.ready) document.fonts.ready.then(placer);
   setTimeout(placer, 1500);          /* le bonjour et le compte arrivent un instant après */
 })();
