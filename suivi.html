@@ -2434,6 +2434,71 @@ function apiPret(){
   return true;
 }
 function apiEnTetes(){ return {"content-type":"application/json","x-auth":jetonSession()}; }
+
+/* ---------- lire au site, sans faille ----------
+   Rouvrir un suivi, reprendre un chantier : une lecture qui doit tenir sur
+   un réseau mobile faible et avec un serveur qui se réveille (l'hébergeur
+   l'endort après un moment sans visite). reseau.js renvoie déjà une
+   demande restée sans réponse ; ici, on attend la réponse ENTIÈRE (un
+   suivi chargé de photos et de plans pèse plusieurs Mo, et c'est pendant
+   son téléchargement que la connexion lâche), on vérifie que c'est bien
+   des données (pas la page d'erreur du relais), et sinon on recommence,
+   de plus en plus patient. L'échec final dit la vraie raison — avant,
+   tout était « Pas de réseau », même une fiche reçue qui ne s'ouvrait
+   pas — et il est noté dans le journal des incidents (Équipe). */
+var PAUSES_LECTURE=[1500, 4000, 9000];
+function lireSite(action, params, o){
+  o=o||{};
+  var adr=apiUrl(action)+(params ? "&"+params : ""), n=0;
+  return new Promise(function(ok, ko){
+    (function tenter(){
+      n++;
+      /* l'appel lui-même (pas de réponse, page d'erreur du relais) : reseau.js a déjà fait ses nouveaux essais.
+         Ici, on ne recommence que ce qu'il ne voit pas : la réponse coupée en cours de téléchargement. */
+      fetch(adr, {headers:{"x-auth":jetonSession()}, cache:"no-store"})
+        .then(function(r){
+          return r.text().then(function(t){ return {r:r, t:t}; },
+            function(e){ throw {genre: navigator.onLine===false ? "reseau" : "coupure", corps:true, message:(e && e.message) || ""}; });
+        })
+        .then(function(x){
+          var d=null; try{ d=JSON.parse(x.t); }catch(e){}
+          var type=x.r.headers.get("content-type")||"";
+          if(!d || typeof d!=="object"){
+            if(x.r.status>=500 || type.indexOf("json")<0) throw {genre:"serveur", statut:x.r.status};
+            throw {genre:"illisible", corps:true, statut:x.r.status};    /* du JSON tronqué : la fin s'est perdue en route */
+          }
+          /* le service hors ligne de l'appli (sw.js) : rien de gardé sur l'appareil, et pas de réseau */
+          if(d.horsLigne) throw {genre:"reseau"};
+          if(x.r.status>=500) throw {genre:"serveur", statut:x.r.status, message:d.erreur};
+          ok({ok:x.r.ok, status:x.r.status, d:d, horsLigne:x.r.headers.get("x-hors-ligne")==="1"});
+        })
+        .catch(function(e){
+          var g=(e && e.genre) ? e : {genre: navigator.onLine===false ? "reseau" : (e && e.name==="DelaiDepasse" ? "delai" : "coupure"), message:(e && e.message) || ""};
+          if(g.corps && n<=PAUSES_LECTURE.length && navigator.onLine!==false){
+            if(o.etat) try{ o.etat("Connexion difficile… nouvel essai ("+n+"/"+PAUSES_LECTURE.length+")"); }catch(x){}
+            setTimeout(tenter, PAUSES_LECTURE[n-1]); return;
+          }
+          try{ if(window.__noterIncident) window.__noterIncident({quoi:"lecture", action:action, erreur:g.genre+(g.statut ? " "+g.statut : "")+(g.message ? " "+String(g.message).slice(0,120) : ""), essais:n}); }catch(x){}
+          ko(g);
+        });
+    })();
+  });
+}
+function messageLecture(g){
+  var q = g && g.genre;
+  if(q==="reseau") return "Pas de réseau : reconnectez-vous, puis réessayez.";
+  if(q==="delai") return "Le site met trop de temps à répondre : réessayez dans un instant.";
+  if(q==="coupure") return "La connexion a lâché pendant le téléchargement (réseau faible) : réessayez.";
+  if(q==="serveur") return "Le site ne répond pas correctement pour l'instant (il redémarre peut-être) : réessayez dans une minute.";
+  if(q==="refus") return (g && g.message) || "Accès refusé.";
+  return "Réponse illisible du site : réessayez.";
+}
+/* une erreur en ouvrant une fiche bien reçue : on la dit, et on la note (ce n'est pas le réseau) */
+function erreurOuverture(e, quoi){
+  var m=(e && (e.message || e.name)) || String(e||"inconnue");
+  try{ if(window.__noterIncident) window.__noterIncident({quoi:"erreur", erreur:("Ouverture "+(quoi||"fiche")+" : "+m).slice(0,200)}); }catch(x){}
+  toast("Le suivi a bien été reçu, mais n'a pas pu s'ouvrir sur cet appareil ("+m+"). Le problème est noté pour être corrigé.");
+}
 function chargerEquipe(){
   if(!baseSite() || !jetonSession()) return;
   fetch(apiUrl("equipe"), {headers:{"x-auth":jetonSession()}})
@@ -2596,28 +2661,38 @@ function publierRapport(meta){
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
   }
 }
+/* La fiche du suivi, déposée à côté de son PDF : c'est elle qui permet de le rouvrir et de reprendre
+   le chantier d'un autre appareil. Lourde (photos, plans), elle part en morceaux, comme celle du
+   relevé — avant, au-delà de 5 Mo, elle ne partait pas, et le suivi ne se reprenait plus. */
+var MORCEAU_FICHE = 3*1024*1024;
 function deposerFiche(cle, el){
   var donnees;
   try{ S._sig=sigSuivi(S); donnees=JSON.stringify(S); }catch(e){ return; }
-  if(donnees.length > 5.2*1024*1024){
-    el.textContent += " Fiche trop lourde pour être rouverte depuis le site.";
-    return;
+  function rate(){
+    if(el) el.textContent += " La fiche n'a pas pu être déposée en entier : republiez pour pouvoir rouvrir ce suivi depuis le site.";
+    try{ if(window.__noterIncident) window.__noterIncident({quoi:"echec", action:"deposer-fiche", erreur:"suivi "+Math.round(donnees.length/1024)+" Ko"}); }catch(x){}
   }
-  fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:cle, donnees:donnees})})
-    .catch(function(){});
+  function envoyer(corps){
+    return fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+      .then(function(r){ if(!r.ok) throw new Error("refus"); });
+  }
+  if(donnees.length <= MORCEAU_FICHE){ envoyer({cle:cle, donnees:donnees}).catch(rate); return; }
+  var total=Math.ceil(donnees.length/MORCEAU_FICHE), n=0;
+  (function suivant(){
+    envoyer({cle:cle, n:n, total:total, morceau:donnees.slice(n*MORCEAU_FICHE, (n+1)*MORCEAU_FICHE)})
+      .then(function(){ n++; if(n<total) suivant(); }, rate);
+  })();
 }
 
 /* ---------- ouvrir une fiche depuis le site ---------- */
 function ouvrirDepuisSite(mode, titre){
   if(!apiPret()) return;
   toast("Recherche des dossiers…");
-  fetch(apiUrl("dossiers"), {headers:{"x-auth":jetonSession()}})
-    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+  lireSite("dossiers", "", {etat:toast})
     .then(function(res){
       if(!res.ok){ toast(res.d.erreur || "Accès refusé."); return; }
-      choisirDossier(res.d.dossiers||[], mode||"dossier", titre);
-    })
-    .catch(function(){ toast("Pas de réseau."); });
+      try{ choisirDossier(res.d.dossiers||[], mode||"dossier", titre); }catch(e){ erreurOuverture(e, "liste des dossiers"); }
+    }, function(g){ toast(messageLecture(g)); });
 }
 function choisirDossier(dossiers, mode, titre){
   /* mode "releve" : seuls les dossiers ayant un relevé technique */
@@ -2724,16 +2799,14 @@ function reprendreDossier(d){
   try{ peindreNavChantier(); }catch(e){}     /* la barre du chantier tout de suite, pas 1,5 s plus tard sous le doigt */
 }
 function recupererFiche(f){
-  toast("Ouverture…");
-  fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":jetonSession()}})
-    .then(function(r){ return r.text(); })
-    .then(function(txt){
-      var d;
-      try{ d=JSON.parse(txt); }catch(e){ toast("Fiche illisible."); return; }
-      if(d.erreur){ toast(d.erreur); return; }
-      ficheCharger(d, f);
-    })
-    .catch(function(){ toast("Pas de réseau."); });
+  toast("Ouverture du suivi…");
+  lireSite("fiche", "cle="+encodeURIComponent(f.cle), {etat:toast})
+    .then(function(res){
+      var d=res.d;
+      if(!res.ok || d.erreur){ toast(d.erreur || "Fiche introuvable sur le site."); return; }
+      if(res.horsLigne) toast("Hors ligne : la dernière version gardée sur cet appareil est ouverte.");
+      try{ ficheCharger(d, f); }catch(e){ erreurOuverture(e, f && f.type==="releve" ? "relevé" : "suivi"); }
+    }, function(g){ toast(messageLecture(g)); });
 }
 /* ---------- adresse à partir de la position ---------- */
 function adresseDepuisPosition(lat, lon, remplacer){
@@ -3064,25 +3137,47 @@ function reperesAReporter(src, dateSuivi){
   return {plans:plans, points:pts.filter(function(p){ return gardes[p.plan]; }).map(function(p){
     var c=JSON.parse(JSON.stringify(p)); c.depuis=c.depuis||dateSuivi||c.pose||""; return c; })};
 }
+/* le bandeau de la reprise : « Reprise du chantier… », puis, si elle échoue, la raison et « Réessayer » */
+function repriseEtat(etat, g){
+  var b=document.getElementById("repriseChantier");
+  clearTimeout(repriseEtat.t);
+  if(!etat){ if(b) b.remove(); return; }
+  function poser(){
+    if(!b){
+      b=document.createElement("div"); b.id="repriseChantier"; b.setAttribute("role","status");
+      b.style.cssText="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 14px;padding:11px 14px;border-radius:var(--r-field,10px);"
+        +"background:var(--card,#fff);border:1px solid var(--rule,#ddd);border-left:3px solid var(--accent,#2563EB);font-size:13.5px;line-height:1.4";
+      var m=document.querySelector("main"); if(!m) return; m.insertBefore(b, m.firstChild);
+    }
+    b.textContent="";
+    var t=document.createElement("span"); t.style.cssText="flex:1 1 220px";
+    if(etat==="encours") t.textContent="Reprise du chantier : ce qui n'est pas fini au suivi précédent…";
+    else {
+      b.style.borderLeftColor="var(--danger,#B3332C)";
+      t.textContent="Le suivi précédent de ce chantier n'a pas pu être repris (repères, reste à faire, travaux à chiffrer). "+messageLecture(g);
+      var r=document.createElement("button"); r.type="button"; r.className="act blue"; r.textContent="Réessayer";
+      r.style.cssText="min-height:38px;padding:8px 14px";
+      r.addEventListener("click", function(){ reprendreTsPrecedents(); });
+      var x=document.createElement("button"); x.type="button"; x.className="act ghost"; x.textContent="Plus tard";
+      x.style.cssText="min-height:38px;padding:8px 14px";
+      x.addEventListener("click", function(){ repriseEtat(""); });
+      b.appendChild(t); b.appendChild(r); b.appendChild(x); return;
+    }
+    b.appendChild(t);
+  }
+  /* une reprise rapide ne fait pas clignoter de bandeau */
+  if(etat==="encours") repriseEtat.t=setTimeout(poser, 700); else poser();
+}
 function reprendreTsPrecedents(){
   if(!refAffaire() || !apiPret(true)) return Promise.resolve(0);
   var monId=S.suiviId, maRef=refAffaire();
-  return fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-    .then(function(d){
-      var c=(d.chantiers||[]).filter(function(x){ return memeRef(x.ref, maRef); })[0];
-      var suivis=((c && c.fichiers)||[]).filter(function(f){ return f.type==="suivi" && f.donnees; })
-        .sort(function(a,b){ return String(b.date||"").localeCompare(String(a.date||"")) || String(b.publie||"").localeCompare(String(a.publie||"")); });
-      /* le plus récent qui n'est pas ce suivi-ci */
-      function essai(i){
-        if(i >= suivis.length) return Promise.resolve(null);
-        return fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(suivis[i].cle), {headers:{"x-auth":jetonSession()}})
-          .then(function(r){ return r.ok ? r.json() : null; })
-          .then(function(f){ return (f && f.version===2 && f.suiviId!==monId) ? f : essai(i+1); })
-          .catch(function(){ return essai(i+1); });
-      }
-      return essai(0);
-    })
+  repriseEtat("encours");
+  return lireSite("suivi-precedent", "ref="+encodeURIComponent(maRef)+"&exclure="+encodeURIComponent(monId||""))
+    .then(function(res){
+      if(!res.ok){ repriseEtat("echec", {genre:"refus", message:res.d.erreur}); return null; }
+      repriseEtat("");
+      return res.d.suivi || null;
+    }, function(g){ repriseEtat("echec", g); return null; })
     .then(function(f){
       if(!f || S.suiviId!==monId || !memeRef(refAffaire(), maRef)) return 0;
       /* les repères pas encore faits du suivi précédent, avec leurs plans */
@@ -3121,7 +3216,7 @@ function reprendreTsPrecedents(){
         +" repris du suivi du "+frDate((f.visite||{}).date)+".");
       return neufs.length;
     })
-    .catch(function(){ return 0; });
+    .catch(function(e){ try{ if(window.__noterIncident) window.__noterIncident({quoi:"erreur", erreur:("Reprise du suivi précédent : "+((e && e.message) || e)).slice(0,200)}); }catch(x){} return 0; });
 }
 
 /* le contenu à l'écran devient un nouveau suivi : nouvel identifiant,

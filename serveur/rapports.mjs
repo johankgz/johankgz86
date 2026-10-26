@@ -1180,7 +1180,7 @@ function texteRdv(t) {
   return JS[c.wd] + " " + c.d + " " + MS[c.m - 1] + " " + c.y + " à " + String(c.h).padStart(2, "0") + " h " + String(c.mi).padStart(2, "0");
 }
 
-const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
+const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
@@ -2632,6 +2632,31 @@ async function traiter(req) {
     });
     out.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ dossiers: out });
+  }
+
+  /* ---------- le suivi précédent d'un chantier (suivi.html) ----------
+     Pour reprendre ce qui n'est pas fini (repères et leurs plans, reste à faire, travaux à chiffrer) :
+     une lecture légère, au lieu de la liste de tous les chantiers puis d'une fiche après l'autre.
+     « exclure » : l'identifiant du suivi ouvert (on veut celui d'avant). */
+  if (action === "suivi-precedent") {
+    const brute = String(url.searchParams.get("ref") || "");
+    const ref = slug(brute).toUpperCase();
+    const exclure = String(url.searchParams.get("exclure") || "");
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref] || Object.values(idx.chantiers).find((x) => slug(x.ref || "").toUpperCase() === ref);
+    if (!c) return json({ dossier: null, suivi: null });
+    const visibles = (c.fichiers || []).filter((f) => voit(personne, f, c));
+    if (!visibles.length) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees && !f.brouillon)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.publie || "").localeCompare(String(a.publie || "")));
+    let suivi = null, cleSuivi = "";
+    for (const f of suivis.slice(0, 6)) {
+      let d = null;
+      try { d = await store.get(String(f.cle).replace(/\.pdf$/, ".json"), { type: "json" }); } catch { d = null; }
+      /* ses photos ne servent pas à la reprise (repères et plans, oui) : la réponse reste légère */
+      if (d && d.version === 2 && d.suiviId !== exclure) { suivi = { ...d, photos: [] }; cleSuivi = f.cle; break; }
+    }
+    return json({ dossier: { ref: c.ref, client: c.client || "", adresse: c.adresse || "" }, suivi, cle: cleSuivi });
   }
 
   if (action === "fiches") {
