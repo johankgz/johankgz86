@@ -94,6 +94,10 @@ header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-wid
 .el{position:relative;border-radius:10px;padding:8px 6px 10px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none}
 .el:hover{background:#F4F6F8}
 .el:focus-visible{outline:3px solid var(--accent-vif)}
+/* glisser sur un dossier : il s'allume ; l'élément qu'on déplace s'estompe */
+.el.cible{background:rgba(58,142,230,.14);box-shadow:inset 0 0 0 2px var(--dossier)}
+.el.tire{opacity:.45}
+.ariane button.cible{background:rgba(58,142,230,.18);box-shadow:inset 0 0 0 2px var(--dossier);border-radius:8px}
 .vig{height:96px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
 .vig img{max-width:100%;max-height:96px;border-radius:6px;box-shadow:0 1px 4px rgba(10,14,20,.25);object-fit:cover;background:#E9ECF0}
 .ico-dos{width:84px;height:68px;position:relative}
@@ -340,7 +344,11 @@ function peindreAriane(){
   function b(t, f, cur){ var x=el("button","",t); x.type="button"; if(cur) x.setAttribute("aria-current","page"); x.addEventListener("click", f); h.appendChild(x); }
   if(VUE){ b(noms[VUE], function(){}, true); return; }
   b("Cloud", function(){ aller(null); }, !DOSSIER);
-  CHEMIN.forEach(function(c, i){ h.appendChild(el("span","sep","›")); b(c.nom, function(){ aller(c.id); }, i===CHEMIN.length-1); });
+  if(DOSSIER) cibleDepot(h.lastChild, null, "Cloud");
+  CHEMIN.forEach(function(c, i){
+    h.appendChild(el("span","sep","›")); b(c.nom, function(){ aller(c.id); }, i===CHEMIN.length-1);
+    if(i<CHEMIN.length-1) cibleDepot(h.lastChild, c.id, c.nom);       /* un dossier au-dessus : on y remonte ce qu'on y dépose */
+  });
 }
 function trier(l){
   var f={nom:function(a,b){ return a.nom.localeCompare(b.nom, "fr", {numeric:true}); },
@@ -427,7 +435,50 @@ function tuile(e, images){
   li.addEventListener("click", ouvrirE);
   li.addEventListener("keydown", function(ev){ if(ev.key==="Enter") ouvrirE(); if(ev.key==="Delete" && VUE!=="corbeille") supprimer(e); });
   li.addEventListener("contextmenu", function(ev){ ev.preventDefault(); menuElement(e, p, ev); });
+  if(VUE!=="corbeille"){
+    /* on le prend pour le glisser sur un dossier (ou sur le fil d'Ariane, pour le remonter) */
+    li.draggable=true;
+    li.addEventListener("dragstart", function(ev){
+      TIRE=e; li.classList.add("tire");
+      try{ ev.dataTransfer.setData("application/x-cloud", e.id); ev.dataTransfer.setData("text/plain", e.nom); ev.dataTransfer.effectAllowed="move"; }catch(x){}
+    });
+    li.addEventListener("dragend", function(){ TIRE=null; li.classList.remove("tire"); });
+    if(e.type==="dossier") cibleDepot(li, e.id, e.nom);
+  }
   return li;
+}
+/* ---------- glisser sur un dossier : des fichiers de l'ordinateur (envoyés dedans),
+   ou un élément du Cloud (déplacé dedans) ---------- */
+var TIRE=null;
+function typesDe(ev){ return [].slice.call((ev.dataTransfer && ev.dataTransfer.types) || []); }
+function cibleDepot(noeud, id, nom){
+  function accepte(ev){
+    var t=typesDe(ev);
+    if(t.indexOf("Files")>=0) return "fichiers";
+    if(TIRE && TIRE.id!==id && (TIRE.parent||null)!==(id||null)) return "deplacer";
+    return "";
+  }
+  var n=0;
+  noeud.addEventListener("dragenter", function(ev){
+    var a=accepte(ev); if(!a) return;
+    ev.preventDefault(); n++; noeud.classList.add("cible");
+    if(a==="fichiers"){ $("depot").hidden=false; $("depot").textContent="Déposez pour envoyer dans « "+nom+" »"; }
+  });
+  noeud.addEventListener("dragover", function(ev){ var a=accepte(ev); if(!a) return; ev.preventDefault(); ev.stopPropagation(); try{ ev.dataTransfer.dropEffect = a==="fichiers" ? "copy" : "move"; }catch(x){} });
+  noeud.addEventListener("dragleave", function(){
+    n=Math.max(0, n-1); if(n) return; noeud.classList.remove("cible");
+    if(!$("depot").hidden) $("depot").textContent="Déposez pour envoyer dans « "+(CHEMIN.length ? CHEMIN[CHEMIN.length-1].nom : "Cloud")+" »";
+  });
+  noeud.addEventListener("drop", function(ev){
+    var a=accepte(ev); if(!a) return;
+    ev.preventDefault(); ev.stopPropagation(); n=0; noeud.classList.remove("cible"); $("depot").hidden=true;
+    if(a==="fichiers"){ envoyerFichiers(ev.dataTransfer.files, id); toast("Envoi dans « "+nom+" »."); return; }
+    var x=TIRE; TIRE=null;
+    appel("cloud-deplacer", {corps:{id:x.id, vers:id}}).then(function(r){
+      if(!r.ok){ toast(r.d.erreur || "Déplacement refusé."); return; }
+      toast("« "+x.nom+" » déplacé dans « "+nom+" »."); charger();
+    }).catch(function(){ toast("Pas de réseau."); });
+  });
 }
 function ouvrir(e, images){
   if(e.type==="dossier"){ aller(e.id); return; }
@@ -834,6 +885,9 @@ function annoter(e){
   z.addEventListener("dragover", function(e){ if(dans(e)) e.preventDefault(); });
   z.addEventListener("dragleave", function(){ n=Math.max(0,n-1); if(!n) $("depot").hidden=true; });
   z.addEventListener("drop", function(e){ if(!dans(e)) return; e.preventDefault(); n=0; $("depot").hidden=true; envoyerFichiers(e.dataTransfer.files); });
+  /* un dépôt pris par un dossier (il arrête l'événement) remet aussi le compte à zéro */
+  document.addEventListener("drop", function(){ n=0; }, true);
+  document.addEventListener("dragend", function(){ n=0; $("depot").hidden=true; }, true);
 })();
 /* coller une image ou du texte (Ctrl+V) : il arrive dans le dossier ouvert */
 document.addEventListener("paste", function(e){
