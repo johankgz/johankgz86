@@ -4380,8 +4380,9 @@ async function traiter(req) {
     const blob = await store.get(cle, { type: "arrayBuffer" });
     if (!blob) return json({ erreur: "Rapport introuvable." }, 404);
 
-    /* accusé de lecture : première ouverture par chaque personne */
-    try {
+    /* accusé de lecture : première ouverture par chaque personne (pas pour une vignette
+       ni un aperçu à l'appui long : &apercu=1, ce n'est pas avoir lu le document) */
+    if (url.searchParams.get("apercu") !== "1") try {
       f.lectures = f.lectures || {};
       if (!f.lectures[personne.nom]) {
         f.lectures[personne.nom] = new Date().toISOString();

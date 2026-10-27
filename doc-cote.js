@@ -311,7 +311,8 @@
     var k=cleV(d), b=BLOBS.filter(function(x){ return x.k===k; })[0];
     if(b) return Promise.resolve(b.blob);
     var s=session(); if(!s) return Promise.reject(new Error("session"));
-    var adr = d.cloud ? api("cloud-fichier")+"&id="+encodeURIComponent(d.cloud) : api("fichier")+"&cle="+encodeURIComponent(d.cle);
+    /* &apercu=1 : une vignette n'est pas une lecture (« Lu par » reste juste) */
+    var adr = d.cloud ? api("cloud-fichier")+"&id="+encodeURIComponent(d.cloud) : api("fichier")+"&cle="+encodeURIComponent(d.cle)+"&apercu=1";
     return fetch(adr, {headers:{"x-auth":s.jeton}}).then(function(r){ if(!r.ok) throw new Error("fichier"); return r.blob(); })
       .then(function(blob){ BLOBS.push({k:k, blob:blob}); if(BLOBS.length>8) BLOBS.shift(); return blob; });
   }

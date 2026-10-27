@@ -657,6 +657,8 @@ function preparerGlisser(f){
   }).catch(function(){ delete FICHIERS_PRETS[f.cle]; });
 }
 function glisserVersOrdinateur(a, f){
+  /* à l'ordinateur seulement : sur l'iPad, une ligne « glissable » partait en glisser-déposer à l'appui long */
+  if(!surOrdinateur()) return;
   a.draggable=true;
   a.addEventListener("mouseenter", function(){ preparerGlisser(f); });
   a.addEventListener("pointerdown", function(e){ if(e.pointerType==="mouse") preparerGlisser(f); });
@@ -1462,6 +1464,185 @@ function ouvrirGalerie(f){
     })
     .catch(function(){ sous.textContent=""; etat("Photos indisponibles. Réessayez ou utilisez Télécharger."); });
 }
+/* ---------- la vignette de chaque document, et son aperçu à l'appui long ----------
+   Comme dans le panneau Document : un PDF montre sa première page, une photo elle-même,
+   un lot de photos sa première photo. Elles se font à mesure qu'on fait défiler, deux à
+   la fois, et sont gardées sur l'appareil (pas retéléchargées à chaque visite) ; un
+   fichier de plus de 8 Mo n'en a pas. Un appui long sur la ligne montre le document en
+   grand tant que le doigt reste posé. Ni l'une ni l'autre ne comptent comme une lecture. */
+var VG_MAX=8*1024*1024, VG_CLE="dossier:vignettes", VG_MEM=null, VG_FILE=[], VG_ACTIFS=0, VG_OBS=null, VG_BLOBS=[], AP_ID=0, AP_VUE=null;
+function genreVg(f){
+  var c=String(f.cle||"").toLowerCase();
+  if(/\.pdf$/.test(c)) return "pdf";
+  if(/\.(jpe?g|png|webp|gif)$/.test(c)) return "image";
+  if(/\.zip$/.test(c)) return "zip";
+  return "";
+}
+function cleVg(f){ return f.cle+"|"+(f.publie||f.date||"")+"|"+(f.taille||0)+"|"+(f.versions||1); }
+function memVg(){
+  if(VG_MEM) return VG_MEM;
+  try{ VG_MEM=JSON.parse(localStorage.getItem(VG_CLE)||"{}")||{}; }catch(e){ VG_MEM={}; }
+  return VG_MEM;
+}
+function garderVg(k, u){
+  var m=memVg(); m[k]={u:u, t:Date.now()};
+  var ks=Object.keys(m).sort(function(a, b){ return m[a].t-m[b].t; });
+  ks.slice(0, Math.max(0, ks.length-150)).forEach(function(x){ delete m[x]; });
+  try{ localStorage.setItem(VG_CLE, JSON.stringify(m)); }
+  catch(e){ ks.slice(0, Math.ceil(ks.length/2)).forEach(function(x){ delete m[x]; }); try{ localStorage.setItem(VG_CLE, JSON.stringify(m)); }catch(er){} }
+}
+function styleVg(){
+  if(document.getElementById("styleVg")) return;
+  var st=document.createElement("style"); st.id="styleVg";
+  st.setAttribute("data-theme-propre","");            /* l'aperçu reste sur fond sombre, en mode clair comme en sombre */
+  st.textContent=
+    ".f .dvg{flex:0 0 auto;align-self:flex-start;width:40px;height:52px;border-radius:6px;overflow:hidden;background:rgba(127,140,160,.16);"
+    +"display:flex;align-items:center;justify-content:center;color:var(--ink-3,#8792A2);font:800 9px/1 system-ui,sans-serif;letter-spacing:.04em}"
+    +".f .dvg.vu{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28)}"
+    +".f .dvg img{display:block;width:100%;height:100%;object-fit:cover;object-position:top center}"
+    +".f.avec-vg{-webkit-touch-callout:none}"
+    /* sur téléphone, le nom prend la ligne : à côté de sa vignette */
+    +"@media (max-width:599px){.travaux .f.avec-vg .t{flex-basis:calc(100% - 52px)}}"
+    +".dg-apercu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;"
+    +"background:rgba(5,9,18,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:none;animation:dgAp .16s ease-out}"
+    +"@keyframes dgAp{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}"
+    +".dg-apercu .cadre{max-width:92vw;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;min-width:150px;min-height:190px}"
+    +".dg-apercu .cadre img{display:block;max-width:92vw;max-height:calc(100vh - 180px);object-fit:contain}"
+    +".dg-apercu .etat{color:#64748B;font:600 14px/1.3 system-ui,sans-serif;margin:20px}"
+    +".dg-apercu .titre{margin:0;max-width:90vw;color:#fff;font:700 15px/1.3 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}"
+    +".dg-apercu .sous{margin:0;color:#9FB0CC;font:500 12.5px/1.3 system-ui,sans-serif}";
+  (document.head||document.documentElement).appendChild(st);
+}
+function pdfjsVg(){
+  if(window.Visionneuse && Visionneuse.pdfjs) return Visionneuse.pdfjs();
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(pdfjsVg.p) return pdfjsVg.p;
+  pdfjsVg.p=new Promise(function(ok, ko){
+    var s=document.createElement("script"); s.src="./vendor/pdfjs-3.11.174/pdf.min.js"; s.async=true;
+    s.onload=function(){
+      if(!window.pdfjsLib) return ko(new Error("pdf.js"));
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc="./vendor/pdfjs-3.11.174/pdf.worker.min.js"; ok(window.pdfjsLib);
+    };
+    s.onerror=function(){ pdfjsVg.p=null; ko(new Error("pdf.js")); };
+    document.head.appendChild(s);
+  });
+  return pdfjsVg.p;
+}
+/* le fichier, gardé un moment (les six derniers) : la vignette puis l'aperçu ne le téléchargent qu'une fois */
+function blobVg(f){
+  var k=cleVg(f), b=VG_BLOBS.filter(function(x){ return x.k===k; })[0];
+  if(b) return Promise.resolve(b.blob);
+  return fetch(API+"?action=fichier&apercu=1&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); })
+    .then(function(blob){ VG_BLOBS.push({k:k, blob:blob}); if(VG_BLOBS.length>6) VG_BLOBS.shift(); return blob; });
+}
+/* une image du document, large de L points : {u (adresse), n (photos d'un lot)} */
+function renduVg(f, L){
+  var g=genreVg(f);
+  function image(blob){
+    return new Promise(function(ok, ko){
+      var u=URL.createObjectURL(blob), im=new Image();
+      im.onload=function(){
+        var k=Math.min(1, L/im.naturalWidth), cv=document.createElement("canvas");
+        cv.width=Math.max(1, Math.round(im.naturalWidth*k)); cv.height=Math.max(1, Math.round(im.naturalHeight*k));
+        cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u); ok(cv.toDataURL("image/jpeg", 0.82));
+      };
+      im.onerror=function(){ URL.revokeObjectURL(u); ko(new Error("image")); };
+      im.src=u;
+    });
+  }
+  return blobVg(f).then(function(blob){
+    if(g==="image") return image(blob).then(function(u){ return {u:u}; });
+    if(g==="zip"){
+      return blob.arrayBuffer().then(function(buf){
+        var l=lireZip(new Uint8Array(buf)); if(!l.length) throw new Error("vide");
+        var t=/\.png$/i.test(l[0].nom) ? "image/png" : "image/jpeg";
+        return image(new Blob([l[0].octets], {type:t})).then(function(u){ return {u:u, n:l.length}; });
+      });
+    }
+    return pdfjsVg().then(function(pdfjs){
+      return blob.arrayBuffer().then(function(buf){ return pdfjs.getDocument({data:new Uint8Array(buf)}).promise; });
+    }).then(function(doc){
+      return doc.getPage(1).then(function(page){
+        var v1=page.getViewport({scale:1}), v=page.getViewport({scale:L/v1.width});
+        var cv=document.createElement("canvas"); cv.width=Math.round(v.width); cv.height=Math.round(v.height);
+        var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0, 0, cv.width, cv.height);
+        return page.render({canvasContext:cx, viewport:v}).promise.then(function(){
+          var u=cv.toDataURL("image/jpeg", 0.82); try{ doc.destroy(); }catch(e){} return {u:u, n:doc.numPages};
+        });
+      });
+    });
+  });
+}
+function poserVg(el, u){ el.textContent=""; el.classList.add("vu"); var im=new Image(); im.alt=""; im.src=u; el.appendChild(im); }
+/* la case de la vignette d'une ligne (rien pour un format sans aperçu) */
+function vignetteDoc(f){
+  var g=genreVg(f); if(!g) return null;
+  styleVg();
+  var el=document.createElement("span"); el.className="dvg"; el.setAttribute("aria-hidden","true");
+  if(g==="pdf") el.textContent="PDF";
+  else el.innerHTML='<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>';
+  var k=cleVg(f), m=memVg();
+  if(m[k]){ poserVg(el, m[k].u); return el; }
+  if((f.taille||0) > VG_MAX || !("IntersectionObserver" in window)) return el;
+  el.__f=f;
+  if(!VG_OBS) VG_OBS=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ VG_OBS.unobserve(e.target); VG_FILE.push(e.target); pomperVg(); } });
+  }, {rootMargin:"240px 0px"});
+  VG_OBS.observe(el);
+  return el;
+}
+function pomperVg(){
+  while(VG_ACTIFS<2 && VG_FILE.length){
+    var el=VG_FILE.shift(); if(!el.isConnected) continue;
+    VG_ACTIFS++;
+    (function(el){
+      var f=el.__f, k=cleVg(f);
+      renduVg(f, 96).then(function(r){ garderVg(k, r.u); if(el.isConnected) poserVg(el, r.u); })
+        .catch(function(){}).then(function(){ VG_ACTIFS--; pomperVg(); });
+    })(el);
+  }
+}
+/* l'appui long : le document en grand, tant que le doigt reste posé ; on lâche, il s'en va */
+function montrerApercuDoc(f){
+  styleVg(); cacherApercuDoc();
+  var o=AP_VUE=document.createElement("div"); o.className="dg-apercu"; o.setAttribute("aria-hidden","true");
+  o.style.zIndex=zDessus(90);
+  var g=genreVg(f), cadre=document.createElement("div"); cadre.className="cadre";
+  var etat=document.createElement("p"); etat.className="etat"; etat.textContent = g ? "Aperçu…" : "Pas d'aperçu pour ce format";
+  cadre.appendChild(etat); o.appendChild(cadre);
+  var ti=document.createElement("p"); ti.className="titre"; ti.textContent=f.titre||"Document"; o.appendChild(ti);
+  var so=document.createElement("p"); so.className="sous"; so.textContent=[frDate(f.date), f.auteur, f.taille ? octets(f.taille) : ""].filter(Boolean).join(" · "); o.appendChild(so);
+  document.body.appendChild(o);
+  try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
+  if(!g) return;
+  if((f.taille||0) > 4*VG_MAX){ etat.textContent="Trop lourd pour un aperçu : « Ouvrir »."; return; }
+  var L=Math.min(1100, Math.round(Math.min(window.innerWidth, 900)*0.9*Math.min(2, window.devicePixelRatio||1)));
+  var id=++AP_ID;
+  renduVg(f, L).then(function(r){
+    if(id!==AP_ID) return;
+    cadre.textContent=""; var im=new Image(); im.alt=""; im.src=r.u; cadre.appendChild(im);
+    if(r.n>1) so.textContent=(g==="zip" ? r.n+" photos" : r.n+" pages")+(so.textContent ? " · "+so.textContent : "");
+  }).catch(function(){ if(id===AP_ID) etat.textContent="Aperçu indisponible."; });
+}
+function cacherApercuDoc(){ AP_ID++; if(AP_VUE){ AP_VUE.remove(); AP_VUE=null; } }
+function appuiLongDoc(a, f){
+  var t=null, x0=0, y0=0, montre=false;
+  a.addEventListener("pointerdown", function(e){
+    if(e.pointerType==="mouse") return;                               /* à la souris, la ligne se glisse vers l'ordinateur */
+    if(e.target.closest && e.target.closest("button,select,input,textarea,label,a.lien")) return;
+    x0=e.clientX; y0=e.clientY; clearTimeout(t);
+    t=setTimeout(function(){ t=null; montre=true; a.__long=true; montrerApercuDoc(f); }, 430);
+  });
+  a.addEventListener("pointermove", function(e){
+    if(t && (Math.abs(e.clientX-x0)>10 || Math.abs(e.clientY-y0)>10)){ clearTimeout(t); t=null; }   /* on fait défiler : rien */
+  });
+  function fin(){ clearTimeout(t); t=null; if(!montre) return; montre=false; cacherApercuDoc(); setTimeout(function(){ a.__long=false; }, 400); }
+  a.addEventListener("pointerup", fin); a.addEventListener("pointercancel", fin);
+  a.addEventListener("contextmenu", function(e){ if(t || montre) e.preventDefault(); });    /* pas le menu du système pendant l'appui */
+  /* lâcher après un aperçu ne déclenche rien */
+  a.addEventListener("click", function(e){ if(a.__long){ e.stopImmediatePropagation(); e.preventDefault(); } }, true);
+}
 function marquerLu(f){
   fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : null; })
@@ -2000,6 +2181,9 @@ function carteDossier(c, i, opts){
     a.style.cursor="default";
     a.style.webkitUserSelect="none"; a.style.userSelect="none"; a.style.webkitTouchCallout="none";
     glisserVersOrdinateur(a, f);
+    var vg=vignetteDoc(f);
+    if(vg){ a.classList.add("avec-vg"); a.appendChild(vg); }
+    appuiLongDoc(a, f);
     var t=document.createElement("div"); t.className="t";
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
