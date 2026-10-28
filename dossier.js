@@ -88,7 +88,10 @@ function nomLisible(f){
   var st=document.createElement("style");
   st.textContent=".head .etiq-ts{flex:0 0 auto;background:#EEF4FF;color:#1D4ED8;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
     +".travaux .sous .etiq-ts{padding:1px 7px;font-size:11.5px;margin-left:8px}"
-    +".travaux .sous > span.etiq-ts::before,.travaux .sous > span.etiq-accepte::before{content:none!important}"
+    +".travaux .sous > span.etiq-ts::before,.travaux .sous > span.etiq-accepte::before,.travaux .sous > span.etiq-autoc::before{content:none!important}"
+    /* l'autocontrôle demandé par le bureau, pas encore publié */
+    +".head .etiq-autoc{flex:0 0 auto;background:#FBEAE8;color:#A03A33;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
+    +".travaux .sous .etiq-autoc{padding:1px 7px;font-size:11.5px;margin-left:8px}"
     +".head .etiq-accepte{flex:0 0 auto;background:rgba(21,128,61,.12);color:#15803D;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
     +".travaux .sous .etiq-accepte{padding:0;background:none;font-size:12px;color:#15803D;margin-left:8px}"
     +".actions button.accepte{background:rgba(21,128,61,.12);color:#15803D;border:1px solid rgba(21,128,61,.28);font-weight:700}";
@@ -2150,6 +2153,13 @@ function carteDossier(c, i, opts){
     tsb.textContent=c.ts+" TS";
     tsb.title=c.ts+(c.ts>1 ? " travaux supplémentaires à chiffrer" : " travaux supplémentaire à chiffrer");
     sous.appendChild(tsb);
+  }
+  /* un autocontrôle demandé (case rouge de l'avancement), pas encore publié dans le dossier */
+  if(c.autocontrole && !c.autocontrole.fait){
+    var au=document.createElement("span"); au.className="etiq-autoc";
+    au.textContent="Autocontrôle";
+    au.title="Autocontrôle demandé par "+(c.autocontrole.par||"le bureau")+(c.autocontrole.le ? " le "+frDate(c.autocontrole.le) : "")+" : pas encore publié";
+    sous.appendChild(au);
   }
   if(c.accepte){
     var acc=document.createElement("span");

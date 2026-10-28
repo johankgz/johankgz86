@@ -678,6 +678,31 @@ nav#nav button svg{stroke-width:1.9}
 .cmd-cases input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .cmd-cases input:checked + span{color:var(--ink)}
 .cmd-cases.lecture label{cursor:default}
+/* l'autocontrôle demandé : une case rouge à part, sous les commandes, avec où en est la demande */
+.autoc-ligne{display:flex;align-items:center;gap:6px 12px;flex-wrap:wrap;margin:8px 0 0;padding-top:8px;border-top:1px solid var(--rule)}
+.autoc-ligne[hidden],.avancement.ferme .autoc-ligne{display:none!important}
+.autoc-ligne label{display:flex!important;flex-direction:row;align-items:center;gap:8px;height:auto!important;min-height:0!important;margin:0!important;padding:4px 0!important;
+  font-size:13px;font-weight:700;color:var(--rouge);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.autoc-ligne label span{margin:0!important;color:var(--rouge)!important;font-weight:700!important}
+.autoc-ligne.fait label span{color:var(--vert)!important}
+.autoc-ligne input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:0 0 auto;width:20px!important;height:20px!important;min-height:0!important;margin:0;padding:0;
+  border:2px solid var(--rouge);border-radius:5px;box-shadow:none;background:var(--card);display:grid;place-items:center;cursor:pointer;transition:background .15s,border-color .15s}
+.autoc-ligne input[type=checkbox]:checked{background:var(--rouge);border-color:var(--rouge)}
+.autoc-ligne input[type=checkbox]:checked::after{content:"";width:5px;height:9px;border-style:solid;border-color:#fff;border-width:0 2.2px 2.2px 0;transform:translateY(-1px) rotate(45deg)}
+.autoc-ligne input[type=checkbox]:disabled{opacity:1;cursor:default}
+.autoc-ligne input:focus-visible{outline:2px solid var(--rouge);outline-offset:2px}
+.autoc-ligne.fait label{color:var(--vert)}
+.autoc-ligne.fait input[type=checkbox]:checked{background:var(--vert);border-color:var(--vert)}
+.autoc-ligne .etat{flex:1 1 220px;min-width:0;font-size:12px;line-height:1.4;color:var(--ink-3)}
+.autoc-ligne .etat.alerte{color:var(--rouge);font-weight:600}
+.autoc-ligne.lecture label{cursor:default}
+/* et en haut de la page, tant qu'il n'est pas publié : le bloc Avancement est fermé d'office */
+.autoc-bandeau{display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;margin:0 0 14px;padding:12px 14px;border-radius:var(--r-field,10px);
+  background:var(--rouge-soft);border:1px solid rgba(160,58,51,.22);border-left:4px solid var(--rouge);color:var(--ink)}
+.autoc-bandeau[hidden]{display:none}
+.autoc-bandeau .tx{flex:1 1 220px;min-width:0;font-size:13.5px;line-height:1.4}
+.autoc-bandeau .tx b{display:block;color:var(--rouge);font-size:14.5px}
+.autoc-bandeau a{flex:0 0 auto;display:inline-flex;align-items:center;min-height:38px;padding:8px 14px;border-radius:999px;background:var(--rouge);color:#fff;font-weight:700;font-size:13.5px;text-decoration:none}
 .cmd-cases.lecture input{cursor:default}
 .avancement .hint{margin:4px 0 0}
 
@@ -1127,6 +1152,7 @@ header{overflow-anchor:none}
     </div>
   </div>
 
+  <div class="autoc-bandeau" id="autocBandeau" role="status" hidden></div>
   <div class="block avancement" id="avancement" hidden>
     <div class="av-corps">
       <div class="av-droite" id="av_detail">
@@ -1145,6 +1171,7 @@ header{overflow-anchor:none}
       </div>
     </div>
     <div class="cmd-cases" id="cmdCases" role="group" aria-label="Commandes à faire"></div>
+    <div class="autoc-ligne" id="autocLigne" hidden></div>
   </div>
 
   <div class="block reste ts" id="tsBloc" hidden>
@@ -1178,7 +1205,7 @@ header{overflow-anchor:none}
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
-<script src="./dossier.js?v=20261027a"></script>
+<script src="./dossier.js?v=20261028a"></script>
 <script src="./transfert.js?v=20261024b"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2027,6 +2054,76 @@ function peindreCommandes(){
     lab.appendChild(inp); lab.appendChild(sp); host.appendChild(lab);
   });
 }
+/* ---------- l'autocontrôle demandé ----------
+   Une case rouge sous les commandes. Le bureau la coche : les techniciens de
+   l'équipe du dossier sont prévenus, et leur accueil le garde affiché jusqu'à ce
+   qu'un autocontrôle soit publié dans ce dossier. La case dit où en est la
+   demande ; publiée, elle passe au vert. Décocher retire la demande. */
+function heureFr(iso){ var d=new Date(iso); return isNaN(d) ? "" : String(d.getHours()).padStart(2,"0")+"h"+String(d.getMinutes()).padStart(2,"0"); }
+function listeNoms(l){ return l.length<=1 ? (l[0]||"") : l.slice(0,-1).join(", ")+" et "+l[l.length-1]; }
+function peindreAutocontrole(){
+  var ligne=$("autocLigne"), bandeau=$("autocBandeau"); if(!ligne || !bandeau || !CHANTIER) return;
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var e=CHANTIER.autocontrole||null, pour=CHANTIER.autocontrolePour||[];
+  var enCours=!!(e && !e.fait), fait=!!(e && e.fait);
+  ligne.hidden=false; ligne.textContent="";
+  ligne.classList.toggle("fait", fait); ligne.classList.toggle("lecture", !bureau);
+  var lab=document.createElement("label");
+  var inp=document.createElement("input"); inp.type="checkbox"; inp.checked=!!e; inp.disabled=!bureau;
+  inp.setAttribute("aria-describedby", "autocEtat");
+  var sp=document.createElement("span"); sp.textContent = fait ? "Autocontrôle publié" : "Autocontrôle";
+  lab.appendChild(inp); lab.appendChild(sp); ligne.appendChild(lab);
+  var et=document.createElement("span"); et.className="etat"; et.id="autocEtat";
+  if(fait){
+    et.textContent="Demandé par "+(e.par||"le bureau")+" le "+frDate(e.le)+" ; publié"+(e.fait.par ? " par "+e.fait.par : "")+" le "+frDate(e.fait.le)+" à "+heureFr(e.fait.le)+"."
+      +(bureau ? " Décochez puis recochez pour en demander un nouveau." : "");
+  } else if(enCours){
+    if(pour.length){
+      et.textContent="Demandé par "+(e.par||"le bureau")+" le "+frDate(e.le)+" à "+heureFr(e.le)+" : "+listeNoms(pour)+" "+(pour.length>1 ? "sont prévenus" : "est prévenu")
+        +" jusqu'à ce qu'un autocontrôle soit publié dans ce dossier.";
+    }else{
+      et.className="etat alerte";
+      et.textContent="Demandé le "+frDate(e.le)+", mais aucun technicien n'est dans l'équipe du dossier : ajoutez-le dans « Accès » pour qu'il soit prévenu.";
+    }
+  } else {
+    et.textContent = bureau ? "À cocher pour demander l'autocontrôle au technicien du dossier." : "";
+  }
+  ligne.appendChild(et);
+  if(bureau) inp.addEventListener("change", function(){ demanderAutocontrole(inp); });
+
+  /* le bandeau en haut de la page, tant que la demande attend */
+  bandeau.textContent=""; bandeau.hidden=!enCours;
+  if(!enCours) return;
+  var moiTech = SESSION && SESSION.role==="technicien";
+  var tx=document.createElement("div"); tx.className="tx";
+  var b=document.createElement("b"); b.textContent="Autocontrôle à faire"; tx.appendChild(b);
+  tx.appendChild(document.createTextNode(moiTech
+    ? "Demandé par "+(e.par||"le bureau")+" le "+frDate(e.le)+". Le rappel reste sur votre accueil jusqu'à la publication de l'autocontrôle dans ce dossier."
+    : "Demandé par "+(e.par||"le bureau")+" le "+frDate(e.le)+(pour.length ? " à "+listeNoms(pour) : " (aucun technicien dans l'équipe du dossier)")+" : en attente de publication."));
+  bandeau.appendChild(tx);
+  if(moiTech){
+    var a=document.createElement("a"); a.href=lienAppli("./autocontrole.html", "controles"); a.textContent="Faire l'autocontrôle";
+    bandeau.appendChild(a);
+  }
+}
+function demanderAutocontrole(inp){
+  var demande=inp.checked, avant=CHANTIER.autocontrole||null;
+  inp.disabled=true;
+  fetch(API+"?action=autocontrole-demande", {method:"POST",
+    headers:{"content-type":"application/json","x-auth":SESSION.jeton},
+    body:JSON.stringify({ref:CHANTIER.ref, demande:demande})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ toast(res.d.erreur || "Demande non enregistrée."); CHANTIER.autocontrole=avant; peindreAutocontrole(); return; }
+      CHANTIER.autocontrole=res.d.autocontrole; CHANTIER.autocontrolePour=res.d.techniciens||[];
+      peindreAutocontrole();
+      var t=res.d.techniciens||[];
+      if(!demande) toast("Demande d'autocontrôle retirée.");
+      else if(!t.length) toast("Autocontrôle demandé, mais aucun technicien dans l'équipe du dossier.");
+      else toast("Autocontrôle demandé : "+listeNoms(t)+" "+(t.length>1 ? "sont prévenus" : "est prévenu")+".");
+    })
+    .catch(function(){ toast("Pas de réseau : demande non enregistrée."); CHANTIER.autocontrole=avant; peindreAutocontrole(); });
+}
 function enregistrerCommandes(inp){
   var host=$("cmdCases"), cases={};
   Array.prototype.forEach.call(host.querySelectorAll("input"), function(x, i){ if(x.checked) cases[COMMANDES[i][0]]=true; });
@@ -2389,7 +2486,7 @@ function charger(){
       $("c_ref").textContent=CHANTIER.ref;
       $("c_client").textContent=CHANTIER.client || CHANTIER.ref;
       $("c_adresse").textContent=String(CHANTIER.adresse||"").replace(/\n/g, ", ");
-      peindreActions(); peindreLoc(); peindreAvancement(); peindreCommandes(); peindreReste(); chargerTs(); peindreRefModif(); peindreNomModif(); peindreNote(); peindreContact(); peindrePv(); chargerLiens();
+      peindreActions(); peindreLoc(); peindreAvancement(); peindreCommandes(); peindreAutocontrole(); peindreReste(); chargerTs(); peindreRefModif(); peindreNomModif(); peindreNote(); peindreContact(); peindrePv(); chargerLiens();
       Dossier.chargerNonLus().then(peindreDocs, peindreDocs);
       /* un ancien lien « Tout publier » (retiré) : on remet simplement l'adresse du chantier */
       if(TOUT_PUBLIER_DEMANDE){

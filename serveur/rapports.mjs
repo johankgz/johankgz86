@@ -525,6 +525,33 @@ const CACHE_PV = new Map();
 
 /* les commandes à faire d'un chantier : les cases sous l'avancement */
 const COMMANDES_CHANTIER = ["dossier", "filerie", "boites", "appareillage", "td", "finition"];
+/* ---------- l'autocontrôle demandé (la case rouge sous l'avancement) ----------
+   Le bureau coche « Autocontrôle » : c.autocontrole = {par, le}. Les techniciens qui
+   ont accès au dossier en sont prévenus (notification), et leur accueil le garde
+   affiché tant qu'aucun autocontrôle n'a été publié dans ce dossier depuis la
+   demande. La publication le marque fait : c.autocontrole.fait = {le, par, cle}.
+   L'état se vérifie à chaque lecture, sur les documents eux-mêmes : un autocontrôle
+   publié par un autre chemin (ou avant une mise à jour du serveur) compte aussi. */
+/* les techniciens qui ont accès au dossier, comme les montre « Accès » : son équipe, et les
+   auteurs de ses documents, sauf ceux que le bureau a retirés */
+function techniciensDu(c, comptes) {
+  const connus = (comptes || []).map((x) => x.nom);
+  return accesEffectif(c, connus).filter((n) => !revoque(c, n)).filter((n) => {
+    const k = (comptes || []).find((x) => x.nom === n || memeNom(x.nom, n));
+    return k && k.role === "technicien" && k.actif !== false;
+  });
+}
+function autocontrolePublieDepuis(c, depuis) {
+  return (c.fichiers || []).filter((f) => f.type === "autocontrole" && !f.brouillon && String(f.publie || "") >= String(depuis || ""))
+    .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0] || null;
+}
+function etatAutocontrole(c) {
+  const a = c && c.autocontrole;
+  if (!a || !a.le) return null;
+  let fait = a.fait || null;
+  if (!fait) { const f = autocontrolePublieDepuis(c, a.le); if (f) fait = { le: f.publie, par: f.auteur || "", cle: f.cle }; }
+  return { par: a.par || "", le: a.le, fait };
+}
 
 /* l'avancement d'un chantier, en pourcentage, posé à la main par son
    chargé d'affaires */
@@ -1217,7 +1244,7 @@ function texteRdv(t) {
   return JS[c.wd] + " " + c.d + " " + MS[c.m - 1] + " " + c.y + " à " + String(c.h).padStart(2, "0") + " h " + String(c.mi).padStart(2, "0");
 }
 
-const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi",
+const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi", "autocontroles-a-faire",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
@@ -2369,6 +2396,11 @@ async function traiter(req) {
     }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
+    /* un autocontrôle publié lève la demande du bureau (la case rouge de l'avancement) */
+    let autocFait = null;
+    if (entree.type === "autocontrole" && c.autocontrole && c.autocontrole.le && !c.autocontrole.fait && entree.publie >= c.autocontrole.le) {
+      c.autocontrole.fait = autocFait = { le: entree.publie, par: entree.auteur, cle: entree.cle };
+    }
     /* le reste à faire d'un point de chantier, ou d'un suivi, rejoint celui du dossier */
     if ((point || suivi) && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
       fusionnerReste(c, d.reste, d.retires, { titre: entree.titre, pointId: String(d.pointId || d.suiviId || ""), auteur: personne.nom });
@@ -2392,6 +2424,13 @@ async function traiter(req) {
     }
 
     let prevenus = [];
+    /* qui avait demandé l'autocontrôle apprend qu'il est publié */
+    if (autocFait && c.autocontrole.par && !memeNom(c.autocontrole.par, personne.nom)) {
+      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), [c.autocontrole.par], "documents", {
+        titre: "Autocontrôle publié", texte: (c.client || ref) + " · " + ref + " — publié par " + entree.auteur + ".",
+        url: "./chantier.html?ref=" + encodeURIComponent(ref), tag: "autoc-fait-" + ref
+      }, contactPush(url.origin), { comptes })).catch(() => {});
+    }
     /* des documents importés d'un coup depuis l'ordinateur : une seule
        notification pour le lot, envoyée avec le dernier (les autres arrivent
        « silencieux ») */
@@ -3903,6 +3942,8 @@ async function traiter(req) {
   if (action === "liste") {
     const idx = await lireIndex();
     const chantiers = [];
+    let comptesListe = [];
+    try { comptesListe = await lireComptes(personne.societe); } catch { comptesListe = []; }
     /* le PV d'un dossier au devis accepté : lu dans la fiche du relevé,
        gardé tant qu'elle ne change pas (elle porte les photos, on ne la
        relit pas à chaque ouverture) */
@@ -3937,6 +3978,8 @@ async function traiter(req) {
         commandes: c.commandes || {},
         commandesPar: c.commandesPar || "",
         commandesLe: c.commandesLe || "",
+        autocontrole: etatAutocontrole(c),
+        autocontrolePour: c.autocontrole ? techniciensDu(c, comptesListe) : [],
         equipe: c.equipe || [],
         reste: c.reste || [],
         note: c.note || null,
@@ -4253,6 +4296,57 @@ async function traiter(req) {
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, ref, commandes: cases, par: c.commandesPar, le: c.commandesLe });
+  }
+
+  /* ---------- demander l'autocontrôle du dossier (ou retirer la demande) ---------- */
+  if (action === "autocontrole-demande") {
+    if (!bureau) return json({ erreur: "Seul le bureau demande l'autocontrôle." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    let comptes = [];
+    try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+    const techs = techniciensDu(c, comptes);
+    const avant = etatAutocontrole(c);
+    let nouvelle = false;
+    if (d.demande === true) {
+      /* une demande en cours reste celle d'origine (sa date ne bouge pas) ; une demande faite repart à neuf */
+      if (!avant || avant.fait) { c.autocontrole = { par: personne.nom, le: new Date().toISOString() }; nouvelle = true; }
+    } else if (d.demande === false) {
+      delete c.autocontrole;
+    } else return json({ erreur: "Demande illisible." }, 400);
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    let prevenus = [];
+    if (nouvelle && techs.length) {
+      try {
+        prevenus = await prevenirPush(store, magasinAnnuaire(), techs, "rappels", {
+          titre: "Autocontrôle à faire", texte: (c.client || ref) + " · " + ref + " — demandé par " + personne.nom + ". À publier dans le dossier.",
+          url: "./autocontrole.html?ref=" + encodeURIComponent(ref) + (c.client ? "&client=" + encodeURIComponent(c.client) : ""),
+          tag: "autoc-" + ref, urgent: true
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { prevenus = []; }
+    }
+    return json({ ok: true, ref, autocontrole: etatAutocontrole(c), techniciens: techs, prevenus });
+  }
+
+  /* ---------- les autocontrôles demandés, pas encore publiés : l'accueil du technicien ---------- */
+  if (action === "autocontroles-a-faire") {
+    const idx = await lireIndex();
+    let comptes = [];
+    try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+    const out = [];
+    Object.values(idx.chantiers).forEach((c) => {
+      const e = etatAutocontrole(c);
+      if (!e || e.fait) return;
+      if (!techniciensDu(c, comptes).some((n) => n === personne.nom || memeNom(n, personne.nom))) return;
+      out.push({ ref: c.ref, client: c.client || "", adresse: c.adresse || "", par: e.par, le: e.le });
+    });
+    out.sort((a, b) => String(a.le).localeCompare(String(b.le)));
+    return json({ autocontroles: out });
   }
 
   /* ---------- mettre un dossier de côté, ou le reprendre ---------- */

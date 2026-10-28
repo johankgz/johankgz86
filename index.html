@@ -3386,6 +3386,48 @@ function savATerminer(s){
     })
     .catch(function(){});
 }
+/* les autocontrôles que le bureau a demandés (la case rouge de l'avancement du dossier),
+   pour le technicien de l'équipe : en tête, en rouge, sans croix. L'avis reste tant
+   qu'aucun autocontrôle n'est publié dans le dossier ; le site le vérifie à chaque
+   ouverture de l'accueil, sur les documents du dossier. */
+var AUTOC_A_FAIRE=[];
+function autocontrolesAFaire(s){
+  if(!s || s.role!=="technicien") return;
+  fetch(apiUrl("autocontroles-a-faire"), {headers:{"x-auth":s.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){ AUTOC_A_FAIRE=d.autocontroles||[]; peindreAutocontroles(); })
+    .catch(function(){});
+}
+/* les autres avis se peignent après coup (tâches, listes…) et se posent en tête : les
+   autocontrôles demandés y reviennent aussitôt */
+var OBS_AUTOC=null;
+function garderAutocEnTete(host){
+  if(OBS_AUTOC || !("MutationObserver" in window)) return;
+  OBS_AUTOC=new MutationObserver(function(){
+    var l=host.querySelectorAll(".autoc-a-faire"), i;
+    if(!l.length) return;
+    for(i=0;i<l.length;i++) if(host.children[i]!==l[i]) break;
+    if(i===l.length) return;                          /* déjà en tête, dans l'ordre */
+    Array.prototype.slice.call(l).reverse().forEach(function(n){ host.insertBefore(n, host.firstChild); });
+  });
+  OBS_AUTOC.observe(host, {childList:true});
+}
+function peindreAutocontroles(){
+  var host=$("notifs"); if(!host) return;
+  garderAutocEnTete(host);
+  Array.prototype.forEach.call(host.querySelectorAll(".autoc-a-faire"), function(x){ x.remove(); });
+  var l=AUTOC_A_FAIRE; if(!l.length){ host.hidden=!host.children.length; return; }
+  l.slice(0, 6).reverse().forEach(function(x){
+    var p=new URLSearchParams(); p.set("ref", x.ref); if(x.client) p.set("client", x.client);
+    if(x.adresse) p.set("adresse", String(x.adresse).replace(/\n/g, ", ")); p.set("onglet", "controles");
+    var d=new Date(x.le), quand=isNaN(d) ? "" : " le "+d.toLocaleDateString("fr-FR", {day:"2-digit", month:"2-digit", year:"numeric"});
+    var n=notif("rge autoc-a-faire", "!", "Autocontrôle à faire",
+      (x.client || x.ref)+(x.client && x.ref ? " · "+x.ref : "")+" — demandé par "+(x.par || "le bureau")+quand+". À publier dans le dossier.",
+      "./autocontrole.html?"+p.toString());
+    host.insertBefore(n, host.firstChild);
+  });
+  host.hidden=false;
+}
 /* les demandes d'intervention envoyées par les clients (lien client, QR code « Nous contacter ») */
 var DEMANDES_CLIENT=[];
 function peindreDemandesClient(){
@@ -3559,6 +3601,7 @@ function charger(s){
   relevesEnCours(s);
   fichesAEnregistrer(s);
   savATerminer(s);
+  autocontrolesAFaire(s);
   demandesContact(s);
   facturationRappel(s);
   messagesNonLus(s);
@@ -3803,6 +3846,7 @@ function peindreNotifs(s, ch, relances){
   peindreDemandesClient();       /* la liste vient d'être refaite : les demandes des clients y reviennent */
   peindreContacts();
   peindreFacturation();
+  peindreAutocontroles();        /* les autocontrôles demandés restent en tête */
   host.hidden = !host.children.length;
 }
 /* ---------- la cloche des chantiers ----------
