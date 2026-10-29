@@ -514,6 +514,17 @@ function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a[2
 function pluriel(n, mot, pl){ return n+" "+(n>1 ? (pl||mot+"s") : mot); }
 function lienChantier(ref){ return "./chantier.html?ref="+encodeURIComponent(ref); }
 var ICO_RETARD='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.5 20h19z"/><path d="M12 10v4.5M12 17.3v.2"/></svg>';
+function motEnvoi(d){
+  var t=(d && d.technicien) || "le technicien";
+  switch(d && d.envoi){
+    case "envoyee": return t+" est prévenu sur son téléphone.";
+    case "silence": return "la notification partira à "+t+" à la fin du silence (le matin).";
+    case "aucune": return t+" n'a pas activé les notifications : il le verra sur la commande.";
+    case "coupee": return t+" a coupé les notifications de documents : il le verra sur la commande.";
+    case "echec": return "la notification n'a pas pu partir : "+t+" le verra sur la commande.";
+    default: return "";
+  }
+}
 function appel(action, corps, query){
   return fetch(API+"?action="+action+(query||""), {method: corps ? "POST" : "GET",
     headers: corps ? {"content-type":"application/json","x-auth":S.jeton} : {"x-auth":S.jeton},
@@ -614,10 +625,12 @@ function actionsDe(x, ligne){
     }));
   } else if(x.genre==="commande"){
     acts.appendChild(bouton("OK saisie", function(b){
-      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      var note=window.prompt("Commande saisie : le technicien en est prévenu sur son téléphone. Un mot pour lui ? (facultatif)", "");
       if(note===null) return;
       occupe(b, true);
-      appel("commande-saisie", {cle:x.cle, note:note}).then(function(){ ligneFaite(ligne, "Commande marquée saisie."); })
+      appel("commande-saisie", {cle:x.cle, note:note}).then(function(d){
+        var m=motEnvoi(d); ligneFaite(ligne, "Commande marquée saisie"+(m ? " : "+m : "."));
+      })
         .catch(function(e){ occupe(b, false); toast(e.message); });
     }));
   } else if(x.genre==="point"){

@@ -4402,11 +4402,35 @@ async function traiter(req) {
     if (f.type !== "commande") return json({ erreur: "Seule une commande se marque saisie." }, 400);
     if (!voit(personne, f, chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
 
+    const avant = f.saisie || null;
     if (d.saisie === false) delete f.saisie;
     else f.saisie = { par: personne.nom, le: new Date().toISOString(),
                       note: String(d.note || "").trim().slice(0, 200) };
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, saisie: f.saisie || null });
+    /* le technicien qui a fait la commande l'apprend sur son téléphone, avec le mot du bureau
+       (une seule fois : remarquer la même commande avec le même mot ne renvoie rien) */
+    let prevenus = [], envoi = "";
+    if (f.saisie && f.auteur && !memeNom(f.auteur, personne.nom) && (!avant || avant.note !== f.saisie.note)) {
+      const c = chantierDe(idx, cle), ref = (c && c.ref) || String(cle).split("/")[0];
+      const mot = f.saisie.note;
+      let comptes = [];
+      try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+      try {
+        prevenus = await prevenirPush(store, magasinAnnuaire(), [f.auteur], "documents", {
+          titre: avant ? "Commande saisie : nouveau mot de " + personne.nom : "Commande saisie par " + personne.nom,
+          texte: ((c && c.client) || ref) + " · " + ref + (f.date ? " — commande du " + f.date.split("-").reverse().join("/") : "")
+            + (mot ? " : « " + mot + " »" : " : passée chez le fournisseur."),
+          url: "./chantier.html?ref=" + encodeURIComponent(ref), tag: "cmd-saisie-" + cle
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { prevenus = []; }
+      /* ce que le bureau doit savoir de l'envoi : parti, gardé pour le matin, ou impossible */
+      if (prevenus.length) envoi = "envoyee";
+      else {
+        const ab = await lireAbonne(store, nomDuCompte(f.auteur, comptes));
+        envoi = !ab.abonnements.length ? "aucune" : ab.prefs.documents === false ? "coupee" : enSilence(ab.prefs) ? "silence" : "echec";
+      }
+    }
+    return json({ ok: true, saisie: f.saisie || null, prevenus, envoi, technicien: f.auteur || "" });
   }
 
   if (action === "position-enregistrer") {

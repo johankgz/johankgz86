@@ -1701,6 +1701,17 @@ function ligneSaisie(f){
     + (f.saisie.note ? " — "+f.saisie.note : "");
   return p;
 }
+function motEnvoiSaisie(d){
+  var t=(d && d.technicien) || "le technicien";
+  switch(d && d.envoi){
+    case "envoyee": return t+" est prévenu sur son téléphone.";
+    case "silence": return "la notification partira à "+t+" à la fin du silence (le matin).";
+    case "aucune": return t+" n'a pas activé les notifications : il le verra sur la commande.";
+    case "coupee": return t+" a coupé les notifications de documents : il le verra sur la commande.";
+    case "echec": return "la notification n'a pas pu partir : "+t+" le verra sur la commande.";
+    default: return "";
+  }
+}
 function boutonSaisie(f, repeindre){
   if(!MOI || (MOI.role!=="bureau" && MOI.role!=="admin")) return null;
   if(f.type !== "commande") return null;
@@ -1716,7 +1727,7 @@ function boutonSaisie(f, repeindre){
       if(!window.confirm("Retirer la marque « saisie » de cette commande ?")) return;
       corps.saisie=false;
     } else {
-      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      var note=window.prompt("Commande saisie : le technicien en est prévenu sur son téléphone. Un mot pour lui ? (facultatif)", "");
       if(note === null) return;
       corps.note=note;
     }
@@ -1729,6 +1740,7 @@ function boutonSaisie(f, repeindre){
         b.disabled=false;
         if(!res.ok){ alert(res.d.erreur || "Impossible d'enregistrer."); return; }
         f.saisie = res.d.saisie || null;
+        if(f.saisie){ var m=motEnvoiSaisie(res.d); toast("Commande saisie"+(m ? " : "+m : ".")); }
         repeindre();
       })
       .catch(function(){ b.disabled=false; alert("Pas de réseau."); });
