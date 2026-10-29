@@ -736,7 +736,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
    SUIVI DE CHANTIER — une seule page
    ---------------------------------------------------------------------
    Plus d'onglets : client, objet, travaux supplémentaires, photos,
-   plans, points bloquants et enregistrement se suivent sur une page
+   plans, tâches à effectuer et enregistrement se suivent sur une page
    qu'on descend au fil de la visite. Chaque partie porte son numéro.
    ===================================================================== */
 #nav,#stepnav,.stepnav,header .avance{display:none!important}
@@ -913,7 +913,7 @@ a.act[hidden]{display:none}
 <script src="./clavier.js?v=20261022a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
-<script src="./palette.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261029a" defer></script>
 </head>
 <body>
 <header>
@@ -969,7 +969,7 @@ a.act[hidden]{display:none}
     <div class="chips" id="ch_objet"></div>
     <!-- la date et l'heure se posent d'elles-mêmes (le jour de la visite) : gardées, sans champ à l'écran -->
     <div hidden><input type="date" id="v_date"><input type="time" id="v_heure"><textarea id="v_objet"></textarea></div>
-    <p class="legend" title="Il reçoit les rappels des points bloquants">Conducteur de travaux</p>
+    <p class="legend" title="Il reçoit les rappels des tâches à effectuer">Conducteur de travaux</p>
     <div class="chips" id="ch_ca"></div>
     <!-- son téléphone et son e-mail viennent de son compte (Équipe) -->
     <div hidden><input type="tel" id="m_caTel"><input type="email" id="m_caMail"></div>
@@ -1031,10 +1031,10 @@ a.act[hidden]{display:none}
   </div>
 
   <div class="block" id="sec-points">
-    <h2>Points bloquants</h2>
+    <h2>Tâches à effectuer</h2>
     <div id="pts_liste" class="sv-liste"></div>
     <div class="sv-ajout">
-      <input type="text" id="pts_texte" placeholder="Nouveau point bloquant…" enterkeyhint="done" aria-label="Nouveau point bloquant">
+      <input type="text" id="pts_texte" placeholder="Nouvelle tâche à effectuer…" enterkeyhint="done" aria-label="Nouvelle tâche à effectuer">
       <button type="button" class="act blue" id="pts_ajout">Ajouter</button>
     </div>
   </div>
@@ -1099,7 +1099,7 @@ a.act[hidden]{display:none}
 <script defer src="./pdf-design.js?v=20261024c"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
 <script src="./annotation.js?v=20261026a"></script>
-<script src="./sobre.js?v=20261010a"></script>
+<script src="./sobre.js?v=20261029a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261027a"></script>
 <script src="./stylet.js?v=20261023b"></script>
@@ -1593,7 +1593,7 @@ function renderPoints(){
   (S.points||[]).forEach(function(it){
     var l=document.createElement("div"); l.className="sv-ligne"+(it.fait?" fait":"");
     /* un repère : cocher le point le passe en vert (fait), décocher en rouge */
-    l.appendChild(caseACocher(it, "Point levé : "+(it.texte||""), it.plan ? function(){ poserStatut(it, it.fait ? "fait" : "afaire"); save(); rafraichirReperes(); } : renderPoints));
+    l.appendChild(caseACocher(it, "Tâche effectuée : "+(it.texte||""), it.plan ? function(){ poserStatut(it, it.fait ? "fait" : "afaire"); save(); rafraichirReperes(); } : renderPoints));
     var corps=document.createElement("div"); corps.className="sv-corps";
     if(it.plan){
       var tete=document.createElement("div"); tete.style.cssText="display:flex;gap:8px;align-items:center";
@@ -2019,7 +2019,7 @@ function renderResume(){
       + (S.visite.noteEncre ? ((S.visite.note||"").trim() ? " + " : "")+"écriture au stylet" : "") || "aucune"],
     [(S.plans||[]).length+" plan"+((S.plans||[]).length>1?"s":""), (S.plans||[]).length ? modif+" modifié"+(modif>1?"s":"")+" · "+((S.plans||[]).length-modif)+" sans modification" : "aucun plan"],
     resumeReperes(),
-    [pts.length+" point"+(pts.length>1?"s":"")+" bloquant"+(pts.length>1?"s":""), rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
+    [pts.length+" tâche"+(pts.length>1?"s":"")+" à effectuer", rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
   ];
   lignes=lignes.filter(Boolean);
   lignes.forEach(function(l){
@@ -2127,7 +2127,7 @@ function buildPdf(){
   var ph=(S.photos||[]), plans=(S.plans||[]);
   function ouverts(l){ return l.filter(function(x){ return !x.fait; }).length; }
   y=K.chiffres(y, [[ouverts(ts), "travaux supplémentaires", C.BLEU], [ouverts(rf), "reste à faire", C.AMBRE],
-    [ouverts(pts), "points bloquants", C.ROUGE], [ph.length, "photos et croquis", C.CYAN]]);
+    [ouverts(pts), "tâches à effectuer", C.ROUGE], [ph.length, "photos et croquis", C.CYAN]]);
 
   /* ---------- l'objet de la visite et la note générale ---------- */
   var encreNote=S.visite.noteEncre && window.Stylet && Stylet.valide(S.visite.noteEncre) ? S.visite.noteEncre : null;
@@ -2257,7 +2257,7 @@ function buildPdf(){
 
   /* ---------- les points bloquants ---------- */
   if(pts.length){
-    section("Points bloquants", 30);
+    section("Tâches à effectuer", 30);
     pts.forEach(function(it, k){
       var enCours = it.plan && statutRp(it)==="encours";
       var etat = it.fait ? "Levé" : enCours ? "En cours" : (it.rappel && it.quand ? "Rappel le "+frDate(it.quand)+(it.heure ? " à "+it.heure : "") : "À lever");
@@ -4359,7 +4359,7 @@ function renderPlans(){
     var b2=document.createElement("button"); b2.type="button"; b2.className="act danger"; b2.style.flex="0 0 auto"; b2.textContent="Retirer";
     b2.addEventListener("click", function(){
       var nr=reperesDe(pl).length;
-      if(!window.confirm("Retirer ce plan du suivi ?"+(nr ? "\n\nSes "+nr+" repère"+(nr>1?"s":"")+" (et leurs points bloquants) partent avec lui." : ""))) return;
+      if(!window.confirm("Retirer ce plan du suivi ?"+(nr ? "\n\nSes "+nr+" repère"+(nr>1?"s":"")+" (et leurs tâches à effectuer) partent avec lui." : ""))) return;
       var idp=idPlan(pl);
       S.points=(S.points||[]).filter(function(p){ return p.plan!==idp; });
       S.plans.splice(i,1); save(); renderPlans(); renderPlansDossier(); renderPoints();
@@ -4591,7 +4591,7 @@ function ouvrirRepere(it, neuf){
     dr.appendChild(dt); f.appendChild(dr);
     try{ setupDictation(dt); }catch(e){}
     /* statut */
-    var l3=document.createElement("div"); l3.className="rp-lab"; l3.textContent="Statut (rouge : point bloquant)"; f.appendChild(l3);
+    var l3=document.createElement("div"); l3.className="rp-lab"; l3.textContent="Statut (rouge : à effectuer)"; f.appendChild(l3);
     f.appendChild(segStatut(it, peindre));
     /* qui */
     var l4=document.createElement("div"); l4.className="rp-lab"; l4.textContent="Qui s'en charge"; f.appendChild(l4);
@@ -4629,7 +4629,7 @@ function ouvrirRepere(it, neuf){
     var ac=document.createElement("div"); ac.className="rp-actions";
     var su=document.createElement("button"); su.type="button"; su.className="act ghost sup"; su.textContent="Supprimer";
     su.addEventListener("click", function(){
-      if(!window.confirm("Supprimer le repère "+numRp(it)+" ? Son point bloquant part avec lui.")) return;
+      if(!window.confirm("Supprimer le repère "+numRp(it)+" ? Sa tâche à effectuer part avec lui.")) return;
       neuf=false; S.points=(S.points||[]).filter(function(p){ return p!==it; }); save(); fermer();
     });
     var ok=document.createElement("button"); ok.type="button"; ok.className="act blue ok"; ok.textContent="Enregistrer";

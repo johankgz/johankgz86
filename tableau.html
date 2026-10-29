@@ -454,7 +454,7 @@ main{max-width:1240px}
 <script src="./clavier.js?v=20261022a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
-<script src="./palette.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261029a" defer></script>
 </head>
 <body>
 <header>
@@ -471,7 +471,7 @@ main{max-width:1240px}
     <button type="button" class="case-tb" data-f="tout" aria-pressed="true"><span class="lib">Chantiers en cours</span><span class="val" id="nEnCours">–</span><span class="sous" id="sEnCours"></span></button>
     <button type="button" class="case-tb" data-f="ts" aria-pressed="false"><span class="lib">TS à chiffrer</span><span class="val" id="nTs">–</span><span class="sous" id="sTs"></span></button>
     <button type="button" class="case-tb" data-f="commande" aria-pressed="false"><span class="lib">Commandes à saisir</span><span class="val" id="nCmd">–</span><span class="sous" id="sCmd"></span></button>
-    <button type="button" class="case-tb" data-f="point" aria-pressed="false"><span class="lib">Points bloquants</span><span class="val" id="nPt">–</span><span class="sous" id="sPt"></span></button>
+    <button type="button" class="case-tb" data-f="point" aria-pressed="false"><span class="lib">Rappels à effectuer</span><span class="val" id="nPt">–</span><span class="sous" id="sPt"></span></button>
     <button type="button" class="case-tb" data-f="relance" aria-pressed="false"><span class="lib">À relancer</span><span class="val" id="nRel">–</span><span class="sous" id="sRel"></span></button>
   </div>
   <div class="grille-tb">
@@ -594,9 +594,9 @@ function peindreCases(){
 });
 
 /* ---------- À traiter ---------- */
-var ETIQ={ts:"TS À CHIFFRER", commande:"COMMANDE", point:"POINT BLOQUANT", relance:"À RELANCER"};
+var ETIQ={ts:"TS À CHIFFRER", commande:"COMMANDE", point:"RAPPEL", relance:"À RELANCER"};
 var MOT_FILTRE={tout:"le plus urgent en haut", ts:"TS à chiffrer seulement", commande:"commandes à saisir seulement",
-  point:"points bloquants seulement", relance:"dossiers à relancer seulement"};
+  point:"rappels à effectuer seulement", relance:"dossiers à relancer seulement"};
 function sousTitre(x){
   if(x.genre==="ts") return x.client+(x.source==="point" ? " · demande client, "+(x.origine||"point de chantier")+(x.qui ? ", vue par "+x.qui : "") : (x.qui ? " · demandé par "+x.qui.toLowerCase() : ""))+(x.depuis ? " le "+frDate(x.depuis) : "");
   if(x.genre==="commande") return x.client+" · déposée par "+(x.qui||"?")+(x.date ? " le "+frDate(x.date) : "");
@@ -634,9 +634,9 @@ function actionsDe(x, ligne){
         .catch(function(e){ occupe(b, false); toast(e.message); });
     }));
   } else if(x.genre==="point"){
-    acts.appendChild(bouton("Point levé", function(b){
+    acts.appendChild(bouton("Fait", function(b){
       occupe(b, true);
-      appel("tache-faite", null, "&cle="+encodeURIComponent(x.cle)).then(function(){ ligneFaite(ligne, "Point levé."); })
+      appel("tache-faite", null, "&cle="+encodeURIComponent(x.cle)).then(function(){ ligneFaite(ligne, "Tâche marquée faite."); })
         .catch(function(e){ occupe(b, false); toast(e.message); });
     }));
   } else if(x.genre==="relance"){

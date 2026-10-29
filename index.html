@@ -1326,7 +1326,7 @@ body.connexion .ciel{display:none}
 <script src="./qr.js?v=20261024b" defer></script>
 <script src="./carte.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
-<script src="./palette.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261029a" defer></script>
 <script src="./transfert.js?v=20261024b" defer></script>
 <script src="./visionneuse.js?v=20261024b" defer></script>
 <script src="./doc-cote.js?v=20261027a" defer></script>
@@ -1833,7 +1833,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <nav class="bulles-tb" id="bullesTb" aria-label="Ce qui attend au bureau" hidden>
       <a class="bulle-tb" data-f="ts" href="./tableau.html?f=ts"><b>–</b><span>TS à chiffrer</span></a>
       <a class="bulle-tb" data-f="commande" href="./tableau.html?f=commande"><b>–</b><span>Commandes</span></a>
-      <a class="bulle-tb" data-f="point" href="./tableau.html?f=point"><b>–</b><span>Bloquants</span></a>
+      <a class="bulle-tb" data-f="point" href="./tableau.html?f=point"><b>–</b><span>Rappels</span></a>
       <a class="bulle-tb" data-f="relance" href="./tableau.html?f=relance"><b>–</b><span>À relancer</span></a>
     </nav>
 
@@ -2970,7 +2970,7 @@ function chargerBullesTb(s){
       var titre={
         ts: n.ts ? n.ts+" TS à chiffrer, sur "+(n.tsChantiers||1)+" chantier"+((n.tsChantiers||1)>1?"s":"") : "Rien à chiffrer",
         commande: n.commandes ? n.commandes+" commande"+(n.commandes>1?"s":"")+" à saisir" : "Tout est saisi",
-        point: n.points ? n.points+" point"+(n.points>1?"s":"")+" bloquant"+(n.points>1?"s":"")+(n.pointsRetard ? ", dont "+n.pointsRetard+" en retard" : "") : "Aucun point bloquant",
+        point: n.points ? n.points+" rappel"+(n.points>1?"s":"")+" à effectuer"+(n.pointsRetard ? ", dont "+n.pointsRetard+" en retard (pas fait"+(n.pointsRetard>1?"s":"")+" à l'heure du rappel)" : "") : "Aucun rappel à effectuer",
         relance: n.relances ? n.relances+" dossier"+(n.relances>1?"s":"")+" à relancer" : (n.attente ? n.attente+" en attente, rien à relancer" : "Aucun dossier en attente")
       };
       [].forEach.call(nav.querySelectorAll(".bulle-tb"), function(a){
@@ -3010,12 +3010,12 @@ function peindreRappels(s){
   var vieuxP=document.getElementById("panneauRappels"); if(vieuxP) vieuxP.remove();
   var dus=rappelsDus();
   if(!dus.length){ host.hidden = !host.children.length; return; }
-  /* deux sortes : les points bloquants des suivis, et les lignes de to-do list */
+  /* deux sortes : les tâches à effectuer des suivis (avec leur rappel), et les lignes de to-do list */
   var todo=dus.filter(function(t){ return t.todo || t.cal; }).length, tous=todo===dus.length, aucun=!todo;
   var seulCal=dus.every(function(t){ return t.cal; });
   var a=notif("rge urgent", String(dus.length),
-    dus.length>1 ? (aucun ? dus.length+" points bloquants à relancer" : seulCal ? dus.length+" rappels du calendrier" : tous ? dus.length+" rappels de la to-do list" : dus.length+" rappels")
-                 : (aucun ? "Un point bloquant à relancer" : seulCal ? "Rappel du calendrier" : "Rappel de la to-do list"),
+    dus.length>1 ? (aucun ? dus.length+" tâches de suivi à effectuer" : seulCal ? dus.length+" rappels du calendrier" : tous ? dus.length+" rappels de la to-do list" : dus.length+" rappels")
+                 : (aucun ? "Une tâche de suivi à effectuer" : seulCal ? "Rappel du calendrier" : "Rappel de la to-do list"),
     dus.length>1 ? (aucun ? "Rappels de vos suivis de chantier" : tous ? "Les lignes que vous vouliez revoir" : "Suivis de chantier et to-do list")
                  : (dus[0].texte+(dus[0].cal ? " — à "+(dus[0].heure||"09:00").replace(":", "h") : " — "+(dus[0].todo ? (dus[0].liste||"to-do list") : (dus[0].client||dus[0].chantier)))));
   a.id="notifRappels"; a.style.cursor="pointer";
@@ -3035,7 +3035,7 @@ function peindreRappels(s){
     if(t.cal) ouvrir.addEventListener("click", function(e){ if(window.ouvrirCalendrier){ e.preventDefault(); e.stopPropagation(); ouvrirCalendrier(t.quand); } });
     ouvrir.style.cssText="min-height:36px;padding:9px 14px;border-radius:var(--r-field);background:var(--accent);"
       +"color:#fff;font-size:13.5px;font-weight:600;text-decoration:none";
-    var libre = (t.todo || t.cal) ? "Fait" : "Point levé";
+    var libre = "Fait";
     var btn=document.createElement("button"); btn.type="button"; btn.textContent=libre;
     btn.style.cssText="min-height:36px;padding:0 14px;border:0;border-radius:var(--r-field);background:var(--field);"
       +"color:var(--ink-2);font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
@@ -3919,7 +3919,7 @@ function peindreCloche(){
     var r=document.createElement("a"); r.className="d"; r.href="./chantier.html?ref="+encodeURIComponent(t.chantier||"");
     var b=document.createElement("b"); b.textContent="Rappel · "+t.texte; r.appendChild(b);
     var sp=document.createElement("span");
-    sp.textContent=(t.client||t.chantier)+"  ·  point bloquant, rappel du "+frCourt(t.quand)+(t.heure?" à "+t.heure:"");
+    sp.textContent=(t.client||t.chantier)+"  ·  tâche à effectuer, rappel du "+frCourt(t.quand)+(t.heure?" à "+t.heure:"");
     r.appendChild(sp);
     pan.appendChild(r);
   });
