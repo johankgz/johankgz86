@@ -622,37 +622,13 @@ button.sortie{width:100%;min-height:48px;font-size:15px;cursor:pointer;margin-to
     </details>
   </div>
 
-  <div class="block" id="blocPartage">
-    <h2>Envoyer une photo reçue vers le site</h2>
-    <p class="legend">Une photo reçue dans Messages ou WhatsApp, un PDF reçu par e-mail : partagez-le vers Suivi travaux 360, puis choisissez le chantier où le ranger (Plans, Documents techniques ou Photos du chantier).</p>
-    <p class="pt-titre"><b>Android</b></p>
-    <p class="legend">Le site installé sur l'écran d'accueil apparaît dans le menu <b>Partager</b> : appui long sur la photo › Partager › <b>Travaux 360</b>. Rien d'autre à régler.</p>
-    <p class="pt-titre"><b>iPhone et iPad</b></p>
-    <p class="legend">Apple ne laisse pas un site entrer dans le menu Partager : un <b>raccourci</b> le fait à sa place, avec votre clé de partage. À faire une fois par appareil.</p>
-    <p class="nt-etat" id="pt_etat">Vérification…</p>
-    <div class="pt-cle" id="pt_cle" hidden>
-      <label class="pt-l">Votre clé de partage<input type="text" id="pt_cleTxt" readonly></label>
-      <button type="button" id="pt_copierCle">Copier la clé</button>
-      <label class="pt-l">Adresse d'envoi<input type="text" id="pt_url" readonly></label>
-      <button type="button" id="pt_copierUrl">Copier l'adresse</button>
-      <label class="pt-l">Page à ouvrir ensuite<input type="text" id="pt_lien" readonly></label>
-      <button type="button" id="pt_copierLien">Copier la page</button>
-      <p class="legend" style="margin-top:8px">La clé ne s'affiche qu'une fois : collez-la tout de suite dans le raccourci. Elle ne sert qu'à envoyer des fichiers dans votre boîte de réception du site.</p>
+  <div class="block" id="blocMeteo">
+    <h2>Météo sur l'accueil</h2>
+    <p class="legend">Elle ne s'affiche plus d'elle-même : c'est à vous de l'activer. Activée, l'accueil montre le temps du moment et des trois jours (sous l'heure), et le ciel du fond suit le temps qu'il fait. Réglage propre à cet appareil.</p>
+    <div class="nt-prefs" style="margin-top:0">
+      <label class="bascule"><span>Afficher la météo<small>Open-Meteo.com, au dernier lieu relevé (sinon le centre de la France).</small></span>
+        <input type="checkbox" id="mt_accueil" role="switch"></label>
     </div>
-    <ol class="nt-aide" id="pt_etapes">
-      <li>Ici : touchez <b>Créer ma clé de partage</b>.</li>
-      <li>Ouvrez l'app <b>Raccourcis</b>, touchez <b>+</b> et nommez le raccourci <b>Travaux 360</b>.</li>
-      <li>Touchez <b>ⓘ</b> et activez <b>Afficher dans la feuille de partage</b> (il reçoit les images, les PDF et les fichiers).</li>
-      <li>Ajoutez l'action <b>Répéter avec chaque élément</b> (de l'entrée du raccourci).</li>
-      <li>Dedans, ajoutez <b>Obtenir le contenu de l'URL</b> : l'<b>adresse d'envoi</b> ci-dessus ; Méthode <b>POST</b> ; En-têtes : <b>x-cle</b> = votre <b>clé</b> ; Corps de la requête : <b>Fichier</b> › <b>Élément répété</b>.</li>
-      <li>Après « Fin de la répétition », ajoutez <b>Ouvrir les URL</b> avec la <b>page à ouvrir ensuite</b>.</li>
-      <li>C'est prêt : dans Messages ou WhatsApp, appui long sur la photo › <b>Partager</b> › <b>Travaux 360</b>. Le site s'ouvre : choisissez le chantier, « Importer ».</li>
-    </ol>
-    <div class="nt-actions">
-      <button type="button" class="p" id="pt_creer">Créer ma clé de partage</button>
-      <button type="button" class="coupe" id="pt_retirer" hidden>Retirer la clé</button>
-    </div>
-    <p class="err" id="pt_err"></p>
   </div>
 
   <div class="block" id="blocTableau" hidden>
@@ -818,51 +794,13 @@ $("enrCoord").addEventListener("click", function(){
 
 
 /* ---------- rendez-vous en ligne ---------- */
-/* ---------- envoyer une photo reçue vers le site : la clé de partage de l'iPhone ---------- */
+/* ---------- la météo sur l'accueil : seulement si on l'active (localStorage « accueil:meteo ») ---------- */
 (function(){
-  if(!$("blocPartage")) return;
-  var st=document.createElement("style");
-  st.textContent=".pt-titre{margin:14px 0 2px}.pt-cle{display:grid;grid-template-columns:1fr auto;gap:8px;align-items:end;margin:10px 0}"
-    +".pt-l{display:flex;flex-direction:column;gap:4px;font-size:12.5px;font-weight:600;color:var(--ink-3,#6b6b6b);min-width:0}"
-    +".pt-l input{font-family:ui-monospace,Menlo,monospace;font-size:13px;min-width:0}.pt-cle button{min-height:42px}";
-  document.head.appendChild(st);
-  function etat(a){
-    $("pt_etat").textContent = a ? "Une clé de partage est active pour votre compte. En créer une nouvelle remplace l'ancienne (le raccourci devra être mis à jour)."
-                                 : "Pas encore de clé de partage.";
-    $("pt_creer").textContent = a ? "Créer une nouvelle clé" : "Créer ma clé de partage";
-    $("pt_retirer").hidden=!a;
-  }
-  fetch(apiUrl("partage-etat"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){ etat(!!(d && d.cle)); }).catch(function(){ $("pt_etat").textContent=""; });
-  function copier(id, b){
-    var v=$(id).value;
-    (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(v) : Promise.reject())
-      .then(function(){ var t=b.textContent; b.textContent="Copié"; setTimeout(function(){ b.textContent=t; }, 1500); },
-            function(){ $(id).select(); });
-  }
-  $("pt_copierCle").addEventListener("click", function(){ copier("pt_cleTxt", this); });
-  $("pt_copierUrl").addEventListener("click", function(){ copier("pt_url", this); });
-  $("pt_copierLien").addEventListener("click", function(){ copier("pt_lien", this); });
-  $("pt_creer").addEventListener("click", function(){
-    var b=this;
-    if(!$("pt_retirer").hidden && !window.confirm("Créer une nouvelle clé ?\n\nL'ancienne cessera de marcher : il faudra coller la nouvelle dans le raccourci de chaque appareil.")) return;
-    b.disabled=true; $("pt_err").textContent="";
-    fetch(apiUrl("partage-cle"), {method:"POST", headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
-      .then(function(res){
-        b.disabled=false;
-        if(!res.ok){ $("pt_err").textContent=res.d.erreur||"Clé refusée."; return; }
-        $("pt_cleTxt").value=res.d.cle; $("pt_url").value=res.d.url; $("pt_lien").value=res.d.lien;
-        $("pt_cle").hidden=false; etat(true);
-      })
-      .catch(function(){ b.disabled=false; $("pt_err").textContent="Pas de réseau."; });
-  });
-  $("pt_retirer").addEventListener("click", function(){
-    if(!window.confirm("Retirer la clé de partage ?\n\nLe raccourci de l'iPhone ne pourra plus rien envoyer.")) return;
-    fetch(apiUrl("partage-cle-retirer"), {method:"POST", headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-      .then(function(){ $("pt_cle").hidden=true; etat(false); })
-      .catch(function(){ $("pt_err").textContent="Pas de réseau."; });
+  var c=$("mt_accueil"); if(!c) return;
+  try{ c.checked = localStorage.getItem("accueil:meteo")==="oui"; }catch(e){}
+  c.addEventListener("change", function(){
+    try{ if(c.checked) localStorage.setItem("accueil:meteo", "oui"); else localStorage.removeItem("accueil:meteo"); }catch(e){}
+    if(typeof toast==="function") toast(c.checked ? "Météo affichée sur l'accueil." : "Météo retirée de l'accueil.");
   });
 })();
 var RV=null;

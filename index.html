@@ -1982,6 +1982,8 @@ var METEO={0:"Soleil",1:"Éclaircies",2:"Éclaircies",3:"Couvert",45:"Brouillard
 /* La météo : maintenant, puis aujourd'hui, demain et après-demain. Ce
    qu'on a déjà s'affiche tout de suite ; on ne redemande qu'au bout
    d'une demi-heure, en fond. */
+/* la météo ne s'affiche que si on l'a activée (Mon compte › Météo sur l'accueil, propre à l'appareil) */
+function meteoActive(){ try{ return localStorage.getItem("accueil:meteo")==="oui"; }catch(e){ return false; } }
 function meteo3j(cb){
   var c=null;
   try{ c=JSON.parse(localStorage.getItem("meteo:3j")||"null"); }catch(e){}
@@ -2294,6 +2296,10 @@ function bulletin(lieu){
   var carte=$("bulletin");
   if(!BULLETIN_HORLOGE){ BULLETIN_HORLOGE=true; horlogeSecondes($("bulHeure"), $("bulJour")); }
   $("bulLieu").textContent = lieu || "";
+  /* sans météo : l'heure et le lieu seuls, sans bouton pour déplier */
+  var avecMeteo=meteoActive();
+  $("bulPli").hidden=!avecMeteo; $("bulPli").style.display = avecMeteo ? "" : "none";
+  if(!avecMeteo){ $("bulMeteo").hidden=true; $("bulJours").hidden=true; carte.classList.add("plie"); return; }
   meteo3j(function(m){
     if(!m) return;
     CIEL_METEO=m; peindreCiel();
@@ -2602,6 +2608,7 @@ function bandeauPublic(){
   e.textContent = bonjourMot();
   $("phraseJour").textContent = phraseDuJour();
   horlogeSecondes($("bulHeureP"), $("bulJourP"));
+  if(!meteoActive()) return;
   meteo3j(function(m){
     if(!m) return;
     var h=new Date().getHours();
@@ -3502,14 +3509,6 @@ function peindreSavATerminer(){
   host.insertBefore(n, host.firstChild);
   host.hidden=false;
 }
-/* les fichiers partagés depuis le téléphone (Raccourci de l'iPhone), pas encore rangés */
-var RECUS_EN_ATTENTE=0;
-function recusEnAttente(s){
-  fetch(apiUrl("recus-liste"), {headers:{"x-auth":s.jeton}})
-    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
-    .then(function(d){ RECUS_EN_ATTENTE=(d.items||[]).length; peindreFichesAEnregistrer(); })
-    .catch(function(){});
-}
 /* Sur l'ordinateur seulement : les fiches laissées sur l'iPhone ou l'iPad sans être publiées,
    plus touchées depuis une heure (encours-oublis). Le site en prévient aussi par une
    notification sur l'ordinateur. Un toucher rouvre la fiche ici, telle quelle (encours.js) ;
@@ -3522,7 +3521,6 @@ function surOrdinateur(){
 }
 function oublisMasques(){ try{ return JSON.parse(localStorage.getItem(CLE_OUBLIS_MASQUES)||"{}")||{}; }catch(e){ return {}; } }
 function fichesAEnregistrer(s){
-  recusEnAttente(s);
   if(!surOrdinateur()) return;
   fetch(apiUrl("encours-oublis"), {headers:{"x-auth":s.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -3536,12 +3534,6 @@ function fichesAEnregistrer(s){
 function peindreFichesAEnregistrer(){
   var host=$("notifs"); if(!host) return;
   Array.prototype.forEach.call(host.querySelectorAll(".fiche-a-enregistrer"), function(x){ x.remove(); });
-  if(RECUS_EN_ATTENTE){
-    var nr=RECUS_EN_ATTENTE;
-    host.insertBefore(notif("amb fiche-a-enregistrer", String(nr), nr>1 ? nr+" fichiers reçus à ranger" : "Un fichier reçu à ranger",
-      "Partagé depuis le téléphone : choisissez le chantier où le ranger.", "./importer.html?recus=1"), host.firstChild);
-    host.hidden=false;
-  }
   FICHES_OUBLIEES.slice(0,6).reverse().forEach(function(f){
     var qui=[f.client, f.ref].filter(Boolean).join(" · ") || "sans client";
     var n=notif("amb fiche-a-enregistrer", "!", "Pas encore publié : "+f.quoi, qui+" — "+f.laisse+". Touchez pour l'ouvrir ici et le publier.", f.page);

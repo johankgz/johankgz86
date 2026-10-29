@@ -13,7 +13,6 @@ import { cloud, cloudPublic } from "./cloud.mjs";
 import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
 import { encours, oublisARappeler, laisseSur } from "./encours.mjs";
-import { recus, empreinteCle, nouvelleCle } from "./recus.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore, enSilence } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
@@ -1265,8 +1264,6 @@ export default async (req) => {
   if (action.startsWith("encours-")) return traiter(req);
   /* la lecture de la photo du tableau (analyse-tableau.mjs) dure une minute : elle ne bloque pas les publications */
   if (action === "analyse-tableau" || action === "analyse-tableau-etat") return traiter(req);
-  /* la boîte des fichiers partagés depuis le téléphone (recus.mjs) : sa propre file, par personne */
-  if (action.startsWith("recu-") || action.startsWith("recus-")) return traiter(req);
   return sousVerrou("ecritures", () => traiter(req));
 };
 
@@ -1628,23 +1625,6 @@ async function traiter(req) {
       ics: ecrireIcs([Object.assign({}, ev, { organisateur: null, participants: [] })], { methode: "PUBLISH" }) });
   }
 
-  /* un fichier partagé depuis l'iPhone par le Raccourci : la clé de partage de la
-     personne (Mon compte) tient lieu de session, pour ce seul dépôt */
-  if (action === "recu-depot" && req.headers.get("x-cle") && !req.headers.get("x-auth")) {
-    const h = empreinteCle(String(req.headers.get("x-cle")).trim());
-    let k = null;
-    try { k = await magasinAnnuaire().get("clespartage/" + h + ".json", { type: "json" }); } catch { k = null; }
-    const refus = () => json({ erreur: "Clé de partage inconnue ou remplacée : refaites-la dans Mon compte, puis dans le raccourci." }, 401);
-    if (!k || !k.societe || !k.identifiant) return refus();
-    await lireSocietes();
-    const comptesK = await lireComptes(k.societe);
-    const uK = comptesK.find((c) => String(c.identifiant).trim().toLowerCase() === k.identifiant);
-    if (!uK || uK.clePartage !== h) return refus();
-    const pK = personneDuCompte(k.societe, uK);
-    if (pK.aChanger) return refus();
-    return recus(action, { req, url, store: magasinSociete(k.societe), personne: pK, json });
-  }
-
   /* le service des notifications d'un appareil, sans session : la notification porte sa signature */
   if (action === "push-vu" || action === "push-encore") {
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -1761,31 +1741,6 @@ async function traiter(req) {
     return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
   }
   if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
-  /* les fichiers partagés depuis le téléphone, à ranger (serveur/recus.mjs) */
-  if (action.startsWith("recu-") || action.startsWith("recus-")) return recus(action, { req, url, store, personne, json });
-  /* la clé de partage de l'iPhone : une par personne ; en refaire une coupe l'ancienne */
-  if (action === "partage-cle" || action === "partage-cle-retirer") {
-    const comptesP = await lireComptes(personne.societe);
-    const i = comptesP.findIndex((c) => String(c.identifiant).trim().toLowerCase() === personne.identifiant);
-    if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
-    const avant = comptesP[i].clePartage;
-    if (avant) { try { await magasinAnnuaire().delete("clespartage/" + avant + ".json"); } catch { /* déjà partie */ } }
-    if (action === "partage-cle-retirer") {
-      delete comptesP[i].clePartage;
-      await ecrireComptes(personne.societe, comptesP);
-      return json({ ok: true });
-    }
-    const cle = nouvelleCle(), h = empreinteCle(cle);
-    await magasinAnnuaire().setJSON("clespartage/" + h + ".json", { societe: personne.societe, identifiant: personne.identifiant, cree: new Date().toISOString() });
-    comptesP[i] = { ...comptesP[i], clePartage: h };
-    await ecrireComptes(personne.societe, comptesP);
-    return json({ ok: true, cle, url: url.origin + "/api/rapports?action=recu-depot", lien: url.origin + "/importer.html?recus=1" });
-  }
-  if (action === "partage-etat") {
-    const comptesP = await lireComptes(personne.societe);
-    const c = comptesP.find((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant) || {};
-    return json({ cle: !!c.clePartage });
-  }
   /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
   if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
 
