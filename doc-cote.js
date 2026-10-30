@@ -20,6 +20,7 @@
    Le dernier document ouvert est retenu le temps de la visite.
 
    DocCote.installer({libelle:"Relevé", ref:function(){ return "2026-041"; }})
+   DocCote.ouvrir({cle:"2026-041/technique-PLAN.pdf", titre:"Plan", chantier:"2026-041"})
    DocCote.choisir({ok:function(f){ … f.blob, f.nom, f.mime … }})
      le même panneau, pour prendre des fichiers (tous formats) du Cloud ou
      d'un dossier : chaque toucher en ajoute un, « Terminé » referme.
@@ -660,6 +661,8 @@
       if(d && (d.cle || d.cloud)){ ouvrirDoc(d); cacher(); }
     },
     montrer:montrer, cacher:cacher, fermer:fermer,
+    /* ouvrir un document donné ({cle, titre, chantier}) : un plan de la page du chantier */
+    ouvrir:function(d){ if(!EL.pan || !d || !d.cle) return false; PICK=null; ouvrirDoc(d); return true; },
     /* prendre des fichiers du Cloud ou d'un dossier (une pièce jointe) */
     choisir:function(o){
       if(!EL.pan) return false;

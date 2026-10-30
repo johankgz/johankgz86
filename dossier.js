@@ -588,6 +588,7 @@ function carteDocMessage(c, d, apresTexte, mien){
       if(/\.zip$/i.test(f.cle)){ marquerLu(f); ouvrirGalerie(f); return; }
       if(/\.(dwg|dxf)$/i.test(f.cle)){ location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
       if(PHOTO_AFFICHABLE.test(f.cle)){ ouvrirPhoto(f, b); return; }
+      if(ouvrirPlan(f, c)) return;
       ouvrirDocument(f, b);
     });
   }
@@ -748,6 +749,14 @@ function surOrdinateur(){
   var ua=navigator.userAgent||"";
   if(/iPhone|iPad|iPod|Android|Mobile/i.test(ua)) return false;
   if(navigator.platform==="MacIntel" && (navigator.maxTouchPoints||0)>1) return false;   /* un iPad qui se dit Mac */
+  return true;
+}
+/* un plan en PDF (rangé dans « Plans ») : dans le panneau Document de la page (doc-cote.js), où il
+   se zoome jusqu'à 20 fois en restant net ; sans panneau, ou un autre document, comme d'habitude */
+function ouvrirPlan(f, c){
+  if(sousDossierDe(f)!=="plans" || !/\.pdf$/i.test(f.cle||"") || !window.DocCote || !DocCote.ouvrir) return false;
+  if(!DocCote.ouvrir({cle:f.cle, titre:f.titre || nomFichier(f), chantier:(c && (c.client || c.ref)) || refDeCle(f.cle)})) return false;
+  marquerLu(f);
   return true;
 }
 function ouvrirDocument(f, bouton){
@@ -988,7 +997,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
      (zoomer à deux doigts), « ferme » (tirer la photo vers le bas pour la fermer),
      « rien » (un glissé vers le haut) */
   var DOIGTS={}, geste=null, bouge=false, origine={x:0, y:0}, pince=null, toucherAvant=null;
-  var Z={s:1, x:0, y:0}, ZMAX=5, ZDOUBLE=2.5;
+  var Z={s:1, x:0, y:0}, ZMAX=20, ZDOUBLE=2.5;
   var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
   vue.style.zIndex=zDessus(90);
@@ -1185,7 +1194,7 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
       if(l.length<2) return;
       var a=l[0], b=l[1], d=Math.hypot(b.x-a.x, b.y-a.y), cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
       var s=pince.s*d/pince.d;
-      if(s>ZMAX) s=ZMAX+(s-ZMAX)*.3;   /* au-delà de 5 fois, ça résiste */
+      if(s>ZMAX) s=ZMAX+(s-ZMAX)*.3;   /* au-delà de 20 fois, ça résiste */
       if(s<.6) s=.6;
       var c=centre(), px=(pince.mx-c.x-pince.x)/pince.s, py=(pince.my-c.y-pince.y)/pince.s;
       Z.s=s; Z.x=cx-c.x-s*px; Z.y=cy-c.y-s*py;
@@ -2286,6 +2295,7 @@ function carteDossier(c, i, opts){
       if(zip){ marquerLu(f); ouvrirGalerie(f); return; }
       if(dwg){ marquerLu(f); location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
       if(PHOTO_AFFICHABLE.test(f.cle||"")){ ouvrirPhoto(f, bPartage); return; }
+      if(ouvrirPlan(f, c)) return;
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
