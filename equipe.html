@@ -960,7 +960,8 @@ function peindre(comptes){
     /* l'outil Adresses KNX est réservé : un code d'accès par personne */
     if(c.role!=="admin"){
       var kx=document.createElement("span"); kx.className="acces";
-      kx.textContent = c.knx ? "Outil KNX : code donné" + (c.knx.length>4 ? " le " + new Date(c.knx).toLocaleDateString("fr-FR") : "") : "Outil KNX : pas d'accès";
+      kx.textContent = (c.knx ? "Outil KNX : code donné" + (c.knx.length>4 ? " le " + new Date(c.knx).toLocaleDateString("fr-FR") : "") : "Outil KNX : pas d'accès")
+        + (c.knx ? (c.knxExport ? " · chiffrage téléchargeable" : " · chiffrage à l'écran seulement") : "");
       t.appendChild(kx);
     }
     var knx=document.createElement("button"); knx.className="act ghost"; knx.textContent = c.knx ? "Nouveau code KNX" : "Code KNX";
@@ -986,6 +987,19 @@ function peindre(comptes){
         .then(function(res){ if(!res.ok){ $("err").textContent=res.d.erreur||"Retrait refusé."; return; } chargerComptes(); })
         .catch(function(){ $("err").textContent="Pas de réseau."; });
     });
+    /* le chiffrage KNX se lit à l'écran ; son téléchargement (PDF, tableur) s'ouvre ici, personne par personne */
+    var knxDl=document.createElement("button"); knxDl.className="act ghost";
+    knxDl.textContent = c.knxExport ? "Fermer le téléchargement chiffrage" : "Ouvrir le téléchargement chiffrage";
+    knxDl.title = "Le chiffrage KNX : télécharger le PDF et le tableur (le résultat reste lisible à l'écran)";
+    knxDl.hidden = !c.knx || c.role==="admin";
+    knxDl.addEventListener("click", function(){
+      knxDl.disabled=true;
+      fetch(api("knx-export-droit"), {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
+        body:JSON.stringify({identifiant:c.identifiant, droit:!c.knxExport})})
+        .then(function(x){ return x.json().then(function(d){ return {ok:x.ok,d:d}; }); })
+        .then(function(res){ knxDl.disabled=false; if(!res.ok){ $("err").textContent=res.d.erreur||"Changement refusé."; return; } chargerComptes(); })
+        .catch(function(){ knxDl.disabled=false; $("err").textContent="Pas de réseau."; });
+    });
     var sup=document.createElement("button"); sup.className="act danger"; sup.textContent="×";
     sup.setAttribute("aria-label","Supprimer "+c.nom);
     sup.addEventListener("click", function(){
@@ -1001,7 +1015,7 @@ function peindre(comptes){
     var haut=document.createElement("div"); haut.className="c-haut";
     haut.appendChild(t); haut.appendChild(sup);
     var act=document.createElement("div"); act.className="c-act";
-    [mod, raz, knx, knxOff].forEach(function(x){ act.appendChild(x); });
+    [mod, raz, knx, knxOff, knxDl].forEach(function(x){ act.appendChild(x); });
     r.appendChild(haut); r.appendChild(act);
     host.appendChild(r);
   });

@@ -415,8 +415,14 @@ function cleKnx(societe, id, compte) {
 }
 async function scriptKnx() {
   const lire = (f) => readFile(new URL("../prive/" + f, import.meta.url), "utf8");
-  return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js"));
+  return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js")) + "\n" + (await lire("knx-chiffrage.js"));
 }
+/* le téléchargement du chiffrage KNX (PDF, tableur) : son code n'est livré qu'à qui
+   l'administrateur l'a ouvert (Équipe › « Téléchargement chiffrage »), et à l'administrateur */
+async function scriptKnxExport() {
+  return readFile(new URL("../prive/knx-export.js", import.meta.url), "utf8");
+}
+const CLE_CHIFFRAGES_KNX = "knx/chiffrages.json";
 
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
@@ -1245,7 +1251,7 @@ function texteRdv(t) {
 
 const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi", "autocontroles-a-faire",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "knx-chiffrages", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
   "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire", "encours-oublis"]);
@@ -1910,6 +1916,7 @@ async function traiter(req) {
              : (c.motdepasse ? "ancien" : "aucun"),
       mdpMaj: c.mdpMaj || "",
       knx: c.knx ? (c.knx.cree || "oui") : "",
+      knxExport: !!c.knxExport,
       applis: applisValides(c.applis) })) });
   }
 
@@ -1986,6 +1993,7 @@ async function traiter(req) {
     if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
     if (action === "knx-retirer") {
       delete comptes[i].knx;
+      delete comptes[i].knxExport;                  /* sans l'outil, plus de téléchargement du chiffrage */
       await ecrireComptes(personne.societe, comptes);
       return json({ ok: true });
     }
@@ -1993,6 +2001,73 @@ async function traiter(req) {
     comptes[i] = { ...comptes[i], knx: { empreinte: empreinteDe(code), cree: new Date().toISOString(), par: personne.nom } };
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true, identifiant: id, nom: comptes[i].nom, code });
+  }
+  /* le téléchargement du chiffrage KNX : l'administrateur l'ouvre ou le ferme, personne par personne */
+  if (action === "knx-export-droit") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d = {};
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const id = String(d.identifiant || "").trim().toLowerCase();
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
+    if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
+    if (d.droit === true) comptes[i] = { ...comptes[i], knxExport: { le: new Date().toISOString(), par: personne.nom } };
+    else delete comptes[i].knxExport;
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, identifiant: id, knxExport: !!comptes[i].knxExport });
+  }
+  /* les chiffrages KNX de la société : pour qui a l'outil KNX (son code), et l'administrateur */
+  if (action === "knx-chiffrages" || action === "knx-chiffrage-enregistrer" || action === "knx-chiffrage-supprimer"
+      || action === "knx-export" || action === "knx-export-demande") {
+    const comptes = await lireComptes(personne.societe);
+    const compte = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === personne.identifiant) || {};
+    if (!admin && !(compte.knx && compte.knx.empreinte)) return json({ erreur: "Outil réservé : demandez votre code d'accès à l'administrateur.", sansCode: true }, 403);
+    const peutExporter = admin || !!compte.knxExport;
+    if (action === "knx-export") {
+      if (!peutExporter) return json({ erreur: "Téléchargement verrouillé : l'administrateur doit vous l'ouvrir.", verrou: true }, 403);
+      return json({ script: await scriptKnxExport() });
+    }
+    if (action === "knx-export-demande") {
+      /* les administrateurs l'apprennent sur leur téléphone */
+      const admins = comptes.filter((c) => c.role === "admin").map((c) => c.nom);
+      try {
+        await prevenirPush(store, magasinAnnuaire(), admins, "documents", {
+          titre: "Chiffrage KNX : demande de téléchargement",
+          texte: personne.nom + " demande à pouvoir télécharger les chiffrages KNX (Équipe › Téléchargement chiffrage).",
+          url: "./equipe.html", tag: "knx-export-" + personne.identifiant
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { /* la demande reste à faire de vive voix */ }
+      return json({ ok: true });
+    }
+    let liste = [];
+    try { liste = (await store.get(CLE_CHIFFRAGES_KNX, { type: "json" })) || []; } catch { liste = []; }
+    if (!Array.isArray(liste)) liste = [];
+    if (action === "knx-chiffrages") {
+      return json({ chiffrages: liste.map((x) => ({ id: x.id, nom: x.nom, ref: x.ref, marque: x.marque, par: x.par, maj: x.maj })), export: peutExporter });
+    }
+    let d = {};
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const id = /^[a-z0-9]{6,24}$/.test(String(d.id || "")) ? String(d.id) : "";
+    if (action === "knx-chiffrage-supprimer") {
+      liste = liste.filter((x) => x.id !== id);
+      await store.setJSON(CLE_CHIFFRAGES_KNX, liste);
+      return json({ ok: true });
+    }
+    if (d.lire === true) {
+      const x = liste.find((y) => y.id === id);
+      return x ? json({ chiffrage: x, export: peutExporter }) : json({ erreur: "Chiffrage introuvable." }, 404);
+    }
+    const saisie = d.saisie && typeof d.saisie === "object" ? d.saisie : null;
+    if (!saisie || JSON.stringify(saisie).length > 20000) return json({ erreur: "Chiffrage illisible." }, 400);
+    const maintenant = new Date().toISOString();
+    const nouveau = { id: id || (Date.now().toString(36) + randomBytes(3).toString("hex")),
+      nom: String(d.nom || "").trim().slice(0, 120) || "Chiffrage KNX", ref: String(d.ref || "").trim().slice(0, 60),
+      marque: ["mdt", "zennio", "theben"].indexOf(d.marque) >= 0 ? d.marque : "mdt", saisie, par: personne.nom, maj: maintenant };
+    const i = liste.findIndex((y) => y.id === nouveau.id);
+    if (i >= 0) liste[i] = { ...liste[i], ...nouveau, cree: liste[i].cree || maintenant };
+    else liste.unshift({ ...nouveau, cree: maintenant });
+    await store.setJSON(CLE_CHIFFRAGES_KNX, liste.slice(0, 300));
+    return json({ ok: true, id: nouveau.id, maj: maintenant });
   }
   if (action === "knx-outil") {
     let d = {};
