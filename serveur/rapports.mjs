@@ -2057,7 +2057,8 @@ async function traiter(req) {
       }
       const nom = String(d.nom || "").trim().slice(0, 120), ref = String(d.ref || "").trim().slice(0, 60);
       if (!nom) return json({ erreur: "Donnez une désignation au participant." }, 400);
-      const marque = ["mdt", "zennio", "theben"].indexOf(d.marque) >= 0 ? d.marque : "";
+      /* la marque est libre (MDT, Zennio, Theben, mais aussi Steinel, Gira…) */
+      const marque = String(d.marque || "").trim().slice(0, 40);
       /* le même participant (désignation et référence) n'est gardé qu'une fois */
       const cle = (nom + "|" + ref).toLowerCase();
       const i = biblio.findIndex((x) => (x.nom + "|" + x.ref).toLowerCase() === cle);

@@ -187,14 +187,25 @@ function celluleRef(l, cls, prefixe){
 /* les autres participants KNX, en lignes libres : désignation, référence, quantité ; « Garder » les met
    dans la bibliothèque (sur le site, pour tous ceux qui ont l'outil), d'où un toucher les reprend */
 var BIBLIO=[];
+function nomMarque(m){ m=String(m||"").trim(); return MARQUES[m.toLowerCase()] ? MARQUES[m.toLowerCase()].nom : m; }
+function sansAccent(t){ return String(t||"").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
 function blocAutres(){
   var box=el("div","kc-autres");
   box.appendChild(el("h3","","Autres participants KNX"));
   box.appendChild(el("p","hint","Ce qui n'est pas dans la liste : détecteur de présence, station météo, interface, sonde… Chacun compte sur le bus (10 mA)."));
+  /* les marques proposées en tapant : celles du catalogue, puis celles de la bibliothèque */
+  var dl=el("datalist"); dl.id="kc_marques"; box.appendChild(dl);
+  function majMarques(){
+    var vues={}, l=[];
+    Object.keys(MARQUES).map(function(k){ return MARQUES[k].nom; }).concat((BIBLIO||[]).map(function(p){ return nomMarque(p.marque); }))
+      .forEach(function(m){ var k=sansAccent(m); if(m && !vues[k]){ vues[k]=true; l.push(m); } });
+    dl.textContent=""; l.forEach(function(m){ var o=el("option"); o.value=m; dl.appendChild(o); });
+  }
   var liste=el("div","kc-autres-liste"); box.appendChild(liste);
   function rang(a){
     var r=el("div","kc-autre");
     var n=el("input"); n.type="text"; n.placeholder="Désignation (détecteur de présence…)"; n.value=a.nom||""; n.maxLength=120; n.setAttribute("aria-label","Désignation");
+    var mq=el("input"); mq.type="text"; mq.placeholder="Marque"; mq.value=a.marque||""; mq.maxLength=40; mq.className="mq"; mq.setAttribute("list","kc_marques"); mq.setAttribute("aria-label","Marque");
     var f=el("input"); f.type="text"; f.placeholder="Référence"; f.value=a.ref||""; f.maxLength=60; f.className="ref"; f.setAttribute("aria-label","Référence");
     var q=el("div","kc-num");
     var m=el("button","","−"); m.type="button"; m.setAttribute("aria-label","Un de moins");
@@ -207,18 +218,18 @@ function blocAutres(){
     gd.addEventListener("click", function(){
       if(!String(n.value).trim()){ toast("Donnez d'abord une désignation."); n.focus(); return; }
       gd.disabled=true;
-      api("knx-participant-enregistrer", {nom:n.value, ref:f.value, marque:SAISIE.marque}).then(function(x){
+      api("knx-participant-enregistrer", {nom:n.value, ref:f.value, marque:mq.value}).then(function(x){
         gd.disabled=false;
         if(!x.ok){ toast(x.d.erreur || "Pas gardé."); return; }
         BIBLIO=x.d.participants || BIBLIO; peindreBiblio(); toast("Gardé dans la bibliothèque.");
       }).catch(function(){ gd.disabled=false; toast("Pas de réseau : réessayez."); });
     });
-    function maj(){ a.nom=n.value; a.ref=f.value; a.qte=nb(qi.value); garderLocal(); peindreResultat(); }
-    n.addEventListener("input", maj); f.addEventListener("input", maj); qi.addEventListener("input", maj);
+    function maj(){ a.nom=n.value; a.marque=mq.value; a.ref=f.value; a.qte=nb(qi.value); garderLocal(); peindreResultat(); }
+    n.addEventListener("input", maj); mq.addEventListener("input", maj); f.addEventListener("input", maj); qi.addEventListener("input", maj);
     m.addEventListener("click", function(){ qi.value=String(Math.max(0, nb(qi.value)-1)); maj(); });
     p.addEventListener("click", function(){ qi.value=String(Math.min(999, nb(qi.value)+1)); maj(); });
     x.addEventListener("click", function(){ SAISIE.autres=SAISIE.autres.filter(function(y){ return y!==a; }); r.remove(); garderLocal(); peindreResultat(); });
-    r.appendChild(n); r.appendChild(f); r.appendChild(q); r.appendChild(gd); r.appendChild(x);
+    r.appendChild(n); r.appendChild(mq); r.appendChild(f); r.appendChild(q); r.appendChild(gd); r.appendChild(x);
     return r;
   }
   function ajouterLigne(a){
@@ -227,33 +238,71 @@ function blocAutres(){
     garderLocal(); peindreResultat();
     return r;
   }
-  /* la bibliothèque : un toucher ajoute le participant (quantité 1) ; la marque du chiffrage d'abord */
-  var bib=el("div","kc-biblio");
+  /* la bibliothèque, faite pour en tenir des centaines : une recherche (désignation, référence,
+     marque), un filtre par marque, une liste compacte qui défile ; un toucher ajoute au chiffrage */
+  var bib=el("div","kc-biblio"), FILTRE={texte:"", marque:""};
+  var tete=el("div","kc-biblio-tete"), titre=el("h4",""), compte=el("span","kc-biblio-n");
+  tete.appendChild(titre); tete.appendChild(compte);
+  var cherche=el("input"); cherche.type="search"; cherche.className="kc-biblio-cherche"; cherche.placeholder="Chercher (nom, référence, marque)";
+  cherche.setAttribute("aria-label","Chercher dans la bibliothèque");
+  cherche.addEventListener("input", function(){ FILTRE.texte=cherche.value; peindreListe(); });
+  var marques=el("div","kc-biblio-mq"), vide=el("p","hint"), lst=el("div","kc-biblio-l");
+  bib.appendChild(tete); bib.appendChild(cherche); bib.appendChild(marques); bib.appendChild(vide); bib.appendChild(lst);
   function peindreBiblio(){
-    bib.textContent="";
-    var l=(BIBLIO||[]).slice().sort(function(a, b){ var ma=a.marque===SAISIE.marque?0:1, mb=b.marque===SAISIE.marque?0:1; return ma-mb || a.nom.localeCompare(b.nom, "fr"); });
-    bib.appendChild(el("h4","","Bibliothèque des participants"+(l.length ? " ("+l.length+")" : "")));
-    if(!l.length){ bib.appendChild(el("p","hint","Vide pour l'instant : « Garder » sur un participant le met ici, pour tous les chiffrages.")); return; }
-    var w=el("div","kc-biblio-l");
-    l.forEach(function(p){
-      var it=el("span","kc-biblio-it");
+    majMarques();
+    var l=BIBLIO||[];
+    titre.textContent="Bibliothèque des participants";
+    var rien=!l.length;
+    vide.hidden=!rien; vide.textContent="Vide pour l'instant : « Garder » sur un participant le met ici, pour tous les chiffrages.";
+    cherche.hidden=rien; marques.hidden=rien; lst.hidden=rien;
+    /* les marques présentes, avec leur nombre ; celle du chiffrage d'abord */
+    var n={}, ordre=[];
+    l.forEach(function(p){ var m=nomMarque(p.marque) || "Sans marque"; if(!n[m]){ n[m]=0; ordre.push(m); } n[m]++; });
+    var dCh=nomMarque(SAISIE.marque);
+    ordre.sort(function(a, b){ return (a===dCh?-1:0)-(b===dCh?-1:0) || a.localeCompare(b, "fr"); });
+    if(FILTRE.marque && !n[FILTRE.marque]) FILTRE.marque="";
+    marques.textContent="";
+    [["", "Toutes", l.length]].concat(ordre.map(function(m){ return [m, m, n[m]]; })).forEach(function(x){
+      var b=el("button","chip"+(FILTRE.marque===x[0] ? " on" : ""), x[1]+" · "+x[2]); b.type="button";
+      b.setAttribute("aria-pressed", FILTRE.marque===x[0] ? "true" : "false");
+      b.addEventListener("click", function(){ FILTRE.marque=x[0]; peindreBiblio(); });
+      marques.appendChild(b);
+    });
+    peindreListe();
+  }
+  function peindreListe(){
+    var l=BIBLIO||[], dCh=nomMarque(SAISIE.marque), mots=sansAccent(FILTRE.texte).split(/\s+/).filter(Boolean);
+    var vus=l.filter(function(p){
+      var m=nomMarque(p.marque) || "Sans marque";
+      if(FILTRE.marque && m!==FILTRE.marque) return false;
+      var tout=sansAccent([p.nom, p.ref, m].join(" "));
+      return mots.every(function(w){ return tout.indexOf(w)>=0; });
+    }).sort(function(a, b){
+      var ma=nomMarque(a.marque)===dCh?0:1, mb=nomMarque(b.marque)===dCh?0:1;
+      return ma-mb || nomMarque(a.marque).localeCompare(nomMarque(b.marque), "fr") || a.nom.localeCompare(b.nom, "fr");
+    });
+    compte.textContent = l.length ? (vus.length===l.length ? String(l.length) : vus.length+" sur "+l.length) : "";
+    lst.textContent="";
+    if(l.length && !vus.length){ lst.appendChild(el("p","hint","Aucun participant ne correspond.")); return; }
+    vus.forEach(function(p){
+      var it=el("div","kc-biblio-it");
       var b=el("button","kc-biblio-aj"); b.type="button"; b.title="Ajouter à ce chiffrage";
-      b.appendChild(el("b","","+ "+p.nom)); if(p.ref) b.appendChild(el("span","ref",p.ref));
-      if(p.marque && MARQUES[p.marque]) b.appendChild(el("span","mq",MARQUES[p.marque].nom));
-      b.addEventListener("click", function(){ ajouterLigne({nom:p.nom, ref:p.ref, qte:1}); toast("« "+p.nom+" » ajouté."); });
+      var nm=el("b",""); nm.appendChild(el("span","pl","+ ")); nm.appendChild(document.createTextNode(p.nom)); b.appendChild(nm);
+      if(nomMarque(p.marque)) b.appendChild(el("span","mq",nomMarque(p.marque)));
+      if(p.ref) b.appendChild(el("span","ref",p.ref));
+      b.addEventListener("click", function(){ ajouterLigne({nom:p.nom, marque:nomMarque(p.marque), ref:p.ref, qte:1}); toast("« "+p.nom+" » ajouté."); });
       var s=el("button","kc-biblio-x","×"); s.type="button"; s.setAttribute("aria-label","Retirer « "+p.nom+" » de la bibliothèque");
       s.addEventListener("click", function(){
         if(!window.confirm("Retirer « "+p.nom+" » de la bibliothèque ?\n\nLes chiffrages qui l'utilisent le gardent.")) return;
         api("knx-participant-supprimer", {id:p.id}).then(function(x){ if(x.ok){ BIBLIO=x.d.participants || []; peindreBiblio(); } else toast(x.d.erreur || "Refusé."); });
       });
-      it.appendChild(b); it.appendChild(s); w.appendChild(it);
+      it.appendChild(b); it.appendChild(s); lst.appendChild(it);
     });
-    bib.appendChild(w);
   }
   if(!Array.isArray(SAISIE.autres)) SAISIE.autres=[];
   SAISIE.autres.forEach(function(a){ liste.appendChild(rang(a)); });
   var aj=el("button","act","+ Ajouter un participant"); aj.type="button";
-  aj.addEventListener("click", function(){ ajouterLigne({nom:"", ref:"", qte:1}).querySelector("input").focus(); });
+  aj.addEventListener("click", function(){ ajouterLigne({nom:"", marque:"", ref:"", qte:1}).querySelector("input").focus(); });
   box.appendChild(aj);
   box.appendChild(bib);
   peindreBiblio();
@@ -335,7 +384,7 @@ function calculer(s){
 
   /* les autres participants, ajoutés à la main (détecteur, station météo, interface…) : chacun compte sur le bus */
   (s.autres||[]).forEach(function(a){
-    var q=nb(a.qte), nom=String(a.nom||"").trim() || "Participant KNX", ref=String(a.ref||"").trim();
+    var q=nb(a.qte), mq=String(a.marque||"").trim(), nom=(String(a.nom||"").trim() || "Participant KNX")+(mq ? " ("+mq+")" : ""), ref=String(a.ref||"").trim();
     ajouter("Autres participants", nom, ref || "—", q, {v:!!ref, note: ref ? "" : "Référence à compléter."});
   });
 
@@ -398,13 +447,23 @@ var STYLE = ".vues{display:flex;gap:6px;max-width:1100px;margin:12px auto 0;padd
   +".kc-autre input.ref{flex:1 1 130px;font-family:var(--mono);font-size:14px}"
   +".kc-garder{min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);font:600 13px/1 inherit;font-family:inherit}"
   +".kc-biblio{margin-top:14px;padding:10px 12px;border:1px dashed var(--rule);border-radius:10px}"
+  +".kc-biblio-tete{display:flex;align-items:baseline;gap:8px}"
   +".kc-biblio h4{margin:0 0 6px;font-size:13.5px}"
-  +".kc-biblio-l{display:flex;flex-wrap:wrap;gap:6px}"
-  +".kc-biblio-it{display:inline-flex;align-items:stretch;max-width:100%;border:1px solid var(--rule);border-radius:18px;background:#fff;overflow:hidden}"
-  +".kc-biblio-aj{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px 6px;min-height:34px;padding:4px 10px 4px 12px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}"
-  +".kc-biblio-aj .ref{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowrap}"
-  +".kc-biblio-aj .mq{font-size:11px;font-weight:700;color:var(--accent)}"
-  +".kc-biblio-x{border:0;border-left:1px solid var(--rule);background:#F6F7F9;color:var(--ink-3);width:30px;font-size:15px;padding:0;min-height:0}"
+  +".kc-biblio-n{font-size:12px;font-weight:700;color:var(--ink-3)}"
+  +".kc-biblio-cherche{width:100%;min-height:38px;font:inherit;font-size:15px;padding:6px 12px;border:1px solid var(--rule);border-radius:8px;background:#fff;color:var(--ink);margin:2px 0 8px}"
+  +".kc-biblio-mq{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;margin-bottom:6px;scrollbar-width:thin}"
+  +".kc-biblio-mq .chip{flex:0 0 auto;min-height:32px;font-size:12.5px}"
+  +".kc-biblio-l{max-height:300px;overflow-y:auto;border:1px solid var(--rule);border-radius:8px;background:#fff}"
+  +".kc-biblio-it{display:flex;align-items:stretch;border-bottom:1px solid #EEF1F4}"
+  +".kc-biblio-it:last-child{border-bottom:0}"
+  +".kc-biblio-aj{flex:1;min-width:0;display:flex;align-items:center;flex-wrap:wrap;gap:2px 8px;min-height:40px;padding:6px 10px;border:0;background:none;color:var(--ink);font:inherit;font-size:13.5px;text-align:left;cursor:pointer}"
+  +".kc-biblio-aj:hover{background:#F4F7FD}"
+  +".kc-biblio-aj .pl{font-weight:800;color:var(--accent)}"
+  +".kc-biblio-aj b{font-weight:600}"
+  +".kc-biblio-aj .mq{font-size:11px;font-weight:700;color:var(--accent);background:#EEF3FF;border-radius:999px;padding:1px 7px}"
+  +".kc-biblio-aj .ref{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowrap;margin-left:auto}"
+  +".kc-biblio-x{flex:0 0 auto;border:0;border-left:1px solid #EEF1F4;background:#F8F9FB;color:var(--ink-3);width:36px;font-size:16px;padding:0;min-height:0}"
+  +".kc-autre input.mq{flex:1 1 110px;font-size:14px}"
   +".kc-autre-x{position:absolute;top:11px;right:9px;width:32px;height:32px;min-height:0;padding:0;border-radius:50%;border:0;background:#F1F3F6;color:var(--ink-2);font-size:18px;line-height:1}"
   +".kc-res table{width:100%;border-collapse:collapse;font-size:13.5px}"
   +".kc-res th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--rule)}"
