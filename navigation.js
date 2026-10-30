@@ -47,7 +47,7 @@ var ICO={
 var OUTILS=[
   ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
   ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
-  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Références"],
+  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Bibliothèque"],
   ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"]
 ];
 

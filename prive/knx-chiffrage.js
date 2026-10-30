@@ -184,8 +184,8 @@ function celluleRef(l, cls, prefixe){
   s.appendChild(b);
   return s;
 }
-/* les autres participants KNX, en lignes libres : désignation, référence, quantité ; « Garder » les met
-   dans la bibliothèque (sur le site, pour tous ceux qui ont l'outil), d'où un toucher les reprend */
+/* les autres participants KNX, en lignes libres : désignation, marque, référence, quantité ; « Garder »
+   les range dans la Bibliothèque (Outils › Bibliothèque), catégorie KNX, d'où un toucher les reprend */
 var BIBLIO=[];
 function nomMarque(m){ m=String(m||"").trim(); return MARQUES[m.toLowerCase()] ? MARQUES[m.toLowerCase()].nom : m; }
 function sansAccent(t){ return String(t||"").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase(); }
@@ -251,9 +251,9 @@ function blocAutres(){
   function peindreBiblio(){
     majMarques();
     var l=BIBLIO||[];
-    titre.textContent="Bibliothèque des participants";
+    titre.textContent="Bibliothèque · KNX";
     var rien=!l.length;
-    vide.hidden=!rien; vide.textContent="Vide pour l'instant : « Garder » sur un participant le met ici, pour tous les chiffrages.";
+    vide.hidden=!rien; vide.textContent="La catégorie KNX de votre Bibliothèque est vide : « Garder » sur un participant (avec sa référence) l'y range, pour tous vos chiffrages.";
     cherche.hidden=rien; marques.hidden=rien; lst.hidden=rien;
     /* les marques présentes, avec leur nombre ; celle du chiffrage d'abord */
     var n={}, ordre=[];

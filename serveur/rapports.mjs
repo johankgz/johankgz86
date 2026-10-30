@@ -2042,32 +2042,75 @@ async function traiter(req) {
       } catch { /* la demande reste à faire de vive voix */ }
       return json({ ok: true });
     }
-    /* la bibliothèque des participants : partagée par tous ceux qui ont l'outil */
+    /* la bibliothèque des participants : la catégorie KNX de la Bibliothèque de chacun (Outils ›
+       Bibliothèque, l'ancienne base de références) ; « Garder » y range le participant */
     if (action === "knx-participants" || action === "knx-participant-enregistrer" || action === "knx-participant-supprimer") {
-      let biblio = [];
-      try { biblio = (await store.get(CLE_PARTICIPANTS_KNX, { type: "json" })) || []; } catch { biblio = []; }
-      if (!Array.isArray(biblio)) biblio = [];
-      if (action === "knx-participants") return json({ participants: biblio });
+      const moi = idRef(personne.identifiant), titulaire = titulaireRefs(comptes);
+      const chemin = REFS_DOSSIER + moi + ".json";
+      let r = await lireRefsDe(store, moi, titulaire);
+      const sansAcc = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+      const colDe = (re) => r.colonnes.findIndex((c) => re.test(sansAcc(c)));
+      let modifie = false;
+      /* une base encore vide : la base rangée d'abord, s'il y en a une (comme à l'ouverture de la Bibliothèque) */
+      const preparer = async () => {
+        if (!r.colonnes.length) {
+          const dep = moi === titulaire ? await refsDepart(personne.societe) : null;
+          if (dep) r = { colonnes: dep.colonnes, lignes: dep.lignes.slice(), cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: "Base de départ", source: dep.source, depart: dep.version, partages: r.partages || [] };
+          else Object.assign(r, { colonnes: ["Catégorie", "Marque", "Référence", "Désignation"], lignes: [], cle: 2, des: 3 });
+          modifie = true;
+        }
+        const ajouterCol = (nom, re) => { let i = colDe(re); if (i < 0 && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push(nom); r.lignes.forEach((l) => l.push("")); i = r.colonnes.length - 1; modifie = true; } return i; };
+        return { ic: ajouterCol("Catégorie", /^(categorie|famille|rubrique)/), im: ajouterCol("Marque", /^(marque|fabricant)/), ik: r.cle || 0, id: r.des != null && r.des >= 0 ? r.des : -1 };
+      };
+      const estKnx = (l, c) => /\bknx\b/.test(sansAcc(l[c.ic]));
+      /* l'ancienne bibliothèque KNX (avant la Bibliothèque) : reprise une fois dans la base du titulaire */
+      if (moi === titulaire) {
+        let anc = null; try { anc = await store.get(CLE_PARTICIPANTS_KNX, { type: "json" }); } catch { anc = null; }
+        if (Array.isArray(anc) && anc.length) {
+          const c = await preparer();
+          for (const p of anc) {
+            const ref = String(p.ref || "").trim(); if (!ref || ref === "—") continue;
+            if (r.lignes.some((l) => cleRef(l[c.ik]) === cleRef(ref))) continue;
+            const l = r.colonnes.map(() => ""); l[c.ik] = ref; l[c.ic] = "KNX"; l[c.im] = String(p.marque || "").replace(/^mdt$/i, "MDT").replace(/^zennio$/i, "Zennio").replace(/^theben$/i, "Theben");
+            if (c.id >= 0) l[c.id] = String(p.nom || "");
+            r.lignes.push(l); modifie = true;
+          }
+          try { await store.setJSON(CLE_PARTICIPANTS_KNX + ".repris.json", anc); await store.setJSON(CLE_PARTICIPANTS_KNX, []); } catch { /* repris */ }
+        }
+      }
+      const liste = (c) => r.lignes.filter((l) => estKnx(l, c)).map((l) => ({ id: l[c.ik], nom: (c.id >= 0 && l[c.id]) || l[c.ik], ref: l[c.ik], marque: l[c.im] || "" }));
+      if (action === "knx-participants") {
+        if (!r.colonnes.length) return json({ participants: [] });
+        const c = await preparer();
+        if (modifie) await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString() }));
+        return json({ participants: liste(c) });
+      }
       let d = {};
       try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      const c = await preparer();
       if (action === "knx-participant-supprimer") {
-        biblio = biblio.filter((x) => x.id !== String(d.id || ""));
-        await store.setJSON(CLE_PARTICIPANTS_KNX, biblio);
-        return json({ ok: true, participants: biblio });
+        const avant = r.lignes.length;
+        r.lignes = r.lignes.filter((l) => !(estKnx(l, c) && cleRef(l[c.ik]) === cleRef(d.id)));
+        if (r.lignes.length !== avant || modifie) await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString(), par: personne.nom }));
+        return json({ ok: true, participants: liste(c) });
       }
       const nom = String(d.nom || "").trim().slice(0, 120), ref = String(d.ref || "").trim().slice(0, 60);
       if (!nom) return json({ erreur: "Donnez une désignation au participant." }, 400);
+      if (!ref) return json({ erreur: "Donnez une référence : la Bibliothèque range chaque article par sa référence." }, 400);
       /* la marque est libre (MDT, Zennio, Theben, mais aussi Steinel, Gira…) */
       const marque = String(d.marque || "").trim().slice(0, 40);
-      /* le même participant (désignation et référence) n'est gardé qu'une fois */
-      const cle = (nom + "|" + ref).toLowerCase();
-      const i = biblio.findIndex((x) => (x.nom + "|" + x.ref).toLowerCase() === cle);
-      const fiche = { id: i >= 0 ? biblio[i].id : Date.now().toString(36) + randomBytes(3).toString("hex"), nom, ref, marque,
-        par: personne.nom, maj: new Date().toISOString() };
-      if (i >= 0) biblio[i] = fiche; else biblio.push(fiche);
-      biblio.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
-      await store.setJSON(CLE_PARTICIPANTS_KNX, biblio.slice(0, 500));
-      return json({ ok: true, id: fiche.id, participants: biblio });
+      const i = r.lignes.findIndex((l) => cleRef(l[c.ik]) === cleRef(ref));
+      const ligne = i >= 0 ? r.lignes[i].slice() : r.colonnes.map(() => "");
+      ligne[c.ik] = ref; ligne[c.ic] = "KNX"; if (marque) ligne[c.im] = marque; if (c.id >= 0) ligne[c.id] = nom;
+      if (i >= 0) r.lignes[i] = ligne;
+      else {
+        if (r.lignes.length >= REFS_MAX_LIGNES) return json({ erreur: "Bibliothèque pleine." }, 413);
+        /* rangée avec les autres KNX */
+        let ou = -1; for (let k = r.lignes.length - 1; k >= 0; k--) if (estKnx(r.lignes[k], c)) { ou = k; break; }
+        if (ou >= 0) r.lignes.splice(ou + 1, 0, ligne); else r.lignes.push(ligne);
+      }
+      await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString(), par: personne.nom }));
+      return json({ ok: true, id: ref, participants: liste(c) });
     }
     let liste = [];
     try { liste = (await store.get(CLE_CHIFFRAGES_KNX, { type: "json" })) || []; } catch { liste = []; }
@@ -3747,9 +3790,18 @@ async function traiter(req) {
       /* ajouter une référence, ou modifier celle qui avait la référence « ancienne » */
       if (!r.colonnes.length) {
         const cols = nettoyerRefs(d.colonnes || ["Référence", "Désignation"], []).cols;
-        Object.assign(r, { colonnes: cols, lignes: [], cle: 0, des: cols.length > 1 ? 1 : -1 });
+        const sa = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const ik = cols.findIndex((c) => /^(ref|code|article)/.test(sa(c))), id = cols.findIndex((c) => /^(designation|libelle|description)/.test(sa(c)));
+        Object.assign(r, { colonnes: cols, lignes: [], cle: ik >= 0 ? ik : 0, des: id >= 0 ? id : (cols.length > 1 ? 1 : -1) });
       }
-      const ligne = r.colonnes.map((_, i) => String((d.ligne || [])[i] == null ? "" : d.ligne[i]).trim().slice(0, REFS_MAX_CASE));
+      /* les colonnes envoyées par leur nom : une colonne qui manque à la base (la Catégorie) s'y ajoute */
+      let valeurs = d.ligne || [];
+      if (Array.isArray(d.colonnes) && d.colonnes.length) {
+        const noms = d.colonnes.map((c) => String(c).trim().toLowerCase());
+        noms.forEach((n, j) => { if (n && !r.colonnes.some((c) => c.toLowerCase() === n) && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push(String(d.colonnes[j]).trim().slice(0, 80)); r.lignes.forEach((l) => l.push("")); } });
+        valeurs = r.colonnes.map((c) => { const j = noms.indexOf(c.toLowerCase()); return j >= 0 ? (d.ligne || [])[j] : ""; });
+      }
+      const ligne = r.colonnes.map((_, i) => String(valeurs[i] == null ? "" : valeurs[i]).trim().slice(0, REFS_MAX_CASE));
       const k = cleRef(ligne[r.cle || 0]);
       if (!k) return json({ erreur: "La référence est obligatoire." }, 400);
       const ia = d.ancienne ? r.lignes.findIndex((l) => cleRef(l[r.cle || 0]) === cleRef(d.ancienne)) : -1;

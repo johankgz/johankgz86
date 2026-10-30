@@ -49,7 +49,7 @@
     ["./facturation.html", "Facturation du mois", "", "facture factures fin de mois cocher oubli", "bureau"],
     ["./rapports.html", "Carte des chantiers", "", "rapports dossiers plan"],
     ["./utilitaires.html", "Outils", "", "calcul boussole niveau"],
-    ["./utilitaires.html#refs", "Références", "", "articles base catalogue batigest"],
+    ["./utilitaires.html#refs", "Bibliothèque", "", "références articles base catalogue batigest"],
     ["./utilitaires.html#cable", "Section de câble", "", "chute de tension outil"],
     ["./utilitaires.html#surface", "Surface", "", "m2 outil"],
     ["./utilitaires.html#croix", "Produit en croix", "", "regle de trois outil"],

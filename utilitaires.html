@@ -436,6 +436,7 @@ main{max-width:520px}
 .rf-niv button{flex:none;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#AEB7BF;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
 .rf-niv button small{margin-left:5px;font-size:10.5px;font-weight:600;color:#6B7785}
 .rf-niv button.on{border-color:rgba(59,130,246,.6);color:#93C5FD;background:rgba(59,130,246,.12)}
+.rf-niv button.vide{opacity:.45}      /* une catégorie encore vide : là pour ranger, sans rien à montrer */
 .rf-niv button.on small{color:#93C5FD}
 .rf-niv button.rf-raz{border-style:dashed;color:#8A97A6}
 .rf-etat{min-height:1.2em;margin:4px 0 0!important;font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -476,7 +477,7 @@ button.rf-texte{appearance:none;-webkit-appearance:none;margin:0;padding:2px 0;b
 .rf-colonnes{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-top:12px}
 .rf-colonnes label,.rf-champs label{display:block;margin:0}
 .rf-colonnes span,.rf-champs span{display:block;font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:#8A97A6;margin-bottom:5px}
-.rf-colonnes select,.rf-champs input{width:100%;min-height:42px;padding:8px 10px;font-size:15px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:var(--g-800);color:#F2F5F9;box-sizing:border-box}
+.rf-colonnes select,.rf-champs input,.rf-champs select{width:100%;min-height:42px;padding:8px 10px;font-size:15px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:var(--g-800);color:#F2F5F9;box-sizing:border-box}
 .rf-colonnes label[hidden],.rf-colonnes[hidden]{display:none}
 #rfCherche{font-size:18px!important;font-weight:500;min-height:48px}
 .rf-panneau{margin-top:16px;padding:14px;border-radius:14px;background:var(--g-800);border:1px solid rgba(59,130,246,.45)}
@@ -610,7 +611,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
 <script src="./clavier.js?v=20261022a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
-<script src="./palette.js?v=20261029a" defer></script>
+<script src="./palette.js?v=20261030a" defer></script>
 </head>
 <body>
 <div class="fond-outils" aria-hidden="true">
@@ -668,7 +669,7 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
     <button type="button" role="tab" data-vue="qr" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5"/></svg>QR contact</button>
     <button type="button" role="tab" data-vue="refs" aria-selected="false">
-      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Références</button>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>Bibliothèque</button>
     <button type="button" role="tab" data-vue="surface" aria-selected="false">
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="5.5" width="17" height="13" rx="1"/><path d="M3.5 12h17M12 5.5v13"/><path d="M3.5 3v1.5M20.5 3v1.5M3.5 3.8h17" opacity=".6"/></svg>Surface</button>
   </div>
@@ -971,8 +972,8 @@ header{background:rgba(10,14,20,.72)!important;-webkit-backdrop-filter:saturate(
 
   <section class="vue" id="vue-refs" hidden>
     <div class="carte-outil conv">
-      <h2 class="outil-titre">Références</h2>
-      <p class="conv-aide">Cherchez ou filtrez, puis touchez une référence : elle est copiée.</p>
+      <h2 class="outil-titre">Bibliothèque</h2>
+      <p class="conv-aide">Vos articles rangés par catégorie. Cherchez ou filtrez, puis touchez une référence : elle est copiée.</p>
       <label class="rf-bases" id="rfBases" hidden><span>Base</span><select id="rfBase" aria-label="Base de références à ouvrir"></select></label>
       <div class="rf-autre" id="rfAutre" hidden><span id="rfAutreTxt"></span><button type="button" id="rfCopierBase">Copier dans ma base</button></div>
       <div class="conv-saisie"><input type="search" id="rfCherche" autocomplete="off" enterkeyhint="search" placeholder="Référence, désignation, marque…" aria-label="Chercher une référence"></div>
@@ -1998,6 +1999,44 @@ window.__calcul = calculer;
   /* la colonne des catégories (« Catégorie », « Famille »…) : des boutons pour parcourir la base sans rien taper */
   function colDe(re){ for(var i=0;i<B.colonnes.length;i++) if(re.test(sansAccent(B.colonnes[i]).trim())) return i; return -1; }
   function colCat(){ return colDe(/^(categorie|famille|rubrique)/); }
+  /* les catégories de la Bibliothèque, toujours les mêmes et dans cet ordre ; une catégorie déjà écrite
+     autrement (« Tableau électrique », « Câbles », « Ventilation »…) est rangée dans la plus proche */
+  var CATS=["Câble","Gaine","Tube","Boîtes","Appareillage","Appareillage IP67","Tableau","Divers","Photovoltaïque","Borne IRVE","Éclairage","KNX","VMC"];
+  function categorieFixe(v){
+    var s=sansAccent(v).trim(); if(!s) return "Divers";
+    for(var i=0;i<CATS.length;i++) if(sansAccent(CATS[i])===s) return CATS[i];
+    if(/ip\s?6[5-8]|etanche|plexo/.test(s)) return "Appareillage IP67";
+    if(/knx/.test(s)) return "KNX";
+    if(/irve|recharge|borne/.test(s)) return "Borne IRVE";
+    if(/photovolt|^pv\b|solaire|onduleur/.test(s)) return "Photovoltaïque";
+    if(/vmc|ventil|aera/.test(s)) return "VMC";
+    if(/eclairage|luminaire|lumiere|led\b|spot/.test(s)) return "Éclairage";
+    if(/tableau|coffret|disjonct|protection/.test(s)) return "Tableau";
+    if(/appareillage|prise|interrupteur/.test(s)) return "Appareillage";
+    if(/boite|boitier|encastr/.test(s)) return "Boîtes";
+    if(/gaine|icta|ictd/.test(s)) return "Gaine";
+    if(/tube|conduit|irl|goulotte|moulure/.test(s)) return "Tube";
+    if(/cable|fil\b|fils\b|conducteur/.test(s)) return "Câble";
+    return "Divers";
+  }
+  /* la catégorie d'une ligne : celle écrite, précisée par la gamme et la désignation quand elle est large
+     (« Câble et boîtes », « Divers », vide) — la boîte va en Boîtes, la gaine en Gaine, le spot en Éclairage… */
+  var LARGES=/^(cable et boites?|cables? et boites?|divers|autres?|)$/;
+  function categorieLigne(l){
+    var ic=colCat(), ig=colDe(/^(gamme|serie|collection)/), id=B.des!=null ? B.des : 1;
+    var brut=ic>=0 ? l[ic] : "", gamme=sansAccent(ig>=0 ? l[ig] : ""), d=" "+sansAccent(id>=0 ? l[id] : "").toUpperCase().replace(/[^A-Z0-9]+/g, " ")+" ";
+    var cat=categorieFixe(brut), large=LARGES.test(sansAccent(brut).trim());
+    if(cat==="Appareillage" && /plexo|etanche|ip\s?6/.test(gamme)) return "Appareillage IP67";
+    if(cat==="Appareillage" && /^boite/.test(gamme)) return "Boîtes";
+    if(!large) return cat;
+    if(/ SORTIE CABLE /.test(d)) return "Appareillage";
+    if(/ (GAINE|ICTA|ICTD) /.test(d)) return "Gaine";
+    if(/ (IRL|TUBE) /.test(d)) return "Tube";
+    if(/ (BOITE|COUVERCLE|COURVERCLE) /.test(d)) return "Boîtes";
+    if(/ (DALLE|SPOT|DOWNLIGHT|AMPOULE|REGLETTE|LUCY|LUMINAIRE|HUBLOT|PLAFONNIER|APPLIQUE|BAES|DETECTEUR) /.test(d)) return "Éclairage";
+    if(/ (CABLE|CABLETTE|H07|HO7|R2V|RJ45|FOUET|FIL|SYT) /.test(d) || /^ \d+ ?[GX] ?\d/.test(d)) return "Câble";
+    return cat==="Boîtes" ? "Câble" : cat;          /* « Câble et boîtes » sans mot clair : Câble */
+  }
   /* le type d'article, lu dans la désignation : le premier mot-clé qui y figure (« Double interrupteur » : Interrupteur) */
   var MOTS_TYPE=[["SORTIE DE CABLE","Sortie de câble"],["PRISE","Prise"],["INTERRUPTEUR","Interrupteur"],["INTER DIFF","Interrupteur différentiel"],["POUSSOIR","Poussoir"],["BOUTON","Bouton"],["VARIATEUR","Variateur"],["VOYANT","Voyant"],
     ["ENJOLIVEUR","Enjoliveur"],["PLAQUE","Plaque"],["CADRE","Cadre"],["SUPPORT","Support"],["BOITE","Boîte"],["OBTURATEUR","Obturateur"],["DETECTEUR","Détecteur"],["DISJONCTEUR","Disjoncteur"],["DIFFERENTIEL","Différentiel"],
@@ -2021,7 +2060,7 @@ window.__calcul = calculer;
     if(!NIV.some(function(n){ return n.nom==="Type"; }) && des>=0) NIV.push({nom:"Type", col:-1});
     TYPES = NIV.length && NIV[NIV.length-1].col<0 ? B.lignes.map(function(l){ return typeDe(l[des]); }) : [];
   }
-  function valeurNiv(i, k){ var n=NIV[k]; return String(n.col>=0 ? (B.lignes[i][n.col]||"") : (TYPES[i]||"")).trim(); }
+  function valeurNiv(i, k){ var n=NIV[k]; if(n.nom==="Catégorie") return categorieLigne(B.lignes[i]); return String(n.col>=0 ? (B.lignes[i][n.col]||"") : (TYPES[i]||"")).trim(); }
   function passeFiltres(i, jusqua){ for(var k=0;k<(jusqua==null ? NIV.length : jusqua);k++) if(FILTRE[k]!=null && valeurNiv(i, k)!==FILTRE[k]) return false; return true; }
   function filtreActif(){ return FILTRE.some(function(v){ return v!=null; }); }
   function resumeFiltres(){ return FILTRE.map(function(v, k){ return v==null ? null : (v || "Autres"); }).filter(function(v){ return v!=null; }).join(" › "); }
@@ -2075,7 +2114,9 @@ window.__calcul = calculer;
       lignes.forEach(function(i){ var v=valeurNiv(i, k); if(!(v in compte)){ compte[v]=0; ordre.push(v); } compte[v]++; });
       if(FILTRE[k]!=null && !(FILTRE[k] in compte)) FILTRE.length=k;     /* plus de lignes pour ce choix : on le lâche */
       var vals=ordre.filter(Boolean); if(ordre.indexOf("")>=0 && vals.length) vals.push("");
-      if(FILTRE[k]==null && vals.length<2) continue;                       /* une seule valeur : rien à choisir, niveau suivant */
+      var cat = NIV[k].nom==="Catégorie";
+      if(cat) vals=CATS.slice();                                            /* les catégories : toutes, dans leur ordre */
+      else if(FILTRE[k]==null && vals.length<2) continue;                  /* une seule valeur : rien à choisir, niveau suivant */
       var ligne=document.createElement("div"); ligne.className="rf-niv"; ligne.dataset.niv=NIV[k].nom;
       var em=document.createElement("em"); em.textContent=NIV[k].nom; ligne.appendChild(em);
       if(k===0 || rangs===0){
@@ -2085,7 +2126,8 @@ window.__calcul = calculer;
       vals.forEach(function(v){
         var b=document.createElement("button"); b.type="button"; b.dataset.v=v; b.classList.toggle("on", FILTRE[k]===v);
         b.appendChild(document.createTextNode(v || "Autres"));
-        var sm=document.createElement("small"); sm.textContent=compte[v]; b.appendChild(sm);
+        var sm=document.createElement("small"); sm.textContent=compte[v]||0; b.appendChild(sm);
+        if(!compte[v]) b.classList.add("vide");
         (function(kk){ b.addEventListener("click", function(){
           var deja=FILTRE[kk]===v; FILTRE.length=kk; FILTRE[kk]=deja ? null : v;
           majFiltres(); chercher();
@@ -2202,7 +2244,8 @@ window.__calcul = calculer;
     var filtrees=NIV.filter(function(n, k){ return n.col>=0 && FILTRE[k]!=null; }).map(function(n){ return n.col; });
     var autres=B.colonnes.map(function(c, j){
       if(j===cle || j===des || !l[j] || filtrees.indexOf(j)>=0) return "";
-      return /^(categorie|famille|rubrique|gamme|serie|collection|marque|fabricant|fournisseur|distributeur)/.test(sansAccent(c)) ? l[j] : c+" : "+l[j];
+      if(/^(categorie|famille|rubrique)/.test(sansAccent(c))) return categorieLigne(l);
+      return /^(gamme|serie|collection|marque|fabricant|fournisseur|distributeur)/.test(sansAccent(c)) ? l[j] : c+" : "+l[j];
     }).filter(Boolean);
     if(autres.length){ var sm=document.createElement("small"); sm.textContent=autres.join(" · "); t.appendChild(sm); }
     t.addEventListener("click", function(){ copier(i, d); });
@@ -2256,17 +2299,30 @@ window.__calcul = calculer;
   function editer(i){
     EDIT = i==null ? {ancienne:null} : {ancienne:B.lignes[i][B.cle||0]};
     var f=$("rfForm"), g=$("rfChamps"); g.textContent="";
-    var cols = B.colonnes.length ? B.colonnes : ["Référence", "Désignation", "Fournisseur", "Prix", "Unité"];
+    var cols = B.colonnes.length ? B.colonnes.slice() : ["Catégorie", "Marque", "Référence", "Désignation", "Fournisseur"];
+    /* une base sans colonne de catégorie : elle en gagne une, pour ranger la Bibliothèque */
+    if(!cols.some(function(c){ return /^(categorie|famille|rubrique)/.test(sansAccent(c).trim()); })) cols.unshift("Catégorie");
+    var jCle = B.colonnes.length ? cols.indexOf(B.colonnes[B.cle||0]) : cols.indexOf("Référence");
     cols.forEach(function(c, j){
-      var l=document.createElement("label"); var sp=document.createElement("span"); sp.textContent=c+(j===(B.cle||0) ? " *" : ""); l.appendChild(sp);
-      var inp=document.createElement("input"); inp.type="text"; inp.autocomplete="off"; inp.dataset.i=String(j); inp.value = i!=null ? (B.lignes[i][j]||"") : ""; l.appendChild(inp);
+      var iB=B.colonnes.indexOf(c);
+      if(/^(categorie|famille|rubrique)/.test(sansAccent(c).trim())){
+        var lc=document.createElement("label"); var sc=document.createElement("span"); sc.textContent=c+" *"; lc.appendChild(sc);
+        var se=document.createElement("select"); se.dataset.i=String(j);
+        CATS.forEach(function(x){ var o=document.createElement("option"); o.value=x; o.textContent=x; se.appendChild(o); });
+        var choix = i!=null ? categorieLigne(B.lignes[i]) : null;
+        if(i==null) NIV.forEach(function(n, k){ if(n.nom==="Catégorie" && FILTRE[k]) choix=FILTRE[k]; });
+        se.value = choix || "Divers"; lc.appendChild(se); g.appendChild(lc);
+        return;
+      }
+      var l=document.createElement("label"); var sp=document.createElement("span"); sp.textContent=c+(j===jCle ? " *" : ""); l.appendChild(sp);
+      var inp=document.createElement("input"); inp.type="text"; inp.autocomplete="off"; inp.dataset.i=String(j); inp.value = i!=null && iB>=0 ? (B.lignes[i][iB]||"") : ""; l.appendChild(inp);
       /* les valeurs déjà utilisées (catégories, gammes, marques, fournisseurs) : proposées pour garder la base propre */
-      if(j!==(B.cle||0) && j!==(B.des!=null ? B.des : 1)){
-        var vals=[]; B.lignes.forEach(function(x){ if(x[j] && vals.indexOf(x[j])<0) vals.push(x[j]); });
+      if(iB>=0 && iB!==(B.cle||0) && iB!==(B.des!=null ? B.des : 1)){
+        var vals=[]; B.lignes.forEach(function(x){ if(x[iB] && vals.indexOf(x[iB])<0) vals.push(x[iB]); });
         if(vals.length && vals.length<=200){ var dl=document.createElement("datalist"); dl.id="rfListe"+j; vals.sort().forEach(function(v){ var o=document.createElement("option"); o.value=v; dl.appendChild(o); }); l.appendChild(dl); inp.setAttribute("list", dl.id); }
       }
       /* une nouvelle référence dans la catégorie affichée */
-      if(i==null) NIV.forEach(function(n, k){ if(n.col===j && FILTRE[k]) inp.value=FILTRE[k]; });
+      if(i==null) NIV.forEach(function(n, k){ if(n.col>=0 && n.col===iB && FILTRE[k]) inp.value=FILTRE[k]; });
       g.appendChild(l);
     });
     EDIT.colonnes=cols;
@@ -2275,7 +2331,7 @@ window.__calcul = calculer;
   }
   $("rfForm").addEventListener("submit", function(e){
     e.preventDefault(); if(!EDIT) return;
-    var ligne=Array.prototype.map.call($("rfChamps").querySelectorAll("input"), function(x){ return x.value.trim(); });
+    var ligne=Array.prototype.map.call($("rfChamps").querySelectorAll("input,select"), function(x){ return x.value.trim(); });
     api("references-ligne", {ancienne:EDIT.ancienne, ligne:ligne, colonnes:EDIT.colonnes}).then(function(d){
       $("rfForm").hidden=true; EDIT=null; charger(d.ajoutee ? "Référence ajoutée." : "Référence modifiée.");
     }).catch(function(er){ etat(er.message); });
@@ -2540,6 +2596,6 @@ window.__calcul = calculer;
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261024c" defer></script>
+<script src="./navigation.js?v=20261030a" defer></script>
 </body>
 </html>
