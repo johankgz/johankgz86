@@ -34,6 +34,8 @@ var MARQUES = {
     commutation:{nom:"Actionneur de commutation {n} sorties 16 A (charges capacitives)", modules:[
       {ref:"AKS-0416.03", n:4}, {ref:"AKS-0816.03", n:8}, {ref:"AKS-1216.03", n:12},
       {ref:"AKS-1616.03", n:16}, {ref:"AKS-2016.03", n:20}, {ref:"AKS-2416.03", n:24}]},
+    universel:{nom:"Actionneur universel {n} sorties 16 A, tout ou rien ou volets ({demi} volets au plus)", modules:[
+      {ref:"AKU-0816.03", n:8}, {ref:"AKU-1616.03", n:16}, {ref:"AKU-2416.03", n:24}]},
     volets:{nom:"Actionneur volets {n} canaux 230 V, soit {n} volets ({2n} sorties montée / descente, moteurs jusqu'à 600 W)", modules:[
       {ref:"JAL-0410.02", n:4}, {ref:"JAL-0810.02", n:8}]},
     variation:{nom:"Variateur universel {n} canaux 250 W (LED, mesure de puissance)", modules:[
@@ -53,7 +55,7 @@ var MARQUES = {
   },
   zennio: {nom:"Zennio",
     alim:[{ref:"ZPSU640", mA:640, nom:"KUPSupply 640 mA (sortie auxiliaire 29 V)"}],
-    commutation:{nom:"MAXinBOX {n} Plus, actionneur multifonction {n} sorties 16 A", modules:[
+    commutation:{nom:"MAXinBOX {n} Plus, actionneur multifonction {n} sorties 16 A, tout ou rien ou volets ({demi} volets au plus)", modules:[
       {ref:"ZIO-MB8P", n:8}, {ref:"ZIO-MB16P", n:16}]},
     volets:{nom:"MAXinBOX SHUTTER, actionneur volets {n} canaux, soit {n} volets ({2n} sorties montée / descente)", modules:[
       {ref:"ZIO-MBSHU4", n:4, v:false, note:"Une version v2 existe : prendre la référence en cours au tarif."},
@@ -77,7 +79,7 @@ var MARQUES = {
   },
   theben: {nom:"Theben",
     alim:[{ref:"9070958", mA:640, nom:"PS 640 mA T KNX, alimentation 640 mA"}],
-    commutation:{nom:"RMG 8 T KNX, actionneur de commutation 8 sorties (MIX2)", modules:[{ref:"4930200", n:8}]},
+    commutation:{nom:"RMG 8 T KNX, actionneur 8 sorties, tout ou rien ou volets (4 volets au plus, MIX2)", modules:[{ref:"4930200", n:8}]},
     volets:{nom:"JMG 4 T KNX, actionneur volets 4 canaux, soit 4 volets (8 sorties montée / descente, module de base MIX2)", base:{ref:"4930250", n:4},
       ext:{ref:"4930255", n:4, max:2, nom:"JME 4 T KNX, extension volets 4 canaux, soit 4 volets (8 sorties montée / descente)"}},
     variation:{nom:"DMG 2 T KNX, variateur universel 2 canaux 400 W (module de base MIX2)", base:{ref:"4930270", n:2},
@@ -144,7 +146,7 @@ function regrouper(mods){
   mods.forEach(function(x){ if(!m[x.ref]){ m[x.ref]={mod:x, qte:0}; ordre.push(x.ref); } m[x.ref].qte++; });
   return ordre.map(function(r){ return m[r]; });
 }
-function nomDe(famille, mod){ return (mod.nom || famille.nom).replace(/\{n\}/g, mod.n).replace(/\{2n\}/g, 2*mod.n); }
+function nomDe(famille, mod){ return (mod.nom || famille.nom).replace(/\{n\}/g, mod.n).replace(/\{2n\}/g, 2*mod.n).replace(/\{demi\}/g, mod.n/2); }
 
 function calculer(s){
   var M = MARQUES[s.marque] || MARQUES.mdt;
@@ -173,11 +175,24 @@ function calculer(s){
     if(places > besoin) notes.push(cat+" : "+(places-besoin)+" "+(places-besoin>1 ? mots[1] : mots[0])+" en réserve.");
     return places;
   }
-  var sorties = nb(s.allumages) + nb(s.portes);
-  famille("Commutation", M.commutation, sorties, ["sortie libre", "sorties libres"]);
+  /* les volets : les actionneurs volets remplis restent. Le dernier, s'il n'est rempli qu'à
+     moitié ou moins, est remplacé par l'actionneur tout ou rien en fonction volet (2 sorties par
+     volet) ; rempli à plus de la moitié, il reste, sauf si les sorties libres du tout ou rien
+     suffisent sans ajouter d'actionneur. */
+  var volets = nb(s.volets), sortiesTor = nb(s.allumages) + nb(s.portes), Fv = M.volets;
+  var mVolets = Fv.base ? [] : choisirModules(Fv.modules, volets), dernier = Fv.base ? Fv.base.n : (mVolets.length ? mVolets[mVolets.length-1].n : 0);
+  var reste = Fv.base ? volets % dernier : volets - mVolets.slice(0, -1).reduce(function(a, m){ return a + m.n; }, 0);
+  if(reste === dernier) reste = 0;
+  var surTor = 0, U = M.universel || M.commutation;
+  function combien(F, besoin){ return besoin > 0 ? choisirModules(F.modules, besoin).length : 0; }
+  if(reste && (reste <= dernier/2 || combien(U, sortiesTor + 2*reste) <= combien(M.commutation, sortiesTor))) surTor = reste;
+  var surVolets = volets - surTor, sorties = sortiesTor + 2*surTor;
+  if(volets) notes.push("Volets : "+volets+" volet"+(volets>1?"s":"")+" = "+2*volets+" sorties (une pour la montée, une pour la descente), verrouillées pour ne jamais être alimentées ensemble."
+    +(surTor ? " "+(surVolets ? surVolets+" sur actionneur volets (rempli), " : "")+surTor+" sur l'actionneur tout ou rien en fonction volet ("+2*surTor+" sorties) : "
+      +(surVolets ? "un actionneur volets de moins." : "pas d'actionneur volets pour si peu.") : ""));
+  famille("Commutation", surTor ? U : M.commutation, sorties, ["sortie libre", "sorties libres"]);
   if(nb(s.portes)) notes.push("Portes et portails : une sortie de commutation chacun, en contact sec (impulsion), soit "+nb(s.portes)+" sur les "+sorties+" sorties de commutation.");
-  if(nb(s.volets)) notes.push("Volets : "+nb(s.volets)+" volet"+(nb(s.volets)>1?"s":"")+" = "+2*nb(s.volets)+" sorties (une pour la montée, une pour la descente), sur des actionneurs volets verrouillés pour que les deux ne soient jamais alimentées ensemble.");
-  famille("Volets", M.volets, nb(s.volets));
+  famille("Volets", Fv, surVolets);
   famille("Variation", M.variation, nb(s.variation));
   var entrees = nb(s.plexo) * Math.max(1, nb(s.entreesParPlexo) || 1) + (s.etatPortes ? nb(s.portes) : 0);
   famille("Entrées", M.entrees, entrees, ["entrée libre", "entrées libres"]);
