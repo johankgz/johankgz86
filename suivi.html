@@ -832,6 +832,8 @@ h2 .sv-switch + .aide-i{margin-left:0}
   text-align:center;box-shadow:0 0 0 2.5px #fff,0 3px 8px rgba(0,0,0,.35);cursor:grab;touch-action:none;z-index:2;min-height:0}
 .rp-pa.on{box-shadow:0 0 0 2.5px #fff,0 0 0 7px rgba(37,99,235,.35),0 3px 8px rgba(0,0,0,.35)}
 .rp-outils{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
+.sv-formats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;border:1px solid var(--rule);border-radius:10px;background:var(--card,#fff)}
+.sv-formats span{font-size:13px;font-weight:600;color:var(--ink-2);margin-right:2px}
 .rp-outils .act{flex:1 1 auto;min-height:40px;padding:7px 10px;font-size:13.5px}
 .rp-outils .act.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .rp-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:8px 0 2px}
@@ -4382,7 +4384,7 @@ function renderPlans(){
     /* le plan seul, en PDF, pour l'imprimer et le donner au bureau d'études */
     var b3=document.createElement("button"); b3.type="button"; b3.className="act ghost"; b3.style.flex="0 0 auto"; b3.textContent="PDF à imprimer";
     b3.title="Ce plan seul, en PDF, pour l'imprimer (bureau d'études)";
-    b3.addEventListener("click", function(){ pdfPlanSeul(i); });
+    b3.addEventListener("click", function(){ choisirFormatPlan(i, b3); });
     r.appendChild(ai); r.appendChild(b3); r.appendChild(b2);
     d.appendChild(r);
     var lg2=document.createElement("div"); lg2.className="rp-leg";
@@ -4398,68 +4400,85 @@ function renderPlans(){
    référence et la date du suivi ; le plan aussi grand que possible, ses endroits modifiés encadrés
    en jaune et numérotés, ses repères en pastilles ; en dessous, la liste des repères (une page de
    plus s'il y en a beaucoup). */
-function zonesSurPdf(doc, zns, x0, y0, w, h){
-  zns.forEach(function(z, k){
+function zonesSurPdf(doc, zns, x0, y0, w, h, k){
+  k=k||1;
+  zns.forEach(function(z, n){
     var zx=x0+z.x0*w, zy=y0+z.y0*h, zw=(z.x1-z.x0)*w, zh=(z.y1-z.y0)*h;
     try{ doc.setGState(new doc.GState({opacity:0.14})); }catch(e){}
-    doc.setFillColor(250,204,21); doc.roundedRect(zx, zy, zw, zh, 1.2, 1.2, "F");
+    doc.setFillColor(250,204,21); doc.roundedRect(zx, zy, zw, zh, 1.2*k, 1.2*k, "F");
     try{ doc.setGState(new doc.GState({opacity:1})); }catch(e){}
-    doc.setDrawColor(234,179,8); doc.setLineWidth(0.6); doc.roundedRect(zx, zy, zw, zh, 1.2, 1.2, "S");
-    doc.setFillColor(250,204,21); doc.setDrawColor(120,90,0); doc.setLineWidth(0.25); doc.circle(zx+0.8, zy+0.8, 2.1, "FD");
-    doc.setFont("helvetica","bold"); doc.setFontSize(6.6); doc.setTextColor(11,14,18); doc.text(String(k+1), zx+0.8, zy+1.6, {align:"center"});
+    doc.setDrawColor(234,179,8); doc.setLineWidth(0.6*k); doc.roundedRect(zx, zy, zw, zh, 1.2*k, 1.2*k, "S");
+    doc.setFillColor(250,204,21); doc.setDrawColor(120,90,0); doc.setLineWidth(0.25*k); doc.circle(zx+0.8*k, zy+0.8*k, 2.1*k, "FD");
+    doc.setFont("helvetica","bold"); doc.setFontSize(6.6*k); doc.setTextColor(11,14,18); doc.text(String(n+1), zx+0.8*k, zy+1.6*k, {align:"center"});
   });
 }
-function pdfPlanSeul(i){
+/* le format, choisi à l'export (A4 à A0) ; le dernier choisi revient en premier */
+function choisirFormatPlan(i, bouton){
+  var ancien=document.getElementById("svFormats"); if(ancien){ ancien.remove(); if(ancien.__i===i) return; }
+  var dernier="a4"; try{ dernier=localStorage.getItem("suivi:formatPlan")||"a4"; }catch(e){}
+  var m=document.createElement("div"); m.id="svFormats"; m.__i=i; m.className="sv-formats"; m.setAttribute("role","group"); m.setAttribute("aria-label","Format du PDF");
+  var lb=document.createElement("span"); lb.textContent="Format du PDF :"; m.appendChild(lb);
+  ["a4","a3","a2","a1","a0"].forEach(function(f){
+    var b=document.createElement("button"); b.type="button"; b.className="chip"+(f===dernier ? " on" : ""); b.textContent=f.toUpperCase();
+    b.addEventListener("click", function(){ try{ localStorage.setItem("suivi:formatPlan", f); }catch(e){} m.remove(); pdfPlanSeul(i, f); });
+    m.appendChild(b);
+  });
+  bouton.parentNode.parentNode.insertBefore(m, bouton.parentNode.nextSibling);
+}
+function pdfPlanSeul(i, format){
   var pl=S.plans[i]; if(!pl || !pl.data) return;
   if(!window.jspdf || !window.jspdf.jsPDF){ toast("Le module PDF finit de se charger : réessayez dans quelques secondes."); return; }
   var paysage=(pl.w||4)>=(pl.h||3);
-  var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4", orientation:paysage ? "landscape" : "portrait"});
-  var W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight(), m=10;
+  format=/^a[0-4]$/.test(format||"") ? format : "a4";
+  var doc=new window.jspdf.jsPDF({unit:"mm", format:format, orientation:paysage ? "landscape" : "portrait"});
+  var W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight();
+  /* tout ce qui est écrit grandit avec la feuille (A4 = 1) : sur un A0, le titre reste lisible de loin */
+  var k=Math.min(W, H)/210, m=10*k;
   var nom=(pl.legende||"").trim() || "Plan "+(i+1);
   function entete(suite){
-    doc.setFillColor(15,23,42); doc.rect(0, 0, W, 14, "F");
-    doc.setFont("helvetica","bold"); doc.setFontSize(12); doc.setTextColor(255,255,255);
-    doc.text(doc.splitTextToSize(nom+(suite ? " (suite)" : ""), W*0.45)[0], m, 9.2);
-    doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(200,210,225);
-    doc.text([S.client.nom, refAffaire() ? "Réf. "+refAffaire() : "", "Suivi du "+frDate(S.visite.date)].filter(Boolean).join("  ·  "), W-m, 9.2, {align:"right"});
+    doc.setFillColor(15,23,42); doc.rect(0, 0, W, 14*k, "F");
+    doc.setFont("helvetica","bold"); doc.setFontSize(12*k); doc.setTextColor(255,255,255);
+    doc.text(doc.splitTextToSize(nom+(suite ? " (suite)" : ""), W*0.45)[0], m, 9.2*k);
+    doc.setFont("helvetica","normal"); doc.setFontSize(8.5*k); doc.setTextColor(200,210,225);
+    doc.text([S.client.nom, refAffaire() ? "Réf. "+refAffaire() : "", "Suivi du "+frDate(S.visite.date)].filter(Boolean).join("  ·  "), W-m, 9.2*k, {align:"right"});
   }
   entete(false);
   var rps=reperesDe(pl), zns=window.Annotation && Annotation.zones ? Annotation.zones(pl) : [];
   /* sous le plan : une ligne pour les zones, et jusqu'à 6 repères (la suite sur une autre page) */
-  var place=6 + (zns.length ? 6 : 0) + (rps.length ? 5+Math.min(rps.length, 6)*4.6 : 0) + 12;
-  var zoneW=W-2*m, zoneH=H-14-4-place, w=zoneW, h=w*(pl.h||3)/(pl.w||4);
+  var place=(6 + (zns.length ? 6 : 0) + (rps.length ? 5+Math.min(rps.length, 6)*4.6 : 0) + 12)*k;
+  var zoneW=W-2*m, zoneH=H-18*k-place, w=zoneW, h=w*(pl.h||3)/(pl.w||4);
   if(h>zoneH){ h=zoneH; w=h*(pl.w||4)/(pl.h||3); }
-  var x0=(W-w)/2, y0=18;
+  var x0=(W-w)/2, y0=18*k;
   try{ doc.addImage(pl.data, /^data:image\/png/i.test(pl.data) ? "PNG" : "JPEG", x0, y0, w, h); }catch(e){}
-  doc.setDrawColor(190,198,210); doc.setLineWidth(0.25); doc.rect(x0, y0, w, h);
-  zonesSurPdf(doc, zns, x0, y0, w, h);
+  doc.setDrawColor(190,198,210); doc.setLineWidth(0.25*k); doc.rect(x0, y0, w, h);
+  zonesSurPdf(doc, zns, x0, y0, w, h, k);
   rps.forEach(function(it){
     var c=RP_RGB[statutRp(it)], nm=numRp(it), cx=x0+it.x*w, cy=y0+it.y*h;
-    doc.setFont("helvetica","bold"); doc.setFontSize(7);
-    var rr=Math.max(3.1, doc.getTextWidth(nm)/2+1.3);
-    doc.setDrawColor(255,255,255); doc.setLineWidth(0.7); doc.setFillColor(c[0], c[1], c[2]);
-    doc.roundedRect(cx-rr, cy-3.1, 2*rr, 6.2, 3.1, 3.1, "FD");
-    doc.setTextColor(255,255,255); doc.text(nm, cx, cy+1.1, {align:"center"});
+    doc.setFont("helvetica","bold"); doc.setFontSize(7*k);
+    var rr=Math.max(3.1*k, doc.getTextWidth(nm)/2+1.3*k);
+    doc.setDrawColor(255,255,255); doc.setLineWidth(0.7*k); doc.setFillColor(c[0], c[1], c[2]);
+    doc.roundedRect(cx-rr, cy-3.1*k, 2*rr, 6.2*k, 3.1*k, 3.1*k, "FD");
+    doc.setTextColor(255,255,255); doc.text(nm, cx, cy+1.1*k, {align:"center"});
   });
-  var y=y0+h+6;
-  doc.setTextColor(60,68,82); doc.setFont("helvetica","normal"); doc.setFontSize(8.5);
-  if(zns.length){ doc.text("Encadrés en jaune : "+zns.length+" endroit"+(zns.length>1?"s":"")+" modifié"+(zns.length>1?"s":"")+" sur ce plan.", m, y); y+=6; }
+  var y=y0+h+6*k;
+  doc.setTextColor(60,68,82); doc.setFont("helvetica","normal"); doc.setFontSize(8.5*k);
+  if(zns.length){ doc.text("Encadrés en jaune : "+zns.length+" endroit"+(zns.length>1?"s":"")+" modifié"+(zns.length>1?"s":"")+" sur ce plan.", m, y); y+=6*k; }
   if(rps.length){
-    doc.setFont("helvetica","bold"); doc.setFontSize(9); doc.setTextColor(15,23,42); doc.text("Repères", m, y); y+=5;
+    doc.setFont("helvetica","bold"); doc.setFontSize(9*k); doc.setTextColor(15,23,42); doc.text("Repères", m, y); y+=5*k;
     rps.forEach(function(it){
-      if(y > H-12){ doc.addPage(); entete(true); y=24; }
+      if(y > H-12*k){ doc.addPage(); entete(true); y=24*k; }
       var c=RP_RGB[statutRp(it)];
-      doc.setFillColor(c[0], c[1], c[2]); doc.circle(m+1.6, y-1.2, 1.4, "F");
-      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.setTextColor(15,23,42); doc.text(numRp(it), m+4.5, y);
+      doc.setFillColor(c[0], c[1], c[2]); doc.circle(m+1.6*k, y-1.2*k, 1.4*k, "F");
+      doc.setFont("helvetica","bold"); doc.setFontSize(8.5*k); doc.setTextColor(15,23,42); doc.text(numRp(it), m+4.5*k, y);
       doc.setFont("helvetica","normal"); doc.setTextColor(60,68,82);
       var tx=((it.texte||"").trim() || "(sans texte)")+"  —  "+RP_MOT[statutRp(it)];
-      doc.text(doc.splitTextToSize(tx, W-2*m-16)[0], m+14, y);
-      y+=4.6;
+      doc.text(doc.splitTextToSize(tx, W-2*m-16*k)[0], m+14*k, y);
+      y+=4.6*k;
     });
   }
-  var fichier=(/^plan/i.test(nom) ? "" : "Plan-")+nomFichier(nom)+"-"+(refAffaire()||"sans-ref")+".pdf";
+  var fichier=(/^plan/i.test(nom) ? "" : "Plan-")+nomFichier(nom)+"-"+(refAffaire()||"sans-ref")+"-"+format.toUpperCase()+".pdf";
   dl(doc.output("blob"), fichier);
-  toast("PDF du plan prêt à imprimer : "+fichier);
+  toast("PDF du plan en "+format.toUpperCase()+", prêt à imprimer : "+fichier);
 }
 function annoterPlan(i){
   var pl=S.plans[i]; if(!pl) return;
