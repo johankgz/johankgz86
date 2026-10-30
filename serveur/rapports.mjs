@@ -423,6 +423,8 @@ async function scriptKnxExport() {
   return readFile(new URL("../prive/knx-export.js", import.meta.url), "utf8");
 }
 const CLE_CHIFFRAGES_KNX = "knx/chiffrages.json";
+/* la bibliothèque des participants KNX ajoutés à la main, pour les reprendre d'un chiffrage à l'autre */
+const CLE_PARTICIPANTS_KNX = "knx/participants.json";
 
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
@@ -2018,7 +2020,8 @@ async function traiter(req) {
   }
   /* les chiffrages KNX de la société : pour qui a l'outil KNX (son code), et l'administrateur */
   if (action === "knx-chiffrages" || action === "knx-chiffrage-enregistrer" || action === "knx-chiffrage-supprimer"
-      || action === "knx-export" || action === "knx-export-demande") {
+      || action === "knx-export" || action === "knx-export-demande"
+      || action === "knx-participants" || action === "knx-participant-enregistrer" || action === "knx-participant-supprimer") {
     const comptes = await lireComptes(personne.societe);
     const compte = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === personne.identifiant) || {};
     if (!admin && !(compte.knx && compte.knx.empreinte)) return json({ erreur: "Outil réservé : demandez votre code d'accès à l'administrateur.", sansCode: true }, 403);
@@ -2038,6 +2041,32 @@ async function traiter(req) {
         }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
       } catch { /* la demande reste à faire de vive voix */ }
       return json({ ok: true });
+    }
+    /* la bibliothèque des participants : partagée par tous ceux qui ont l'outil */
+    if (action === "knx-participants" || action === "knx-participant-enregistrer" || action === "knx-participant-supprimer") {
+      let biblio = [];
+      try { biblio = (await store.get(CLE_PARTICIPANTS_KNX, { type: "json" })) || []; } catch { biblio = []; }
+      if (!Array.isArray(biblio)) biblio = [];
+      if (action === "knx-participants") return json({ participants: biblio });
+      let d = {};
+      try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      if (action === "knx-participant-supprimer") {
+        biblio = biblio.filter((x) => x.id !== String(d.id || ""));
+        await store.setJSON(CLE_PARTICIPANTS_KNX, biblio);
+        return json({ ok: true, participants: biblio });
+      }
+      const nom = String(d.nom || "").trim().slice(0, 120), ref = String(d.ref || "").trim().slice(0, 60);
+      if (!nom) return json({ erreur: "Donnez une désignation au participant." }, 400);
+      const marque = ["mdt", "zennio", "theben"].indexOf(d.marque) >= 0 ? d.marque : "";
+      /* le même participant (désignation et référence) n'est gardé qu'une fois */
+      const cle = (nom + "|" + ref).toLowerCase();
+      const i = biblio.findIndex((x) => (x.nom + "|" + x.ref).toLowerCase() === cle);
+      const fiche = { id: i >= 0 ? biblio[i].id : Date.now().toString(36) + randomBytes(3).toString("hex"), nom, ref, marque,
+        par: personne.nom, maj: new Date().toISOString() };
+      if (i >= 0) biblio[i] = fiche; else biblio.push(fiche);
+      biblio.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+      await store.setJSON(CLE_PARTICIPANTS_KNX, biblio.slice(0, 500));
+      return json({ ok: true, id: fiche.id, participants: biblio });
     }
     let liste = [];
     try { liste = (await store.get(CLE_CHIFFRAGES_KNX, { type: "json" })) || []; } catch { liste = []; }

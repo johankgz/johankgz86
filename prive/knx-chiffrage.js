@@ -184,7 +184,9 @@ function celluleRef(l, cls, prefixe){
   s.appendChild(b);
   return s;
 }
-/* les autres participants KNX, en lignes libres : désignation, référence, quantité */
+/* les autres participants KNX, en lignes libres : désignation, référence, quantité ; « Garder » les met
+   dans la bibliothèque (sur le site, pour tous ceux qui ont l'outil), d'où un toucher les reprend */
+var BIBLIO=[];
 function blocAutres(){
   var box=el("div","kc-autres");
   box.appendChild(el("h3","","Autres participants KNX"));
@@ -200,23 +202,62 @@ function blocAutres(){
     var p=el("button","","+"); p.type="button"; p.setAttribute("aria-label","Un de plus");
     q.appendChild(m); q.appendChild(qi); q.appendChild(p);
     var x=el("button","kc-autre-x","×"); x.type="button"; x.setAttribute("aria-label","Retirer ce participant");
+    /* le garder dans la bibliothèque, pour les prochains chiffrages */
+    var gd=el("button","kc-garder","Garder"); gd.type="button"; gd.title="Garder ce participant dans la bibliothèque, pour les autres chiffrages";
+    gd.addEventListener("click", function(){
+      if(!String(n.value).trim()){ toast("Donnez d'abord une désignation."); n.focus(); return; }
+      gd.disabled=true;
+      api("knx-participant-enregistrer", {nom:n.value, ref:f.value, marque:SAISIE.marque}).then(function(x){
+        gd.disabled=false;
+        if(!x.ok){ toast(x.d.erreur || "Pas gardé."); return; }
+        BIBLIO=x.d.participants || BIBLIO; peindreBiblio(); toast("Gardé dans la bibliothèque.");
+      }).catch(function(){ gd.disabled=false; toast("Pas de réseau : réessayez."); });
+    });
     function maj(){ a.nom=n.value; a.ref=f.value; a.qte=nb(qi.value); garderLocal(); peindreResultat(); }
     n.addEventListener("input", maj); f.addEventListener("input", maj); qi.addEventListener("input", maj);
     m.addEventListener("click", function(){ qi.value=String(Math.max(0, nb(qi.value)-1)); maj(); });
     p.addEventListener("click", function(){ qi.value=String(Math.min(999, nb(qi.value)+1)); maj(); });
     x.addEventListener("click", function(){ SAISIE.autres=SAISIE.autres.filter(function(y){ return y!==a; }); r.remove(); garderLocal(); peindreResultat(); });
-    r.appendChild(n); r.appendChild(f); r.appendChild(q); r.appendChild(x);
+    r.appendChild(n); r.appendChild(f); r.appendChild(q); r.appendChild(gd); r.appendChild(x);
     return r;
+  }
+  function ajouterLigne(a){
+    SAISIE.autres.push(a);
+    var r=rang(a); liste.appendChild(r);
+    garderLocal(); peindreResultat();
+    return r;
+  }
+  /* la bibliothèque : un toucher ajoute le participant (quantité 1) ; la marque du chiffrage d'abord */
+  var bib=el("div","kc-biblio");
+  function peindreBiblio(){
+    bib.textContent="";
+    var l=(BIBLIO||[]).slice().sort(function(a, b){ var ma=a.marque===SAISIE.marque?0:1, mb=b.marque===SAISIE.marque?0:1; return ma-mb || a.nom.localeCompare(b.nom, "fr"); });
+    bib.appendChild(el("h4","","Bibliothèque des participants"+(l.length ? " ("+l.length+")" : "")));
+    if(!l.length){ bib.appendChild(el("p","hint","Vide pour l'instant : « Garder » sur un participant le met ici, pour tous les chiffrages.")); return; }
+    var w=el("div","kc-biblio-l");
+    l.forEach(function(p){
+      var it=el("span","kc-biblio-it");
+      var b=el("button","kc-biblio-aj"); b.type="button"; b.title="Ajouter à ce chiffrage";
+      b.appendChild(el("b","","+ "+p.nom)); if(p.ref) b.appendChild(el("span","ref",p.ref));
+      if(p.marque && MARQUES[p.marque]) b.appendChild(el("span","mq",MARQUES[p.marque].nom));
+      b.addEventListener("click", function(){ ajouterLigne({nom:p.nom, ref:p.ref, qte:1}); toast("« "+p.nom+" » ajouté."); });
+      var s=el("button","kc-biblio-x","×"); s.type="button"; s.setAttribute("aria-label","Retirer « "+p.nom+" » de la bibliothèque");
+      s.addEventListener("click", function(){
+        if(!window.confirm("Retirer « "+p.nom+" » de la bibliothèque ?\n\nLes chiffrages qui l'utilisent le gardent.")) return;
+        api("knx-participant-supprimer", {id:p.id}).then(function(x){ if(x.ok){ BIBLIO=x.d.participants || []; peindreBiblio(); } else toast(x.d.erreur || "Refusé."); });
+      });
+      it.appendChild(b); it.appendChild(s); w.appendChild(it);
+    });
+    bib.appendChild(w);
   }
   if(!Array.isArray(SAISIE.autres)) SAISIE.autres=[];
   SAISIE.autres.forEach(function(a){ liste.appendChild(rang(a)); });
   var aj=el("button","act","+ Ajouter un participant"); aj.type="button";
-  aj.addEventListener("click", function(){
-    var a={nom:"", ref:"", qte:1}; SAISIE.autres.push(a);
-    var r=rang(a); liste.appendChild(r); r.querySelector("input").focus();
-    garderLocal(); peindreResultat();
-  });
+  aj.addEventListener("click", function(){ ajouterLigne({nom:"", ref:"", qte:1}).querySelector("input").focus(); });
   box.appendChild(aj);
+  box.appendChild(bib);
+  peindreBiblio();
+  api("knx-participants").then(function(x){ if(x.ok){ BIBLIO=x.d.participants || []; peindreBiblio(); } }).catch(function(){});
   return box;
 }
 function calculer(s){
@@ -355,6 +396,15 @@ var STYLE = ".vues{display:flex;gap:6px;max-width:1100px;margin:12px auto 0;padd
   +".kc-autre{position:relative;display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--rule);border-radius:10px;padding:8px 48px 8px 10px;background:#FCFBF8}"
   +".kc-autre input[type=text]{flex:2 1 200px;min-width:0;min-height:38px;font:inherit;font-size:15px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:#fff;color:var(--ink)}"
   +".kc-autre input.ref{flex:1 1 130px;font-family:var(--mono);font-size:14px}"
+  +".kc-garder{min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--rule);background:#fff;color:var(--ink-2);font:600 13px/1 inherit;font-family:inherit}"
+  +".kc-biblio{margin-top:14px;padding:10px 12px;border:1px dashed var(--rule);border-radius:10px}"
+  +".kc-biblio h4{margin:0 0 6px;font-size:13.5px}"
+  +".kc-biblio-l{display:flex;flex-wrap:wrap;gap:6px}"
+  +".kc-biblio-it{display:inline-flex;align-items:stretch;max-width:100%;border:1px solid var(--rule);border-radius:18px;background:#fff;overflow:hidden}"
+  +".kc-biblio-aj{display:inline-flex;align-items:center;flex-wrap:wrap;gap:2px 6px;min-height:34px;padding:4px 10px 4px 12px;border:0;background:none;color:var(--ink);font:inherit;font-size:13px;text-align:left;cursor:pointer}"
+  +".kc-biblio-aj .ref{font-family:var(--mono);font-size:12px;color:var(--ink-3);white-space:nowrap}"
+  +".kc-biblio-aj .mq{font-size:11px;font-weight:700;color:var(--accent)}"
+  +".kc-biblio-x{border:0;border-left:1px solid var(--rule);background:#F6F7F9;color:var(--ink-3);width:30px;font-size:15px;padding:0;min-height:0}"
   +".kc-autre-x{position:absolute;top:11px;right:9px;width:32px;height:32px;min-height:0;padding:0;border-radius:50%;border:0;background:#F1F3F6;color:var(--ink-2);font-size:18px;line-height:1}"
   +".kc-res table{width:100%;border-collapse:collapse;font-size:13.5px}"
   +".kc-res th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--rule)}"
