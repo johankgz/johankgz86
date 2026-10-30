@@ -101,6 +101,8 @@ var CLIM_TIERS = {ref:"—", nom:"Passerelle KNX / climatisation (Intesis ou éq
 var ECRAN_TIERS = {ref:"BE-GTSP6TW.01S", nom:"Écran 6 pouces MDT Glass Touch Smart Plus (pas d'écran 6 pouces Theben équivalent)", v:false,
   note:"Theben n'a pas d'écran 6 pouces équivalent : MDT proposé, à valider."};
 
+var INDICATIF = "Références données à titre indicatif, à corriger au cas par cas (chantier, tarif du fournisseur) avant de commander.";
+
 /* ---------- la saisie ---------- */
 var CHAMPS = [
   ["volets", "Volets roulants", "un canal volet par volet : 2 sorties, montée et descente"],
@@ -244,7 +246,7 @@ function calculer(s){
   var bus = {participants:participants, appareils:appareils, lignes:nLignes, parLigne:parLigne, mA:participants*ALIM_PAR_PARTICIPANT,
     mALigne:besoinLigne, mAReserve:besoinAvecReserve, alim:alim, reserve:Math.round(reserve*100), parLigneMax:parLigneMax};
   if(!appareils) alertes.push("Rien à chiffrer pour l'instant : indiquez au moins un élément.");
-  return {saisie:s, marque:M.nom, cle:s.marque, lignes:lignes, bus:bus, alertes:alertes, notes:notes,
+  return {saisie:s, marque:M.nom, cle:s.marque, indicatif:INDICATIF, lignes:lignes, bus:bus, alertes:alertes, notes:notes,
     aVerifier:lignes.filter(function(l){ return !l.v; }).length, date:new Date().toISOString()};
 }
 
@@ -276,6 +278,7 @@ var STYLE = ".vues{display:flex;gap:6px;max-width:1100px;margin:12px auto 0;padd
   +".kc-bus div{border:1px solid var(--rule);border-radius:10px;padding:8px 10px;background:#FCFBF8}"
   +".kc-bus b{display:block;font-size:20px;letter-spacing:-.02em}.kc-bus span{font-size:12px;color:var(--ink-3)}"
   +".kc-alerte{border-left:3px solid var(--rouge);background:var(--rouge-soft);padding:8px 12px;border-radius:8px;margin:0 0 8px;font-size:13.5px}"
+  +".kc-indicatif{background:#FDF3DC;color:#8A5A00;font-weight:700;font-size:13.5px;padding:8px 12px;border-radius:8px;margin:0 0 10px}"
   +".kc-info{font-size:13px;color:var(--ink-2);margin:4px 0 0;padding-left:18px}"
   +".kc-verrou{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px dashed var(--rule);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13.5px;color:var(--ink-2)}"
   +".kc-liste{display:flex;flex-direction:column;gap:6px}"
@@ -415,6 +418,7 @@ function peindreResultat(){
     var d=el("div",""); d.appendChild(el("b","",String(x[0]))); d.appendChild(el("span","",x[1])); bus.appendChild(d);
   });
   h.appendChild(bus);
+  if(R.lignes.length) h.appendChild(el("p","kc-indicatif",INDICATIF));
   if(R.lignes.length){
     var t=el("table"); var th=el("thead"); var tr=el("tr");
     [["Désignation",""],["Référence","ref-col"],["Qté",""]].forEach(function(x){ var c=el("th",x[1],x[0]); if(x[0]==="Qté") c.style.textAlign="right"; tr.appendChild(c); });

@@ -20,7 +20,7 @@ function dateFr(iso){ var d=new Date(iso); return isNaN(d) ? "" : d.toLocaleDate
 function csv(R){
   function c(v){ v=String(v==null ? "" : v); return /[;"\n]/.test(v) ? '"'+v.replace(/"/g, '""')+'"' : v; }
   var l=[["Chiffrage KNX", R.saisie.nom||""], ["Référence chantier", R.saisie.ref||""], ["Marque", R.marque], ["Date", dateFr(R.date)],
-    ["Établi par", (S && S.nom) || ""], [], ["Catégorie", "Désignation", "Référence", "Quantité", "À vérifier", "Option", "Note"]];
+    ["Établi par", (S && S.nom) || ""], [R.indicatif], [], ["Catégorie", "Désignation", "Référence", "Quantité", "À vérifier", "Option", "Note"]];
   R.lignes.forEach(function(x){ l.push([x.cat, x.nom, x.ref, x.qte, x.v ? "" : "oui", x.option ? "oui" : "", x.note]); });
   var B=R.bus;
   l.push([], ["Bus KNX"], ["Participants", B.participants], ["Consommation (10 mA par participant)", B.mA+" mA"],
@@ -55,7 +55,7 @@ function pdf(R){
     function pied(){
       police(8, false, GRIS);
       texte("Chiffrage KNX "+R.marque+" — "+(R.saisie.nom||"")+" — page "+page, m, H-8);
-      texte("Références principales, à confirmer sur le tarif du fournisseur avant commande.", L-m, H-8, {align:"right"});
+      texte("Références indicatives, à corriger au cas par cas.", L-m, H-8, {align:"right"});
       page++;
     }
     function entete(suite){
@@ -84,6 +84,11 @@ function pdf(R){
     var ligneBus=doc.splitTextToSize("Par ligne : "+B.parLigne+" participants, "+B.mALigne+" mA, soit "+B.mAReserve+" mA avec "+B.reserve
       +" % de réserve : alimentation "+B.alim.mA+" mA ("+B.alim.ref+"). Au plus "+B.parLigneMax+" participants par ligne avec cette réserve.", L-2*m);
     texte(ligneBus, m, y); y += ligneBus.length*4.2 + 3;
+    /* les références sont indicatives */
+    police(9.5, true, AMBRE);
+    var ind=doc.splitTextToSize(R.indicatif, L-2*m-6);
+    doc.setFillColor(253,243,220); doc.rect(m, y-1, L-2*m, ind.length*4.4+3, "F");
+    texte(ind, m+3, y+3); y += ind.length*4.4+6;
     /* les points d'attention */
     R.alertes.forEach(function(a){
       police(9.5, true, [160,58,51]);                /* la largeur se mesure dans la police où le texte sera écrit */
