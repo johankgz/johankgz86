@@ -1,33 +1,24 @@
 /* =====================================================================
-   coller.js — coller une capture d'écran là où la page prend des photos
-   ou des fichiers
+   coller.js — coller une capture d'écran dans une discussion
    ---------------------------------------------------------------------
-   Une capture faite sur l'ordinateur (Windows : Win+Maj+S ; Mac :
-   Ctrl+Maj+Cmd+4) est dans le presse-papier :
-   - clic droit sur un bouton d'ajout (Photos, Galerie, Joindre un
-     fichier, Importer un plan…) ou dans son bloc › « Coller la capture » ;
-   - ou Ctrl+V (Cmd+V) hors d'un champ de saisie : si la page a plusieurs
-     endroits où la mettre, elle demande lequel. Dans un champ (le message
-     d'une discussion), une image seule va au bloc de ce champ.
-   La capture passe par le même chemin qu'une photo choisie avec le
-   bouton : le champ fichier de la page la reçoit, comme d'habitude.
+   Chargé par discussions.html seulement. Une capture faite sur
+   l'ordinateur (Windows : Win+Maj+S ; Mac : Ctrl+Maj+Cmd+4) est dans le
+   presse-papier :
+   - clic droit sur l'appareil photo, la galerie, le trombone, ou dans la
+     conversation › « Coller la capture » ;
+   - ou Ctrl+V (Cmd+V) dans le champ du message, ou hors d'un champ : une
+     image seule (pas de texte) va avec le message à envoyer.
+   La capture passe par le même chemin qu'une photo choisie avec la
+   galerie : son champ fichier la reçoit, comme d'habitude.
 
-   Les endroits sont trouvés à la demande, sans rien changer aux pages :
-   - les boutons connus (PAIRES : identifiant du bouton › du champ) ;
-   - une étiquette (label) qui contient un champ fichier ;
-   - un bouton (Photo, Galerie, Fichier…) suivi de son champ fichier ;
-   - un élément marqué data-coller, avec el.__coller(fichiers) ou
-     el.__collerChamp (le champ fichier).
+   Les endroits sont trouvés à la demande : une étiquette (label) qui
+   contient un champ fichier, ou un élément marqué data-coller (avec
+   el.__coller(fichiers) ou el.__collerChamp, le champ fichier).
    ===================================================================== */
 (function(){
 "use strict";
 if(window.Coller) return;
 
-var PAIRES = {
-  btnPhoto:"filePhoto", btnFichier:"fileDoc", btnImage:"fileImage", btnPhotos:"fichierPhotos", btnDeposer:"fichierDepot",
-  ph_prendre:"ph_fichierG", ph_galerie:"ph_fichierG", btnPlanImport:"filePlan", btnPlanPhoto:"filePlan",
-  btnToitPhoto:"toit_galerie", btnToitGalerie:"toit_galerie", btnQuickPhoto:"q_file"
-};
 var ZONES = ".block, .card, .carte, section, fieldset, form, [data-coller-zone]";
 
 function $(id){ return document.getElementById(id); }
@@ -54,17 +45,12 @@ function cibles(){
     if(!zone || zone === document.body) zone = bouton.parentElement;
     l.push({bouton:bouton, champ:champ || null, recevoir:recevoir || null, zone:zone, libelle:libelleDe(bouton)});
   }
-  Object.keys(PAIRES).forEach(function(id){ var b = $(id), c = $(PAIRES[id]); if(b && c) ajouter(b, c); });
   [].forEach.call(document.querySelectorAll("[data-coller]"), function(b){
     ajouter(b, b.__collerChamp, typeof b.__coller === "function" ? b.__coller : null);
   });
   [].forEach.call(document.querySelectorAll("label"), function(lb){
     var c = lb.querySelector("input[type=file]") || (lb.htmlFor && $(lb.htmlFor));
     if(c && c.type === "file" && !c.disabled) ajouter(lb, c);
-  });
-  [].forEach.call(document.querySelectorAll("input[type=file]"), function(c){
-    var b = c.previousElementSibling;
-    if(b && b.tagName === "BUTTON" && !c.disabled && /photo|galerie|image|fichier|joindre|document|plan|capture/i.test(libelleDe(b))) ajouter(b, c);
   });
   return l;
 }
