@@ -754,7 +754,8 @@ function surOrdinateur(){
 /* un plan en PDF (rangé dans « Plans ») : dans le panneau Document de la page (doc-cote.js), où il
    se zoome jusqu'à 20 fois en restant net ; sans panneau, ou un autre document, comme d'habitude */
 function ouvrirPlan(f, c){
-  if(sousDossierDe(f)!=="plans" || !/\.pdf$/i.test(f.cle||"") || !window.DocCote || !DocCote.ouvrir) return false;
+  var sd=sousDossierDe(f);
+  if((sd!=="plans" && sd!=="plansModifies") || !/\.pdf$/i.test(f.cle||"") || !window.DocCote || !DocCote.ouvrir) return false;
   if(!DocCote.ouvrir({cle:f.cle, titre:f.titre || nomFichier(f), chantier:(c && (c.client || c.ref)) || refDeCle(f.cle)})) return false;
   marquerLu(f);
   return true;
@@ -1836,6 +1837,8 @@ var SOUS_DOSSIERS={
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
   plans:{nom:"Plans", classe:"sous-dossier dossier-plans", memo:"rapports:plans", mot:"plan",
     ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'},
+  plansModifies:{nom:"Plans modifiés", classe:"sous-dossier dossier-plans-modifies", memo:"rapports:plansModifies", mot:"plan",
+    ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v6"/><path d="M3.5 6.5v13l5.5-2 4 1.3M9 4.5v13"/><path d="m14.5 20.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>'},
   techniques:{nom:"Documents techniques", classe:"sous-dossier dossier-techniques", memo:"rapports:techniques", mot:"document",
     ico:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>'},
   commandes:{nom:"Commandes", classe:"sous-dossier dossier-commandes", memo:"rapports:commandes", mot:"commande",
@@ -1851,7 +1854,7 @@ var SOUS_DOSSIERS={
 /* ---------- la catégorie d'un document technique ----------
    Montrée à côté de l'étiquette ; le bureau, ou celui qui l'a déposé, la
    change d'un choix : le document passe dans le bon sous-dossier. */
-var CATEGORIES_TECHNIQUE=["Plan","Fiche technique","Schéma","Notice","Photo","Autre"];
+var CATEGORIES_TECHNIQUE=["Plan","Plan modifié","Fiche technique","Schéma","Notice","Photo","Autre"];
 /* un petit menu, à la taille d'une étiquette : il ne déborde plus sur « Ouvrir » */
 var STYLE_CATEGORIE=false;
 function styleCategorie(){
@@ -1957,6 +1960,8 @@ function sousDossierDe(f){
   if(f.type==="point") return "points";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
   /* une photo déposée comme document technique rejoint les photos du chantier */
+  /* les plans annotés dans un suivi, déposés à part : leur propre sous-dossier */
+  if(f.type==="technique" && /^plans?\s+modifi/i.test(String(f.visite||"").trim())) return "plansModifies";
   if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans"
     : /^photos?(\s|$)/i.test(String(f.visite||"").trim()) ? "photos" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";

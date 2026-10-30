@@ -832,8 +832,6 @@ h2 .sv-switch + .aide-i{margin-left:0}
   text-align:center;box-shadow:0 0 0 2.5px #fff,0 3px 8px rgba(0,0,0,.35);cursor:grab;touch-action:none;z-index:2;min-height:0}
 .rp-pa.on{box-shadow:0 0 0 2.5px #fff,0 0 0 7px rgba(37,99,235,.35),0 3px 8px rgba(0,0,0,.35)}
 .rp-outils{display:flex;gap:6px;margin-top:9px;flex-wrap:wrap}
-.sv-formats{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:8px;padding:8px 10px;border:1px solid var(--rule);border-radius:10px;background:var(--card,#fff)}
-.sv-formats span{font-size:13px;font-weight:600;color:var(--ink-2);margin-right:2px}
 .rp-outils .act{flex:1 1 auto;min-height:40px;padding:7px 10px;font-size:13.5px}
 .rp-outils .act.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .rp-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-2);margin:8px 0 2px}
@@ -2701,6 +2699,7 @@ function publierRapport(meta){
       save();
     }
     deposerFiche(res.d.cle, el);
+    if(APP_TYPE==="suivi") deposerPlansModifies(res.d.ref || meta.chantier, meta, el);
     if(window.RetourAccueil) RetourAccueil("Suivi publié dans le dossier.");
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
@@ -4381,11 +4380,7 @@ function renderPlans(){
       S.points=(S.points||[]).filter(function(p){ return p.plan!==idp; });
       S.plans.splice(i,1); save(); renderPlans(); renderPlansDossier(); renderPoints();
     });
-    /* le plan seul, en PDF, pour l'imprimer et le donner au bureau d'études */
-    var b3=document.createElement("button"); b3.type="button"; b3.className="act ghost"; b3.style.flex="0 0 auto"; b3.textContent="PDF à imprimer";
-    b3.title="Ce plan seul, en PDF, pour l'imprimer (bureau d'études)";
-    b3.addEventListener("click", function(){ choisirFormatPlan(i, b3); });
-    r.appendChild(ai); r.appendChild(b3); r.appendChild(b2);
+    r.appendChild(ai); r.appendChild(b2);
     d.appendChild(r);
     var lg2=document.createElement("div"); lg2.className="rp-leg";
     ["afaire","encours","fait"].forEach(function(k){ var sp=document.createElement("span"); sp.innerHTML='<i style="background:'+RP_COUL[k]+'"></i>'+RP_MOT[k]; lg2.appendChild(sp); });
@@ -4395,11 +4390,13 @@ function renderPlans(){
   });
   renderResume();
 }
-/* ---------- un plan seul, en PDF, à imprimer (pour le bureau d'études) ----------
-   Une page A4 au sens du plan (paysage ou portrait) : en haut le nom du plan, le client, la
-   référence et la date du suivi ; le plan aussi grand que possible, ses endroits modifiés encadrés
-   en jaune et numérotés, ses repères en pastilles ; en dessous, la liste des repères (une page de
-   plus s'il y en a beaucoup). */
+/* ---------- un plan modifié, seul, en PDF, dans les documents du chantier ----------
+   À la publication du suivi, chaque plan marqué « Modifié » part en plus, à part, dans le dossier :
+   documents techniques, catégorie « Plan modifié » (sous-dossier « Plans modifiés »), pour l'imprimer
+   et le donner au bureau d'études. Une page A3 au sens du plan : en haut le nom du plan, le client, la
+   référence et la date du suivi ; le plan aussi grand que possible, ses endroits modifiés encadrés en
+   jaune et numérotés, ses repères en pastilles ; en dessous, la liste des repères. Le même plan
+   republié le même jour remplace sa version. */
 function zonesSurPdf(doc, zns, x0, y0, w, h, k){
   k=k||1;
   zns.forEach(function(z, n){
@@ -4412,24 +4409,10 @@ function zonesSurPdf(doc, zns, x0, y0, w, h, k){
     doc.setFont("helvetica","bold"); doc.setFontSize(6.6*k); doc.setTextColor(11,14,18); doc.text(String(n+1), zx+0.8*k, zy+1.6*k, {align:"center"});
   });
 }
-/* le format, choisi à l'export (A4 à A0) ; le dernier choisi revient en premier */
-function choisirFormatPlan(i, bouton){
-  var ancien=document.getElementById("svFormats"); if(ancien){ ancien.remove(); if(ancien.__i===i) return; }
-  var dernier="a4"; try{ dernier=localStorage.getItem("suivi:formatPlan")||"a4"; }catch(e){}
-  var m=document.createElement("div"); m.id="svFormats"; m.__i=i; m.className="sv-formats"; m.setAttribute("role","group"); m.setAttribute("aria-label","Format du PDF");
-  var lb=document.createElement("span"); lb.textContent="Format du PDF :"; m.appendChild(lb);
-  ["a4","a3","a2","a1","a0"].forEach(function(f){
-    var b=document.createElement("button"); b.type="button"; b.className="chip"+(f===dernier ? " on" : ""); b.textContent=f.toUpperCase();
-    b.addEventListener("click", function(){ try{ localStorage.setItem("suivi:formatPlan", f); }catch(e){} m.remove(); pdfPlanSeul(i, f); });
-    m.appendChild(b);
-  });
-  bouton.parentNode.parentNode.insertBefore(m, bouton.parentNode.nextSibling);
-}
-function pdfPlanSeul(i, format){
-  var pl=S.plans[i]; if(!pl || !pl.data) return;
-  if(!window.jspdf || !window.jspdf.jsPDF){ toast("Le module PDF finit de se charger : réessayez dans quelques secondes."); return; }
+function pdfDuPlan(i, format){
+  var pl=S.plans[i]; if(!pl || !pl.data || !window.jspdf || !window.jspdf.jsPDF) return null;
   var paysage=(pl.w||4)>=(pl.h||3);
-  format=/^a[0-4]$/.test(format||"") ? format : "a4";
+  format=/^a[0-4]$/.test(format||"") ? format : "a3";
   var doc=new window.jspdf.jsPDF({unit:"mm", format:format, orientation:paysage ? "landscape" : "portrait"});
   var W=doc.internal.pageSize.getWidth(), H=doc.internal.pageSize.getHeight();
   /* tout ce qui est écrit grandit avec la feuille (A4 = 1) : sur un A0, le titre reste lisible de loin */
@@ -4476,9 +4459,29 @@ function pdfPlanSeul(i, format){
       y+=4.6*k;
     });
   }
-  var fichier=(/^plan/i.test(nom) ? "" : "Plan-")+nomFichier(nom)+"-"+(refAffaire()||"sans-ref")+"-"+format.toUpperCase()+".pdf";
-  dl(doc.output("blob"), fichier);
-  toast("PDF du plan en "+format.toUpperCase()+", prêt à imprimer : "+fichier);
+  return {doc:doc, nom:nom};
+}
+/* après la publication du suivi : chaque plan modifié, l'un après l'autre, dans le dossier */
+function deposerPlansModifies(ref, meta, el){
+  var l=(S.plans||[]).map(function(pl, i){ return {pl:pl, i:i}; }).filter(function(x){ return x.pl.etat==="modifie" && x.pl.data; });
+  if(!ref || !l.length) return Promise.resolve(0);
+  var faits=0;
+  return l.reduce(function(pr, x){
+    return pr.then(function(){
+      var r; try{ r=pdfDuPlan(x.i, "a3"); }catch(e){ r=null; }
+      if(!r) return;
+      var b64=r.doc.output("datauristring").split(",")[1];
+      var corps={pdf:b64, ext:"pdf", chantier:ref, client:meta.client||"", adresse:meta.adresse||"", type:"technique",
+        date:meta.date, titre:"Plan modifié - "+r.nom, visite:"Plan modifié", etape:"Suivi du "+frDate(meta.date),
+        auteur:meta.auteur||"", destinataires:[], dossier:true};
+      return fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify(corps)})
+        .then(function(res){ if(res.ok) faits++; }).catch(function(){});
+    });
+  }, Promise.resolve()).then(function(){
+    if(el && faits) el.appendChild(document.createTextNode(" "+(faits>1 ? faits+" plans modifiés déposés" : "Plan modifié déposé")+" à part dans le dossier, sous « Plans modifiés »."));
+    if(faits<l.length) toast((l.length-faits)+" plan"+(l.length-faits>1?"s":"")+" modifié"+(l.length-faits>1?"s":"")+" pas déposé"+(l.length-faits>1?"s":"")+" : republiez le suivi.");
+    return faits;
+  });
 }
 function annoterPlan(i){
   var pl=S.plans[i]; if(!pl) return;
