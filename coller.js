@@ -7,7 +7,8 @@
    - clic droit sur un bouton d'ajout (Photos, Galerie, Joindre un
      fichier, Importer un plan…) ou dans son bloc › « Coller la capture » ;
    - ou Ctrl+V (Cmd+V) hors d'un champ de saisie : si la page a plusieurs
-     endroits où la mettre, elle demande lequel.
+     endroits où la mettre, elle demande lequel. Dans un champ (le message
+     d'une discussion), une image seule va au bloc de ce champ.
    La capture passe par le même chemin qu'une photo choisie avec le
    bouton : le champ fichier de la page la reçoit, comme d'habitude.
 
@@ -49,7 +50,7 @@ function cibles(){
     if(!bouton || vus.indexOf(bouton) >= 0 || !visible(bouton)) return;
     if(!recevoir && !prendImages(champ)) return;
     vus.push(bouton);
-    var zone = bouton.closest(ZONES);
+    var zone = bouton.closest("[data-coller-zone]") || bouton.closest(ZONES);
     if(!zone || zone === document.body) zone = bouton.parentElement;
     l.push({bouton:bouton, champ:champ || null, recevoir:recevoir || null, zone:zone, libelle:libelleDe(bouton)});
   }
@@ -75,7 +76,10 @@ function sansDoublon(l){
     if(!deja) r.push(c);
   });
   var galerie = r.filter(function(c){ return !c.champ || !c.champ.hasAttribute("capture"); });
-  return galerie.length ? galerie : r;
+  if(galerie.length) r = galerie;
+  /* un champ fait pour les images passe avant un « tout fichier » du même bloc */
+  var images = r.filter(function(c){ return c.recevoir || /image/i.test(c.champ.accept || ""); });
+  return images.length ? images : r;
 }
 
 /* ---------- donner les fichiers à la page ---------- */
@@ -206,10 +210,17 @@ document.addEventListener("contextmenu", function(e){
 
 /* ---------- Ctrl+V hors d'un champ : après les collages que la page gère déjà ---------- */
 window.addEventListener("paste", function(e){
-  if(e.defaultPrevented || champTexte(e.target)) return;
+  if(e.defaultPrevented) return;
   var fs = [].slice.call((e.clipboardData && e.clipboardData.files) || []);
   if(!fs.length) return;
   var l = cibles(); if(!l.length) return;
+  /* dans un champ de saisie : une image seule (pas de texte) va au bloc du champ, comme le
+     message d'une discussion ; un texte se colle normalement */
+  if(champTexte(e.target)){
+    if((e.clipboardData.getData("text") || "").trim()) return;
+    l = l.filter(function(c){ return c.zone && c.zone.contains(e.target); });
+    if(!l.length) return;
+  }
   e.preventDefault();
   if(ARMEE && Date.now() - ARMEE_A < 60000 && visible(ARMEE.bouton)){ var a = ARMEE; ARMEE = null; donner(a, fs); return; }
   l = sansDoublon(l);
