@@ -145,13 +145,19 @@ main.disc{display:grid;grid-template-columns:340px minmax(0,1fr);gap:14px;max-wi
 .depot small{font-size:13px;font-weight:500;color:var(--ink-3)}
 .bulle .img[draggable="true"],.pj[draggable="true"]{cursor:grab}
 .bulle .img[draggable="true"]:active,.pj[draggable="true"]:active{cursor:grabbing}
-.attente{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px 0;background:#fff;border-top:1px solid var(--rule)}
+.attente{display:flex;gap:8px;flex-wrap:wrap;padding:8px 12px 0;background:#fff;border-top:1px solid var(--rule);max-height:48vh;overflow-y:auto}
 .attente[hidden]{display:none}
 .att{position:relative;display:flex;align-items:center;gap:8px;padding:6px 34px 6px 6px;border-radius:10px;background:var(--field);max-width:100%}
 .att img{width:58px;height:58px;object-fit:cover;border-radius:7px;background:#ddd}
 .att .an{font-size:12.5px;font-weight:600;max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .att .an small{display:block;font-weight:500;color:var(--ink-3)}
 .att .ann{min-height:30px;padding:0 10px;border-radius:999px;border:1px solid var(--rule);background:#fff;font-size:12.5px;font-weight:600;color:var(--ink)}
+/* une photo, un croquis, une capture collée : l'image en grand, lisible avant l'envoi */
+.att.ph{flex-direction:column;align-items:stretch;padding:6px}
+.att.ph img{width:auto;height:auto;max-width:min(340px,100%);max-height:220px;object-fit:contain;background:#fff;border:1px solid var(--rule);cursor:zoom-in}
+.att.ph .pied{display:flex;align-items:center;gap:8px;padding-right:2px}
+.att.ph .an{flex:1;min-width:0;max-width:none}
+.att.ph .x{background:rgba(255,255,255,.92);box-shadow:0 1px 4px rgba(10,14,20,.25);top:10px;right:10px}
 .att .x{position:absolute;top:4px;right:4px;width:26px;height:26px;border-radius:50%;border:0;background:rgba(10,14,20,.08);color:var(--ink);font-size:16px;line-height:1;padding:0}
 .ecrire{display:flex;align-items:flex-end;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));background:#fff;border-top:1px solid var(--rule)}
 .attente:not([hidden]) + .ecrire{border-top:0}
@@ -654,17 +660,22 @@ function peindreAttente(){
   var h=$("attente"); h.textContent="";
   h.hidden=!ATTENTE.length;
   ATTENTE.forEach(function(p, i){
-    var c=el("div","att");
-    if(p.genre!=="fichier"){ var im=el("img"); im.src=p.data; im.alt=""; c.appendChild(im); }
-    var n=el("span","an", p.genre==="croquis" ? "Croquis" : p.genre==="photo" ? "Photo" : p.nom);
+    var image=p.genre!=="fichier", c=el("div","att"+(image ? " ph" : "")), pied=c;
+    if(image){
+      var im=el("img"); im.src=p.data; im.alt=p.nom||"";
+      /* un toucher sur l'image l'ouvre en grand, à annoter */
+      im.addEventListener("click", function(){ var b=c.querySelector(".ann"); if(b) b.click(); });
+      c.appendChild(im); pied=el("div","pied"); c.appendChild(pied);
+    }
+    var n=el("span","an", p.genre==="croquis" ? "Croquis" : p.genre==="photo" ? (/^Capture /.test(p.nom||"") ? "Capture d'écran" : "Photo") : p.nom);
     n.appendChild(el("small","", p.genre==="fichier" ? taille(p.taille||0) : "prête à partir"));
-    c.appendChild(n);
+    pied.appendChild(n);
     if(p.genre!=="fichier" && window.Annotation){
       var a=el("button","ann","Annoter"); a.type="button";
       a.addEventListener("click", function(){
         Annotation.photo(p, {titre:p.genre==="croquis" ? "Croquis" : "Photo"}).then(function(r){ if(r){ p.type=typeDe(p.data); peindreAttente(); } });
       });
-      c.appendChild(a);
+      pied.appendChild(a);
     }
     var x=el("button","x","×"); x.type="button"; x.setAttribute("aria-label","Retirer "+(p.genre==="fichier" ? p.nom : "cette "+(p.genre==="croquis" ? "esquisse" : "photo")));
     x.addEventListener("click", function(){ ATTENTE.splice(i,1); peindreAttente(); });
