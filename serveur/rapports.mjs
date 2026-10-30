@@ -3668,7 +3668,7 @@ async function traiter(req) {
      (ou toute l'équipe). ?base=identifiant ouvre la base d'un autre, si elle nous est partagée. */
   let rx = null;
   if (action === "references" || action === "references-depart" || action === "references-importer" || action === "references-ligne"
-      || action === "references-supprimer" || action === "references-colonnes" || action === "references-partager") {
+      || action === "references-supprimer" || action === "references-colonnes" || action === "references-partager" || action === "references-categories" || action === "references-ranger") {
     const comptes = await lireComptes(personne.societe);
     const moi = idRef(personne.identifiant), titulaire = titulaireRefs(comptes);
     const proprio = idRef(url.searchParams.get("base")) || moi;
@@ -3723,10 +3723,43 @@ async function traiter(req) {
     }
     const aMoi = proprio === moi;
     return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "",
+      categories: Array.isArray(r.categories) ? r.categories : [], range: !!r.range,
       modifiable: droit === "modifier", droit, proprietaire: proprio, nomProprietaire: nomDe(proprio), moi: aMoi, bases,
       partages: aMoi ? (r.partages || []).map((x) => ({ identifiant: x.identifiant, droit: x.droit, nom: x.identifiant === "*" ? "Toute l'équipe" : nomDe(x.identifiant) })) : undefined,
       equipe: aMoi ? comptes.filter((c) => idRef(c.identifiant) && idRef(c.identifiant) !== moi).map((c) => ({ identifiant: idRef(c.identifiant), nom: c.nom || c.identifiant, role: c.role || "" })) : undefined,
       departDispo: dep && aMoi && r.depart !== dep.version ? { version: dep.version, n: dep.lignes.length, source: dep.source } : null });
+  }
+  /* ranger la base une fois : chaque référence reçoit sa catégorie de la Bibliothèque (calculée par la page
+     d'après la catégorie écrite, la gamme et la désignation) ; ensuite, seul le choix fait à la main compte.
+     L'ancienne base est gardée de côté (references-avant/…-rangement.json). */
+  if (action === "references-ranger") {
+    const { chemin, r, proprio } = rx;
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    try { await store.setJSON("references-avant/" + proprio + "-rangement.json", r); } catch { /* la copie est facultative */ }
+    const sa = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    let ic = r.colonnes.findIndex((c) => /^(categorie|famille|rubrique)/.test(sa(c)));
+    if (ic < 0 && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push("Catégorie"); r.lignes.forEach((l) => l.push("")); ic = r.colonnes.length - 1; }
+    const k = r.cle || 0, choix = new Map();
+    (Array.isArray(d.lignes) ? d.lignes : []).forEach((x) => { if (Array.isArray(x) && x[0] != null) choix.set(cleRef(x[0]), String(x[1] || "").trim().slice(0, 40)); });
+    let n = 0;
+    if (ic >= 0) r.lignes.forEach((l) => { const c = choix.get(cleRef(l[k])); if (c && l[ic] !== c) { l[ic] = c; n++; } });
+    Object.assign(r, { range: true, maj: new Date().toISOString(), par: personne.nom });
+    await store.setJSON(chemin, r);
+    return json({ ok: true, n });
+  }
+  /* les catégories ajoutées à la main, en plus des catégories de la Bibliothèque */
+  if (action === "references-categories") {
+    const { chemin, r } = rx;
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const nom = String(d.nom || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!nom) return json({ erreur: "Donnez un nom à la catégorie." }, 400);
+    let l = Array.isArray(r.categories) ? r.categories.slice() : [];
+    const meme = (x) => x.toLowerCase() === nom.toLowerCase();
+    if (d.retirer) l = l.filter((x) => !meme(x));
+    else if (!l.some(meme)) { if (l.length >= 40) return json({ erreur: "40 catégories ajoutées au plus." }, 400); l.push(nom); }
+    r.categories = l;
+    await store.setJSON(chemin, r);
+    return json({ ok: true, categories: l });
   }
   if (action === "references-importer" || action === "references-ligne" || action === "references-supprimer" || action === "references-colonnes") {
     const { chemin, r } = rx;
@@ -3774,6 +3807,7 @@ async function traiter(req) {
       }
       if (lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
       Object.assign(r, { colonnes, lignes, maj: maintenant, par: personne.nom, source: String(d.source || "").slice(0, 200) });
+      delete r.range;                                     /* un fichier importé : la page le range à nouveau */
       if (d.mode !== "fusionner") delete r.depart;       /* remplacée par un fichier : la base rangée peut être rechargée */
       await store.setJSON(chemin, r);
       return json({ ok: true, total: lignes.length, stats });

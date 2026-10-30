@@ -436,7 +436,10 @@ main{max-width:520px}
 .rf-niv button{flex:none;min-height:30px;padding:0 10px;border-radius:999px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.04);color:#AEB7BF;font-family:inherit;font-size:12.5px;font-weight:600;white-space:nowrap;cursor:pointer}
 .rf-niv button small{margin-left:5px;font-size:10.5px;font-weight:600;color:#6B7785}
 .rf-niv button.on{border-color:rgba(59,130,246,.6);color:#93C5FD;background:rgba(59,130,246,.12)}
-.rf-niv button.vide{opacity:.45}      /* une catégorie encore vide : là pour ranger, sans rien à montrer */
+.rf-niv button.vide{opacity:.45}
+.rf-niv button.rf-cat-plus{border-style:dashed;color:#93C5FD}
+.rf-deplacer{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:#AEB7BF}
+.rf-deplacer select{min-height:34px;border-radius:999px;padding:0 10px;border:1px solid rgba(255,255,255,.16);background:var(--g-800);color:#F2F5F9;font:inherit;font-size:13px}      /* une catégorie encore vide : là pour ranger, sans rien à montrer */
 .rf-niv button.on small{color:#93C5FD}
 .rf-niv button.rf-raz{border-style:dashed;color:#8A97A6}
 .rf-etat{min-height:1.2em;margin:4px 0 0!important;font-size:12px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -2002,9 +2005,15 @@ window.__calcul = calculer;
   /* les catégories de la Bibliothèque, toujours les mêmes et dans cet ordre ; une catégorie déjà écrite
      autrement (« Tableau électrique », « Câbles », « Ventilation »…) est rangée dans la plus proche */
   var CATS=["Câble","Gaine","Tube","Boîtes","Appareillage","Appareillage IP67","Tableau","Divers","Photovoltaïque","Borne IRVE","Éclairage","KNX","VMC"];
+  /* les 13, puis celles ajoutées à la main (« + Catégorie ») */
+  function toutesCats(){
+    var l=CATS.slice();
+    (B.categories||[]).forEach(function(c){ if(!l.some(function(x){ return sansAccent(x)===sansAccent(c); })) l.push(c); });
+    return l;
+  }
   function categorieFixe(v){
     var s=sansAccent(v).trim(); if(!s) return "Divers";
-    for(var i=0;i<CATS.length;i++) if(sansAccent(CATS[i])===s) return CATS[i];
+    var tc=toutesCats(); for(var i=0;i<tc.length;i++) if(sansAccent(tc[i])===s) return tc[i];
     if(/ip\s?6[5-8]|etanche|plexo/.test(s)) return "Appareillage IP67";
     if(/knx/.test(s)) return "KNX";
     if(/irve|recharge|borne/.test(s)) return "Borne IRVE";
@@ -2026,6 +2035,8 @@ window.__calcul = calculer;
     var ic=colCat(), ig=colDe(/^(gamme|serie|collection)/), id=B.des!=null ? B.des : 1;
     var brut=ic>=0 ? l[ic] : "", gamme=sansAccent(ig>=0 ? l[ig] : ""), d=" "+sansAccent(id>=0 ? l[id] : "").toUpperCase().replace(/[^A-Z0-9]+/g, " ")+" ";
     var cat=categorieFixe(brut), large=LARGES.test(sansAccent(brut).trim());
+    /* une base déjà rangée : la catégorie écrite fait foi (un choix à la main n'est plus deviné) */
+    if(B.range) return cat;
     if(cat==="Appareillage" && /plexo|etanche|ip\s?6/.test(gamme)) return "Appareillage IP67";
     if(cat==="Appareillage" && /^boite/.test(gamme)) return "Boîtes";
     if(!large) return cat;
@@ -2077,7 +2088,15 @@ window.__calcul = calculer;
   function charger(apres){
     if(!S || !S.jeton){ etat("Connectez-vous pour voir les références de l'entreprise."); return; }
     if(!apres) etat("Chargement…");
-    api("references").then(function(d){ B=d; indexer(); majEntete(); chercher(); if(apres && apres!==true) etat(apres); })
+    api("references").then(function(d){
+      B=d; indexer(); majEntete(); chercher(); if(apres && apres!==true) etat(apres);
+      /* première ouverture d'une base pas encore rangée : chaque référence reçoit sa catégorie, une fois */
+      if(B.modifiable && !B.range && B.lignes.length){
+        var k=B.cle||0, ic=colCat(), l=[];
+        B.lignes.forEach(function(x){ var c=categorieLigne(x); if(ic<0 || x[ic]!==c) l.push([x[k], c]); });
+        api("references-ranger", {lignes:l}).then(function(r){ charger(r.n ? "Bibliothèque rangée : "+nb(r.n)+" référence"+(r.n>1?"s":"")+" classée"+(r.n>1?"s":"")+" dans les catégories." : true); }).catch(function(){});
+      }
+    })
       .catch(function(e){
         /* une base qu'on ne nous partage plus : retour à la sienne */
         if(BASE && (e.statut===403 || e.statut===404)){ var m=e.message; choisirBase(""); charger(m+" Retour à votre base."); return; }
@@ -2112,10 +2131,11 @@ window.__calcul = calculer;
     for(var k=0;k<NIV.length;k++){
       var compte={}, ordre=[];
       lignes.forEach(function(i){ var v=valeurNiv(i, k); if(!(v in compte)){ compte[v]=0; ordre.push(v); } compte[v]++; });
-      if(FILTRE[k]!=null && !(FILTRE[k] in compte)) FILTRE.length=k;     /* plus de lignes pour ce choix : on le lâche */
+      /* plus de lignes pour ce choix : on le lâche (sauf une catégorie de la Bibliothèque, même vide) */
+      if(FILTRE[k]!=null && !(FILTRE[k] in compte) && !(NIV[k].nom==="Catégorie" && toutesCats().indexOf(FILTRE[k])>=0)) FILTRE.length=k;
       var vals=ordre.filter(Boolean); if(ordre.indexOf("")>=0 && vals.length) vals.push("");
       var cat = NIV[k].nom==="Catégorie";
-      if(cat) vals=CATS.slice();                                            /* les catégories : toutes, dans leur ordre */
+      if(cat) vals=toutesCats();                                            /* les catégories : toutes, dans leur ordre */
       else if(FILTRE[k]==null && vals.length<2) continue;                  /* une seule valeur : rien à choisir, niveau suivant */
       var ligne=document.createElement("div"); ligne.className="rf-niv"; ligne.dataset.niv=NIV[k].nom;
       var em=document.createElement("em"); em.textContent=NIV[k].nom; ligne.appendChild(em);
@@ -2134,6 +2154,24 @@ window.__calcul = calculer;
         }); })(k);
         ligne.appendChild(b);
       });
+      if(cat && B.modifiable){
+        /* ajouter une catégorie ; une catégorie ajoutée, vide et choisie, se retire */
+        var ba=document.createElement("button"); ba.type="button"; ba.className="rf-cat-plus"; ba.textContent="+ Catégorie";
+        ba.addEventListener("click", function(){
+          var nom=(window.prompt("Nom de la nouvelle catégorie :")||"").replace(/\s+/g, " ").trim(); if(!nom) return;
+          if(toutesCats().some(function(x){ return sansAccent(x)===sansAccent(nom); })){ etat("La catégorie « "+nom+" » existe déjà."); return; }
+          api("references-categories", {nom:nom}).then(function(){ FILTRE=[]; charger("Catégorie « "+nom+" » ajoutée."); }).catch(function(e){ etat(e.message); });
+        });
+        ligne.appendChild(ba);
+        var choisie=FILTRE[k];
+        if(choisie && CATS.indexOf(choisie)<0 && !compte[choisie]){
+          var br=document.createElement("button"); br.type="button"; br.className="rf-cat-plus"; br.textContent="Retirer « "+choisie+" »";
+          br.addEventListener("click", function(){
+            api("references-categories", {nom:choisie, retirer:true}).then(function(){ FILTRE=[]; charger("Catégorie « "+choisie+" » retirée."); }).catch(function(e){ etat(e.message); });
+          });
+          ligne.appendChild(br);
+        }
+      }
       box.appendChild(ligne); rangs++;
       if(FILTRE[k]==null) break;                                            /* on choisit ici avant d'aller plus loin */
       lignes=lignes.filter(function(i){ return valeurNiv(i, k)===FILTRE[k]; });
@@ -2288,6 +2326,19 @@ window.__calcul = calculer;
     var m=document.createElement("div"); m.className="puces rf-menu";
     if(B.modifiable){
       var bm=document.createElement("button"); bm.type="button"; bm.textContent="Modifier"; bm.addEventListener("click", function(){ m.remove(); editer(i); }); m.appendChild(bm);
+      /* changer de catégorie d'un choix, sans ouvrir le formulaire */
+      var lc=document.createElement("label"); lc.className="rf-deplacer"; lc.appendChild(document.createTextNode("Catégorie "));
+      var sc=document.createElement("select"); sc.setAttribute("aria-label","Ranger dans la catégorie");
+      toutesCats().forEach(function(x){ var o=document.createElement("option"); o.value=x; o.textContent=x; sc.appendChild(o); });
+      var avant=categorieLigne(B.lignes[i]); sc.value=avant;
+      sc.addEventListener("change", function(){
+        var cols=B.colonnes.slice(), ligne=B.lignes[i].slice(), ic=colCat();
+        if(ic<0){ cols.push("Catégorie"); ligne.push(""); ic=cols.length-1; }
+        ligne[ic]=sc.value;
+        var ref=B.lignes[i][B.cle||0];
+        api("references-ligne", {ancienne:ref, ligne:ligne, colonnes:cols}).then(function(){ charger("« "+ref+" » rangée en "+sc.value+"."); }).catch(function(e){ etat(e.message); sc.value=avant; });
+      });
+      lc.appendChild(sc); m.appendChild(lc);
       var bs=document.createElement("button"); bs.type="button"; bs.textContent="Retirer"; bs.addEventListener("click", function(){
         var ref=B.lignes[i][B.cle||0]; if(!window.confirm("Retirer la référence « "+ref+" » de la base ?")) return;
         api("references-supprimer", {reference:ref}).then(function(){ charger("Référence « "+ref+" » retirée."); }).catch(function(e){ etat(e.message); });
@@ -2308,7 +2359,7 @@ window.__calcul = calculer;
       if(/^(categorie|famille|rubrique)/.test(sansAccent(c).trim())){
         var lc=document.createElement("label"); var sc=document.createElement("span"); sc.textContent=c+" *"; lc.appendChild(sc);
         var se=document.createElement("select"); se.dataset.i=String(j);
-        CATS.forEach(function(x){ var o=document.createElement("option"); o.value=x; o.textContent=x; se.appendChild(o); });
+        toutesCats().forEach(function(x){ var o=document.createElement("option"); o.value=x; o.textContent=x; se.appendChild(o); });
         var choix = i!=null ? categorieLigne(B.lignes[i]) : null;
         if(i==null) NIV.forEach(function(n, k){ if(n.nom==="Catégorie" && FILTRE[k]) choix=FILTRE[k]; });
         se.value = choix || "Divers"; lc.appendChild(se); g.appendChild(lc);
