@@ -19,7 +19,7 @@ var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html
   "/cloud.html", "/discussions.html", "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
   "/technique.html", "/utilitaires.html", "/importer.html",
   "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html", "/facturation.html"];
-var FICHIERS = ["/annotation.js", "/reduire.js", "/encours.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/fonds-anim.js", "/commun.js", "/theme.js", "/horsligne.js",
+var FICHIERS = ["/annotation.js", "/reduire.js", "/encours.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/fonds-anim.js", "/commun.js", "/coller.js", "/theme.js", "/horsligne.js",
   "/notifications.js", "/reseau.js", "/sobre.js", "/finitions.js", "/personnes.js", "/palette.js", "/carte.js", "/vitrine.js", "/vitrine.css", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/doc-cote.js", "/pieces-jointes.js", "/stylet.js", "/teinte.js", "/boussole.js", "/pdf-design.js", "/transfert.js", "/navigation.js", "/sobre.css", "/pied.js", "/legal.css",
   "/manifest.webmanifest", "/polices/jakarta-var.woff2", "/polices/outfit-400.ttf", "/polices/outfit-700.ttf", "/polices/manuscrite.ttf", "/icone-120.png", "/icone-152.png", "/icone-167.png",
   "/icone-180.png", "/icone-192.png", "/icone-512.png", "/entete-contact.png", "/entete-societe.png"];

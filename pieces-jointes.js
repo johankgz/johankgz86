@@ -394,6 +394,8 @@
     zone.appendChild(inp);
     h.appendChild(zone);
     bF.addEventListener("click", function(){ inp.value=""; inp.click(); });
+    /* clic droit › Coller la capture (coller.js) */
+    bF.setAttribute("data-coller", "Pièces jointes"); bF.__coller=ajouterFichiers; zone.setAttribute("data-coller-zone", "");
     inp.addEventListener("change", function(){ ajouterFichiers(inp.files); });
     /* glisser-déposer, sur le bloc */
     ["dragenter","dragover"].forEach(function(t){ zone.addEventListener(t, function(e){ if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types||[], "Files")>=0){ e.preventDefault(); zone.classList.add("survol"); } }); });
