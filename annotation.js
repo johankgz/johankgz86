@@ -592,7 +592,7 @@ function tirerPoignee(o, h, base, p, p0){
 }
 
 /* ---------- gomme ---------- */
-function rayonGomme(){ return GOMMES[PREFS.gomme]*A.u/borner(A.vue.k/A.fitK, 1, 4); }
+function rayonGomme(){ return GOMMES[PREFS.gomme]*A.u*(A.plan ? finesse() : 1/borner(A.vue.k/A.fitK, 1, 4)); }
 function gommer(a, b){
   var R=rayonGomme(), change=false;
   if(PREFS.gommeMode==="entier"){
@@ -679,11 +679,15 @@ function reconnaitre(pts){
 }
 
 /* ---------- vue : zoom et déplacement ---------- */
+/* un plan du suivi se zoome jusqu'à 20 fois (une photo, 10) ; zoomé, le stylet s'affine d'autant :
+   le trait garde à l'écran l'épaisseur choisie, donc plus fin sur le plan, pour écrire dans le détail */
+function zoomMax(){ return A && A.plan ? 20 : 10; }
+function finesse(){ if(!A || !A.plan) return 1; var z=A.vue.k/A.fitK; return z>1 ? 1/z : 1; }
 function versImage(s){ return [(s[0]-A.vue.x)/A.vue.k, (s[1]-A.vue.y)/A.vue.k]; }
 function versEcran(p){ return [p[0]*A.vue.k + A.vue.x, p[1]*A.vue.k + A.vue.y]; }
 function bornerVue(){
   var v=A.vue, W=A.sw, H=A.sh;
-  v.k=borner(v.k, A.fitK, A.fitK*10);
+  v.k=borner(v.k, A.fitK, A.fitK*zoomMax());
   var iw=A.w*v.k, ih=A.h*v.k;
   v.x = iw<=W ? (W-iw)/2 : borner(v.x, W-iw, 0);
   v.y = ih<=H ? (H-ih)/2 : borner(v.y, H-ih, 0);
@@ -703,7 +707,7 @@ function ajuster(garder){
 }
 function zoomer(f, s){
   var v=A.vue, m=versImage(s);
-  v.k=borner(v.k*f, A.fitK, A.fitK*10);
+  v.k=borner(v.k*f, A.fitK, A.fitK*zoomMax());
   v.x=s[0]-m[0]*v.k; v.y=s[1]-m[1]*v.k;
   bornerVue(); peindre(); majHaut();
 }
@@ -824,8 +828,8 @@ function posEcran(e){
   return [e.clientX-r.left, e.clientY-r.top];
 }
 /* l'épaisseur : une des trois tailles, ou celle réglée au curseur (teinte.js) */
-function ep(){ return (PREFS.epVal>0 ? PREFS.epVal : EPAISSEURS[PREFS.ep])*A.u; }
-function epSurl(){ return (PREFS.surEpVal>0 ? PREFS.surEpVal : SURL_EP[PREFS.surEp])*A.u; }
+function ep(){ return (PREFS.epVal>0 ? PREFS.epVal : EPAISSEURS[PREFS.ep])*A.u*finesse(); }
+function epSurl(){ return (PREFS.surEpVal>0 ? PREFS.surEpVal : SURL_EP[PREFS.surEp])*A.u*finesse(); }
 function nouveau(o){ A.objs.push(o); return o; }
 function prochainNumero(){
   var n=0; A.objs.forEach(function(o){ if(o.t==="pastille" && o.n>n) n=o.n; });
@@ -967,7 +971,7 @@ function surMouvement(e){
   }
   if(G.type==="pincevue" && nbDoigts()>=2){
     var d2=deuxDoigts();
-    A.vue.k=borner(G.k0*d2.d/G.d0, A.fitK, A.fitK*10);
+    A.vue.k=borner(G.k0*d2.d/G.d0, A.fitK, A.fitK*zoomMax());
     A.vue.x=d2.m[0]-G.m0[0]*A.vue.k; A.vue.y=d2.m[1]-G.m0[1]*A.vue.k;
     bornerVue(); peindre(); return;
   }
@@ -1380,7 +1384,7 @@ function choisirEpaisseur(cle){
   var o=A.sel;
   if(o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")){
     var val = (o.t==="trait" && o.sur) ? SURL_EP[cle] : EPAISSEURS[cle];
-    if(val) modifier(function(){ o.e=val*A.u; });
+    if(val) modifier(function(){ o.e=val*A.u*finesse(); });
     if(o.t==="trait" && o.sur){ PREFS.surEp=cle; PREFS.surEpVal=0; } else { PREFS.ep=cle; PREFS.epVal=0; }
   } else if(A.outil==="surligneur"){ PREFS.surEp=cle; PREFS.surEpVal=0; }
   else { PREFS.ep=cle; PREFS.epVal=0; }
@@ -1396,7 +1400,7 @@ function ouvrirTeinte(btn){
   var courant=o ? o.c : (surl ? PREFS.surCouleur : PREFS.couleur);
   var taille, tailles, titre;
   if(texte){ taille=o ? Math.round(o.taille/A.u) : PREFS.texteTaille; tailles=[16, 24, 40, 64, 96]; titre="Taille du texte"; }
-  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)*10)/10; tailles=surl ? [10, 16, 24, 34, 48] : [2, 3.5, 5, 8, 12]; titre=surl ? "Épaisseur du surligneur" : "Épaisseur du crayon"; }
+  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)/finesse()*10)/10; tailles=surl ? [10, 16, 24, 34, 48] : [2, 3.5, 5, 8, 12]; titre=surl ? "Épaisseur du surligneur" : "Épaisseur du crayon"; }
   var note=false;
   Teinte.ouvrir({ancre:btn, couleur:courant, taille:taille, tailles:tailles, texte:texte, titreTaille:titre,
     change:function(c, t){
@@ -1405,7 +1409,7 @@ function ouvrirTeinte(btn){
       if(cible && cible.t!=="flou"){
         cible.c=c;
         if(t!=null && texte && cible.t==="texte") cible.taille=borner(t*A.u, 6*A.u, 400*A.u);
-        if(t!=null && trait && cible.t!=="texte") cible.e=t*A.u;
+        if(t!=null && trait && cible.t!=="texte") cible.e=t*A.u*finesse();
       }
       if(surl) PREFS.surCouleur=c; else PREFS.couleur=c;
       if(t!=null){ if(texte) PREFS.texteTaille=Math.round(t); else if(surl) PREFS.surEpVal=t; else if(trait) PREFS.epVal=t; }
@@ -1678,7 +1682,7 @@ function ouvrir(opt){
         fond: img ? null : (opt.fond==="grille" ? "grille" : "blanc"),
         objs: Array.isArray(opt.objets) ? clone(opt.objets) : [],
         sel:null, edition:null, avantEdition:null, hist:[], redo:[], modifie:false, curseur:null,
-        outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve};
+        outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve, plan:!!opt.plan};
       FLOUS={};
       /* un plan s'ouvre sur « Choisir » : on zoome et on se place d'abord (un doigt fait glisser, deux zooment),
          puis on prend l'outil ; « Symboles » proposera bien les symboles */
