@@ -1098,7 +1098,7 @@ a.act[hidden]{display:none}
 <script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
 <script defer src="./pdf-design.js?v=20261030a"></script>
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./annotation.js?v=20261030b"></script>
+<script src="./annotation.js?v=20261030c"></script>
 <script src="./sobre.js?v=20261029a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
@@ -2238,6 +2238,16 @@ function buildPdf(){
       y+=6;
       var x0=M+1.6+(K.CW-3.2-w)/2;
       K.cadreImage(pl.data, x0, y+1.6, w, h, "JPEG");
+      /* les endroits modifiés, encadrés en jaune et numérotés, comme dans l'outil (Repérer les modifications) */
+      var zns = window.Annotation && Annotation.zones ? Annotation.zones(pl) : [];
+      zns.forEach(function(z, k){
+        var zx=x0+z.x0*w, zy=y+1.6+z.y0*h, zw=(z.x1-z.x0)*w, zh=(z.y1-z.y0)*h;
+        K.opacite(0.14); doc.setFillColor(250,204,21); doc.roundedRect(zx, zy, zw, zh, 1.2, 1.2, "F"); K.opacite(1);
+        doc.setDrawColor(234,179,8); doc.setLineWidth(0.6); doc.roundedRect(zx, zy, zw, zh, 1.2, 1.2, "S");
+        var nz=String(k+1);
+        doc.setFillColor(250,204,21); doc.setDrawColor(120,90,0); doc.setLineWidth(0.25); doc.circle(zx+0.8, zy+0.8, 2.1, "FD");
+        K.texte(true); doc.setFontSize(6.6); doc.setTextColor(11,14,18); doc.text(nz, zx+0.8, zy+1.6, {align:"center"});
+      });
       /* les repères : leurs pastilles sur le plan, puis leur tableau */
       var rps=reperesDe(pl);
       rps.forEach(function(it){
@@ -2250,6 +2260,11 @@ function buildPdf(){
       });
       K.ink(C.ENCRE);
       y += h + 9;
+      if(zns.length){
+        K.texte(false); doc.setFontSize(8); K.ink(C.GRIS || C.ENCRE);
+        doc.text("Encadrés en jaune : "+zns.length+" endroit"+(zns.length>1?"s":"")+" modifié"+(zns.length>1?"s":"")+" sur ce plan.", M+1, y-3.5);
+        K.ink(C.ENCRE); y+=2;
+      }
       if(rps.length) tableauReperes(rps);
       y += 2;
     });

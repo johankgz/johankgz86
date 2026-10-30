@@ -747,9 +747,12 @@ function peindre(){
    Allumé (le bouton en haut, sur un plan), chaque endroit annoté est encadré en jaune et numéroté :
    les éléments proches sont regroupés en une zone. « N zones › » zoome sur la suivante, pour
    vérifier qu'on a tout repris. Ce n'est qu'à l'écran : l'image enregistrée ne les porte pas. */
-function zonesModifiees(){
-  var m=24*A.u, l=[];
-  A.objs.forEach(function(o){
+function zonesModifiees(){ return zonesDe(A.objs, A.w, A.h, A.u); }
+/* les zones d'une liste d'éléments, sur une image w × h (aussi pour le PDF du suivi, hors de l'outil) */
+function zonesDe(objs, W, H, u){
+  u=u || Math.max(0.6, Math.max(W, H)/1000);
+  var m=24*u, l=[];
+  (objs||[]).forEach(function(o){
     var b=boite(o), r=b.rot ? Math.max(b.w, b.h) : 0;
     var w=r || b.w, h=r || b.h;
     if(!(w>=0) || !(h>=0)) return;
@@ -767,9 +770,9 @@ function zonesModifiees(){
       }
     }
   }
-  l.forEach(function(z){ z.x0=Math.max(0,z.x0); z.y0=Math.max(0,z.y0); z.x1=Math.min(A.w,z.x1); z.y1=Math.min(A.h,z.y1); });
+  l.forEach(function(z){ z.x0=Math.max(0,z.x0); z.y0=Math.max(0,z.y0); z.x1=Math.min(W,z.x1); z.y1=Math.min(H,z.y1); });
   /* dans l'ordre de lecture : de haut en bas, puis de gauche à droite */
-  var bande=A.h/12;
+  var bande=H/12;
   l.sort(function(a,b){ var la=Math.floor(a.y0/bande), lb=Math.floor(b.y0/bande); return la!==lb ? la-lb : a.x0-b.x0; });
   return l;
 }
@@ -1819,7 +1822,9 @@ function enregistrer(){
   var reperes=objs.filter(function(o){ return o.t==="pastille"; })
     .sort(function(a,b){ return a.n-b.n; })
     .map(function(o){ return {n:o.n, texte:String(o.texte||"").trim()}; });
-  terminer({data:data, w:A.w, h:A.h, orig: A.img ? orig : null, objets:arrondir(objs), fond:A.fond, reperes:reperes});
+  /* un plan : ses zones modifiées, en proportion (le PDF du suivi les encadre en jaune) */
+  var zones = A.plan ? zonesFractions(objs, A.w, A.h) : null;
+  terminer({data:data, w:A.w, h:A.h, orig: A.img ? orig : null, objets:arrondir(objs), fond:A.fond, reperes:reperes, zones:zones});
 }
 
 /* la légende d'une photo reprend ses repères numérotés */
@@ -1839,8 +1844,15 @@ function optionsPhoto(ph, opt){
   }
   return o;
 }
+function zonesFractions(objs, W, H){
+  return zonesDe(objs, W, H).map(function(z){
+    function f(v, d){ return Math.round(v/d*10000)/10000; }
+    return {x0:f(z.x0, W), y0:f(z.y0, H), x1:f(z.x1, W), y1:f(z.y1, H)};
+  });
+}
 function appliquer(ph, r){
   ph.w=r.w; ph.h=r.h; ph.data=r.data;
+  if(r.zones && r.zones.length && r.objets && r.objets.length) ph.zones=r.zones; else delete ph.zones;
   if(!r.orig){
     ph.annot=r.objets; ph.fond=r.fond; delete ph.orig;
   } else if(!r.objets.length){
@@ -1866,6 +1878,7 @@ function nouveauCroquis(opt){
   return ouvrir({titre:opt.titre || "Croquis", fond:opt.fond || "blanc", w:1400, h:1000, plan:opt.plan}).then(function(r){
     if(!r) return null;
     var ph={data:r.data, w:r.w, h:r.h, legende:"Croquis", croquis:true, annot:r.objets, fond:r.fond};
+    if(r.zones && r.zones.length) ph.zones=r.zones;
     if(r.reperes && r.reperes.some(function(x){ return x.texte; })) ph.legende=legende("Croquis", r.reperes);
     return ph;
   });
@@ -1906,6 +1919,8 @@ window.Annotation = {
   dessinerSymbole: dessinerSymbole,
   ouvert: function(){ return !!A; },
   allegerImage: allegerImage,
+  /* les zones modifiées d'un plan, en proportion : celles gardées à l'enregistrement, sinon recalculées */
+  zones: function(ph){ if(!ph) return []; if(ph.zones) return ph.zones; return ph.annot && ph.w && ph.h ? zonesFractions(ph.annot, ph.w, ph.h) : []; },
   pdfSousLimite: pdfSousLimite
 };
 
