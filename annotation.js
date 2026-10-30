@@ -205,7 +205,7 @@ var A = null, D = null, MESURE = null;
 var FLOUS = {};
 var PREFS = {outil:"stylo", couleur:"#E5484D", surCouleur:"#FDE047", ep:"moyen", surEp:"moyen", droit:true,
   gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"symbole", symbole:"cfo-dcl-plafond",
-  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false, epVal:0, surEpVal:0};
+  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false, epVal:0, surEpVal:0, reperer:false};
 try{
   var lu = JSON.parse(localStorage.getItem("annotation:prefs") || "null");
   if(lu && typeof lu === "object") for(var kp in lu){ if(PREFS.hasOwnProperty(kp)) PREFS[kp]=lu[kp]; }
@@ -731,6 +731,7 @@ function peindre(){
     });
   }
   c.restore();
+  if(A.plan && PREFS.reperer) A.nZones=dessinerZones(c);
   dessinerSelection(c);
   if(A.curseur && A.outil==="gomme"){
     var R=rayonGomme();
@@ -740,6 +741,65 @@ function peindre(){
     c.strokeStyle="rgba(0,0,0,.6)"; c.stroke();
   }
   if(A.edition) placerEditeur();
+}
+
+/* ---------- repérer les modifications d'un plan ----------
+   Allumé (le bouton en haut, sur un plan), chaque endroit annoté est encadré en jaune et numéroté :
+   les éléments proches sont regroupés en une zone. « N zones › » zoome sur la suivante, pour
+   vérifier qu'on a tout repris. Ce n'est qu'à l'écran : l'image enregistrée ne les porte pas. */
+function zonesModifiees(){
+  var m=24*A.u, l=[];
+  A.objs.forEach(function(o){
+    var b=boite(o), r=b.rot ? Math.max(b.w, b.h) : 0;
+    var w=r || b.w, h=r || b.h;
+    if(!(w>=0) || !(h>=0)) return;
+    l.push({x0:b.cx-w/2-m, y0:b.cy-h/2-m, x1:b.cx+w/2+m, y1:b.cy+h/2+m});
+  });
+  /* les zones qui se touchent n'en font qu'une */
+  var fondu=true;
+  while(fondu){
+    fondu=false;
+    for(var i=0;i<l.length && !fondu;i++) for(var j=i+1;j<l.length;j++){
+      var a=l[i], b2=l[j];
+      if(a.x0<=b2.x1 && b2.x0<=a.x1 && a.y0<=b2.y1 && b2.y0<=a.y1){
+        a.x0=Math.min(a.x0,b2.x0); a.y0=Math.min(a.y0,b2.y0); a.x1=Math.max(a.x1,b2.x1); a.y1=Math.max(a.y1,b2.y1);
+        l.splice(j,1); fondu=true; break;
+      }
+    }
+  }
+  l.forEach(function(z){ z.x0=Math.max(0,z.x0); z.y0=Math.max(0,z.y0); z.x1=Math.min(A.w,z.x1); z.y1=Math.min(A.h,z.y1); });
+  /* dans l'ordre de lecture : de haut en bas, puis de gauche à droite */
+  var bande=A.h/12;
+  l.sort(function(a,b){ var la=Math.floor(a.y0/bande), lb=Math.floor(b.y0/bande); return la!==lb ? la-lb : a.x0-b.x0; });
+  return l;
+}
+function dessinerZones(c){
+  var v=A.vue, zs=zonesModifiees();
+  zs.forEach(function(z, i){
+    var w=z.x1-z.x0, h=z.y1-z.y0, r=Math.min(10/v.k, w/4, h/4);
+    c.save();
+    c.beginPath();
+    if(c.roundRect) c.roundRect(z.x0, z.y0, w, h, r); else c.rect(z.x0, z.y0, w, h);
+    c.fillStyle="rgba(250,204,21,.13)"; c.fill();
+    c.lineWidth=4/v.k; c.strokeStyle="rgba(11,14,18,.55)"; c.stroke();
+    c.lineWidth=2.5/v.k; c.strokeStyle="#FACC15"; c.stroke();
+    /* le numéro de la zone, dans un rond jaune au coin */
+    var R=11/v.k, cx=z.x0+R*0.4, cy=z.y0+R*0.4;
+    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI*2);
+    c.fillStyle="#FACC15"; c.fill(); c.lineWidth=1.5/v.k; c.strokeStyle="rgba(11,14,18,.7)"; c.stroke();
+    c.fillStyle="#0B0E12"; c.font="800 "+(12/v.k)+"px system-ui,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+    c.fillText(String(i+1), cx, cy+0.5/v.k);
+    c.restore();
+  });
+  return zs.length;
+}
+function zoneSuivante(){
+  var zs=zonesModifiees(); if(!zs.length) return;
+  A.zone=((A.zone==null ? -1 : A.zone)+1) % zs.length;
+  var z=zs[A.zone], w=Math.max(z.x1-z.x0, 1), h=Math.max(z.y1-z.y0, 1), v=A.vue;
+  v.k=borner(Math.min(A.sw*0.7/w, A.sh*0.7/h), A.fitK, A.fitK*zoomMax());
+  v.x=A.sw/2-(z.x0+w/2)*v.k; v.y=A.sh/2-(z.y0+h/2)*v.k;
+  bornerVue(); peindre(); majHaut();
 }
 
 /* ---------- historique ---------- */
@@ -1113,6 +1173,9 @@ var CSS = [
   ".an-rond{width:44px;height:44px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}",
   ".an-rond svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}",
   ".an-pill.or{background:#3B82F6;border-color:#3B82F6;color:#fff;font-weight:800}",
+  ".an-pill.an-zones{background:#FACC15;border-color:#FACC15;color:#0B0E12;font-weight:800;padding:6px 12px}",
+  ".an-pill.an-zones:disabled{opacity:.75}",
+  "#an_reperer.on{background:#FACC15;border-color:#FACC15;color:#0B0E12}",
   ".an-ic{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(20,25,32,.82);display:inline-flex;align-items:center;justify-content:center;padding:0;color:#E5E9EF;",
   "-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}",
   ".an-ic[disabled]{opacity:.35;cursor:default}",
@@ -1242,8 +1305,15 @@ function construire(){
   grille.id="an_grille";
   var entier=icone("Vue entière", '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', function(){ A.vue.k=A.fitK; bornerVue(); peindre(); majHaut(); });
   entier.id="an_entier";
+  /* repérer les modifications (un plan) : encadrer en jaune les endroits annotés ; « N zones › » va de l'une à l'autre */
+  var reperer=icone("Repérer les modifications", '<rect x="3.5" y="5.5" width="17" height="13" rx="2" stroke-dasharray="3 2.4"/><path d="M8 12.5l2.6 2.5L16 9.5"/>', function(){
+    PREFS.reperer=!PREFS.reperer; garderPrefs(); A.zone=null; peindre(); majHaut();
+  });
+  reperer.id="an_reperer";
+  var zones=el("button","an-pill an-zones"); zones.type="button"; zones.id="an_zones";
+  zones.addEventListener("click", function(){ zoneSuivante(); });
   var ok=el("button","an-pill or","Enregistrer"); ok.type="button"; ok.id="an_ok";
-  [fermer, und, red, titre, grille, entier, ok].forEach(function(x){ haut.appendChild(x); });
+  [fermer, und, red, titre, grille, entier, reperer, zones, ok].forEach(function(x){ haut.appendChild(x); });
   /* la colonne d'outils */
   var rail=el("div","an-rail"+(PREFS.rail?"":" ferme")); rail.id="an_rail";
   var corps=el("div","an-rail-corps");
@@ -1284,7 +1354,7 @@ function construire(){
   toucherCrayon(r);
   D={racine:r, cv:cv, scene:scene, saisie:saisie, astuce:ast, selection:selr, options:opts, couleurs:coul, outils:outils,
      rail:rail, plier:plier, palette:past, flottant:flot,
-     titre:titre, annuler:und, retablir:red, grille:grille, entier:entier, fermer:fermer, ok:ok, champ:null};
+     titre:titre, annuler:und, retablir:red, grille:grille, entier:entier, reperer:reperer, zones:zones, fermer:fermer, ok:ok, champ:null};
 
   cv.addEventListener("pointerdown", surAppui);
   cv.addEventListener("pointermove", surMouvement);
@@ -1444,8 +1514,16 @@ function majHaut(){
   D.grille.classList.toggle("on", A.fond==="grille");
   D.grille.setAttribute("aria-pressed", A.fond==="grille" ? "true" : "false");
   D.entier.hidden = !(A.vue.k > A.fitK*1.02);
+  D.reperer.hidden = !A.plan;
+  D.reperer.classList.toggle("on", !!(A.plan && PREFS.reperer));
+  D.reperer.setAttribute("aria-pressed", A.plan && PREFS.reperer ? "true" : "false");
+  var nz = A.plan && PREFS.reperer ? zonesModifiees().length : 0;
+  D.zones.hidden = !(A.plan && PREFS.reperer);
+  D.zones.disabled = !nz;
+  D.zones.textContent = !nz ? "Aucune" : (window.innerWidth < 420 ? nz+" ›" : nz+" zone"+(nz>1?"s":"")+" ›");
+  D.zones.title = nz ? "Aller à la zone suivante" : "Aucune modification sur ce plan";
   /* sur un téléphone étroit, le titre cède la place aux icônes */
-  D.titre.style.visibility = (window.innerWidth < 420 && (!D.grille.hidden || !D.entier.hidden)) ? "hidden" : "";
+  D.titre.style.visibility = (window.innerWidth < 420 && (!D.grille.hidden || !D.entier.hidden || A.plan)) ? "hidden" : "";
 }
 function epaisseurActuelle(){
   var o=A.sel;
