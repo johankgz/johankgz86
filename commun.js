@@ -10,10 +10,10 @@
       identifiant ou s'affichent en cours de route), les mentions légales
       et les mentions sur les données sous les formulaires.
    3. La signature des PDF : chaque PDF fabriqué par le site (jsPDF) porte,
-      en bas de chaque page, en petit et en gris, « Suivi travaux by Johan
-      Klughertz » (Signature.texte), sauf si la page porte déjà la mention (le
-      pied de page des rapports) ; le carnet, assemblé avec pdf-lib, la pose
-      lui-même.
+      en bas de chaque page, en petit et en gris, « Suivi travaux 360 — © 2026
+      Johan Klughertz. Tous droits réservés » (Signature.texte), sauf si la page
+      porte déjà la mention (le pied de page des rapports) ; le carnet, assemblé
+      avec pdf-lib, la pose lui-même.
    ===================================================================== */
 (function(){
   "use strict";
@@ -235,7 +235,7 @@
 (function(){
   "use strict";
   if(window.Signature) return;
-  var TEXTE="Suivi travaux by Johan Klughertz";
+  var TEXTE="Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés";
   window.Signature={texte:TEXTE};
   function signer(){
     var doc=this, n, cur, f, fs, tc, k, i, w, h;
