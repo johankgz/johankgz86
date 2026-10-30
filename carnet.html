@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <script src="./theme.js?v=20261024f"></script>
-<script src="./commun.js?v=20261023b" defer></script>
+<script src="./commun.js?v=20261030a" defer></script>
 <script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
@@ -1326,6 +1326,12 @@ function construireDocument(){
       ecrire(page, (P&&P.socWeb)||"", ENT.contact.x, ENT.contact.y+11, 9, police);
     }
   }
+  /* la signature du site, en bas de chaque page, comme sur les PDF faits avec jsPDF (commun.js) */
+  function signer(page){
+    var txt=(window.Signature && Signature.texte) || "Suivi travaux by Johan Klughertz", taille=6.5;
+    var l=police.widthOfTextAtSize(txt, taille);
+    page.drawText(txt, {x:(page.getWidth()-l)/2, y:8.5, size:taille, font:police, color:rgb(150/255, 155/255, 165/255)});
+  }
   function pied(page, numero, total){
     /* Le carré corné de la trame, repris en orange : le numéro en gras,
        le total en petit derrière. Le bord droit reste où la trame le
@@ -1493,7 +1499,7 @@ function construireDocument(){
   }).then(function(){
     /* le numéro de page, une fois que le compte est arrêté */
     var total=sortie.getPages().length;
-    sortie.getPages().forEach(function(page, i){ pied(page, i+1, total); });
+    sortie.getPages().forEach(function(page, i){ pied(page, i+1, total); signer(page); });
     return sortie.save();
   });
 }

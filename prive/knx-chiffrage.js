@@ -119,7 +119,7 @@ var CHAMPS = [
   ["dali", "Passerelles DALI", "64 ballasts chacune"]
 ];
 function vierge(){
-  var s={nom:"", ref:"", marque:"mdt", plancher:false, zones:0, entreesParPlexo:1, etatPortes:true, reserve:20, secours:true};
+  var s={nom:"", ref:"", marque:"mdt", plancher:false, zones:0, entreesParPlexo:1, etatPortes:true, reserve:20, secours:true, refs:{}};
   CHAMPS.forEach(function(c){ s[c[0]]=0; });
   return s;
 }
@@ -150,6 +150,38 @@ function regrouper(mods){
 }
 function nomDe(famille, mod){ return (mod.nom || famille.nom).replace(/\{n\}/g, mod.n).replace(/\{2n\}/g, 2*mod.n).replace(/\{demi\}/g, mod.n/2); }
 
+/* une ligne du résultat, la même d'un calcul à l'autre : marque, catégorie, désignation, référence du catalogue */
+function cleRef(marque, l){ return [marque, l.cat, l.nom, l.ref, l.option ? "option" : ""].join("|"); }
+/* modifier une référence : le champ prend la place du texte ; Entrée ou en sortant, c'est gardé ;
+   vide, la référence du catalogue revient */
+function modifierRef(l, ou){
+  var i=document.createElement("input"); i.type="text"; i.className="kc-ref-champ"; i.value=l.ref; i.maxLength=60;
+  i.setAttribute("aria-label", "Référence de « "+l.nom+" »");
+  ou.textContent=""; ou.appendChild(i); i.focus(); i.select();
+  var fait=false;
+  function garder(annuler){
+    if(fait) return; fait=true;
+    var v=i.value.trim();
+    if(!annuler){
+      SAISIE.refs=SAISIE.refs || {};
+      if(!v || v===(l.refCatalogue || "")) delete SAISIE.refs[l.cle];
+      else if(v!==l.ref || l.modifiee) SAISIE.refs[l.cle]=v;
+      garderLocal();
+    }
+    peindreResultat();
+  }
+  i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); garder(false); } if(e.key==="Escape"){ e.preventDefault(); garder(true); } });
+  i.addEventListener("blur", function(){ garder(false); });
+}
+function celluleRef(l, cls, prefixe){
+  var s=el("span", cls); s.appendChild(document.createTextNode((prefixe||"")+l.ref));
+  if(l.modifiee) s.appendChild(el("span","kc-modif","modifiée"));
+  var b=el("button","kc-crayon"); b.type="button"; b.title="Modifier la référence"; b.setAttribute("aria-label","Modifier la référence de « "+l.nom+" »");
+  b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg>';
+  b.addEventListener("click", function(e){ e.stopPropagation(); modifierRef(l, s); });
+  s.appendChild(b);
+  return s;
+}
 function calculer(s){
   var M = MARQUES[s.marque] || MARQUES.mdt;
   var lignes = [], alertes = [], notes = [];
@@ -246,6 +278,14 @@ function calculer(s){
   var bus = {participants:participants, appareils:appareils, lignes:nLignes, parLigne:parLigne, mA:participants*ALIM_PAR_PARTICIPANT,
     mALigne:besoinLigne, mAReserve:besoinAvecReserve, alim:alim, reserve:Math.round(reserve*100), parLigneMax:parLigneMax};
   if(!appareils) alertes.push("Rien à chiffrer pour l'instant : indiquez au moins un élément.");
+  /* les références modifiées à la main (le crayon à côté de la référence) : gardées dans la saisie,
+     elles remplacent celle du catalogue sur le site, dans le PDF et dans le tableur */
+  var faites=s.refs || {};
+  lignes.forEach(function(l){
+    var k=cleRef(s.marque, l), r=faites[k];
+    if(r){ l.refCatalogue=l.ref; l.ref=r; l.modifiee=true; l.v=true; l.note=(l.note ? l.note+" " : "")+"Référence modifiée (catalogue : "+l.refCatalogue+")."; }
+    l.cle=k;
+  });
   return {saisie:s, marque:M.nom, cle:s.marque, indicatif:INDICATIF, lignes:lignes, bus:bus, alertes:alertes, notes:notes,
     aVerifier:lignes.filter(function(l){ return !l.v; }).length, date:new Date().toISOString()};
 }
@@ -274,6 +314,12 @@ var STYLE = ".vues{display:flex;gap:6px;max-width:1100px;margin:12px auto 0;padd
   +".kc-res tr.opt td{color:var(--ink-3);font-style:italic}"
   +".kc-verif{display:inline-block;margin-left:6px;padding:1px 7px;border-radius:999px;background:#FFF4D6;color:#8A5A00;font-size:11px;font-weight:700;font-style:normal}"
   +".kc-note{display:block;font-size:12px;color:var(--ink-3);margin-top:2px}"
+  +".kc-ref{display:inline-flex;align-items:center;gap:4px;flex-wrap:wrap}"
+  +".kc-crayon{width:26px;height:26px;min-height:0;padding:0;margin-left:2px;border:1px solid transparent;border-radius:50%;background:none;color:var(--ink-3);display:inline-flex;align-items:center;justify-content:center;vertical-align:middle;cursor:pointer}"
+  +".kc-crayon:hover{background:#EEF2F8;color:var(--accent)}"
+  +".kc-crayon svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}"
+  +".kc-modif{display:inline-block;padding:1px 7px;border-radius:999px;background:#E3F0FF;color:#1D4ED8;font:700 11px/1.5 inherit;font-family:inherit}"
+  +".kc-ref-champ{font:inherit;font-family:var(--mono);font-size:13px;width:150px;max-width:100%;min-height:32px;padding:4px 8px;border:1px solid var(--accent);border-radius:8px;background:#fff;color:var(--ink)}"
   +".kc-bus{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin:0 0 12px}"
   +".kc-bus div{border:1px solid var(--rule);border-radius:10px;padding:8px 10px;background:#FCFBF8}"
   +".kc-bus b{display:block;font-size:20px;letter-spacing:-.02em}.kc-bus span{font-size:12px;color:var(--ink-3)}"
@@ -429,9 +475,10 @@ function peindreResultat(){
       var r=el("tr", l.option ? "opt" : "");
       var d=el("td",""); d.appendChild(document.createTextNode(l.nom));
       if(!l.v){ d.appendChild(el("span","kc-verif","à vérifier")); }
-      var refMobile=el("span","kc-note","Réf. "+l.ref); refMobile.className="kc-note ref-mobile"; d.appendChild(refMobile);
+      d.appendChild(celluleRef(l, "kc-note ref-mobile", "Réf. "));
       if(l.note) d.appendChild(el("span","kc-note",l.note));
-      r.appendChild(d); r.appendChild(el("td","ref ref-col",l.ref)); r.appendChild(el("td","q",String(l.qte)));
+      var tdRef=el("td","ref ref-col"); tdRef.appendChild(celluleRef(l, "kc-ref"));
+      r.appendChild(d); r.appendChild(tdRef); r.appendChild(el("td","q",String(l.qte)));
       tb.appendChild(r);
     });
     t.appendChild(tb); h.appendChild(t);

@@ -192,7 +192,7 @@
         doc.text([P.societe||"", P.legal||""].filter(Boolean).join("   ·   ").slice(0,95), M, PH-9.6);
         pastille(PW-M, PH-8.3, "Page "+i+" / "+n, C.BLEU_C, C.BLEU, {droite:true, taille:7});
         doc.setFontSize(6.2); ink(C.GRIS2); texte(false);
-        doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-4.6, {align:"center"});
+        doc.text("Suivi travaux by Johan Klughertz  —  © 2026, tous droits réservés", PW/2, PH-4.6, {align:"center"});
       }
       ink(C.ENCRE);
     }

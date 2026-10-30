@@ -9,6 +9,11 @@
       l'Aide. Restent les messages qui disent où l'on en est (ils ont un
       identifiant ou s'affichent en cours de route), les mentions légales
       et les mentions sur les données sous les formulaires.
+   3. La signature des PDF : chaque PDF fabriqué par le site (jsPDF) porte,
+      en bas de chaque page, en petit et en gris, « Suivi travaux by Johan
+      Klughertz » (Signature.texte), sauf si la page porte déjà la mention (le
+      pied de page des rapports) ; le carnet, assemblé avec pdf-lib, la pose
+      lui-même.
    ===================================================================== */
 (function(){
   "use strict";
@@ -220,4 +225,59 @@
   }
   signaler();
   document.addEventListener("visibilitychange", signaler);
+})();
+
+/* ---------- 3. la signature des PDF ----------
+   jsPDF est chargé après ce fichier (ou plus tard, à la demande) : on guette son arrivée
+   (window.jspdf), puis, à la création de chaque document (« initialized »), on enveloppe son
+   enregistrement (save) et sa sortie (output) : la ligne s'écrit en bas de chaque page juste avant.
+   (Pas pendant l'assemblage : jsPDF écrit alors le fichier lui-même, un ajout le viderait.) */
+(function(){
+  "use strict";
+  if(window.Signature) return;
+  var TEXTE="Suivi travaux by Johan Klughertz";
+  window.Signature={texte:TEXTE};
+  function signer(){
+    var doc=this, n, cur, f, fs, tc, k, i, w, h;
+    try{
+      n=doc.internal.getNumberOfPages(); cur=doc.internal.getCurrentPageInfo().pageNumber;
+      doc.__signees=doc.__signees||{};
+      f=doc.getFont(); fs=doc.getFontSize(); tc=doc.getTextColor(); k=doc.internal.scaleFactor||1;
+      for(i=1;i<=n;i++){
+        if(doc.__signees[i]) continue;
+        doc.__signees[i]=true;
+        /* une page qui porte déjà la mention (le pied de page des rapports) n'en reçoit pas une seconde */
+        var pg=doc.internal.pages && doc.internal.pages[i];
+        if(pg && pg.join && pg.join("\n").indexOf("Klughertz")>=0) continue;
+        doc.setPage(i);
+        w=doc.internal.pageSize.getWidth(); h=doc.internal.pageSize.getHeight();
+        doc.setFont("helvetica", "normal"); doc.setFontSize(6.5); doc.setTextColor(150, 155, 165);
+        /* à 3 mm du bas (8,5 points), au milieu */
+        doc.text(TEXTE, w/2, h-8.5/k, {align:"center", baseline:"bottom"});
+      }
+      doc.setPage(cur);
+      if(f) doc.setFont(f.fontName, f.fontStyle);
+      doc.setFontSize(fs); doc.setTextColor(tc);
+    }catch(e){}
+  }
+  function installer(lib){
+    var J=lib && lib.jsPDF;
+    if(!J || !J.API || J.API.__signature) return;
+    J.API.__signature=true;
+    J.API.events.push(["initialized", function(){
+      var doc=this;
+      ["save", "output"].forEach(function(m){
+        var f=doc[m]; if(typeof f!=="function") return;
+        doc[m]=function(){ signer.call(doc); return f.apply(doc, arguments); };
+      });
+    }]);
+  }
+  if(window.jspdf && window.jspdf.jsPDF){ installer(window.jspdf); return; }
+  /* la bibliothèque pose window.jspdf vide, puis le remplit : on installe juste après */
+  var val=window.jspdf;
+  try{
+    Object.defineProperty(window, "jspdf", {configurable:true, enumerable:true,
+      get:function(){ return val; },
+      set:function(v){ val=v; Promise.resolve().then(function(){ installer(val); }); }});
+  }catch(e){}
 })();
