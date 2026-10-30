@@ -119,7 +119,7 @@ var CHAMPS = [
   ["dali", "Passerelles DALI", "64 ballasts chacune"]
 ];
 function vierge(){
-  var s={nom:"", ref:"", marque:"mdt", plancher:false, zones:0, entreesParPlexo:1, etatPortes:true, reserve:20, secours:true, refs:{}};
+  var s={nom:"", ref:"", marque:"mdt", plancher:false, zones:0, entreesParPlexo:1, etatPortes:true, reserve:20, secours:true, refs:{}, autres:[]};
   CHAMPS.forEach(function(c){ s[c[0]]=0; });
   return s;
 }
@@ -176,11 +176,48 @@ function modifierRef(l, ou){
 function celluleRef(l, cls, prefixe){
   var s=el("span", cls); s.appendChild(document.createTextNode((prefixe||"")+l.ref));
   if(l.modifiee) s.appendChild(el("span","kc-modif","modifiée"));
+  /* un participant ajouté à la main : sa référence se change dans sa ligne, plus haut */
+  if(l.cat==="Autres participants") return s;
   var b=el("button","kc-crayon"); b.type="button"; b.title="Modifier la référence"; b.setAttribute("aria-label","Modifier la référence de « "+l.nom+" »");
   b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg>';
   b.addEventListener("click", function(e){ e.stopPropagation(); modifierRef(l, s); });
   s.appendChild(b);
   return s;
+}
+/* les autres participants KNX, en lignes libres : désignation, référence, quantité */
+function blocAutres(){
+  var box=el("div","kc-autres");
+  box.appendChild(el("h3","","Autres participants KNX"));
+  box.appendChild(el("p","hint","Ce qui n'est pas dans la liste : détecteur de présence, station météo, interface, sonde… Chacun compte sur le bus (10 mA)."));
+  var liste=el("div","kc-autres-liste"); box.appendChild(liste);
+  function rang(a){
+    var r=el("div","kc-autre");
+    var n=el("input"); n.type="text"; n.placeholder="Désignation (détecteur de présence…)"; n.value=a.nom||""; n.maxLength=120; n.setAttribute("aria-label","Désignation");
+    var f=el("input"); f.type="text"; f.placeholder="Référence"; f.value=a.ref||""; f.maxLength=60; f.className="ref"; f.setAttribute("aria-label","Référence");
+    var q=el("div","kc-num");
+    var m=el("button","","−"); m.type="button"; m.setAttribute("aria-label","Un de moins");
+    var qi=el("input"); qi.type="number"; qi.min="0"; qi.max="999"; qi.inputMode="numeric"; qi.value=String(nb(a.qte)); qi.setAttribute("aria-label","Quantité");
+    var p=el("button","","+"); p.type="button"; p.setAttribute("aria-label","Un de plus");
+    q.appendChild(m); q.appendChild(qi); q.appendChild(p);
+    var x=el("button","kc-autre-x","×"); x.type="button"; x.setAttribute("aria-label","Retirer ce participant");
+    function maj(){ a.nom=n.value; a.ref=f.value; a.qte=nb(qi.value); garderLocal(); peindreResultat(); }
+    n.addEventListener("input", maj); f.addEventListener("input", maj); qi.addEventListener("input", maj);
+    m.addEventListener("click", function(){ qi.value=String(Math.max(0, nb(qi.value)-1)); maj(); });
+    p.addEventListener("click", function(){ qi.value=String(Math.min(999, nb(qi.value)+1)); maj(); });
+    x.addEventListener("click", function(){ SAISIE.autres=SAISIE.autres.filter(function(y){ return y!==a; }); r.remove(); garderLocal(); peindreResultat(); });
+    r.appendChild(n); r.appendChild(f); r.appendChild(q); r.appendChild(x);
+    return r;
+  }
+  if(!Array.isArray(SAISIE.autres)) SAISIE.autres=[];
+  SAISIE.autres.forEach(function(a){ liste.appendChild(rang(a)); });
+  var aj=el("button","act","+ Ajouter un participant"); aj.type="button";
+  aj.addEventListener("click", function(){
+    var a={nom:"", ref:"", qte:1}; SAISIE.autres.push(a);
+    var r=rang(a); liste.appendChild(r); r.querySelector("input").focus();
+    garderLocal(); peindreResultat();
+  });
+  box.appendChild(aj);
+  return box;
 }
 function calculer(s){
   var M = MARQUES[s.marque] || MARQUES.mdt;
@@ -255,6 +292,12 @@ function calculer(s){
   ajouter("Passerelles", C.nom, C.ref, nb(s.clim), {v:C.v, note:C.note});
   ajouter("Passerelles", M.dali.nom, M.dali.ref, nb(s.dali));
 
+  /* les autres participants, ajoutés à la main (détecteur, station météo, interface…) : chacun compte sur le bus */
+  (s.autres||[]).forEach(function(a){
+    var q=nb(a.qte), nom=String(a.nom||"").trim() || "Participant KNX", ref=String(a.ref||"").trim();
+    ajouter("Autres participants", nom, ref || "—", q, {v:!!ref, note: ref ? "" : "Référence à compléter."});
+  });
+
   /* le bus : 10 mA par participant, des lignes de 64 participants au plus, une
      alimentation par ligne, avec la réserve choisie */
   var reserve = Math.max(0, Math.min(50, parseInt(s.reserve, 10) || 0)) / 100;
@@ -306,6 +349,13 @@ var STYLE = ".vues{display:flex;gap:6px;max-width:1100px;margin:12px auto 0;padd
   +".kc-marques button[aria-pressed=true]{background:var(--ink);border-color:var(--ink);color:#fff}"
   +".kc-oui{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:12px}"
   +".kc-oui label{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:14px}"
+  +".kc-autres{margin-top:16px;padding-top:12px;border-top:1px solid var(--rule)}"
+  +".kc-autres h3{margin:0 0 2px;font-size:15px}"
+  +".kc-autres-liste{display:flex;flex-direction:column;gap:8px;margin:8px 0 10px}"
+  +".kc-autre{display:flex;align-items:center;gap:8px;flex-wrap:wrap;border:1px solid var(--rule);border-radius:10px;padding:8px 10px;background:#FCFBF8}"
+  +".kc-autre input[type=text]{flex:2 1 200px;min-width:0;min-height:38px;font:inherit;font-size:15px;padding:6px 10px;border:1px solid var(--rule);border-radius:8px;background:#fff;color:var(--ink)}"
+  +".kc-autre input.ref{flex:1 1 130px;font-family:var(--mono);font-size:14px}"
+  +".kc-autre-x{width:32px;height:32px;min-height:0;padding:0;border-radius:50%;border:0;background:#F1F3F6;color:var(--ink-2);font-size:18px;line-height:1}"
   +".kc-res table{width:100%;border-collapse:collapse;font-size:13.5px}"
   +".kc-res th{text-align:left;font-size:11.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--ink-3);padding:6px 8px;border-bottom:1px solid var(--rule)}"
   +".kc-res td{padding:8px;border-bottom:1px solid #EEF1F4;vertical-align:top}"
@@ -397,6 +447,7 @@ function construire(){
   sp.value=String(SAISIE.entreesParPlexo||1); sp.addEventListener("change", function(){ SAISIE.entreesParPlexo=parseInt(sp.value,10)||1; garderLocal(); peindreResultat(); });
   lp.appendChild(sp); ou2.appendChild(lp);
   b2.appendChild(ou2);
+  b2.appendChild(blocAutres());
   var bt=el("div","boutons");
   var bz=el("button","act","Remettre à zéro"); bz.type="button";
   bz.addEventListener("click", function(){ if(!window.confirm("Effacer la saisie en cours ?")) return; var m=SAISIE.marque; SAISIE=vierge(); SAISIE.marque=m; ID_COURANT=""; garderLocal(); main.textContent=""; main.__fait=false; construireDeNouveau(); });
