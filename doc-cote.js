@@ -15,7 +15,8 @@
    - sur une tablette en paysage ou un ordinateur, les deux côte à côte ;
    - zoomer : deux doigts qui s'écartent (téléphone, tablette), la molette
      ou le pavé tactile (ordinateur ; Maj + molette fait défiler), ou − et + ;
-     le plan se redessine net au zoom. « Changer » pour un autre document.
+     jusqu'à 20 fois : le plan se redessine net au zoom, et tout près, la
+     partie à l'écran se redessine à part (une « loupe »), nette. « Changer » pour un autre document.
    Le dernier document ouvert est retenu le temps de la visite.
 
    DocCote.installer({libelle:"Relevé", ref:function(){ return "2026-041"; }})
@@ -65,8 +66,9 @@
       +".dc-t b{display:block;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#fff}"
       +".dc-t span{display:block;font-size:11.5px;color:#9FB0CC;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
       +".dc-corps{flex:1;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;overscroll-behavior:contain;padding:10px 8px calc(env(safe-area-inset-bottom,0px) + 18px)}"
-      +".dc-pages{display:flex;flex-direction:column;align-items:center;gap:10px;margin:0 auto}"
+      +".dc-pages{position:relative;display:flex;flex-direction:column;align-items:center;gap:10px;margin:0 auto}"
       +".dc-pages canvas,.dc-pages img{display:block;background:#fff;box-shadow:0 2px 12px rgba(0,0,0,.45);border-radius:2px}"
+      +".dc-pages canvas.dc-loupe{position:absolute;box-shadow:none;border-radius:0;pointer-events:none}"
       +".dc-etat{color:#9FB0CC;font-size:14px;text-align:center;margin:30px 12px}"
       /* le choix : chantiers puis documents */
       +".dc-choix{display:flex;flex-direction:column;gap:8px;max-width:640px;margin:0 auto}"
@@ -494,7 +496,37 @@
       function dessiner(cv){
         if(cv.__fait || id!==ETAT.chargeId) return; cv.__fait=true;
         cv.__rendre=function(base){ return rendre(cv, base); };
+        cv.__loupe=function(){ return loupe(cv); };
         rendre(cv);
+      }
+      /* zoomé très fort, la page entière ne peut plus être assez fine (15 Mpx au plus) : la partie
+         à l'écran se redessine à part, nette, par-dessus (« loupe »), et suit le défilement */
+      function loupe(cv){
+        if(id!==ETAT.chargeId) return;
+        var zone=EL.corps.getBoundingClientRect(), r=cv.getBoundingClientRect(), z=ETAT.zoom;
+        var x0=Math.max(r.left, zone.left), y0=Math.max(r.top, zone.top), x1=Math.min(r.right, zone.right), y1=Math.min(r.bottom, zone.bottom);
+        if(x1-x0<20 || y1-y0<20 || !cv.__rendu || cv.__rendu>=r.width*dpr*0.95){
+          if(cv.__loupeEl){ cv.__loupeEl.remove(); cv.__loupeEl=null; }
+          return;
+        }
+        /* un peu de marge autour de ce qu'on voit, pour un petit défilement */
+        var mg=160; x0=Math.max(r.left, x0-mg); y0=Math.max(r.top, y0-mg); x1=Math.min(r.right, x1+mg); y1=Math.min(r.bottom, y1+mg);
+        var w=x1-x0, h=y1-y0, k=Math.min(dpr, Math.sqrt(12e6/(w*h))), dx=x0-r.left, dy=y0-r.top;
+        if(cv.__tache){ try{ cv.__tache.cancel(); }catch(e){} cv.__tache=null; }
+        var jeton=cv.__jeton=(cv.__jeton||0)+1;
+        doc.getPage(cv.__n).then(function(page){
+          if(jeton!==cv.__jeton) return;
+          var v1=page.getViewport({scale:1}), v=page.getViewport({scale:r.width*k/v1.width, offsetX:-dx*k, offsetY:-dy*k});
+          var lc=document.createElement("canvas"); lc.className="dc-loupe"; lc.width=Math.round(w*k); lc.height=Math.round(h*k);
+          var cx=lc.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0, 0, lc.width, lc.height);
+          cv.__tache=page.render({canvasContext:cx, viewport:v});
+          return cv.__tache.promise.then(function(){
+            if(id!==ETAT.chargeId || jeton!==cv.__jeton || z!==ETAT.zoom || !cv.isConnected){ lc.width=lc.height=0; return; }
+            lc.style.left=(cv.offsetLeft+dx)+"px"; lc.style.top=(cv.offsetTop+dy)+"px"; lc.style.width=w+"px"; lc.style.height=h+"px";
+            if(cv.__loupeEl) cv.__loupeEl.remove();
+            cv.parentNode.appendChild(lc); cv.__loupeEl=lc;
+          });
+        }).catch(function(){});
       }
       /* la page, à la finesse du zoom : dessinée à part puis posée d'un coup (pas d'écran blanc),
          sans dépasser ce qu'un iPhone accepte pour une image (15 Mpx) ; « base » : une page
@@ -537,7 +569,7 @@
     });
   }
   /* zoomer en gardant sous le doigt (ou la souris) le même endroit du document */
-  var ZOOM_MAX=6, tNet=0;
+  var ZOOM_MAX=20, tNet=0;
   function zoomer(z, x, y){
     var pages=EL.corps.querySelector(".dc-pages"), c=EL.corps;
     z=Math.max(1, Math.min(ZOOM_MAX, z));
@@ -555,11 +587,11 @@
   function netete(){
     var pages=EL.corps.querySelector(".dc-pages"); if(!pages) return;
     var rc=EL.corps.getBoundingClientRect();
-    Array.prototype.forEach.call(pages.querySelectorAll("canvas"), function(cv){
+    Array.prototype.forEach.call(pages.querySelectorAll("canvas:not(.dc-loupe)"), function(cv){
       if(!cv.__rendre) return;
       var r=cv.getBoundingClientRect();
-      if(r.bottom>rc.top-400 && r.top<rc.bottom+400) cv.__rendre();
-      else if(r.bottom<rc.top-1500 || r.top>rc.bottom+1500) cv.__rendre(true);
+      if(r.bottom>rc.top-400 && r.top<rc.bottom+400){ cv.__rendre(); if(cv.__loupe) cv.__loupe(); }
+      else if(r.bottom<rc.top-1500 || r.top>rc.bottom+1500){ cv.__rendre(true); if(cv.__loupeEl){ cv.__loupeEl.remove(); cv.__loupeEl=null; } }
     });
   }
   /* les gestes du zoom, sur le document seulement (pas sur la liste du choix) */
@@ -606,7 +638,10 @@
   function appliquerZoom(){
     var w=Math.round(largeurUtile()*ETAT.zoom), pages=EL.corps.querySelector(".dc-pages"); if(!pages) return;
     pages.style.width=w+"px";
-    Array.prototype.forEach.call(pages.querySelectorAll("canvas"), function(cv){ cv.style.width=w+"px"; cv.style.height=Math.round(w*(cv.__ratio||1.414))+"px"; });
+    /* le zoom change : les loupes ne sont plus à l'échelle, elles reviendront au zoom posé */
+    var change=pages.__w!==w; pages.__w=w;
+    if(change) Array.prototype.forEach.call(pages.querySelectorAll("canvas.dc-loupe"), function(l){ l.remove(); });
+    Array.prototype.forEach.call(pages.querySelectorAll("canvas:not(.dc-loupe)"), function(cv){ if(change){ cv.__loupeEl=null; cv.__jeton=(cv.__jeton||0)+1; } cv.style.width=w+"px"; cv.style.height=Math.round(w*(cv.__ratio||1.414))+"px"; });
     Array.prototype.forEach.call(pages.querySelectorAll("img"), function(im){ im.style.width=w+"px"; im.style.height="auto"; });
     EL.zm.disabled = ETAT.zoom<=1; EL.zm.style.opacity = ETAT.zoom<=1 ? .4 : 1;
     EL.zp.disabled = ETAT.zoom>=ZOOM_MAX; EL.zp.style.opacity = ETAT.zoom>=ZOOM_MAX ? .4 : 1;
