@@ -34,7 +34,7 @@ var MARQUES = {
     commutation:{nom:"Actionneur de commutation {n} sorties 16 A (charges capacitives)", modules:[
       {ref:"AKS-0416.03", n:4}, {ref:"AKS-0816.03", n:8}, {ref:"AKS-1216.03", n:12},
       {ref:"AKS-1616.03", n:16}, {ref:"AKS-2016.03", n:20}, {ref:"AKS-2416.03", n:24}]},
-    volets:{nom:"Actionneur volets {n} canaux 230 V (moteurs jusqu'à 600 W)", modules:[
+    volets:{nom:"Actionneur volets {n} canaux 230 V, soit {n} volets ({2n} sorties montée / descente, moteurs jusqu'à 600 W)", modules:[
       {ref:"JAL-0410.02", n:4}, {ref:"JAL-0810.02", n:8}]},
     variation:{nom:"Variateur universel {n} canaux 250 W (LED, mesure de puissance)", modules:[
       {ref:"AKD-0201.02", n:2}, {ref:"AKD-0401.02", n:4}]},
@@ -55,7 +55,7 @@ var MARQUES = {
     alim:[{ref:"ZPSU640", mA:640, nom:"KUPSupply 640 mA (sortie auxiliaire 29 V)"}],
     commutation:{nom:"MAXinBOX {n} Plus, actionneur multifonction {n} sorties 16 A", modules:[
       {ref:"ZIO-MB8P", n:8}, {ref:"ZIO-MB16P", n:16}]},
-    volets:{nom:"MAXinBOX SHUTTER, actionneur volets {n} canaux", modules:[
+    volets:{nom:"MAXinBOX SHUTTER, actionneur volets {n} canaux, soit {n} volets ({2n} sorties montée / descente)", modules:[
       {ref:"ZIO-MBSHU4", n:4, v:false, note:"Une version v2 existe : prendre la référence en cours au tarif."},
       {ref:"ZIO-MBSHU8", n:8, v:false, note:"Une version v2 existe : prendre la référence en cours au tarif."}]},
     variation:{nom:"DIMinBOX, variateur universel {n} canaux (RLC, LED)", modules:[
@@ -78,8 +78,8 @@ var MARQUES = {
   theben: {nom:"Theben",
     alim:[{ref:"9070958", mA:640, nom:"PS 640 mA T KNX, alimentation 640 mA"}],
     commutation:{nom:"RMG 8 T KNX, actionneur de commutation 8 sorties (MIX2)", modules:[{ref:"4930200", n:8}]},
-    volets:{nom:"JMG 4 T KNX, actionneur volets 4 canaux (module de base MIX2)", base:{ref:"4930250", n:4},
-      ext:{ref:"4930255", n:4, max:2, nom:"JME 4 T KNX, extension volets 4 canaux"}},
+    volets:{nom:"JMG 4 T KNX, actionneur volets 4 canaux, soit 4 volets (8 sorties montée / descente, module de base MIX2)", base:{ref:"4930250", n:4},
+      ext:{ref:"4930255", n:4, max:2, nom:"JME 4 T KNX, extension volets 4 canaux, soit 4 volets (8 sorties montée / descente)"}},
     variation:{nom:"DMG 2 T KNX, variateur universel 2 canaux 400 W (module de base MIX2)", base:{ref:"4930270", n:2},
       ext:{ref:"4930275", n:2, max:2, nom:"DME 2 T KNX, extension variateur 2 canaux"}},
     entrees:{nom:"TA 8 S KNX, interface 8 entrées (encastrée)", modules:[{ref:"4969228", n:8}]},
@@ -101,7 +101,7 @@ var ECRAN_TIERS = {ref:"BE-GTSP6TW.01S", nom:"Écran 6 pouces MDT Glass Touch Sm
 
 /* ---------- la saisie ---------- */
 var CHAMPS = [
-  ["volets", "Volets roulants", "un canal d'actionneur volets par volet"],
+  ["volets", "Volets roulants", "un canal volet par volet : 2 sorties, montée et descente"],
   ["allumages", "Allumages tout ou rien (on/off)", "une sortie d'actionneur de commutation par circuit"],
   ["variation", "Allumages à variation", "un canal de variateur par circuit"],
   ["portes", "Portes sectionnelles / portails", "une sortie à contact sec (impulsion) chacun"],
@@ -144,7 +144,7 @@ function regrouper(mods){
   mods.forEach(function(x){ if(!m[x.ref]){ m[x.ref]={mod:x, qte:0}; ordre.push(x.ref); } m[x.ref].qte++; });
   return ordre.map(function(r){ return m[r]; });
 }
-function nomDe(famille, mod){ return (mod.nom || famille.nom).replace(/\{n\}/g, mod.n); }
+function nomDe(famille, mod){ return (mod.nom || famille.nom).replace(/\{n\}/g, mod.n).replace(/\{2n\}/g, 2*mod.n); }
 
 function calculer(s){
   var M = MARQUES[s.marque] || MARQUES.mdt;
@@ -176,6 +176,7 @@ function calculer(s){
   var sorties = nb(s.allumages) + nb(s.portes);
   famille("Commutation", M.commutation, sorties, ["sortie libre", "sorties libres"]);
   if(nb(s.portes)) notes.push("Portes et portails : une sortie de commutation chacun, en contact sec (impulsion), soit "+nb(s.portes)+" sur les "+sorties+" sorties de commutation.");
+  if(nb(s.volets)) notes.push("Volets : "+nb(s.volets)+" volet"+(nb(s.volets)>1?"s":"")+" = "+2*nb(s.volets)+" sorties (une pour la montée, une pour la descente), sur des actionneurs volets verrouillés pour que les deux ne soient jamais alimentées ensemble.");
   famille("Volets", M.volets, nb(s.volets));
   famille("Variation", M.variation, nb(s.variation));
   var entrees = nb(s.plexo) * Math.max(1, nb(s.entreesParPlexo) || 1) + (s.etatPortes ? nb(s.portes) : 0);
