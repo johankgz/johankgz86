@@ -49,6 +49,16 @@
     +".aide-i,.aide-repliee{display:none!important}";
   (document.head||document.documentElement).appendChild(st);
 
+  /* ---------- 0. pas de zoom au double appui (téléphone, tablette) ----------
+     Deux appuis rapides au même endroit (un « + », une case) ne zooment plus la page ;
+     le pincement à deux doigts reste. Un élément qui gère ses propres gestes garde les siens. */
+  (function(){
+    var st=document.createElement("style"); st.setAttribute("data-theme-propre", "");
+    st.textContent="html,body{touch-action:manipulation}"
+      +"button,a,label,input,select,textarea,summary,[role=button],.act,.chip{touch-action:manipulation}";
+    (document.head || document.documentElement).appendChild(st);
+  })();
+
   /* ---------- 2. les aides ---------- */
   var PAGES_GARDEES=/(aide|cgu|mentions-legales|confidentialite|conditions-abonnement|sous-traitance|client|rdv)\.html$/i;
   function retirerAides(){
