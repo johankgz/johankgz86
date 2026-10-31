@@ -847,7 +847,12 @@ function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
-  if (fichier && fichier.prive && personne.role !== "bureau" && personne.role !== "admin") return false;
+  if (fichier && fichier.prive) {
+    /* réservé : les chargés d'affaires (et l'administrateur) attribués au dossier ; un chargé d'affaires
+       retiré du dossier ne le voit plus, même s'il l'a déposé */
+    if (personne.role !== "bureau" && personne.role !== "admin") return false;
+    if (revoque(chantier, personne.nom)) return false;
+  }
   if (personne.role !== "bureau" && personne.role !== "admin" && revoque(chantier, personne.nom)) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
