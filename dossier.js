@@ -2549,8 +2549,25 @@ function carteDossier(c, i, opts){
   return box;
 }
 
+/* les photos d'un document, une par une (un lot ZIP s'ouvre) : pour la galerie de la rubrique Photos,
+   d'où chacune se glisse vers l'ordinateur. &apercu=1 : regarder n'est pas avoir ouvert le document. */
+function photosDe(f){
+  var g=genreVg(f); if(g!=="image" && g!=="zip") return Promise.resolve([]);
+  return fetch(API+"?action=fichier&apercu=1&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); })
+    .then(function(blob){
+      if(g==="image") return [{nom:nomFichier(f), blob:blob}];
+      return blob.arrayBuffer().then(function(buf){
+        return lireZip(new Uint8Array(buf)).map(function(x){
+          var nom=String(x.nom).split("/").pop();
+          return {nom:nom, blob:new Blob([x.octets], {type:/\.png$/i.test(nom) ? "image/png" : "image/jpeg"})};
+        });
+      });
+    });
+}
 window.Dossier={
   quandLisible:quandLisible, frDate:frDate,
+  photosDe:photosDe, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
   moi:function(m){ MOI=m; },
   carte:carteDossier,

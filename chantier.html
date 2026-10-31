@@ -1111,6 +1111,19 @@ body.rub-ouvert .dc-onglet{visibility:hidden}
 .rub-vide{padding:22px 18px;border-radius:12px;background:var(--card);color:var(--ink-3);text-align:center;font-size:14.5px}
 .rub-vide[hidden]{display:none}
 .rub-cache{display:none!important}
+/* la galerie de la rubrique Photos (ordinateur) : chaque photo, à glisser seule vers l'ordinateur */
+.rub-galerie .rg-aide{margin:0 0 10px}
+.rg-lot{margin:0 0 14px}
+.rg-lot h3{margin:0 0 6px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
+.rg-lot h3 small{font-weight:500;color:var(--ink-3);margin-left:6px}
+.rg-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
+.rg-ph{position:relative;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:var(--field);cursor:grab;border:0;padding:0}
+.rg-ph img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
+.rg-ph:active{cursor:grabbing}
+.rg-ph:focus-visible{outline:3px solid #3B82F6;outline-offset:2px}
+.rg-ph .dl{position:absolute;right:6px;bottom:6px;padding:2px 7px;border-radius:999px;background:rgba(10,14,20,.7);color:#fff;font-size:11px;font-weight:600;opacity:0;transition:opacity .15s}
+.rg-ph:hover .dl{opacity:1}
+.rg-attente{font-size:13px;color:var(--ink-3);padding:6px 0}
 /* une rubrique : seulement ses documents, ouverts */
 body.rub-docs #docs .travaux > .head,body.rub-docs #docs .travaux > .actions{display:none!important}
 body.rub-docs #docs .travaux{border:0;background:none;box-shadow:none;padding:0}
@@ -1143,6 +1156,10 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <main>
   <div class="rub-vue" id="rubVue" hidden><h2 id="rubNom"></h2><p id="rubSous"></p><div class="rub-act" id="rubAct"></div></div>
   <div class="rub-vide" id="rubVide" hidden></div>
+  <div class="block rub-galerie" id="rubGalerie" hidden>
+    <p class="hint rg-aide">Glissez une photo vers l'ordinateur, ou cliquez-la.</p>
+    <div id="rubGalerieLots"></div>
+  </div>
   <div class="block entete-chantier" id="entete">
     <div class="ligne">
       <span class="ref" id="c_ref">—</span>
@@ -1284,7 +1301,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
-<script src="./dossier.js?v=20261101a"></script>
+<script src="./dossier.js?v=20261101b"></script>
 <script src="./transfert.js?v=20261101a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2692,7 +2709,7 @@ function appliquerRubrique(enHaut){
   /* les blocs de la page : ceux de la rubrique, le reste caché */
   var garder=r[1] && r[2], tousDocs=r[3][0]==="*";
   [].forEach.call(document.querySelectorAll("main > *"), function(el){
-    if(el.id==="rubVue" || el.id==="rubVide") return;
+    if(el.id==="rubVue" || el.id==="rubVide" || el.id==="rubGalerie") return;
     var montre = r[2].indexOf(el.id)>=0 || (el.id==="docs" && (r[3].length || fiche));
     el.classList.toggle("rub-cache", !montre);
   });
@@ -2767,7 +2784,76 @@ function appliquerRubrique(enHaut){
   vide.hidden=!rien; vide.textContent=r[5];
   document.title=(fiche ? "" : r[1]+" — ")+(CHANTIER ? (CHANTIER.client||CHANTIER.ref) : "Chantier");
   peindreTiroir();
+  peindreGalerie();
   if(enHaut) try{ window.scrollTo(0, 0); }catch(e){}
+}
+
+/* ---------- la galerie de la rubrique Photos (ordinateur) ----------
+   Chaque photo des lots, une par une, à glisser vers le bureau ou un dossier :
+   elle sort en photo (nommée « chantier - lot - photo »), pas en ZIP. */
+var GALERIE={cle:"", urls:[]};
+function surOrdinateurIci(){ try{ return matchMedia("(hover:hover) and (pointer:fine)").matches; }catch(e){ return false; } }
+function photosDuChantier(){
+  return ((CHANTIER && CHANTIER.fichiers) || []).filter(function(f){
+    if(f.brouillon) return false;
+    var photo = f.type==="photos" || f.type==="reportage" || (f.type==="technique" && /^photos?(\s|$)/i.test(String(f.visite||"").trim()));
+    return photo && /\.(zip|jpe?g|png|webp)$/i.test(f.cle||"");
+  }).sort(function(a, b){ return String(b.publie||b.date||"").localeCompare(String(a.publie||a.date||"")); });
+}
+function peindreGalerie(){
+  var bloc=$("rubGalerie"); if(!bloc) return;
+  var voir = rubCourante()[0]==="photos" && surOrdinateurIci() && !!CHANTIER && !!(window.Dossier && Dossier.photosDe);
+  var lots = voir ? photosDuChantier() : [];
+  bloc.hidden = !lots.length;
+  if(!lots.length) return;
+  var cle=lots.map(function(f){ return f.cle+"|"+(f.publie||""); }).join(",");
+  if(GALERIE.cle===cle) return;                     /* déjà là */
+  GALERIE.urls.forEach(function(u){ try{ URL.revokeObjectURL(u); }catch(e){} });
+  GALERIE={cle:cle, urls:[]};
+  var hote=$("rubGalerieLots"); hote.textContent="";
+  var file=lots.slice(0, 20);
+  function suivant(){
+    if(!file.length || GALERIE.cle!==cle) return;
+    var f=file.shift();
+    var lot=document.createElement("div"); lot.className="rg-lot";
+    var h=document.createElement("h3"); h.textContent=f.titre || f.visite || "Photos";
+    var sm=document.createElement("small"); sm.textContent=frDate(f.date)+(f.auteur ? " · "+f.auteur : ""); h.appendChild(sm);
+    var g=document.createElement("div"); g.className="rg-grille";
+    var att=document.createElement("p"); att.className="rg-attente"; att.textContent="Chargement des photos…";
+    lot.appendChild(h); lot.appendChild(att); lot.appendChild(g); hote.appendChild(lot);
+    Dossier.photosDe(f).then(function(ps){
+      if(GALERIE.cle!==cle) return;
+      att.remove();
+      if(!ps.length){ lot.remove(); return; }
+      ps.forEach(function(p, i){
+        var url=URL.createObjectURL(p.blob); GALERIE.urls.push(url);
+        var base=(f.titre||"Photos").replace(/[\/\\:*?"<>|]+/g, " ").trim()+(ps.length>1 ? " - "+(i+1) : "")+(/\.png$/i.test(p.nom) ? ".png" : ".jpg");
+        /* sans accents ni signes : le nom passe tel quel dans tous les navigateurs et sur le bureau */
+        var nom=Dossier.nomAvecChantier(CHANTIER.ref, base).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^A-Za-z0-9 ._()'-]+/g, " ").replace(/\s+/g, " ").trim();
+        var fichier=null; try{ fichier=new File([p.blob], nom, {type:p.blob.type||"image/jpeg"}); }catch(e){}
+        var t=document.createElement("button"); t.type="button"; t.className="rg-ph"; t.draggable=true;
+        t.title=nom+" — glissez vers l'ordinateur, ou cliquez pour l'enregistrer";
+        t.setAttribute("aria-label", "Photo "+(i+1)+" : "+nom);
+        var im=document.createElement("img"); im.alt=""; im.loading="lazy"; im.src=url; t.appendChild(im);
+        var dl=document.createElement("span"); dl.className="dl"; dl.textContent="Glisser"; t.appendChild(dl);
+        t.addEventListener("dragstart", function(e){
+          if(!e.dataTransfer) return;
+          try{ e.dataTransfer.clearData(); }catch(er){}
+          try{ e.dataTransfer.setData("DownloadURL", (p.blob.type||"image/jpeg")+":"+nom+":"+url); }catch(er){}
+          if(fichier){ try{ e.dataTransfer.items.add(fichier); }catch(er){} }
+          try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
+        });
+        /* un clic : l'enregistrer (dans Téléchargements) */
+        t.addEventListener("click", function(){
+          var a=document.createElement("a"); a.href=url; a.download=nom; document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); }, 500);
+        });
+        g.appendChild(t);
+      });
+      suivant();
+    }).catch(function(){ att.textContent="Ce lot n'a pas pu être lu (réseau)."; suivant(); });
+  }
+  suivant();
 }
 (function(){
   $("rubBtn").addEventListener("click", function(){ ouvrirTiroir(!document.body.classList.contains("rub-ouvert")); });
