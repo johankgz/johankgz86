@@ -21,6 +21,9 @@ function dptCourt(d){ var m=/^DPST-(\d+)-(\d+)$/.exec(d||""); return m ? m[1]+".
 var TYPES_ECL = [["tor","Tout ou rien"],["var","Variateur"],["rvb","Couleur RVB"]];
 var TYPES_OUV = [["volet","Volet roulant"],["store","BSO (inclinaison des lames)"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
 var CLIM = [["non","Pas de chauffage"],["chaud","Chauffage"],["chaudfroid","Chaud + froid"]];
+/* les questions du chiffrage : sans réponse, la pièce reste « à préciser » */
+var TYPES_CHAUFFAGE = [["","Type de chauffage ?"],["plancher","Plancher chauffant"],["radiateur","Radiateurs électriques"],["clim","Climatisation"],["autre","Poêle ou autre"]];
+var TYPES_COMMANDE = [["","Commande KNX ?"],["non","Pas de commande KNX"],["oui","Commande KNX"],["sonde","Commande avec sonde"]];
 var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bureau","Chambre 1","Chambre 2","Chambre 3","Salle de bain",
   "Salle d'eau","WC","Dégagement","Escalier","Buanderie","Cellier","Garage","Dressing","Terrasse","Jardin","Local technique"];
 
@@ -362,6 +365,12 @@ function bascule(txt, on, fn){
   b.addEventListener("click", function(){ var v=b.getAttribute("aria-pressed")!=="true"; b.setAttribute("aria-pressed", v ? "true" : "false"); fn(v); change(true); });
   return b;
 }
+function question(liste, val, nom, fn){
+  var c=el("span", "chip"+(val ? "" : " a-preciser")); c.setAttribute("aria-pressed", val && val!=="non" ? "true" : "false");
+  var s=choix(liste, val, function(v){ fn(v); c.classList.toggle("a-preciser", !v); c.setAttribute("aria-pressed", v && v!=="non" ? "true" : "false"); });
+  s.setAttribute("aria-label", nom); c.appendChild(s);
+  return c;
+}
 function fonction(titre, liste, types, defaut, ph){
   var f=el("div", "fonction");
   var t=el("div", "f-titre"); t.appendChild(el("span", null, titre));
@@ -402,7 +411,7 @@ function peindrePieces(){
     c.appendChild(fonction("Prises commandées", p.prises, null, null, "Prise (ex. TV, Lampe de chevet)"));
     var o=el("div", "options");
     var cl=el("span", "chip"); cl.setAttribute("aria-pressed", p.clim!=="non" ? "true" : "false");
-    var cs=choix(CLIM, p.clim, function(v){ p.clim=v; cl.setAttribute("aria-pressed", v!=="non" ? "true" : "false"); if(P.airzone) setTimeout(function(){ change(); }, 0); });
+    var cs=choix(CLIM, p.clim, function(v){ p.clim=v; cl.setAttribute("aria-pressed", v!=="non" ? "true" : "false"); setTimeout(function(){ change(); }, 0); });   /* les questions du chiffrage en dépendent */
     cs.setAttribute("aria-label", "Chauffage et climatisation"); cl.appendChild(cs);
     o.appendChild(cl);
     if(P.airzone && p.clim!=="non"){
@@ -423,6 +432,12 @@ function peindrePieces(){
         o.appendChild(bascule("Thermostat Airzone", p.thermostat!==false, function(v){ p.thermostat=v; }));
       }
     }
+    /* pour le chiffrage : le type de chauffage (sans Airzone) et la commande de la pièce */
+    if(!P.airzone && p.clim!=="non") o.appendChild(question(TYPES_CHAUFFAGE, p.chauffage||"", "Type de chauffage", function(v){ p.chauffage=v; }));
+    if(p.clim!=="non"){
+      var cs2=el("span", "chip", "Commande avec sonde"); cs2.setAttribute("aria-pressed", "true");
+      cs2.title="Pièce chauffée : une commande avec sonde de température, obligatoire"; o.appendChild(cs2);
+    } else o.appendChild(question(TYPES_COMMANDE, p.commande||"", "Commande KNX", function(v){ p.commande=v; }));
     o.appendChild(bascule("Sonde de température", p.sonde, function(v){ p.sonde=v; }));
     o.appendChild(bascule("Détecteur", p.detecteur, function(v){ p.detecteur=v; }));
     c.appendChild(o);
@@ -734,18 +749,29 @@ function peindreFiche(){
    Le chiffrage (fichier suivant) en tire les actionneurs et les références. */
 function besoinsMateriel(){
   var b={nom:P.nom||"", pieces:P.pieces.length, volets:0, bso:0, eclTor:0, prises:0, vmc:P.vmc ? 2 : 0, variation:0, rvb:0,
-    garages:0, gaches:0, zones:0, airzone:!!P.airzone, systemes:0, sondes:0, commandes:0, detecteurs:0, exterieur:!!P.exterieur};
+    garages:0, gaches:0, zones:0, plancher:0, radiateurs:0, climPieces:0, autreChauffage:0, airzone:!!P.airzone, systemes:0,
+    sondes:0, commandes:0, detecteurs:0, exterieur:!!P.exterieur, aPreciser:{chauffage:[], commande:[]}};
   P.pieces.forEach(function(p){
     p.eclairage.forEach(function(c){ if(c.type==="var") b.variation++; else if(c.type==="rvb") b.rvb++; else b.eclTor++; });
     p.ouvrants.forEach(function(o){ if(o.type==="store") b.bso++; else if(o.type==="garage") b.garages++; else if(o.type==="gache") b.gaches++; else b.volets++; });
     b.prises+=p.prises.length;
-    var chauffee=p.clim!=="non";
-    if(chauffee) b.zones++;
+    var chauffee=p.clim!=="non", nom=String(p.nom||"").trim() || "pièce sans nom";
+    if(chauffee){
+      b.zones++;
+      if(!P.airzone){
+        if(p.chauffage==="plancher") b.plancher++;
+        else if(p.chauffage==="radiateur") b.radiateurs++;
+        else if(p.chauffage==="clim") b.climPieces++;
+        else if(p.chauffage==="autre") b.autreChauffage++;
+        else b.aPreciser.chauffage.push(nom);
+      }
+    }
     if(p.detecteur) b.detecteurs++;
-    /* une commande par pièce qui pilote quelque chose ; à sonde quand la pièce mesure sa température */
-    var sonde=p.sonde || (chauffee && !P.airzone);
-    if(sonde) b.sondes++;
-    else if(p.eclairage.length || p.ouvrants.length || p.prises.length) b.commandes++;
+    /* la commande : une pièce chauffée a obligatoirement une commande avec sonde ;
+       les autres, on le demande (sans réponse : à préciser) */
+    if(chauffee || p.commande==="sonde" || (p.commande==="oui" && p.sonde)) b.sondes++;
+    else if(p.commande==="oui") b.commandes++;
+    else if(p.commande!=="non") b.aPreciser.commande.push(nom);
   });
   if(P.airzone) b.systemes=systemesUtilises().length;
   return b;

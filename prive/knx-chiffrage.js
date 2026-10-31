@@ -101,6 +101,14 @@ var CLIM_TIERS = {ref:"—", nom:"Passerelle KNX / climatisation (Intesis ou éq
 var ECRAN_TIERS = {ref:"BE-GTSP6TW.01S", nom:"Écran 6 pouces MDT Glass Touch Smart Plus (pas d'écran 6 pouces Theben équivalent)", v:false,
   note:"Theben n'a pas d'écran 6 pouces équivalent : MDT proposé, à valider."};
 
+/* la passerelle de programmation et d'accès à distance, mise d'office ; sa référence vient de la
+   Bibliothèque KNX quand elle y est */
+var KLOUD = {nom:"KLOUD NX (CAN NX), passerelle de programmation et d'accès à distance", ref:"KLOUD NX", v:false,
+  note:"Référence à confirmer chez CAN NX (ou à ranger dans la Bibliothèque KNX)."};
+function kloud(){
+  var p=(BIBLIO||[]).filter(function(x){ return /kloud/.test(sansAccent(x.nom+" "+x.ref)) && x.ref; })[0];
+  return p ? {nom:p.nom+(nomMarque(p.marque) ? " ("+nomMarque(p.marque)+")" : ""), ref:p.ref, v:true, note:""} : KLOUD;
+}
 var INDICATIF = "Références données à titre indicatif, à corriger au cas par cas (chantier, tarif du fournisseur) avant de commander.";
 
 /* ---------- la saisie ---------- */
@@ -109,6 +117,7 @@ var CHAMPS = [
   ["allumages", "Allumages tout ou rien (on/off)", "une sortie d'actionneur de commutation par circuit"],
   ["variation", "Allumages à variation", "un canal de variateur par circuit"],
   ["portes", "Portes sectionnelles / portails", "une sortie à contact sec (impulsion) chacun"],
+  ["kloud", "Passerelles KLOUD NX (CAN NX)", "programmation et accès à distance : une d'office"],
   ["passerellesIp", "Passerelles IP", "visualisation, appli, programmation à distance"],
   ["clim", "Passerelles climatisation", "une par unité ou système de clim"],
   ["plexo", "Commandes Plexo (IP65) ou poussoirs classiques", "câblées sur des modules d'entrées"],
@@ -121,9 +130,12 @@ var CHAMPS = [
 function vierge(){
   var s={nom:"", ref:"", marque:"mdt", plancher:false, zones:0, entreesParPlexo:1, etatPortes:true, reserve:20, secours:true, refs:{}, autres:[]};
   CHAMPS.forEach(function(c){ s[c[0]]=0; });
+  s.kloud=1;                                   /* une KLOUD NX d'office, pour la programmation */
   return s;
 }
-var SAISIE = (function(){ try{ var v=JSON.parse(localStorage.getItem("knx:chiffrage")||"null"); if(v && typeof v==="object") return Object.assign(vierge(), v); }catch(e){} return vierge(); })();
+/* un chiffrage d'avant la KLOUD NX d'office ne la reçoit pas en le rouvrant */
+function avecKloud(v){ if(v && typeof v==="object" && !("kloud" in v)) v.kloud=0; return v; }
+var SAISIE = (function(){ try{ var v=JSON.parse(localStorage.getItem("knx:chiffrage")||"null"); if(v && typeof v==="object") return Object.assign(vierge(), avecKloud(v)); }catch(e){} return vierge(); })();
 var ID_COURANT = (function(){ try{ return localStorage.getItem("knx:chiffrage:id")||""; }catch(e){ return ""; } })();
 var EXPORT_OUVERT = false;
 function garderLocal(){ try{ localStorage.setItem("knx:chiffrage", JSON.stringify(SAISIE)); localStorage.setItem("knx:chiffrage:id", ID_COURANT); }catch(e){} }
@@ -377,6 +389,8 @@ function calculer(s){
   ajouter("Commandes", M.commandeSonde.nom, M.commandeSonde.ref, nb(s.commandesSonde), {v:M.commandeSonde.v, note:M.commandeSonde.note});
   var E = M.ecran || ECRAN_TIERS;
   ajouter("Écrans", E.nom, E.ref, nb(s.ecrans), {v:E.v, note:E.note});
+  var K=kloud();
+  ajouter("Passerelles", K.nom, K.ref, nb(s.kloud), {v:K.v, note:K.note});
   ajouter("Passerelles", M.routeur.nom, M.routeur.ref, nb(s.passerellesIp));
   var C = M.clim || CLIM_TIERS;
   ajouter("Passerelles", C.nom, C.ref, nb(s.clim), {v:C.v, note:C.note});
@@ -697,7 +711,7 @@ function chargerListe(){
       o.addEventListener("click", function(){
         api("knx-chiffrage-enregistrer", {id:c.id, lire:true}).then(function(y){
           if(!y.ok){ toast(y.d.erreur || "Chiffrage introuvable."); return; }
-          SAISIE=Object.assign(vierge(), y.d.chiffrage.saisie, {nom:y.d.chiffrage.nom, ref:y.d.chiffrage.ref, marque:y.d.chiffrage.marque});
+          SAISIE=Object.assign(vierge(), avecKloud(y.d.chiffrage.saisie || {}), {nom:y.d.chiffrage.nom, ref:y.d.chiffrage.ref, marque:y.d.chiffrage.marque});
           ID_COURANT=c.id; garderLocal();
           var main=$("outilChiffrage"); main.textContent=""; main.__fait=false; construireDeNouveau();
           toast("Chiffrage ouvert : "+c.nom+".");
@@ -736,8 +750,8 @@ function refBiblio(re, marque){
   return p ? {nom:p.nom, ref:p.ref, marque:m} : null;
 }
 function depuisPieces(b, marque){
-  var d={volets:b.volets+b.bso, allumages:b.eclTor+b.prises+b.vmc, variation:b.variation, portes:b.garages+b.gaches,
-    plancher:!b.airzone && b.zones>0, zones:b.airzone ? 0 : b.zones, clim:b.airzone ? b.systemes : 0,
+  var d={volets:b.volets+b.bso, allumages:b.eclTor+b.prises+b.vmc+b.radiateurs, variation:b.variation, portes:b.garages+b.gaches,
+    plancher:b.plancher>0, zones:b.plancher, clim:b.airzone ? b.systemes : b.climPieces,
     commandes:b.commandes, commandesSonde:b.sondes, autres:[]};
   AUTO.forEach(function(x){
     var q = x[0]==="exterieur" ? (b.exterieur ? 1 : 0) : b[x[0]];
@@ -759,6 +773,7 @@ function reprendrePieces(){
   if(!b.pieces){ toast("Aucune pièce dans les adresses de groupe."); return; }
   var d=depuisPieces(b, SAISIE.marque);
   Object.keys(d).forEach(function(k){ if(k!=="autres") SAISIE[k]=d[k]; });
+  SAISIE.kloud=Math.max(1, nb(SAISIE.kloud));
   /* les participants ajoutés à la main restent ; ceux venus des pièces sont remplacés */
   var avant={};
   (SAISIE.autres||[]).forEach(function(a){ if(a.auto) avant[a.auto]=a; });
@@ -774,20 +789,32 @@ function reprendrePieces(){
   try{ window.scrollTo(0, 0); }catch(e){}
   toast("Quantités reprises des "+b.pieces+" pièce"+(b.pieces>1?"s":"")+" : ajoutez écrans, passerelles IP…");
 }
+/* les questions des pièces restées sans réponse */
+function aPreciser(b){
+  var l=[], q=b.aPreciser||{};
+  function noms(t){ return t.slice(0, 6).join(", ")+(t.length>6 ? "… (+"+(t.length-6)+")" : ""); }
+  if((q.commande||[]).length) l.push("À préciser dans les pièces : la commande KNX ("+noms(q.commande)+"). Elles ne sont pas comptées.");
+  if((q.chauffage||[]).length) l.push("À préciser dans les pièces : le type de chauffage ("+noms(q.chauffage)+"). Leur commande avec sonde est comptée, pas leur actionneur.");
+  return l;
+}
 function plur(n, un, des){ return n+" "+(n>1 ? des : un); }
 /* ce que les pièces demandent, en mots */
 function resumeBesoins(b){
   var l=[];
   if(b.volets+b.bso) l.push(plur(b.volets+b.bso, "volet", "volets")+(b.bso ? " (dont "+b.bso+" BSO)" : ""));
-  var tor=b.eclTor+b.prises+b.vmc;
+  var tor=b.eclTor+b.prises+b.vmc+b.radiateurs;
   if(tor){
-    var det=[]; if(b.eclTor) det.push(plur(b.eclTor, "allumage", "allumages")); if(b.prises) det.push(plur(b.prises, "prise", "prises")); if(b.vmc) det.push("VMC");
+    var det=[]; if(b.eclTor) det.push(plur(b.eclTor, "allumage", "allumages")); if(b.prises) det.push(plur(b.prises, "prise", "prises"));
+    if(b.radiateurs) det.push(plur(b.radiateurs, "radiateur", "radiateurs")); if(b.vmc) det.push("VMC");
     l.push(plur(tor, "sortie tout ou rien", "sorties tout ou rien")+(det.length>1 || b.vmc ? " ("+det.join(", ")+")" : ""));
   }
   if(b.variation) l.push(plur(b.variation, "variation", "variations"));
   if(b.rvb) l.push(plur(b.rvb, "circuit RVB", "circuits RVB"));
   if(b.garages+b.gaches) l.push(plur(b.garages+b.gaches, "porte ou gâche", "portes ou gâches"));
-  if(b.zones) l.push(b.airzone ? plur(b.zones, "zone Airzone", "zones Airzone")+" ("+plur(b.systemes, "système", "systèmes")+")" : plur(b.zones, "zone de chauffage", "zones de chauffage"));
+  if(b.airzone && b.zones) l.push(plur(b.zones, "zone Airzone", "zones Airzone")+" ("+plur(b.systemes, "système", "systèmes")+")");
+  if(b.plancher) l.push(plur(b.plancher, "zone de plancher chauffant", "zones de plancher chauffant"));
+  if(b.climPieces) l.push(plur(b.climPieces, "pièce climatisée", "pièces climatisées")+" (passerelle)");
+  if(b.autreChauffage) l.push(plur(b.autreChauffage, "pièce", "pièces")+" en poêle ou autre");
   if(b.commandes) l.push(plur(b.commandes, "commande", "commandes"));
   if(b.sondes) l.push(plur(b.sondes, "commande à sonde", "commandes à sonde"));
   if(b.detecteurs) l.push(plur(b.detecteurs, "détecteur", "détecteurs"));
@@ -820,8 +847,9 @@ function peindreMaterielPieces(){
   });
   tete.appendChild(mq); host.appendChild(tete);
   if(!b.pieces){ host.appendChild(el("p","hint","Les actionneurs, leurs références et l'alimentation du bus se calculent ici à mesure que vous remplissez les pièces.")); return; }
-  host.appendChild(el("p","hint","Calculé à partir des pièces, à mesure. Les écrans, passerelles IP, DALI et commandes Plexo s'ajoutent dans le chiffrage."));
+  host.appendChild(el("p","hint","Calculé à partir des pièces, à mesure, avec une KLOUD NX d'office. Les écrans, autres passerelles IP, DALI et commandes Plexo s'ajoutent dans le chiffrage."));
   var bs=el("div","kp-besoins"); resumeBesoins(b).forEach(function(t){ bs.appendChild(el("span","",t)); }); host.appendChild(bs);
+  aPreciser(b).forEach(function(a){ host.appendChild(el("p","kc-alerte",a)); });
   R.alertes.filter(function(a){ return !/^Rien à chiffrer/.test(a); }).forEach(function(a){ host.appendChild(el("p","kc-alerte",a)); });
   if(!R.lignes.length){ host.appendChild(el("p","hint","Rien à chiffrer pour l'instant : ajoutez des circuits aux pièces.")); return; }
   host.appendChild(el("p","kc-indicatif",INDICATIF));
@@ -841,7 +869,7 @@ function peindreMaterielPieces(){
   var bo=el("button","act plein","Ouvrir dans le chiffrage"); bo.type="button";
   bo.title="Reprendre ces quantités dans le chiffrage complet (PDF, tableur, enregistrement)";
   bo.addEventListener("click", function(){
-    if(SAISIE.depuisPieces===undefined && CHAMPS.some(function(c){ return nb(SAISIE[c[0]]); })
+    if(SAISIE.depuisPieces===undefined && CHAMPS.some(function(c){ return c[0]!=="kloud" && nb(SAISIE[c[0]]); })
       && !window.confirm("Le chiffrage en cours a déjà des quantités.\n\nLes remplacer par celles des pièces ? (écrans, passerelles IP, DALI, Plexo et participants ajoutés à la main restent)")) return;
     reprendrePieces();
   });
@@ -871,6 +899,7 @@ function blocReprise(){
     reprendrePieces();
   });
   r.appendChild(tx); r.appendChild(bt);
+  var ap=aPreciser(b); if(ap.length){ var w=el("div",""); w.style.flexBasis="100%"; ap.forEach(function(a){ w.appendChild(el("p","kc-alerte",a)); }); r.appendChild(w); }
   return r;
 }
 
