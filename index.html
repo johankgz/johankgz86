@@ -1264,6 +1264,10 @@ body.connexion .ciel{display:none}
   box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,0 14px 30px -10px rgba(37,99,235,.75),0 4px 10px rgba(10,14,20,.25);
   transition:transform .18s ease,box-shadow .18s ease}
 .btn-plus[hidden]{display:none}
+.notif.pliable{cursor:pointer}
+.notif .pli-ch{flex:0 0 auto;align-self:center;display:inline-flex;margin-left:8px;color:var(--ink-3)}
+.notif .pli-ch svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+.notif.pliable[aria-expanded="true"] .pli-ch svg{transform:rotate(180deg)}
 body:not(.avec-menu) .btn-plus,body.menu-ouvert .btn-plus{display:none}
 .btn-plus svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;transition:transform .2s ease}
 .btn-plus[aria-expanded="true"] svg{transform:rotate(45deg)}
@@ -2437,6 +2441,21 @@ function tuileLarge(href, titre, desc, icone, cls){
   a.appendChild(ic); a.appendChild(txt);
   return a;
 }
+/* Rappels et tâches : fermés d'office, une ligne avec leur nombre ; un toucher déplie la liste.
+   Ouvert, ça le reste quand on en coche un (« Fait »). */
+var PLIS_OUVERTS={};
+function plier(a, liste, cle){
+  liste.hidden=!PLIS_OUVERTS[cle];
+  a.classList.add("pliable");
+  a.setAttribute("role","button"); a.setAttribute("tabindex","0");
+  a.setAttribute("aria-controls", liste.id); a.setAttribute("aria-expanded", liste.hidden ? "false" : "true");
+  var ch=document.createElement("span"); ch.className="pli-ch"; ch.setAttribute("aria-hidden","true");
+  ch.innerHTML='<svg viewBox="0 0 24 24"><path d="M6 9l6 6 6-6"/></svg>';
+  a.appendChild(ch);
+  function basculer(){ liste.hidden=!liste.hidden; PLIS_OUVERTS[cle]=!liste.hidden; a.setAttribute("aria-expanded", liste.hidden ? "false" : "true"); }
+  a.addEventListener("click", basculer);
+  a.addEventListener("keydown", function(e){ if(e.key==="Enter" || e.key===" "){ e.preventDefault(); basculer(); } });
+}
 function notif(cls, pastille, titre, detail, href){
   var a=document.createElement(href?"a":"div"); a.className="notif"+(cls?" "+cls:"");
   if(href) a.href=href;
@@ -3108,13 +3127,16 @@ function peindreRappels(s){
   var a=notif("rge urgent", String(dus.length),
     dus.length>1 ? (aucun ? dus.length+" tâches de suivi à effectuer" : seulCal ? dus.length+" rappels du calendrier" : tous ? dus.length+" rappels de la to-do list" : dus.length+" rappels")
                  : (aucun ? "Une tâche de suivi à effectuer" : seulCal ? "Rappel du calendrier" : "Rappel de la to-do list"),
-    dus.length>1 ? (aucun ? "Rappels de vos suivis de chantier" : tous ? "Les lignes que vous vouliez revoir" : "Suivis de chantier et to-do list")
-                 : (dus[0].texte+(dus[0].cal ? " — à "+(dus[0].heure||"09:00").replace(":", "h") : " — "+(dus[0].todo ? (dus[0].liste||"to-do list") : (dus[0].client||dus[0].chantier)))));
+    (function(){
+      /* juste le nombre : à traiter aujourd'hui, ou ceux restés d'un jour passé */
+      var auj=jourLocal(), r=dus.filter(function(t){ return t.quand < auj; }).length;
+      return r ? (r===dus.length ? "en retard" : "dont "+r+" en retard") : "à traiter aujourd'hui";
+    })());
   a.id="notifRappels"; a.style.cursor="pointer";
   var u=document.createElement("span"); u.className="urg"; u.textContent="rappel";
   a.querySelector("b").appendChild(u);
   var liste=document.createElement("div");
-  liste.className="demandes"; liste.id="panneauRappels"; liste.hidden=false;
+  liste.className="demandes"; liste.id="panneauRappels";
   dus.forEach(function(t){
     var d=document.createElement("div"); d.className="d";
     var b=document.createElement("b"); b.textContent=t.texte; d.appendChild(b);
@@ -3141,7 +3163,7 @@ function peindreRappels(s){
     row.appendChild(ouvrir); row.appendChild(btn); d.appendChild(row);
     liste.appendChild(d);
   });
-  a.addEventListener("click", function(){ liste.hidden=!liste.hidden; });
+  plier(a, liste, "rappels");
   host.insertBefore(a, host.firstChild);
   host.insertBefore(liste, a.nextSibling);
   host.hidden=false;
@@ -3172,7 +3194,7 @@ function peindreTaches(s){
   a.querySelector("b").appendChild(u);
 
   var liste=document.createElement("div");
-  liste.className="demandes"; liste.id="panneauTaches"; liste.hidden=false;
+  liste.className="demandes"; liste.id="panneauTaches";
   dues.forEach(function(t){
     var d=document.createElement("div"); d.className="d";
     var b=document.createElement("b"); b.textContent=t.texte; d.appendChild(b);
@@ -3195,7 +3217,7 @@ function peindreTaches(s){
     d.appendChild(btn);
     liste.appendChild(d);
   });
-  a.addEventListener("click", function(){ liste.hidden=!liste.hidden; });
+  plier(a, liste, "taches");
   host.insertBefore(a, host.firstChild);
   host.insertBefore(liste, a.nextSibling);
   host.hidden=false;
