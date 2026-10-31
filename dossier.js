@@ -2286,6 +2286,7 @@ function carteDossier(c, i, opts){
   }
   c.fichiers.forEach(function(f){
     var a=document.createElement("a"); a.className="f";
+    a.setAttribute("data-type", f.type||"");                    /* la page du chantier range ses rubriques d'après lui */
     var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
     var dwg = /\.(dwg|dxf)$/i.test(f.cle||"");
     /* la ligne n'ouvre rien : seul le bouton « Ouvrir » ouvre le document
