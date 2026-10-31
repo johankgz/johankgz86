@@ -1837,6 +1837,8 @@ var SOUS_DOSSIERS={
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
   plans:{nom:"Plans", classe:"sous-dossier dossier-plans", memo:"rapports:plans", mot:"plan",
     ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'},
+  reserve:{nom:"Réservé chargés d'affaires", classe:"sous-dossier dossier-reserve", memo:"rapports:reserve", mot:"document", ajouter:true,
+    ico:'<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/>'},
   plansModifies:{nom:"Plans modifiés", classe:"sous-dossier dossier-plans-modifies", memo:"rapports:plansModifies", mot:"plan",
     ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v6"/><path d="M3.5 6.5v13l5.5-2 4 1.3M9 4.5v13"/><path d="m14.5 20.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>'},
   techniques:{nom:"Documents techniques", classe:"sous-dossier dossier-techniques", memo:"rapports:techniques", mot:"document",
@@ -1855,6 +1857,9 @@ var SOUS_DOSSIERS={
    Montrée à côté de l'étiquette ; le bureau, ou celui qui l'a déposé, la
    change d'un choix : le document passe dans le bon sous-dossier. */
 var CATEGORIES_TECHNIQUE=["Plan","Plan modifié","Fiche technique","Schéma","Notice","Photo","Autre"];
+/* le dossier réservé aux chargés d'affaires (offre de prix, e-mail…) : le serveur ne le montre qu'au
+   bureau et à l'administrateur, jamais à un technicien ni au client */
+var RESERVE_CA="Réservé chargés d'affaires";
 /* un petit menu, à la taille d'une étiquette : il ne déborde plus sur « Ouvrir » */
 var STYLE_CATEGORIE=false;
 function styleCategorie(){
@@ -1890,6 +1895,8 @@ function categorieDocument(f, bureau, apres){
   sel.title="Changer la catégorie de ce document";
   sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
   var liste=CATEGORIES_TECHNIQUE.slice();
+  /* le dossier réservé : le bureau seulement l'y range (ou l'en sort) */
+  if(bureau) liste.push(RESERVE_CA);
   if(actuelle && liste.indexOf(actuelle)<0) liste.unshift(actuelle);
   if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
   liste.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
@@ -1906,7 +1913,7 @@ function categorieDocument(f, bureau, apres){
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
       .then(function(res){
         if(!res.ok){ alert(res.d.erreur || "Catégorie non changée."); sel.disabled=false; sel.value=actuelle; montrer(); return; }
-        f.visite=c;
+        f.visite=c; if(c===RESERVE_CA) f.prive=true; else delete f.prive;
         if(apres) apres();
       })
       .catch(function(){ alert("Pas de réseau."); sel.disabled=false; sel.value=actuelle; montrer(); });
@@ -1955,6 +1962,7 @@ function boutonRenommer(f, bureau, apres){
 
 /* le sous-dossier où range un document, s'il y en a un */
 function sousDossierDe(f){
+  if(f.prive) return "reserve";
   if(f.type==="suivi") return "suivi";
   if(f.type==="commande") return "commandes";
   if(f.type==="point") return "points";
@@ -2087,6 +2095,19 @@ function sousDossier(ref, genre){
       mot.textContent="Un seul ZIP, un dossier par reportage";
       barre.appendChild(bx); barre.appendChild(mot);
       dedans.appendChild(barre);
+    }
+    if(g.ajouter){
+      /* déposer dans le dossier réservé : la fenêtre d'import, la catégorie déjà choisie */
+      var ba=document.createElement("div"); ba.className="ds-export";
+      var bt=document.createElement("button"); bt.type="button"; bt.className="ds-tout";
+      bt.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Ajouter un document</span>';
+      bt.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(window.Transfert && Transfert.ouvrir) Transfert.ouvrir(window.reglagesTransfert ? reglagesTransfert({onglet:"importer", ref:ref, nature:RESERVE_CA}) : {onglet:"importer", ref:ref, nature:RESERVE_CA});
+      });
+      var mt=document.createElement("span"); mt.className="hint";
+      mt.textContent=lignes.length ? "Vu par les chargés d'affaires seulement" : "Offre de prix, e-mail… : vu par les chargés d'affaires seulement";
+      ba.appendChild(bt); ba.appendChild(mt); dedans.appendChild(ba);
     }
     lignes.forEach(function(l){ dedans.appendChild(l.a); });
   }};
@@ -2312,7 +2333,7 @@ function carteDossier(c, i, opts){
     bDis.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" dans la discussion du chantier");
     bDis.style.cssText="padding:0;width:32px;min-width:32px;justify-content:center";
     bDis.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c, {doc:f}); });
-    droite.appendChild(bDis);
+    if(!f.prive) droite.appendChild(bDis);          /* un document réservé ne part pas dans la discussion, où sont les techniciens */
     /* Envoyer (ordinateur) : le partage de Windows ou du Mac, avec le fichier en pièce jointe
        (Outlook, Courrier, Teams…) — un glisser vers l'Outlook installé n'emporte pas le fichier */
     if(peutEnvoyerFichiers() && !zip){
@@ -2357,6 +2378,11 @@ function carteDossier(c, i, opts){
     a.appendChild(droite);
     ranger(f, a);
   });
+  /* le dossier réservé aux chargés d'affaires : toujours là pour le bureau (même vide), en tête */
+  if(bureau){
+    if(!sous.reserve){ sous.reserve=sousDossier(c.ref, "reserve"); lignesDe.reserve=[]; }
+    fs.insertBefore(sous.reserve.boite, fs.firstChild);
+  }
   Object.keys(sous).forEach(function(genre){ sous[genre].remplir(lignesDe[genre]); });
   if(!c.fichiers.length && opts.integree){
     var vide=document.createElement("p"); vide.className="vide";

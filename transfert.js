@@ -28,9 +28,12 @@ var API="/api/rapports";
 var MAX=25*1024*1024, MAX_FICHIERS=300;
 var FORMATS={pdf:"PDF", jpg:"Image", jpeg:"Image", png:"Image", webp:"Image", dwg:"Plan DWG", dxf:"Plan DXF",
   doc:"Word", docx:"Word", odt:"Texte", xls:"Excel", xlsx:"Excel", ods:"Tableur", ppt:"PowerPoint", pptx:"PowerPoint",
-  txt:"Texte", csv:"Tableur"};
+  txt:"Texte", csv:"Tableur", eml:"E-mail", msg:"E-mail Outlook"};
 var ACCEPT=Object.keys(FORMATS).map(function(e){ return "."+e; }).join(",");
 var NATURES=["Plan", "Fiche technique", "Schéma", "Notice", "Photo", "Autre"];
+/* le dossier réservé aux chargés d'affaires (offre de prix, e-mail…) : proposé au bureau seulement */
+var RESERVE_CA="Réservé chargés d'affaires";
+function natures(){ var s=session()||{}; return s.role==="bureau" || s.role==="admin" ? NATURES.concat([RESERVE_CA]) : NATURES; }
 /* ce que l'Explorateur et le Finder rangent dans les dossiers : jamais importé */
 var CACHES=/^(\.|~\$|thumbs\.db$|desktop\.ini$|icon\r?$)/i;
 /* les documents d'un dossier qu'on sait exporter (pas les brouillons) */
@@ -153,7 +156,7 @@ function ajouter(liste){
     if(IMP.items.length>=MAX_FICHIERS){ trop++; return; }
     if(IMP.items.some(function(i){ return i.etat!=="fait" && i.nom===nom && i.taille===f.size && i.chemin===chemin; })) return;
     var it={id:++SEQ, file:f, nom:nom, chemin:chemin, ext:ext, taille:f.size||0, titre:titreDe(nom),
-      nature:natureDe(nom, ext, chemin.replace(/[^\/]*$/, "")), etat:"pret", pct:0, raison:""};
+      nature:IMP.natureForcee || natureDe(nom, ext, chemin.replace(/[^\/]*$/, "")), etat:"pret", pct:0, raison:""};
     if(!FORMATS[ext]){ it.etat="refuse"; it.raison="Format non pris en charge"+(ext ? " (."+ext+")" : ""); }
     else if(!f.size){ it.etat="refuse"; it.raison="Fichier vide"; }
     else if(f.size>MAX){ it.etat="refuse"; it.raison="Trop lourd ("+poids(f.size)+") : 25 Mo au plus"; }
@@ -718,7 +721,7 @@ function construire(){
   var bF=el("button", "tr-btn", "Choisir des fichiers"); bF.type="button";
   var bD=el("button", "tr-btn tr-sec", "Choisir un dossier"); bD.type="button";
   zbtn.appendChild(bF); zbtn.appendChild(bD);
-  var zsm=el("small", "", "PDF, plans DWG et DXF, images, Word, Excel, PowerPoint · 25 Mo par fichier");
+  var zsm=el("small", "", "PDF, plans DWG et DXF, images, Word, Excel, PowerPoint, e-mails · 25 Mo par fichier");
   var inF=el("input"); inF.type="file"; inF.multiple=true; inF.hidden=true; inF.setAttribute("aria-label", "Choisir des fichiers");
   /* sur l'ordinateur, le sélecteur ne montre que les formats acceptés ; au téléphone, tout se choisit :
      l'iPhone grise dans Fichiers ce qu'il ne reconnaît pas (un plan .dwg), et le format est vérifié juste après */
@@ -736,7 +739,7 @@ function construire(){
   var fl=el("div", "tr-fichiers"); fl.hidden=true;
   var flt=el("div", "tr-f-tete"); var flb=el("b"); var lab=el("label", "", "Tout ranger en ");
   var tout=el("select"); tout.setAttribute("aria-label", "Ranger tous les fichiers en");
-  tout.appendChild(new Option("…", "")); NATURES.forEach(function(n){ tout.appendChild(new Option(n, n)); });
+  tout.appendChild(new Option("…", "")); natures().forEach(function(n){ tout.appendChild(new Option(n, n)); });
   tout.addEventListener("change", function(){
     if(!tout.value) return;
     IMP.items.forEach(function(i){ if(i.etat==="pret" || i.etat==="echec") i.nature=tout.value; });
@@ -828,7 +831,7 @@ function ligne(it){
   r.appendChild(t);
   if(modifiable){
     var s=el("select"); s.setAttribute("aria-label", "Ranger « "+it.titre+" » en");
-    NATURES.forEach(function(n){ s.appendChild(new Option(n, n, false, n===it.nature)); });
+    natures().forEach(function(n){ s.appendChild(new Option(n, n, false, n===it.nature)); });
     s.value=it.nature;
     s.addEventListener("change", function(){ it.nature=s.value; });
     r.appendChild(s);
@@ -948,6 +951,8 @@ function ouvrir(o){
   }
   if(o.ref){ if(!IMP.envoi) IMP.ref=o.ref; if(!EXP.encours){ if(EXP.ref!==o.ref) EXP.coches={}; EXP.ref=o.ref; } }
   if(o.onglet) ONGLET=o.onglet;
+  /* une catégorie imposée (le dossier réservé) : les fichiers ajoutés y vont d'office */
+  IMP.natureForcee = natures().indexOf(o.nature)>=0 ? o.nature : "";
   if(o.fichiers && o.fichiers.length){ ONGLET="importer"; ajouter(o.fichiers); }
   if(!dejaOuvert){
     AVANT=document.activeElement;

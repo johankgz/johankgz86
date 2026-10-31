@@ -839,10 +839,15 @@ function accesEffectif(c, connus) {
   (c.fichiers || []).forEach((f) => { if (f.auteur && connus.indexOf(f.auteur) >= 0 && s.indexOf(f.auteur) < 0 && !revoque(c, f.auteur)) s.push(f.auteur); });
   return s;
 }
+/* un document « Réservé chargés d'affaires » (offre de prix, e-mail…) : le bureau et l'administrateur
+   seulement, jamais un technicien ni le client */
+const RESERVE_CA = "Réservé chargés d'affaires";
+function estReserve(v) { return /^reserve/.test(String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()); }
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
+  if (fichier && fichier.prive && personne.role !== "bureau" && personne.role !== "admin") return false;
   if (personne.role !== "bureau" && personne.role !== "admin" && revoque(chantier, personne.nom)) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
@@ -870,7 +875,8 @@ const TYPES_FICHIER = { pdf: "application/pdf", zip: "application/zip", jpg: "im
                         xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                         odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet",
-                        txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8" };
+                        txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8",
+                        eml: "message/rfc822", msg: "application/vnd.ms-outlook" };
 function typeDuFichier(cle) {
   const ext = String(cle).split(".").pop().toLowerCase();
   return TYPES_FICHIER[ext] || "application/pdf";
@@ -1123,7 +1129,7 @@ async function rdvDuDossier(societe, c) {
   return qui ? carte[qui].jeton : "";
 }
 function docVisible(f, lien) {
-  if (f.brouillon || f.fiche === "appel") return false;
+  if (f.brouillon || f.fiche === "appel" || f.prive) return false;
   return (lien.genre === "tableau" ? DOCS_TABLEAU : DOCS_CLIENT).indexOf(f.type) >= 0;
 }
 
@@ -2284,6 +2290,7 @@ async function traiter(req) {
     const memoire = d.type === "memoire";
     const doe = d.type === "doe";
     const technique = d.type === "technique";
+    if (technique && estReserve(d.visite) && !bureau) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
     const point = d.type === "point";
     const schema = d.type === "schema";
     /* une note écrite dans Photo et croquis : son PDF, dans le sous-dossier « Notes » */
@@ -2320,7 +2327,7 @@ async function traiter(req) {
     /* un document technique n'est pas toujours un PDF : plan, photo, schéma,
        et, importé depuis l'ordinateur, un plan DWG ou DXF, un Word, un Excel.
        Jamais une page web ni un programme : rien qui s'exécuterait. */
-    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip"];
+    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip", "eml", "msg"];
     const extDemandee = String(d.ext || "pdf").toLowerCase();
     if (technique && FORMATS_TECHNIQUE.indexOf(extDemandee) < 0) {
       return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte, ZIP." }, 415);
@@ -2442,6 +2449,8 @@ async function traiter(req) {
       lectures: (ancien && ancien.lectures) ? ancien.lectures : {}
     };
     if (sav && d.savFiche === "appel") entree.fiche = "appel";
+    /* réservé aux chargés d'affaires : déposé par le bureau seulement, et gardé tel quel à la republication */
+    if (technique && (estReserve(d.visite) || (ancien && ancien.prive))) { entree.prive = true; entree.visite = RESERVE_CA; entree.etape = entree.etape && estReserve(entree.etape) ? RESERVE_CA : entree.etape; }
     /* un nom donné par le bureau (Renommer) survit à la republication */
     if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
@@ -2540,7 +2549,8 @@ async function traiter(req) {
     const lot = technique ? Math.max(0, Math.min(500, parseInt(d.lot, 10) || 0)) : 0;
     if (!photos && !(technique && d.silencieux === true)) {
       /* et sur le téléphone, sans faire attendre la publication */
-      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
+      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(),
+        concernes(entree, c, entree.auteur).filter((n) => !entree.prive || comptes.some((u) => memeNom(u.nom, n) && (u.role === "bureau" || u.role === "admin"))), "documents", {
         titre: lot > 1 ? lot + " documents ajoutés" : libelleDocument(entree),
         texte: (c.client || ref) + " — " + (lot > 1 ? "déposés" : "déposé") + " par " + entree.auteur,
         url: "./chantier.html?ref=" + encodeURIComponent(ref),
@@ -4990,14 +5000,17 @@ async function traiter(req) {
   if (action === "categorie-document") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
-    const CATS = ["Plan", "Fiche technique", "Schéma", "Notice", "Photo", "Autre"];
+    const CATS = ["Plan", "Plan modifié", "Fiche technique", "Schéma", "Notice", "Photo", "Autre", RESERVE_CA];
     const cat = String(d.categorie || "");
     if (CATS.indexOf(cat) < 0) return json({ erreur: "Catégorie inconnue." }, 400);
     const idx = await lireIndex();
     const f = trouver(idx, String(d.cle || ""));
     if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
     if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, change sa catégorie." }, 403);
+    /* entrer dans le dossier réservé, ou en sortir : le bureau seulement */
+    if ((cat === RESERVE_CA || f.prive) && !bureau) return json({ erreur: "Réservé aux chargés d'affaires." }, 403);
     f.visite = cat;
+    if (cat === RESERVE_CA) f.prive = true; else delete f.prive;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, categorie: cat });
   }
