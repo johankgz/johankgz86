@@ -101,14 +101,8 @@ var CLIM_TIERS = {ref:"—", nom:"Passerelle KNX / climatisation (Intesis ou éq
 var ECRAN_TIERS = {ref:"BE-GTSP6TW.01S", nom:"Écran 6 pouces MDT Glass Touch Smart Plus (pas d'écran 6 pouces Theben équivalent)", v:false,
   note:"Theben n'a pas d'écran 6 pouces équivalent : MDT proposé, à valider."};
 
-/* la passerelle de programmation et d'accès à distance, mise d'office ; sa référence vient de la
-   Bibliothèque KNX quand elle y est */
-var KLOUD = {nom:"KLOUD NX (CAN NX), passerelle de programmation et d'accès à distance", ref:"KLOUD NX", v:false,
-  note:"Référence à confirmer chez CAN NX (ou à ranger dans la Bibliothèque KNX)."};
-function kloud(){
-  var p=(BIBLIO||[]).filter(function(x){ return /kloud/.test(sansAccent(x.nom+" "+x.ref)) && x.ref; })[0];
-  return p ? {nom:p.nom+(nomMarque(p.marque) ? " ("+nomMarque(p.marque)+")" : ""), ref:p.ref, v:true, note:""} : KLOUD;
-}
+/* la passerelle de programmation et d'accès à distance, mise d'office */
+var KLOUD = {nom:"KLOUD NX (CAN'NX), passerelle de programmation et d'accès à distance", ref:"KLOUD NX", v:true, note:""};
 var INDICATIF = "Références données à titre indicatif, à corriger au cas par cas (chantier, tarif du fournisseur) avant de commander.";
 
 /* ---------- la saisie ---------- */
@@ -116,8 +110,9 @@ var CHAMPS = [
   ["volets", "Volets roulants", "un canal volet par volet : 2 sorties, montée et descente"],
   ["allumages", "Allumages tout ou rien (on/off)", "une sortie d'actionneur de commutation par circuit"],
   ["variation", "Allumages à variation", "un canal de variateur par circuit"],
+  ["radiateurs", "Pièces en radiateurs électriques", "une sortie fil pilote par pièce : chaque pièce a sa consigne"],
   ["portes", "Portes sectionnelles / portails", "une sortie à contact sec (impulsion) chacun"],
-  ["kloud", "Passerelles KLOUD NX (CAN NX)", "programmation et accès à distance : une d'office"],
+  ["kloud", "Passerelles KLOUD NX (CAN'NX)", "programmation et accès à distance : une d'office"],
   ["passerellesIp", "Passerelles IP", "visualisation, appli, programmation à distance"],
   ["clim", "Passerelles climatisation", "une par unité ou système de clim"],
   ["plexo", "Commandes Plexo (IP65) ou poussoirs classiques", "câblées sur des modules d'entrées"],
@@ -352,7 +347,7 @@ function calculer(s){
      moitié ou moins, est remplacé par l'actionneur tout ou rien en fonction volet (2 sorties par
      volet) ; rempli à plus de la moitié, il reste, sauf si les sorties libres du tout ou rien
      suffisent sans ajouter d'actionneur. */
-  var volets = nb(s.volets), sortiesTor = nb(s.allumages) + nb(s.portes), Fv = M.volets;
+  var volets = nb(s.volets), sortiesTor = nb(s.allumages) + nb(s.portes) + nb(s.radiateurs), Fv = M.volets;
   var mVolets = Fv.base ? [] : choisirModules(Fv.modules, volets), dernier = Fv.base ? Fv.base.n : (mVolets.length ? mVolets[mVolets.length-1].n : 0);
   var reste = Fv.base ? volets % dernier : volets - mVolets.slice(0, -1).reduce(function(a, m){ return a + m.n; }, 0);
   if(reste === dernier) reste = 0;
@@ -364,6 +359,7 @@ function calculer(s){
     +(surTor ? " "+(surVolets ? surVolets+" sur actionneur volets (rempli), " : "")+surTor+" sur l'actionneur tout ou rien en fonction volet ("+2*surTor+" sorties) : "
       +(surVolets ? "un actionneur volets de moins." : "pas d'actionneur volets pour si peu.") : ""));
   famille("Commutation", surTor ? U : M.commutation, sorties, ["sortie libre", "sorties libres"]);
+  if(nb(s.radiateurs)) notes.push("Radiateurs électriques : "+nb(s.radiateurs)+" sortie"+(nb(s.radiateurs)>1?"s":"")+" fil pilote (une par pièce, chacune avec sa propre consigne de température) sur les "+sorties+" sorties de commutation.");
   if(nb(s.portes)) notes.push("Portes et portails : une sortie de commutation chacun, en contact sec (impulsion), soit "+nb(s.portes)+" sur les "+sorties+" sorties de commutation.");
   famille("Volets", Fv, surVolets);
   famille("Variation", M.variation, nb(s.variation));
@@ -389,8 +385,7 @@ function calculer(s){
   ajouter("Commandes", M.commandeSonde.nom, M.commandeSonde.ref, nb(s.commandesSonde), {v:M.commandeSonde.v, note:M.commandeSonde.note});
   var E = M.ecran || ECRAN_TIERS;
   ajouter("Écrans", E.nom, E.ref, nb(s.ecrans), {v:E.v, note:E.note});
-  var K=kloud();
-  ajouter("Passerelles", K.nom, K.ref, nb(s.kloud), {v:K.v, note:K.note});
+  ajouter("Passerelles", KLOUD.nom, KLOUD.ref, nb(s.kloud));
   ajouter("Passerelles", M.routeur.nom, M.routeur.ref, nb(s.passerellesIp));
   var C = M.clim || CLIM_TIERS;
   ajouter("Passerelles", C.nom, C.ref, nb(s.clim), {v:C.v, note:C.note});
@@ -750,7 +745,7 @@ function refBiblio(re, marque){
   return p ? {nom:p.nom, ref:p.ref, marque:m} : null;
 }
 function depuisPieces(b, marque){
-  var d={volets:b.volets+b.bso, allumages:b.eclTor+b.prises+b.vmc+b.radiateurs, variation:b.variation, portes:b.garages+b.gaches,
+  var d={volets:b.volets+b.bso, allumages:b.eclTor+b.prises+b.vmc, radiateurs:b.radiateurs, variation:b.variation, portes:b.garages+b.gaches,
     plancher:b.plancher>0, zones:b.plancher, clim:b.airzone ? b.systemes : b.climPieces,
     commandes:b.commandes, commandesSonde:b.sondes, autres:[]};
   AUTO.forEach(function(x){
@@ -802,10 +797,9 @@ function plur(n, un, des){ return n+" "+(n>1 ? des : un); }
 function resumeBesoins(b){
   var l=[];
   if(b.volets+b.bso) l.push(plur(b.volets+b.bso, "volet", "volets")+(b.bso ? " (dont "+b.bso+" BSO)" : ""));
-  var tor=b.eclTor+b.prises+b.vmc+b.radiateurs;
+  var tor=b.eclTor+b.prises+b.vmc;
   if(tor){
-    var det=[]; if(b.eclTor) det.push(plur(b.eclTor, "allumage", "allumages")); if(b.prises) det.push(plur(b.prises, "prise", "prises"));
-    if(b.radiateurs) det.push(plur(b.radiateurs, "radiateur", "radiateurs")); if(b.vmc) det.push("VMC");
+    var det=[]; if(b.eclTor) det.push(plur(b.eclTor, "allumage", "allumages")); if(b.prises) det.push(plur(b.prises, "prise", "prises")); if(b.vmc) det.push("VMC");
     l.push(plur(tor, "sortie tout ou rien", "sorties tout ou rien")+(det.length>1 || b.vmc ? " ("+det.join(", ")+")" : ""));
   }
   if(b.variation) l.push(plur(b.variation, "variation", "variations"));
@@ -813,6 +807,7 @@ function resumeBesoins(b){
   if(b.garages+b.gaches) l.push(plur(b.garages+b.gaches, "porte ou gâche", "portes ou gâches"));
   if(b.airzone && b.zones) l.push(plur(b.zones, "zone Airzone", "zones Airzone")+" ("+plur(b.systemes, "système", "systèmes")+")");
   if(b.plancher) l.push(plur(b.plancher, "zone de plancher chauffant", "zones de plancher chauffant"));
+  if(b.radiateurs) l.push(plur(b.radiateurs, "pièce en radiateurs", "pièces en radiateurs")+" (fil pilote)");
   if(b.climPieces) l.push(plur(b.climPieces, "pièce climatisée", "pièces climatisées")+" (passerelle)");
   if(b.autreChauffage) l.push(plur(b.autreChauffage, "pièce", "pièces")+" en poêle ou autre");
   if(b.commandes) l.push(plur(b.commandes, "commande", "commandes"));
@@ -847,7 +842,7 @@ function peindreMaterielPieces(){
   });
   tete.appendChild(mq); host.appendChild(tete);
   if(!b.pieces){ host.appendChild(el("p","hint","Les actionneurs, leurs références et l'alimentation du bus se calculent ici à mesure que vous remplissez les pièces.")); return; }
-  host.appendChild(el("p","hint","Calculé à partir des pièces, à mesure, avec une KLOUD NX d'office. Les écrans, autres passerelles IP, DALI et commandes Plexo s'ajoutent dans le chiffrage."));
+  host.appendChild(el("p","hint","Calculé à partir des pièces, à mesure, avec une KLOUD NX (CAN'NX) d'office. Les écrans, autres passerelles IP, DALI et commandes Plexo s'ajoutent dans le chiffrage."));
   var bs=el("div","kp-besoins"); resumeBesoins(b).forEach(function(t){ bs.appendChild(el("span","",t)); }); host.appendChild(bs);
   aPreciser(b).forEach(function(a){ host.appendChild(el("p","kc-alerte",a)); });
   R.alertes.filter(function(a){ return !/^Rien à chiffrer/.test(a); }).forEach(function(a){ host.appendChild(el("p","kc-alerte",a)); });

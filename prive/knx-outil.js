@@ -22,7 +22,7 @@ var TYPES_ECL = [["tor","Tout ou rien"],["var","Variateur"],["rvb","Couleur RVB"
 var TYPES_OUV = [["volet","Volet roulant"],["store","BSO (inclinaison des lames)"],["garage","Porte de garage"],["gache","Gâche / impulsion"]];
 var CLIM = [["non","Pas de chauffage"],["chaud","Chauffage"],["chaudfroid","Chaud + froid"]];
 /* les questions du chiffrage : sans réponse, la pièce reste « à préciser » */
-var TYPES_CHAUFFAGE = [["","Type de chauffage ?"],["plancher","Plancher chauffant"],["radiateur","Radiateurs électriques"],["clim","Climatisation"],["autre","Poêle ou autre"]];
+var TYPES_CHAUFFAGE = [["","Type de chauffage ?"],["plancher","Plancher chauffant"],["radiateur","Radiateurs (fil pilote)"],["clim","Climatisation"],["autre","Poêle ou autre"]];
 var TYPES_COMMANDE = [["","Commande KNX ?"],["non","Pas de commande KNX"],["oui","Commande KNX"],["sonde","Commande avec sonde"]];
 var PIECES_TYPES = ["Entrée","Salon","Séjour","Cuisine","Salle à manger","Bureau","Chambre 1","Chambre 2","Chambre 3","Salle de bain",
   "Salle d'eau","WC","Dégagement","Escalier","Buanderie","Cellier","Garage","Dressing","Terrasse","Jardin","Local technique"];
