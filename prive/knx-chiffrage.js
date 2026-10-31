@@ -306,7 +306,7 @@ function blocAutres(){
   box.appendChild(aj);
   box.appendChild(bib);
   peindreBiblio();
-  api("knx-participants").then(function(x){ if(x.ok){ BIBLIO=x.d.participants || []; peindreBiblio(); } }).catch(function(){});
+  api("knx-participants").then(function(x){ if(x.ok){ BIBLIO=x.d.participants || []; peindreBiblio(); peindreMaterielPieces(); } }).catch(function(){});
   return box;
 }
 function calculer(s){
@@ -527,7 +527,7 @@ function construire(){
   var mq=el("div","kc-marques"); mq.setAttribute("role","group"); mq.setAttribute("aria-label","Marque");
   ["mdt","zennio","theben"].forEach(function(k){
     var b=el("button","",MARQUES[k].nom); b.type="button"; b.dataset.m=k;
-    b.addEventListener("click", function(){ SAISIE.marque=k; garderLocal(); peindre(); });
+    b.addEventListener("click", function(){ SAISIE.marque=k; garderLocal(); peindre(); peindreMaterielPieces(); });
     mq.appendChild(b);
   });
   b1.appendChild(mq);
@@ -536,6 +536,7 @@ function construire(){
   /* les quantités */
   var b2=el("div","block");
   b2.appendChild(el("h2","","Les éléments"));
+  var rp=blocReprise(); if(rp) b2.appendChild(rp);
   var g=el("div","kc-grille"); g.id="kc_grille";
   CHAMPS.forEach(function(c){ g.appendChild(champ(c[0], c[1], c[2])); });
   b2.appendChild(g);
@@ -721,7 +722,160 @@ function enregistrer(){
   }).catch(function(){ b.disabled=false; toast("Pas de réseau : chiffrage non enregistré."); });
 }
 
+/* ---------- depuis les pièces des adresses de groupe ----------
+   Les pièces saisies dans « Adresses de groupe » donnent les quantités : volets et BSO,
+   allumages, prises commandées, variation, portes et gâches, zones de chauffage, commandes,
+   détecteurs. Le bloc « Matériel » de cette vue en tire les actionneurs et leurs références,
+   à mesure ; « Ouvrir dans le chiffrage » reprend ces quantités dans le chiffrage complet,
+   où l'on ajoute ce que les pièces ne disent pas (écrans, passerelles IP, DALI, Plexo). */
+var AUTO = [["rvb", "Contrôleur LED RVB (couleur)", /\b(rvb|rgb)/], ["detecteurs", "Détecteur de présence", /detecteur|presence/],
+  ["exterieur", "Sonde de température extérieure", /exterieur|meteo/]];
+/* la référence d'un participant ajouté pour les pièces : celle de la bibliothèque KNX, de la même marque */
+function refBiblio(re, marque){
+  var m=nomMarque(marque), p=(BIBLIO||[]).filter(function(x){ return re.test(sansAccent(x.nom)) && nomMarque(x.marque)===m && x.ref; })[0];
+  return p ? {nom:p.nom, ref:p.ref, marque:m} : null;
+}
+function depuisPieces(b, marque){
+  var d={volets:b.volets+b.bso, allumages:b.eclTor+b.prises+b.vmc, variation:b.variation, portes:b.garages+b.gaches,
+    plancher:!b.airzone && b.zones>0, zones:b.airzone ? 0 : b.zones, clim:b.airzone ? b.systemes : 0,
+    commandes:b.commandes, commandesSonde:b.sondes, autres:[]};
+  AUTO.forEach(function(x){
+    var q = x[0]==="exterieur" ? (b.exterieur ? 1 : 0) : b[x[0]];
+    if(!q) return;
+    var t=refBiblio(x[2], marque);
+    d.autres.push({nom:t ? t.nom : x[1], marque:t ? t.marque : "", ref:t ? t.ref : "", qte:q, auto:x[0]});
+  });
+  return d;
+}
+function saisieDesPieces(){
+  var b=window.KNX.besoins();
+  var s=Object.assign(vierge(), {marque:SAISIE.marque, reserve:SAISIE.reserve, secours:SAISIE.secours, etatPortes:SAISIE.etatPortes, refs:SAISIE.refs||{}},
+    depuisPieces(b, SAISIE.marque));
+  return {b:b, s:s};
+}
+function reprendrePieces(){
+  if(!window.KNX || !window.KNX.besoins) return;
+  var b=window.KNX.besoins();
+  if(!b.pieces){ toast("Aucune pièce dans les adresses de groupe."); return; }
+  var d=depuisPieces(b, SAISIE.marque);
+  Object.keys(d).forEach(function(k){ if(k!=="autres") SAISIE[k]=d[k]; });
+  /* les participants ajoutés à la main restent ; ceux venus des pièces sont remplacés */
+  var avant={};
+  (SAISIE.autres||[]).forEach(function(a){ if(a.auto) avant[a.auto]=a; });
+  d.autres.forEach(function(a){
+    var v=avant[a.auto];                                          /* une référence déjà tapée sur cette ligne reste */
+    if(v && String(v.ref||"").trim()){ a.nom=v.nom||a.nom; a.marque=v.marque; a.ref=v.ref; }
+  });
+  SAISIE.autres=(SAISIE.autres||[]).filter(function(a){ return !a.auto; }).concat(d.autres);
+  if(!String(SAISIE.nom||"").trim() && b.nom) SAISIE.nom=b.nom;
+  SAISIE.depuisPieces=new Date().toISOString();
+  garderLocal();
+  var main=$("outilChiffrage"); main.textContent=""; main.__fait=false; construireDeNouveau();
+  try{ window.scrollTo(0, 0); }catch(e){}
+  toast("Quantités reprises des "+b.pieces+" pièce"+(b.pieces>1?"s":"")+" : ajoutez écrans, passerelles IP…");
+}
+function plur(n, un, des){ return n+" "+(n>1 ? des : un); }
+/* ce que les pièces demandent, en mots */
+function resumeBesoins(b){
+  var l=[];
+  if(b.volets+b.bso) l.push(plur(b.volets+b.bso, "volet", "volets")+(b.bso ? " (dont "+b.bso+" BSO)" : ""));
+  var tor=b.eclTor+b.prises+b.vmc;
+  if(tor){
+    var det=[]; if(b.eclTor) det.push(plur(b.eclTor, "allumage", "allumages")); if(b.prises) det.push(plur(b.prises, "prise", "prises")); if(b.vmc) det.push("VMC");
+    l.push(plur(tor, "sortie tout ou rien", "sorties tout ou rien")+(det.length>1 || b.vmc ? " ("+det.join(", ")+")" : ""));
+  }
+  if(b.variation) l.push(plur(b.variation, "variation", "variations"));
+  if(b.rvb) l.push(plur(b.rvb, "circuit RVB", "circuits RVB"));
+  if(b.garages+b.gaches) l.push(plur(b.garages+b.gaches, "porte ou gâche", "portes ou gâches"));
+  if(b.zones) l.push(b.airzone ? plur(b.zones, "zone Airzone", "zones Airzone")+" ("+plur(b.systemes, "système", "systèmes")+")" : plur(b.zones, "zone de chauffage", "zones de chauffage"));
+  if(b.commandes) l.push(plur(b.commandes, "commande", "commandes"));
+  if(b.sondes) l.push(plur(b.sondes, "commande à sonde", "commandes à sonde"));
+  if(b.detecteurs) l.push(plur(b.detecteurs, "détecteur", "détecteurs"));
+  if(b.exterieur) l.push("sonde extérieure");
+  return l;
+}
+var STYLE_PIECES = ".kp-tete{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.kp-tete h2{flex:1}"
+  +".kp-besoins{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 12px}"
+  +".kp-besoins span{font-size:12.5px;font-weight:600;padding:3px 10px;border-radius:999px;background:#EEF3FF;color:#1D4ED8}"
+  +".kp-l{border:1px solid var(--rule);border-radius:10px;background:#fff;overflow:hidden}"
+  +".kp-cat{background:#F4F6FA;font-weight:700;font-size:11.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--ink-2);padding:6px 10px}"
+  +".kp-it{display:grid;grid-template-columns:44px 1fr auto;gap:2px 10px;align-items:baseline;padding:8px 10px;border-top:1px solid #EEF1F4;font-size:13.5px}"
+  +".kp-it .q{font-weight:800;font-size:15px;font-variant-numeric:tabular-nums;text-align:right}"
+  +".kp-it .r{font-family:var(--mono);font-size:12.5px;white-space:nowrap;color:var(--ink-2)}"
+  +".kp-it.opt{color:var(--ink-3);font-style:italic}"
+  +".kp-bus{font-size:13px;color:var(--ink-2);margin:10px 0 0}"
+  +".kp-reprise{display:flex;align-items:center;gap:10px;flex-wrap:wrap;border:1px solid #C9D8FF;background:#F4F7FF;border-radius:10px;padding:10px 12px;margin:0 0 12px;font-size:13.5px}"
+  +".kp-reprise .tx{flex:1 1 220px}"
+  +"@media (max-width:640px){.kp-it{grid-template-columns:34px 1fr}.kp-it .r{grid-column:2}}";
+function peindreMaterielPieces(){
+  var host=$("kc_pieces"); if(!host || !window.KNX || !window.KNX.besoins) return;
+  var x=saisieDesPieces(), b=x.b, R=calculer(x.s);
+  host.textContent="";
+  var tete=el("div","kp-tete"); tete.appendChild(el("h2","","Matériel"));
+  var mq=el("div","kc-marques"); mq.setAttribute("role","group"); mq.setAttribute("aria-label","Marque");
+  ["mdt","zennio","theben"].forEach(function(k){
+    var bt=el("button","",MARQUES[k].nom); bt.type="button"; bt.dataset.m=k; bt.setAttribute("aria-pressed", SAISIE.marque===k ? "true" : "false");
+    bt.addEventListener("click", function(){ SAISIE.marque=k; garderLocal(); peindreMaterielPieces(); peindre(); });
+    mq.appendChild(bt);
+  });
+  tete.appendChild(mq); host.appendChild(tete);
+  if(!b.pieces){ host.appendChild(el("p","hint","Les actionneurs, leurs références et l'alimentation du bus se calculent ici à mesure que vous remplissez les pièces.")); return; }
+  host.appendChild(el("p","hint","Calculé à partir des pièces, à mesure. Les écrans, passerelles IP, DALI et commandes Plexo s'ajoutent dans le chiffrage."));
+  var bs=el("div","kp-besoins"); resumeBesoins(b).forEach(function(t){ bs.appendChild(el("span","",t)); }); host.appendChild(bs);
+  R.alertes.filter(function(a){ return !/^Rien à chiffrer/.test(a); }).forEach(function(a){ host.appendChild(el("p","kc-alerte",a)); });
+  if(!R.lignes.length){ host.appendChild(el("p","hint","Rien à chiffrer pour l'instant : ajoutez des circuits aux pièces.")); return; }
+  host.appendChild(el("p","kc-indicatif",INDICATIF));
+  var l=el("div","kp-l"), cat="";
+  R.lignes.forEach(function(li){
+    if(li.cat!==cat){ cat=li.cat; l.appendChild(el("div","kp-cat",cat)); }
+    var it=el("div","kp-it"+(li.option ? " opt" : ""));
+    it.appendChild(el("span","q",li.qte+" ×"));
+    var n=el("span","n",li.nom); if(!li.v) n.appendChild(el("span","kc-verif","à vérifier"));
+    it.appendChild(n); it.appendChild(el("span","r",li.ref));
+    l.appendChild(it);
+  });
+  host.appendChild(l);
+  var B=R.bus;
+  host.appendChild(el("p","kp-bus",plur(B.participants, "participant", "participants")+" KNX · "+B.mA+" mA · "+plur(B.lignes, "ligne", "lignes")+" · alimentation "+B.alim.mA+" mA par ligne"));
+  var bx=el("div","boutons");
+  var bo=el("button","act plein","Ouvrir dans le chiffrage"); bo.type="button";
+  bo.title="Reprendre ces quantités dans le chiffrage complet (PDF, tableur, enregistrement)";
+  bo.addEventListener("click", function(){
+    if(SAISIE.depuisPieces===undefined && CHAMPS.some(function(c){ return nb(SAISIE[c[0]]); })
+      && !window.confirm("Le chiffrage en cours a déjà des quantités.\n\nLes remplacer par celles des pièces ? (écrans, passerelles IP, DALI, Plexo et participants ajoutés à la main restent)")) return;
+    reprendrePieces();
+  });
+  bx.appendChild(bo); host.appendChild(bx);
+}
+function installerPieces(){
+  if(!window.KNX || !window.KNX.surChange || $("kc_pieces")) return;
+  if(!$("kpStyle")){ var st=document.createElement("style"); st.id="kpStyle"; st.textContent=STYLE_PIECES; document.head.appendChild(st); }
+  var sc=$("scenarios"), apres=sc && sc.closest(".block");
+  if(!apres) return;
+  var bloc=el("div","block"); bloc.id="kc_pieces";
+  apres.parentNode.insertBefore(bloc, apres.nextSibling);
+  window.KNX.surChange(peindreMaterielPieces);
+  peindreMaterielPieces();
+}
+/* dans le chiffrage : reprendre les pièces des adresses de groupe */
+function blocReprise(){
+  if(!window.KNX || !window.KNX.besoins) return null;
+  var b=window.KNX.besoins(); if(!b.pieces) return null;
+  var r=el("div","kp-reprise"), tx=el("div","tx");
+  tx.appendChild(el("b","",(b.nom ? "« "+b.nom+" »" : "Adresses de groupe")+" : "+plur(b.pieces, "pièce", "pièces")));
+  var dt=SAISIE.depuisPieces ? new Date(SAISIE.depuisPieces) : null;
+  tx.appendChild(el("small","",dt && !isNaN(dt) ? " · quantités reprises le "+dt.toLocaleDateString("fr-FR")+" à "+dt.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}) : " · les quantités peuvent venir des pièces"));
+  var bt=el("button","act petit",SAISIE.depuisPieces ? "Reprendre à nouveau" : "Reprendre les pièces"); bt.type="button";
+  bt.addEventListener("click", function(){
+    if(!window.confirm("Remplacer les quantités par celles des pièces ?\n\nÉcrans, passerelles IP, DALI, Plexo et participants ajoutés à la main restent.")) return;
+    reprendrePieces();
+  });
+  r.appendChild(tx); r.appendChild(bt);
+  return r;
+}
+
 /* les essais et l'export s'appuient sur le calcul */
 window.KnxChiffrage = {calculer:calculer, marques:MARQUES, saisie:function(){ return SAISIE; }};
-if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", construire); else construire();
+function demarrer(){ construire(); installerPieces(); }
+if(document.readyState==="loading") document.addEventListener("DOMContentLoaded", demarrer); else demarrer();
 })();

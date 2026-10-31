@@ -497,7 +497,9 @@ function peindreApercu(){
     host.appendChild(d);
   });
   if(!G.length) host.appendChild(el("p", "vide", "Ajoutez des pièces pour voir les adresses."));
+  SUR_CHANGE.forEach(function(f){ try{ f(); }catch(e){} });          /* le matériel suit les pièces */
 }
+var SUR_CHANGE=[];
 
 /* ---------- analyser un export ETS ---------- */
 var NS="http://knx.org/xml/ga-export/01";
@@ -728,6 +730,27 @@ function peindreFiche(){
     al.appendChild(ul); host.appendChild(al);
   }
 }
+/* ---------- ce que les pièces demandent comme matériel ----------
+   Le chiffrage (fichier suivant) en tire les actionneurs et les références. */
+function besoinsMateriel(){
+  var b={nom:P.nom||"", pieces:P.pieces.length, volets:0, bso:0, eclTor:0, prises:0, vmc:P.vmc ? 2 : 0, variation:0, rvb:0,
+    garages:0, gaches:0, zones:0, airzone:!!P.airzone, systemes:0, sondes:0, commandes:0, detecteurs:0, exterieur:!!P.exterieur};
+  P.pieces.forEach(function(p){
+    p.eclairage.forEach(function(c){ if(c.type==="var") b.variation++; else if(c.type==="rvb") b.rvb++; else b.eclTor++; });
+    p.ouvrants.forEach(function(o){ if(o.type==="store") b.bso++; else if(o.type==="garage") b.garages++; else if(o.type==="gache") b.gaches++; else b.volets++; });
+    b.prises+=p.prises.length;
+    var chauffee=p.clim!=="non";
+    if(chauffee) b.zones++;
+    if(p.detecteur) b.detecteurs++;
+    /* une commande par pièce qui pilote quelque chose ; à sonde quand la pièce mesure sa température */
+    var sonde=p.sonde || (chauffee && !P.airzone);
+    if(sonde) b.sondes++;
+    else if(p.eclairage.length || p.ouvrants.length || p.prises.length) b.commandes++;
+  });
+  if(P.airzone) b.systemes=systemesUtilises().length;
+  return b;
+}
 initProjet();
-window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser};
+window.KNX = {generer:generer, versXml:versXml, lireXml:lireXml, analyser:analyser, besoins:besoinsMateriel,
+  surChange:function(f){ SUR_CHANGE.push(f); }};
 })();
