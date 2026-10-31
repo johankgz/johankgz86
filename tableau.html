@@ -378,15 +378,17 @@ main{max-width:1240px}
 .portee button[aria-pressed="true"]{background:#3B82F6;color:#0A0E14}
 
 .cases{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin:0 0 16px}
-@media (min-width:760px){ .cases{grid-template-columns:repeat(5,minmax(0,1fr));gap:12px} }
+@media (min-width:760px){ .cases{grid-template-columns:repeat(6,minmax(0,1fr));gap:12px} }
 .case-tb{display:flex;flex-direction:column;align-items:flex-start;gap:1px;min-height:84px;padding:11px 13px;border-radius:14px;
   background:var(--card);border:2px solid transparent;text-align:left;color:var(--ink);cursor:pointer;box-shadow:var(--shadow);font-family:inherit}
 .case-tb .lib{font-size:12px;font-weight:600;color:var(--ink-2)}
 .case-tb .val{font-size:30px;font-weight:800;letter-spacing:-.03em;line-height:1.1;font-variant-numeric:tabular-nums}
 .case-tb .sous{font-size:11.5px;color:var(--ink-3);line-height:1.35}
 .case-tb[aria-pressed="true"]{border-color:#3B82F6}
-.case-tb:first-child{grid-column:1 / -1}
-@media (min-width:760px){ .case-tb:first-child{grid-column:auto} .case-tb .val{font-size:34px} }
+@media (min-width:760px){ .case-tb .val{font-size:34px} }
+/* l'avancement moyen (venu de l'accueil) : une valeur, pas un filtre ; il mène à « Avancement des chantiers » */
+a.case-tb{text-decoration:none}
+.case-moy .val{color:var(--data,#0E7490)}
 .retard{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:700;color:var(--rouge)}
 .retard svg{width:13px;height:13px;flex:0 0 auto;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
 
@@ -469,6 +471,7 @@ main{max-width:1240px}
   <div class="entete-tb"><span class="jour" id="jour"></span><span class="resume" id="resume">Chargement…</span></div>
   <div class="cases" id="cases">
     <button type="button" class="case-tb" data-f="tout" aria-pressed="true"><span class="lib">Chantiers en cours</span><span class="val" id="nEnCours">–</span><span class="sous" id="sEnCours"></span></button>
+    <a class="case-tb case-moy" id="caseMoy" href="#tAV"><span class="lib">Avancement moyen</span><span class="val"><span id="nMoy">–</span>&nbsp;%</span><span class="sous" id="sMoy"></span></a>
     <button type="button" class="case-tb" data-f="ts" aria-pressed="false"><span class="lib">TS à chiffrer</span><span class="val" id="nTs">–</span><span class="sous" id="sTs"></span></button>
     <button type="button" class="case-tb" data-f="commande" aria-pressed="false"><span class="lib">Commandes à saisir</span><span class="val" id="nCmd">–</span><span class="sous" id="sCmd"></span></button>
     <button type="button" class="case-tb" data-f="point" aria-pressed="false"><span class="lib">Rappels à effectuer</span><span class="val" id="nPt">–</span><span class="sous" id="sPt"></span></button>
@@ -567,6 +570,9 @@ function peindreCases(){
   var n=D.compteurs;
   compte($("nEnCours"), n.enCours);
   $("sEnCours").textContent = n.finisMois ? pluriel(n.finisMois, "terminé")+" ce mois" : (n.attente ? n.attente+" en attente de réponse" : "tout voir ci-dessous");
+  var av=(D.avancement||[]), moy=av.length ? Math.round(av.reduce(function(a, c){ return a+Math.max(0, Math.min(100, parseInt(c.avancement,10)||0)); }, 0)/av.length) : 0;
+  compte($("nMoy"), moy);
+  $("sMoy").textContent = av.length ? "sur "+pluriel(av.length, "chantier")+" en cours" : "aucun chantier en cours";
   compte($("nTs"), n.ts);
   $("sTs").textContent = n.ts ? "sur "+pluriel(n.tsChantiers, "chantier") : "rien à chiffrer";
   compte($("nCmd"), n.commandes);
@@ -579,9 +585,9 @@ function peindreCases(){
   $("sRel").textContent = n.relances ? "sans réponse depuis un mois" : (n.attente ? n.attente+" en attente, rien à relancer" : "aucun dossier en attente");
   var total=D.aTraiter.length, retards=D.aTraiter.filter(function(x){ return x.retard; }).length;
   $("resume").textContent = total ? pluriel(total, "chose")+" à traiter"+(retards ? " · "+retards+" en retard" : "") : "Rien n'attend : tout est à jour.";
-  [].forEach.call(document.querySelectorAll(".case-tb"), function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-f")===F ? "true" : "false"); });
+  [].forEach.call(document.querySelectorAll("button.case-tb"), function(b){ b.setAttribute("aria-pressed", b.getAttribute("data-f")===F ? "true" : "false"); });
 }
-[].forEach.call(document.querySelectorAll(".case-tb"), function(b){
+[].forEach.call(document.querySelectorAll("button.case-tb"), function(b){
   b.addEventListener("click", function(){
     var f=b.getAttribute("data-f");
     F = (F===f && f!=="tout") ? "tout" : f;
@@ -803,6 +809,6 @@ window.addEventListener("pageshow", function(e){ if(e.persisted) charger(); });
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261030a" defer></script>
+<script src="./navigation.js?v=20261031a" defer></script>
 </body>
 </html>

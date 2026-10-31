@@ -48,8 +48,20 @@ var OUTILS=[
   ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
   ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
   ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Bibliothèque"],
-  ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"]
+  ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"],
+  /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
+  ["./importer.html", "Importer et exporter"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
+  ["./etiquettes.html", "Étiquettes", "etiquettes"]
 ];
+/* les mêmes droits que l'accueil : rien d'attribué, tout est ouvert */
+function accesAppli(s, id){
+  if(!id) return true;
+  if(!s) return false;
+  if(s.role==="admin" || s.proprietaire) return true;
+  var a=s.applis;
+  if(!Array.isArray(a) || !a.length) return true;
+  return a.indexOf(id)>=0;
+}
 
 var STYLE=
 /* le bouton ☰ : l'allure du bouton « Menu » de la page, une icône à la place du mot */
@@ -169,10 +181,10 @@ function construire(){
   vm.appendChild(entree("a", "notes", "Notes", {href:"./mesnotes.html", page:["mesnotes.html"]}));
   vm.appendChild(entree("a", "discu", "Discussions", {href:"./discussions.html", page:["discussions.html"]}));
   vm.appendChild(entree("a", "cloud", "Cloud", {href:"./cloud.html", page:["cloud.html"]}));
-  vm.appendChild(entree("a", "importer", "Importer et exporter", {href:"./importer.html", page:["importer.html"]}));
   vm.appendChild(el("div", "nv-titre", "Outils"));
   var outils=el("div", "nv-outils");
-  OUTILS.forEach(function(o){ var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a); });
+  var ses=session();
+  OUTILS.forEach(function(o){ if(!accesAppli(ses, o[2])) return; var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a); });
   vm.appendChild(outils);
   var s=session()||{};
   var cpt=el("a", "nv-compte"); cpt.href="./compte.html";

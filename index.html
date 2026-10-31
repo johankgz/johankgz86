@@ -367,6 +367,8 @@ h2.sec{font-size:11.5px;font-weight:700;letter-spacing:.1em;text-transform:upper
 /* les deux titres qui peuvent se replier : le texte garde la même
    typo que les autres h2.sec, seule la mise en ligne change */
 h2.sec.repliable{display:flex;align-items:center;justify-content:space-between;gap:10px}
+/* le nombre, à côté du titre : discret */
+h2.sec .sec-nb{margin-left:6px;font-weight:600;letter-spacing:.02em;opacity:.7;font-variant-numeric:tabular-nums}
 .sec-repli{
   flex:0 0 auto;width:30px;height:30px;display:flex;align-items:center;justify-content:center;
   border:0;border-radius:50%;background:none;color:inherit;cursor:pointer;padding:0;
@@ -1254,6 +1256,32 @@ body.connexion .ciel{display:none}
 .petits-outils a[hidden]{display:none}
 .petits-outils a.o-large{grid-column:1/-1;flex-direction:row;min-height:48px}
 @media (min-width:720px){ .fen-outils{align-items:center} .fo-boite{border-radius:18px} }
+/* ---------- le bouton + : relevé, autocontrôle, réception, SAV ---------- */
+.btn-plus{position:fixed;z-index:900;right:calc(18px + env(safe-area-inset-right,0px));bottom:calc(18px + env(safe-area-inset-bottom,0px));
+  width:58px;height:58px;min-height:0;padding:0;border:0;border-radius:50%;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;color:#fff;
+  background:linear-gradient(160deg,var(--accent-vif,#3B82F6),var(--accent,#2563EB));
+  box-shadow:0 0 0 1px rgba(255,255,255,.14) inset,0 14px 30px -10px rgba(37,99,235,.75),0 4px 10px rgba(10,14,20,.25);
+  transition:transform .18s ease,box-shadow .18s ease}
+.btn-plus[hidden]{display:none}
+body:not(.avec-menu) .btn-plus,body.menu-ouvert .btn-plus{display:none}
+.btn-plus svg{width:26px;height:26px;stroke:currentColor;fill:none;stroke-width:2.4;stroke-linecap:round;transition:transform .2s ease}
+.btn-plus[aria-expanded="true"] svg{transform:rotate(45deg)}
+.btn-plus:active{transform:scale(.95)}
+.btn-plus:focus-visible{outline:3px solid var(--data-vif,#22D3EE);outline-offset:3px}
+@media (hover:hover){ .btn-plus:hover{transform:translateY(-1px)} }
+body.avec-plus .page,body.avec-plus #vueMenu{padding-bottom:84px}
+.plus-liste{display:flex;flex-direction:column;gap:8px}
+.plus-liste a{display:flex;align-items:center;gap:14px;min-height:62px;padding:10px 14px;border-radius:12px;text-decoration:none;
+  color:var(--ink);background:var(--field,#F4F5F7);transition:background .15s ease}
+.plus-liste a .ic{width:40px;height:40px;border-radius:11px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+  background:var(--g-800,#10161F);color:var(--accent-vif,#3B82F6)}
+.plus-liste a .ic svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.85;stroke-linecap:round;stroke-linejoin:round}
+.plus-liste a .tx{flex:1;min-width:0}
+.plus-liste a b{display:block;font-size:15.5px;font-weight:700;letter-spacing:-.01em}
+.plus-liste a small{display:block;font-size:12.5px;color:var(--ink-3);margin-top:1px}
+.plus-liste a .fl{width:16px;height:16px;stroke:var(--ink-3);fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+@media (hover:hover){ .plus-liste a:hover{background:var(--accent-soft,#EEF4FF)} }
 @media (prefers-reduced-motion:reduce){ .fo-boite{animation:none} }
 /* ---------- du verre plutôt que du blanc ----------
    Les tuiles du haut et la barre d'Outils laissent voir la ville au
@@ -1777,7 +1805,6 @@ document.addEventListener("DOMContentLoaded", function(){
       </div>
       <a class="mg-it mg-accueil" href="./index.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-6.5 8 6.5v8a1 1 0 0 1-1 1h-4.5v-5.5h-5V20H5a1 1 0 0 1-1-1z"/></svg><span>Accueil</span></a>
       <button type="button" class="mg-it mg-reactu" id="btnReactu" aria-label="Réactualiser la page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.65"/><path d="M20 4v4.5h-4.5"/></svg><span>Réactualiser</span></button>
-      <button type="button" class="mg-it mg-transfert" id="mgTransfert" aria-haspopup="dialog" aria-expanded="false" title="Importer et exporter des plans et des documents"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/></svg><span class="mg-pc">Importer</span><span class="mg-tel">Importer et exporter</span></button>
       <a class="mg-it mg-plans" id="mgPlans" href="./plans.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/></svg><span class="mg-pc">Analyse de plan</span><span class="mg-tel">Analyse de plan — essai</span></a>
       <a class="mg-it mg-comptes" id="mgComptes" href="./equipe.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.5"/><path d="M3 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5"/><path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M21 19c0-2.6-1.6-4.6-4-5.3"/></svg><span class="mg-pc">Comptes</span><span class="mg-tel" id="mgComptesLib">Comptes et sociétés</span></a>
       <div class="mg-titre">Outils</div>
@@ -1921,6 +1948,10 @@ document.addEventListener("DOMContentLoaded", function(){
           <a href="./utilitaires.html#croix"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h6M4 18h6M14 6h6M14 18h6"/><path d="M8.5 9.5l7 5M15.5 9.5l-7 5"/></svg><span style="white-space:normal;line-height:1.15;text-align:center">Produit en croix</span></a>
           <a href="./utilitaires.html#qr"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="14" y="3.5" width="6.5" height="6.5" rx="1"/><rect x="3.5" y="14" width="6.5" height="6.5" rx="1"/><path d="M14 14h2.5v2.5H14zM18 18h2.5v2.5H18zM18 14h2.5M14 18v2.5"/></svg><span>QR contact</span></a>
           <a href="./utilitaires.html#refs"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 12.2V4.5a1 1 0 0 1 1-1h7.7l8.3 8.3a1.4 1.4 0 0 1 0 2l-6.7 6.7a1.4 1.4 0 0 1-2 0z"/><circle cx="8" cy="8" r="1.6"/></svg><span>Bibliothèque</span></a>
+          <a class="o-large" id="rcTransfert" href="./importer.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/></svg><span>Importer et exporter</span></a>
+          <a class="o-large o-appli" data-appli="schema" href="./schema.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"></svg><span>Schéma unifilaire</span></a>
+          <a class="o-large o-appli" data-appli="carnet" href="./carnet.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"></svg><span>Carnet et DOE</span></a>
+          <a class="o-large o-appli" data-appli="etiquettes" href="./etiquettes.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"></svg><span>Étiquettes</span></a>
           <a class="o-large" id="rcDwg" href="./dwg.html"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 3.5h17v17h-17zM3.5 10h7v10.5M10.5 14h10"/><path d="M5 7h13M5 5.8v2.4M18 5.8v2.4"/></svg><span>Plan · dessin, cotes et symboles (DWG)</span></a>
           <a class="o-large" id="rcKnx" href="./knx.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="4" width="17" height="16" rx="2"/><path d="M7.5 8.5h3M7.5 12h3M7.5 15.5h3M13.5 8.5h3M13.5 12h3M13.5 15.5h3"/></svg><span>Adresses de groupe KNX</span></a>
           <a class="o-large" id="rcTableau" href="./tableau.html" hidden><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="7" height="7" rx="1.5"/><rect x="13.5" y="3.5" width="7" height="4.5" rx="1.5"/><rect x="13.5" y="11" width="7" height="9.5" rx="1.5"/><rect x="3.5" y="13.5" width="7" height="7" rx="1.5"/></svg><span>Tableau de bord du bureau</span></a>
@@ -1930,15 +1961,29 @@ document.addEventListener("DOMContentLoaded", function(){
     </div>
 
 
-    <h2 class="sec" id="secParcours">Le parcours d'une affaire</h2>
-    <div class="parcours" id="parcours">
+    <h2 class="sec" id="secParcours" hidden>Le parcours d'une affaire</h2>
+    <div class="parcours" id="parcours" hidden>
       <div class="nav-wrap" id="parcoursWrap">
         <nav id="navParcours" aria-label="Les applis, dans l'ordre d'une affaire"></nav>
       </div>
     </div>
 
+    <!-- le bouton + : ce qui crée une fiche (le reste s'ouvre depuis la page du chantier) -->
+    <button type="button" class="btn-plus" id="btnPlus" aria-label="Nouvelle fiche : relevé, autocontrôle, réception, SAV" aria-haspopup="dialog" aria-controls="fenPlus" aria-expanded="false" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+    <div class="fen-outils" id="fenPlus" role="dialog" aria-modal="true" aria-labelledby="fenPlusT" hidden>
+      <div class="fo-fond" data-fermer></div>
+      <div class="fo-boite fo-plus">
+        <div class="fo-tete"><b id="fenPlusT">Nouvelle fiche</b>
+          <button type="button" class="fo-x" data-fermer aria-label="Fermer"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+        </div>
+        <nav class="plus-liste" id="plusListe" aria-label="Nouvelle fiche"></nav>
+      </div>
+    </div>
+
     <h2 class="sec repliable" id="secChantiers" hidden>
-      <span>Mes chantiers</span>
+      <span>Mes chantiers <span class="sec-nb" id="nbChantiers"></span></span>
       <button type="button" class="sec-repli" id="repliChantiers" aria-expanded="true" aria-controls="mesChantiers"
         aria-label="Réduire ou déplier Mes chantiers">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -1947,7 +1992,7 @@ document.addEventListener("DOMContentLoaded", function(){
     <div class="chantiers" id="mesChantiers" hidden></div>
 
     <h2 class="sec repliable" id="secAttente" hidden>
-      <span>En attente de réponse</span>
+      <span>En attente de réponse <span class="sec-nb" id="nbAttente"></span></span>
       <button type="button" class="sec-repli" id="repliAttente" aria-expanded="true" aria-controls="enAttente"
         aria-label="Réduire ou déplier En attente de réponse">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
@@ -2530,6 +2575,30 @@ function menu(s){
     "./sav.html":"sav","./etiquettes.html":"etiquettes","./photos.html":"photos",
     "./carnet.html":"carnet","./technique.html":"technique","./schema.html":"schema"};
 
+  /* le bouton + : les fiches qui se créent sans passer par un chantier ouvert */
+  var PLUS=[["releve","./releve.html","Relevé","nouveau chantier : le relevé technique"],
+            ["autocontrole","./autocontrole.html","Autocontrôle","les contrôles avant la réception"],
+            ["reception","./reception.html","Réception","le procès-verbal avec le client"],
+            ["sav","./sav.html","SAV","un appel ou une intervention"]];
+  var pl=$("plusListe");
+  if(pl){
+    pl.textContent="";
+    PLUS.filter(function(e){ return !(tech && e[0]==="releve") && accesAppli(s, e[0]); }).forEach(function(e){
+      var a=document.createElement("a"); a.href=e[1];
+      a.innerHTML='<span class="ic"><svg viewBox="0 0 24 24" aria-hidden="true">'+(ICONES[e[0]]||"")+'</svg></span>'
+        +'<span class="tx"><b></b><small></small></span><svg class="fl" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>';
+      a.querySelector("b").textContent=e[2]; a.querySelector("small").textContent=e[3];
+      pl.appendChild(a);
+    });
+    var bp=$("btnPlus"); if(bp){ bp.hidden=!pl.children.length; document.body.classList.toggle("avec-plus", !!pl.children.length); }
+  }
+  /* Schéma, Carnet et DOE, Étiquettes : rangés dans Outils */
+  [].forEach.call(document.querySelectorAll("#petitsOutils .o-appli"), function(a){
+    var id=a.getAttribute("data-appli"), sv=a.querySelector("svg");
+    if(sv && !sv.firstChild) sv.innerHTML=ICONES[id]||"";
+    a.hidden=!accesAppli(s, id);
+  });
+
   var bar=$("navParcours"); bar.textContent="";
   var etape=0;
   PARCOURS.filter(function(e){
@@ -2670,6 +2739,26 @@ function peindreEntreeTableau(s){
   /* retour arrière depuis un outil : la page revient fermée */
   window.addEventListener("pageshow", fermer);
 })();
+/* le bouton + : une fenêtre avec les fiches à créer (relevé, autocontrôle, réception, SAV) */
+(function(){
+  var b=$("btnPlus"), f=$("fenPlus"); if(!b || !f) return;
+  document.body.appendChild(b); document.body.appendChild(f);
+  function fermer(){ if(f.hidden) return; f.hidden=true; b.setAttribute("aria-expanded","false"); }
+  b.addEventListener("click", function(){
+    if(!f.hidden){ fermer(); return; }
+    f.hidden=false; b.setAttribute("aria-expanded","true");
+    var x=f.querySelector(".plus-liste a") || f.querySelector(".fo-x");
+    setTimeout(function(){ try{ x.focus({preventScroll:true}); }catch(e){} }, 30);
+  });
+  f.addEventListener("click", function(e){
+    var t=e.target.closest ? e.target.closest("[data-fermer], a") : null;
+    if(!t) return;
+    fermer();
+    if(t.hasAttribute("data-fermer")) b.focus();
+  });
+  document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !f.hidden){ fermer(); b.focus(); } });
+  window.addEventListener("pageshow", fermer);
+})();
 /* ---------- les chantiers, d'un toucher dans le menu ----------
    Comme le calendrier : une fenêtre par-dessus l'accueil. Une recherche (client,
    référence, ville ; sans se soucier des accents), puis tous les chantiers, les plus
@@ -2718,14 +2807,16 @@ function peindreEntreeTableau(s){
    des fichiers ou un dossier dans un chantier, ou enregistrer un chantier sur l'ordinateur.
    Des fichiers glissés n'importe où sur l'accueil, ou collés (Ctrl V), l'ouvrent aussi. */
 (function(){
-  var b=$("mgTransfert");
+  var b=$("rcTransfert");
   var reglages={
     chantiers:function(){ return DERNIERS_CHANTIERS; },
     apres:function(){ if(SESSION_COURANTE) charger(SESSION_COURANTE); },
-    quandOuvert:function(v){ if(b) b.setAttribute("aria-expanded", v ? "true" : "false"); }
+    quandOuvert:function(){}
   };
-  if(b) b.addEventListener("click", function(){
+  /* dans Outils : la fenêtre de transfert sur l'accueil (la page Importer si elle manque) */
+  if(b) b.addEventListener("click", function(e){
     if(!window.Transfert) return;
+    e.preventDefault();
     if(Transfert.ouvert()){ Transfert.fermer(); return; }
     Transfert.ouvrir(Object.assign({onglet:"importer"}, reglages));
   });
@@ -2988,7 +3079,8 @@ function chargerBullesTb(s){
 }
 function chargerTaches(s){
   peindreEntreeTableau(s);
-  chargerBullesTb(s);
+  /* les quatre bulles du bureau (TS, commandes, rappels, à relancer) ont quitté l'accueil :
+     chaque chantier les porte, le tableau de bord les réunit */
   /* une fois par visite : proposer les notifications sur ce téléphone */
   if(!NOTIF_INVITEE && window.Notif){ NOTIF_INVITEE=true; Notif.inviter($("inviteNotif"), s); }
   fetch(apiUrl("taches"), {headers:{"x-auth":s.jeton}})
@@ -4018,30 +4110,13 @@ function compterJusqua(el, vers, suffixe, anime){
   requestAnimationFrame(pas);
 }
 function peindreTableau(){
-  var host=$("tableau"); if(!host || !SESSION_COURANTE || !DERNIERS_CHANTIERS) return;
-  var anime=!TABLEAU_VU;
-  if(!host.firstChild){
-    host.innerHTML=
-      '<a class="tuile-t clair" id="tActifs" href="./rapports.html"><span class="t-lab">Chantiers actifs</span><b class="t-nb" id="tActifsNb">0</b><span class="t-sous" id="tActifsSous"></span></a>'
-     +'<a class="tuile-t clair anneau-t" id="tMoy" href="#mesChantiers"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="27" class="fond"/><circle cx="32" cy="32" r="27" class="plein" id="tMoyAnneau"/></svg><span><b class="t-nb petit" id="tMoyNb">0 %</b><span class="t-sous">avancement moyen</span></span></a>';
-    $("tMoy").addEventListener("click", function(e){
-      var m=$("mesChantiers"); if(!m) return;
-      e.preventDefault(); m.scrollIntoView({behavior:"smooth", block:"start"});
-    });
-  }
+  /* plus de tuiles « Chantiers actifs » et « avancement moyen » : le nombre de chantiers
+     s'écrit, discret, à côté de « Mes chantiers » ; l'avancement moyen est au tableau de bord */
+  if(!SESSION_COURANTE || !DERNIERS_CHANTIERS) return;
   var ch=DERNIERS_CHANTIERS||[];
-  var actifs=ch.filter(function(c){ return c.etat!=="attente"; });
-  var attente=ch.length-actifs.length;
-  compterJusqua($("tActifsNb"), actifs.length, "", anime);
-  $("tActifsSous").textContent = attente ? "+ "+attente+" en attente de réponse" : (actifs.length ? "sur vos dossiers" : "aucun pour l'instant");
-  var moy = actifs.length ? Math.round(actifs.reduce(function(a,c){ return a+Math.max(0, Math.min(100, parseInt(c.avancement,10)||0)); }, 0)/actifs.length) : 0;
-  compterJusqua($("tMoyNb"), moy, "\u00A0%", anime);
-  var anneau=$("tMoyAnneau"), tour=2*Math.PI*27;
-  anneau.style.strokeDasharray=tour;
-  if(anime){ anneau.style.strokeDashoffset=tour; void anneau.getBoundingClientRect(); }
-  anneau.style.strokeDashoffset=tour*(1-moy/100);
-  $("tMoy").classList.toggle("fini", moy>=100);
-  host.hidden=false;
+  var actifs=ch.filter(function(c){ return c.etat!=="attente"; }).length, attente=ch.length-actifs;
+  var n=$("nbChantiers"); if(n) n.textContent = actifs ? String(actifs) : "";
+  var na=$("nbAttente"); if(na) na.textContent = attente ? String(attente) : "";
   TABLEAU_VU=true;
 }
 /* Un document « nouveau » est un document que je n'ai pas ouvert et que
@@ -4318,9 +4393,10 @@ function adapterAccueil(s, enAttente){
   ["secAttente","enAttente"].forEach(function(id){
     var el=$(id); if(el) el.hidden = !enAttente;
   });
-  /* le parcours d'une affaire reste au bureau */
+  /* le parcours d'une affaire a quitté l'accueil : Suivi, Commande, Le point s'ouvrent depuis
+     la page du chantier ; ce qui crée une fiche passe par le bouton + */
   ["secParcours","parcours"].forEach(function(id){
-    var el=$(id); if(el) el.hidden = tech;
+    var el=$(id); if(el) el.hidden = true;
   });
   /* « Travaux en cours » listait les mêmes dossiers que « Mes chantiers »,
      en moins complet : la liste de chantiers le remplace pour tout le monde */
