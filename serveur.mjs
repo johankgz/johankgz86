@@ -60,7 +60,7 @@ const ROUTES = [
 ];
 
 /* jamais de fichier hors du site, ni le dossier des données, ni le dépôt */
-const INTERDITS = [".git", ".claude", "node_modules", "donnees", "serveur", "prive", "conformite", "analyseur-plans", "serveur.mjs", "package-lock.json"];
+const INTERDITS = [".git", ".claude", "CLAUDE.md", "node_modules", "donnees", "serveur", "prive", "conformite", "analyseur-plans", "serveur.mjs", "package-lock.json"];
 
 function fichierDemande(chemin) {
   let propre;

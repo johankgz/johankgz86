@@ -10,9 +10,11 @@ import { zipFlux, fichiersDe } from "./export.mjs";
 import { discussions } from "./discussions.mjs";
 import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
+import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
+import { encours, oublisARappeler, laisseSur } from "./encours.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
-import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes } from "./notifications.mjs";
+import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore, enSilence } from "./notifications.mjs";
 /* le jour à Paris (et non en heure universelle : passé minuit, c'était encore la veille) */
 function jourParis() { return maintenantParis().slice(0, 10); }
 
@@ -32,7 +34,7 @@ function libelleDocument(entree) {
     entree.type === "schema" ? "Schéma unifilaire" + (entree.etape ? " — " + entree.etape : "")
     : entree.type === "commande" ? "Commande et reste à faire"
     : entree.type === "suivi" ? (entree.visite ? "Suivi de chantier — visite n° " + entree.visite : (entree.titre || "Suivi de chantier"))
-    : entree.type === "reportage" ? "Reportage photo" + (entree.visite ? " — " + entree.visite : "")
+    : entree.type === "reportage" ? "Photo et croquis" + (entree.visite ? " — " + entree.visite : "")
     : entree.type === "autocontrole" ? "Fiche autocontrôle et mise en service"
     : entree.type === "carnet" ? "Carnet d'échantillons"
     : entree.type === "memoire" ? "Mémoire technique"
@@ -69,6 +71,38 @@ let DERNIER_TIC = 0;
    change pas. */
 const CACHE_TS = new Map();
 let DERNIERE_PURGE = 0;
+let DERNIERS_OUBLIS = 0;
+/* un abonnement de l'ordinateur (notifications.js note « Mac · Chrome », « Windows · Edge », « Ordinateur »…) */
+const surOrdinateur = (a) => !!(a && a.appareil) && !/^(iPhone|iPad|Android)/.test(a.appareil);
+/* Une fiche laissée sur l'iPhone ou l'iPad sans être publiée (encours.mjs) : un rappel sur
+   l'ordinateur, une fois par version de la fiche. Pas pendant le silence de la nuit (ni un
+   jour de silence, ni en vacances) : le rappel part au premier passage après. */
+async function rappelerOublis(store, code, annuaire) {
+  let comptes = [];
+  try { comptes = await lireComptes(code); } catch { return 0; }
+  let n = 0;
+  for (const c of comptes) {
+    if (!c || !c.nom || c.actif === false) continue;
+    try {
+      const o = await oublisARappeler(store, c.nom);
+      if (!o.liste.length) continue;
+      const f = await lireAbonne(store, c.nom);
+      if (enSilence(f.prefs)) continue;
+      if (f.prefs.rappels !== false && f.abonnements.some(surOrdinateur)) {
+        const l = o.liste, un = l[0];
+        const qui = (x) => [x.client, x.ref].filter(Boolean).join(" · ") || "sans client";
+        const charge = l.length === 1
+          ? { titre: "Pas encore publié : " + un.quoi, texte: qui(un) + " — " + laisseSur(un) + ". Ouvrez-le ici pour le publier.", url: un.page, tag: "oubli-" + un.k + "-" + un.maj }
+          : { titre: l.length + " fiches pas encore publiées", texte: l.slice(0, 4).map((x) => x.quoi.replace(/^(un|une|des) /, "") + " " + qui(x)).join(", ") + (l.length > 4 ? "…" : "") + " — laissées sur l'iPhone ou l'iPad.",
+              url: "./index.html", tag: "oublis-" + un.maj };
+        n += (await prevenirPush(store, annuaire, [c.nom], "rappels", charge, contactPush(""), { comptes, filtre: surOrdinateur })).length;
+      }
+      /* sans ordinateur abonné, l'accueil de l'ordinateur le dit quand même (encours-oublis) */
+      await o.noter();
+    } catch { /* personne suivante */ }
+  }
+  return n;
+}
 const DUREE_DEMANDES = 3 * 365.25 * 24 * 3600 * 1000;
 export async function purgerDemandesAcces(maintenant) {
   const t = maintenant || Date.now();
@@ -105,6 +139,11 @@ async function tic(force) {
   let n = 0;
   /* la fin du silence de la nuit : ce qui a attendu part maintenant */
   for (const l of lots) { try { n += await envoyerAttentes(l.store, annuaire, contactPush("")); } catch { /* minute suivante */ } }
+  /* les fiches oubliées sur le téléphone : un coup d'œil toutes les dix minutes suffit */
+  if (force || Date.now() - DERNIERS_OUBLIS > 10 * 60 * 1000) {
+    DERNIERS_OUBLIS = Date.now();
+    for (const l of lots) { try { n += await rappelerOublis(l.store, l.code, annuaire); } catch { /* plus tard */ } }
+  }
   for (const l of lots) {
     let comptes = [];
     if (l.dus.length) { try { comptes = await lireComptes(l.code); } catch { comptes = []; } }
@@ -376,8 +415,16 @@ function cleKnx(societe, id, compte) {
 }
 async function scriptKnx() {
   const lire = (f) => readFile(new URL("../prive/" + f, import.meta.url), "utf8");
-  return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js"));
+  return (await lire("knx-liaisons.js")) + "\n" + (await lire("knx-outil.js")) + "\n" + (await lire("knx-chiffrage.js"));
 }
+/* le téléchargement du chiffrage KNX (PDF, tableur) : son code n'est livré qu'à qui
+   l'administrateur l'a ouvert (Équipe › « Téléchargement chiffrage »), et à l'administrateur */
+async function scriptKnxExport() {
+  return readFile(new URL("../prive/knx-export.js", import.meta.url), "utf8");
+}
+const CLE_CHIFFRAGES_KNX = "knx/chiffrages.json";
+/* la bibliothèque des participants KNX ajoutés à la main, pour les reprendre d'un chiffrage à l'autre */
+const CLE_PARTICIPANTS_KNX = "knx/participants.json";
 
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
@@ -387,7 +434,7 @@ const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
   autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
   carnet: "carnet", memoire: "carnet", doe: "carnet", technique: "technique",
-  point: "commande", schema: "schema"
+  point: "commande", schema: "schema", note: "photos"
 };
 function applisValides(liste) {
   if (!Array.isArray(liste)) return [];
@@ -483,6 +530,36 @@ function resumePv(fiche) {
 }
 const CACHE_PV = new Map();
 
+/* les commandes à faire d'un chantier : les cases sous l'avancement */
+const COMMANDES_CHANTIER = ["dossier", "filerie", "boites", "appareillage", "td", "finition"];
+/* ---------- l'autocontrôle demandé (la case rouge sous l'avancement) ----------
+   Le bureau coche « Autocontrôle » : c.autocontrole = {par, le}. Les techniciens qui
+   ont accès au dossier en sont prévenus (notification), et leur accueil le garde
+   affiché tant qu'aucun autocontrôle n'a été publié dans ce dossier depuis la
+   demande. La publication le marque fait : c.autocontrole.fait = {le, par, cle}.
+   L'état se vérifie à chaque lecture, sur les documents eux-mêmes : un autocontrôle
+   publié par un autre chemin (ou avant une mise à jour du serveur) compte aussi. */
+/* les techniciens qui ont accès au dossier, comme les montre « Accès » : son équipe, et les
+   auteurs de ses documents, sauf ceux que le bureau a retirés */
+function techniciensDu(c, comptes) {
+  const connus = (comptes || []).map((x) => x.nom);
+  return accesEffectif(c, connus).filter((n) => !revoque(c, n)).filter((n) => {
+    const k = (comptes || []).find((x) => x.nom === n || memeNom(x.nom, n));
+    return k && k.role === "technicien" && k.actif !== false;
+  });
+}
+function autocontrolePublieDepuis(c, depuis) {
+  return (c.fichiers || []).filter((f) => f.type === "autocontrole" && !f.brouillon && String(f.publie || "") >= String(depuis || ""))
+    .sort((a, b) => String(b.publie || "").localeCompare(String(a.publie || "")))[0] || null;
+}
+function etatAutocontrole(c) {
+  const a = c && c.autocontrole;
+  if (!a || !a.le) return null;
+  let fait = a.fait || null;
+  if (!fait) { const f = autocontrolePublieDepuis(c, a.le); if (f) fait = { le: f.publie, par: f.auteur || "", cle: f.cle }; }
+  return { par: a.par || "", le: a.le, fait };
+}
+
 /* l'avancement d'un chantier, en pourcentage, posé à la main par son
    chargé d'affaires */
 function avancementDe(c) {
@@ -490,22 +567,41 @@ function avancementDe(c) {
   return isNaN(n) ? 0 : Math.max(0, Math.min(100, n));
 }
 
-/* Un devis accepté, c'est définitif : posé depuis le chantier (bouton du bureau)
-   ou par un relevé publié au statut « Devis accepté », le dossier ne repasse
-   plus jamais en attente de réponse. */
+/* Les travaux ont commencé : un suivi, une commande, un autocontrôle, une
+   réception ou un DOE publiés, ou un avancement posé. Le premier de ces
+   documents dit quand. (Un point de chantier ne compte pas : il peut venir
+   d'un rendez-vous avant le devis.) */
+const TYPES_TRAVAUX = new Set(["suivi", "commande", "autocontrole", "reception", "doe"]);
+function premiersTravaux(c) {
+  let vu = null;
+  for (const f of (c && c.fichiers) || []) {
+    if (f.brouillon || !TYPES_TRAVAUX.has(f.type)) continue;
+    const quand = f.publie || f.date || "";
+    if (!vu || String(quand) < String(vu.publie || vu.date || "")) vu = f;
+  }
+  return vu;
+}
+/* Un devis accepté, c'est définitif : posé depuis le chantier (bouton du bureau),
+   par un relevé publié au statut « Devis accepté », ou parce que les travaux
+   ont commencé ; le dossier ne repasse plus jamais en attente de réponse. */
 function estAccepte(c) {
   if (!c) return false;
   if (c.etat === "accepte") return true;
   const r = dernierReleve(c);
-  return statutAttendu(r && r.etape) === "actif";
+  if (statutAttendu(r && r.etape) === "actif") return true;
+  return !!premiersTravaux(c) || avancementDe(c) > 0;
 }
 function etatDossier(c) {
   if (!c) return { etat: "actif" };
   if (estAccepte(c)) {
-    const r = c.etat === "accepte" ? null : dernierReleve(c);
+    let r = null;
+    if (c.etat !== "accepte") {
+      r = dernierReleve(c);
+      if (statutAttendu(r && r.etape) !== "actif") r = premiersTravaux(c);
+    }
     return { etat: "actif", accepte: true,
-      accepteLe: c.accepteLe || (r && (r.publie || r.date)) || "",
-      acceptePar: c.acceptePar || (r && r.auteur) || "",
+      accepteLe: c.accepteLe || (r && (r.publie || r.date)) || c.avancementLe || "",
+      acceptePar: c.acceptePar || (r && r.auteur) || c.avancementPar || "",
       accepteAuto: c.etat !== "accepte" };
   }
   let etat = c.etat === "attente" ? "attente" : (c.etat === "actif" ? "actif" : "");
@@ -732,10 +828,32 @@ async function rappelFait(store, ref, id, qui) {
     if (t && !t.faite) { t.faite = true; t.faitePar = qui; t.faiteLe = new Date().toISOString(); await store.setJSON(cleR, t); }
   } catch { /* pas de rappel pour cette tâche */ }
 }
+/* retiré du dossier par le bureau (même son auteur) : il ne le voit plus, ses propres documents non plus */
+function revoque(chantier, nom) {
+  return !!chantier && (chantier.revoques || []).some((n) => n === nom || memeNom(n, nom));
+}
+/* qui a vraiment accès au dossier : son équipe, et les auteurs de ses documents (des comptes de la société)
+   que le bureau n'a pas retirés */
+function accesEffectif(c, connus) {
+  const s = (c.equipe || []).slice();
+  (c.fichiers || []).forEach((f) => { if (f.auteur && connus.indexOf(f.auteur) >= 0 && s.indexOf(f.auteur) < 0 && !revoque(c, f.auteur)) s.push(f.auteur); });
+  return s;
+}
+/* un document « Réservé chargés d'affaires » (offre de prix, e-mail…) : le bureau et l'administrateur
+   seulement, jamais un technicien ni le client */
+const RESERVE_CA = "Réservé chargés d'affaires";
+function estReserve(v) { return /^reserve/.test(String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim()); }
 function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
+  if (fichier && fichier.prive) {
+    /* réservé : les chargés d'affaires (et l'administrateur) attribués au dossier ; un chargé d'affaires
+       retiré du dossier ne le voit plus, même s'il l'a déposé */
+    if (personne.role !== "bureau" && personne.role !== "admin") return false;
+    if (revoque(chantier, personne.nom)) return false;
+  }
+  if (personne.role !== "bureau" && personne.role !== "admin" && revoque(chantier, personne.nom)) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
   /* celui qui l'a enregistré le voit, même au nom d'un autre conducteur de travaux */
@@ -762,7 +880,8 @@ const TYPES_FICHIER = { pdf: "application/pdf", zip: "application/zip", jpg: "im
                         xls: "application/vnd.ms-excel", xlsx: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         ppt: "application/vnd.ms-powerpoint", pptx: "application/vnd.openxmlformats-officedocument.presentationml.presentation",
                         odt: "application/vnd.oasis.opendocument.text", ods: "application/vnd.oasis.opendocument.spreadsheet",
-                        txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8" };
+                        txt: "text/plain; charset=utf-8", csv: "text/csv; charset=utf-8",
+                        eml: "message/rfc822", msg: "application/vnd.ms-outlook" };
 function typeDuFichier(cle) {
   const ext = String(cle).split(".").pop().toLowerCase();
   return TYPES_FICHIER[ext] || "application/pdf";
@@ -1015,7 +1134,7 @@ async function rdvDuDossier(societe, c) {
   return qui ? carte[qui].jeton : "";
 }
 function docVisible(f, lien) {
-  if (f.brouillon || f.fiche === "appel") return false;
+  if (f.brouillon || f.fiche === "appel" || f.prive) return false;
   return (lien.genre === "tableau" ? DOCS_TABLEAU : DOCS_CLIENT).indexOf(f.type) >= 0;
 }
 
@@ -1143,12 +1262,12 @@ function texteRdv(t) {
   return JS[c.wd] + " " + c.d + " " + MS[c.m - 1] + " " + c.y + " à " + String(c.h).padStart(2, "0") + " h " + String(c.mi).padStart(2, "0");
 }
 
-const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "equipe", "equipe-dossier", "moi",
+const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi", "autocontroles-a-faire",
   "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
-  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "societe-fiche", "lien", "lien-fichier",
+  "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "knx-chiffrages", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
-  "mesnotes-liste", "mesnote", "mesnote-photo-lire"]);
+  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire", "encours-oublis"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1158,6 +1277,12 @@ export default async (req) => {
   if (action !== "tic") tic().catch(() => {});
   if (action === "tic") return json({ ok: true, envoyes: await tic(true) });
   if (LECTURES.has(action)) return traiter(req);
+  /* une notification vue sur un appareil, ou à afficher sur un autre (notifications.mjs) : petit, rapide, sans file */
+  if (action === "push-vu" || action === "push-encore" || action === "push-actif") return traiter(req);
+  /* la fiche en cours de chacun (encours.mjs) a sa propre file, par personne : elle n'attend pas les publications */
+  if (action.startsWith("encours-")) return traiter(req);
+  /* la lecture de la photo du tableau (analyse-tableau.mjs) dure une minute : elle ne bloque pas les publications */
+  if (action === "analyse-tableau" || action === "analyse-tableau-etat") return traiter(req);
   return sousVerrou("ecritures", () => traiter(req));
 };
 
@@ -1519,6 +1644,13 @@ async function traiter(req) {
       ics: ecrireIcs([Object.assign({}, ev, { organisateur: null, participants: [] })], { methode: "PUBLISH" }) });
   }
 
+  /* le service des notifications d'un appareil, sans session : la notification porte sa signature */
+  if (action === "push-vu" || action === "push-encore") {
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ouvrir = (nom) => getStore({ name: nom, consistency: "strong" });
+    return json(action === "push-vu" ? await pushVu(magasinAnnuaire(), ouvrir, d, contactPush(url.origin)) : await pushEncore(magasinAnnuaire(), ouvrir, d));
+  }
+
   const personne = await identifier(req.headers.get("x-auth") || url.searchParams.get("auth"));
   if (personne === "perimee") {
     return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
@@ -1616,6 +1748,8 @@ async function traiter(req) {
     const entree = { cle, titre: "Note — " + (String(d.titre || "").replace(/\s+/g, " ").trim().slice(0, 100) || "sans titre"), type: "note",
       visite: "", etape: "", date: jourParis(), auteur: personne.nom, destinataires: [], versDossier: true, taille: octets.length,
       publie: quand, donnees: false, versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {} };
+    /* un nom donné par le bureau (Renommer) survit à la republication */
+    if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
@@ -1626,6 +1760,11 @@ async function traiter(req) {
     return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
   }
   if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
+  /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
+  if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
+
+  /* la photo du tableau de l'autocontrôle, lue au regard de la NF C 15-100 (serveur/analyse-tableau.mjs) */
+  if (action === "analyse-tableau" || action === "analyse-tableau-etat") return analyseTableau(action, { req, url, store, personne, json });
 
   if (action.startsWith("cloud-")) {
     const comptesSoc = await lireComptes(personne.societe);
@@ -1670,6 +1809,8 @@ async function traiter(req) {
     return c.fichiers.find((f) => f.cle === cle) || null;
   }
 
+  /* une page ouverte : la personne se sert du site (une notification en retard ailleurs n'a plus à sonner) */
+  if (action === "push-actif") { await noterActif(store, personne.nom, url.searchParams.get("ap") || ""); return json({ ok: true }); }
   if (action === "moi") {
     return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
       proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,
@@ -1788,6 +1929,7 @@ async function traiter(req) {
              : (c.motdepasse ? "ancien" : "aucun"),
       mdpMaj: c.mdpMaj || "",
       knx: c.knx ? (c.knx.cree || "oui") : "",
+      knxExport: !!c.knxExport,
       applis: applisValides(c.applis) })) });
   }
 
@@ -1864,6 +2006,7 @@ async function traiter(req) {
     if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
     if (action === "knx-retirer") {
       delete comptes[i].knx;
+      delete comptes[i].knxExport;                  /* sans l'outil, plus de téléchargement du chiffrage */
       await ecrireComptes(personne.societe, comptes);
       return json({ ok: true });
     }
@@ -1871,6 +2014,144 @@ async function traiter(req) {
     comptes[i] = { ...comptes[i], knx: { empreinte: empreinteDe(code), cree: new Date().toISOString(), par: personne.nom } };
     await ecrireComptes(personne.societe, comptes);
     return json({ ok: true, identifiant: id, nom: comptes[i].nom, code });
+  }
+  /* le téléchargement du chiffrage KNX : l'administrateur l'ouvre ou le ferme, personne par personne */
+  if (action === "knx-export-droit") {
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d = {};
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const id = String(d.identifiant || "").trim().toLowerCase();
+    const comptes = await lireComptes(personne.societe);
+    const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
+    if (i < 0) return json({ erreur: "Compte inconnu." }, 404);
+    if (d.droit === true) comptes[i] = { ...comptes[i], knxExport: { le: new Date().toISOString(), par: personne.nom } };
+    else delete comptes[i].knxExport;
+    await ecrireComptes(personne.societe, comptes);
+    return json({ ok: true, identifiant: id, knxExport: !!comptes[i].knxExport });
+  }
+  /* les chiffrages KNX de la société : pour qui a l'outil KNX (son code), et l'administrateur */
+  if (action === "knx-chiffrages" || action === "knx-chiffrage-enregistrer" || action === "knx-chiffrage-supprimer"
+      || action === "knx-export" || action === "knx-export-demande"
+      || action === "knx-participants" || action === "knx-participant-enregistrer" || action === "knx-participant-supprimer") {
+    const comptes = await lireComptes(personne.societe);
+    const compte = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === personne.identifiant) || {};
+    if (!admin && !(compte.knx && compte.knx.empreinte)) return json({ erreur: "Outil réservé : demandez votre code d'accès à l'administrateur.", sansCode: true }, 403);
+    const peutExporter = admin || !!compte.knxExport;
+    if (action === "knx-export") {
+      if (!peutExporter) return json({ erreur: "Téléchargement verrouillé : l'administrateur doit vous l'ouvrir.", verrou: true }, 403);
+      return json({ script: await scriptKnxExport() });
+    }
+    if (action === "knx-export-demande") {
+      /* les administrateurs l'apprennent sur leur téléphone */
+      const admins = comptes.filter((c) => c.role === "admin").map((c) => c.nom);
+      try {
+        await prevenirPush(store, magasinAnnuaire(), admins, "documents", {
+          titre: "Chiffrage KNX : demande de téléchargement",
+          texte: personne.nom + " demande à pouvoir télécharger les chiffrages KNX (Équipe › Téléchargement chiffrage).",
+          url: "./equipe.html", tag: "knx-export-" + personne.identifiant
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { /* la demande reste à faire de vive voix */ }
+      return json({ ok: true });
+    }
+    /* la bibliothèque des participants : la catégorie KNX de la Bibliothèque de chacun (Outils ›
+       Bibliothèque, l'ancienne base de références) ; « Garder » y range le participant */
+    if (action === "knx-participants" || action === "knx-participant-enregistrer" || action === "knx-participant-supprimer") {
+      const moi = idRef(personne.identifiant), titulaire = titulaireRefs(comptes);
+      const chemin = REFS_DOSSIER + moi + ".json";
+      let r = await lireRefsDe(store, moi, titulaire);
+      const sansAcc = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+      const colDe = (re) => r.colonnes.findIndex((c) => re.test(sansAcc(c)));
+      let modifie = false;
+      /* une base encore vide : la base rangée d'abord, s'il y en a une (comme à l'ouverture de la Bibliothèque) */
+      const preparer = async () => {
+        if (!r.colonnes.length) {
+          const dep = moi === titulaire ? await refsDepart(personne.societe) : null;
+          if (dep) r = { colonnes: dep.colonnes, lignes: dep.lignes.slice(), cle: dep.cle, des: dep.des, maj: new Date().toISOString(), par: "Base de départ", source: dep.source, depart: dep.version, partages: r.partages || [] };
+          else Object.assign(r, { colonnes: ["Catégorie", "Marque", "Référence", "Désignation"], lignes: [], cle: 2, des: 3 });
+          modifie = true;
+        }
+        const ajouterCol = (nom, re) => { let i = colDe(re); if (i < 0 && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push(nom); r.lignes.forEach((l) => l.push("")); i = r.colonnes.length - 1; modifie = true; } return i; };
+        return { ic: ajouterCol("Catégorie", /^(categorie|famille|rubrique)/), im: ajouterCol("Marque", /^(marque|fabricant)/), ik: r.cle || 0, id: r.des != null && r.des >= 0 ? r.des : -1 };
+      };
+      const estKnx = (l, c) => /\bknx\b/.test(sansAcc(l[c.ic]));
+      /* l'ancienne bibliothèque KNX (avant la Bibliothèque) : reprise une fois dans la base du titulaire */
+      if (moi === titulaire) {
+        let anc = null; try { anc = await store.get(CLE_PARTICIPANTS_KNX, { type: "json" }); } catch { anc = null; }
+        if (Array.isArray(anc) && anc.length) {
+          const c = await preparer();
+          for (const p of anc) {
+            const ref = String(p.ref || "").trim(); if (!ref || ref === "—") continue;
+            if (r.lignes.some((l) => cleRef(l[c.ik]) === cleRef(ref))) continue;
+            const l = r.colonnes.map(() => ""); l[c.ik] = ref; l[c.ic] = "KNX"; l[c.im] = String(p.marque || "").replace(/^mdt$/i, "MDT").replace(/^zennio$/i, "Zennio").replace(/^theben$/i, "Theben");
+            if (c.id >= 0) l[c.id] = String(p.nom || "");
+            r.lignes.push(l); modifie = true;
+          }
+          try { await store.setJSON(CLE_PARTICIPANTS_KNX + ".repris.json", anc); await store.setJSON(CLE_PARTICIPANTS_KNX, []); } catch { /* repris */ }
+        }
+      }
+      const liste = (c) => r.lignes.filter((l) => estKnx(l, c)).map((l) => ({ id: l[c.ik], nom: (c.id >= 0 && l[c.id]) || l[c.ik], ref: l[c.ik], marque: l[c.im] || "" }));
+      if (action === "knx-participants") {
+        if (!r.colonnes.length) return json({ participants: [] });
+        const c = await preparer();
+        if (modifie) await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString() }));
+        return json({ participants: liste(c) });
+      }
+      let d = {};
+      try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      const c = await preparer();
+      if (action === "knx-participant-supprimer") {
+        const avant = r.lignes.length;
+        r.lignes = r.lignes.filter((l) => !(estKnx(l, c) && cleRef(l[c.ik]) === cleRef(d.id)));
+        if (r.lignes.length !== avant || modifie) await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString(), par: personne.nom }));
+        return json({ ok: true, participants: liste(c) });
+      }
+      const nom = String(d.nom || "").trim().slice(0, 120), ref = String(d.ref || "").trim().slice(0, 60);
+      if (!nom) return json({ erreur: "Donnez une désignation au participant." }, 400);
+      if (!ref) return json({ erreur: "Donnez une référence : la Bibliothèque range chaque article par sa référence." }, 400);
+      /* la marque est libre (MDT, Zennio, Theben, mais aussi Steinel, Gira…) */
+      const marque = String(d.marque || "").trim().slice(0, 40);
+      const i = r.lignes.findIndex((l) => cleRef(l[c.ik]) === cleRef(ref));
+      const ligne = i >= 0 ? r.lignes[i].slice() : r.colonnes.map(() => "");
+      ligne[c.ik] = ref; ligne[c.ic] = "KNX"; if (marque) ligne[c.im] = marque; if (c.id >= 0) ligne[c.id] = nom;
+      if (i >= 0) r.lignes[i] = ligne;
+      else {
+        if (r.lignes.length >= REFS_MAX_LIGNES) return json({ erreur: "Bibliothèque pleine." }, 413);
+        /* rangée avec les autres KNX */
+        let ou = -1; for (let k = r.lignes.length - 1; k >= 0; k--) if (estKnx(r.lignes[k], c)) { ou = k; break; }
+        if (ou >= 0) r.lignes.splice(ou + 1, 0, ligne); else r.lignes.push(ligne);
+      }
+      await store.setJSON(chemin, Object.assign(r, { maj: new Date().toISOString(), par: personne.nom }));
+      return json({ ok: true, id: ref, participants: liste(c) });
+    }
+    let liste = [];
+    try { liste = (await store.get(CLE_CHIFFRAGES_KNX, { type: "json" })) || []; } catch { liste = []; }
+    if (!Array.isArray(liste)) liste = [];
+    if (action === "knx-chiffrages") {
+      return json({ chiffrages: liste.map((x) => ({ id: x.id, nom: x.nom, ref: x.ref, marque: x.marque, par: x.par, maj: x.maj })), export: peutExporter });
+    }
+    let d = {};
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const id = /^[a-z0-9]{6,24}$/.test(String(d.id || "")) ? String(d.id) : "";
+    if (action === "knx-chiffrage-supprimer") {
+      liste = liste.filter((x) => x.id !== id);
+      await store.setJSON(CLE_CHIFFRAGES_KNX, liste);
+      return json({ ok: true });
+    }
+    if (d.lire === true) {
+      const x = liste.find((y) => y.id === id);
+      return x ? json({ chiffrage: x, export: peutExporter }) : json({ erreur: "Chiffrage introuvable." }, 404);
+    }
+    const saisie = d.saisie && typeof d.saisie === "object" ? d.saisie : null;
+    if (!saisie || JSON.stringify(saisie).length > 20000) return json({ erreur: "Chiffrage illisible." }, 400);
+    const maintenant = new Date().toISOString();
+    const nouveau = { id: id || (Date.now().toString(36) + randomBytes(3).toString("hex")),
+      nom: String(d.nom || "").trim().slice(0, 120) || "Chiffrage KNX", ref: String(d.ref || "").trim().slice(0, 60),
+      marque: ["mdt", "zennio", "theben"].indexOf(d.marque) >= 0 ? d.marque : "mdt", saisie, par: personne.nom, maj: maintenant };
+    const i = liste.findIndex((y) => y.id === nouveau.id);
+    if (i >= 0) liste[i] = { ...liste[i], ...nouveau, cree: liste[i].cree || maintenant };
+    else liste.unshift({ ...nouveau, cree: maintenant });
+    await store.setJSON(CLE_CHIFFRAGES_KNX, liste.slice(0, 300));
+    return json({ ok: true, id: nouveau.id, maj: maintenant });
   }
   if (action === "knx-outil") {
     let d = {};
@@ -2014,8 +2295,11 @@ async function traiter(req) {
     const memoire = d.type === "memoire";
     const doe = d.type === "doe";
     const technique = d.type === "technique";
+    if (technique && estReserve(d.visite) && !bureau) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
     const point = d.type === "point";
     const schema = d.type === "schema";
+    /* une note écrite dans Photo et croquis : son PDF, dans le sous-dossier « Notes » */
+    const note = d.type === "note";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
     const appliVisee = APPLI_DU_TYPE[d.type] || "";
@@ -2026,7 +2310,7 @@ async function traiter(req) {
     /* un technicien crée un suivi de chantier et le transmet, mais ne modifie rien */
     const versDossier = d.dossier === true || d.dossier === "oui";
     if (!bureau) {
-      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
+      if (!suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema && !note) return json({ erreur: "Le relevé technique est réservé au bureau." }, 403);
       const vises = Array.isArray(d.destinataires) ? d.destinataires : [];
       const comptesSoc = await lireComptes(personne.societe);
       const idxV = await lireIndex();
@@ -2048,15 +2332,18 @@ async function traiter(req) {
     /* un document technique n'est pas toujours un PDF : plan, photo, schéma,
        et, importé depuis l'ordinateur, un plan DWG ou DXF, un Word, un Excel.
        Jamais une page web ni un programme : rien qui s'exécuterait. */
-    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv"];
+    const FORMATS_TECHNIQUE = ["pdf", "jpg", "jpeg", "png", "webp", "dwg", "dxf", "doc", "docx", "xls", "xlsx", "ppt", "pptx", "odt", "ods", "txt", "csv", "zip", "eml", "msg"];
     const extDemandee = String(d.ext || "pdf").toLowerCase();
     if (technique && FORMATS_TECHNIQUE.indexOf(extDemandee) < 0) {
-      return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte." }, 415);
+      return json({ erreur: "Format non pris en charge (." + extDemandee.replace(/[^a-z0-9]/g, "").slice(0, 8) + ") : PDF, image, DWG, DXF, Word, Excel, PowerPoint, texte, ZIP." }, 415);
     }
     const ext = technique ? extDemandee : "pdf";
     if (technique && !String(d.titre || "").trim()) return json({ erreur: "Donnez un titre au document." }, 400);
 
-    const nomFichier = schema
+    const nomFichier = note
+      /* une note a son identifiant : la réenregistrer la met à jour */
+      ? "note-" + slug(d.noteId || (jourParis() + "-" + personne.nom)) + ".pdf"
+      : schema
       /* un fichier par tableau et par indice : l'indice A reste quand le B arrive */
       ? "schema-" + slug(d.etape || "tableau") + "-indice-" + slug(d.visite || "A") + ".pdf"
       : technique
@@ -2099,6 +2386,11 @@ async function traiter(req) {
     /* un plan d'architecte pèse vite 10 ou 20 Mo : 25 Mo pour un document technique */
     if (technique && octets.length > 25 * 1024 * 1024) return json({ erreur: "Document trop lourd : 25 Mo au plus." }, 413);
     if (!technique && octets.length > 5.5 * 1024 * 1024) return json({ erreur: "Rapport trop lourd pour la publication." }, 413);
+    /* retiré du dossier par le bureau : on n'y publie plus (avant d'écrire quoi que ce soit) */
+    if (!bureau) {
+      const cR = (await lireIndex()).chantiers[ref];
+      if (cR && revoque(cR, personne.nom)) return json({ erreur: "Le bureau vous a retiré l'accès à ce dossier : voyez avec lui pour y publier." }, 403);
+    }
     await store.set(cle, octets, { metadata: { type: typeDuFichier(cle) } });
 
     const idx = await lireIndex();
@@ -2106,7 +2398,7 @@ async function traiter(req) {
     const c = idx.chantiers[ref] || { ref, client: "", adresse: "", fichiers: [] };
     /* un dossier au devis accepté ne repart pas en attente par un relevé */
     const dejaAccepte = estAccepte(c);
-    const estReleve = !suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema;
+    const estReleve = !suivi && !commande && !photos && !reception && !etiquettes && !sav && !reportage && !autocontrole && !carnet && !memoire && !doe && !technique && !point && !schema && !note;
     if (dejaAccepte && estReleve && statutAttendu(d.etape) === "attente") {
       return json({ erreur: "Ce dossier est au devis accepté : il ne repasse plus en attente de réponse. Choisissez « Devis accepté » dans le statut du relevé." }, 409);
     }
@@ -2144,8 +2436,8 @@ async function traiter(req) {
     }
     const entree = {
       cle,
-      titre: d.titre || (schema ? "Schéma unifilaire" : point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Reportage photo" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
-      type: schema ? "schema" : point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
+      titre: d.titre || (note ? "Note" : schema ? "Schéma unifilaire" : point ? "Le point de chantier" : technique ? "Document technique" : carnet ? "Carnet d'échantillons" : doe ? "Dossier des ouvrages exécutés" : memoire ? "Mémoire technique" : autocontrole ? "Fiche autocontrôle et mise en service" : reportage ? "Photo et croquis" : sav ? "Intervention SAV" : etiquettes ? "Étiquettes de tableau" : reception ? "Procès-verbal de réception" : photos ? "Photos du chantier" : commande ? "Commande et reste à faire" : suivi ? "Suivi de chantier" : "Relevé technique"),
+      type: note ? "note" : schema ? "schema" : point ? "point" : technique ? "technique" : carnet ? "carnet" : doe ? "doe" : memoire ? "memoire" : autocontrole ? "autocontrole" : reportage ? "reportage" : sav ? "sav" : etiquettes ? "etiquettes" : reception ? "reception" : photos ? "photos" : commande ? "commande" : suivi ? "suivi" : "releve",
       visite: d.visite || "",
       etape: d.etape || "",
       date: d.date || jourParis(),
@@ -2162,6 +2454,10 @@ async function traiter(req) {
       lectures: (ancien && ancien.lectures) ? ancien.lectures : {}
     };
     if (sav && d.savFiche === "appel") entree.fiche = "appel";
+    /* réservé aux chargés d'affaires : déposé par le bureau seulement, et gardé tel quel à la republication */
+    if (technique && (estReserve(d.visite) || (ancien && ancien.prive))) { entree.prive = true; entree.visite = RESERVE_CA; entree.etape = entree.etape && estReserve(entree.etape) ? RESERVE_CA : entree.etape; }
+    /* un nom donné par le bureau (Renommer) survit à la republication */
+    if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
     c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
     /* une intervention SAV confiée, une fois publiée, n'est plus « à terminer »
        (la fiche d'appel, elle, la laisse en attente) */
@@ -2191,13 +2487,14 @@ async function traiter(req) {
       const equipe = new Set((c.equipe || []).map((n) => nomDuCompte(n, comptesEq)));
       equipe.add(nomDuCompte(entree.auteur, comptesEq));
       (entree.destinataires || []).forEach((n) => equipe.add(nomDuCompte(n, comptesEq)));
-      c.equipe = Array.from(equipe).filter(Boolean);
+      /* ceux que le bureau a retirés n'y reviennent pas par un relevé */
+      c.equipe = Array.from(equipe).filter((n) => n && !revoque(c, n));
     } else if (!c.equipe || !c.equipe.length) {
       /* premier document d'un dossier sans relevé : son auteur en est
          responsable, sous le nom de son compte, avec celui qui l'enregistre */
       let comptesEq = [];
       try { comptesEq = await lireComptes(personne.societe); } catch { comptesEq = []; }
-      c.equipe = Array.from(new Set([nomDuCompte(entree.auteur, comptesEq), nomDuCompte(personne.nom, comptesEq)])).filter(Boolean);
+      c.equipe = Array.from(new Set([nomDuCompte(entree.auteur, comptesEq), nomDuCompte(personne.nom, comptesEq)])).filter((n) => n && !revoque(c, n));
     }
     /* chaque photo du lot, aussi rangée seule : <REF>/Photos/<date> <titre>/ */
     if (photos && cle.endsWith(".zip")) {
@@ -2216,6 +2513,11 @@ async function traiter(req) {
     }
     c.fichiers.push(entree);
     c.fichiers.sort((a, b) => rang(b) - rang(a));
+    /* un autocontrôle publié lève la demande du bureau (la case rouge de l'avancement) */
+    let autocFait = null;
+    if (entree.type === "autocontrole" && c.autocontrole && c.autocontrole.le && !c.autocontrole.fait && entree.publie >= c.autocontrole.le) {
+      c.autocontrole.fait = autocFait = { le: entree.publie, par: entree.auteur, cle: entree.cle };
+    }
     /* le reste à faire d'un point de chantier, ou d'un suivi, rejoint celui du dossier */
     if ((point || suivi) && (Array.isArray(d.reste) || Array.isArray(d.retires))) {
       fusionnerReste(c, d.reste, d.retires, { titre: entree.titre, pointId: String(d.pointId || d.suiviId || ""), auteur: personne.nom });
@@ -2239,13 +2541,21 @@ async function traiter(req) {
     }
 
     let prevenus = [];
+    /* qui avait demandé l'autocontrôle apprend qu'il est publié */
+    if (autocFait && c.autocontrole.par && !memeNom(c.autocontrole.par, personne.nom)) {
+      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), [c.autocontrole.par], "documents", {
+        titre: "Autocontrôle publié", texte: (c.client || ref) + " · " + ref + " — publié par " + entree.auteur + ".",
+        url: "./chantier.html?ref=" + encodeURIComponent(ref), tag: "autoc-fait-" + ref
+      }, contactPush(url.origin), { comptes })).catch(() => {});
+    }
     /* des documents importés d'un coup depuis l'ordinateur : une seule
        notification pour le lot, envoyée avec le dernier (les autres arrivent
        « silencieux ») */
     const lot = technique ? Math.max(0, Math.min(500, parseInt(d.lot, 10) || 0)) : 0;
     if (!photos && !(technique && d.silencieux === true)) {
       /* et sur le téléphone, sans faire attendre la publication */
-      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(), concernes(entree, c, entree.auteur), "documents", {
+      lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(),
+        concernes(entree, c, entree.auteur).filter((n) => !entree.prive || comptes.some((u) => memeNom(u.nom, n) && (u.role === "bureau" || u.role === "admin"))), "documents", {
         titre: lot > 1 ? lot + " documents ajoutés" : libelleDocument(entree),
         texte: (c.client || ref) + " — " + (lot > 1 ? "déposés" : "déposé") + " par " + entree.auteur,
         url: "./chantier.html?ref=" + encodeURIComponent(ref),
@@ -2516,6 +2826,31 @@ async function traiter(req) {
     });
     out.sort((a, b) => (b.maj || "").localeCompare(a.maj || ""));
     return json({ dossiers: out });
+  }
+
+  /* ---------- le suivi précédent d'un chantier (suivi.html) ----------
+     Pour reprendre ce qui n'est pas fini (repères et leurs plans, reste à faire, travaux à chiffrer) :
+     une lecture légère, au lieu de la liste de tous les chantiers puis d'une fiche après l'autre.
+     « exclure » : l'identifiant du suivi ouvert (on veut celui d'avant). */
+  if (action === "suivi-precedent") {
+    const brute = String(url.searchParams.get("ref") || "");
+    const ref = slug(brute).toUpperCase();
+    const exclure = String(url.searchParams.get("exclure") || "");
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref] || Object.values(idx.chantiers).find((x) => slug(x.ref || "").toUpperCase() === ref);
+    if (!c) return json({ dossier: null, suivi: null });
+    const visibles = (c.fichiers || []).filter((f) => voit(personne, f, c));
+    if (!visibles.length) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees && !f.brouillon)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.publie || "").localeCompare(String(a.publie || "")));
+    let suivi = null, cleSuivi = "", nbPhotos = 0;
+    for (const f of suivis.slice(0, 6)) {
+      let d = null;
+      try { d = await store.get(String(f.cle).replace(/\.pdf$/, ".json"), { type: "json" }); } catch { d = null; }
+      /* ses photos ne servent pas à la reprise (repères et plans, oui) : la réponse reste légère */
+      if (d && d.version === 2 && d.suiviId !== exclure) { suivi = { ...d, photos: [] }; nbPhotos = (d.photos || []).length; cleSuivi = f.cle; break; }
+    }
+    return json({ dossier: { ref: c.ref, client: c.client || "", adresse: c.adresse || "" }, suivi, cle: cleSuivi, nbPhotos });
   }
 
   if (action === "fiches") {
@@ -2868,7 +3203,7 @@ async function traiter(req) {
 
   /* ---------- tâches datées ---------- */
   if (action === "taches") {
-    const out = [];
+    const out = [], envoyes = [];
     try {
       const res = await store.list({ prefix: "taches/" });
       for (const b of (res.blobs || [])) {
@@ -2878,14 +3213,32 @@ async function traiter(req) {
         if (t.rappel && t.qui !== personne.nom) continue;  /* un rappel n'est qu'à son conducteur de travaux */
         out.push({ cle: b.key, ...t });
       }
+      /* les rappels du calendrier posés pour quelqu'un d'autre : celui qui les a posés les
+         voit dans son calendrier (fait ou pas) ; ils ne sonnent que chez la personne visée */
+      for (const b of (res.blobs || [])) {
+        if (b.key.indexOf("taches/cal-") !== 0) continue;
+        const t = await store.get(b.key, { type: "json" });
+        if (!t || !t.cal || t.auteur !== personne.nom || t.qui === personne.nom) continue;
+        if (t.faite && Date.now() - Date.parse(t.faiteLe || 0) > 30 * 864e5) continue;
+        envoyes.push({ cle: b.key, ...t, pourAutre: true });
+      }
     } catch { /* rien de stocké */ }
     out.sort((a, b) => (a.quand || "").localeCompare(b.quand || ""));
-    return json({ taches: out });
+    return json({ taches: out, envoyes });
   }
 
   /* ---------- le calendrier de l'accueil : un rappel à un jour, une heure ----------
-     « Téléphoner à M. Dupont » le 5 octobre à 9 h : une tâche datée, pour
-     soi seul, notifiée à l'heure dite comme les autres rappels. */
+     « Téléphoner à M. Dupont » le 5 octobre à 9 h : une tâche datée, notifiée à
+     l'heure dite comme les autres rappels. Pour soi, ou pour une personne de
+     l'équipe (« pour » : son nom) : il sonne alors chez elle, « Rappel — de Johan ». */
+  async function destinataireRappel(pour) {
+    const p = String(pour || "").trim();
+    if (!p || p === personne.nom) return { qui: personne.nom };
+    const comptes = await lireComptes(personne.societe);
+    const qui = nomDuCompte(p, comptes);
+    if (!comptes.some((u) => u.nom === qui)) return { erreur: "« " + p + " » n'est pas une personne de l'équipe." };
+    return { qui };
+  }
   if (action === "rappel-creer") {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
@@ -2894,9 +3247,11 @@ async function traiter(req) {
     if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
     const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : "09:00";
+    const dest = await destinataireRappel(d.pour);
+    if (dest.erreur) return json({ erreur: dest.erreur }, 400);
     const id = Date.now().toString(36) + randomBytes(3).toString("hex");
-    const cle = "taches/cal-" + slug(personne.nom) + "-" + id + ".json";
-    const t = { texte, prio: "", qui: personne.nom, quand, heure, rappel: true, cal: true,
+    const cle = "taches/cal-" + slug(dest.qui) + "-" + id + ".json";
+    const t = { texte, prio: "", qui: dest.qui, quand, heure, rappel: true, cal: true,
       auteur: personne.nom, cree: new Date().toISOString(), faite: false, notifie: "" };
     await store.setJSON(cle, t);
     return json({ ok: true, tache: { cle, ...t } });
@@ -2911,15 +3266,22 @@ async function traiter(req) {
     let t = null;
     try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
     if (!t) return json({ erreur: "Ce rappel n'existe plus." }, 404);
-    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    if (t.qui !== personne.nom && t.auteur !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
     const texte = String(d.texte || "").trim().slice(0, 300);
     const quand = String(d.quand || t.quand || "").slice(0, 10);
     if (!texte) return json({ erreur: "Écrivez le rappel." }, 400);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(quand)) return json({ erreur: "Choisissez le jour." }, 400);
     const heure = /^\d{2}:\d{2}$/.test(String(d.heure || "")) ? d.heure : (t.heure || "09:00");
-    const autreMoment = quand !== t.quand || heure !== t.heure;
-    Object.assign(t, { texte, quand, heure, modifie: new Date().toISOString() });
-    if (autreMoment) t.notifie = "";
+    let qui = t.qui;
+    /* celui qui l'a posé peut le donner à quelqu'un d'autre */
+    if (d.pour !== undefined && t.auteur === personne.nom) {
+      const dest = await destinataireRappel(d.pour);
+      if (dest.erreur) return json({ erreur: dest.erreur }, 400);
+      qui = dest.qui;
+    }
+    const autreMoment = quand !== t.quand || heure !== t.heure || qui !== t.qui;
+    Object.assign(t, { texte, quand, heure, qui, modifie: new Date().toISOString() });
+    if (autreMoment) { t.notifie = ""; t.faite = false; }
     await store.setJSON(cle, t);
     return json({ ok: true, tache: { cle, ...t } });
   }
@@ -2929,7 +3291,7 @@ async function traiter(req) {
     let t = null;
     try { t = await store.get(cle, { type: "json" }); } catch { t = null; }
     if (!t) return json({ ok: true });
-    if (t.qui !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
+    if (t.qui !== personne.nom && t.auteur !== personne.nom) return json({ erreur: "Ce rappel est à quelqu'un d'autre." }, 403);
     try { await store.delete(cle); } catch { /* déjà parti */ }
     return json({ ok: true });
   }
@@ -3008,6 +3370,7 @@ async function traiter(req) {
       || c.fichiers.some((f) => voit(personne, f, c));
     if (!membre) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
     const comptes = await lireComptes(personne.societe);
+    const equipeVue = accesEffectif(c, comptes.map((u) => u.nom));
     /* les points déjà publiés : le suivant prend le numéro d'après */
     const pts = c.fichiers.filter((f) => f.type === "point");
     const numeroSuivant = Math.max(pts.length, ...pts.map((f) => parseInt(f.visite, 10) || 0)) + 1;
@@ -3015,7 +3378,7 @@ async function traiter(req) {
       .map((f) => ({ titre: f.titre || "", numero: f.visite || "", date: f.date || "", auteur: f.auteur || "" }))
       .sort((x, y) => (parseInt(x.numero, 10) || 0) - (parseInt(y.numero, 10) || 0) || String(x.date).localeCompare(String(y.date)));
     return json({
-      ref, client: c.client || "", equipe, points, numeroSuivant, reste: c.reste || [], accepte: estAccepte(c),
+      ref, client: c.client || "", equipe: equipeVue, revoques: bureau ? (c.revoques || []) : [], points, numeroSuivant, reste: c.reste || [], accepte: estAccepte(c),
       auteur: (c.fichiers[0] || {}).auteur || "",
       personnes: comptes.map((u) => ({ nom: u.nom, role: u.role })),
       peutModifier: bureau
@@ -3051,6 +3414,52 @@ async function traiter(req) {
     return json({ ok: true, tache: it });
   }
 
+  /* ---------- ajouter une tâche ou un TS sans faire de suivi ----------
+     Une ou deux choses à noter : le bureau les ajoute directement sur la page du
+     chantier. Un technicien passe par Le point (ses tâches et ses « Demande client »). */
+  if (action === "reste-ajouter" || action === "reste-retirer" || action === "ts-ajouter" || action === "ts-retirer") {
+    if (!bureau) return json({ erreur: "Réservé au bureau : un technicien passe par Le point." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = slug(d.ref || "").toUpperCase();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const maintenant = new Date().toISOString();
+    const nouvelId = (p) => p + Date.now().toString(36) + randomBytes(3).toString("hex");
+    const texte = String(d.texte || "").replace(/\s+/g, " ").trim().slice(0, 400);
+    if (action === "reste-ajouter") {
+      if (!texte) return json({ erreur: "Écrivez la tâche." }, 400);
+      c.reste = Array.isArray(c.reste) ? c.reste : [];
+      const it = { id: nouvelId("c"), texte, prio: d.urgent ? "Urgent" : "", qui: "", quand: "", fait: false, maj: maintenant, cree: maintenant,
+        point: "Ajoutée sur le chantier", pointId: "", auteur: personne.nom, chantier: true };
+      c.reste.push(it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, tache: it, reste: c.reste });
+    }
+    if (action === "reste-retirer") {
+      const it = (c.reste || []).find((x) => x.id === String(d.id || ""));
+      if (!it) return json({ erreur: "Tâche introuvable." }, 404);
+      if (!it.chantier) return json({ erreur: "Cette tâche vient d'un point ou d'un suivi : retirez-la là-bas, ou cochez-la." }, 400);
+      c.reste = c.reste.filter((x) => x !== it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, reste: c.reste });
+    }
+    if (action === "ts-ajouter") {
+      if (!texte) return json({ erreur: "Écrivez la demande." }, 400);
+      c.tsDossier = Array.isArray(c.tsDossier) ? c.tsDossier : [];
+      const it = { id: nouvelId("t"), texte, qui: String(d.qui || "").trim().slice(0, 80), depuis: maintenant.slice(0, 10), auteur: personne.nom, cree: maintenant, fait: false };
+      c.tsDossier.push(it);
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, ts: it });
+    }
+    const avant = (c.tsDossier || []).length;
+    c.tsDossier = (c.tsDossier || []).filter((x) => x.id !== String(d.id || ""));
+    if (c.tsDossier.length === avant) return json({ erreur: "Demande introuvable." }, 404);
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true });
+  }
+
   if (action === "equipe-dossier-enregistrer") {
     if (!bureau) return json({ erreur: "Réservé au bureau." }, 403);
     let d;
@@ -3062,12 +3471,19 @@ async function traiter(req) {
     const comptes = await lireComptes(personne.societe);
     const connus = comptes.map((u) => u.nom);
     const equipe = (Array.isArray(d.equipe) ? d.equipe : []).filter((n) => connus.indexOf(n) >= 0);
-    /* l'auteur des documents garde toujours son dossier */
-    c.fichiers.forEach((f) => { if (f.auteur && equipe.indexOf(f.auteur) < 0) equipe.push(f.auteur); });
+    /* qui le bureau retire (l'auteur du dossier compris) est révoqué : il ne voit plus le dossier,
+       même ses propres documents, et n'y publie plus ; le remettre dans l'équipe lui rend l'accès */
+    const avant = accesEffectif(c, connus);
+    const revoques = new Set((c.revoques || []).filter((n) => equipe.indexOf(n) < 0 && !equipe.some((e) => memeNom(e, n))));
+    avant.forEach((n) => { if (n && equipe.indexOf(n) < 0) revoques.add(n); });
+    c.revoques = [...revoques];
+    /* l'auteur des documents garde son dossier, sauf si le bureau le lui a retiré */
     c.equipe = equipe;
+    c.equipe = accesEffectif(c, connus);
+    if (!c.revoques.length) delete c.revoques;
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, equipe });
+    return json({ ok: true, equipe: c.equipe, revoques: c.revoques || [] });
   }
 
   /* ---------- notifications sur le téléphone ---------- */
@@ -3267,7 +3683,7 @@ async function traiter(req) {
      (ou toute l'équipe). ?base=identifiant ouvre la base d'un autre, si elle nous est partagée. */
   let rx = null;
   if (action === "references" || action === "references-depart" || action === "references-importer" || action === "references-ligne"
-      || action === "references-supprimer" || action === "references-colonnes" || action === "references-partager") {
+      || action === "references-supprimer" || action === "references-colonnes" || action === "references-partager" || action === "references-categories" || action === "references-ranger") {
     const comptes = await lireComptes(personne.societe);
     const moi = idRef(personne.identifiant), titulaire = titulaireRefs(comptes);
     const proprio = idRef(url.searchParams.get("base")) || moi;
@@ -3322,10 +3738,43 @@ async function traiter(req) {
     }
     const aMoi = proprio === moi;
     return json({ colonnes: r.colonnes, lignes: r.lignes, cle: r.cle || 0, des: r.des != null ? r.des : 1, maj: r.maj || null, par: r.par || "", source: r.source || "",
+      categories: Array.isArray(r.categories) ? r.categories : [], range: !!r.range,
       modifiable: droit === "modifier", droit, proprietaire: proprio, nomProprietaire: nomDe(proprio), moi: aMoi, bases,
       partages: aMoi ? (r.partages || []).map((x) => ({ identifiant: x.identifiant, droit: x.droit, nom: x.identifiant === "*" ? "Toute l'équipe" : nomDe(x.identifiant) })) : undefined,
       equipe: aMoi ? comptes.filter((c) => idRef(c.identifiant) && idRef(c.identifiant) !== moi).map((c) => ({ identifiant: idRef(c.identifiant), nom: c.nom || c.identifiant, role: c.role || "" })) : undefined,
       departDispo: dep && aMoi && r.depart !== dep.version ? { version: dep.version, n: dep.lignes.length, source: dep.source } : null });
+  }
+  /* ranger la base une fois : chaque référence reçoit sa catégorie de la Bibliothèque (calculée par la page
+     d'après la catégorie écrite, la gamme et la désignation) ; ensuite, seul le choix fait à la main compte.
+     L'ancienne base est gardée de côté (references-avant/…-rangement.json). */
+  if (action === "references-ranger") {
+    const { chemin, r, proprio } = rx;
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    try { await store.setJSON("references-avant/" + proprio + "-rangement.json", r); } catch { /* la copie est facultative */ }
+    const sa = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    let ic = r.colonnes.findIndex((c) => /^(categorie|famille|rubrique)/.test(sa(c)));
+    if (ic < 0 && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push("Catégorie"); r.lignes.forEach((l) => l.push("")); ic = r.colonnes.length - 1; }
+    const k = r.cle || 0, choix = new Map();
+    (Array.isArray(d.lignes) ? d.lignes : []).forEach((x) => { if (Array.isArray(x) && x[0] != null) choix.set(cleRef(x[0]), String(x[1] || "").trim().slice(0, 40)); });
+    let n = 0;
+    if (ic >= 0) r.lignes.forEach((l) => { const c = choix.get(cleRef(l[k])); if (c && l[ic] !== c) { l[ic] = c; n++; } });
+    Object.assign(r, { range: true, maj: new Date().toISOString(), par: personne.nom });
+    await store.setJSON(chemin, r);
+    return json({ ok: true, n });
+  }
+  /* les catégories ajoutées à la main, en plus des catégories de la Bibliothèque */
+  if (action === "references-categories") {
+    const { chemin, r } = rx;
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const nom = String(d.nom || "").replace(/\s+/g, " ").trim().slice(0, 40);
+    if (!nom) return json({ erreur: "Donnez un nom à la catégorie." }, 400);
+    let l = Array.isArray(r.categories) ? r.categories.slice() : [];
+    const meme = (x) => x.toLowerCase() === nom.toLowerCase();
+    if (d.retirer) l = l.filter((x) => !meme(x));
+    else if (!l.some(meme)) { if (l.length >= 40) return json({ erreur: "40 catégories ajoutées au plus." }, 400); l.push(nom); }
+    r.categories = l;
+    await store.setJSON(chemin, r);
+    return json({ ok: true, categories: l });
   }
   if (action === "references-importer" || action === "references-ligne" || action === "references-supprimer" || action === "references-colonnes") {
     const { chemin, r } = rx;
@@ -3373,6 +3822,7 @@ async function traiter(req) {
       }
       if (lignes.length > REFS_MAX_LIGNES) return json({ erreur: "Trop de lignes (" + REFS_MAX_LIGNES + " au plus)." }, 413);
       Object.assign(r, { colonnes, lignes, maj: maintenant, par: personne.nom, source: String(d.source || "").slice(0, 200) });
+      delete r.range;                                     /* un fichier importé : la page le range à nouveau */
       if (d.mode !== "fusionner") delete r.depart;       /* remplacée par un fichier : la base rangée peut être rechargée */
       await store.setJSON(chemin, r);
       return json({ ok: true, total: lignes.length, stats });
@@ -3389,9 +3839,18 @@ async function traiter(req) {
       /* ajouter une référence, ou modifier celle qui avait la référence « ancienne » */
       if (!r.colonnes.length) {
         const cols = nettoyerRefs(d.colonnes || ["Référence", "Désignation"], []).cols;
-        Object.assign(r, { colonnes: cols, lignes: [], cle: 0, des: cols.length > 1 ? 1 : -1 });
+        const sa = (s) => String(s).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+        const ik = cols.findIndex((c) => /^(ref|code|article)/.test(sa(c))), id = cols.findIndex((c) => /^(designation|libelle|description)/.test(sa(c)));
+        Object.assign(r, { colonnes: cols, lignes: [], cle: ik >= 0 ? ik : 0, des: id >= 0 ? id : (cols.length > 1 ? 1 : -1) });
       }
-      const ligne = r.colonnes.map((_, i) => String((d.ligne || [])[i] == null ? "" : d.ligne[i]).trim().slice(0, REFS_MAX_CASE));
+      /* les colonnes envoyées par leur nom : une colonne qui manque à la base (la Catégorie) s'y ajoute */
+      let valeurs = d.ligne || [];
+      if (Array.isArray(d.colonnes) && d.colonnes.length) {
+        const noms = d.colonnes.map((c) => String(c).trim().toLowerCase());
+        noms.forEach((n, j) => { if (n && !r.colonnes.some((c) => c.toLowerCase() === n) && r.colonnes.length < REFS_MAX_COLONNES) { r.colonnes.push(String(d.colonnes[j]).trim().slice(0, 80)); r.lignes.forEach((l) => l.push("")); } });
+        valeurs = r.colonnes.map((c) => { const j = noms.indexOf(c.toLowerCase()); return j >= 0 ? (d.ligne || [])[j] : ""; });
+      }
+      const ligne = r.colonnes.map((_, i) => String(valeurs[i] == null ? "" : valeurs[i]).trim().slice(0, REFS_MAX_CASE));
       const k = cleRef(ligne[r.cle || 0]);
       if (!k) return json({ erreur: "La référence est obligatoire." }, 400);
       const ia = d.ancienne ? r.lignes.findIndex((l) => cleRef(l[r.cle || 0]) === cleRef(d.ancienne)) : -1;
@@ -3547,17 +4006,27 @@ async function traiter(req) {
     const ref = slug(d.ref || "").toUpperCase();
     const texte = String(d.texte || "").trim();
     const photo = typeof d.photo === "string" ? d.photo : "";
-    if (!texte && !photo) return json({ erreur: "Message vide." }, 400);
+    const docCle = d.doc && typeof d.doc.cle === "string" ? d.doc.cle : "";
+    if (!texte && !photo && !docCle) return json({ erreur: "Message vide." }, 400);
     if (texte.length > 4000) return json({ erreur: "Message trop long." }, 400);
     if (photo && photo.length > 900000) return json({ erreur: "Photo trop lourde." }, 400);
     const idx = await lireIndex();
     const c = idx.chantiers[ref];
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     if (!membreDe(c)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+    /* un document du dossier (plan, notice, note, photo…) : le message le désigne,
+       sans le recopier ; seul celui qui le voit dans le dossier peut l'envoyer */
+    let doc = null;
+    if (docCle) {
+      const f = (c.fichiers || []).find((x) => x.cle === docCle && !x.brouillon);
+      if (!f || !voit(personne, f, c)) return json({ erreur: "Document introuvable dans ce dossier." }, 404);
+      doc = { cle: f.cle, titre: String(f.titre || f.cle.split("/").pop()).slice(0, 160), type: f.type || "", taille: f.taille || 0 };
+    }
 
     const fil = await lireMessages(ref);
     const message = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
       auteur: personne.nom, texte, photo, quand: new Date().toISOString() };
+    if (doc) message.doc = doc;
     fil.messages.push(message);
     if (fil.messages.length > 200) fil.messages = fil.messages.slice(-200);
     fil.lectures[personne.nom] = message.id;
@@ -3567,7 +4036,7 @@ async function traiter(req) {
     const prevenus = [];
     prevenirPush(store, magasinAnnuaire(), c.equipe || [], "messages", {
       titre: "Message — " + (c.client || ref),
-      texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : "une photo"),
+      texte: personne.nom + " : " + (texte ? texte.slice(0, 160) : doc ? "« " + doc.titre + " »" : "une photo"),
       url: "./rapports.html?discussion=" + encodeURIComponent(ref),
       tag: "discu-" + ref
     }, contactPush(url.origin), { comptes, exclure: [personne.nom] }).catch(() => {});
@@ -3634,6 +4103,8 @@ async function traiter(req) {
   if (action === "liste") {
     const idx = await lireIndex();
     const chantiers = [];
+    let comptesListe = [];
+    try { comptesListe = await lireComptes(personne.societe); } catch { comptesListe = []; }
     /* le PV d'un dossier au devis accepté : lu dans la fiche du relevé,
        gardé tant qu'elle ne change pas (elle porte les photos, on ne la
        relit pas à chaque ouverture) */
@@ -3657,7 +4128,7 @@ async function traiter(req) {
       if (visibles.length) { try { pv = await pvDe(c); } catch { pv = null; } }
       /* combien de travaux supplémentaires restent à chiffrer : la pastille de la liste */
       let nbTs = 0;
-      if (visibles.length) { try { nbTs = (await tsDuDossier(visibles)).length; } catch { nbTs = 0; } }
+      if (visibles.length) { try { nbTs = (await tsDuDossier(visibles, c)).length; } catch { nbTs = 0; } }
       if (visibles.length) chantiers.push({ ref: c.ref, client: c.client, adresse: c.adresse, maj: c.maj, pv, ts: nbTs,
         lat: typeof c.lat === "number" ? c.lat : null,
         lon: typeof c.lon === "number" ? c.lon : null,
@@ -3665,6 +4136,11 @@ async function traiter(req) {
         avancement: avancementDe(c),
         avancementPar: c.avancementPar || "",
         avancementLe: c.avancementLe || "",
+        commandes: c.commandes || {},
+        commandesPar: c.commandesPar || "",
+        commandesLe: c.commandesLe || "",
+        autocontrole: etatAutocontrole(c),
+        autocontrolePour: c.autocontrole ? techniciensDu(c, comptesListe) : [],
         equipe: c.equipe || [],
         reste: c.reste || [],
         note: c.note || null,
@@ -3755,8 +4231,14 @@ async function traiter(req) {
 
   /* les travaux supplémentaires pas encore chiffrés d'un dossier : ceux de son dernier suivi
      (ils passent d'un suivi au suivant) et les « Demande client » de ses points de chantier */
-  async function tsDuDossier(visibles) {
-    const out = [];
+  /* les TS notés directement sur le chantier, par le bureau, sans suivi */
+  function tsNotesChantier(c) {
+    return ((c && c.tsDossier) || []).filter((t) => !t.fait && String(t.texte || "").trim())
+      .map((t) => ({ id: t.id, texte: t.texte, qui: t.qui || "", depuis: t.depuis || "", cle: "dossier:" + c.ref, source: "dossier",
+        origine: "Ajoutée sur le chantier" + (t.auteur ? " par " + t.auteur : ""), retirable: true }));
+  }
+  async function tsDuDossier(visibles, c) {
+    const out = c ? tsNotesChantier(c) : [];
     const suivis = visibles.filter((f) => f.type === "suivi" && f.donnees).sort((x, y) =>
       String(y.date || "").localeCompare(String(x.date || "")) || String(y.publie || "").localeCompare(String(x.publie || "")));
     if (suivis[0]) for (const t of await tsDuSuivi(suivis[0])) out.push({ ...t, cle: suivis[0].cle, source: "suivi", origine: suivis[0].titre || "Suivi de chantier" });
@@ -3772,7 +4254,7 @@ async function traiter(req) {
     if (!c) return json({ erreur: "Dossier introuvable." }, 404);
     const visibles = c.fichiers.filter((f) => voit(personne, f, c) && !f.brouillon);
     if (!visibles.length && !bureau) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
-    const ts = (await tsDuDossier(visibles)).map((t) => ({ ...t, jours: joursDepuis(t.depuis) }))
+    const ts = (await tsDuDossier(visibles, c)).map((t) => ({ ...t, jours: joursDepuis(t.depuis) }))
       .sort((a, b) => String(a.depuis || "").localeCompare(String(b.depuis || "")));
     /* les demandes chiffrées depuis le site (bureau, tableau de bord) : le suivi resté ouvert
        sur un téléphone les coche aussi, sans quoi il les republierait « à chiffrer » */
@@ -3860,6 +4342,11 @@ async function traiter(req) {
             depuis: t.depuis, jours: joursDepuis(t.depuis), source: "point", origine: pf.titre || "Point de chantier" });
         }
       }
+      for (const t of tsNotesChantier(c)) {
+        n.ts++; tsIci++;
+        aTraiter.push({ genre: "ts", ...chez, cle: t.cle, id: t.id, titre: t.texte, qui: t.qui,
+          depuis: t.depuis, jours: joursDepuis(t.depuis), source: "dossier", origine: t.origine });
+      }
       if (tsIci) n.tsChantiers++;
     }
     /* les points bloquants des suivis, avec leur rappel */
@@ -3896,6 +4383,18 @@ async function traiter(req) {
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const cle = String(d.cle || "");
     const idx = await lireIndex();
+    if (cle.indexOf("dossier:") === 0) {
+      const cd = idx.chantiers[cle.slice(8)];
+      if (!cd) return json({ erreur: "Dossier introuvable." }, 404);
+      if (!membreDe(cd)) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
+      const td = (cd.tsDossier || []).find((x) => String(x.id) === String(d.id));
+      if (!td) return json({ erreur: "Travaux supplémentaire introuvable." }, 404);
+      td.fait = d.fait !== false;
+      if (td.fait) { td.chiffrePar = personne.nom; td.chiffreLe = new Date().toISOString(); }
+      else { delete td.chiffrePar; delete td.chiffreLe; }
+      await store.setJSON(INDEX, idx);
+      return json({ ok: true, fait: td.fait });
+    }
     const f = trouver(idx, cle);
     if (!f || (f.type !== "suivi" && f.type !== "point")) return json({ erreur: "Suivi introuvable." }, 404);
     if (!membreDe(chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
@@ -3936,6 +4435,79 @@ async function traiter(req) {
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
     return json({ ok: true, ref, avancement: n });
+  }
+
+  /* ---------- les commandes à faire du chantier ----------
+     Des cases à cocher, sous l'avancement : Dossier, Filerie, Boîtes,
+     Appareillage, TD, Finition. Tout le monde les voit ; le bureau seul
+     les coche (pas les techniciens). */
+  if (action === "commandes-chantier") {
+    if (!bureau) return json({ erreur: "Seul le bureau coche les commandes à faire." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    const cases = {};
+    COMMANDES_CHANTIER.forEach((k) => { if (d.cases && d.cases[k]) cases[k] = true; });
+    c.commandes = cases;
+    c.commandesPar = personne.nom;
+    c.commandesLe = new Date().toISOString();
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, ref, commandes: cases, par: c.commandesPar, le: c.commandesLe });
+  }
+
+  /* ---------- demander l'autocontrôle du dossier (ou retirer la demande) ---------- */
+  if (action === "autocontrole-demande") {
+    if (!bureau) return json({ erreur: "Seul le bureau demande l'autocontrôle." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const ref = String(d.ref || "").trim();
+    const idx = await lireIndex();
+    const c = idx.chantiers[ref];
+    if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+    let comptes = [];
+    try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+    const techs = techniciensDu(c, comptes);
+    const avant = etatAutocontrole(c);
+    let nouvelle = false;
+    if (d.demande === true) {
+      /* une demande en cours reste celle d'origine (sa date ne bouge pas) ; une demande faite repart à neuf */
+      if (!avant || avant.fait) { c.autocontrole = { par: personne.nom, le: new Date().toISOString() }; nouvelle = true; }
+    } else if (d.demande === false) {
+      delete c.autocontrole;
+    } else return json({ erreur: "Demande illisible." }, 400);
+    idx.chantiers[ref] = c;
+    await store.setJSON(INDEX, idx);
+    let prevenus = [];
+    if (nouvelle && techs.length) {
+      try {
+        prevenus = await prevenirPush(store, magasinAnnuaire(), techs, "rappels", {
+          titre: "Autocontrôle à faire", texte: (c.client || ref) + " · " + ref + " — demandé par " + personne.nom + ". À publier dans le dossier.",
+          url: "./autocontrole.html?ref=" + encodeURIComponent(ref) + (c.client ? "&client=" + encodeURIComponent(c.client) : ""),
+          tag: "autoc-" + ref, urgent: true
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { prevenus = []; }
+    }
+    return json({ ok: true, ref, autocontrole: etatAutocontrole(c), techniciens: techs, prevenus });
+  }
+
+  /* ---------- les autocontrôles demandés, pas encore publiés : l'accueil du technicien ---------- */
+  if (action === "autocontroles-a-faire") {
+    const idx = await lireIndex();
+    let comptes = [];
+    try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+    const out = [];
+    Object.values(idx.chantiers).forEach((c) => {
+      const e = etatAutocontrole(c);
+      if (!e || e.fait) return;
+      if (!techniciensDu(c, comptes).some((n) => n === personne.nom || memeNom(n, personne.nom))) return;
+      out.push({ ref: c.ref, client: c.client || "", adresse: c.adresse || "", par: e.par, le: e.le });
+    });
+    out.sort((a, b) => String(a.le).localeCompare(String(b.le)));
+    return json({ autocontroles: out });
   }
 
   /* ---------- mettre un dossier de côté, ou le reprendre ---------- */
@@ -3991,11 +4563,35 @@ async function traiter(req) {
     if (f.type !== "commande") return json({ erreur: "Seule une commande se marque saisie." }, 400);
     if (!voit(personne, f, chantierDe(idx, cle))) return json({ erreur: "Ce dossier ne vous est pas attribué." }, 403);
 
+    const avant = f.saisie || null;
     if (d.saisie === false) delete f.saisie;
     else f.saisie = { par: personne.nom, le: new Date().toISOString(),
                       note: String(d.note || "").trim().slice(0, 200) };
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, saisie: f.saisie || null });
+    /* le technicien qui a fait la commande l'apprend sur son téléphone, avec le mot du bureau
+       (une seule fois : remarquer la même commande avec le même mot ne renvoie rien) */
+    let prevenus = [], envoi = "";
+    if (f.saisie && f.auteur && !memeNom(f.auteur, personne.nom) && (!avant || avant.note !== f.saisie.note)) {
+      const c = chantierDe(idx, cle), ref = (c && c.ref) || String(cle).split("/")[0];
+      const mot = f.saisie.note;
+      let comptes = [];
+      try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+      try {
+        prevenus = await prevenirPush(store, magasinAnnuaire(), [f.auteur], "documents", {
+          titre: avant ? "Commande saisie : nouveau mot de " + personne.nom : "Commande saisie par " + personne.nom,
+          texte: ((c && c.client) || ref) + " · " + ref + (f.date ? " — commande du " + f.date.split("-").reverse().join("/") : "")
+            + (mot ? " : « " + mot + " »" : " : passée chez le fournisseur."),
+          url: "./chantier.html?ref=" + encodeURIComponent(ref), tag: "cmd-saisie-" + cle
+        }, contactPush(url.origin), { comptes, exclure: [personne.nom] });
+      } catch { prevenus = []; }
+      /* ce que le bureau doit savoir de l'envoi : parti, gardé pour le matin, ou impossible */
+      if (prevenus.length) envoi = "envoyee";
+      else {
+        const ab = await lireAbonne(store, nomDuCompte(f.auteur, comptes));
+        envoi = !ab.abonnements.length ? "aucune" : ab.prefs.documents === false ? "coupee" : enSilence(ab.prefs) ? "silence" : "echec";
+      }
+    }
+    return json({ ok: true, saisie: f.saisie || null, prevenus, envoi, technicien: f.auteur || "" });
   }
 
   if (action === "position-enregistrer") {
@@ -4063,8 +4659,9 @@ async function traiter(req) {
     const blob = await store.get(cle, { type: "arrayBuffer" });
     if (!blob) return json({ erreur: "Rapport introuvable." }, 404);
 
-    /* accusé de lecture : première ouverture par chaque personne */
-    try {
+    /* accusé de lecture : première ouverture par chaque personne (pas pour une vignette
+       ni un aperçu à l'appui long : &apercu=1, ce n'est pas avoir lu le document) */
+    if (url.searchParams.get("apercu") !== "1") try {
       f.lectures = f.lectures || {};
       if (!f.lectures[personne.nom]) {
         f.lectures[personne.nom] = new Date().toISOString();
@@ -4399,6 +4996,46 @@ async function traiter(req) {
     await store.setJSON(INDEX, idx);
     try { await store.delete(cle); } catch { /* rien à retirer */ }
     return json({ ok: true });
+  }
+
+  /* ---------- changer la catégorie d'un document technique ----------
+     Déposé comme plan, c'était une notice : il change de nature, et donc de
+     sous-dossier (« Plans », « Documents techniques », « Photos du chantier »).
+     Le bureau, ou celui qui l'a déposé. */
+  if (action === "categorie-document") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const CATS = ["Plan", "Plan modifié", "Fiche technique", "Schéma", "Notice", "Photo", "Autre", RESERVE_CA];
+    const cat = String(d.categorie || "");
+    if (CATS.indexOf(cat) < 0) return json({ erreur: "Catégorie inconnue." }, 400);
+    const idx = await lireIndex();
+    const f = trouver(idx, String(d.cle || ""));
+    if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
+    if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, change sa catégorie." }, 403);
+    /* entrer dans le dossier réservé, ou en sortir : le bureau seulement */
+    if ((cat === RESERVE_CA || f.prive) && !bureau) return json({ erreur: "Réservé aux chargés d'affaires." }, 403);
+    f.visite = cat;
+    if (cat === RESERVE_CA) f.prive = true; else delete f.prive;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, categorie: cat });
+  }
+
+  /* ---------- renommer un document du dossier (plan, photos, suivi, commande…) ----------
+     Seul son nom change (celui de la liste, et du fichier téléchargé pour un
+     document importé) : le fichier reste où il est, et le nom survit à une
+     republication. Le bureau seulement. */
+  if (action === "renommer-document") {
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const titre = String(d.titre || "").normalize("NFC").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, 110);
+    if (!titre) return json({ erreur: "Donnez un nom." }, 400);
+    const idx = await lireIndex();
+    const f = trouver(idx, String(d.cle || ""));
+    if (!f || f.brouillon) return json({ erreur: "Document introuvable." }, 404);
+    if (!bureau) return json({ erreur: "Seul le bureau renomme un document." }, 403);
+    f.titre = titre; f.titreBureau = titre;
+    await store.setJSON(INDEX, idx);
+    return json({ ok: true, titre });
   }
 
   if (action === "supprimer") {

@@ -15,12 +15,12 @@
    ===================================================================== */
 var COQUILLE = "coquille-1", CDN = "bibliotheques-1", DONNEES = "donnees-1", REGLAGES = "reglages";
 var PAGES = ["/aide.html", "/autocontrole.html", "/carnet.html", "/chantier.html", "/client.html", "/partage.html", "/rdv.html", "/demandes.html", "/commande.html", "/compte.html", "/dwg.html",
-  "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/mesnotes.html", "/photos.html", "/plans.html", "/point.html",
+  "/equipe.html", "/etiquettes.html", "/index.html", "/knx.html", "/notes.html", "/mesnotes.html", "/note.html", "/photos.html", "/plans.html", "/point.html",
   "/cloud.html", "/discussions.html", "/rapports.html", "/reception.html", "/releve.html", "/sav.html", "/schema.html", "/suivi.html", "/tableau.html",
   "/technique.html", "/utilitaires.html", "/importer.html",
   "/mentions-legales.html", "/confidentialite.html", "/cgu.html", "/conditions-abonnement.html", "/sous-traitance.html", "/facturation.html"];
-var FICHIERS = ["/annotation.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/fonds-anim.js", "/commun.js", "/theme.js", "/horsligne.js",
-  "/notifications.js", "/reseau.js", "/sobre.js", "/finitions.js", "/personnes.js", "/palette.js", "/carte.js", "/vitrine.js", "/vitrine.css", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/stylet.js", "/teinte.js", "/boussole.js", "/transfert.js", "/navigation.js", "/sobre.css", "/pied.js", "/legal.css",
+var FICHIERS = ["/annotation.js", "/reduire.js", "/encours.js", "/cartouche.js", "/clavier.js", "/courbe-charge.js", "/qr.js", "/dates.js", "/dossier.js", "/fond.js", "/fonds-anim.js", "/commun.js", "/coller.js", "/theme.js", "/horsligne.js",
+  "/notifications.js", "/reseau.js", "/sobre.js", "/finitions.js", "/personnes.js", "/palette.js", "/carte.js", "/vitrine.js", "/vitrine.css", "/symboles-elec.js", "/une-page.js", "/visionneuse.js", "/doc-cote.js", "/pieces-jointes.js", "/stylet.js", "/teinte.js", "/boussole.js", "/pdf-design.js", "/transfert.js", "/navigation.js", "/sobre.css", "/pied.js", "/legal.css",
   "/manifest.webmanifest", "/polices/jakarta-var.woff2", "/polices/outfit-400.ttf", "/polices/outfit-700.ttf", "/polices/manuscrite.ttf", "/icone-120.png", "/icone-152.png", "/icone-167.png",
   "/icone-180.png", "/icone-192.png", "/icone-512.png", "/entete-contact.png", "/entete-societe.png"];
 /* les bibliothèques sont servies par le site lui-même (vendor/), plus par des CDN */
@@ -28,7 +28,7 @@ var BIBLIOTHEQUES = [];
 FICHIERS.push("/vendor/jspdf-2.5.1/jspdf.umd.min.js", "/vendor/pdfjs-3.11.174/pdf.min.js", "/vendor/pdfjs-3.11.174/pdf.worker.min.js");
 var HOTES_CDN = /^(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 /* lectures du site qu'on garde (pas les appels de service) */
-var SANS_CACHE = /^(ping|tic|push-cle|push-etat|push-journal)$/;
+var SANS_CACHE = /^(ping|tic|push-cle|push-etat|push-journal|push-actif)$/;
 var MAX_DONNEES = 400, MAX_OCTETS = 12 * 1024 * 1024;
 
 /* ---------- allumé ou non : la page le dit, on s'en souvient ---------- */
@@ -131,7 +131,7 @@ function page(req){
 }
 function horsLignePage(){
   return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
-    + '<title>Hors ligne</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#22201C;background:#F4F1EA">'
+    + '<title>Hors ligne</title><body style="font-family:system-ui,sans-serif;padding:32px;color:#1C1E22;background:#EAEDF4">'
     + '<h2>Hors ligne</h2><p>Cette page n\'a pas encore été ouverte sur cet appareil. Elle sera disponible hors connexion '
     + 'dès que vous l\'aurez ouverte une fois avec du réseau.</p><p><a href="/index.html">Revenir à l\'accueil</a></p>',
     {status:200, headers:{"content-type":"text/html; charset=utf-8"}});
@@ -213,31 +213,75 @@ self.addEventListener("fetch", function(e){
   if(HOTES_CDN.test(u.hostname)) e.respondWith(bibliotheque(req));
 });
 
+/* ---------- vue sur un appareil, elle se tait sur les autres ----------
+   La notification porte son sujet (tag), son heure d'envoi et sa signature
+   (serveur/notifications.mjs). Arrivée en retard (l'ordinateur sortait de
+   veille), on demande d'abord si elle a déjà été vue ailleurs : si oui,
+   elle ne s'affiche pas. Touchée ou balayée ici, on le dit au serveur, qui
+   la ferme sur les autres ordinateurs. */
+var APPLE = /iPhone|iPad|Macintosh/.test(self.navigator.userAgent || "") && !/Chrome|Chromium|Edg|Firefox/.test(self.navigator.userAgent || "");
+function signee(d){ return d && d.jv && d.mg && d.qui; }
+function versServeur(action, corps, ms){
+  return avecDelai(fetch("/api/rapports?action=" + action, {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(corps)})
+    .then(function(r){ return r.json(); }), ms || 5000);
+}
+function encoreUtile(d){
+  if(!signee(d) || !d.le) return Promise.resolve(true);
+  if(Date.now() - d.le < 60000) return Promise.resolve(true);          /* toute fraîche : rien à demander */
+  return self.registration.pushManager.getSubscription().catch(function(){ return null; }).then(function(ab){
+    return versServeur("push-encore", {mg:d.mg, qui:d.qui, jv:d.jv, tag:d.tag, le:d.le, endpoint: ab ? ab.endpoint : ""}, 4000);
+  })
+    .then(function(r){ return !(r && r.montrer === false); })
+    .catch(function(){ return true; });                                 /* sans réponse, on montre */
+}
+function fermerTags(tags){
+  return Promise.all((tags || []).map(function(t){
+    return self.registration.getNotifications({tag:String(t)}).then(function(ns){ ns.forEach(function(n){ n.close(); }); });
+  }));
+}
+function direVue(n){
+  var d = n.data || {};
+  if(!signee(d) || !d.tag) return Promise.resolve();
+  return self.registration.pushManager.getSubscription().catch(function(){ return null; }).then(function(ab){
+    return versServeur("push-vu", {mg:d.mg, qui:d.qui, jv:d.jv, tag:d.tag, endpoint: ab ? ab.endpoint : ""}).catch(function(){});
+  });
+}
+
 self.addEventListener("push", function(e){
   var d = {};
   try { d = e.data ? e.data.json() : {}; }
   catch (err) { d = { texte: e.data ? e.data.text() : "" }; }
+  /* vue sur un autre appareil : on la ferme ici */
+  if (d.fermer) { e.waitUntil(fermerTags(d.fermer)); return; }
   var options = {
     body: d.texte || "",
     icon: "/icone-192.png",
     badge: "/icone-192.png",
-    data: { url: d.url || "./index.html" },
-    timestamp: Date.now()
+    data: { url: d.url || "./index.html", tag: d.tag || "", mg: d.mg || "", qui: d.qui || "", jv: d.jv || "" },
+    timestamp: d.le || Date.now()
   };
   /* même sujet (même discussion, même rappel) : la nouvelle remplace
      l'ancienne au lieu de s'empiler, et sonne quand même */
   if (d.tag) { options.tag = d.tag; options.renotify = true; }
-  e.waitUntil(Promise.all([
-    self.registration.showNotification(d.titre || "Suivi travaux 360", options),
-    pastillePlusUn()
-  ]));
+  var titre = d.titre || "Suivi travaux 360";
+  e.waitUntil(encoreUtile(d).then(function(utile){
+    if (utile) return Promise.all([self.registration.showNotification(titre, options), pastillePlusUn()]);
+    /* déjà vue ailleurs. Safari exige qu'un message montre quelque chose, sinon il coupe l'abonnement :
+       on la montre sans bruit et on la retire aussitôt. Ailleurs, rien ne s'affiche. */
+    if (APPLE) {
+      options.silent = true; options.renotify = false; options.tag = d.tag || "vue";
+      return self.registration.showNotification(titre, options).then(function(){ return fermerTags([options.tag]); });
+    }
+  }));
 });
+
+self.addEventListener("notificationclose", function(e){ e.waitUntil(direVue(e.notification)); });
 
 self.addEventListener("notificationclick", function(e){
   e.notification.close();
   var cible = (e.notification.data && e.notification.data.url) || "./index.html";
   var url = new URL(cible, self.registration.scope).href;
-  e.waitUntil(self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(fenetres){
+  e.waitUntil(Promise.all([direVue(e.notification), self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(function(fenetres){
     for (var i = 0; i < fenetres.length; i++) {
       var w = fenetres[i];
       if (w.navigate && w.focus) {
@@ -246,5 +290,5 @@ self.addEventListener("notificationclick", function(e){
       }
     }
     return self.clients.openWindow(url);
-  }));
+  })]));
 });

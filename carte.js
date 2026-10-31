@@ -109,7 +109,7 @@
       "html.theme-clair .carte-qr{box-shadow:0 0 0 1px rgba(12,18,28,.16),0 4px 10px -5px rgba(15,23,42,.35)}" +
       ".carte-qr svg{display:block;width:100%;height:100%}" +
       ".carte-qr:active{transform:scale(.94)}" +
-      ".carte-qr:focus-visible{outline:2px solid #FB923C;outline-offset:3px}" +
+      ".carte-qr:focus-visible{outline:2px solid #3B82F6;outline-offset:3px}" +
       "#carteFen{position:fixed;inset:0;z-index:9998;display:flex;align-items:center;justify-content:center;padding:20px;" +
       "background:rgba(5,8,12,.72);-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
       "#carteFen[hidden]{display:none}" +
@@ -122,7 +122,7 @@
       "#carteFen .cf-fn{color:#4B5563;font-size:14px;margin-top:2px}" +
       "#carteFen .cf-co{color:#374151;font-size:13.5px;margin-top:8px;line-height:1.5}" +
       "#carteFen .cf-aide{color:#6B7280;font-size:12.5px;margin-top:12px;line-height:1.45}" +
-      "#carteFen .cf-manque{color:#B45309;font-size:12.5px;margin-top:8px}" +
+      "#carteFen .cf-manque{color:#2563EB;font-size:12.5px;margin-top:8px}" +
       "#carteFen .cf-manque a{color:inherit}" +
       "#carteFen .cf-fermer{margin-top:14px;min-height:44px;width:100%;border-radius:12px;border:1px solid #D1D5DB;background:#F3F4F6;color:#111827;font:700 15px/1 inherit;cursor:pointer}" +
       "@media (prefers-reduced-motion:reduce){#carteFen .cf-boite{animation:none}}";

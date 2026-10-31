@@ -2,15 +2,17 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261007a"></script>
-<script src="./clavier.js?v=20261010a" defer></script>
-<script src="./commun.js?v=20261007a" defer></script>
+<script src="./theme.js?v=20261024f"></script>
+<script src="./clavier.js?v=20261022a" defer></script>
+<script src="./commun.js?v=20261030c" defer></script>
+<script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0E14">
-<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B1220">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png?v=2">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Travaux 360">
 <title>Cloud — Suivi travaux 360</title>
@@ -24,9 +26,9 @@
 @font-face{font-family:"Plus Jakarta Sans";src:url("./polices/jakarta-var.woff2") format("woff2-variations");font-weight:200 800;font-style:normal;font-display:swap}
 :root{
   --g-900:#0A0E14;--g-800:#10161F;--g-700:#1A2230;--trait-tech:rgba(255,255,255,.10);
-  --bg:#383E42;--card:#FFFFFF;--field:#EFF1F4;--rule:rgba(10,14,20,.09);
+  --bg:#0A0F1A;--card:#FFFFFF;--field:#EFF1F4;--rule:rgba(10,14,20,.09);
   --ink:#0C1119;--ink-2:#4B5563;--ink-3:#6B7684;
-  --accent:#B45309;--accent-fonce:#92400E;--accent-vif:#FB923C;--accent-soft:#FDF4EA;
+  --accent:#2563EB;--accent-fonce:#1D4ED8;--accent-vif:#3B82F6;--accent-soft:#EEF4FF;
   --data:#0E7490;--data-vif:#22D3EE;--data-soft:#E7F4F7;
   --dossier:#3A8EE6;--dossier-fonce:#2B74C4;
   --vert:#3F6B52;--vert-soft:#EAF2ED;--rouge:#A03A33;--rouge-soft:#F8EDEB;
@@ -93,6 +95,10 @@ header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-wid
 .el{position:relative;border-radius:10px;padding:8px 6px 10px;text-align:center;cursor:pointer;user-select:none;-webkit-user-select:none}
 .el:hover{background:#F4F6F8}
 .el:focus-visible{outline:3px solid var(--accent-vif)}
+/* glisser sur un dossier : il s'allume ; l'élément qu'on déplace s'estompe */
+.el.cible{background:rgba(58,142,230,.14);box-shadow:inset 0 0 0 2px var(--dossier)}
+.el.tire{opacity:.45}
+.ariane button.cible{background:rgba(58,142,230,.18);box-shadow:inset 0 0 0 2px var(--dossier);border-radius:8px}
 .vig{height:96px;display:flex;align-items:center;justify-content:center;margin-bottom:6px}
 .vig img{max-width:100%;max-height:96px;border-radius:6px;box-shadow:0 1px 4px rgba(10,14,20,.25);object-fit:cover;background:#E9ECF0}
 .ico-dos{width:84px;height:68px;position:relative}
@@ -206,9 +212,9 @@ header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-wid
 .envois li.ko{color:var(--rouge)}
 .toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:90;background:var(--g-900);color:#fff;padding:10px 16px;border-radius:999px;font-size:14px;max-width:90vw;text-align:center}
 </style>
-<script src="./horsligne.js?v=20261006a" defer></script>
-<script src="./finitions.js?v=20261010a" defer></script>
-<script src="./palette.js?v=20261015a" defer></script>
+<script src="./horsligne.js?v=20261024b" defer></script>
+<script src="./finitions.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261030a" defer></script>
 </head>
 <body>
 <header>
@@ -266,8 +272,8 @@ header h1 svg{width:24px;height:24px;stroke:var(--data-vif);fill:none;stroke-wid
 <div class="envois" id="envois" hidden aria-live="polite"><div class="et"><span id="envoisT">Envoi</span><button type="button" class="b-x" id="envoisX" aria-label="Fermer" style="width:30px;height:30px;font-size:16px">×</button></div><ul id="envoisL"></ul></div>
 <div class="toast" id="toast" hidden role="status"></div>
 
-<script src="./annotation.js?v=20261009a"></script>
-<script src="./qr.js?v=20261009a"></script>
+<script src="./annotation.js?v=20261030c"></script>
+<script src="./qr.js?v=20261024b"></script>
 <script>
 (function(){
 "use strict";
@@ -306,7 +312,7 @@ function quand(iso){
 function extDe(n){ var m=/\.([a-z0-9]{1,5})$/i.exec(n||""); return m ? m[1].toLowerCase() : ""; }
 function estImage(e){ return e.type==="fichier" && /^image\/(jpeg|png|webp|gif)/.test(e.mime||""); }
 function url(a, e, dl){ return API+a+"&id="+encodeURIComponent(e.id)+"&auth="+encodeURIComponent(S.jeton)+(dl ? "&telecharger=1" : "")+"&v="+encodeURIComponent(e.maj||""); }
-var TEINTES=["#0E7490","#B45309","#3F6B52","#5B5F80","#A03A33","#1E5BB8","#8A6524"];
+var TEINTES=["#0E7490","#2563EB","#3F6B52","#5B5F80","#A03A33","#1E5BB8","#8A6524"];
 function teinte(n){ var h=0; String(n||"").split("").forEach(function(c){ h=(h*31+c.charCodeAt(0))|0; }); return TEINTES[Math.abs(h)%TEINTES.length]; }
 function initiales(n){ var p=String(n||"?").trim().split(/\s+/); return ((p[0]||"?")[0]+(p.length>1 ? p[p.length-1][0] : "")).toUpperCase(); }
 var SVG_DOSSIER='<svg viewBox="0 0 84 68" aria-hidden="true"><path d="M4 12a6 6 0 0 1 6-6h20l7 7h37a6 6 0 0 1 6 6v37a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6z" fill="#2B74C4"/><path d="M4 22a6 6 0 0 1 6-6h64a6 6 0 0 1 6 6v34a6 6 0 0 1-6 6H10a6 6 0 0 1-6-6z" fill="#4A9BEF"/></svg>';
@@ -339,7 +345,11 @@ function peindreAriane(){
   function b(t, f, cur){ var x=el("button","",t); x.type="button"; if(cur) x.setAttribute("aria-current","page"); x.addEventListener("click", f); h.appendChild(x); }
   if(VUE){ b(noms[VUE], function(){}, true); return; }
   b("Cloud", function(){ aller(null); }, !DOSSIER);
-  CHEMIN.forEach(function(c, i){ h.appendChild(el("span","sep","›")); b(c.nom, function(){ aller(c.id); }, i===CHEMIN.length-1); });
+  if(DOSSIER) cibleDepot(h.lastChild, null, "Cloud");
+  CHEMIN.forEach(function(c, i){
+    h.appendChild(el("span","sep","›")); b(c.nom, function(){ aller(c.id); }, i===CHEMIN.length-1);
+    if(i<CHEMIN.length-1) cibleDepot(h.lastChild, c.id, c.nom);       /* un dossier au-dessus : on y remonte ce qu'on y dépose */
+  });
 }
 function trier(l){
   var f={nom:function(a,b){ return a.nom.localeCompare(b.nom, "fr", {numeric:true}); },
@@ -426,7 +436,50 @@ function tuile(e, images){
   li.addEventListener("click", ouvrirE);
   li.addEventListener("keydown", function(ev){ if(ev.key==="Enter") ouvrirE(); if(ev.key==="Delete" && VUE!=="corbeille") supprimer(e); });
   li.addEventListener("contextmenu", function(ev){ ev.preventDefault(); menuElement(e, p, ev); });
+  if(VUE!=="corbeille"){
+    /* on le prend pour le glisser sur un dossier (ou sur le fil d'Ariane, pour le remonter) */
+    li.draggable=true;
+    li.addEventListener("dragstart", function(ev){
+      TIRE=e; li.classList.add("tire");
+      try{ ev.dataTransfer.setData("application/x-cloud", e.id); ev.dataTransfer.setData("text/plain", e.nom); ev.dataTransfer.effectAllowed="move"; }catch(x){}
+    });
+    li.addEventListener("dragend", function(){ TIRE=null; li.classList.remove("tire"); });
+    if(e.type==="dossier") cibleDepot(li, e.id, e.nom);
+  }
   return li;
+}
+/* ---------- glisser sur un dossier : des fichiers de l'ordinateur (envoyés dedans),
+   ou un élément du Cloud (déplacé dedans) ---------- */
+var TIRE=null;
+function typesDe(ev){ return [].slice.call((ev.dataTransfer && ev.dataTransfer.types) || []); }
+function cibleDepot(noeud, id, nom){
+  function accepte(ev){
+    var t=typesDe(ev);
+    if(t.indexOf("Files")>=0) return "fichiers";
+    if(TIRE && TIRE.id!==id && (TIRE.parent||null)!==(id||null)) return "deplacer";
+    return "";
+  }
+  var n=0;
+  noeud.addEventListener("dragenter", function(ev){
+    var a=accepte(ev); if(!a) return;
+    ev.preventDefault(); n++; noeud.classList.add("cible");
+    if(a==="fichiers"){ $("depot").hidden=false; $("depot").textContent="Déposez pour envoyer dans « "+nom+" »"; }
+  });
+  noeud.addEventListener("dragover", function(ev){ var a=accepte(ev); if(!a) return; ev.preventDefault(); ev.stopPropagation(); try{ ev.dataTransfer.dropEffect = a==="fichiers" ? "copy" : "move"; }catch(x){} });
+  noeud.addEventListener("dragleave", function(){
+    n=Math.max(0, n-1); if(n) return; noeud.classList.remove("cible");
+    if(!$("depot").hidden) $("depot").textContent="Déposez pour envoyer dans « "+(CHEMIN.length ? CHEMIN[CHEMIN.length-1].nom : "Cloud")+" »";
+  });
+  noeud.addEventListener("drop", function(ev){
+    var a=accepte(ev); if(!a) return;
+    ev.preventDefault(); ev.stopPropagation(); n=0; noeud.classList.remove("cible"); $("depot").hidden=true;
+    if(a==="fichiers"){ envoyerFichiers(ev.dataTransfer.files, id); toast("Envoi dans « "+nom+" »."); return; }
+    var x=TIRE; TIRE=null;
+    appel("cloud-deplacer", {corps:{id:x.id, vers:id}}).then(function(r){
+      if(!r.ok){ toast(r.d.erreur || "Déplacement refusé."); return; }
+      toast("« "+x.nom+" » déplacé dans « "+nom+" »."); charger();
+    }).catch(function(){ toast("Pas de réseau."); });
+  });
 }
 function ouvrir(e, images){
   if(e.type==="dossier"){ aller(e.id); return; }
@@ -833,6 +886,9 @@ function annoter(e){
   z.addEventListener("dragover", function(e){ if(dans(e)) e.preventDefault(); });
   z.addEventListener("dragleave", function(){ n=Math.max(0,n-1); if(!n) $("depot").hidden=true; });
   z.addEventListener("drop", function(e){ if(!dans(e)) return; e.preventDefault(); n=0; $("depot").hidden=true; envoyerFichiers(e.dataTransfer.files); });
+  /* un dépôt pris par un dossier (il arrête l'événement) remet aussi le compte à zéro */
+  document.addEventListener("drop", function(){ n=0; }, true);
+  document.addEventListener("dragend", function(){ n=0; $("depot").hidden=true; }, true);
 })();
 /* coller une image ou du texte (Ctrl+V) : il arrive dans le dossier ouvert */
 document.addEventListener("paste", function(e){
@@ -858,6 +914,6 @@ window.__cloud={etat:function(){ return {dossier:DOSSIER, vue:VUE, elements:ELS,
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261015b" defer></script>
+<script src="./navigation.js?v=20261030a" defer></script>
 </body>
 </html>

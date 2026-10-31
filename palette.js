@@ -36,20 +36,20 @@
     ["./releve.html", "Relevé technique", "releve", "visite rendez-vous", "pas-tech"],
     ["./suivi.html", "Suivi de chantier", "suivi", "visite reserves"],
     ["./commande.html", "Commande de matériel", "commande", "fournisseur"],
-    ["./point.html", "Le point", "commande", "bloquant reste a faire"],
+    ["./point.html", "Le point", "commande", "bloquant rappel tache a effectuer reste a faire"],
     ["./autocontrole.html", "Autocontrôle", "autocontrole", "verification"],
     ["./reception.html", "Réception de travaux", "reception", "pv proces-verbal lots signature"],
     ["./sav.html", "SAV", "sav", "depannage intervention appel"],
     ["./etiquettes.html", "Étiquettes", "etiquettes", "tableau qr"],
-    ["./photos.html", "Reportage photo", "photos", "images"],
+    ["./photos.html", "Photo et croquis", "photos", "images reportage croquis dessin"],
     ["./carnet.html", "Carnet et DOE", "carnet", "dossier ouvrages"],
     ["./technique.html", "Documents", "technique", "fiches techniques"],
     ["./schema.html", "Schéma unifilaire", "schema", "tableau electrique"],
-    ["./tableau.html", "Tableau de bord du bureau", "", "ts commandes bloquants relances", "bureau"],
+    ["./tableau.html", "Tableau de bord du bureau", "", "ts commandes rappels taches bloquants relances", "bureau"],
     ["./facturation.html", "Facturation du mois", "", "facture factures fin de mois cocher oubli", "bureau"],
     ["./rapports.html", "Carte des chantiers", "", "rapports dossiers plan"],
     ["./utilitaires.html", "Outils", "", "calcul boussole niveau"],
-    ["./utilitaires.html#refs", "Références", "", "articles base catalogue batigest"],
+    ["./utilitaires.html#refs", "Bibliothèque", "", "références articles base catalogue batigest"],
     ["./utilitaires.html#cable", "Section de câble", "", "chute de tension outil"],
     ["./utilitaires.html#surface", "Surface", "", "m2 outil"],
     ["./utilitaires.html#croix", "Produit en croix", "", "regle de trois outil"],
@@ -77,9 +77,9 @@
   /* ---------- l'apparence (ses deux versions : theme.js n'y touche pas) ---------- */
   var CSS =
     ":root{--pl-fond:rgba(5,8,12,.62);--pl-boite:#121821;--pl-boite2:#1A2230;--pl-trait:rgba(255,255,255,.10);--pl-trait2:rgba(255,255,255,.18);" +
-    "--pl-fg:#EEF2F7;--pl-fg2:#AEB8C4;--pl-fg3:#7C8896;--pl-or:#FB923C;--pl-or-doux:rgba(251,146,60,.16);--pl-cy:#22D3EE}" +
+    "--pl-fg:#EEF2F7;--pl-fg2:#AEB8C4;--pl-fg3:#7C8896;--pl-or:#3B82F6;--pl-or-doux:rgba(59,130,246,.16);--pl-cy:#22D3EE}" +
     "html.theme-clair{--pl-fond:rgba(15,23,42,.38);--pl-boite:#FFFFFF;--pl-boite2:#F1F4F8;--pl-trait:rgba(12,18,28,.10);--pl-trait2:rgba(12,18,28,.18);" +
-    "--pl-fg:#0C1119;--pl-fg2:#3F4A57;--pl-fg3:#5B6673;--pl-or:#C2560C;--pl-or-doux:rgba(194,86,12,.10);--pl-cy:#0E7490}" +
+    "--pl-fg:#0C1119;--pl-fg2:#3F4A57;--pl-fg3:#5B6673;--pl-or:#2563EB;--pl-or-doux:rgba(37,99,235,.10);--pl-cy:#0E7490}" +
     "#palette{position:fixed;inset:0;z-index:9999;display:flex;align-items:flex-start;justify-content:center;padding:12vh 16px 16px;background:var(--pl-fond);" +
     "-webkit-backdrop-filter:blur(3px);backdrop-filter:blur(3px);font-family:'Plus Jakarta Sans',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif}" +
     "#palette[hidden]{display:none}" +

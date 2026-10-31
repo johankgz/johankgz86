@@ -13,6 +13,7 @@
 (function(){
 "use strict";
 if(window.__navigation) return;
+var EMBLEME='<path d="M60 32 46.5 55.4h-29L4 32 17.5 8.6h29z" fill="#2563EB" stroke="#2563EB" stroke-width="5" stroke-linejoin="round"/> <path d="M4 32 17.5 8.6h29L60 32z" fill="#3B82F6"/> <path d="M4 32 17.5 8.6h29L60 32" fill="none" stroke="#3B82F6" stroke-width="5" stroke-linejoin="round"/> <circle cx="32" cy="32" r="16" fill="#0B1220"/> <path d="M42.9 25.6A11.8 11.8 0 1 0 43.6 36" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round"/> <path d="M38.6 24.4l5.2 1.9 1.1-5.4" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/> <path d="M34.2 21.6 25.8 34.2h5.9l-2.6 9.2 9.6-13.6h-6z" fill="#A3E635"/>';
 window.__navigation=true;
 
 var API="/api/rapports";
@@ -46,7 +47,7 @@ var ICO={
 var OUTILS=[
   ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
   ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
-  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Références"],
+  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Bibliothèque"],
   ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"]
 ];
 
@@ -66,31 +67,32 @@ var STYLE=
 +"@keyframes nvEntree{from{transform:translateX(-104%)}to{transform:none}}"
 +".nv-tete{display:flex;align-items:center;gap:10px;padding:0 2px 10px 4px}"
 +".nv-logo{width:38px;height:38px;border-radius:11px;background:#2B323A;display:flex;align-items:center;justify-content:center;flex:0 0 auto}"
-+".nv-logo svg{width:21px;height:21px;fill:none;stroke:#F08A2E;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
++".nv-logo svg{width:21px;height:21px;fill:none;stroke:#3B82F6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
++".nv-logo svg.embleme{width:28px;height:28px;fill:initial;stroke:none}.nv-logo{background:#0B1220}"
 +".nv-tete b{flex:1;min-width:0;font-size:15px;font-weight:800;letter-spacing:-.01em}"
 +".nv-x{width:44px;height:44px;flex:0 0 auto;border:0;border-radius:50%;background:#F1F3F6;color:#1E2329;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0}"
 +".nv-x svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
 +".nv-it{display:flex;align-items:center;gap:13px;width:100%;box-sizing:border-box;min-height:48px;padding:0 12px;margin:0;border:0;border-radius:12px;background:transparent;"
 +"color:#1E2329;font:inherit;font-size:15.5px;font-weight:600;text-decoration:none;text-align:left;cursor:pointer;box-shadow:none}"
-+".nv-it svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:#E2761B;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
++".nv-it svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:#3B82F6;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
 +".nv-it .nv-lib{flex:1;min-width:0}"
 +".nv-it .nv-suite{width:16px;height:16px;stroke:#8A929B;stroke-width:2.2}"
-+".nv-it[aria-current=\"page\"]{background:#FDEFE3;color:#B4561A;font-weight:700}"
++".nv-it[aria-current=\"page\"]{background:#EAF1FF;color:#2563EB;font-weight:700}"
 +".nv-it[aria-current=\"page\"] svg{stroke:currentColor}"
 +"@media (hover:hover){.nv-it:hover:not([aria-current=\"page\"]){background:#F1F3F6}.nv-ch:hover{background:#F4F6F8}}"
-+".nv-it:focus-visible,.nv-x:focus-visible,.nv-ch:focus-visible,.nv-outils a:focus-visible,.nv-compte:focus-visible{outline:2px solid #E2761B;outline-offset:2px}"
++".nv-it:focus-visible,.nv-x:focus-visible,.nv-ch:focus-visible,.nv-outils a:focus-visible,.nv-compte:focus-visible{outline:2px solid #3B82F6;outline-offset:2px}"
 +".nv-titre{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8A929B;padding:14px 12px 8px}"
 +".nv-outils{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 2px 4px}"
 +".nv-outils a{min-height:46px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px 4px;border-radius:10px;background:#F6F8FA;color:#3E4650;font-size:12px;font-weight:600;text-decoration:none;line-height:1.15}"
 +".nv-compte{display:flex;align-items:center;gap:11px;margin-top:auto;padding:12px 6px 2px;border-top:1px solid #E1E5EA;color:inherit;text-decoration:none}"
-+".nv-ini{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#EA7A1E;color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center}"
++".nv-ini{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#3B82F6;color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center}"
 +".nv-compte span{display:flex;flex-direction:column;min-width:0}"
 +".nv-compte b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
 +".nv-compte small{font-size:12.5px;color:#5B6470}"
 +".nv-vue{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}"
 /* les chantiers, dans le tiroir */
 +".nv-ch-tete{display:flex;align-items:center;gap:6px;padding:0 0 8px}"
-+".nv-retour{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 10px 0 4px;border:0;border-radius:10px;background:none;color:#B4561A;font:inherit;font-size:15px;font-weight:700;cursor:pointer;margin:0}"
++".nv-retour{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 10px 0 4px;border:0;border-radius:10px;background:none;color:#2563EB;font:inherit;font-size:15px;font-weight:700;cursor:pointer;margin:0}"
 +".nv-retour svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
 +".nv-ch-tete b{flex:1;font-size:16px;font-weight:800;text-align:right;padding-right:6px}"
 +".nv-ch-tete small{font-size:12.5px;color:#8A929B;font-weight:600}"
@@ -102,10 +104,10 @@ var STYLE=
 +".nv-ch:last-child{border-bottom:0}"
 +".nv-ch b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
 +".nv-ch small{display:block;font-size:12.5px;color:#5B6470;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-+".nv-ch[aria-current=\"page\"]{background:#FDEFE3}"
-+".nv-ch[aria-current=\"page\"] b{color:#B4561A}"
++".nv-ch[aria-current=\"page\"]{background:#EAF1FF}"
++".nv-ch[aria-current=\"page\"] b{color:#2563EB}"
 +".nv-vide{margin:0;padding:14px;color:#5B6470;font-size:14px}"
-+".nv-tous{display:block;margin-top:10px;padding:12px 4px 0;color:#B4561A;font-weight:700;font-size:14.5px;text-decoration:none;border-top:1px solid #E1E5EA}"
++".nv-tous{display:block;margin-top:10px;padding:12px 4px 0;color:#2563EB;font-weight:700;font-size:14.5px;text-decoration:none;border-top:1px solid #E1E5EA}"
 +"@media (prefers-reduced-motion:reduce){.nv-tiroir{animation:none}}";
 
 var BTN=null, FOND=null, TIROIR=null, R={}, AVANT=null, LISTE=null, CHARGE=null;
@@ -146,7 +148,8 @@ function construire(){
   TIROIR=el("nav", "nv-tiroir"); TIROIR.id="nvTiroir"; TIROIR.hidden=true;
   TIROIR.setAttribute("aria-label", "Menu");
   var tete=el("div", "nv-tete");
-  var logo=el("span", "nv-logo"); logo.innerHTML=svg('<path d="M6 12.5l4 4 8-9"/>');
+  /* l'emblème du site (logo-embleme.svg) : l'écrou, la flèche du 360°, l'éclair */
+  var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 64 64" aria-hidden="true">'+EMBLEME+'</svg>';
   var x=el("button", "nv-x"); x.type="button"; x.setAttribute("aria-label", "Fermer le menu"); x.innerHTML=svg(ICO.x);
   tete.appendChild(logo); tete.appendChild(el("b", "", "Suivi travaux 360")); tete.appendChild(x);
   TIROIR.appendChild(tete);

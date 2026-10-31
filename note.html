@@ -1,0 +1,1319 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<script src="./theme.js?v=20261024f"></script>
+<script src="./commun.js?v=20261030c" defer></script>
+<script src="./reduire.js?v=20261026a" defer></script>
+<script src="./dates.js?v=20261001a"></script>
+<script src="./reseau.js?v=20261010a"></script>
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<script src="./fond.js?v=20260929a"></script>
+<meta name="theme-color" content="#0B1220">
+<meta name="apple-mobile-web-app-capable" content="yes">
+
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png?v=2">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png?v=2">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png?v=2">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png?v=2">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png?v=2">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="apple-mobile-web-app-title" content="Travaux 360">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Note — Suivi travaux 360</title>
+<style>
+:root{
+  --bg:#EAEDF4;
+  --card:#FFFDF8;
+  --field:#E2E6EE;
+  --ink:#1C1E22;
+  --ink-2:#5D626D;
+  --ink-3:#767D8B;
+  --rule:#CFD5E1;
+  --accent:#2563EB;
+  --accent-soft:#EAF1FF;
+  --danger:#A6291F;
+  --danger-soft:#F8E4E0;
+  --ok:#5E6E42;
+  --r-card:2px;
+  --r-field:2px;
+  --tap:48px;
+  --shadow:0 1px 2px rgba(28,30,34,.05), 0 10px 28px -18px rgba(28,30,34,.35);
+}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg);
+  color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  font-size:16px;line-height:1.45;letter-spacing:-.01em;
+  padding-bottom:calc(28px + env(safe-area-inset-bottom,0px));
+  touch-action:manipulation;
+}
+button,.act,.chip,label,input,textarea,a{touch-action:manipulation}
+
+/* ---------- en-tête ---------- */
+header{
+  position:sticky;top:0;z-index:20;
+  background:rgba(241,243,247,.86);
+  -webkit-backdrop-filter:saturate(180%) blur(20px);
+  backdrop-filter:saturate(180%) blur(20px);
+  border-bottom:1px solid rgba(28,30,34,.07);
+  padding:calc(10px + env(safe-area-inset-top,0px)) 14px 9px;
+}
+.h-row{display:flex;align-items:baseline;gap:10px;justify-content:space-between}
+header h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
+header .ref{font-size:13px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.menu-link{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
+ background:rgba(118,125,139,.14);color:var(--ink-2);font-size:13px;font-weight:600;
+ text-decoration:none;margin-right:10px}
+
+main{max-width:760px;margin:0 auto;padding:16px 14px 8px}
+section[hidden]{display:none}
+
+/* ---------- barre d'onglets en haut ---------- */
+nav#nav{display:flex;gap:1px;margin:9px -4px 0;padding:0 4px 2px;overflow-x:auto;
+ -webkit-overflow-scrolling:touch;scrollbar-width:none}
+nav#nav::-webkit-scrollbar{display:none}
+nav#nav button{flex:1 1 0;min-width:0;display:flex;flex-direction:column;align-items:center;gap:3px;
+ background:none;border:0;padding:6px 6px 5px;font-family:inherit;font-size:10.5px;font-weight:500;
+ color:var(--ink-3);cursor:pointer;border-radius:var(--r-field);transition:color .16s ease,background .16s ease}
+nav#nav button svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.8;
+ stroke-linecap:round;stroke-linejoin:round;transition:transform .16s ease}
+nav#nav button[aria-current="true"]{color:var(--accent);background:var(--accent-soft)}
+nav#nav button[aria-current="true"] svg{transform:translateY(-1px) scale(1.06)}
+nav#nav button:active svg{transform:scale(.92)}
+
+/* ---------- progression en tête ---------- */
+.avance{margin:2px 0 0}
+.avance .barre{height:4px;border-radius:var(--r-field);background:rgba(118,125,139,.22);overflow:hidden}
+.avance .barre i{display:block;height:100%;background:var(--accent);border-radius:var(--r-field);
+ transition:width .28s cubic-bezier(.3,.8,.3,1)}
+.avance .etape{display:flex;gap:8px;align-items:baseline;margin:7px 0 0;font-size:12.5px;color:var(--ink-3)}
+.avance .etape b{color:var(--ink);font-weight:600;font-size:13px}
+@media (prefers-reduced-motion:reduce){ nav#nav button svg,.avance .barre i{transition:none} }
+
+/* ---------- cartes ---------- */
+.block{
+  background:var(--card);border-radius:var(--r-field);
+  box-shadow:var(--shadow);padding:16px;margin-bottom:14px;
+}
+.block > h2{font-size:17px;font-weight:700;letter-spacing:-.02em;margin:0 0 14px;padding:0}
+label.f{display:block;margin-bottom:14px}
+label.f > span{display:block;font-size:13.5px;font-weight:500;color:var(--ink-2);margin-bottom:6px}
+input[type=text],input[type=date],textarea{
+  width:100%;min-height:var(--tap);padding:12px 14px;font-size:16px;line-height:1.35;
+  font-family:inherit;color:var(--ink);background:var(--field);
+  border:1px solid transparent;border-radius:var(--r-field);
+  transition:background .15s ease,border-color .15s ease;
+}
+input:focus,textarea:focus{
+  outline:none;background:var(--card);border-color:var(--accent);
+  box-shadow:0 0 0 4px rgba(37,99,235,.16);
+}
+textarea{min-height:112px;resize:vertical;line-height:1.5}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:0 12px}
+@media(max-width:430px){.grid2{grid-template-columns:1fr}}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+.chips[hidden]{display:none}
+.legend{font-size:13.5px;font-weight:500;color:var(--ink-2);margin:0 0 8px}
+.hint{font-size:13px;color:var(--ink-3);margin:8px 0 0;line-height:1.4}
+
+/* ---------- boutons ---------- */
+button.act{
+  min-height:var(--tap);padding:12px 18px;border-radius:var(--r-field);border:0;
+  background:var(--field);color:var(--ink);font-size:15px;font-family:inherit;font-weight:600;
+  letter-spacing:-.01em;cursor:pointer;transition:transform .1s ease,filter .15s ease;
+}
+button.act:active{transform:scale(.975)}
+button.act.solid{background:var(--ink);color:#fff}
+button.act.blue{background:var(--accent);color:#fff;box-shadow:0 6px 18px -10px rgba(37,99,235,.9)}
+button.act.ghost{background:var(--accent-soft);color:var(--accent)}
+button.act.danger{background:var(--danger-soft);color:var(--danger)}
+button.act.rec{background:var(--accent-soft);color:var(--accent)}
+button.act:disabled{opacity:.4}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.dictating{background:var(--danger)!important;color:#fff!important;animation:pulse 1.2s ease-in-out infinite}
+@keyframes pulse{50%{opacity:.6}}
+@media(prefers-reduced-motion:reduce){.dictating{animation:none;opacity:.75} *{transition:none!important}}
+
+/* ---------- photos et notes ---------- */
+.thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-top:12px}
+.thumb{position:relative;border-radius:var(--r-field);overflow:hidden;background:#15171A;box-shadow:var(--shadow)}
+.thumb img{display:block;width:100%;height:132px;object-fit:cover}
+.thumb .num{position:absolute;top:6px;left:6px;min-width:26px;height:26px;padding:0 7px;
+ border-radius:var(--r-field);background:rgba(10,13,18,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+ color:#fff;font-size:12.5px;font-weight:700;line-height:26px;text-align:center;
+ font-variant-numeric:tabular-nums}
+.thumb textarea{display:block;width:100%;min-height:70px;border:0;border-radius:0;font-size:15px;
+ padding:9px 10px;background:#fff;line-height:1.35;resize:vertical}
+.thumb .del{
+  position:absolute;top:6px;right:6px;width:30px;height:30px;border-radius:50%;border:0;
+  background:rgba(10,13,18,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+  color:#fff;font-size:17px;line-height:1;cursor:pointer;
+}
+.vide{font-size:13.5px;color:var(--ink-3);margin:12px 0 0}
+
+/* ---------- navigation bas de page ---------- */
+.stepnav{display:flex;gap:8px;align-items:center;justify-content:space-between;flex-wrap:nowrap;margin:2px 0 16px}
+.stepnav button{
+  flex:0 0 auto;min-height:44px;padding:9px 15px;border-radius:var(--r-field);border:0;
+  background:var(--card);color:var(--ink);font-family:inherit;font-size:14.5px;font-weight:600;
+  cursor:pointer;white-space:nowrap;box-shadow:var(--shadow);transition:transform .1s ease;
+}
+.stepnav button:active{transform:scale(.96)}
+.stepnav button:disabled{opacity:.35;box-shadow:none}
+.stepnav button.next{background:var(--accent);color:#fff}
+.stepnav .dots{display:flex;gap:5px;align-items:center;justify-content:center;flex:1 1 auto}
+.stepnav .dots button{
+  flex:0 0 auto;width:32px;height:32px;min-height:32px;padding:0;border-radius:50%;
+  font-size:13.5px;font-variant-numeric:tabular-nums;box-shadow:none;background:rgba(118,125,139,.16);
+  color:var(--ink-2);display:flex;align-items:center;justify-content:center;
+}
+.stepnav .dots button[aria-current="true"]{background:var(--ink);color:#fff}
+.haut{display:flex;justify-content:center;margin:0 0 22px}
+.haut button{display:inline-flex;align-items:center;gap:7px;min-height:40px;padding:0 16px;
+ border:0;border-radius:var(--r-field);background:rgba(118,125,139,.14);color:var(--ink-2);
+ font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer;transition:transform .12s ease}
+.haut button:active{transform:scale(.96)}
+.haut svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;
+ stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- publication ---------- */
+.choix-pub{display:flex;flex-direction:column;gap:8px;margin:0 0 14px}
+.choix-pub .opt{display:block;width:100%;text-align:left;padding:12px 14px;border:1px solid var(--rule);
+ background:var(--card);font-family:inherit;color:var(--ink);cursor:pointer;border-radius:var(--r-field)}
+.choix-pub .opt.on{border:2px solid var(--ink);padding:11px 13px}
+.choix-pub .opt b{display:block;font-size:15px;font-weight:600}
+.choix-pub .opt span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:3px}
+
+/* ---------- annotation des photos, plein écran ---------- */
+/* ---------- plein écran : croquis et implantation ---------- */
+#sketch{
+  position:fixed;inset:0;z-index:60;background:#15171A;display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);
+}
+#sketch[hidden]{display:none}
+.sk-bar{
+  display:flex;gap:6px;align-items:center;flex-wrap:nowrap;overflow-x:auto;padding:8px 10px;background:#202226;
+  -webkit-overflow-scrolling:touch;scrollbar-width:none;flex:0 0 auto;
+}
+.sk-bar::-webkit-scrollbar{display:none}
+.sk-bar.bottom{padding-bottom:calc(8px + env(safe-area-inset-bottom,0px));margin-top:auto}
+.sk-bar button{
+  flex:0 0 auto;min-height:38px;padding:8px 12px;border-radius:var(--r-field);border:0;background:rgba(255,255,255,.1);
+  color:#EAEDF4;font-size:13px;font-family:inherit;font-weight:600;cursor:pointer;white-space:nowrap;
+}
+.sk-bar button:active{transform:scale(.96)}
+.sk-bar button.on{background:#fff;color:#1C1E22}
+.sk-bar button.go{background:var(--accent);color:#fff}
+.sk-bar .etat{flex:1 1 auto;color:#767D8B;font-size:11px;font-weight:500;padding-left:2px;
+  overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:70px}
+.sk-bar .title{display:none}
+@media (min-width:620px){
+  .sk-bar .title{display:block;flex:1 1 auto;color:#767D8B;font-size:13px;font-weight:500;padding-left:2px;
+    overflow:hidden;white-space:nowrap;text-overflow:ellipsis;min-width:80px}
+}
+.sk-bar .sep{flex:0 0 auto;width:1px;height:26px;background:rgba(234,237,244,.18);margin:0 2px}
+.sk-bar .mini{display:flex;flex-direction:column;font-size:9.5px;color:#767D8B;gap:2px;flex:0 0 auto;
+  white-space:nowrap}
+.sk-bar .mini input{
+  width:70px;min-height:34px;font-size:15px;padding:6px 8px;background:rgba(255,255,255,.1);
+  color:#fff;border:0;border-radius:var(--r-field);
+}
+.sk-bar button.sk-dot{width:24px;height:24px;min-width:24px;min-height:24px;padding:0;margin:2px 0;
+  border-radius:50%;border:2px solid rgba(255,255,255,.28);flex:0 0 auto}
+.sk-bar button.sk-dot.on{border-color:#fff;box-shadow:0 0 0 2px #15171A,0 0 0 4px #fff}
+#sk_colors{padding:10px 10px 9px;gap:12px;background:#202226;
+  border-top:1px solid rgba(234,237,244,.08)}
+.sk-bar button{flex-direction:column;gap:2px;min-width:50px;padding:6px 7px;font-size:9.5px;font-weight:600;
+  line-height:1.1;letter-spacing:0}
+.sk-bar button span{max-width:86px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sk-bar button svg{display:block}
+.sk-wrap{flex:1 1 auto;min-height:0;display:flex;align-items:center;justify-content:center;padding:8px;overflow:hidden}
+#sk_canvas{background:#fff;border-radius:var(--r-field);max-width:100%;max-height:100%;touch-action:none;
+  box-shadow:0 18px 50px -20px rgba(0,0,0,.8)}
+.thumb .ann{position:absolute;top:6px;right:42px;width:30px;height:30px;border-radius:50%;border:0;
+ background:rgba(10,13,18,.62);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+ color:#fff;font-size:15px;line-height:1;cursor:pointer;padding:0}
+
+/* ---------- notifications ---------- */
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:80;
+  background:rgba(28,30,34,.94);-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);
+  color:#fff;padding:13px 20px;border-radius:var(--r-field);font-size:14.5px;font-weight:500;max-width:88%;
+  box-shadow:0 12px 32px -12px rgba(0,0,0,.6);
+}
+.toast[hidden]{display:none}
+
+/* ---------- écrans larges : ordinateur et tablette ---------- */
+@media (min-width:820px){
+  header{padding-left:24px;padding-right:24px}
+  header .h-row,header .avance,header nav#nav{max-width:1000px;margin-left:auto;margin-right:auto}
+  main{max-width:1000px;margin:0 auto;padding:20px 24px 40px}
+  h1{font-size:23px}
+  nav#nav button{font-size:12px;padding:8px 6px 7px}
+  nav#nav button svg{width:22px;height:22px}
+  .block{padding:20px 22px}
+  .grid2{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+  .thumbs{grid-template-columns:repeat(auto-fill,minmax(190px,1fr))}
+  .thumb img{height:150px}
+  .stepnav{max-width:1000px;margin-left:auto;margin-right:auto}
+  .haut{margin-bottom:10px}
+}
+@media (hover:hover){
+  button.act:hover{filter:brightness(.97)}
+  nav#nav button:hover{color:var(--ink)}
+}
+
+
+/* =====================================================================
+   INSTRUMENT — la couche d'habillage du site
+   ---------------------------------------------------------------------
+   Direction : un instrument de mesure, pas un tableau de bord de vaisseau.
+   Le vocabulaire est technique — traits d'un pixel, équerres de repère,
+   chiffres en chasse fixe, graphite et orange électrique — mais les
+   surfaces de travail restent claires et contrastées : la fiche se
+   remplit dehors, en plein soleil, avec des gants.
+
+   Deux couleurs, deux rôles, jamais l'un pour l'autre :
+      orange  ce sur quoi on agit    (boutons, liens, onglet courant)
+      cyan    ce que l'outil mesure  (chiffres, repères, carte, états)
+
+   Tout part des variables ci-dessous. Une valeur suffit à reprendre le
+   site entier.
+   ===================================================================== */
+
+/* ---------- une seule police, hébergée ici : elle marche hors réseau ---------- */
+@font-face{
+  font-family:"Plus Jakarta Sans";
+  src:url("./polices/jakarta-var.woff2") format("woff2-variations");
+  font-weight:200 800; font-style:normal; font-display:swap;
+}
+
+:root{
+  /* graphite : le châssis */
+  --g-900:#0A0E14;
+  --g-800:#10161F;
+  --g-700:#1A2230;
+  --g-600:#27313F;
+  --trait-tech:rgba(255,255,255,.10);
+
+  /* surfaces de travail : claires, pour le plein soleil */
+  --bg:#0A0F1A;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --card:#FFFFFF;
+  --field:#EFF1F4;
+  --champ-fond:#FFFFFF;
+  --champ-bord:#D8DDE4;
+  --rule:rgba(10,14,20,.09);
+  --ink:#0C1119;
+  --ink-2:#4B5563;
+  --ink-3:#6B7684;
+
+  /* ce sur quoi on agit */
+  --accent:#2563EB;
+  --accent-fonce:#1D4ED8;
+  --accent-vif:#3B82F6;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#EEF4FF;
+
+  /* ce que l'outil mesure */
+  --data:#0E7490;
+  --data-vif:#22D3EE;
+  --data-soft:#E7F4F7;
+
+  /* familles, toutes au même niveau */
+  --violet:#5B5F80;      --violet-soft:#EFEFF4;
+  --vert:#3F6B52;        --vert-soft:#EAF2ED;
+  --ambre:#8A6524;       --ambre-soft:#F1F5FB;
+  --rouge:#A03A33;       --rouge-soft:#F8EDEB;
+  --solar:#8A6524;       --solar-soft:#F1F5FB;
+  --danger:#A03A33;      --danger-soft:#F8EDEB;
+  --ok:#3F6B52;          --ok-soft:#EAF2ED;
+
+  /* géométrie : des angles francs, pas des galets */
+  --r-card:10px;
+  --r-field:8px;
+  --r-pill:999px;
+
+  --ombre-1:0 1px 2px rgba(10,14,20,.05);
+  --ombre-2:0 1px 2px rgba(10,14,20,.05), 0 10px 24px -14px rgba(10,14,20,.35);
+  --ombre-3:0 22px 48px -20px rgba(10,14,20,.45);
+  --shadow:var(--ombre-2);
+
+  --sans:"Plus Jakarta Sans",-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  /* tout est dans la même police : --mono ne change que les chiffres,
+     qui restent tabulaires pour que les colonnes s'alignent */
+  --mono:var(--sans);
+}
+
+html{-webkit-text-size-adjust:100%}
+body{
+  font-family:var(--sans);
+  -webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;
+  letter-spacing:-.006em;
+}
+
+/* ---------- les valeurs : mêmes lettres, chiffres alignés ----------
+   références, dates, poids, compteurs : ce sont des valeurs. Elles
+   gardent des chiffres tabulaires, donc de largeur égale : une valeur
+   qui change ne fait pas danser la ligne. */
+.mono,.ref,.num,.n,.etat,time,
+input[type="number"],input[type="date"],input[type="time"],input[type="tel"]{
+  font-variant-numeric:tabular-nums;
+}
+
+/* ---------- les intertitres ---------- */
+h2.sec,.legend{
+  font-size:11px;
+  font-weight:600;
+  letter-spacing:.11em;
+  text-transform:uppercase;
+  color:var(--ink-3);
+}
+
+/* ---------- surfaces ---------- */
+.block,.travaux,.notifs,.restaurer{
+  background:var(--card);
+  border:1px solid var(--rule);
+  border-radius:var(--r-card);
+  box-shadow:var(--ombre-1);
+}
+.block h2{
+  font-size:15.5px;font-weight:600;letter-spacing:-.015em;color:var(--ink);
+}
+h1{font-weight:600;letter-spacing:-.03em}
+.hint{color:var(--ink-3);line-height:1.55}
+
+/* ---------- champs : blancs, cernés, avec une amorce à gauche ---------- */
+input[type="text"],input[type="search"],input[type="tel"],input[type="email"],
+input[type="number"],input[type="date"],input[type="time"],input[type="url"],
+input[type="password"],
+input:not([type]),textarea,select{
+  background:var(--champ-fond);
+  border:1px solid var(--champ-bord);
+  border-radius:var(--r-field);
+  transition:border-color .16s ease, box-shadow .16s ease;
+}
+input::placeholder,textarea::placeholder{color:#9AA4B0}
+input:hover:not(:focus),textarea:hover:not(:focus),select:hover:not(:focus){border-color:#BFC7D1}
+input:focus,textarea:focus,select:focus{
+  outline:none;background:#fff;
+  border-color:var(--data);
+  box-shadow:0 0 0 3px rgba(14,116,144,.16);
+}
+label span{font-weight:500;color:var(--ink-2)}
+
+/* ---------- boutons ---------- */
+button,.act,button.p{
+  border-radius:var(--r-field);
+  font-family:var(--sans);
+  font-weight:600;
+  letter-spacing:-.008em;
+  transition:background .16s ease,color .16s ease,border-color .16s ease,
+             box-shadow .16s ease,transform .08s ease;
+}
+button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
+  background:var(--accent);color:#fff;border:1px solid transparent;
+  box-shadow:0 1px 2px rgba(29,78,216,.3);
+}
+.act.ghost{
+  background:#fff;color:var(--ink-2);
+  border:1px solid var(--champ-bord);box-shadow:var(--ombre-1);
+}
+.act.danger{background:var(--rouge-soft);color:var(--rouge);border:1px solid rgba(160,58,51,.18);box-shadow:none}
+button:active,.act:active,button.p:active{transform:translateY(1px)}
+button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,
+textarea:focus-visible,[tabindex]:focus-visible{
+  outline:2px solid var(--data);outline-offset:2px;
+}
+
+/* ---------- pastilles et étiquettes ---------- */
+.chip,.chips label{
+  border-radius:var(--r-pill);
+  border:1px solid var(--champ-bord);
+  background:#fff;color:var(--ink-2);font-weight:500;
+  transition:background .16s ease,border-color .16s ease,color .16s ease;
+}
+.chip.on,.chips label.on{
+  background:var(--accent-soft);border-color:rgba(37,99,235,.4);
+  color:var(--accent-fonce);font-weight:600;
+}
+.tag,.f .tag{
+  border-radius:var(--r-pill);
+  font-size:11px;font-weight:700;letter-spacing:.05em;
+  text-transform:uppercase;padding:4px 10px;
+}
+.ref{
+  font-size:11.5px;font-weight:700;letter-spacing:.04em;
+  border-radius:var(--r-field);
+}
+
+/* ---------- le châssis : en-tête sombre, trait technique ---------- */
+header{
+  background:var(--g-900);
+  border-bottom:1px solid var(--trait-tech);
+  color:#E7ECF2;
+  position:relative;
+}
+header::after{
+  content:"";position:absolute;left:0;right:0;bottom:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+header h1{color:#F2F5F9;font-weight:600}
+header .hint,header .meta,header .etat{color:#8A97A6}
+.menu-link,header a[href="./index.html"]{
+  background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18);
+  border-radius:var(--r-field);
+  color:#EDF1F6;
+  box-shadow:none;
+}
+#hdrRef,header .ref{
+  color:var(--data-vif);background:none;letter-spacing:.05em;font-weight:600;
+}
+
+/* ---------- barre d'onglets : une réglette ---------- */
+nav#nav{
+  gap:2px;padding:4px;margin:10px -2px 0;
+  background:var(--g-800);
+  border:1px solid var(--trait-tech);
+  border-radius:10px;
+}
+nav#nav button{
+  padding:7px 6px 6px;border-radius:7px;
+  color:#8A97A6;font-weight:500;font-size:10.5px;
+  letter-spacing:.02em;
+}
+nav#nav button[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);
+  font-weight:600;box-shadow:0 0 0 1px rgba(59,130,246,.5),0 6px 16px -8px rgba(59,130,246,.9);
+}
+nav#nav button svg{stroke-width:1.9}
+.avance{margin-top:8px}
+.avance .barre{height:3px;border-radius:0;background:rgba(255,255,255,.12)}
+.avance .barre i{border-radius:0;background:linear-gradient(90deg,var(--accent-vif),var(--data-vif))}
+.avance .etape{color:#8A97A6}
+.avance .etape b{color:#E7ECF2}
+
+/* ---------- l'équerre de repère : la signature de la maison ---------- */
+.equerre{position:relative}
+.equerre::before,.equerre::after{
+  content:"";position:absolute;width:10px;height:10px;pointer-events:none;
+  border:1px solid var(--data-vif);opacity:.55;
+}
+.equerre::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+.equerre::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+
+/* ---------- le survol, là où il existe ---------- */
+@media (hover:hover){
+  button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(29,78,216,.5);
+  }
+  .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
+  .act.danger:hover{background:#F4E2DF}
+  .chip:hover:not(.on),.chips label:hover:not(.on){border-color:#BFC7D1;background:#FAFBFC}
+  .block:hover,.travaux:hover{box-shadow:var(--ombre-2)}
+  .menu-link:hover,header a[href="./index.html"]:hover{background:rgba(255,255,255,.14);color:#fff}
+  nav#nav button:hover:not([aria-current="true"]){color:#C7D0DA;background:rgba(255,255,255,.06)}
+}
+@media (prefers-reduced-motion:reduce){
+  button,.act,input,textarea,select,.chip,.chips label,.block,.travaux{transition:none}
+  button:active,.act:active,button.p:active{transform:none}
+}
+
+/* ---------- les deux barres : le chantier en haut, les onglets en bas ----------
+   En haut, ce qui change de document sur le même chantier. En bas, sous
+   le pouce, ce qui change d'onglet dans le document en cours. */
+nav#navChantier{
+  display:flex;gap:1px;padding:4px 3px;margin:9px 0 0;
+  overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;
+  background:var(--g-800);border:1px solid var(--trait-tech);border-radius:10px;
+}
+nav#navChantier[hidden]{display:none}
+nav#navChantier::-webkit-scrollbar{display:none}
+nav#navChantier a{
+  /* jamais plus étroit que son mot le plus long : « Autocontrôle » ne déborde plus sur « Réception » */
+  flex:1 0 auto;width:min-content;min-width:54px;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  padding:7px 5px 6px;border-radius:7px;text-decoration:none;
+  font-size:9px;font-weight:500;line-height:1.2;text-align:center;color:#8A97A6;
+}
+nav#navChantier a span{display:block;width:100%;hyphens:none;overflow-wrap:normal}
+nav#navChantier svg{width:19px;height:19px;stroke:currentColor;fill:none;stroke-width:1.9;
+ stroke-linecap:round;stroke-linejoin:round}
+nav#navChantier a[aria-current="true"]{
+  color:#0A0E14;background:var(--accent-vif);font-weight:600;
+  box-shadow:0 0 0 1px rgba(59,130,246,.5),0 6px 16px -8px rgba(59,130,246,.9);
+}
+.nav-wrap{position:relative}
+.nav-wrap::after{
+  content:"";position:absolute;top:1px;right:1px;bottom:1px;width:26px;
+  border-radius:0 9px 9px 0;pointer-events:none;opacity:0;
+  background:linear-gradient(90deg,rgba(17,24,33,0),var(--g-800));transition:opacity .2s ease;
+}
+.nav-wrap.deborde::after{opacity:1}
+
+/* la barre d'onglets descend sous le pouce */
+nav#nav{
+  position:fixed;left:0;right:0;bottom:0;z-index:30;
+  margin:0;border-radius:0;border:0;border-top:1px solid var(--trait-tech);
+  background:var(--g-900);
+  padding:5px 6px calc(5px + env(safe-area-inset-bottom,0px));
+}
+nav#nav::before{
+  content:"";position:absolute;left:0;right:0;top:-1px;height:1px;
+  background:linear-gradient(90deg,var(--accent-vif),rgba(34,211,238,.55),transparent 72%);
+}
+body{padding-bottom:calc(74px + env(safe-area-inset-bottom,0px))}
+.toast{bottom:calc(86px + env(safe-area-inset-bottom,0px))}
+/* Sur un écran large, la barre du bas garde toute la largeur de la
+   fenêtre — c'est un socle — mais ses onglets se calent sur la colonne
+   de travail : ils s'alignent alors sur les fiches au lieu de se serrer
+   dans le coin gauche. */
+@media (min-width:760px){
+  nav#nav{padding-left:max(6px,calc((100% - 1000px)/2));
+          padding-right:max(6px,calc((100% - 1000px)/2))}
+}
+@media (min-width:1180px){
+  nav#nav{padding-left:max(6px,calc((100% - 1120px)/2));
+          padding-right:max(6px,calc((100% - 1120px)/2))}
+}
+
+/* =====================================================================
+   SUR LE FOND ANTHRACITE
+   ---------------------------------------------------------------------
+   Le fond de page est devenu sombre : les fiches restent des feuilles
+   blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
+   intertitres, signature, salutation, boutons de page — doit passer en
+   clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
+   #0A0F1A : 9,2 pour la première, 5,3 pour la seconde.
+   Les deux couleurs de rôle passent à leur version vive, la sourde ne
+   tient pas sur le sombre.
+   ===================================================================== */
+:root{
+  --sur-fond:#E9ECF2;
+  --sur-fond-2:#AEB7BF;
+  --trait-fond:rgba(255,255,255,.14);
+}
+h2.sec,.sec{color:var(--sur-fond-2)}
+.signature,.signature b,.signature span,.signature .version{color:var(--sur-fond-2)}
+.signature .version{opacity:.85}
+.tete .salut{color:var(--sur-fond)}
+.tete .salut em{color:var(--accent-vif)}
+.tete .meta{color:var(--sur-fond-2)}
+.marque-app{color:var(--data-vif)}
+.haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
+.haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
+.grille{border-top-color:var(--trait-fond)}
+.stepnav .dots button{color:var(--sur-fond-2);border-color:var(--trait-fond)}
+.stepnav .dots button[aria-current="true"]{background:var(--sur-fond);color:var(--g-900)}
+</style>
+<link rel="stylesheet" href="./sobre.css?v=20261022a">
+<script src="./clavier.js?v=20261022a" defer></script>
+<script src="./horsligne.js?v=20261024b" defer></script>
+<script src="./finitions.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261030a" defer></script>
+</head>
+<body>
+<header>
+  <div class="h-row"><a class="menu-link" href="./index.html">Menu</a><h1>Note</h1>
+    <div class="ref" id="hdrRef"></div>
+  </div>
+  <div class="nav-wrap" id="navChantierWrap" hidden><nav id="navChantier" aria-label="Les documents de ce chantier"></nav></div>
+</header>
+
+<main>
+<style>
+.nt-liste{display:flex;flex-direction:column;gap:6px;margin:0}
+.nt-liste button{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:10px 12px;border:1px solid var(--rule);border-radius:var(--r-field,10px);
+  background:var(--card);color:inherit;font:inherit;cursor:pointer;min-height:0}
+.nt-liste button b{flex:1 1 auto;min-width:0;font-size:14.5px;font-weight:600;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+.nt-liste button span{flex:0 0 auto;font-size:12px;color:var(--ink-3)}
+.nt-liste button[aria-current="true"]{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.nt-etat{min-height:18px;margin:8px 0 0;font-size:12.5px;color:var(--ink-3)}
+.nt-etat.attente{color:var(--accent)}
+#n_texte{min-height:220px}
+.nt-encre img{display:block;max-width:100%;border:1px solid var(--rule);border-radius:8px;background:#fff;cursor:pointer}
+</style>
+
+<section id="tab-note">
+  <div class="block" id="ntChoix" hidden>
+    <h2>Chantier</h2>
+    <p class="hint" style="margin:-8px 0 12px">Une note se range dans le dossier d'un chantier : choisissez-le.</p>
+    <button class="act blue" type="button" id="btnDossierSite" style="width:100%">Choisir le chantier</button>
+  </div>
+
+  <div class="block" id="ntEditeur" hidden>
+    <div class="barre-fiche" style="margin:0 0 12px">
+      <button class="act ghost mini" id="btnNoteNouvelle" type="button" title="Commencer une autre note"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h8l4 4v13H6z"/><path d="M12 10.5v6M9 13.5h6"/></svg>Nouvelle note</button>
+      <button class="act ghost mini" id="btnAutreChantier" type="button" title="Changer de chantier"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/><path d="M12 11.5v5M9.5 14 12 16.5 14.5 14"/></svg>Autre chantier</button>
+    </div>
+    <label class="f"><span>Titre</span><input type="text" id="n_titre" placeholder="Ex. Réunion avec le client, accès au tableau…"></label>
+    <label class="f"><span>Texte</span><textarea id="n_texte" rows="9" placeholder="Ce qu'il faut retenir. Tout s'enregistre au fil de l'écriture."></textarea></label>
+    <div class="row" style="margin-top:2px">
+      <button class="act rec" type="button" data-dictee="n_texte">Dicter</button>
+      <button class="act ghost" type="button" id="btnNoteStylet">Écrire au stylet</button>
+    </div>
+    <div class="nt-encre" id="n_encre" style="margin-top:12px"></div>
+    <p class="nt-etat" id="noteEtat" role="status"></p>
+  </div>
+
+  <div class="block" id="ntNotes" hidden>
+    <h2>Notes du chantier<span class="sv-nb" id="ntNb"></span></h2>
+    <p class="hint" style="margin:-8px 0 12px">Rangées dans le dossier, sous « Notes ». Touchez-en une pour la rouvrir et la compléter.</p>
+    <div class="nt-liste" id="ntListe"></div>
+    <p class="hint" id="ntVide" hidden>Aucune autre note dans ce dossier.</p>
+  </div>
+</section>
+</main>
+<div class="toast" id="toast" hidden></div>
+
+<script defer src="./vendor/jspdf-2.5.1/jspdf.umd.min.js"></script>
+<script src="./stylet.js?v=20261023b"></script>
+<script src="./sobre.js?v=20261029a"></script>
+<script src="./encours.js?v=20261026a"></script>
+<script>
+(function(){
+/* ---------- session expirée : retour à la connexion ---------- */
+(function(){
+  var brut = window.fetch;
+  window.fetch = function(){
+    return brut.apply(this, arguments).then(function(r){
+      if(r && r.status === 401){
+        try{
+          r.clone().json().then(function(d){
+            if(d && d.erreur && String(d.erreur).indexOf("Session") >= 0){
+              try{ localStorage.removeItem("outils:session"); }catch(e){}
+              location.replace("./index.html?sortie=expiree");
+            }
+          }).catch(function(){});
+        }catch(e){}
+      }
+      return r;
+    });
+  };
+})();
+
+/* ---------- session ---------- */
+var SESSION=null;
+try{ SESSION=JSON.parse(localStorage.getItem("outils:session")||"null"); }catch(e){}
+var ENLIGNE = location.protocol==="http:" || location.protocol==="https:";
+if(ENLIGNE && (!SESSION || !SESSION.jeton)){
+  location.replace("./index.html?sortie");
+}
+function jetonSession(){ return SESSION && SESSION.jeton ? SESSION.jeton : ""; }
+
+/* ---------- accès à l'appli : attribué compte par compte ---------- */
+(function(){
+  var APPLI="photos";
+  var siennes = SESSION && SESSION.applis;
+  var tout = SESSION && (SESSION.role==="admin" || SESSION.proprietaire);
+  if(ENLIGNE && !tout && Array.isArray(siennes) && siennes.length && siennes.indexOf(APPLI)<0){
+    try{ sessionStorage.setItem("acces:refuse", APPLI); }catch(e){}
+    location.replace("./index.html?sortie");
+  }
+})();
+
+var $ = function(id){ return document.getElementById(id); };
+var toastT;
+/* un téléphone écrit avec des points dans les PDF : 06.12.34.56.78, +33 6.12.34.56.78 (sinon tel qu'il a été tapé) */
+function telPoints(t){
+  var s=String(t||"").trim(); if(!s) return "";
+  var c=s.replace(/[\s.\-\/()]/g, "");
+  function pts(d){ return d.replace(/(\d{2})(?=\d)/g, "$1."); }
+  if(/^0\d{9}$/.test(c)) return pts(c);
+  var m=c.match(/^(?:\+|00)33(?:0)?(\d{9})$/);
+  if(m) return "+33 "+m[1].charAt(0)+"."+pts(m[1].slice(1));
+  return s;
+}
+function toast(msg){
+  var t=$("toast"); t.textContent=msg; t.hidden=false;
+  clearTimeout(toastT); toastT=setTimeout(function(){ t.hidden=true; }, 2600);
+}
+function aujourdhui(){ return jourLocal(); }
+function frDate(d){ if(!d) return ""; var a=dateLocale(d).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+
+/* ---------- dictée ---------- */
+var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+var currentRec=null;
+function setupDictation(btn){
+  if(!SR){ btn.disabled=true; btn.textContent="Dictée non disponible"; btn.classList.remove("rec"); btn.classList.add("ghost"); return; }
+  btn.addEventListener("click", function(){
+    if(currentRec){ currentRec.stop(); return; }
+    var target = document.getElementById(btn.dataset.target);
+    if(!target) return;
+    var rec = new SR();
+    rec.lang="fr-FR"; rec.continuous=true; rec.interimResults=false;
+    rec.onresult=function(e){
+      var txt="";
+      for(var i=e.resultIndex;i<e.results.length;i++){ if(e.results[i].isFinal) txt += e.results[i][0].transcript; }
+      if(txt){
+        target.value = (target.value ? target.value.replace(/\s*$/,"")+" " : "") + txt.trim();
+        target.dispatchEvent(new Event("input",{bubbles:true}));
+      }
+    };
+    rec.onerror=function(e){ toast("Dictée interrompue ("+e.error+")"); };
+    rec.onend=function(){ btn.classList.remove("dictating"); btn.textContent="Dicter"; currentRec=null; };
+    try{ rec.start(); }catch(err){ toast("Dictée indisponible"); return; }
+    currentRec=rec;
+    btn.classList.add("dictating"); btn.textContent="Arrêter la dictée";
+  });
+}
+
+/* une photo qui se prépare : « Publier » l'attend (reseau.js) */
+/* ---------- base de rapports ---------- */
+function baseSite(){
+  if(location.protocol==="http:" || location.protocol==="https:") return location.origin;
+  return "";
+}
+function apiUrl(action){ return baseSite()+"/api/rapports?action="+action; }
+function apiPret(silencieux){
+  if(!baseSite() || !jetonSession()){
+    if(!silencieux) toast("Ouvrez l'appli depuis votre site, en étant connecté, pour enregistrer.");
+    return false;
+  }
+  return true;
+}
+function apiEnTetes(){ return {"content-type":"application/json","x-auth":jetonSession()}; }
+
+/* =====================================================================
+   La note du chantier — une appli à part entière, sans bouton Enregistrer
+   ---------------------------------------------------------------------
+   Un titre, du texte (tapé ou dicté), une écriture au stylet. Tout
+   s'enregistre au fil de l'écriture : sur l'appareil d'abord (window.storage,
+   « note:courant »), puis, 2,5 s après la dernière frappe, dans le dossier du
+   chantier, sous « Notes » (son PDF, et de quoi la rouvrir). Sans réseau, la
+   note attend sur l'appareil et part au retour du réseau. Les notes du
+   dossier sont listées dessous : un toucher en rouvre une.
+   ===================================================================== */
+var CLE="note:courant";
+var S={chantier:{client:"", ref:"", adresse:""}, note:null};
+var P={};
+var M=14, PW=210, PH=297, CW=PW-2*M;
+function refAffaire(){
+  return String(S.chantier.ref||"").trim()
+    || String(S.chantier.client||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8);
+}
+function adresseTravaux(){ return String(S.chantier.adresse||"").replace(/\n/g,", "); }
+function noteVierge(){ return {id:"pc"+Date.now().toString(36)+Math.random().toString(36).slice(2,6), titre:"", texte:"", encre:null, cle:"", enregistree:"", sale:false, ref:refAffaire()}; }
+function N(){ if(!S.note) S.note=noteVierge(); return S.note; }
+function noteRemplie(n){ return !!(n && (String(n.titre||"").trim() || String(n.texte||"").trim() || n.encre)); }
+function heureDe(iso){ var d=new Date(iso); return isNaN(d) ? "" : String(d.getHours()).padStart(2,"0")+":"+String(d.getMinutes()).padStart(2,"0"); }
+
+/* ---------- sur l'appareil ---------- */
+var garderT=null;
+function garder(){
+  clearTimeout(garderT);
+  garderT=setTimeout(garderTout, 300);
+}
+function garderTout(){
+  clearTimeout(garderT); garderT=null;
+  var t; try{ t=JSON.stringify(S); }catch(e){ return Promise.resolve(); }
+  return window.storage.set(CLE, t).catch(function(){});
+}
+
+/* ---------- l'état, en une ligne discrète ---------- */
+function etat(txt, attente){
+  var e=$("noteEtat"); if(!e) return;
+  e.textContent=txt||""; e.classList.toggle("attente", !!attente);
+}
+function etatRepos(){
+  var n=N();
+  if(n.sale && noteRemplie(n)) etat(navigator.onLine===false ? "Hors ligne : enregistré sur l'appareil, envoi au retour du réseau." : "Modifications en cours…", true);
+  else if(n.enregistree) etat("Enregistré à "+heureDe(n.enregistree)+(frDate(n.enregistree)!==frDate(new Date().toISOString()) ? " le "+frDate(n.enregistree) : "")+", dans le dossier (Notes).");
+  else etat(noteRemplie(n) ? "" : "La note s'enregistre toute seule pendant que vous écrivez.");
+}
+
+/* ---------- dans le dossier ---------- */
+var envoiT=null, enVol=null, rejouer=false;
+function modifiee(){
+  var n=N(); n.sale=true; n.ref=refAffaire();
+  garder();
+  clearTimeout(envoiT);
+  envoiT=setTimeout(envoyer, 2500);
+  etatRepos();
+}
+function buildNotePdf(n){
+  var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"});
+  var INK=[28,30,34], GREY=[93,98,109], LIGHT=[207,213,225], y;
+  function setFill(c){ doc.setFillColor(c[0],c[1],c[2]); }
+  function setText(c){ doc.setTextColor(c[0],c[1],c[2]); }
+  var page=1;
+  function pied(){
+    setFill(LIGHT); doc.rect(M, PH-14, CW, 0.4, "F");
+    doc.setFont("helvetica","normal"); doc.setFontSize(7.5); setText(GREY);
+    doc.text([(P&&P.societe)||"", (P&&P.socLegal)||""].filter(Boolean).join("   ").slice(0,80), M, PH-9.5);
+    doc.text((refAffaire()?refAffaire()+"     ":"")+"Page "+page, PW-M, PH-9.5, {align:"right"});
+    setText(INK);
+  }
+  function suite(h){ if(y+h > PH-22){ pied(); doc.addPage(); page++; setFill(INK); doc.rect(0,0,PW,2.2,"F"); y=20; } }
+  setFill(INK); doc.rect(0,0,PW,3.2,"F");
+  var L=P&&P.logo, tx=M;
+  if(L){ var lh=15, lw=lh*(L.w/L.h); if(lw>40){ lw=40; lh=lw*(L.h/L.w); } try{ doc.addImage(L.data,"JPEG", M, 11, lw, lh); }catch(e){} tx=M+lw+7; }
+  setText(INK); doc.setFont("helvetica","bold"); doc.setFontSize(17); doc.text("Note", tx, 19);
+  doc.setFont("helvetica","normal"); doc.setFontSize(9); setText(GREY);
+  doc.text(doc.splitTextToSize(["Le "+frDate(aujourdhui()), (SESSION&&SESSION.nom)||"", refAffaire()].filter(Boolean).join("     "), CW-60)[0], tx, 25);
+  var soc=(P&&P.societe)||"";
+  if(soc){ doc.setFont("helvetica","bold"); doc.setFontSize(9.5); setText(INK); doc.text(soc, PW-M, 13.5, {align:"right"}); }
+  setFill(LIGHT); doc.rect(M,31,CW,0.4,"F"); y=40;
+  doc.setFont("helvetica","normal"); doc.setFontSize(9.5);
+  [["Client", S.chantier.client], ["Adresse", adresseTravaux()]].forEach(function(l){
+    if(!String(l[1]||"").trim()) return;
+    var v=doc.splitTextToSize(String(l[1]), CW-30);
+    setText(GREY); doc.text(l[0], M, y); setText(INK); doc.text(v, M+28, y); y+=v.length*4.8+2;
+  });
+  y+=4;
+  if(String(n.titre||"").trim()){
+    doc.setFont("helvetica","bold"); doc.setFontSize(14); setText(INK);
+    var t=doc.splitTextToSize(n.titre.trim(), CW); suite(t.length*6.5); doc.text(t, M, y); y+=t.length*6.5+3;
+  }
+  if(String(n.texte||"").trim()){
+    doc.setFont("helvetica","normal"); doc.setFontSize(10.5); setText(INK);
+    doc.splitTextToSize(n.texte.trim(), CW).forEach(function(l){ suite(5.4); doc.text(l, M, y); y+=5.4; });
+    y+=4;
+  }
+  if(n.encre && n.encre.src){
+    var w=Math.min(CW, (n.encre.l||900)*0.21), h=w*((n.encre.h||300)/(n.encre.l||900));
+    if(h > PH-60){ h=PH-60; w=h*((n.encre.l||900)/(n.encre.h||300)); }
+    suite(h+2);
+    try{ doc.addImage(n.encre.src, "PNG", M, y, w, h); }catch(e){}
+    y+=h+4;
+  }
+  pied();
+  return doc;
+}
+
+function envoyer(){
+  clearTimeout(envoiT); envoiT=null;
+  var n=N();
+  if(!n.sale || !noteRemplie(n)) return Promise.resolve(true);
+  if(!refAffaire()) return Promise.resolve(false);
+  if(enVol){ rejouer=true; return enVol; }
+  if(!baseSite() || !jetonSession()){ etat("Hors ligne : enregistré sur l'appareil.", true); return Promise.resolve(false); }
+  var doc; try{ doc=buildNotePdf(n); }catch(e){
+    /* le module PDF finit de se charger : on réessaie dans un instant */
+    envoiT=setTimeout(envoyer, 1500); return Promise.resolve(false);
+  }
+  var b64=doc.output("datauristring").split(",")[1];
+  var avant=JSON.stringify([n.titre, n.texte, n.encre && n.encre.src]);
+  etat("Enregistrement…", true);
+  enVol=fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({pdf:b64,
+      chantier:refAffaire(), client:S.chantier.client, adresse:S.chantier.adresse, type:"note", noteId:n.id,
+      date:aujourdhui(), titre:"Note — "+(String(n.titre||"").trim() || "sans titre"), dossier:true, destinataires:[],
+      auteur:(SESSION&&SESSION.nom)||""})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ etat(res.d.erreur || "Enregistrement refusé.", true); return false; }
+      n.cle=res.d.cle; n.enregistree=new Date().toISOString();
+      /* écrite de nouveau pendant l'envoi : elle repartira */
+      if(JSON.stringify([n.titre, n.texte, n.encre && n.encre.src])===avant) n.sale=false;
+      garder();
+      var fiche=JSON.parse(JSON.stringify(n)); delete fiche.sale;
+      return fetch(apiUrl("deposer-fiche"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({cle:res.d.cle, donnees:JSON.stringify({noteC:fiche})})})
+        .catch(function(){}).then(function(){ chargerListe(); return true; });
+    })
+    .catch(function(){ etat("Hors ligne : enregistré sur l'appareil, envoi au retour du réseau.", true); return false; })
+    .then(function(ok){
+      enVol=null;
+      if(rejouer || N().sale){ rejouer=false; if(N().sale && ok) envoiT=setTimeout(envoyer, 1200); }
+      etatRepos();
+      return ok;
+    });
+  return enVol;
+}
+/* ce qui attend part tout de suite (changement de note, de page, d'appli) */
+function vider(){
+  if(enVol) return enVol.then(function(){ return vider(); });
+  if(N().sale && noteRemplie(N())) return envoyer();
+  return Promise.resolve(true);
+}
+function ecrireFiche(){ return garderTout().then(function(){ return vider(); }); }
+window.addEventListener("online", function(){ if(N().sale) envoyer(); });
+document.addEventListener("visibilitychange", function(){ if(document.visibilityState==="hidden"){ garderTout(); if(N().sale) envoyer(); } });
+window.addEventListener("pagehide", function(){ garderTout(); if(N().sale) envoyer(); });
+
+/* ---------- l'éditeur ---------- */
+function peindre(){
+  var avecRef=!!refAffaire();
+  $("ntChoix").hidden=avecRef; $("ntEditeur").hidden=!avecRef; $("ntNotes").hidden=!avecRef;
+  $("hdrRef").textContent=[S.chantier.client, refAffaire()].filter(Boolean).join("  ");
+  if(!avecRef) return;
+  var n=N();
+  if($("n_titre").value!==(n.titre||"")) $("n_titre").value=n.titre||"";
+  if($("n_texte").value!==(n.texte||"")) $("n_texte").value=n.texte||"";
+  var h=$("n_encre"); h.textContent="";
+  if(n.encre && window.Stylet && Stylet.valide(n.encre)){
+    var im=Stylet.image(n.encre); im.title="Compléter l'écriture"; im.addEventListener("click", ecrireStylet);
+    var x=document.createElement("button"); x.type="button"; x.className="act ghost mini"; x.textContent="Retirer l'écriture"; x.style.marginTop="8px";
+    x.addEventListener("click", function(){ n.encre=null; modifiee(); peindre(); });
+    h.appendChild(im); h.appendChild(x);
+  }
+  $("btnNoteStylet").textContent = n.encre ? "Compléter au stylet" : "Écrire au stylet";
+  etatRepos();
+  peindreListe();
+}
+function ecrireStylet(){
+  if(!window.Stylet){ toast("Écriture au stylet indisponible."); return; }
+  var n=N(), e=n.encre;
+  var opt={titre: e ? "Compléter la note" : (n.titre||"Note"), bouton: e ? "Enregistrer" : "Ajouter",
+    ok:function(encre){ n.encre=encre; modifiee(); peindre(); }};
+  if(e && e.traits && e.traits.length) opt.traits=e.traits;
+  else if(e && e.src){ opt.fond=e.src; opt.fondL=e.l; opt.fondH=e.h; }
+  Stylet.ouvrir(opt);
+}
+function nouvelleNote(){
+  vider().then(function(){
+    S.note=noteVierge(); garder(); peindre();
+    try{ $("n_titre").focus(); }catch(e){}
+  });
+}
+
+/* ---------- les notes du dossier ---------- */
+var NOTES=[];
+function chargerListe(){
+  var ref=refAffaire(); if(!ref || !baseSite() || !jetonSession()) return;
+  fetch(apiUrl("liste"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || ref!==refAffaire()) return;
+      var c=(d.chantiers||[]).filter(function(x){ return String(x.ref).toUpperCase()===String(ref).toUpperCase(); })[0];
+      NOTES=c ? (c.fichiers||[]).filter(function(f){ return f.type==="note" && f.donnees; }) : [];
+      NOTES.sort(function(a,b){ return String(b.publie||"").localeCompare(String(a.publie||"")); });
+      peindreListe();
+    })
+    .catch(function(){});
+}
+function peindreListe(){
+  var h=$("ntListe"); if(!h) return;
+  h.textContent="";
+  var ici=N().cle;
+  var autres=NOTES.filter(function(f){ return f.cle!==ici; });
+  $("ntNb").textContent = NOTES.length ? NOTES.length : "";
+  NOTES.forEach(function(f){
+    var b=document.createElement("button"); b.type="button";
+    if(f.cle===ici) b.setAttribute("aria-current","true");
+    var t=document.createElement("b"); t.textContent=String(f.titre||"Note").replace(/^Note — /,"");
+    var m=document.createElement("span"); m.textContent=frDate(f.publie || f.date)+(f.auteur ? " · "+f.auteur : "");
+    b.appendChild(t); b.appendChild(m);
+    b.addEventListener("click", function(){ if(f.cle!==N().cle) ouvrirNote(f); });
+    h.appendChild(b);
+  });
+  $("ntVide").hidden = autres.length>0 || NOTES.length>0;
+}
+function ouvrirNote(f){
+  vider().then(function(){
+    return fetch(apiUrl("fiche")+"&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":jetonSession()}});
+  }).then(function(r){ return r && r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !d.noteC){ toast("Cette note ne se rouvre pas."); return; }
+      S.note=d.noteC; S.note.cle=f.cle; S.note.sale=false; S.note.ref=refAffaire();
+      if(!S.note.enregistree) S.note.enregistree=f.publie||"";
+      garder(); peindre();
+      try{ window.scrollTo({top:0, behavior:"smooth"}); }catch(e){}
+    })
+    .catch(function(){ toast("Pas de réseau."); });
+}
+
+/* ---------- le chantier ---------- */
+function reprendreDossier(d){
+  var ref=String(d.ref||"").trim();
+  var change = ref && ref!==refAffaire();
+  vider().then(function(){
+    S.chantier={client:d.client||"", ref:ref, adresse:d.adresse||""};
+    /* une note est à son chantier : un autre chantier commence une note neuve */
+    if(change || !S.note || (S.note.ref && S.note.ref!==ref)) S.note=noteVierge();
+    try{ poserChantier({ref:ref, client:d.client||"", adresse:d.adresse||""}); }catch(e){}
+    NOTES=[]; garder(); peindre(); chargerListe();
+    try{ peindreNavChantier(); }catch(e){}
+  });
+}
+function ouvrirDepuisSite(){
+  if(!apiPret()) return;
+  toast("Recherche des dossiers…");
+  fetch(apiUrl("dossiers"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ toast(res.d.erreur || "Accès refusé."); return; }
+      choisirDossier(res.d.dossiers||[]);
+    })
+    .catch(function(){ toast("Pas de réseau."); });
+}
+function choisirDossier(liste){
+  var ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
+    +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+  var sheet=document.createElement("div");
+  sheet.style.cssText="background:var(--bg);width:100%;max-height:82vh;overflow:auto;"
+    +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+  var h=document.createElement("h2");
+  h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 4px";
+  h.textContent="Dossiers du site";
+  var sub=document.createElement("p"); sub.className="hint"; sub.style.margin="0 0 14px";
+  sub.textContent="Le client, la référence et l" + String.fromCharCode(39) + "adresse sont repris.";
+  sheet.appendChild(h); sheet.appendChild(sub);
+
+  var champ=document.createElement("input");
+  champ.type="search"; champ.placeholder="Rechercher un client, une référence…";
+  champ.autocapitalize="off"; champ.spellcheck=false;
+  champ.style.cssText="width:100%;min-height:46px;padding:12px 14px;border:0;border-radius:var(--r-field);"
+    +"background:var(--field);font-size:16px;font-family:inherit;margin-bottom:12px";
+  champ.hidden = liste.length < 5;
+  sheet.appendChild(champ);
+
+  var hote=document.createElement("div");
+  sheet.appendChild(hote);
+
+  function normaliser(t){
+    return String(t||"").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g,"");
+  }
+  function peindre(){
+    hote.textContent="";
+    var q=normaliser(champ.value).trim();
+    var vus = !q ? liste : liste.filter(function(d){
+      var foin=normaliser([d.client, d.ref, d.adresse].filter(Boolean).join(" "));
+      return q.split(/\s+/).every(function(mot){ return foin.indexOf(mot)>=0; });
+    });
+    if(!vus.length){
+      var v=document.createElement("p"); v.className="hint";
+      v.textContent = liste.length
+        ? "Aucun dossier ne correspond à cette recherche."
+        : "Aucun dossier sur le site.";
+      hote.appendChild(v); return;
+    }
+    vus.forEach(function(d){
+      var b=document.createElement("button"); b.type="button";
+      b.style.cssText="display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--rule);"
+        +"padding:13px 15px;margin-bottom:9px;font-family:inherit;color:var(--ink);cursor:pointer";
+      var t=document.createElement("b"); t.style.cssText="display:block;font-size:15.5px";
+      t.textContent=(d.client||d.ref);
+      var s2=document.createElement("span");
+      s2.style.cssText="display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px";
+      s2.textContent=[d.ref, d.documents + " document" + (d.documents>1?"s":"")].filter(Boolean).join("   ");
+      b.appendChild(t); b.appendChild(s2);
+      b.addEventListener("click", function(){
+        document.body.removeChild(ov);
+        reprendreDossier(d);
+      });
+      hote.appendChild(b);
+    });
+  }
+  champ.addEventListener("input", peindre);
+  peindre();
+
+  var annule=document.createElement("button");
+  annule.type="button"; annule.className="act"; annule.textContent="Fermer";
+  annule.style.cssText="width:100%;margin-top:6px";
+  annule.addEventListener("click", function(){ document.body.removeChild(ov); });
+  sheet.appendChild(annule);
+  ov.appendChild(sheet);
+  ov.addEventListener("click", function(e){ if(e.target===ov) document.body.removeChild(ov); });
+  document.body.appendChild(ov);
+}
+
+/* ---------- démarrage ---------- */
+function demarrer(){
+  var prm; try{ prm=new URLSearchParams(location.search); }catch(e){ prm=null; }
+  var ref=prm ? String(prm.get("ref")||"").trim() : "";
+  window.storage.get("releve:prefs").then(function(r){ try{ if(r && r.value) P=JSON.parse(r.value)||{}; }catch(e){} }).catch(function(){})
+  .then(function(){ return window.storage.get(CLE); })
+  .then(function(r){ try{ if(r && r.value){ var x=JSON.parse(r.value); if(x && x.chantier) S=x; } }catch(e){} })
+  .catch(function(){})
+  .then(function(){
+    if(!S.chantier) S.chantier={client:"", ref:"", adresse:""};
+    if(ref){
+      reprendreDossier({ref:ref, client:(prm.get("client")||"").trim(), adresse:(prm.get("adresse")||"").trim()});
+      try{ history.replaceState(null, "", location.pathname); }catch(e){}
+    } else {
+      peindre(); chargerListe();
+      if(N().sale) envoyer();
+    }
+  });
+  $("n_titre").addEventListener("input", function(){ N().titre=this.value; modifiee(); });
+  $("n_texte").addEventListener("input", function(){ N().texte=this.value; modifiee(); });
+  $("btnNoteStylet").addEventListener("click", ecrireStylet);
+  $("btnNoteNouvelle").addEventListener("click", nouvelleNote);
+  $("btnDossierSite").addEventListener("click", ouvrirDepuisSite);
+  $("btnAutreChantier").addEventListener("click", ouvrirDepuisSite);
+  document.querySelectorAll("[data-dictee]").forEach(function(b){ b.dataset.target=b.dataset.dictee; setupDictation(b); });
+}
+demarrer();
+
+/* ---------- la barre du chantier, en haut ----------
+   Quand on arrive depuis la page d'un chantier, on garde ce chantier
+   sous la main : une touche suffit pour passer d'un document à l'autre
+   sans repasser par la liste. */
+var CH_ICONES = {
+  note:'<path d="M5 3.5h14v17H5z"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4"/>',
+  releve:'<path d="M9 3h6a2 2 0 0 1 2 2v1h1a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h1V5a2 2 0 0 1 2-2z"/><path d="M9 12h6M9 16h4"/>',
+  suivi:'<path d="M4 18.5l5-5.5 3.5 3L20 7.5"/><path d="M15.5 7.5H20v4.5"/>',
+  commande:'<path d="M3.5 5h2.2l2.1 9.4a1.6 1.6 0 0 0 1.6 1.3h7.6a1.6 1.6 0 0 0 1.6-1.2L20.5 8H7"/><circle cx="10" cy="19.4" r="1.3"/><circle cx="17.4" cy="19.4" r="1.3"/>',
+  point:'<path d="M4 6.5h3M4 12h3M4 17.5h3"/><path d="M10.5 6.5h9.5M10.5 12h9.5M10.5 17.5h6"/>',
+  etiquettes:'<rect x="3.5" y="6.5" width="17" height="11" rx="1.4"/><path d="M8 6.5v11M12 6.5v11M16 6.5v11"/>',
+  photos:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>',
+  autocontrole:'<rect x="5" y="3.5" width="14" height="17" rx="1.6"/><path d="M8.5 9l1.6 1.6L14 6.8"/><path d="M8.5 15h7"/>',
+  reception:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.5 14.2l2 2 4-4.4"/>',
+  technique:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>',
+  chantier:'<path d="M12 21s7-5.6 7-11a7 7 0 1 0-14 0c0 5.4 7 11 7 11z"/><circle cx="12" cy="10" r="2.6"/>'
+};
+var CH_TECH=[
+  ["commande","Commande","./commande.html","commande"],
+  ["point","Le point","./point.html","point"],
+  ["note","Note","./note.html","photos"],
+  ["photos","Photo et croquis","./photos.html","photos"],
+  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
+  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
+  ["technique","Documents techniques","./technique.html","technique"]
+];
+var CH_BUREAU=[
+  ["releve","Relevé","./releve.html","releve"],
+  ["suivi","Suivi","./suivi.html","suivi"],
+  ["commande","Commande","./commande.html","commande"],
+  ["point","Le point","./point.html","point"],
+  ["note","Note","./note.html","photos"],
+  ["etiquettes","Étiquettes","./etiquettes.html","etiquettes"],
+  ["photos","Photos","./photos.html","photos"],
+  ["autocontrole","Autocontrôle","./autocontrole.html","autocontrole"],
+  ["reception","Réception","./reception.html","reception"],
+  ["technique","Documents techniques","./technique.html","technique"]
+];
+var CH_APPLI = "note";
+function chantierCourant(){
+  try{ return JSON.parse(sessionStorage.getItem("chantier:courant")||"null"); }
+  catch(e){ return null; }
+}
+function poserChantier(d){
+  try{ sessionStorage.setItem("chantier:courant", JSON.stringify(d)); }catch(e){}
+}
+function chAAcces(id){
+  var siennes = (SESSION && SESSION.applis) || [];
+  if(!Array.isArray(siennes) || !siennes.length) return true;
+  if(SESSION.role === "admin" || SESSION.proprietaire) return true;
+  /* le point suit le droit de la commande : c'est le même métier */
+  return siennes.indexOf(id === "point" ? "commande" : id) >= 0;
+}
+function chLien(page){
+  var c=chantierCourant(); if(!c) return page;
+  var p=new URLSearchParams();
+  p.set("ref", c.ref);
+  if(c.client) p.set("client", c.client);
+  if(c.adresse) p.set("adresse", String(c.adresse).replace(/\n/g, ", "));
+  return page + "?" + p.toString();
+}
+/* ---------- la pastille des documents modifiés ----------
+   Dans la barre du chantier, en haut : un point orange sur chaque appli
+   dont la fiche de CE chantier a des cases modifiées pas encore
+   publiées. On voit d'un coup d'œil où il reste à publier. */
+var CH_CLES={releve:"releve:courant",suivi:"suivi:courant",commande:"commande:courante",point:"point:courant",
+  etiquettes:"etiquettes:courant",photos:"photos:courant",autocontrole:"autocontrole:courant",
+  reception:"reception:courante",sav:"sav:courant"};
+var CH_MODIFS={}, CH_MODIFS_REF=null;
+function chNet(t){ return String(t||"").trim().toUpperCase().replace(/\s+/g,""); }
+function chRefDe(id, s){
+  function code(t){ return String(t||"").trim().toUpperCase().replace(/[^A-Z0-9]/g,"").slice(0,8); }
+  if(id==="suivi"){ var af=s.affaire||{}, cl=s.client||{}; return chNet(af.chantier)||chNet(af.devis)||code(cl.nom); }
+  if(id==="releve") return chNet((s.affaire||{}).chantier);
+  var c=s.chantier||{};
+  return chNet(c.ref) || (id==="reception" ? chNet(c.devis) : "") || code(c.client);
+}
+function chAModifs(s){ return !!(s && s._modifs && typeof s._modifs==="object" && Object.keys(s._modifs).length); }
+function chChercherModifs(ref){
+  var net=chNet(ref);
+  CH_MODIFS_REF=net;
+  if(!window.storage || !window.storage.get) return;
+  Object.keys(CH_CLES).forEach(function(id){
+    if(id===CH_APPLI) return;
+    function examiner(r){
+      if(!r || !r.value || r.value.indexOf('"_modifs":{"')<0) return false;
+      var s; try{ s=JSON.parse(r.value); }catch(e){ return false; }
+      return !!s && chRefDe(id, s)===net && chAModifs(s);
+    }
+    window.storage.get(CH_CLES[id]).then(examiner).then(function(oui){
+      return oui || window.storage.get(CH_CLES[id]+"@"+net).then(examiner);
+    }).then(function(oui){
+      if(CH_MODIFS_REF!==net) return;
+      if(!!CH_MODIFS[id]!==!!oui){ CH_MODIFS[id]=!!oui; peindreNavChantier(); }
+    }).catch(function(){});
+  });
+}
+function chModifsPour(id){
+  if(id===CH_APPLI) return typeof S!=="undefined" && chAModifs(S);
+  return !!CH_MODIFS[id];
+}
+document.addEventListener("visibilitychange", function(){
+  if(!document.hidden && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF);
+});
+window.addEventListener("pageshow", function(e){ if(e.persisted && CH_MODIFS_REF!==null) chChercherModifs(CH_MODIFS_REF); });
+(function(){
+  var st=document.createElement("style");
+  st.textContent="nav#navChantier a{position:relative}"
+    +"nav#navChantier a.a-modifs::after{content:'';position:absolute;top:2px;left:calc(50% + 5px);width:12px;height:12px;"
+    +"border-radius:50%;background:#3B82F6;box-shadow:0 0 0 2px #10161F}"
+    +"nav#navChantier a[aria-current=\"true\"].a-modifs::after{background:#fff;box-shadow:0 0 0 2px #1D4ED8}";
+  document.head.appendChild(st);
+})();
+function peindreNavChantier(){
+  var hote=document.getElementById("navChantier");
+  var wrap=document.getElementById("navChantierWrap");
+  if(!hote || !wrap) return;
+  var c=chantierCourant();
+  /* la barre ne vaut que si la fiche ouverte est bien celle de ce chantier */
+  var sienne=false;
+  try{ sienne = !!c && String(refAffaire()||"").trim() === String(c.ref||"").trim(); }catch(e){}
+  if(!sienne){ if(!wrap.hidden) wrap.hidden=true; if(!hote.hidden) hote.hidden=true; return; }
+  if(wrap.hidden) wrap.hidden=false; if(hote.hidden) hote.hidden=false;
+  if(chNet(c.ref)!==CH_MODIFS_REF){ CH_MODIFS={}; chChercherModifs(c.ref); }
+  /* construite à côté, puis comparée : rien ne bouge à l'écran si rien n'a changé
+     (elle est revue toutes les 1,5 s, un toucher ne doit pas tomber pendant une reconstruction) */
+  var vraiHote=hote; hote=document.createElement("nav");
+
+  var retour=document.createElement("a");
+  retour.href="./chantier.html?ref="+encodeURIComponent(c.ref);
+  retour.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+CH_ICONES.chantier+'</svg>';
+  var rt=document.createElement("span"); rt.textContent="Le chantier";
+  retour.appendChild(rt);
+  hote.appendChild(retour);
+
+  var liste = (SESSION && SESSION.role === "technicien") ? CH_TECH : CH_BUREAU;
+  liste.forEach(function(a){
+    if(!chAAcces(a[3])) return;
+    var el=document.createElement("a");
+    var ici = a[0] === CH_APPLI;
+    el.href = ici ? "#" : chLien(a[2]);
+    if(ici) el.setAttribute("aria-current","true");
+    if(chModifsPour(a[0])){ el.classList.add("a-modifs"); el.title=a[1]+" : modifications pas encore publiées"; }
+    el.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(CH_ICONES[a[0]]||"")+'</svg>';
+    var b=document.createElement("span"); b.textContent=a[1];
+    el.appendChild(b);
+    if(ici) el.addEventListener("click", function(e){ e.preventDefault(); });
+    hote.appendChild(el);
+  });
+  if(hote.innerHTML!==vraiHote.innerHTML){ vraiHote.textContent=""; while(hote.firstChild) vraiHote.appendChild(hote.firstChild); }
+  hote=vraiHote;
+  majDebordChantier();
+}
+function majDebordChantier(){
+  var n=document.getElementById("navChantier"), w=document.getElementById("navChantierWrap");
+  if(!n || !w) return;
+  w.classList.toggle("deborde", n.scrollWidth - n.clientWidth - n.scrollLeft > 4);
+}
+(function lierNavChantier(){
+  var n=document.getElementById("navChantier");
+  if(n) n.addEventListener("scroll", majDebordChantier);
+  window.addEventListener("resize", majDebordChantier);
+  var essais=0;
+  (function attendre(){
+    if(typeof S === "undefined" || !S){ if(++essais > 120) return; setTimeout(attendre, 100); return; }
+    peindreNavChantier();
+    /* la fiche peut changer de chantier en cours de route */
+    setInterval(function(){ if(!document.hidden) peindreNavChantier(); }, 1500);
+  })();
+})();
+
+})();
+</script>
+<script src="./pied.js?v=20261007b" defer></script>
+<script src="./navigation.js?v=20261030a" defer></script>
+</body>
+</html>

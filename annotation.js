@@ -34,7 +34,15 @@ var OUTILS = [
   ["formes","Formes",'<rect x="3.5" y="11" width="9" height="9" rx="1"/><circle cx="16" cy="8" r="4.5"/>'],
   ["gomme","Gomme",'<path d="M8.5 19.5 3.8 14.8a1.6 1.6 0 0 1 0-2.3l8-8a1.6 1.6 0 0 1 2.3 0l5.4 5.4a1.6 1.6 0 0 1 0 2.3l-7 7z"/><path d="M20.5 19.5H9"/>'],
   ["choisir","Choisir",'<path d="M5 3l14 8-6 1.5L10 19z"/>'],
-  ["reperes","Repères",'<circle cx="12" cy="12" r="8"/><path d="M10.5 9.5 12 8.5V15.5"/>']
+  ["reperes","Symboles",'<path d="M13.5 2.5 5.5 13h6l-1 8.5 8-10.5h-6z"/>']
+];
+/* la colonne, en trois parties bien distinctes : dessiner, poser une forme, poser un symbole ;
+   « Choisir » reste à part, dessous */
+var GROUPES_OUTILS = [
+  ["Dessin", ["stylo","surligneur","texte","gomme"]],
+  ["Formes", ["formes"]],
+  ["Symboles", ["reperes"]],
+  ["", ["choisir"]]
 ];
 var ASTUCES = {
   stylo: "Dessinez. Gardez le doigt immobile une seconde en fin de tracé : le trait devient une forme parfaite.",
@@ -46,6 +54,7 @@ var ASTUCES = {
   choisir: "Touchez un élément : déplacez-le, changez sa couleur ou sa taille.",
   pastille: "Chaque touche pose le numéro suivant, repris dans la légende de la photo.",
   symbole: "Choisissez un symbole puis touchez l'endroit où le poser.",
+  pose: "Posé. Pour en ajouter un autre, retouchez l'outil.",
   flou: "Tirez un cadre sur une plaque ou un visage : il sera flouté."
 };
 var EPAISSEURS = {fin:2.5, moyen:5, epais:10};
@@ -196,7 +205,7 @@ var A = null, D = null, MESURE = null;
 var FLOUS = {};
 var PREFS = {outil:"stylo", couleur:"#E5484D", surCouleur:"#FDE047", ep:"moyen", surEp:"moyen", droit:true,
   gommeMode:"partielle", gomme:"moyenne", forme:"fleche", rempli:false, repere:"symbole", symbole:"cfo-dcl-plafond",
-  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false, epVal:0, surEpVal:0};
+  texteStyle:"bulle", texteTaille:40, rail:false, reglages:false, epVal:0, surEpVal:0, reperer:false};
 try{
   var lu = JSON.parse(localStorage.getItem("annotation:prefs") || "null");
   if(lu && typeof lu === "object") for(var kp in lu){ if(PREFS.hasOwnProperty(kp)) PREFS[kp]=lu[kp]; }
@@ -455,7 +464,7 @@ function dessinerSelection(c){
   var o=A.sel; if(!o) return;
   var k=A.vue.k;
   c.save();
-  c.strokeStyle="#EA7A1E"; c.lineWidth=1.6/k; c.setLineDash([7/k, 5/k]);
+  c.strokeStyle="#06B6D4"; c.lineWidth=1.6/k; c.setLineDash([7/k, 5/k]);
   if(o.t==="ligne"){
     c.beginPath(); c.moveTo(o.x1,o.y1); c.lineTo(o.x2,o.y2); c.stroke();
   } else {
@@ -470,8 +479,8 @@ function dessinerSelection(c){
   c.save();
   poignees(o).forEach(function(h){
     c.beginPath(); c.arc(h.x, h.y, (h.id==="rot" ? 8 : 9)/k, 0, Math.PI*2);
-    c.fillStyle = h.id==="rot" ? "#EA7A1E" : "#FFFFFF"; c.fill();
-    c.lineWidth=2/k; c.strokeStyle = h.id==="rot" ? "#FFFFFF" : "#EA7A1E"; c.stroke();
+    c.fillStyle = h.id==="rot" ? "#06B6D4" : "#FFFFFF"; c.fill();
+    c.lineWidth=2/k; c.strokeStyle = h.id==="rot" ? "#FFFFFF" : "#06B6D4"; c.stroke();
   });
   c.restore();
 }
@@ -583,7 +592,7 @@ function tirerPoignee(o, h, base, p, p0){
 }
 
 /* ---------- gomme ---------- */
-function rayonGomme(){ return GOMMES[PREFS.gomme]*A.u/borner(A.vue.k/A.fitK, 1, 4); }
+function rayonGomme(){ return GOMMES[PREFS.gomme]*A.u*(A.plan ? finesse() : 1/borner(A.vue.k/A.fitK, 1, 4)); }
 function gommer(a, b){
   var R=rayonGomme(), change=false;
   if(PREFS.gommeMode==="entier"){
@@ -670,11 +679,15 @@ function reconnaitre(pts){
 }
 
 /* ---------- vue : zoom et déplacement ---------- */
+/* un plan du suivi se zoome jusqu'à 20 fois (une photo, 10) ; zoomé, le stylet s'affine d'autant :
+   le trait garde à l'écran l'épaisseur choisie, donc plus fin sur le plan, pour écrire dans le détail */
+function zoomMax(){ return A && A.plan ? 20 : 10; }
+function finesse(){ if(!A || !A.plan) return 1; var z=A.vue.k/A.fitK; return z>1 ? 1/z : 1; }
 function versImage(s){ return [(s[0]-A.vue.x)/A.vue.k, (s[1]-A.vue.y)/A.vue.k]; }
 function versEcran(p){ return [p[0]*A.vue.k + A.vue.x, p[1]*A.vue.k + A.vue.y]; }
 function bornerVue(){
   var v=A.vue, W=A.sw, H=A.sh;
-  v.k=borner(v.k, A.fitK, A.fitK*10);
+  v.k=borner(v.k, A.fitK, A.fitK*zoomMax());
   var iw=A.w*v.k, ih=A.h*v.k;
   v.x = iw<=W ? (W-iw)/2 : borner(v.x, W-iw, 0);
   v.y = ih<=H ? (H-ih)/2 : borner(v.y, H-ih, 0);
@@ -694,7 +707,7 @@ function ajuster(garder){
 }
 function zoomer(f, s){
   var v=A.vue, m=versImage(s);
-  v.k=borner(v.k*f, A.fitK, A.fitK*10);
+  v.k=borner(v.k*f, A.fitK, A.fitK*zoomMax());
   v.x=s[0]-m[0]*v.k; v.y=s[1]-m[1]*v.k;
   bornerVue(); peindre(); majHaut();
 }
@@ -705,6 +718,8 @@ function peindre(){
   c.setTransform(1,0,0,1,0,0);
   c.fillStyle="#1A1F26"; c.fillRect(0, 0, D.cv.width, D.cv.height);
   c.setTransform(dpr*v.k, 0, 0, dpr*v.k, dpr*v.x, dpr*v.y);
+  /* un plan en haute définition, vu en entier : la réduction soignée garde les traits fins lisibles */
+  c.imageSmoothingEnabled=true; try{ c.imageSmoothingQuality="high"; }catch(e){}
   c.save();
   c.beginPath(); c.rect(0, 0, A.w, A.h); c.clip();
   dessinerScene(c, A.objs);
@@ -716,6 +731,7 @@ function peindre(){
     });
   }
   c.restore();
+  if(A.plan && PREFS.reperer) A.nZones=dessinerZones(c);
   dessinerSelection(c);
   if(A.curseur && A.outil==="gomme"){
     var R=rayonGomme();
@@ -725,6 +741,68 @@ function peindre(){
     c.strokeStyle="rgba(0,0,0,.6)"; c.stroke();
   }
   if(A.edition) placerEditeur();
+}
+
+/* ---------- repérer les modifications d'un plan ----------
+   Allumé (le bouton en haut, sur un plan), chaque endroit annoté est encadré en jaune et numéroté :
+   les éléments proches sont regroupés en une zone. « N zones › » zoome sur la suivante, pour
+   vérifier qu'on a tout repris. Ce n'est qu'à l'écran : l'image enregistrée ne les porte pas. */
+function zonesModifiees(){ return zonesDe(A.objs, A.w, A.h, A.u); }
+/* les zones d'une liste d'éléments, sur une image w × h (aussi pour le PDF du suivi, hors de l'outil) */
+function zonesDe(objs, W, H, u){
+  u=u || Math.max(0.6, Math.max(W, H)/1000);
+  var m=24*u, l=[];
+  (objs||[]).forEach(function(o){
+    var b=boite(o), r=b.rot ? Math.max(b.w, b.h) : 0;
+    var w=r || b.w, h=r || b.h;
+    if(!(w>=0) || !(h>=0)) return;
+    l.push({x0:b.cx-w/2-m, y0:b.cy-h/2-m, x1:b.cx+w/2+m, y1:b.cy+h/2+m});
+  });
+  /* les zones qui se touchent n'en font qu'une */
+  var fondu=true;
+  while(fondu){
+    fondu=false;
+    for(var i=0;i<l.length && !fondu;i++) for(var j=i+1;j<l.length;j++){
+      var a=l[i], b2=l[j];
+      if(a.x0<=b2.x1 && b2.x0<=a.x1 && a.y0<=b2.y1 && b2.y0<=a.y1){
+        a.x0=Math.min(a.x0,b2.x0); a.y0=Math.min(a.y0,b2.y0); a.x1=Math.max(a.x1,b2.x1); a.y1=Math.max(a.y1,b2.y1);
+        l.splice(j,1); fondu=true; break;
+      }
+    }
+  }
+  l.forEach(function(z){ z.x0=Math.max(0,z.x0); z.y0=Math.max(0,z.y0); z.x1=Math.min(W,z.x1); z.y1=Math.min(H,z.y1); });
+  /* dans l'ordre de lecture : de haut en bas, puis de gauche à droite */
+  var bande=H/12;
+  l.sort(function(a,b){ var la=Math.floor(a.y0/bande), lb=Math.floor(b.y0/bande); return la!==lb ? la-lb : a.x0-b.x0; });
+  return l;
+}
+function dessinerZones(c){
+  var v=A.vue, zs=zonesModifiees();
+  zs.forEach(function(z, i){
+    var w=z.x1-z.x0, h=z.y1-z.y0, r=Math.min(10/v.k, w/4, h/4);
+    c.save();
+    c.beginPath();
+    if(c.roundRect) c.roundRect(z.x0, z.y0, w, h, r); else c.rect(z.x0, z.y0, w, h);
+    c.fillStyle="rgba(250,204,21,.13)"; c.fill();
+    c.lineWidth=4/v.k; c.strokeStyle="rgba(11,14,18,.55)"; c.stroke();
+    c.lineWidth=2.5/v.k; c.strokeStyle="#FACC15"; c.stroke();
+    /* le numéro de la zone, dans un rond jaune au coin */
+    var R=11/v.k, cx=z.x0+R*0.4, cy=z.y0+R*0.4;
+    c.beginPath(); c.arc(cx, cy, R, 0, Math.PI*2);
+    c.fillStyle="#FACC15"; c.fill(); c.lineWidth=1.5/v.k; c.strokeStyle="rgba(11,14,18,.7)"; c.stroke();
+    c.fillStyle="#0B0E12"; c.font="800 "+(12/v.k)+"px system-ui,sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+    c.fillText(String(i+1), cx, cy+0.5/v.k);
+    c.restore();
+  });
+  return zs.length;
+}
+function zoneSuivante(){
+  var zs=zonesModifiees(); if(!zs.length) return;
+  A.zone=((A.zone==null ? -1 : A.zone)+1) % zs.length;
+  var z=zs[A.zone], w=Math.max(z.x1-z.x0, 1), h=Math.max(z.y1-z.y0, 1), v=A.vue;
+  v.k=borner(Math.min(A.sw*0.7/w, A.sh*0.7/h), A.fitK, A.fitK*zoomMax());
+  v.x=A.sw/2-(z.x0+w/2)*v.k; v.y=A.sh/2-(z.y0+h/2)*v.k;
+  bornerVue(); peindre(); majHaut();
 }
 
 /* ---------- historique ---------- */
@@ -813,8 +891,8 @@ function posEcran(e){
   return [e.clientX-r.left, e.clientY-r.top];
 }
 /* l'épaisseur : une des trois tailles, ou celle réglée au curseur (teinte.js) */
-function ep(){ return (PREFS.epVal>0 ? PREFS.epVal : EPAISSEURS[PREFS.ep])*A.u; }
-function epSurl(){ return (PREFS.surEpVal>0 ? PREFS.surEpVal : SURL_EP[PREFS.surEp])*A.u; }
+function ep(){ return (PREFS.epVal>0 ? PREFS.epVal : EPAISSEURS[PREFS.ep])*A.u*finesse(); }
+function epSurl(){ return (PREFS.surEpVal>0 ? PREFS.surEpVal : SURL_EP[PREFS.surEp])*A.u*finesse(); }
 function nouveau(o){ A.objs.push(o); return o; }
 function prochainNumero(){
   var n=0; A.objs.forEach(function(o){ if(o.t==="pastille" && o.n>n) n=o.n; });
@@ -956,7 +1034,7 @@ function surMouvement(e){
   }
   if(G.type==="pincevue" && nbDoigts()>=2){
     var d2=deuxDoigts();
-    A.vue.k=borner(G.k0*d2.d/G.d0, A.fitK, A.fitK*10);
+    A.vue.k=borner(G.k0*d2.d/G.d0, A.fitK, A.fitK*zoomMax());
     A.vue.x=d2.m[0]-G.m0[0]*A.vue.k; A.vue.y=d2.m[1]-G.m0[1]*A.vue.k;
     bornerVue(); peindre(); return;
   }
@@ -1050,6 +1128,7 @@ function surLacher(e){
       }
       A.sel=g.o;
       valider(g.avant);
+      apresPose();
       majUI();
       if(g.o.t==="ligne" && g.o.f==="cote" && D.champ) focusChamp();
       break;
@@ -1064,6 +1143,7 @@ function surLacher(e){
         }
       } else {
         valider(g.avant);
+        if(g.pose) apresPose();
       }
       break;
     case "tap":
@@ -1095,7 +1175,10 @@ var CSS = [
   "-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}",
   ".an-rond{width:44px;height:44px;border-radius:50%;padding:0;display:inline-flex;align-items:center;justify-content:center}",
   ".an-rond svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2.2;stroke-linecap:round}",
-  ".an-pill.or{background:#EA7A1E;border-color:#EA7A1E;color:#0B0E12;font-weight:800}",
+  ".an-pill.or{background:#3B82F6;border-color:#3B82F6;color:#fff;font-weight:800}",
+  ".an-pill.an-zones{background:#FACC15;border-color:#FACC15;color:#0B0E12;font-weight:800;padding:6px 12px}",
+  ".an-pill.an-zones:disabled{opacity:.75}",
+  "#an_reperer.on{background:#FACC15;border-color:#FACC15;color:#0B0E12}",
   ".an-ic{flex:0 0 auto;width:40px;height:40px;border-radius:50%;border:1px solid rgba(255,255,255,.14);background:rgba(20,25,32,.82);display:inline-flex;align-items:center;justify-content:center;padding:0;color:#E5E9EF;",
   "-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px)}",
   ".an-ic[disabled]{opacity:.35;cursor:default}",
@@ -1107,7 +1190,7 @@ var CSS = [
   "font-size:12.5px;line-height:1.4;pointer-events:none;opacity:0;transition:opacity .25s;max-width:560px;margin:0 auto}",
   ".an-astuce.vue{opacity:1}",
   ".an-saisie{position:absolute;margin:0;padding:0 6px;border:0;outline:0;background:transparent;",
-  "resize:none;overflow:hidden;white-space:pre;text-align:center;caret-color:#EA7A1E;transform-origin:50% 50%;-webkit-user-select:text;user-select:text}",
+  "resize:none;overflow:hidden;white-space:pre;text-align:center;caret-color:#3B82F6;transform-origin:50% 50%;-webkit-user-select:text;user-select:text}",
   ".an-rang{flex:0 0 auto;display:flex;align-items:center;gap:8px;padding:7px 12px;min-height:52px;box-sizing:border-box;background:#141920;",
   "border-top:1px solid rgba(255,255,255,.06);overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}",
   ".an-rang::-webkit-scrollbar{display:none}",
@@ -1117,7 +1200,7 @@ var CSS = [
   ".an-flottant .an-rang{background:transparent;border-top:1px solid rgba(255,255,255,.08)}",
   ".an-flottant .an-sel{background:rgba(27,34,43,.96)}",
   ".an-dot{flex:0 0 auto;width:30px;height:30px;border-radius:50%;border:2px solid rgba(255,255,255,.28);padding:0}",
-  ".an-dot.on{border-color:#fff;box-shadow:0 0 0 2px #EA7A1E}",
+  ".an-dot.on{border-color:#fff;box-shadow:0 0 0 2px #3B82F6}",
   ".an-chip{flex:0 0 auto;display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:4px 12px;border-radius:999px;",
   "border:1px solid rgba(255,255,255,.2);background:transparent;color:#C7CED6;font-size:12.5px;font-weight:600;white-space:nowrap}",
   ".an-chip.on{background:#F2F5F9;color:#0B0E12;border-color:#F2F5F9}",
@@ -1147,15 +1230,18 @@ var CSS = [
   ".an-outil{position:relative;width:46px;height:46px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;padding:0;border-radius:12px;border:0;background:none;color:#C7CED6}",
   ".an-outil svg{width:24px;height:24px;stroke-width:1.9}",
   ".an-outil span{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}",
-  ".an-outil.on{background:rgba(234,122,30,.22);color:#FDBA74}",
+  ".an-outil.on{background:rgba(59,130,246,.22);color:#93C5FD}",
   ".an-rail-sep{width:26px;height:1px;background:rgba(255,255,255,.14);margin:4px 0;flex:0 0 auto}",
+  ".an-groupe-t{display:block;width:46px;margin:6px 0 1px;font-size:10px;font-weight:700;letter-spacing:-.01em;text-align:center;color:#8A97A6;white-space:nowrap}",
+  ".an-outils .an-groupe-t:first-child{margin-top:2px}",
+  ".an-outils .an-rail-sep{align-self:center;margin:6px 0 2px}",
   ".an-pastille{width:46px;height:46px;flex:0 0 auto;border:0;background:none;display:flex;align-items:center;justify-content:center;padding:0;border-radius:12px}",
   ".an-pastille i{display:block;width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.85);box-shadow:0 0 0 1px rgba(0,0,0,.4)}",
   ".an-pastille.on{background:rgba(255,255,255,.12)}",
   ".an-plier{position:relative;width:52px;height:52px;flex:0 0 auto;border-radius:14px;border:1px solid rgba(255,255,255,.14);background:rgba(20,25,32,.9);color:#F2F5F9;",
   "display:flex;align-items:center;justify-content:center;padding:0;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 10px 30px -12px rgba(0,0,0,.8)}",
   ".an-plier svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}",
-  ".an-rail.ferme .an-plier{background:#EA7A1E;border-color:#EA7A1E;color:#0B0E12}",
+  ".an-rail.ferme .an-plier{background:#3B82F6;border-color:#3B82F6;color:#fff}",
   ".an-plier b{position:absolute;right:3px;bottom:3px;width:12px;height:12px}",
   ".an-plier b svg{width:12px;height:12px;stroke-width:2.6}",
   "@media (prefers-reduced-motion:reduce){.an-astuce{transition:none}}"
@@ -1181,6 +1267,29 @@ function chip(label, on, fn, cls){
   return b;
 }
 
+/* Apple Pencil : sur iPad, un toucher de bouton où la pointe glisse d'un rien ne donne pas de « click »
+   (au doigt, si). On le fait donc nous-mêmes : posé puis levé sur le même bouton, au crayon, le bouton
+   est actionné ; le « click » du système, s'il arrive quand même dans l'instant, est ignoré. */
+function toucherCrayon(racine){
+  var vise=null, ignorer=null, jusqua=0;
+  racine.addEventListener("pointerdown", function(e){
+    vise=null;
+    if(e.pointerType!=="pen" || !e.target || !e.target.closest) return;
+    var b=e.target.closest("button"); if(b && !b.disabled && racine.contains(b)) vise=b;
+  }, true);
+  racine.addEventListener("pointerup", function(e){
+    if(e.pointerType!=="pen" || !vise) return;
+    var b=vise, r=b.getBoundingClientRect(); vise=null;
+    if(e.clientX<r.left-10 || e.clientX>r.right+10 || e.clientY<r.top-10 || e.clientY>r.bottom+10) return;
+    ignorer=b; jusqua=Date.now()+700;
+    b.click();
+  }, true);
+  racine.addEventListener("click", function(e){
+    if(!e.isTrusted || !ignorer || Date.now()>jusqua) return;
+    e.stopPropagation(); e.preventDefault();   /* le bouton a pu être redessiné : tout « click » du système dans l'instant est le doublon */
+    ignorer=null;
+  }, true);
+}
 function construire(){
   if(D) return;
   var st=el("style"); st.textContent=CSS; document.head.appendChild(st);
@@ -1199,8 +1308,15 @@ function construire(){
   grille.id="an_grille";
   var entier=icone("Vue entière", '<path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/>', function(){ A.vue.k=A.fitK; bornerVue(); peindre(); majHaut(); });
   entier.id="an_entier";
+  /* repérer les modifications (un plan) : encadrer en jaune les endroits annotés ; « N zones › » va de l'une à l'autre */
+  var reperer=icone("Repérer les modifications", '<rect x="3.5" y="5.5" width="17" height="13" rx="2" stroke-dasharray="3 2.4"/><path d="M8 12.5l2.6 2.5L16 9.5"/>', function(){
+    PREFS.reperer=!PREFS.reperer; garderPrefs(); A.zone=null; peindre(); majHaut();
+  });
+  reperer.id="an_reperer";
+  var zones=el("button","an-pill an-zones"); zones.type="button"; zones.id="an_zones";
+  zones.addEventListener("click", function(){ zoneSuivante(); });
   var ok=el("button","an-pill or","Enregistrer"); ok.type="button"; ok.id="an_ok";
-  [fermer, und, red, titre, grille, entier, ok].forEach(function(x){ haut.appendChild(x); });
+  [fermer, und, red, titre, grille, entier, reperer, zones, ok].forEach(function(x){ haut.appendChild(x); });
   /* la colonne d'outils */
   var rail=el("div","an-rail"+(PREFS.rail?"":" ferme")); rail.id="an_rail";
   var corps=el("div","an-rail-corps");
@@ -1216,13 +1332,17 @@ function construire(){
   var flot=el("div","an-flottant"); flot.appendChild(selr); flot.appendChild(opts); flot.appendChild(coul);
   scene.appendChild(cv); scene.appendChild(saisie); scene.appendChild(ast); scene.appendChild(flot);
   var outils=el("div","an-outils");
-  OUTILS.forEach(function(o){
+  GROUPES_OUTILS.forEach(function(gr, k){
+    if(k) outils.appendChild(el("span","an-rail-sep"));
+    if(gr[0]) outils.appendChild(el("span","an-groupe-t", gr[0]));
+    OUTILS.filter(function(o){ return gr[1].indexOf(o[0])>=0; }).forEach(function(o){
     var b=el("button","an-outil"); b.type="button"; b.dataset.outil=o[0];
     b.innerHTML=svg(o[2]) + "<span>"+o[1]+"</span>";
     b.setAttribute("aria-label", o[1]);
     b.title=o[1];
     b.addEventListener("click", function(){ choisirOutil(o[0]); });
     outils.appendChild(b);
+    });
   });
   /* la pastille de couleur : elle ouvre la palette et les épaisseurs, en bas */
   var past=el("button","an-pastille"); past.type="button"; past.id="an_palette";
@@ -1234,9 +1354,10 @@ function construire(){
   rail.appendChild(corps); rail.appendChild(plier);
   [scene, haut, rail].forEach(function(x){ r.appendChild(x); });
   document.body.appendChild(r);
+  toucherCrayon(r);
   D={racine:r, cv:cv, scene:scene, saisie:saisie, astuce:ast, selection:selr, options:opts, couleurs:coul, outils:outils,
      rail:rail, plier:plier, palette:past, flottant:flot,
-     titre:titre, annuler:und, retablir:red, grille:grille, entier:entier, fermer:fermer, ok:ok, champ:null};
+     titre:titre, annuler:und, retablir:red, grille:grille, entier:entier, reperer:reperer, zones:zones, fermer:fermer, ok:ok, champ:null};
 
   cv.addEventListener("pointerdown", surAppui);
   cv.addEventListener("pointermove", surMouvement);
@@ -1298,6 +1419,13 @@ function choisirOutil(o){
   astuceOutil();
   peindre(); majUI();
 }
+/* une forme ou un symbole posé : l'outil repasse sur « Choisir » (la pièce posée reste
+   choisie, à ajuster) ; une autre touche n'en pose pas un second par mégarde */
+function apresPose(){
+  if(!A || A.outil==="choisir") return;
+  A.outil="choisir";
+  astuce(ASTUCES.pose);
+}
 function supprimerSel(){
   if(!A.sel) return;
   var o=A.sel;
@@ -1329,7 +1457,7 @@ function choisirEpaisseur(cle){
   var o=A.sel;
   if(o && (o.t==="trait" || o.t==="forme" || o.t==="ligne")){
     var val = (o.t==="trait" && o.sur) ? SURL_EP[cle] : EPAISSEURS[cle];
-    if(val) modifier(function(){ o.e=val*A.u; });
+    if(val) modifier(function(){ o.e=val*A.u*finesse(); });
     if(o.t==="trait" && o.sur){ PREFS.surEp=cle; PREFS.surEpVal=0; } else { PREFS.ep=cle; PREFS.epVal=0; }
   } else if(A.outil==="surligneur"){ PREFS.surEp=cle; PREFS.surEpVal=0; }
   else { PREFS.ep=cle; PREFS.epVal=0; }
@@ -1345,7 +1473,7 @@ function ouvrirTeinte(btn){
   var courant=o ? o.c : (surl ? PREFS.surCouleur : PREFS.couleur);
   var taille, tailles, titre;
   if(texte){ taille=o ? Math.round(o.taille/A.u) : PREFS.texteTaille; tailles=[16, 24, 40, 64, 96]; titre="Taille du texte"; }
-  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)*10)/10; tailles=surl ? [10, 16, 24, 34, 48] : [2, 3.5, 5, 8, 12]; titre=surl ? "Épaisseur du surligneur" : "Épaisseur du crayon"; }
+  else if(trait){ taille=Math.round((o ? o.e/A.u : (surl ? epSurl() : ep())/A.u)/finesse()*10)/10; tailles=surl ? [10, 16, 24, 34, 48] : [2, 3.5, 5, 8, 12]; titre=surl ? "Épaisseur du surligneur" : "Épaisseur du crayon"; }
   var note=false;
   Teinte.ouvrir({ancre:btn, couleur:courant, taille:taille, tailles:tailles, texte:texte, titreTaille:titre,
     change:function(c, t){
@@ -1354,7 +1482,7 @@ function ouvrirTeinte(btn){
       if(cible && cible.t!=="flou"){
         cible.c=c;
         if(t!=null && texte && cible.t==="texte") cible.taille=borner(t*A.u, 6*A.u, 400*A.u);
-        if(t!=null && trait && cible.t!=="texte") cible.e=t*A.u;
+        if(t!=null && trait && cible.t!=="texte") cible.e=t*A.u*finesse();
       }
       if(surl) PREFS.surCouleur=c; else PREFS.couleur=c;
       if(t!=null){ if(texte) PREFS.texteTaille=Math.round(t); else if(surl) PREFS.surEpVal=t; else if(trait) PREFS.epVal=t; }
@@ -1389,8 +1517,16 @@ function majHaut(){
   D.grille.classList.toggle("on", A.fond==="grille");
   D.grille.setAttribute("aria-pressed", A.fond==="grille" ? "true" : "false");
   D.entier.hidden = !(A.vue.k > A.fitK*1.02);
+  D.reperer.hidden = !A.plan;
+  D.reperer.classList.toggle("on", !!(A.plan && PREFS.reperer));
+  D.reperer.setAttribute("aria-pressed", A.plan && PREFS.reperer ? "true" : "false");
+  var nz = A.plan && PREFS.reperer ? zonesModifiees().length : 0;
+  D.zones.hidden = !(A.plan && PREFS.reperer);
+  D.zones.disabled = !nz;
+  D.zones.textContent = !nz ? "Aucune" : (window.innerWidth < 420 ? nz+" ›" : nz+" zone"+(nz>1?"s":"")+" ›");
+  D.zones.title = nz ? "Aller à la zone suivante" : "Aucune modification sur ce plan";
   /* sur un téléphone étroit, le titre cède la place aux icônes */
-  D.titre.style.visibility = (window.innerWidth < 420 && (!D.grille.hidden || !D.entier.hidden)) ? "hidden" : "";
+  D.titre.style.visibility = (window.innerWidth < 420 && (!D.grille.hidden || !D.entier.hidden || A.plan)) ? "hidden" : "";
 }
 function epaisseurActuelle(){
   var o=A.sel;
@@ -1416,7 +1552,7 @@ function rangEpaisseurs(box){
 function majUI(){
   if(!A) return;
   majHaut();
-  Array.prototype.forEach.call(D.outils.children, function(b){
+  Array.prototype.forEach.call(D.outils.querySelectorAll(".an-outil"), function(b){
     var on=b.dataset.outil===A.outil;
     b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
   });
@@ -1627,9 +1763,11 @@ function ouvrir(opt){
         fond: img ? null : (opt.fond==="grille" ? "grille" : "blanc"),
         objs: Array.isArray(opt.objets) ? clone(opt.objets) : [],
         sel:null, edition:null, avantEdition:null, hist:[], redo:[], modifie:false, curseur:null,
-        outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve};
+        outil: PREFS.outil, vue:{k:1,x:0,y:0}, fitK:1, sw:1, sh:1, dpr:1, resolve:resolve, plan:!!opt.plan};
       FLOUS={};
-      if(opt.plan){ A.outil="reperes"; PREFS.repere="symbole"; }
+      /* un plan s'ouvre sur « Choisir » : on zoome et on se place d'abord (un doigt fait glisser, deux zooment),
+         puis on prend l'outil ; « Symboles » proposera bien les symboles */
+      if(opt.plan){ A.outil="choisir"; PREFS.repere="symbole"; }
       /* les pastilles numérotées ont laissé la place aux repères des plans du suivi : ici, symboles et flou */
       if(A.outil==="reperes" && (PREFS.repere==="pastille" || (PREFS.repere==="flou" && !img))) PREFS.repere="symbole";
       DOIGTS={}; G=null;
@@ -1684,7 +1822,9 @@ function enregistrer(){
   var reperes=objs.filter(function(o){ return o.t==="pastille"; })
     .sort(function(a,b){ return a.n-b.n; })
     .map(function(o){ return {n:o.n, texte:String(o.texte||"").trim()}; });
-  terminer({data:data, w:A.w, h:A.h, orig: A.img ? orig : null, objets:arrondir(objs), fond:A.fond, reperes:reperes});
+  /* un plan : ses zones modifiées, en proportion (le PDF du suivi les encadre en jaune) */
+  var zones = A.plan ? zonesFractions(objs, A.w, A.h) : null;
+  terminer({data:data, w:A.w, h:A.h, orig: A.img ? orig : null, objets:arrondir(objs), fond:A.fond, reperes:reperes, zones:zones});
 }
 
 /* la légende d'une photo reprend ses repères numérotés */
@@ -1704,8 +1844,15 @@ function optionsPhoto(ph, opt){
   }
   return o;
 }
+function zonesFractions(objs, W, H){
+  return zonesDe(objs, W, H).map(function(z){
+    function f(v, d){ return Math.round(v/d*10000)/10000; }
+    return {x0:f(z.x0, W), y0:f(z.y0, H), x1:f(z.x1, W), y1:f(z.y1, H)};
+  });
+}
 function appliquer(ph, r){
   ph.w=r.w; ph.h=r.h; ph.data=r.data;
+  if(r.zones && r.zones.length && r.objets && r.objets.length) ph.zones=r.zones; else delete ph.zones;
   if(!r.orig){
     ph.annot=r.objets; ph.fond=r.fond; delete ph.orig;
   } else if(!r.objets.length){
@@ -1731,13 +1878,39 @@ function nouveauCroquis(opt){
   return ouvrir({titre:opt.titre || "Croquis", fond:opt.fond || "blanc", w:1400, h:1000, plan:opt.plan}).then(function(r){
     if(!r) return null;
     var ph={data:r.data, w:r.w, h:r.h, legende:"Croquis", croquis:true, annot:r.objets, fond:r.fond};
+    if(r.zones && r.zones.length) ph.zones=r.zones;
     if(r.reperes && r.reperes.some(function(x){ return x.texte; })) ph.legende=legende("Croquis", r.reperes);
     return ph;
   });
 }
 
+/* sans ouvrir l'outil : une image et ses objets, aplatis en une seule image
+   (une implantation de panneaux refaite garde les dessins posés dessus) */
+function composer(src, objets, w, h){
+  return new Promise(function(ok, non){
+    if(A){ non(new Error("outil ouvert")); return; }
+    var img=new Image();
+    img.onload=function(){
+      w=w||img.naturalWidth; h=h||img.naturalHeight;
+      A={img:img, src:src, w:w, h:h, u:Math.max(0.6, Math.max(w,h)/1000), edition:null, sel:null, fond:"blanc"};
+      FLOUS={};
+      var d=null, err=null;
+      try{
+        var cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+        dessinerScene(cv.getContext("2d"), objets||[]);
+        d=cv.toDataURL("image/jpeg", 0.82);
+      }catch(e){ err=e; }
+      A=null; FLOUS={};
+      if(err) non(err); else ok(d);
+    };
+    img.onerror=function(){ non(new Error("image illisible")); };
+    img.src=src;
+  });
+}
+
 window.Annotation = {
   ouvrir: ouvrir,
+  composer: composer,
   photo: annoterPhoto,
   croquis: nouveauCroquis,
   appliquer: appliquer,
@@ -1746,6 +1919,8 @@ window.Annotation = {
   dessinerSymbole: dessinerSymbole,
   ouvert: function(){ return !!A; },
   allegerImage: allegerImage,
+  /* les zones modifiées d'un plan, en proportion : celles gardées à l'enregistrement, sinon recalculées */
+  zones: function(ph){ if(!ph) return []; if(ph.zones) return ph.zones; return ph.annot && ph.w && ph.h ? zonesFractions(ph.annot, ph.w, ph.h) : []; },
   pdfSousLimite: pdfSousLimite
 };
 
@@ -1772,13 +1947,15 @@ function allegerImage(src, maxPx, q){
 }
 /* construire() rend un doc jsPDF à partir de photos[].data ; limiteOctets en octets.
    Rend { b64, allege } sous la limite, ou null si même au plus léger c'est trop. */
-function pdfSousLimite(construire, photos, limiteOctets){
+function pdfSousLimite(construire, photos, limiteOctets, plans){
   function b64De(doc){ var s=doc.output("datauristring"); return s.slice(s.indexOf(",")+1); }
   function taille(b64){ return b64.length*0.75; }
   var doc, b64;
   try{ doc=construire(); b64=b64De(doc); }catch(e){ return Promise.reject(e); }
   if(taille(b64) <= limiteOctets) return Promise.resolve({ b64:b64, allege:false });
-  var utiles=(photos||[]).filter(function(p){ return p && p.data; });
+  /* les plans (fins traits, petits textes) s'allègent moins que les photos : 1,75 fois la taille */
+  var nPhotos=(photos||[]).filter(function(p){ return p && p.data; }).length;
+  var utiles=(photos||[]).filter(function(p){ return p && p.data; }).concat((plans||[]).filter(function(p){ return p && p.data; }));
   if(!utiles.length) return Promise.resolve(null);
   var paliers=[[1280,0.6],[1040,0.5],[840,0.42],[680,0.36]];
   var origines=utiles.map(function(p){ return p.data; });
@@ -1787,7 +1964,7 @@ function pdfSousLimite(construire, photos, limiteOctets){
   function essayer(){
     if(i>=paliers.length){ rendre(); return Promise.resolve(null); }
     var px=paliers[i][0], q=paliers[i][1]; i++;
-    return Promise.all(utiles.map(function(p,k){ return allegerImage(origines[k], px, q); }))
+    return Promise.all(utiles.map(function(p,k){ return k<nPhotos ? allegerImage(origines[k], px, q) : allegerImage(origines[k], Math.round(px*1.75), Math.min(0.8, q+0.2)); }))
       .then(function(legers){
         utiles.forEach(function(p,k){ if(legers[k]) p.data=legers[k]; });
         var d, b;

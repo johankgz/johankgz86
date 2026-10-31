@@ -2,17 +2,19 @@
 <html lang="fr" data-theme-fixe="sombre">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261007a"></script>
-<script src="./commun.js?v=20261007a" defer></script>
+<script src="./theme.js?v=20261024f"></script>
+<script src="./commun.js?v=20261030c" defer></script>
+<script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0B0E12">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0B1220">
 <title>Plan DWG — cotes et symboles</title>
 <script src="./symboles-elec.js?v=20261007a"></script>
-<script src="./visionneuse.js?v=20261001b"></script>
+<script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
-<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
-<link rel="apple-touch-icon" href="/icone-180.png">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
+<link rel="apple-touch-icon" href="/icone-180.png?v=2">
 <style>
 /* =====================================================================
    PLAN DWG — ouvrir un plan AutoCAD et y prendre des cotes
@@ -25,6 +27,14 @@
 /* ---------- ouvrir un plan déposé sur un chantier ---------- */
 .fen-site{position:fixed;inset:0;z-index:30;background:rgba(5,8,12,.72);display:flex;align-items:flex-start;justify-content:center;padding:calc(12px + env(safe-area-inset-top)) 10px 12px}
 .fen-site[hidden]{display:none}
+.fo-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 10px;overflow:auto}
+.fo-grille label{display:flex;flex-direction:column;gap:4px;font-size:12.5px;color:var(--ink2)}
+.fo-grille label.req{color:var(--ink)}
+.fo-grille label.large{grid-column:1/-1}
+.fo-grille input,.fo-grille select{min-height:42px;padding:6px 10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:16px}
+.fo-grille label.manque input{border-color:#F87171}
+.fo-err{margin:0;font-size:13px;color:#F87171}
+.fo-bas{display:flex;justify-content:flex-end;gap:8px}
 .fs-boite{width:min(560px,100%);max-height:100%;display:flex;flex-direction:column;gap:10px;padding:14px;border-radius:16px;background:var(--barre);border:1px solid var(--trait);box-shadow:0 18px 40px -14px rgba(0,0,0,.9)}
 .fs-tete{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .fs-tete b{font-size:16px}
@@ -39,7 +49,7 @@
 .fs-doc small{display:block;color:var(--ink3);font-size:12px}
 .fs-doc svg{flex:0 0 auto;width:18px;height:18px;fill:none;stroke:var(--or);stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .fs-vide{margin:6px 0;font-size:13.5px;color:var(--ink2);text-align:center}
-:root{--fond:#0B0E12;--barre:#141920;--trait:rgba(255,255,255,.1);--ink:#F2F5F9;--ink2:#AEB7BF;--ink3:#7A8796;--or:#FB923C;--or2:#EA7A1E;--cy:#22D3EE}
+:root{--fond:#0B0E12;--barre:#141920;--trait:rgba(255,255,255,.1);--ink:#F2F5F9;--ink2:#AEB7BF;--ink3:#7A8796;--or:#3B82F6;--or2:#3B82F6;--cy:#22D3EE}
 *{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--fond);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden;
   -webkit-tap-highlight-color:transparent}
@@ -49,7 +59,7 @@ button,select{font:inherit}
 .haut a,.bt{flex:0 0 auto;min-height:38px;padding:6px 13px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);
   font-size:13.5px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:6px;cursor:pointer}
 .bt svg,.haut a svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.bt.or{background:var(--or2);border-color:var(--or2);color:#0B0E12}
+.bt.or{background:var(--or2);border-color:var(--or2);color:#fff}
 .bt.on{background:var(--ink);color:#0B0E12}
 .bt[disabled]{opacity:.4;cursor:default}
 .bt[hidden],.seg[hidden]{display:none}
@@ -70,7 +80,7 @@ body.clair #scene{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:80px 20px 20px;text-align:center}
 .accueil[hidden]{display:none}
 .depot{max-width:440px;width:100%;padding:28px 22px;border:2px dashed rgba(255,255,255,.2);border-radius:18px;background:rgba(255,255,255,.03)}
-.depot.survol{border-color:var(--or);background:rgba(251,146,60,.08)}
+.depot.survol{border-color:var(--or);background:rgba(59,130,246,.08)}
 .depot svg{width:48px;height:48px;stroke:var(--or);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
 .depot h1{font-size:19px;margin:10px 0 6px}
 .depot p{font-size:13.5px;color:var(--ink2);line-height:1.5;margin:0 0 16px}
@@ -119,7 +129,7 @@ body.clair #scene{background:#FFFFFF}
   background:rgba(255,255,255,.04);color:var(--ink2);font-size:10.5px;font-weight:600;line-height:1.15;text-align:center;cursor:pointer}
 .palette button i{display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:#FFFFFF}
 .palette button i svg{width:28px;height:28px}
-.palette button.on{border-color:var(--or);background:rgba(251,146,60,.16);color:var(--ink)}
+.palette button.on{border-color:var(--or);background:rgba(59,130,246,.16);color:var(--ink)}
 /* sur ordinateur : les symboles dans un panneau à gauche, avec la barre des familles et une recherche */
 .pan-symb{position:fixed;left:10px;top:calc(62px + env(safe-area-inset-top,0px));bottom:calc(var(--bas-h,150px) + 10px);z-index:6;width:272px;display:flex;flex-direction:column;
   background:rgba(20,25,32,.97);border:1px solid var(--trait);border-radius:14px;box-shadow:0 20px 50px -20px rgba(0,0,0,.8)}
@@ -256,9 +266,23 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel .bs-supp svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .barre-sel .bs-dist{padding:0 12px;background:rgba(255,255,255,.12);color:var(--ink)}
 .barre-sel button[hidden]{display:none}
+.barre-sel .bs-coul{flex:0 0 auto;display:inline-flex;align-items:center;gap:5px;overflow:visible}
+.barre-sel .bs-coul[hidden]{display:none}
+.barre-sel .bs-coul button{width:28px;height:28px;min-height:0;padding:0;border-radius:50%;border:2px solid rgba(255,255,255,.25);justify-content:center;font-size:10px;font-weight:800;color:#0B0E12}
+.barre-sel .bs-coul button.on{border-color:#fff;box-shadow:0 0 0 2px #3B82F6}
+.barre-sel .bs-act.on{background:#3B82F6;color:#fff}
+.barre-sel .bs-act span{font-size:14px;font-weight:700;color:inherit;overflow:visible}
+.barre-sel .bs-act svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+/* la cote tapée directement dans la barre de l'élément choisi */
+.barre-sel .bs-cote{display:inline-flex;align-items:center;gap:6px;overflow:visible}
+.barre-sel .bs-cote[hidden]{display:none}
+.barre-sel .bs-cote span{font-size:13px;color:var(--ink-3,#8B949E)}
+.barre-sel .bs-cote input{width:84px;min-height:40px;border-radius:10px;border:1px solid rgba(255,255,255,.25);background:#0B0E12;color:var(--ink);font:inherit;font-size:16px;font-weight:700;padding:0 10px;text-align:right}
+.barre-sel .bs-cote input[hidden]{display:none}
+.barre-sel .bs-ok{padding:0 16px;background:#3B82F6;color:#fff}
 .barre-sel .bs-dist svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .ref-panel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:8;width:min(560px,calc(100vw - 16px));padding:10px 12px;border-radius:16px;
-  background:rgba(20,25,32,.97);border:1px solid rgba(251,146,60,.55);box-shadow:0 14px 34px -12px rgba(0,0,0,.85);color:var(--ink);display:flex;flex-direction:column;gap:8px}
+  background:rgba(20,25,32,.97);border:1px solid rgba(59,130,246,.55);box-shadow:0 14px 34px -12px rgba(0,0,0,.85);color:var(--ink);display:flex;flex-direction:column;gap:8px}
 .ref-panel[hidden]{display:none}
 .fond-panel{bottom:auto;top:calc(64px + env(safe-area-inset-top));border-color:rgba(34,211,238,.55)}
 .fond-panel.en-etape{display:none}
@@ -285,10 +309,10 @@ body.clair #scene{background:#FFFFFF}
 .champ-h[hidden]{display:none}
 .champ-h input{width:64px;min-height:34px;padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px;text-align:center}
 </style>
-<script src="./clavier.js?v=20261010a" defer></script>
-<script src="./horsligne.js?v=20261006a" defer></script>
-<script src="./finitions.js?v=20261010a" defer></script>
-<script src="./palette.js?v=20261015a" defer></script>
+<script src="./clavier.js?v=20261022a" defer></script>
+<script src="./horsligne.js?v=20261024b" defer></script>
+<script src="./finitions.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261030a" defer></script>
 </head>
 <body>
 <canvas id="scene" aria-label="Plan"></canvas>
@@ -320,6 +344,16 @@ body.clair #scene{background:#FFFFFF}
     <p class="fs-aide">Ou un document technique déposé sur un chantier (onglet Documents techniques) :</p>
     <input type="search" id="fsCherche" placeholder="Chercher un chantier, une référence…" autocomplete="off" aria-label="Chercher un chantier">
     <div class="fs-liste" id="fsListe"><p class="fs-vide">Chargement…</p></div>
+  </div>
+</div>
+
+<div class="fen-site" id="fenOnd" hidden role="dialog" aria-modal="true" aria-labelledby="fenOndT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenOndT">Quel onduleur ?</b><button class="bt" type="button" id="foFermer" aria-label="Fermer">✕</button></div>
+    <p class="fs-aide">Ses caractéristiques, sur sa fiche technique : les tensions, les courants et les câbles de l'étude en dépendent. La puissance et le nombre de MPPT sont à donner ; le reste aussi, de préférence.</p>
+    <div class="fo-grille" id="foChamps"></div>
+    <p class="fo-err" id="foErr" hidden></p>
+    <div class="fo-bas"><button class="bt" type="button" id="foPlusTard">Plus tard</button><button class="bt or" type="button" id="foOk">Valider</button></div>
   </div>
 </div>
 
@@ -365,10 +399,18 @@ body.clair #scene{background:#FFFFFF}
 
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
-  <button type="button" class="bs-dist" id="bsDist" title="Le placer à une distance exacte d'un point"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>À distance</button>
+  <button type="button" class="bs-dist" id="bsDist" title="Le placer au centre, entre deux extrémités touchées"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v10M21 7v10M3 12h5M16 12h5"/><circle cx="12" cy="12" r="2.6"/></svg>Au centre</button>
+  <button type="button" class="bs-act" id="bsCote" hidden title="Donner sa cote exacte"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8v8M21 8v8M3 12h18M6 10l-3 2 3 2M18 10l3 2-3 2"/></svg>Coter</button>
+  <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
+  <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
+  <span class="bs-coul" id="bsCoul" hidden role="group" aria-label="Couleur des liaisons"></span>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
+  <button type="button" class="bs-act" id="bsSupPt" hidden title="Retirer ce point du passage du câble (le câble se redresse)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="8" height="8"/><path d="M4 4l16 16"/></svg>Supprimer le point</button>
+  <button type="button" class="bs-act" id="bsDefOnd" hidden title="Ses caractéristiques : puissance, MPPT, tensions, courants">Définir</button>
+  <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
+  <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
-  <button type="button" class="bs-fermer" id="bsFermer" aria-label="Ne plus choisir">✕</button>
+  <button type="button" class="bs-supp" id="bsFermer" aria-label="Supprimer" title="Supprimer (Annuler le remet)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg></button>
 </div>
 
 <div class="ref-panel" id="refPanel" hidden role="dialog" aria-label="À distance d'un point">
@@ -436,6 +478,7 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btEnchainerS" type="button" aria-pressed="false" title="Poser le même symbole plusieurs fois (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
+    <button class="bt" id="btRelier" type="button" disabled aria-pressed="false" title="Relier le symbole choisi : l'interrupteur à ses spots, les prises entre elles">Relier</button>
     <label class="champ-h" id="grpLSym" hidden>Longueur <input id="symbL" type="text" inputmode="decimal" autocomplete="off" list="lTypes" aria-label="Longueur de la réglette en cm"> <span class="u-saisie">cm</span></label>
     <datalist id="lBandeau"><option value="50 cm" label="bandeau 50 cm"><option value="100 cm" label="bandeau 1 m"><option value="200 cm" label="bandeau 2 m"><option value="300 cm" label="bandeau 3 m"><option value="500 cm" label="rouleau 5 m"></datalist>
     <datalist id="lTypes"><option value="60 cm" label="réglette 60"><option value="120 cm" label="réglette 120"><option value="150 cm" label="réglette 150"></datalist>
@@ -488,7 +531,7 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="pvond"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14"/><path d="M3 19 21 5M6 9h4M6 11h4M14 15c1-1.4 2-1.4 3 0s2 1.4 3 0"/></svg></i>Onduleur</button>
     <button type="button" data-o="pvstr"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="9" width="5" height="7"/><rect x="9.5" y="9" width="5" height="7"/><rect x="17" y="9" width="5" height="7"/><path d="M4.5 9V6h7.5v3M12 16v3h7.5v-3" stroke="#DC2626" stroke-width="2"/></svg></i>String</button>
     <button type="button" data-o="pvchemin"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v7h9v9" stroke="#DC2626" stroke-width="1.8"/><path d="M6.5 4v4.5h9V20" stroke="#1D4ED8" stroke-width="1.8"/><rect x="11" y="18" width="9" height="4" fill="#111"/></svg></i>Cheminement</button>
-    <button type="button" data-o="pvac"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M4 9.5 8 5.5"/><path d="M10 7.5h6v9" stroke="#B45309" stroke-width="2.4"/><rect x="13" y="16" width="8" height="5" fill="#111"/></svg></i>Câble AC</button>
+    <button type="button" data-o="pvac"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M4 9.5 8 5.5"/><path d="M10 7.5h6v9" stroke="#2563EB" stroke-width="2.4"/><rect x="13" y="16" width="8" height="5" fill="#111"/></svg></i>Câble AC</button>
     <button type="button" data-o="pvrj"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M10 7.5h7v8" stroke="#16A34A" stroke-width="2" stroke-dasharray="2.5 2"/><path d="M13.5 15.5h7v5h-7z M15.5 15.5v-1.5h3v1.5" fill="#fff"/></svg></i>RJ45</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
     <button type="button" data-o="selection"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><path d="M9.5 9.5h5v5h-5z" stroke-dasharray="2 1.6"/></svg></i>Sélection</button>
@@ -1027,7 +1070,7 @@ function tracerBandeau(c, o, p, vue, sel){
       if(s>=1.5){ var re=1.2*s; c.moveTo(x0, -h+re*1.6); c.arc(x0, -h+re*1.6, re*0.7, -Math.PI/2, Math.PI/2); c.moveTo(-x0, h-re*1.6); c.arc(-x0, h-re*1.6, re*0.7, Math.PI/2, 3*Math.PI/2); }
       c.stroke();
     }
-    if(sel){ c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(x0-6, -h-6, Lp+12, w+12); }
+    if(sel){ c.strokeStyle="#3B82F6"; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(x0-6, -h-6, Lp+12, w+12); }
   } else {
     /* de face ou de côté : son profil de 1,8 mm, sous la surface, les LED en saillie vers le bas */
     var e=Math.max(B.ep*s, 2), pcb=Math.max(e*0.35, 1);
@@ -1035,7 +1078,7 @@ function tracerBandeau(c, o, p, vue, sel){
     if(B.pas*s*k >= 2){
       for(var j=0;j<n;j++){ var cxj=x0+(B.pas/2+j*B.pas)*s*k, plj=Math.max(1, B.puceL*s*k); c.strokeRect(cxj-plj/2, pcb, plj, e-pcb); }
     } else c.fillRect(x0, pcb, Lp, Math.max(1, e-pcb));
-    if(sel){ c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(x0-6, -8, Lp+12, e+16); }
+    if(sel){ c.strokeStyle="#3B82F6"; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(x0-6, -8, Lp+12, e+16); }
   }
   c.restore();
 }
@@ -1117,6 +1160,8 @@ function peindre(){
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
   var vue=vueD();
+  if(vue==="dessus") peindreLiens(c);
+  peindreGuidesS(c);
   SYMB.forEach(function(o, i){
     var q = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), p=versEcran(q[0], q[1]), R=o.r*V.k;
     if(R<0.8 || p[0]<-R*4 || p[0]>W+R*4 || p[1]<-R*4 || p[1]>H+R*4) return;
@@ -1129,7 +1174,7 @@ function peindreSymboles(c){
       var Lv = vue==="dessus" ? longueurS(o)/DESSIN_MM : longueurVueS(o, vue);
       tracerReglette(c, def, p[0], p[1], R, vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, Lv/(4*o.r), halo);
       if(i===SEL){
-        c.save(); c.translate(p[0], p[1]); c.rotate(vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0); c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]);
+        c.save(); c.translate(p[0], p[1]); c.rotate(vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0); c.strokeStyle="#3B82F6"; c.lineWidth=2; c.setLineDash([5,4]);
         var lp=Lv*V.k/2+8, hp=Math.max(10, 0.3*R+8); c.strokeRect(-lp, -hp, 2*lp, 2*hp); c.restore();
       }
       return;
@@ -1144,14 +1189,14 @@ function peindreSymboles(c){
       c.restore();
     }
     if(i===SEL){
-      c.save(); c.strokeStyle="#FB923C"; c.lineWidth=2; c.setLineDash([5,4]);
+      c.save(); c.strokeStyle="#3B82F6"; c.lineWidth=2; c.setLineDash([5,4]);
       c.beginPath(); c.arc(p[0], p[1], Math.max(14, R*1.6), 0, Math.PI*2); c.stroke(); c.restore();
     }
   });
 }
 function repere(pt){
   var p=versEcran(pt[0],pt[1]);
-  c2.strokeStyle="#FB923C"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
+  c2.strokeStyle="#3B82F6"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
 }
 function accroche(pt, genre){
   var p=versEcran(pt[0],pt[1]); c2.strokeStyle="#22D3EE"; c2.lineWidth=2; c2.beginPath();
@@ -1197,7 +1242,7 @@ function facteurMolette(e){
 }
 function dessinerCote(a, b, provisoire){
   var p=versEcran(a[0],a[1]), q=versEcran(b[0],b[1]), L=Math.hypot(q[0]-p[0], q[1]-p[1]);
-  c2.strokeStyle="#FB923C"; c2.fillStyle="#FB923C"; c2.lineWidth=2; c2.setLineDash(provisoire ? [6,5] : []);
+  c2.strokeStyle="#3B82F6"; c2.fillStyle="#3B82F6"; c2.lineWidth=2; c2.setLineDash(provisoire ? [6,5] : []);
   c2.beginPath(); c2.moveTo(p[0],p[1]); c2.lineTo(q[0],q[1]); c2.stroke(); c2.setLineDash([]);
   if(L<2) return;
   var ux=(q[0]-p[0])/L, uy=(q[1]-p[1])/L, nx=-uy*7, ny=ux*7;
@@ -1207,7 +1252,7 @@ function dessinerCote(a, b, provisoire){
   c2.save(); c2.translate((p[0]+q[0])/2,(p[1]+q[1])/2); c2.rotate(ang);
   c2.font="bold 13px system-ui, sans-serif"; var tw=c2.measureText(txt).width;
   c2.fillStyle="rgba(11,14,18,.88)"; c2.beginPath(); if(c2.roundRect) c2.roundRect(-tw/2-7,-24,tw+14,20,10); else c2.rect(-tw/2-7,-24,tw+14,20); c2.fill();
-  c2.fillStyle="#FDBA74"; c2.textAlign="center"; c2.textBaseline="middle"; c2.fillText(txt,0,-14);
+  c2.fillStyle="#93C5FD"; c2.textAlign="center"; c2.textBaseline="middle"; c2.fillText(txt,0,-14);
   c2.restore();
 }
 /* la loupe : sous le doigt, on ne voit rien ; on montre donc la zone visée plus haut, agrandie */
@@ -1219,7 +1264,7 @@ function loupe(s){
   c2.fillStyle=CLAIR ? "#fff" : "#0B0E12"; c2.fillRect((cx-R)*DPR,(cy-R)*DPR,2*R*DPR,2*R*DPR);
   try{ c2.drawImage(cv, s[0]*DPR-sw/2, s[1]*DPR-sw/2, sw, sw, (cx-R)*DPR, (cy-R)*DPR, 2*R*DPR, 2*R*DPR); }catch(e){}
   c2.restore();
-  c2.lineWidth=2*DPR; c2.strokeStyle="#FB923C"; c2.stroke();
+  c2.lineWidth=2*DPR; c2.strokeStyle="#3B82F6"; c2.stroke();
   c2.beginPath(); c2.moveTo((cx-10)*DPR,cy*DPR); c2.lineTo((cx+10)*DPR,cy*DPR); c2.moveTo(cx*DPR,(cy-10)*DPR); c2.lineTo(cx*DPR,(cy+10)*DPR); c2.lineWidth=1.5*DPR; c2.stroke();
   c2.restore();
 }
@@ -1327,7 +1372,22 @@ cv.addEventListener("pointerdown", function(e){
     if(rg && p[0]>=rg.x0 && p[0]<=rg.x1 && p[1]>=rg.y0 && p[1]<=rg.y1){ G.grp=true; G.grpD=[0,0]; return; }
     G.rect=versPlan(p[0], p[1]); return;
   }
+  if(MODE==="dessin" && !REF && FAM_D==="pv"){
+    var hpv=pvPoigneeSous(p);
+    if(hpv){
+      var chv=pvChemins()[hpv.ic], E0v=chv.E.map(function(q){ return q.slice(); });
+      G.pvch={ch:chv, E0:E0v, seg:hpv.seg, coin:hpv.coin, ic:hpv.ic, sel:{t:D_SEL.t, id:D_SEL.id}};
+      if(hpv.seg!=null && !hpv.milieu) G.pvch.inser={j:hpv.seg, q:pvPointSurTroncon(E0v, hpv.seg, p)};
+      return;
+    }
+  }
   if(MODE==="dessin"){
+    if(OUTIL_D==="choisir" && !REF && vueD()==="dessus"){
+      /* une porte ou une fenêtre se glisse directement ; un mur, une fois choisi */
+      var pvd=versPlan(p[0], p[1]), sous=objetSous(pvd);
+      if(sous && sous.t==="ouv"){ var ovd=DESSIN.ouv.filter(function(x){ return x.id===sous.id; })[0]; if(ovd){ G.ouvD={id:ovd.id, mur:ovd.mur, t:ovd.t}; return; } }
+      if(sous && sous.t==="mur" && D_SEL && D_SEL.t==="mur" && D_SEL.id===sous.id){ var mmd=murDe(sous.id); if(mmd){ G.murD={id:mmd.id, a:mmd.a.slice(), b:mmd.b.slice(), colle:bouAccroche(mmd), n:axes(mmd).n}; return; } }
+    }
     if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
       if(hp){ G.geoH={id:gsel.id, h:hp}; return; }
@@ -1351,6 +1411,7 @@ cv.addEventListener("pointerdown", function(e){
     return;
   }
   if(MODE==="symb"){
+    if(RELIER) return;           /* relier : un toucher relie, un glissé déplace le plan */
     var ti=REF ? -1 : symboleSous(p);
     if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y, hauteurDe(SYMB[ti])]; }
     return;
@@ -1420,7 +1481,19 @@ cv.addEventListener("pointermove", function(e){
     var brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
     var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0));
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
+    alignerSymbole(os, ac);
     SEL=G.symb; demander(); return;
+  }
+  if(G.bouge && G.pvch){
+    if(!G.garde){ garderD(); G.garde=true; pvInsererPoint(G.pvch); }
+    var pasC=10/DESSIN_MM, dC=[Math.round((p[0]-G.depart[0])/V.k/pasC)*pasC, Math.round(-(p[1]-G.depart[1])/V.k/pasC)*pasC];
+    pvGlisserChemin(G.pvch, dC); D_SEL=G.pvch.sel; demander(); return;
+  }
+  if(G.bouge && (G.ouvD || G.murD)){
+    if(!G.garde){ garderD(); G.garde=true; }
+    if(G.ouvD){ var ogo=DESSIN.ouv.filter(function(x){ return x.id===G.ouvD.id; })[0]; if(ogo){ glisserOuv(ogo, versPlan(p[0], p[1])); D_SEL={t:"ouv", id:ogo.id}; } }
+    else { var mgo=murDe(G.murD.id); if(mgo){ glisserMur(mgo, G.murD, [(p[0]-G.depart[0])/V.k, -(p[1]-G.depart[1])/V.k]); D_SEL={t:"mur", id:mgo.id}; } }
+    demander(); return;
   }
   if(G.bouge && (G.geo!=null || G.geoH)){
     if(!G.garde){ garderD(); G.garde=true; }
@@ -1476,11 +1549,19 @@ function lacher(e){
   if(G.grp || G.rect){
     if(e.type!=="pointercancel"){
       if(G.grp && G.garde){ enregistrerD(); enregistrerSymb(); }
-      else if(G.rect && G.bouge && RECT_SEL){ var ng=grpDeRect(RECT_SEL[0], RECT_SEL[1]); GRP=grpTaille(ng) ? ng : null; if(!GRP) toast("Rien dans le cadre : entourez entièrement les murs et les meubles.", 2500); }
+      else if(G.rect && G.bouge && RECT_SEL){ var ng=grpDeRect(RECT_SEL[0], RECT_SEL[1]); GRP=grpTaille(ng) ? ng : null; if(!GRP) toast(FAM_D==="pv" ? "Rien dans le cadre : entourez entièrement les panneaux." : "Rien dans le cadre : entourez entièrement les murs et les meubles.", 2500); }
       else if(!G.bouge){
         /* un toucher : l'élément sous le doigt, seul ; ailleurs, plus rien de sélectionné */
-        var cib=objetSous(versPlan(p[0], p[1]));
+        var cib=objetSous(versPlan(p[0], p[1])), avant=GRP;
         GRP=null;
+        /* un panneau ou un onduleur : il s'ajoute à la sélection en cours (ou s'en retire) */
+        if(cib && (cib.t==="pvp" || cib.t==="pvo")){
+          var opv = cib.t==="pvp" ? pvPan(cib.id) : pvOnd(cib.id), gp = avant && grpTaille(avant) ? avant : grpNeuf(), lp = cib.t==="pvp" ? gp.pan : gp.ond;
+          if(opv){ var ix=lp.indexOf(opv); if(ix>=0) lp.splice(ix, 1); else lp.push(opv); }
+          GRP = grpTaille(gp) ? gp : null; cib=null;
+          if(GRP && GRP.pan.length===1 && grpTaille(GRP)===1) toast("Touchez d'autres panneaux pour les ajouter, ou encadrez-les ; glissez la sélection pour la déplacer.", 4000);
+        }
+        if(cib && /^pv/.test(cib.t)) cib=null;
         if(cib && cib.t==="ouv"){ var ov=DESSIN.ouv.filter(function(x){ return x.id===cib.id; })[0]; cib = ov ? {t:"mur", id:ov.mur} : null; }
         if(!cib){ var si=symboleSous(p); if(si>=0){ GRP=grpNeuf(); GRP.symb.push(SYMB[si]); } }
         if(cib){ var gg=grpNeuf(), oo=(cib.t==="mur" ? murDe(cib.id) : cib.t==="mob" ? mobDe(cib.id) : cib.t==="geo" ? geoDe(cib.id) : DESSIN.textes.filter(function(t){ return t.id===cib.id; })[0]); if(oo){ ({mur:gg.murs, mob:gg.mob, geo:gg.geo, texte:gg.textes})[cib.t].push(oo); GRP=gg; } }
@@ -1488,7 +1569,38 @@ function lacher(e){
     }
     RECT_SEL=null; G=null; majDessin(); majBarreSel(); demander(); return;
   }
+  if(MODE==="dessin" && G.pvch && !G.bouge && e.type!=="pointercancel"){
+    var hq=G.pvch, maint=Date.now();
+    if(hq.inser){ garderD(); pvInsererPoint(hq); hq.ch.ecrire(pvOrtho(hq.E0)); enregistrerD(); toast("Point ajouté : glissez-le où le câble doit passer (deux touchers l'enlèvent).", 3000); PV_TAP=null; }
+    else if(hq.coin!=null){
+      if(PV_TAP && PV_TAP.ic===hq.ic && PV_TAP.coin===hq.coin && maint-PV_TAP.t<450 && pvPointRetirable(hq.ch, hq.coin)){
+        garderD(); hq.ch.ecrire(pvSansPoint(hq.E0, hq.coin, hq.ch.fixe)); enregistrerD(); PV_TAP=null; PV_PT=null;
+      } else { PV_TAP={ic:hq.ic, coin:hq.coin, t:maint}; PV_PT={ic:hq.ic, coin:hq.coin, sel:hq.sel && hq.sel.id}; }
+    }
+    D_SEL=hq.sel; majDessin(); majBarreSel();
+    G=null; demander(); return;
+  }
+  if(MODE==="dessin" && G.pvch){
+    if(e.type==="pointercancel" && G.garde){ var hv=JSON.parse(HISTO_D.pop()); DESSIN=normD(hv && hv.__groupe ? hv.d : hv); }
+    else if(G.garde) enregistrerD();
+    D_SEL=G.pvch.sel; majDessin(); majBarreSel();
+    G=null; demander(); return;
+  }
   if(MODE==="dessin"){
+    if(G.ouvD || G.murD){
+      var gd=G;
+      if(e.type==="pointercancel" && gd.garde){
+        /* geste interrompu : tout revient en place */
+        if(gd.ouvD){ var oc=DESSIN.ouv.filter(function(x){ return x.id===gd.ouvD.id; })[0]; if(oc){ oc.mur=gd.ouvD.mur; oc.t=gd.ouvD.t; } }
+        else { var mc=murDe(gd.murD.id); if(mc){ mc.a=gd.murD.a; mc.b=gd.murD.b; } }
+        HISTO_D.pop();
+      } else if(e.type!=="pointercancel"){
+        D_SEL = gd.ouvD ? {t:"ouv", id:gd.ouvD.id} : {t:"mur", id:gd.murD.id};
+        if(gd.garde) enregistrerD();
+      }
+      majDessin(); majBarreSel();
+      D_SOURIS=null; G=null; demander(); return;
+    }
     if(G.geo!=null || G.geoH){
       if(e.type!=="pointercancel"){
         if(G.garde) enregistrerD();
@@ -1526,12 +1638,13 @@ function lacher(e){
       if(e.type!=="pointercancel" && !G.bouge) poserRef((G.visee && VISEE ? VISEE : chercherD(p[0], p[1])).pt);
       VISEE=null; G=null; demander(); return;
     }
+    if(RELIER){ if(e.type!=="pointercancel" && !G.bouge) toucherRelier(symboleSous(p)); G=null; demander(); return; }
     if(e.type!=="pointercancel"){
-      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; }
+      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; GUIDES_S=null; }
       else if(!G.bouge){ if(ARME_S || garderOutil()) poserSymbole(versPlan(p[0], p[1])); else SEL=-1; }
       majSymb();
     }
-    G=null; demander(); return;
+    GUIDES_S=null; G=null; demander(); return;
   }
   if(e.type!=="pointercancel"){
     if(G.visee && VISEE) poserPoint(VISEE);
@@ -1601,6 +1714,198 @@ function symboleSous(p){
   return best;
 }
 function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
+/* ---------- les liaisons : l'interrupteur et ses points lumineux, les prises d'un même circuit ----------
+   Une liaison va d'un symbole à un autre (o.lien : les id des symboles reliés), tracée en arc
+   tireté comme sur un plan d'électricien. « Relier » : le symbole choisi est le départ, chaque
+   symbole touché lui est relié (retouché, il est délié). Depuis une commande (interrupteur,
+   va-et-vient, bouton poussoir…), le départ reste la commande : on touche ses spots l'un après
+   l'autre. Depuis une prise (ou un spot), la liaison suit : le symbole touché devient le départ
+   du suivant, d'une prise à l'autre. Toucher le vide, ou le départ lui-même, termine. */
+var RELIER=false;
+function idS(o){ if(!o.id) o.id="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); return o.id; }
+function symbParId(id){ if(!id) return null; for(var i=0;i<SYMB.length;i++) if(SYMB[i].id===id) return SYMB[i]; return null; }
+function relies(a, b){ return !!(a.id && b.id) && ((a.lien||[]).indexOf(b.id)>=0 || (b.lien||[]).indexOf(a.id)>=0); }
+function delier(o, id){
+  if(o.lien){ o.lien=o.lien.filter(function(x){ return x!==id; }); if(!o.lien.length) delete o.lien; }
+  if(o.inv){ o.inv=o.inv.filter(function(x){ return x!==id; }); if(!o.inv.length) delete o.inv; }
+  if(o.lc && o.lc[id]){ delete o.lc[id]; if(!Object.keys(o.lc).length) delete o.lc; }
+}
+/* touché une fois : relié ; deux fois : l'arc passe de l'autre côté ; trois fois : délié */
+function basculerLien(a, b){
+  idS(a); idS(b);
+  var de = (a.lien||[]).indexOf(b.id)>=0 ? a : (b.lien||[]).indexOf(a.id)>=0 ? b : null, vers = de===a ? b : a;
+  if(!de){ a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); return "relie"; }
+  if((de.inv||[]).indexOf(vers.id)<0){ de.inv=(de.inv||[]).concat([vers.id]); return "inverse"; }
+  delier(a, b.id); delier(b, a.id); return "delie";
+}
+function basculerRelier(v){
+  RELIER = v===undefined ? !RELIER : !!v;
+  if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
+  if(RELIER) ARME_S=false;
+  majSymb(); demander();
+}
+function toucherRelier(ti){
+  if(ti<0 || ti===SEL || SEL<0){ basculerRelier(false); return; }
+  garderSymb();
+  var a=SYMB[SEL], b=SYMB[ti], fait=basculerLien(a, b);
+  enregistrerSymb();
+  if(fait==="relie" && !COMMANDES_S[a.cle]) SEL=ti;
+  majSymb(); demander();
+}
+/* un arc de cercle bien rond (la flèche fait 30 % de la corde), du bord d'un symbole au bord de
+   l'autre, bombé à gauche du départ (à droite si on l'a retourné) : ses points, en coordonnées du plan */
+function arcLien(a, b){
+  var dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx, dy); if(!L) return null;
+  var ux=dx/L, uy=dy/L, ra=a.r*1.15, rb=b.r*1.15; if(L<=ra+rb) return null;
+  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], d=L-ra-rb, h=d*0.3;
+  var inv=(a.inv||[]).indexOf(b.id)>=0, n = inv ? [uy, -ux] : [-uy, ux];
+  var R=(d*d/4+h*h)/(2*h), M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2], C=[M[0]+n[0]*(h-R), M[1]+n[1]*(h-R)];
+  var a0=Math.atan2(P0[1]-C[1], P0[0]-C[0]), sw=Math.atan2(P1[1]-C[1], P1[0]-C[0])-a0;
+  while(sw>Math.PI) sw-=2*Math.PI; while(sw<-Math.PI) sw+=2*Math.PI;
+  var pts=[]; for(var k=0;k<=24;k++){ var an=a0+sw*k/24; pts.push([C[0]+R*Math.cos(an), C[1]+R*Math.sin(an)]); }
+  return pts;
+}
+/* la couleur d'une liaison : celle choisie (o.lc, par symbole relié), sinon celle du symbole relié */
+var COULEURS_LIEN=[["auto","Auto : la couleur du symbole relié"],["#0000FF","Bleu"],["#FF0000","Rouge"],["#16A34A","Vert"],["#FF8000","Orange"],["#9333EA","Violet"],["#000000","Noir"]];
+var LIEN_COUL=lire("dwg:lienCoul","auto");
+function couleurLien(a, b){
+  var lc=a && a.lc && a.lc[b.id], def=SymbolesElec.trouver(b.cle), col=lc || (def ? def.couleur : "#FF0000");
+  if(!CLAIR && !IMPRIME){ if(col==="#0000FF") col="#6B8BFF"; else if(col==="#000000") col="#E5E7EB"; else if(col==="#9333EA") col="#C084FC"; }
+  return col;
+}
+function aciLien(a, b){
+  var lc=a && a.lc && a.lc[b.id], def=SymbolesElec.trouver(b.cle), col=lc || (def ? def.couleur : "#FF0000");
+  return {"#0000FF":5, "#FF0000":1, "#16A34A":3, "#FF8000":30, "#9333EA":6, "#000000":7}[col] || 1;
+}
+function colorerLien(a, id){
+  if(LIEN_COUL==="auto"){ if(a.lc){ delete a.lc[id]; if(!Object.keys(a.lc).length) delete a.lc; } }
+  else { a.lc=a.lc||{}; a.lc[id]=LIEN_COUL; }
+}
+/* changer de couleur en reliant : les liaisons du symbole de départ la prennent aussi */
+function recolorerLiens(o){ if(!o) return false; var ch=false; (o.lien||[]).forEach(function(id){ colorerLien(o, id); ch=true; }); return ch; }
+function peindrePaletteLiens(){
+  var z=$("bsCoul"); if(z.childNodes.length) { Array.prototype.forEach.call(z.children, function(b){ b.classList.toggle("on", b.dataset.c===LIEN_COUL); b.setAttribute("aria-pressed", b.dataset.c===LIEN_COUL ? "true" : "false"); }); return; }
+  COULEURS_LIEN.forEach(function(c){
+    var b=document.createElement("button"); b.type="button"; b.dataset.c=c[0]; b.title=c[1]; b.setAttribute("aria-label", "Liaison : "+c[1]);
+    if(c[0]==="auto"){ b.textContent="A"; b.style.background="conic-gradient(#0000FF 0 33%, #FF0000 0 66%, #FF8000 0)"; b.style.color="#fff"; }
+    else b.style.background=c[0];
+    b.addEventListener("click", function(){
+      LIEN_COUL=c[0]; garder("dwg:lienCoul", LIEN_COUL);
+      if(MODE==="symb" && RELIER && SEL>=0 && (SYMB[SEL].lien||[]).length){ garderSymb(); recolorerLiens(SYMB[SEL]); enregistrerSymb(); }
+      peindrePaletteLiens(); demander();
+    });
+    z.appendChild(b);
+  });
+  peindrePaletteLiens();
+}
+/* au plan : l'arc en tirets, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
+function peindreLiens(c){
+  SYMB.forEach(function(a){
+    (a.lien||[]).forEach(function(id){
+      var b=symbParId(id); if(!b) return;
+      var pts=arcLien(a, b); if(!pts) return;
+      var R=Math.max(a.r, b.r)*V.k;
+      c.save(); c.strokeStyle=couleurLien(a, b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09)); c.lineJoin="round";
+      c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
+      c.beginPath(); pts.forEach(function(q, k){ var e=versEcran(q[0], q[1]); if(k) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.stroke(); c.restore();
+    });
+  });
+}
+/* ---------- relier et aligner les symboles d'une sélection (outil Sélection) ----------
+   Relier : s'il y a une commande, elle est reliée à chacun des autres ; sinon, ils sont reliés
+   de proche en proche, en partant d'un bout. Aligner : sur une ligne (horizontale ou verticale,
+   selon leur étalement), à intervalles égaux entre les deux du bout. */
+function relierGroupe(l){
+  if(l.length<2) return 0;
+  garderSymb();
+  var n=0, cmd=l.filter(function(o){ return COMMANDES_S[o.cle]; });
+  function lier(a, b){ idS(a); idS(b); if(relies(a, b)) return; a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); n++; }
+  if(cmd.length){ var c0=cmd[0]; l.forEach(function(o){ if(o!==c0) lier(c0, o); }); }
+  else {
+    /* de proche en proche, depuis le symbole le plus à l'écart */
+    var cx=0, cy=0; l.forEach(function(o){ cx+=o.x/l.length; cy+=o.y/l.length; });
+    var reste=l.slice().sort(function(a, b){ return Math.hypot(b.x-cx, b.y-cy)-Math.hypot(a.x-cx, a.y-cy); }), cour=reste.shift();
+    while(reste.length){
+      reste.sort(function(a, b){ return Math.hypot(a.x-cour.x, a.y-cour.y)-Math.hypot(b.x-cour.x, b.y-cour.y); });
+      var suiv=reste.shift(); lier(cour, suiv); cour=suiv;
+    }
+  }
+  if(!n) HISTO_S.pop(); else enregistrerSymb();
+  return n;
+}
+function alignerGroupe(l){
+  if(l.length<2) return false;
+  garderSymb();
+  var x0=Infinity, x1=-Infinity, y0=Infinity, y1=-Infinity, mx=0, my=0;
+  l.forEach(function(o){ x0=Math.min(x0,o.x); x1=Math.max(x1,o.x); y0=Math.min(y0,o.y); y1=Math.max(y1,o.y); mx+=o.x/l.length; my+=o.y/l.length; });
+  var horiz=(x1-x0)>=(y1-y0), tri=l.slice().sort(function(a, b){ return horiz ? a.x-b.x : a.y-b.y; }), pas=10/DESSIN_MM;
+  tri.forEach(function(o, i){
+    var t = tri.length>1 ? i/(tri.length-1) : 0;
+    if(horiz){ o.x=Math.round((x0+(x1-x0)*t)/pas)*pas; o.y=Math.round(my/pas)*pas; }
+    else { o.y=Math.round((y0+(y1-y0)*t)/pas)*pas; o.x=Math.round(mx/pas)*pas; }
+  });
+  enregistrerSymb();
+  return horiz ? "horizontale" : "verticale";
+}
+$("bsRelierG").addEventListener("click", function(){
+  if(!grpTaille(GRP)) return;
+  var n=relierGroupe(GRP.symb);
+  toast(n ? n+" liaison"+(n>1?"s":"")+" ajoutée"+(n>1?"s":"")+"." : "Déjà reliés.", 2500);
+  majDessin(); majBarreSel(); demander();
+});
+$("bsAligner").addEventListener("click", function(){
+  if(!grpTaille(GRP)) return;
+  var sens=alignerGroupe(GRP.symb);
+  if(sens) toast(GRP.symb.length+" symboles alignés sur une ligne "+sens+", à intervalles égaux.", 2800);
+  majDessin(); majBarreSel(); demander();
+});
+/* ---------- les repères d'alignement : un symbole qu'on pose ou qu'on glisse se cale sur la ligne d'un autre ----------
+   Au centre d'une pièce, le deuxième spot se met sur la ligne du premier, le troisième aussi… une
+   ligne fictive (en pointillés cyan) montre l'alignement. Contre un mur, le symbole reste où le mur le met. */
+var GUIDES_S=null;
+function alignerSymbole(o, ac){
+  GUIDES_S=null;
+  if(!ACCR_D || vueD()!=="dessus" || (ac && ac.acc && ac.acc.genre===5)) return;
+  var tol=12/V.k, bx=null, by=null, dxm=tol, dym=tol;
+  SYMB.forEach(function(s2){
+    if(s2===o) return;
+    var dx=Math.abs(s2.x-o.x), dy=Math.abs(s2.y-o.y);
+    if(dx<dxm){ dxm=dx; bx=s2; }
+    if(dy<dym){ dym=dy; by=s2; }
+  });
+  var g=[];
+  if(bx){ o.x=bx.x; g.push({v:true, s:bx}); }
+  if(by){ o.y=by.y; g.push({v:false, s:by}); }
+  if(g.length) GUIDES_S={o:o, g:g};
+}
+function peindreGuidesS(c){
+  if(!GUIDES_S || IMPRIME) return;
+  var o=GUIDES_S.o;
+  c.save(); c.strokeStyle="#22D3EE"; c.lineWidth=1.5; c.setLineDash([5,5]);
+  GUIDES_S.g.forEach(function(gd){
+    /* la ligne fictive, sur tous les symboles déjà alignés */
+    var alignes=SYMB.filter(function(s2){ return gd.v ? Math.abs(s2.x-o.x)<1e-6 : Math.abs(s2.y-o.y)<1e-6; });
+    var a0=Infinity, a1=-Infinity; alignes.forEach(function(s2){ var v=gd.v ? s2.y : s2.x; a0=Math.min(a0,v); a1=Math.max(a1,v); });
+    var m=60/V.k, A=gd.v ? versEcran(o.x, a0-m) : versEcran(a0-m, o.y), B=gd.v ? versEcran(o.x, a1+m) : versEcran(a1+m, o.y);
+    c.beginPath(); c.moveTo(A[0], A[1]); c.lineTo(B[0], B[1]); c.stroke();
+  });
+  c.restore();
+}
+/* au DXF : chaque liaison en polyligne, calque ELEC-LIAISONS, en tirets */
+function dxfLiens(){
+  var L=[];
+  function g(){ for(var i=0;i<arguments.length;i+=2) L.push(String(arguments[i]), typeof arguments[i+1]==="number" ? String(Math.round(arguments[i+1]*1000)/1000) : String(arguments[i+1])); }
+  SYMB.forEach(function(a){
+    (a.lien||[]).forEach(function(id){
+      var b=symbParId(id), pts=b ? arcLien(a, b) : null; if(!pts) return;
+      var aci=aciLien(a, b);
+      g(0,"POLYLINE", 8,"ELEC-LIAISONS", 62,aci, 66,1, 10,0,20,0,30,0, 70,0);
+      pts.forEach(function(q){ g(0,"VERTEX", 8,"ELEC-LIAISONS", 10,q[0],20,q[1],30,0); });
+      g(0,"SEQEND", 8,"ELEC-LIAISONS");
+    });
+  });
+  return L;
+}
 function enregistrerSymb(){ if(SYMB_CLE){ try{ localStorage.setItem(SYMB_CLE, JSON.stringify(SYMB)); }catch(e){} } }
 /* une carte {clé:1} des symboles de la bibliothèque qui passent le test */
 function carteS(test){ var o={}; if(window.SymbolesElec) SymbolesElec.liste.forEach(function(s){ if(test(s)) o[s.cle]=1; }); return o; }
@@ -1639,7 +1944,9 @@ function poserSymbole(pt){
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
   var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
-  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""}, hc=hauteurContexte(CHOIX, [a.x, a.y]);
+  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""};
+  alignerSymbole(o, a); GUIDES_S=null;
+  var hc=hauteurContexte(CHOIX, [o.x, o.y]);
   if(longueurS(o)) o.long=longueurDefaut(o.cle);
   if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
   SYMB.push(o);
@@ -1648,16 +1955,21 @@ function poserSymbole(pt){
   enregistrerSymb();
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
-function supprimerSymb(){ if(SEL<0) return; garderSymb(); SYMB.splice(SEL,1); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function supprimerSymb(){ if(SEL<0) return; garderSymb(); var parti=SYMB.splice(SEL,1)[0]; if(parti && parti.id) SYMB.forEach(function(o){ delier(o, parti.id); }); SEL=-1; RELIER=false; enregistrerSymb(); majSymb(); demander(); }
 function defaireSymb(){ if(!HISTO_S.length) return; SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
 function compter(){
   var n={}; SYMB.forEach(function(o){ n[o.cle]=(n[o.cle]||0)+1; }); return n;
 }
 function majSymb(){
   if(!window.SymbolesElec) return;
+  if(RELIER && (SEL<0 || vueD()!=="dessus")) RELIER=false;
   var o=SEL>=0 ? SYMB[SEL] : null, def=o ? SymbolesElec.trouver(o.cle) : null, n=compter();
   $("symbNb").textContent=String(SYMB.length);
-  $("symbDetail").textContent = def
+  $("btRelier").disabled=!o || vueD()!=="dessus"; $("btRelier").classList.toggle("on", RELIER); $("btRelier").setAttribute("aria-pressed", RELIER ? "true" : "false");
+  $("btRelier").textContent = RELIER ? "Terminer les liaisons" : "Relier";
+  $("symbDetail").textContent = RELIER && def
+    ? "Liaisons depuis : "+def.nom+". "+(COMMANDES_S[o.cle] ? "Touchez ses spots l'un après l'autre." : "Touchez le symbole suivant : la liaison suit.")+" Retouché : l'arc change de côté, puis délié. Le vide : terminé."
+    : def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
     : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
                    : "Choisissez un symbole, puis touchez le plan pour le poser.");
@@ -1862,13 +2174,38 @@ function ouvrirRef(mode){
     if(MODE==="symb"){ if(SEL<0) return; c={symb:SEL}; }
     else { if(!D_SEL) return; c={t:D_SEL.t, id:D_SEL.id}; }
   }
-  REF={etape:"point", mode:mode, cible:c, pt:null, axe:"h", mesure:"bord", dir:REF && REF.dir || "e"};
+  if(mode==="centre"){
+    if(MODE==="symb"){ if(SEL<0) return; c={symb:SEL}; }
+    else { if(!D_SEL) return; c={t:D_SEL.t, id:D_SEL.id}; }
+  }
+  REF={etape:"point", mode:mode, cible:c, pt:null, pts:[], axe:"h", mesure:"bord", dir:REF && REF.dir || "e"};
   if(c && (c.t==="ouv")) REF.axe="mur";
   if(c && (c.symb!=null || c.t==="texte")) REF.mesure="centre";
   GEO_EC=null; D_PT=null; majRef(); majBarreSel(); demander();
 }
 function fermerRef(){ REF=null; $("refPanel").hidden=true; majBarreSel(); if(MODE==="dessin") majDessin(); else if(MODE==="symb") majSymb(); demander(); }
+/* Au centre : l'élément choisi se place au milieu des deux extrémités touchées (une porte, une
+   fenêtre : sur son mur, au droit de ce milieu ; un symbole au mur reste collé à son mur) */
+function placerAuCentre(){
+  var R=REF, c=R.cible, o=elementRef(c), a=R.pts[0], b=R.pts[1]; if(!o){ fermerRef(); return; }
+  var M=[(a[0]+b[0])/2, (a[1]+b[1])/2];
+  if(c.symb!=null){ garderSymb(); deplacerRef(c, o, [M[0]-o.x, M[1]-o.y]); enregistrerSymb(); }
+  else {
+    garderD();
+    if(c.t==="ouv"){
+      var m=murDe(o.mur); if(m){ var x=axes(m), sr=(M[0]-m.a[0])*x.u[0]+(M[1]-m.a[1])*x.u[1]; o.t=Math.max(o.l/2/x.L, Math.min(1-o.l/2/x.L, sr/x.L)); }
+    } else { var P=pointsRef(c, o); deplacerRef(c, o, [M[0]-P.c[0], M[1]-P.c[1]]); }
+    enregistrerD();
+  }
+  toast("Placé au centre : à "+cm(Math.hypot(b[0]-a[0], b[1]-a[1])*DESSIN_MM/2)+" cm de chaque extrémité.", 3200);
+  fermerRef();
+}
 function poserRef(pt){
+  if(REF.mode==="centre"){
+    REF.pts.push(pt.slice()); REF.pt=REF.pts[0];
+    if(REF.pts.length>=2){ placerAuCentre(); return; }
+    majRef(); demander(); return;
+  }
   REF.pt=pt.slice(); REF.etape="valeur";
   if(REF.mode==="deplacer" && REF.cible.t!=="ouv"){
     /* le sens de la mesure : celui où l'élément est le plus loin du point */
@@ -1894,8 +2231,13 @@ function majRef(){
     else if(R.cible.t==="mur") nom=o.ep*DESSIN_MM<=90 ? "la cloison" : "le mur";
     else nom="le texte";
   }
-  $("rpTitre").textContent = R.mode==="deplacer" ? "Placer « "+nom+" » à distance d'un point" : "Le prochain point, à distance d'un point";
+  $("rpTitre").textContent = R.mode==="centre" ? "Placer « "+nom+" » au centre" : R.mode==="deplacer" ? "Placer « "+nom+" » à distance d'un point" : "Le prochain point, à distance d'un point";
   var valeur = R.etape==="valeur";
+  if(R.mode==="centre"){
+    $("rpAide").textContent = R.pts.length ? "Touchez la seconde extrémité : il se placera au milieu." : "Touchez la première extrémité : un angle de mur, un bout de mur, un coin de meuble…";
+    $("rpValeurs").hidden=$("rpOk").hidden=$("rpAxe").hidden=$("rpDir").hidden=$("rpMes").hidden=true;
+    return;
+  }
   $("rpAide").textContent = !valeur ? "Touchez le point de départ : un angle de mur, un bout de trait, un coin de meuble…"
     : R.mode==="deplacer" ? "Tapez la distance voulue, puis Placer." : "Tapez la distance et choisissez la direction, puis Placer.";
   $("rpValeurs").hidden=!valeur; $("rpOk").hidden=!valeur;
@@ -1935,10 +2277,11 @@ function validerRef(){
 }
 function peindreRef(c, E){
   var R=REF; if(!R || !R.pt) return;
-  var P=E(R.pt), or="#FB923C";
+  var P=E(R.pt), or="#3B82F6";
   c.save(); c.strokeStyle=or; c.fillStyle=or; c.lineWidth=2;
   c.beginPath(); c.arc(P[0], P[1], 7, 0, Math.PI*2); c.stroke(); c.beginPath(); c.arc(P[0], P[1], 2.5, 0, Math.PI*2); c.fill();
   c.setLineDash([7,5]);
+  if(R.mode==="centre"){ c.restore(); return; }
   if(R.mode==="deplacer"){
     var M=mesureRef();
     if(M){ var A=E(M.de), B=E(M.a); c.beginPath(); c.moveTo(A[0],A[1]); c.lineTo(B[0],B[1]); c.stroke(); c.setLineDash([]); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-16, cm(M.dist*DESSIN_MM)+" cm"); }
@@ -1950,7 +2293,7 @@ function peindreRef(c, E){
   }
   c.restore();
 }
-$("bsDist").addEventListener("click", function(){ ouvrirRef("deplacer"); });
+$("bsDist").addEventListener("click", function(){ ouvrirRef("centre"); });
 $("btDepuisD").addEventListener("click", function(){ ouvrirRef("point"); });
 $("btDepuisS").addEventListener("click", function(){ ouvrirRef("point"); });
 $("rpAnnuler").addEventListener("click", fermerRef);
@@ -1960,6 +2303,47 @@ $("rpDist").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.prev
 $("rpAxe").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.axe=b.dataset.a; var M=mesureRef(); if(M) $("rpDist").value=enUnite(M.dist*DESSIN_MM); majRef(); demander(); });
 $("rpDir").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.dir=b.dataset.d; majRef(); demander(); });
 $("rpMes").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !REF) return; REF.mesure=b.dataset.m; var M=mesureRef(); if(M) $("rpDist").value=enUnite(M.dist*DESSIN_MM); majRef(); demander(); });
+/* Coter : la longueur exacte d'un mur ou d'une cloison, les cotes d'une forme, tapées dans la barre
+   (les mêmes que dans le panneau du bas : un mur s'allonge depuis son départ) */
+var BS_COTE=null;
+function coteSel(){
+  if(MODE!=="dessin" || !D_SEL || grpTaille(GRP)) return null;
+  var o=objetSel(); if(!o) return null;
+  if(D_SEL.t==="mur") return {o:o, t:"mur"};
+  if(D_SEL.t==="geo" && vueDe(o)===vueD() && /^(rect|rond|ellipse|trait|fleche)$/.test(o.t)) return {o:o, t:(o.t==="rect" || o.t==="ellipse") ? "deux" : o.t==="rond" ? "rond" : "un"};
+  return null;
+}
+function ouvrirCote(){
+  var c=coteSel(); if(!c) return;
+  BS_COTE=c.o;
+  var L, H=0;
+  if(c.t==="mur") L=axes(c.o).L;
+  else { var g=c.o; L = g.t==="rect" ? lng(sub(g.pts[1],g.pts[0])) : g.t==="rond" ? 2*g.r : g.t==="ellipse" ? 2*g.rx : lng(sub(g.pts[1],g.pts[0]));
+    H = g.t==="rect" ? lng(sub(g.pts[3],g.pts[0])) : g.t==="ellipse" ? 2*g.ry : 0; }
+  $("bsCoteLabL").textContent = c.t==="deux" ? "L" : c.t==="rond" ? "Ø" : "Longueur";
+  $("bsCoteLabH").hidden=$("bsCoteH").hidden = c.t!=="deux";
+  $("bsCoteL").value=enUnite(L*DESSIN_MM); $("bsCoteH").value = c.t==="deux" ? enUnite(H*DESSIN_MM) : "";
+  majBarreSel();
+  try{ $("bsCoteL").focus(); $("bsCoteL").select(); }catch(e){}
+}
+function validerCote(){
+  var c=coteSel(); if(!c || c.o!==BS_COTE){ BS_COTE=null; majBarreSel(); return; }
+  var L=lireCm($("bsCoteL").value), H=lireCm($("bsCoteH").value);
+  if(!(L>0)){ $("bsCoteL").focus(); return; }
+  BS_COTE=null;
+  if(c.t==="mur"){ $("dsLong").value=$("bsCoteL").value; $("dsLong").dispatchEvent(new Event("change")); }
+  else { $("dL").value=$("bsCoteL").value; $("dH").value = c.t==="deux" && H>0 ? $("bsCoteH").value : $("dH").value; $("dL").dispatchEvent(new Event("change")); }
+  majBarreSel(); demander();
+}
+$("bsCote").addEventListener("click", ouvrirCote);
+$("bsCoteOk").addEventListener("click", validerCote);
+["bsCoteL","bsCoteH"].forEach(function(id){
+  $(id).addEventListener("keydown", function(e){
+    if(e.key==="Enter"){ e.preventDefault(); if(id==="bsCoteL" && !$("bsCoteH").hidden) { $("bsCoteH").focus(); $("bsCoteH").select(); } else validerCote(); }
+    if(e.key==="Escape"){ e.preventDefault(); BS_COTE=null; majBarreSel(); }
+    e.stopPropagation();
+  });
+});
 /* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
 function majBarreSel(){
   var b=$("barreSel"); if(!b) return;
@@ -1972,17 +2356,47 @@ function majBarreSel(){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
   var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
-  if(MODE==="dessin" && nG){ nom=nG+" élément"+(nG>1?"s":""); }
+  if(MODE==="dessin" && nG){
+    var nPan=GRP.pan.length, nOnd=GRP.ond.length;
+    nom = nPan===nG ? nPan+" panneau"+(nPan>1?"x":"") : nPan+nOnd===nG ? [nPan ? nPan+" panneau"+(nPan>1?"x":"") : "", nOnd ? nOnd+" onduleur"+(nOnd>1?"s":"") : ""].filter(Boolean).join(" + ") : nG+" élément"+(nG>1?"s":"");
+  }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
+  var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
+  $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
+  $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
+  var ptPv = MODE==="dessin" && FAM_D==="pv" && !nG ? pvPointChoisi() : null;
+  $("bsSupPt").hidden = !ptPv;
+  if(!$("bsDefOnd").hidden){ var oD=pvOnd(D_SEL.id); $("bsDefOnd").classList.toggle("on", pvOndAFaire(oD)); }
+  var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2;
+  $("bsCoul").hidden=!coul; if(coul) peindrePaletteLiens();
+  var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
+  $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
+  $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
+  if(rel && RELIER) nom="Liaisons : "+nom;
+  if(ptPv && nom) nom="Point du passage · "+nom;
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || !!nG || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = gA || !!nG || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  /* Coter : le bouton, ou la saisie de la cote à sa place (les autres boutons s'effacent le temps de taper) */
+  var cs=coteSel();
+  if(BS_COTE && (!cs || cs.o!==BS_COTE)) BS_COTE=null;
+  var enCote=!!BS_COTE;
+  $("bsCote").hidden = !cs || enCote;
+  $("bsCoteEd").hidden = !enCote;
+  if(enCote){ $("bsDist").hidden=$("bsDup").hidden=$("bsTourne").hidden=true; }
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
-$("bsFermer").addEventListener("click", function(){ if(MODE==="symb"){ SEL=-1; majSymb(); } else { D_SEL=null; GRP=null; majDessin(); } majBarreSel(); demander(); });
+/* la corbeille de la barre : l'élément choisi (ou la sélection) est supprimé ; Annuler le remet */
+$("bsFermer").addEventListener("click", function(){
+  if(MODE==="symb") supprimerSymb();
+  else if(grpTaille(GRP)) supprimerGrp();
+  else supprimerD();
+  majBarreSel(); demander();
+});
 $("bsDup").addEventListener("click", function(){ dupliquerSel(); });
+$("bsSupPt").addEventListener("click", function(){ pvRetirerPoint(); });
 $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; garderTout(); grpTourner(GRP); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); });
 
 /* ---------- la sélection d'un groupe : une pièce entière, d'un coup ----------
@@ -1992,8 +2406,24 @@ $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; 
    supprime. Ctrl+C / Ctrl+V / Ctrl+D copient, collent et dupliquent aussi
    un élément seul (un mur, un meuble…). */
 var GRP=null, PRESSE=null, RECT_SEL=null;
-function grpNeuf(){ return {murs:[], mob:[], geo:[], textes:[], symb:[]}; }
-function grpTaille(g){ return g ? g.murs.length+g.mob.length+g.geo.length+g.textes.length+g.symb.length : 0; }
+function grpNeuf(){ return {murs:[], mob:[], geo:[], textes:[], symb:[], pan:[], ond:[]}; }
+function grpTaille(g){ return g ? g.murs.length+g.mob.length+g.geo.length+g.textes.length+g.symb.length+(g.pan||[]).length+(g.ond||[]).length : 0; }
+/* Les panneaux d'un groupe : un champ dont on n'a pris qu'une partie se scinde,
+   les panneaux pris passent dans un champ à eux (même pose, même place) ;
+   le groupe déplace ou tourne alors des champs entiers. */
+function grpChampsPans(g){
+  if(!g.pan || !g.pan.length) return [];
+  var P=PVD(), par={}, out=[];
+  g.pan.forEach(function(p){ (par[p.ch]=par[p.ch]||[]).push(p); });
+  Object.keys(par).forEach(function(cid){
+    var ch=pvChamp(cid); if(!ch) return;
+    if(pvPansDe(ch).length===par[cid].length){ out.push(ch); return; }
+    var n=JSON.parse(JSON.stringify(ch)); n.id=idD(); P.ch.push(n);
+    par[cid].forEach(function(p){ p.ch=n.id; });
+    out.push(n);
+  });
+  return out;
+}
 function garderTout(){ HISTO_D.push(JSON.stringify({__groupe:true, d:DESSIN, s:SYMB})); if(HISTO_D.length>100) HISTO_D.shift(); }
 function grpDeRect(a, b){
   var x0=Math.min(a[0],b[0]), x1=Math.max(a[0],b[0]), y0=Math.min(a[1],b[1]), y1=Math.max(a[1],b[1]), g=grpNeuf();
@@ -2003,12 +2433,18 @@ function grpDeRect(a, b){
   geosVue().forEach(function(o){ var pts=o.t==="rond" ? [[o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]] : o.pts; if(pts.every(dans)) g.geo.push(o); });
   DESSIN.textes.forEach(function(t){ if(dans([t.x, t.y])) g.textes.push(t); });
   SYMB.forEach(function(o){ if(dans([o.x, o.y])) g.symb.push(o); });
+  if(DESSIN.pv && vueD()==="dessus"){
+    DESSIN.pv.pan.forEach(function(x){ var cs=pvCoins(x); if(cs.length && cs.every(dans)) g.pan.push(x); });
+    DESSIN.pv.ond.forEach(function(o){ var b=pvOndBoite(o); if(dans([b[0], b[1]]) && dans([b[2], b[3]])) g.ond.push(o); });
+  }
   return g;
 }
-function grpTout(){ var g=grpNeuf(); g.murs=DESSIN.murs.slice(); g.mob=mobs().slice(); g.geo=geosVue().slice(); g.textes=DESSIN.textes.slice(); g.symb=SYMB.slice(); return g; }
+function grpTout(){ var g=grpNeuf(); g.murs=DESSIN.murs.slice(); g.mob=mobs().slice(); g.geo=geosVue().slice(); g.textes=DESSIN.textes.slice(); g.symb=SYMB.slice(); if(DESSIN.pv && vueD()==="dessus"){ g.pan=DESSIN.pv.pan.slice(); g.ond=DESSIN.pv.ond.slice(); } return g; }
 function grpDeSel(){
   var o=objetSel(); if(!o || !D_SEL || D_SEL.t==="ouv") return null;
-  var g=grpNeuf(); ({mur:g.murs, mob:g.mob, geo:g.geo, texte:g.textes})[D_SEL.t].push(o); return g;
+  var g=grpNeuf(), l=({mur:g.murs, mob:g.mob, geo:g.geo, texte:g.textes, pvp:g.pan, pvo:g.ond})[D_SEL.t];
+  if(!l) return null;
+  l.push(o); return g;
 }
 function grpPoints(g){
   var pts=[];
@@ -2017,6 +2453,8 @@ function grpPoints(g){
   g.geo.forEach(function(o){ if(o.t==="rond"){ pts.push([o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]); } else o.pts.forEach(function(q){ pts.push(q); }); });
   g.textes.forEach(function(t){ pts.push([t.x, t.y]); });
   g.symb.forEach(function(o){ pts.push([o.x-o.r, o.y-o.r], [o.x+o.r, o.y+o.r]); });
+  (g.pan||[]).forEach(function(x){ pvCoins(x).forEach(function(q){ pts.push(q); }); });
+  (g.ond||[]).forEach(function(o){ var b=pvOndBoite(o); pts.push([b[0], b[1]], [b[2], b[3]]); });
   return pts;
 }
 function grpBoite(g){
@@ -2031,6 +2469,8 @@ function grpTranslater(g, d){
   g.geo.forEach(function(o){ o.pts=o.pts.map(function(q){ return [q[0]+d[0], q[1]+d[1]]; }); });
   g.textes.forEach(function(t){ t.x+=d[0]; t.y+=d[1]; });
   g.symb.forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
+  grpChampsPans(g).forEach(function(ch){ ch.x+=d[0]; ch.y+=d[1]; });
+  (g.ond||[]).forEach(function(o){ o.x+=d[0]; o.y+=d[1]; });
 }
 /* un quart de tour autour du centre du groupe : sens inverse des aiguilles, ou des aiguilles (horaire) */
 function grpTourner(g, horaire){
@@ -2044,11 +2484,16 @@ function grpTourner(g, horaire){
   g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="gtexte" || o.t==="ellipse") o.rot=((o.rot||0)+da)%360; });
   g.textes.forEach(function(t){ var q=f([t.x, t.y]); t.x=q[0]; t.y=q[1]; });
   g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=((o.rot||0)+da)%360; });
+  grpChampsPans(g).forEach(function(ch){ var q=f([ch.x, ch.y]); ch.x=q[0]; ch.y=q[1]; ch.a=((ch.a||0)+da)%360; });
+  (g.ond||[]).forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; });
 }
 /* la copie d'un groupe : ses murs avec leurs portes et fenêtres */
 function grpCopier(g){
   var ids={}; g.murs.forEach(function(m){ ids[m.id]=1; });
-  return JSON.stringify({murs:g.murs, ouv:DESSIN.ouv.filter(function(o){ return ids[o.mur]; }), mob:g.mob, geo:g.geo, textes:g.textes, symb:g.symb, mm:DESSIN_MM});
+  /* les panneaux : avec leur champ (sa pose, sa place) ; leurs strings ne suivent pas */
+  var chs={}; (g.pan||[]).forEach(function(x){ var ch=pvChamp(x.ch); if(ch) chs[ch.id]=ch; });
+  return JSON.stringify({murs:g.murs, ouv:DESSIN.ouv.filter(function(o){ return ids[o.mur]; }), mob:g.mob, geo:g.geo, textes:g.textes, symb:g.symb,
+    pan:(g.pan||[]).map(function(x){ return {ch:x.ch, r:x.r, c:x.c}; }), chs:chs, mm:DESSIN_MM});
 }
 function grpColler(txt, d){
   var c=JSON.parse(txt), k=(c.mm||DESSIN_MM)/DESSIN_MM, g=grpNeuf(), corr={};
@@ -2058,7 +2503,19 @@ function grpColler(txt, d){
   c.mob.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; n.l=o.l*k; n.p=o.p*k; DESSIN.mob=DESSIN.mob||[]; DESSIN.mob.push(n); g.mob.push(n); });
   c.geo.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); n.id=idD(); n.pts=o.pts.map(sc); if(n.r) n.r=o.r*k; DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(n); g.geo.push(n); });
   c.textes.forEach(function(t){ var n=JSON.parse(JSON.stringify(t)); n.id=idD(); var q=sc([t.x, t.y]); n.x=q[0]; n.y=q[1]; DESSIN.textes.push(n); g.textes.push(n); });
-  c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; SYMB.push(n); g.symb.push(n); });
+  if(c.pan && c.pan.length){
+    var P=PVD(), corrC={};
+    c.pan.forEach(function(x){
+      if(!corrC[x.ch]){ var ch0=c.chs[x.ch]; if(!ch0) return; var nc=JSON.parse(JSON.stringify(ch0)); nc.id=idD(); var q=sc([ch0.x, ch0.y]); nc.x=q[0]; nc.y=q[1]; P.ch.push(nc); corrC[x.ch]=nc; }
+      g.pan.push(pvAjouterPan(corrC[x.ch], x.r, x.c));
+    });
+  }
+  var corrS={};
+  c.symb.forEach(function(o){ var n=JSON.parse(JSON.stringify(o)); var q=sc([o.x, o.y]); n.x=q[0]; n.y=q[1]; if(o.id){ delete n.id; corrS[o.id]=idS(n); } SYMB.push(n); g.symb.push(n); });
+  g.symb.forEach(function(n){
+    ["lien","inv"].forEach(function(k){ if(!n[k]) return; n[k]=n[k].map(function(id){ return corrS[id]; }).filter(Boolean); if(!n[k].length) delete n[k]; });
+    if(n.lc){ var lc={}; Object.keys(n.lc).forEach(function(id){ if(corrS[id]) lc[corrS[id]]=n.lc[id]; }); if(Object.keys(lc).length) n.lc=lc; else delete n.lc; }
+  });
   return g;
 }
 /* où poser la copie : une pièce juste à côté (sa largeur et 50 cm de plus), un élément seul un peu en biais */
@@ -2075,7 +2532,7 @@ function dupliquerSel(){
 }
 function apresCollage(n, msg){
   enregistrerD(); enregistrerSymb();
-  if(grpTaille(n)===1 && !n.symb.length){ var t=n.murs.length ? "mur" : n.mob.length ? "mob" : n.geo.length ? "geo" : "texte"; D_SEL={t:t, id:(n.murs[0]||n.mob[0]||n.geo[0]||n.textes[0]).id}; GRP=null; if(OUTIL_D==="selection") OUTIL_D="choisir"; }
+  if(grpTaille(n)===1 && !n.symb.length && !n.pan.length && !n.ond.length){ var t=n.murs.length ? "mur" : n.mob.length ? "mob" : n.geo.length ? "geo" : "texte"; D_SEL={t:t, id:(n.murs[0]||n.mob[0]||n.geo[0]||n.textes[0]).id}; GRP=null; if(OUTIL_D==="selection") OUTIL_D="choisir"; }
   else { OUTIL_D="selection"; GRP=n; D_SEL=null; }
   majDessin(); majBarreSel(); demander(); toast(msg, 2500);
 }
@@ -2086,6 +2543,9 @@ function supprimerGrp(){
   DESSIN.murs=DESSIN.murs.filter(function(m){ return !ids[m.id]; }); DESSIN.ouv=DESSIN.ouv.filter(function(o){ return !ids[o.mur]; });
   DESSIN.mob=mobs().filter(function(o){ return g.mob.indexOf(o)<0; }); DESSIN.geo=geos().filter(function(o){ return g.geo.indexOf(o)<0; });
   DESSIN.textes=DESSIN.textes.filter(function(t){ return g.textes.indexOf(t)<0; }); SYMB=SYMB.filter(function(o){ return g.symb.indexOf(o)<0; });
+  g.symb.forEach(function(x){ if(x.id) SYMB.forEach(function(o){ delier(o, x.id); }); });
+  (g.pan||[]).forEach(function(x){ pvSupprimer("pvp", x); });
+  (g.ond||[]).forEach(function(o){ pvSupprimer("pvo", o); });
   GRP=null; enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Supprimé. « Annuler » le remet.", 2500);
 }
 function grpEcran(g){ var b=grpBoite(g); if(!b) return null; var a=versEcran(b.x0, b.y1), c=versEcran(b.x1, b.y0); return {x0:a[0]-8, y0:a[1]-8, x1:c[0]+8, y1:c[1]+8}; }
@@ -2099,13 +2559,15 @@ function peindreGroupe(c){
     c.strokeRect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
   }
   if(grpTaille(GRP)){
-    c.setLineDash([]); c.strokeStyle="#FB923C"; c.lineWidth=2;
+    c.setLineDash([]); c.strokeStyle="#3B82F6"; c.lineWidth=2;
     function poly(pts){ c.beginPath(); pts.forEach(function(q, i){ var e=versEcran(q[0], q[1]); if(i) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.closePath(); c.stroke(); }
     GRP.murs.forEach(function(m){ poly(coinsMur(m)); });
     GRP.mob.forEach(function(o){ poly(coinsMob(o)); });
     GRP.geo.forEach(function(o){ if(o.t==="rond"){ var e=versEcran(o.pts[0][0], o.pts[0][1]); c.beginPath(); c.arc(e[0], e[1], o.r*V.k, 0, 2*Math.PI); c.stroke(); } else poly(o.pts); });
     GRP.symb.forEach(function(o){ var e=versEcran(o.x, o.y); c.beginPath(); c.arc(e[0], e[1], Math.max(8, o.r*V.k*1.2), 0, 2*Math.PI); c.stroke(); });
     GRP.textes.forEach(function(t){ var e=versEcran(t.x, t.y); c.strokeRect(e[0]-20, e[1]-10, 40, 20); });
+    (GRP.pan||[]).forEach(function(x){ var cs=pvCoins(x); if(!cs.length) return; c.fillStyle="rgba(59,130,246,.28)"; c.beginPath(); cs.forEach(function(q, i){ var e=versEcran(q[0], q[1]); if(i) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.closePath(); c.fill(); c.stroke(); });
+    (GRP.ond||[]).forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]]); });
     var r=grpEcran(GRP);
     if(r){ c.setLineDash([7,5]); c.lineWidth=1.5; c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); }
   }
@@ -2227,7 +2689,7 @@ function quadMorceau(m, pc){
 /* ---------- à l'écran (et à l'impression) ---------- */
 function peindreDessin(c){
   if(!PLAN) return;
-  var coulMur = CLAIR ? "#2F343B" : "#C9D1D9", coulTrait = CLAIR ? "#111111" : "#E5E9EF", orange="#FB923C";
+  var coulMur = CLAIR ? "#2F343B" : "#C9D1D9", coulTrait = CLAIR ? "#111111" : "#E5E9EF", orange="#06B6D4";
   /* la grille d'une page vierge : le mètre, et les 10 cm de près (pas à l'impression) */
   if(PLAN.vierge && !IMPRIME){
     [[1000, CLAIR ? "rgba(0,0,0,.10)" : "rgba(255,255,255,.08)"], [100, CLAIR ? "rgba(0,0,0,.045)" : "rgba(255,255,255,.035)"], [10, CLAIR ? "rgba(0,0,0,.025)" : "rgba(255,255,255,.02)"]].forEach(function(g){
@@ -2302,6 +2764,7 @@ function peindreDessin(c){
   peindreToits(c, E, orange);
   /* l'étude photovoltaïque : panneaux, strings, câbles, onduleurs */
   peindrePv(c, E, orange, coulTrait);
+  if(!IMPRIME) peindrePoigneesPv(c, E);
   } else peindreElevation(c, E, fin, coulTrait, orange);
   /* le dessin technique : traits, formes, cotes */
   peindreGeo(c, E, coulTrait, orange);
@@ -2310,7 +2773,7 @@ function peindreDessin(c){
     var P0=E(D_PT); c.fillStyle=orange; c.beginPath(); c.arc(P0[0],P0[1],5,0,Math.PI*2); c.fill();
     if(D_SOURIS && (OUTIL_D==="mur" || OUTIL_D==="cloison")){
       var fin2=finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
-      var P1=E(fin2); c.strokeStyle="rgba(251,146,60,.8)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
+      var P1=E(fin2); c.strokeStyle="rgba(59,130,246,.8)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
       c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke();
       var dg=sub(fin2, D_PT), angTxt="";
       if(lng(dg)>0 && Math.abs(dg[0])>1e-6 && Math.abs(dg[1])>1e-6) angTxt="  ·  "+String(angleMur({a:[0,0], b:dg})).replace(".", ",")+"°";
@@ -2327,7 +2790,7 @@ function peindreDessin(c){
 function etiquette(c, x, y, t){
   c.save(); c.font="bold 13px system-ui, sans-serif"; var w=c.measureText(t).width;
   c.fillStyle="rgba(11,14,18,.88)"; c.beginPath(); if(c.roundRect) c.roundRect(x-w/2-7, y-11, w+14, 22, 11); else c.rect(x-w/2-7, y-11, w+14, 22); c.fill();
-  c.fillStyle="#FDBA74"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(t, x, y); c.restore();
+  c.fillStyle="#93C5FD"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(t, x, y); c.restore();
 }
 /* ---------- l'accrochage du dessin : bouts et angles des murs, puis la grille du centimètre ---------- */
 /* le centre des symboles posés : on cote jusqu'à l'axe d'une liseuse, d'une prise, d'un spot */
@@ -2337,8 +2800,8 @@ function pointsDessin(){
   var vue=vueD();
   pointsAutresVues(vue).forEach(function(q){ out.push(q); });
   if(vue!=="dessus"){ pointsGeo().forEach(function(q){ out.push(q); }); pointsVue(vue).forEach(function(q){ out.push(q); }); return out; }
-  DESSIN.murs.forEach(function(m){ out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
-  coinsMurs().forEach(function(q){ out.push(q); });
+  DESSIN.murs.forEach(function(m){ if(m.id===MUR_EXCLU) return; out.push(m.a, m.b); [-1,1].forEach(function(s){ out.push(surMur(m,0,s*m.ep/2), surMur(m,axes(m).L,s*m.ep/2)); }); });
+  if(MUR_EXCLU==null) coinsMurs().forEach(function(q){ out.push(q); });
   mobs().forEach(function(o){ coinsMob(o).forEach(function(q){ out.push(q); }); });
   pointsGeo().forEach(function(q){ out.push(q); });
   return out;
@@ -2536,7 +2999,7 @@ function majDessin(){
   else if(OUTIL_D==="piece") det="Tapez largeur × longueur × hauteur, puis touchez le coin intérieur en haut à gauche de la pièce.";
   else if(OUTIL_D==="texte") det="Touchez le centre de la pièce, puis tapez son nom.";
   else if(OUTIL_D==="selection") det = grpTaille(GRP) ? grpTaille(GRP)+" élément"+(grpTaille(GRP)>1?"s":"")+" sélectionné"+(grpTaille(GRP)>1?"s":"")+" : glissez-les pour les déplacer ; Dupliquer et Tourner dans la barre, Supprimer dans le panneau. Ctrl+C / Ctrl+V sur un ordinateur." : "Glissez un cadre autour de la pièce (murs, portes, meubles, formes, textes, symboles), ou touchez un élément.";
-  else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier.";
+  else if(OUTIL_D==="choisir") det = FAM_D==="dessin" ? "Touchez une forme pour la modifier : glissez-la, tirez ses poignées." : "Touchez un mur, une ouverture, un meuble, une forme ou un nom pour le modifier. Glissez une porte ou une fenêtre, ou un mur déjà choisi, pour le déplacer.";
   else if(OUTIL_D==="objet") det="Touchez le plan pour poser : "+defMob(CHOIX_MOB).nom+". Près d'un mur, il s'y adosse.";
   else if(GEO_OUTILS[OUTIL_D]){
     var nb=GEO_EC ? GEO_EC.pts.length : 0, T=OUTIL_D;
@@ -2640,7 +3103,7 @@ function majFamille(){
   majVues();
   Array.prototype.forEach.call($("outilsD").querySelectorAll("button[data-o]"), function(b){
     var o=b.dataset.o;
-    b.classList.toggle("hors-fam", (o==="selection" && FAM_D==="pv") || (o!=="choisir" && o!=="selection" && famDe(o)!==FAM_D));
+    b.classList.toggle("hors-fam", o!=="choisir" && o!=="selection" && famDe(o)!==FAM_D);
     b.classList.toggle("hors-vue", !outilVue(o));
   });
   Array.prototype.forEach.call($("segFamD").children, function(b){ b.classList.toggle("on", b.dataset.f===FAM_D); });
@@ -2649,7 +3112,7 @@ $("segFamD").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   FAM_D=b.dataset.f; garder("dwg:famD", FAM_D);
   /* l'outil en cours suit la famille (en Face et en Côté, le plan, c'est le mobilier) */
-  if(OUTIL_D!=="choisir" && famDe(OUTIL_D)!==FAM_D){ OUTIL_D = FAM_D==="dessin" ? "trait" : FAM_D==="pv" ? (VUE_D!=="dessus" ? "choisir" : "pvchamp") : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
+  if(OUTIL_D!=="choisir" && OUTIL_D!=="selection" && famDe(OUTIL_D)!==FAM_D){ OUTIL_D = FAM_D==="dessin" ? "trait" : FAM_D==="pv" ? (VUE_D!=="dessus" ? "choisir" : "pvchamp") : (VUE_D!=="dessus" ? "objet" : "mur"); garder("dwg:outil", OUTIL_D); }
   if(FAM_D!=="pv"){ $("etudePv").hidden=true; }
   D_PT=null; GEO_EC=null; PV_EC=null; majFamille(); majDessin();
 });
@@ -2827,6 +3290,41 @@ function projectionG(o, vue){
    la hauteur touchée ; on le glisse de côté et en hauteur, sa profondeur ne
    bouge pas (elle se règle en vue de dessus). */
 var MOB_EXCLU=null;
+/* ---------- déplacer une porte, une fenêtre, un mur ou une cloison (outil Choisir, vue de dessus) ----------
+   Une ouverture glisse le long de son mur, et passe sur un autre mur dès que le doigt
+   s'en approche. Un mur ou une cloison déjà choisi se glisse en entier, au centimètre,
+   avec ses ouvertures ; s'il touche un autre mur par un bout (une cloison entre deux
+   murs), il ne glisse qu'en travers : il reste collé à ses voisins. */
+var MUR_EXCLU=null;
+function bouAccroche(m){
+  var x=axes(m);
+  return [m.a, m.b].some(function(q){
+    return DESSIN.murs.some(function(m2){ return m2.id!==m.id && distSeg(q, m2.a, m2.b).d <= m2.ep/2+10/DESSIN_MM; });
+  });
+}
+function glisserOuv(o, pv){
+  var best=null, bd=Infinity;
+  DESSIN.murs.forEach(function(m){
+    var L=axes(m).L; if(o.l > L-20/DESSIN_MM) return;
+    var r=distSeg(pv, m.a, m.b), d=r.d-m.ep/2;
+    /* le mur d'origine garde l'ouverture tant qu'un autre n'est pas nettement plus près */
+    if(m.id===o.mur) d-=14/V.k;
+    if(d<bd){ bd=d; best={m:m, t:r.t, L:L}; }
+  });
+  if(!best) return;
+  var pas=10/DESSIN_MM, s=Math.round(best.t*best.L/pas)*pas;
+  o.mur=best.m.id; o.t=Math.max(o.l/2/best.L, Math.min(1-o.l/2/best.L, s/best.L));
+}
+function glisserMur(m, base, dv){
+  var pas=10/DESSIN_MM, d=[Math.round(dv[0]/pas)*pas, Math.round(dv[1]/pas)*pas];
+  if(base.colle){ var n=base.n, k=d[0]*n[0]+d[1]*n[1]; k=Math.round(k/pas)*pas; d=[n[0]*k, n[1]*k]; }
+  m.a=[base.a[0]+d[0], base.a[1]+d[1]]; m.b=[base.b[0]+d[0], base.b[1]+d[1]];
+  MUR_EXCLU=m.id; var ai=aimanter([m.a, m.b]); MUR_EXCLU=null;
+  if(ai){
+    var e=ai.d; if(base.colle){ var k2=e[0]*base.n[0]+e[1]*base.n[1]; e=[base.n[0]*k2, base.n[1]*k2]; }
+    m.a=[m.a[0]+e[0], m.a[1]+e[1]]; m.b=[m.b[0]+e[0], m.b[1]+e[1]]; D_SOURIS={pt:ai.pt, acc:true, genre:1};
+  } else D_SOURIS=null;
+}
 function horizV(vue, q){ return vue==="cote" ? q[1] : q[0]; }
 function profV(vue, q){ return vue==="cote" ? -q[0] : q[1]; }          /* plus grand : plus loin de soi */
 function planDeV(vue, h, pr){ return vue==="cote" ? [-pr, h] : [h, pr]; }
@@ -3353,7 +3851,7 @@ function peindreGeo(c, E, coulTrait, orange){
   if(GEO_EC && MODE==="dessin"){
     var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(ec.t==="triangle" || ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || (ec.t==="arc" && ec.pts.length===2));
     var q=D_SOURIS ? (diag ? D_SOURIS.pt : finGeo(dern, D_SOURIS)) : null;
-    c.save(); c.strokeStyle="rgba(251,146,60,.95)"; c.lineWidth=1.6; c.setLineDash([6,4]);
+    c.save(); c.strokeStyle="rgba(59,130,246,.95)"; c.lineWidth=1.6; c.setLineDash([6,4]);
     ec.pts.forEach(function(p0){ var P=E(p0); c.fillStyle=orange; c.beginPath(); c.arc(P[0],P[1],4,0,Math.PI*2); c.fill(); });
     var apercu=null, lib="";
     if(ec.t==="rect" && q){ apercu=[rectDe(ec.pts[0], q), true]; lib=cm(Math.abs(q[0]-ec.pts[0][0])*DESSIN_MM)+" × "+cm(Math.abs(q[1]-ec.pts[0][1])*DESSIN_MM)+" cm"; }
@@ -3457,11 +3955,21 @@ var MOB=[
   {cle:"miroir", nom:"Miroir", court:"Miroir", groupe:"Salle de bains", l:800, p:30, h:700, z:1100, genre:"miroir"},
   {cle:"wc", nom:"WC", court:"WC", groupe:"Salle de bains", l:400, p:650, h:800, genre:"wc"},
   {cle:"seche", nom:"Sèche-serviettes", court:"Sèche-serv.", groupe:"Salle de bains", l:500, p:100, h:1200, z:200, genre:"seche"},
-  {cle:"lavelinge", nom:"Lave-linge", court:"Lave-linge", groupe:"Salle de bains", l:600, p:600, h:850, genre:"machine"},
+
   {cle:"plan", nom:"Meubles bas et plan de travail", court:"Plan de travail", groupe:"Cuisine", l:2400, p:650, h:900, genre:"plan"},
   {cle:"hauts", nom:"Meubles hauts", court:"Meubles hauts", groupe:"Cuisine", l:2400, p:350, h:700, z:1450, genre:"meuble"},
-  {cle:"frigo", nom:"Réfrigérateur", court:"Frigo", groupe:"Cuisine", l:600, p:650, h:1850, genre:"machine"},
   {cle:"table", nom:"Table", court:"Table", groupe:"Cuisine", l:1600, p:900, h:750, genre:"table", libre:1},
+  {cle:"chaise", nom:"Chaise", court:"Chaise", groupe:"Cuisine", l:450, p:520, h:900, genre:"chaise", libre:1},
+  {cle:"canape3", nom:"Canapé 3 places", court:"Canapé", groupe:"Salon", l:2100, p:900, h:850, genre:"canape", n:3},
+  {cle:"canape2", nom:"Canapé 2 places", court:"Canapé", groupe:"Salon", l:1600, p:900, h:850, genre:"canape", n:2},
+  {cle:"meubletv", nom:"Meuble TV (et sa télévision)", court:"Meuble TV", groupe:"Salon", l:1600, p:450, h:500, genre:"meubletv"},
+  /* l'électroménager : la prise, le circuit spécialisé, se placent d'après lui */
+  {cle:"frigo", nom:"Réfrigérateur", court:"Frigo", groupe:"Électroménager", l:600, p:650, h:1850, genre:"machine"},
+  {cle:"lavevaisselle", nom:"Lave-vaisselle", court:"Lave-vaiss.", groupe:"Électroménager", l:600, p:600, h:820, genre:"machine"},
+  {cle:"four", nom:"Four encastrable", court:"Four", groupe:"Électroménager", l:600, p:560, h:600, z:100, genre:"four"},
+  {cle:"plaque", nom:"Plaque de cuisson", court:"Plaque", groupe:"Électroménager", l:600, p:520, h:60, z:900, genre:"plaque"},
+  {cle:"lavelinge", nom:"Lave-linge", court:"Lave-linge", groupe:"Électroménager", l:600, p:600, h:850, genre:"machine"},
+  {cle:"sechelinge", nom:"Sèche-linge", court:"Sèche-linge", groupe:"Électroménager", l:600, p:600, h:850, genre:"machine"},
   {cle:"pave", nom:"Pavé", court:"Pavé", groupe:"Formes", l:1000, p:600, h:1000, genre:"pave"},
   {cle:"cylindre", nom:"Cylindre", court:"Cylindre", groupe:"Formes", l:600, p:600, h:1000, genre:"cyl", libre:1},
   {cle:"caisson", nom:"Caisson, soffite au plafond", court:"Caisson", groupe:"Formes", l:1200, p:400, h:300, genre:"pave", plafond:1},
@@ -3642,8 +4150,24 @@ function traceMob(o){
     for(var j=0;j<nv;j++) e(-L2+pasv*(j+0.5), -20*q, Math.min(pasv*0.32, 220*q), Math.min(o.p*0.32, 170*q));
   } else if(d.genre==="wc"){
     var rs=Math.min(180*q, o.p*0.3); l([-L2,P2-rs],[L2,P2-rs]); e(0,(-P2+P2-rs)/2, L2*0.85, (o.p-rs)/2*0.92);
-  } else if(d.genre==="machine" && o.cle==="lavelinge"){
+  } else if(d.genre==="machine" && (o.cle==="lavelinge" || o.cle==="sechelinge")){
     e(0,0,Math.min(L2,P2)*0.62,Math.min(L2,P2)*0.62);
+    if(o.cle==="sechelinge") e(0,0,Math.min(L2,P2)*0.4,Math.min(L2,P2)*0.4);
+  } else if(d.genre==="machine" && o.cle==="lavevaisselle"){
+    r(-L2+50*q,-P2+50*q,L2-50*q,P2-50*q); l([-L2+50*q,-P2+50*q],[L2-50*q,P2-50*q]);
+  } else if(d.genre==="four"){
+    r(-L2+50*q,-P2,L2-50*q,-P2+80*q); r(-L2+90*q,-P2+140*q,L2-90*q,P2-60*q);
+  } else if(d.genre==="plaque"){
+    [[-1,-1,.24],[1,-1,.18],[-1,1,.18],[1,1,.24]].forEach(function(f){ var rr=Math.min(o.l,o.p)*f[2]; e(f[0]*L2*0.48, f[1]*P2*0.46, rr, rr); });
+  } else if(d.genre==="canape"){
+    /* le dossier contre le mur, les accoudoirs, une ligne entre chaque place */
+    var dos=Math.min(200*q, o.p*0.24), acc=Math.min(160*q, o.l*0.1), np=d.n||3;
+    r(-L2,P2-dos,L2,P2); r(-L2,-P2,-L2+acc,P2-dos); r(L2-acc,-P2,L2,P2-dos);
+    for(var kc=1;kc<np;kc++){ var xc=-L2+acc+(o.l-2*acc)*kc/np; l([xc,-P2],[xc,P2-dos]); }
+  } else if(d.genre==="meubletv"){
+    var lt=Math.min(o.l*0.85, 1450*q); r(-lt/2,P2-110*q,lt/2,P2-60*q);
+  } else if(d.genre==="chaise"){
+    r(-L2,P2-60*q,L2,P2);
   } else if(d.genre==="plan"){
     l([-L2,-P2+30*q],[L2,-P2+30*q]);
   } else if(d.genre==="table"){
@@ -3771,9 +4295,40 @@ function piecesMob(o){
       b(-L2,-L2+30,-P2+20,P2-20,0,h,0xBFC5CC); b(L2-30,L2,-P2+20,P2-20,0,h,0xBFC5CC);
       for(var zz=40; zz<h-20; zz+=90) b(-L2+30,L2-30,-P2+35,P2-35,zz,zz+24,0xD4D8DD);
       break;
+    case "canape":
+      var TIS=0x7C8796, TIS2=0x6B7684, dosC=Math.min(200, p*0.24), accC=Math.min(160, l*0.1), npC=d.n||3, wpC=(l-2*accC)/npC;
+      b(-L2,L2,-P2,P2,60,400,TIS2); b(-L2,L2,P2-dosC,P2,400,h,TIS);
+      b(-L2,-L2+accC,-P2,P2-dosC,400,620,TIS); b(L2-accC,L2,-P2,P2-dosC,400,620,TIS);
+      for(i=0;i<npC;i++){ var xC=-L2+accC+i*wpC; b(xC+8,xC+wpC-8,-P2+20,P2-dosC,400,480,0x8E99A8); }
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s2){ var cx=s2[0]*(L2-60), cy=s2[1]*(P2-60); b(cx-20,cx+20,cy-20,cy+20,0,60,0x3F3A33); });
+      break;
+    case "meubletv":
+      b(-L2,L2,-P2,P2,60,h,0x3F3A33); b(-L2+20,L2-20,-P2-3,-P2,120,h-40,BOIS2);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s3){ var cx=s3[0]*(L2-50), cy=s3[1]*(P2-50); b(cx-15,cx+15,cy-15,cy+15,0,60,0x2B2F36); });
+      var lT=Math.min(l*0.85, 1450), hT=lT*0.57;
+      b(-120,120,P2-160,P2-40,h,h+20,0x1F2937); b(-25,25,P2-90,P2-60,h+20,h+90,0x1F2937);
+      b(-lT/2,lT/2,P2-95,P2-55,h+90,h+90+hT,0x111827,{brille:1});
+      break;
+    case "chaise":
+      var hs2=Math.min(460, h*0.5);
+      b(-L2,L2,-P2,P2-30,hs2-30,hs2,BOIS);
+      b(-L2,L2,P2-30,P2,hs2,h,BOIS);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s4){ var cx=s4[0]*(L2-25), cy=s4[1]*(P2-25); b(cx-18,cx+18,cy-18,cy+18,0,hs2-30,BOIS2); });
+      break;
+    case "four":
+      b(-L2,L2,-P2,P2,0,h,0x2B2F36);
+      b(-L2+40,L2-40,-P2-3,-P2,60,h-130,0x111827,{brille:1});
+      b(-L2+60,L2-60,-P2-25,-P2-3,h-110,h-90,CHROME);
+      b(-L2+40,L2-40,-P2-3,-P2,h-70,h-20,0x4B5563);
+      break;
+    case "plaque":
+      b(-L2,L2,-P2,P2,0,h,0x111827,{brille:1});
+      [[-1,-1,.24],[1,-1,.18],[-1,1,.18],[1,1,.24]].forEach(function(f){ var rr=Math.min(l,p)*f[2], cx=f[0]*L2*0.48, cy=f[1]*P2*0.46; b(cx-rr,cx+rr,cy-rr,cy+rr,h,h+3,0x4B5563,{cyl:1}); });
+      break;
     case "machine":
       b(-L2,L2,-P2,P2,0,h,BLANC);
-      if(o.cle==="lavelinge"){ b(-L2+30,L2-30,-P2-3,-P2,h-110,h-30,0x9CA3AF); var rr=Math.min(L2,h/2)*0.62; b(-rr,rr,-P2-3,-P2+0.5,h*0.45-rr,h*0.45+rr,0x4B5563,{disque:1}); }
+      if(o.cle==="lavevaisselle"){ b(-L2+10,L2-10,-P2-3,-P2,h-90,h-20,0x9CA3AF); b(-L2+80,L2-80,-P2-22,-P2-3,h-150,h-130,CHROME); }
+      else if(o.cle==="lavelinge" || o.cle==="sechelinge"){ b(-L2+30,L2-30,-P2-3,-P2,h-110,h-30,0x9CA3AF); var rr=Math.min(L2,h/2)*0.62; b(-rr,rr,-P2-3,-P2+0.5,h*0.45-rr,h*0.45+rr,0x4B5563,{disque:1}); }
       else b(-L2+30,-L2+50,-P2-25,-P2,h*0.45,h*0.75,CHROME);
       break;
     case "plan":
@@ -4102,7 +4657,7 @@ function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); 
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux()), calquesExtra:PV_CALQUES.concat([["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
+    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:PV_CALQUES.concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()});
   telecharger(new Blob([txt], {type:"application/dxf"}), nomDeBase()+"-electricite.dxf");
   toast("DXF enregistré : murs et cloisons (deux calques), ouvertures, pièces, mobilier, toits et panneaux, dessin, cotes et symboles, en millimètres, aux coordonnées du plan.", 6000);
 }
@@ -5487,8 +6042,8 @@ function peindreZone(c){
   var r=cadreZoneEcran();
   c.save(); c.setTransform(DPR,0,0,DPR,0,0);
   c.fillStyle="rgba(0,0,0,.5)"; c.beginPath(); c.rect(0, 0, W, H); c.rect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0); c.fill("evenodd");
-  c.strokeStyle="#FB923C"; c.lineWidth=2.5; c.setLineDash([]); c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0);
-  c.fillStyle="#FB923C";
+  c.strokeStyle="#3B82F6"; c.lineWidth=2.5; c.setLineDash([]); c.strokeRect(r.x0, r.y0, r.x1-r.x0, r.y1-r.y0);
+  c.fillStyle="#3B82F6";
   [[r.x0,r.y0],[r.x1,r.y0],[r.x0,r.y1],[r.x1,r.y1]].forEach(function(q){ c.beginPath(); c.arc(q[0], q[1], 8, 0, 2*Math.PI); c.fill(); });
   var et=(MEP.format==="a3"?"A3":"A4")+" "+(MEP.orient==="l"?"paysage":"portrait")+" · 1/"+echelleZone();
   c.font="700 13px system-ui, -apple-system, sans-serif"; var lw=c.measureText(et).width+16;
@@ -6020,6 +6575,8 @@ $("etalon").addEventListener("submit", function(e){
 });
 $("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
 $("btTourner").addEventListener("click", tournerSymb);
+$("btRelier").addEventListener("click", function(){ basculerRelier(); });
+$("bsRelier").addEventListener("click", function(){ basculerRelier(); });
 $("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majSymb(); });
 $("btSuppSymb").addEventListener("click", supprimerSymb);
 $("btDefaireS").addEventListener("click", defaireSymb);
@@ -6603,7 +7160,7 @@ function plafondSousToits(){ var l=toits(); return !l.length || l.some(function(
    un velux) laisse son trou dans la grille.
    ===================================================================== */
 var PV_OUTILS={pvpan:1, pvchamp:1, pvond:1, pvstr:1, pvchemin:1, pvac:1, pvrj:1};
-var PV_COUL=["#E11D48","#2563EB","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#B45309","#4F46E5"];
+var PV_COUL=["#E11D48","#2563EB","#16A34A","#D97706","#7C3AED","#0891B2","#DB2777","#65A30D","#2563EB","#4F46E5"];
 var PV_RHO=0.0225;               /* cuivre, Ω·mm²/m */
 var PV_OW=1000, PV_OH=700;        /* l'onduleur dessiné, en mm (plus large avec plus de MPPT) */
 var PV_ETIQ=[];                  /* les étiquettes placées au dernier dessin (pour les essais) */
@@ -6852,10 +7409,64 @@ function pvPoserChamp(a, b){
 }
 function pvPoserOnd(q){
   var P=PVD(); garderD();
-  var o=Object.assign({id:idD(), x:q[0], y:q[1], nom:"OND"+(P.ond.length+1)}, PV_OND_DEF);
+  var o=Object.assign({id:idD(), x:q[0], y:q[1], nom:"OND"+(P.ond.length+1)}, PV_OND_DEF, {afaire:1});
   P.ond.push(o); D_SEL={t:"pvo", id:o.id}; finOutil(); D_SEL={t:"pvo", id:o.id}; enregistrerD(); majDessin();
-  toast(o.nom+" posé : réglez sa puissance, ses MPPT et ses tensions dans « Étude PV ».", 5000);
+  ouvrirFenOnd(o);
 }
+/* ---------- quel onduleur : c'est à l'électricien de le dire ----------
+   Posé, l'onduleur est « à définir » : la fenêtre demande sa puissance et son nombre de MPPT
+   (obligatoires), sa marque et son modèle, ses tensions et ses courants (sur la fiche technique).
+   Un champ laissé vide garde une valeur type, signalée « à compléter » dans l'étude. */
+var CHAMPS_FEN_OND=[["modele","Marque et modèle","t",0,"ex. Huawei SUN2000-6KTL-L1"],["pac","Puissance AC (W)","n",1,"ex. 6000"],["nm","Nombre de MPPT","n",1,"ex. 2"],
+  ["npm","Entrées (strings) par MPPT","n",0,"1"],["ph","Raccordement","ph",0,""],["vmax","Tension DC max (V)","n",0,"ex. 600"],["vmin","MPPT min (V)","n",0,"ex. 80"],
+  ["vmpmax","MPPT max (V)","n",0,"ex. 550"],["imax","Courant max par MPPT (A)","n",0,"ex. 16"],["icc","Icc max par MPPT (A)","n",0,"ex. 20"]];
+var FEN_OND=null;
+function pvOndAFaire(o){ return !!(o && o.afaire); }
+function pvTitreOnd(o){ return pvOndAFaire(o) ? o.nom+" · à définir" : o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT"; }
+function ouvrirFenOnd(o){
+  FEN_OND=o.id; var z=$("foChamps"); z.textContent=""; $("foErr").hidden=true;
+  $("fenOndT").textContent="Quel onduleur ? ("+o.nom+")";
+  var neuf=pvOndAFaire(o), manque=o.incomplet||[];
+  CHAMPS_FEN_OND.forEach(function(f){
+    var l=document.createElement("label"); l.className=(f[3] ? "req" : "")+(f[0]==="modele" ? " large" : ""); l.appendChild(document.createTextNode(f[1]+(f[3] ? " *" : "")));
+    var i;
+    if(f[2]==="ph"){ i=document.createElement("select"); [["mono","Mono 230 V"],["tri","Tri 400 V"]].forEach(function(v){ var op=document.createElement("option"); op.value=v[0]; op.textContent=v[1]; i.appendChild(op); }); i.value=o.ph==="tri" ? "tri" : "mono"; }
+    else {
+      i=document.createElement("input"); i.type="text"; i.autocomplete="off"; if(f[2]==="n") i.inputMode="decimal"; i.placeholder=f[4];
+      var v=o[f[0]], vide = f[2]==="t" ? !v : (neuf && f[0]!=="npm") || manque.indexOf(f[0])>=0;
+      i.value = vide ? "" : (f[2]==="t" ? String(v) : String(v).replace(".", ","));
+    }
+    i.dataset.k=f[0]; l.appendChild(i); z.appendChild(l);
+  });
+  $("fenOnd").hidden=false;
+  setTimeout(function(){ try{ z.querySelector("input").focus(); }catch(e){} }, 50);
+}
+function fermerFenOnd(){ FEN_OND=null; $("fenOnd").hidden=true; majDessin(); majBarreSel(); }
+function validerFenOnd(){
+  var o=pvOnd(FEN_OND); if(!o){ fermerFenOnd(); return; }
+  var val={}, err=[], incomplet=[];
+  Array.prototype.forEach.call($("foChamps").querySelectorAll("input,select"), function(i){
+    var k=i.dataset.k, f=CHAMPS_FEN_OND.filter(function(x){ return x[0]===k; })[0], v=String(i.value).trim(), n=parseFloat(v.replace(/\s/g, "").replace(",", "."));
+    i.parentNode.classList.remove("manque");
+    if(f[2]==="t" || f[2]==="ph"){ val[k]=v; return; }
+    if(!v){ if(f[3]){ err.push(f[1]); i.parentNode.classList.add("manque"); } else if(k!=="npm") incomplet.push(k); return; }
+    if(!(n>0)){ err.push(f[1]); i.parentNode.classList.add("manque"); return; }
+    val[k]=n;
+  });
+  if(err.length){ $("foErr").textContent="À donner : "+err.join(", ")+"."; $("foErr").hidden=false; return; }
+  garderD();
+  if(val.modele!=null) o.modele=val.modele; o.ph = val.ph==="tri" ? "tri" : "mono";
+  ["pac","nm","npm","vmax","vmin","vmpmax","imax","icc"].forEach(function(k){ if(val[k]!=null) o[k]=val[k]; });
+  o.nm=Math.max(1, Math.min(12, Math.round(o.nm))); o.npm=Math.max(1, Math.min(4, Math.round(o.npm||1)));
+  delete o.afaire; if(incomplet.length) o.incomplet=incomplet; else delete o.incomplet;
+  enregistrerD(); fermerFenOnd(); peindreEtude(true);
+  toast(pvTitreOnd(o)+(o.modele ? " ("+o.modele+")" : "")+(incomplet.length ? " : tensions et courants à compléter (valeurs types en attendant)." : "."), 4000);
+}
+$("foOk").addEventListener("click", validerFenOnd);
+$("foPlusTard").addEventListener("click", fermerFenOnd);
+$("foFermer").addEventListener("click", fermerFenOnd);
+$("foChamps").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); validerFenOnd(); } if(e.key==="Escape") fermerFenOnd(); e.stopPropagation(); });
+$("bsDefOnd").addEventListener("click", function(){ var o = D_SEL && D_SEL.t==="pvo" ? pvOnd(D_SEL.id) : null; if(o) ouvrirFenOnd(o); });
 function pvNumero(){ var n=0; PVD().str.forEach(function(s){ var k=parseInt(String(s.nom).replace(/\D+/g, ""), 10); if(k>n) n=k; }); return n+1; }
 function pvMpptLibre(o, s){
   var best=1, bn=Infinity;
@@ -6908,6 +7519,122 @@ function pvToucherChemin(cible, q){
   if(o){ garderD(); s.ch=ec.pts.slice(); if(s.ond!==o.id){ s.ond=o.id; s.m=pvMpptLibre(o, s); } PV_EC=null; D_SEL={t:"pvs", id:s.id}; enregistrerD(); majDessin(); toast(pvResumeStr(s), 6000); return; }
   var prec = ec.pts.length ? ec.pts[ec.pts.length-1] : pvGeo(s).B[0];
   ec.pts.push(pvContraindre(prec, cible.pt)); majDessin();
+}
+/* ---------- modifier un cheminement à la volée, comme une polyligne ----------
+   La string choisie (ou l'onduleur choisi, pour ses câbles AC et RJ45) montre ses poignées :
+   un carré à chaque coin, un trait au milieu de chaque tronçon. On glisse un tronçon : il se
+   décale en travers, ses voisins s'allongent ; on glisse un coin : les deux tronçons qui s'y
+   rejoignent le suivent. Le départ (le premier panneau, la sortie de l'onduleur) ne bouge pas :
+   tirer le premier tronçon y ajoute un décroché. Tout reste à l'équerre, au centimètre. */
+function pvChemins(){
+  var out=[], sel=D_SEL; if(!sel || PV_EC || vueD()!=="dessus") return out;
+  if(sel.t==="pvs" || sel.t==="pvp"){
+    var s = sel.t==="pvs" ? pvStr(sel.id) : pvStrDe(sel.id); if(!s || !s.ond) return out;
+    var g=pvGeo(s); if(g.tronc.length<3) return out;
+    out.push({E:g.tronc.slice(0, g.tronc.length-2), fixe:1, ecrire:function(En){ s.ch=En.slice(1); }});
+  }
+  if(sel.t==="pvo"){
+    var o=pvOnd(sel.id); if(!o) return out;
+    ["ac","rj"].forEach(function(t){ var pts=pvLiaison(o, t); if(pts && pts.length>2) out.push({E:pts, fixe:2, ecrire:function(En){ o[t]={pts:En.slice(2)}; }}); });
+  }
+  return out;
+}
+function pvHoriz(a, b){ return Math.abs(a[1]-b[1]) <= Math.abs(a[0]-b[0]); }
+function pvPoigneeSous(p){
+  var best=null, bd=16;
+  pvChemins().forEach(function(ch, ic){
+    ch.E.forEach(function(q, j){ if(j<ch.fixe) return; var Q=versEcran(q[0], q[1]), d=Math.hypot(Q[0]-p[0], Q[1]-p[1]); if(d<bd){ bd=d; best={ic:ic, coin:j}; } });
+  });
+  if(best) return best;
+  bd=12;
+  pvChemins().forEach(function(ch, ic){
+    for(var j=Math.max(0, ch.fixe-1); j<ch.E.length-1; j++){
+      var A=versEcran(ch.E[j][0], ch.E[j][1]), B=versEcran(ch.E[j+1][0], ch.E[j+1][1]);
+      if(Math.hypot(B[0]-A[0], B[1]-A[1])<8) continue;
+      var r=distSeg(p, A, B); if(r.d<bd){ bd=r.d; best={ic:ic, seg:j, milieu:Math.hypot(p[0]-(A[0]+B[0])/2, p[1]-(A[1]+B[1])/2)<16}; }
+    }
+  });
+  return best;
+}
+/* le point du câble sous le doigt, ramené sur le tronçon, au centimètre */
+function pvPointSurTroncon(E, j, pEcran){
+  var a=E[j], b=E[j+1], q=versPlan(pEcran[0], pEcran[1]), pas=10/DESSIN_MM;
+  if(pvHoriz(a, b)){ var x=Math.round(q[0]/pas)*pas; return [Math.max(Math.min(a[0], b[0]), Math.min(Math.max(a[0], b[0]), x)), a[1]]; }
+  var y=Math.round(q[1]/pas)*pas; return [a[0], Math.max(Math.min(a[1], b[1]), Math.min(Math.max(a[1], b[1]), y))];
+}
+/* un point ajouté dans le câble (touché ou tiré hors du milieu d'un tronçon) : il devient un coin libre */
+function pvInsererPoint(h){
+  if(!h.inser) return;
+  h.E0.splice(h.inser.j+1, 0, h.inser.q); h.coin=h.inser.j+1; h.seg=null; h.libre=true; h.inser=null;
+}
+var PV_TAP=null;
+/* le point du passage choisi d'un toucher (en bleu plein) : « Supprimer le point » le retire */
+var PV_PT=null;
+/* Le câble sans le point k. Le câble ne fait que des angles droits : retirer un
+   coin le recréerait aussitôt, au même endroit. Le coude passe donc de l'autre
+   côté (l'autre coin du rectangle). Puis les points devenus inutiles, au milieu
+   d'une ligne droite, s'en vont aussi. */
+function pvSansPoint(E0, k, fixe){
+  var E=E0.map(function(q){ return q.slice(); }), A=E[k-1], B=E[k], C=E[k+1], e=1e-6;
+  var R=E.slice(0, k).concat(E.slice(k+1));
+  if(A && C && Math.abs(A[0]-C[0])>e && Math.abs(A[1]-C[1])>e){
+    var alt = (Math.abs(B[0]-C[0])<e && Math.abs(B[1]-A[1])<e) ? [A[0], C[1]] : [C[0], A[1]];
+    R.splice(k, 0, alt);
+  }
+  R=pvOrtho(R);
+  for(var i=Math.max(1, fixe); i<R.length-1; i++){
+    var a=R[i-1], q=R[i], n=R[i+1];
+    if((Math.abs(a[0]-q[0])<e && Math.abs(q[0]-n[0])<e) || (Math.abs(a[1]-q[1])<e && Math.abs(q[1]-n[1])<e)){ R.splice(i, 1); i--; }
+  }
+  return R;
+}
+/* le dernier point d'un câble AC ou RJ45 est le tableau ou la box : il reste */
+function pvPointRetirable(ch, j){ return j>=ch.fixe && (ch.fixe===1 || j<ch.E.length-1); }
+function pvPointChoisi(){
+  if(!PV_PT || !D_SEL || D_SEL.id!==PV_PT.sel) return null;
+  var ch=pvChemins()[PV_PT.ic];
+  if(!ch || PV_PT.coin>=ch.E.length || !pvPointRetirable(ch, PV_PT.coin)){ PV_PT=null; return null; }
+  return {ch:ch, coin:PV_PT.coin};
+}
+function pvRetirerPoint(){
+  var pc=pvPointChoisi(); if(!pc) return;
+  garderD();
+  pc.ch.ecrire(pvSansPoint(pc.ch.E, pc.coin, pc.ch.fixe)); enregistrerD(); PV_PT=null;
+  majDessin(); majBarreSel(); demander(); toast("Point retiré : le câble se redresse. « Annuler » le remet.", 2500);
+}
+function pvGlisserChemin(h, d){
+  var ch=h.ch, E=h.E0.map(function(q){ return q.slice(); });
+  if(h.seg!=null){
+    var j=h.seg, hz=pvHoriz(E[j], E[j+1]), dd = hz ? [0, d[1]] : [d[0], 0];
+    if(j<ch.fixe){ E.splice(j+1, 1, [E[j][0]+dd[0], E[j][1]+dd[1]], [E[j+1][0]+dd[0], E[j+1][1]+dd[1]]); }
+    else { E[j]=[E[j][0]+dd[0], E[j][1]+dd[1]]; E[j+1]=[E[j+1][0]+dd[0], E[j+1][1]+dd[1]]; }
+  } else {
+    var k=h.coin, a=h.E0[k];
+    E[k]=[a[0]+d[0], a[1]+d[1]];
+    /* un point au milieu d'une ligne droite (ou tout juste ajouté) se tire seul : le câble passe par lui */
+    var droit = k-1>=0 && k+1<E.length && pvHoriz(h.E0[k-1], a)===pvHoriz(a, h.E0[k+1]);
+    if(!h.libre && !droit) [k-1, k+1].forEach(function(v){
+      if(v<ch.fixe || v>=E.length) return;
+      if(pvHoriz(h.E0[v], a)) E[v]=[E[v][0], E[v][1]+d[1]]; else E[v]=[E[v][0]+d[0], E[v][1]];
+    });
+  }
+  ch.ecrire(pvOrtho(E));
+  h.dernier=E;
+}
+function peindrePoigneesPv(c, E){
+  var l=pvChemins(); if(!l.length) return;
+  c.save(); c.lineWidth=2; c.strokeStyle="#3B82F6"; c.fillStyle=CLAIR ? "#FFFFFF" : "#0B0E12";
+  l.forEach(function(ch){
+    for(var j=Math.max(0, ch.fixe-1); j<ch.E.length-1; j++){
+      var A=E(ch.E[j]), B=E(ch.E[j+1]); if(Math.hypot(B[0]-A[0], B[1]-A[1])<30) continue;
+      var M=[(A[0]+B[0])/2, (A[1]+B[1])/2], hz=Math.abs(B[1]-A[1])<=Math.abs(B[0]-A[0]);
+      c.beginPath(); if(hz) c.rect(M[0]-9, M[1]-4, 18, 8); else c.rect(M[0]-4, M[1]-9, 8, 18); c.fill(); c.stroke();
+    }
+    ch.E.forEach(function(q, j){ if(j<ch.fixe) return; var Q=E(q); c.beginPath(); c.rect(Q[0]-6, Q[1]-6, 12, 12); c.fill(); c.stroke(); });
+  });
+  var pc=pvPointChoisi();
+  if(pc){ var Q=E(pc.ch.E[pc.coin]); c.fillStyle="#3B82F6"; c.strokeStyle="#FFFFFF"; c.beginPath(); c.rect(Q[0]-8, Q[1]-8, 16, 16); c.fill(); c.stroke(); }
+  c.restore();
 }
 function pvDebutLiaison(t, o){
   PV_EC={t:t, id:o.id, pts:[]}; D_SEL=null; OUTIL_D = t==="ac" ? "pvac" : "pvrj"; majDessin();
@@ -7227,7 +7954,7 @@ function peindrePv(c, E, orange, coulTrait){
       if(h>=34){ c.font="700 "+fm.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textBaseline="bottom"; c.textAlign="center"; c.fillStyle=coulTrait; c.fillText(S2[1], Q[0], Q[1]-2); }
     });
     reserver(A[0], A[1], A[0]+w, A[1]+h+hb2);
-    var labO=o.nom+" · "+pvNb(o.pac/1000, 1)+" kW · "+o.nm+" MPPT", polO="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.font=polO;
+    var labO=pvTitreOnd(o), polO="700 "+fl.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.font=polO;
     var twO=c.measureText(labO).width+4, thO=fl*1.25, cxO=A[0]+w/2, candO=[[cxO, A[1]-4-thO/2], [cxO, A[1]+h+hb2+4+thO/2], [A[0]-6-twO/2, A[1]+h/2], [A[0]+w+6+twO/2, A[1]+h/2], [cxO, A[1]-4-thO*1.6]];
     etiqueter(labO, polO, choisi ? orange : coulTrait, candO.map(function(q){ return {x:q[0], y:q[1], a:0, box:[q[0]-twO/2, q[1]-thO/2, q[0]+twO/2, q[1]+thO/2]}; }), false, 0);
   });
@@ -7288,7 +8015,7 @@ function dxfPv(g){
     if(r.pts){ poly(r.pts, "PV-RJ45"); var fr=r.pts[r.pts.length-1]; poly([[fr[0]-250/k,fr[1]-150/k],[fr[0]+250/k,fr[1]-150/k],[fr[0]+250/k,fr[1]+150/k],[fr[0]-250/k,fr[1]+150/k]], "PV-RJ45", true);
       texte([fr[0], fr[1]-350/k], 150, (o.rjNom||"Box")+" - RJ45 Cat6 "+Math.round(r.L)+"m", "PV-RJ45"); }
   });
-  P.ond.forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]], "PV-ONDULEUR", true); poly([[b[0],b[1]],[b[2],b[3]]], "PV-ONDULEUR"); texte([o.x, b[3]+120/k], 180, o.nom+" "+(o.pac/1000)+"kW "+o.nm+" MPPT", "PV-ONDULEUR"); });
+  P.ond.forEach(function(o){ var b=pvOndBoite(o); poly([[b[0],b[1]],[b[2],b[1]],[b[2],b[3]],[b[0],b[3]]], "PV-ONDULEUR", true); poly([[b[0],b[1]],[b[2],b[3]]], "PV-ONDULEUR"); texte([o.x, b[3]+120/k], 180, pvOndAFaire(o) ? o.nom+" A DEFINIR" : o.nom+" "+(o.pac/1000)+"kW "+o.nm+" MPPT"+(o.modele ? " "+o.modele : ""), "PV-ONDULEUR"); });
 }
 var PV_CALQUES=[["PV-PANNEAUX",5],["PV-STRINGS",3],["PV-DC-PLUS",1],["PV-DC-MOINS",250],["PV-ONDULEUR",7],["PV-TEXTES",7],["PV-AC",30],["PV-RJ45",3]];
 /* ---------- le panneau « Étude PV » ---------- */
@@ -7326,7 +8053,10 @@ function peindreEtude(complet){
   r.appendChild(el("span", Ep.err ? "ep-al err" : Ep.av ? "ep-al av" : "ep-ok", Ep.err ? Ep.err+" erreur"+(Ep.err>1 ? "s" : "")+(Ep.av ? ", "+Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : "") : Ep.av ? Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : (Ep.str.length ? "Étude cohérente" : "Posez les panneaux, l'onduleur, puis les strings.")));
   res.appendChild(r);
   Ep.ond.forEach(function(R){
-    var d=el("div", "ep-ond"); d.appendChild(el("b", null, R.o.nom+" · "+pvNb(R.o.pac/1000)+" kW · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? " · DC/AC "+pvNb(R.ratio, 2) : "")));
+    var d=el("div", "ep-ond");
+    if(pvOndAFaire(R.o)) d.appendChild(el("div", "ep-al err", R.o.nom+" : onduleur à définir (sa puissance, ses MPPT…) : bouton « Définir » en le touchant sur le plan."));
+    else if((R.o.incomplet||[]).length) d.appendChild(el("div", "ep-al av", R.o.nom+" : tensions et courants à compléter (valeurs types utilisées) : « Définir »."));
+    d.appendChild(el("b", null, R.o.nom+(R.o.modele ? " ("+R.o.modele+")" : "")+" · "+pvNb(R.o.pac/1000)+" kW · DC "+pvNb(R.wc/1000, 2)+" kWc"+(R.wc ? " · DC/AC "+pvNb(R.ratio, 2) : "")));
     R.mppt.forEach(function(M){ d.appendChild(el("div", "ep-mppt", "MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+")"; }).join(" // ")+" · "+pvNb(M.imp)+" A" : "libre"))); });
     var la=el("div", "ep-liaison");
     la.appendChild(el("div", null, "AC "+(R.ac.tri ? "tri 400 V" : "mono 230 V")+" · "+pvNb(R.ac.I)+" A → disjoncteur "+R.ac.In+" A · "+R.ac.cable+(R.ac.pts ? " · "+pvNb(R.ac.L)+" m jusqu'à « "+(R.o.acNom||"Tableau")+" » · chute "+pvNb(R.ac.du, 2)+" %" : " · câble à tracer (outil Câble AC)")));
@@ -7354,7 +8084,7 @@ function pvMateriel(Ep){
   Ep.str.forEach(function(x){ lp+=x.g.lp; lm+=x.g.lm; conn+=1; ral+=x.g.sauts; });
   if(Ep.n) l.push(Ep.n+" × "+P.mod.nom+" ("+P.mod.l+" × "+P.mod.h+" mm)");
   P.ond.forEach(function(o){
-    l.push("1 × onduleur "+o.nom+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT"+((o.npm||1)>1 ? " de "+o.npm+" entrées" : ""));
+    l.push(pvOndAFaire(o) ? "1 × onduleur "+o.nom+" : à définir" : "1 × onduleur "+o.nom+(o.modele ? " "+o.modele : "")+", "+pvNb(o.pac/1000)+" kW, "+o.nm+" MPPT"+((o.npm||1)>1 ? " de "+o.npm+" entrées" : ""));
     var a=pvAc(o), r=pvRj(o);
     if(a.pts) l.push("Câble "+a.cable+" ("+o.nom+" → "+(o.acNom||"Tableau")+") : "+pvNb(a.L, 0)+" m, + 10 % : "+pvNb(a.L*1.1, 0)+" m");
     l.push("1 × disjoncteur "+(a.tri ? "4P" : "1P+N")+" "+a.In+" A au tableau pour "+o.nom+" (courbe et différentiel selon la notice de l'onduleur)");
@@ -7372,7 +8102,7 @@ function pvChangerChamp(i){
   else if(i.dataset.pv==="ond"){ var o=pvOnd(i.dataset.id); if(!o) return;
     if(k==="ph" || k==="acNom" || k==="rjNom"){ garderD(); o[k] = k==="ph" ? (v==="tri" ? "tri" : "mono") : (v || PV_OND_DEF[k]); enregistrerD(); majDessin(); peindreEtude(); return; }
     if(k==="iac" && !v){ garderD(); o.iac=0; enregistrerD(); majDessin(); peindreEtude(); return; }
-    if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); if(k==="npm") num=Math.max(1, Math.min(4, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; }
+    if(k!=="nom" && !isFinite(num)) return; if(k==="nm") num=Math.max(1, Math.min(12, Math.round(num))); if(k==="npm") num=Math.max(1, Math.min(4, Math.round(num))); garderD(); o[k] = k==="nom" ? (v||o.nom) : num; if(k==="pac" || k==="nm") delete o.afaire; if(o.incomplet){ o.incomplet=o.incomplet.filter(function(x){ return x!==k; }); if(!o.incomplet.length) delete o.incomplet; } }
   enregistrerD(); majDessin(); peindreEtude(i.dataset.pv==="ond" && k==="nom");
 }
 /* ---------- les réglages du panneau du bas ---------- */
@@ -7415,7 +8145,8 @@ function majPvPanneau(o, t){
 }
 function pvDetail(o, t){
   if(t==="pvp"){ var sp=pvStrDe(o.id), ch=pvChamp(o.ch), n=ch ? pvPansDe(ch).length : 1; return "Panneau"+(sp ? " "+sp.nom+"."+(sp.pans.indexOf(o.id)+1) : " non câblé")+" · champ de "+n+" panneau"+(n>1 ? "x" : "")+(ch && ch.p ? ", pente "+ch.p+"°" : "")+". Glissez pour déplacer le champ ; Supprimer retire ce panneau seul."; }
-  if(t==="pvo"){ var a=pvAc(o); return o.nom+" · "+pvNb(o.pac/1000)+" kW · "+o.nm+" MPPT · "+o.vmin+"–"+o.vmpmax+" V, "+o.vmax+" V max · AC "+(a.tri ? "tri" : "mono")+" "+pvNb(a.I)+" A, disjoncteur "+a.In+" A, "+a.cable+(a.pts ? ", "+pvNb(a.L)+" m" : "")+(pvRj(o).pts ? " · RJ45 "+pvNb(pvRj(o).L)+" m" : "")+". Glissez pour le déplacer ; réglages dans « Étude PV »."; }
+  if(t==="pvo" && pvOndAFaire(o)) return o.nom+" : onduleur à définir. Touchez « Définir » dans la barre pour donner sa puissance et ses MPPT.";
+  if(t==="pvo"){ var a=pvAc(o); return o.nom+(o.modele ? " ("+o.modele+")" : "")+" · "+pvNb(o.pac/1000)+" kW · "+o.nm+" MPPT · "+o.vmin+"–"+o.vmpmax+" V, "+o.vmax+" V max · AC "+(a.tri ? "tri" : "mono")+" "+pvNb(a.I)+" A, disjoncteur "+a.In+" A, "+a.cable+(a.pts ? ", "+pvNb(a.L)+" m" : "")+(pvRj(o).pts ? " · RJ45 "+pvNb(pvRj(o).L)+" m" : "")+". Glissez pour le déplacer ; « Définir » pour ses caractéristiques."; }
   if(t==="pvs") return pvResumeStr(o)+".";
   return "";
 }
@@ -7484,7 +8215,7 @@ function pdfEtudePv(doc, g){
     R.mppt.forEach(function(M){ ligne("MPPT "+M.i+" : "+(M.l.length ? M.l.map(function(x){ return x.s.nom+" ("+x.c.n+" panneaux)"; }).join(" en parallèle avec ")+" · "+pvNb(M.imp)+" A" : "libre"), 8, {ind:4}); });
     ligne("Sortie AC : "+(R.ac.tri ? "tri 400 V" : "mono 230 V")+", "+pvNb(R.ac.I)+" A, disjoncteur "+R.ac.In+" A, câble "+R.ac.cable+(R.ac.pts ? ", "+pvNb(R.ac.L)+" m jusqu'à "+(o.acNom||"Tableau")+", chute "+pvNb(R.ac.du, 2)+" % (Iz "+R.ac.iz+" A, pose B)" : " (longueur à tracer)"), 8, {ind:4});
     if(R.rj.pts) ligne("Liaison RJ45 Cat 6 : "+pvNb(R.rj.L)+" m jusqu'à "+(o.rjNom||"Box internet"), 8, {ind:4});
-    R.al.forEach(function(a){ ligne((a.niv==="err" ? "ERREUR : " : "Attention : ")+a.txt, 8, {ind:4, c:a.niv==="err" ? [185,28,28] : [180,83,9]}); });
+    R.al.forEach(function(a){ ligne((a.niv==="err" ? "ERREUR : " : "Attention : ")+a.txt, 8, {ind:4, c:a.niv==="err" ? [185,28,28] : [37,99,235]}); });
   });
   y+=2;
   /* le tableau des strings */
@@ -7498,11 +8229,11 @@ function pdfEtudePv(doc, g){
       var s=x.s, c=x.c, gg=x.g, et=pvEtat(c), vals=[s.nom, gg.o ? gg.o.nom+" M"+(s.m||1) : "-", String(c.n), pvNb(c.wc/1000, 2), pvNb(c.voc, 0)+" V", pvNb(c.vmpC, 0)+" V", pvNb(c.vmpF, 0)+" V", pvNb(m.isc)+" A",
         gg.o ? pvNb(gg.lp)+" m" : "-", gg.o ? pvNb(gg.lm)+" m" : "-", gg.o ? pvNb(c.du)+" %" : "-", gg.n>1 ? pvNb(gg.aire, 2)+" m²" : "-", gg.ret==="direct" ? "direct" : "le long", et==="ok" ? "OK" : et==="err" ? "ERREUR" : "à revoir"];
       var xx2=x0; doc.setFillColor.apply(doc, rgb(pvCoul(s))); doc.rect(x0+0.3, y-2.6, 1.8, 2.8, "F");
-      vals.forEach(function(v, i){ t(v, xx2+(i ? 1 : 3), y, 7.5, {b:i===0, c:i===vals.length-1 ? (et==="ok" ? [21,128,61] : et==="err" ? [185,28,28] : [180,83,9]) : null}); xx2+=cols[i][1]*f; });
+      vals.forEach(function(v, i){ t(v, xx2+(i ? 1 : 3), y, 7.5, {b:i===0, c:i===vals.length-1 ? (et==="ok" ? [21,128,61] : et==="err" ? [185,28,28] : [37,99,235]) : null}); xx2+=cols[i][1]*f; });
       doc.setDrawColor(200,205,210); doc.setLineWidth(0.15); doc.line(x0, y+1.2, x1, y+1.2); y+=lh;
     });
     y+=1;
-    Ep.str.forEach(function(x){ x.c.al.forEach(function(a){ ligne(x.s.nom+" - "+(a.niv==="err" ? "ERREUR : " : "attention : ")+a.txt, 7.8, {c:a.niv==="err" ? [185,28,28] : [180,83,9]}); }); });
+    Ep.str.forEach(function(x){ x.c.al.forEach(function(a){ ligne(x.s.nom+" - "+(a.niv==="err" ? "ERREUR : " : "attention : ")+a.txt, 7.8, {c:a.niv==="err" ? [185,28,28] : [37,99,235]}); }); });
   }
   y+=2;
   var mat=pvMateriel(Ep);
@@ -7522,6 +8253,6 @@ window.__dwg={pvEtiquettes:function(){ return PV_ETIQ; }, pv:function(){ return 
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261015b" defer></script>
+<script src="./navigation.js?v=20261030a" defer></script>
 </body>
 </html>

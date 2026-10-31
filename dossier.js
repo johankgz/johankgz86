@@ -86,20 +86,66 @@ function nomLisible(f){
 }
 (function(){
   var st=document.createElement("style");
-  st.textContent=".head .etiq-ts{flex:0 0 auto;background:#FDF4EA;color:#92400E;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
+  st.textContent=".head .etiq-ts{flex:0 0 auto;background:#EEF4FF;color:#1D4ED8;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
     +".travaux .sous .etiq-ts{padding:1px 7px;font-size:11.5px;margin-left:8px}"
-    +".travaux .sous > span.etiq-ts::before,.travaux .sous > span.etiq-accepte::before{content:none!important}"
+    +".travaux .sous > span.etiq-ts::before,.travaux .sous > span.etiq-accepte::before,.travaux .sous > span.etiq-autoc::before{content:none!important}"
+    /* l'autocontrôle demandé par le bureau, pas encore publié */
+    +".head .etiq-autoc{flex:0 0 auto;background:#FBEAE8;color:#A03A33;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
+    +".travaux .sous .etiq-autoc{padding:1px 7px;font-size:11.5px;margin-left:8px}"
     +".head .etiq-accepte{flex:0 0 auto;background:rgba(21,128,61,.12);color:#15803D;font-size:10.5px;font-weight:700;letter-spacing:.02em;padding:2px 9px;border-radius:999px;white-space:nowrap}"
     +".travaux .sous .etiq-accepte{padding:0;background:none;font-size:12px;color:#15803D;margin-left:8px}"
     +".actions button.accepte{background:rgba(21,128,61,.12);color:#15803D;border:1px solid rgba(21,128,61,.28);font-weight:700}";
   (document.head||document.documentElement).appendChild(st);
 })();
+/* Archiver : télécharger le ZIP du dossier puis le retirer du site, ou le
+   retirer sans rien télécharger quand on n'en a pas besoin (dossier en
+   double, essai, déjà sauvegardé). */
 function archiver(c, bouton){
-  if(!window.confirm("Exporter tous les documents de " + (c.client||c.ref) + " ("
-    + c.fichiers.length + " document" + (c.fichiers.length>1?"s":"")
-    + "), puis le supprimer du site ?\n\nLe fichier ZIP sera téléchargé sur cet appareil. "
-    + "La suppression est définitive.")) return;
-  bouton.textContent="Export en cours…"; bouton.disabled=true;
+  choisirSuppression(c).then(function(mode){
+    if(!mode) return;
+    var avecZip = mode==="zip";
+    bouton.disabled=true;
+    bouton.textContent = avecZip ? "Export en cours…" : "Suppression…";
+    (avecZip ? exporterArchive(c, bouton) : Promise.resolve()).then(function(){
+      return supprimerApresArchive(c, bouton, avecZip);
+    }).catch(function(){
+      window.alert(avecZip ? "Export interrompu. Rien n'a été supprimé." : "Pas de réseau. Rien n'a été supprimé.");
+      bouton.textContent="Archiver"; bouton.disabled=false;
+    });
+  });
+}
+function choisirSuppression(c){
+  return new Promise(function(fini){
+    var ov=document.createElement("div");
+    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
+      +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
+    var f=document.createElement("div");
+    f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
+      +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+    var n=c.fichiers.length;
+    var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
+    h.textContent="Archiver "+(c.client||c.ref)+" ?";
+    var p=document.createElement("p"); p.className="hint"; p.style.margin="0 0 14px";
+    p.textContent=n+" document"+(n>1?"s":"")+". Le dossier est retiré du site : c'est définitif.";
+    f.appendChild(h); f.appendChild(p);
+    function choix(txt, sous, cls, val){
+      var b=document.createElement("button"); b.type="button"; b.className="act "+cls;
+      b.style.cssText="display:block;width:100%;text-align:left;margin-bottom:10px;padding:12px 14px;min-height:56px";
+      var t=document.createElement("b"); t.style.display="block"; t.textContent=txt;
+      var s2=document.createElement("span"); s2.style.cssText="display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px"; s2.textContent=sous;
+      b.appendChild(t); b.appendChild(s2);
+      b.addEventListener("click", function(){ document.body.removeChild(ov); fini(val); });
+      f.appendChild(b);
+    }
+    choix("Télécharger le ZIP, puis supprimer", "Tous les documents, les fiches et la discussion, dans un ZIP sur cet appareil.", "blue", "zip");
+    choix("Supprimer sans télécharger", "Rien n'est gardé sur l'appareil.", "ghost", "sans");
+    choix("Annuler", "Rien n'est supprimé.", "ghost", null);
+    ov.appendChild(f);
+    ov.addEventListener("click", function(e){ if(e.target===ov){ document.body.removeChild(ov); fini(null); } });
+    document.body.appendChild(ov);
+  });
+}
+function exporterArchive(c, bouton){
   var fichiers=[], manifeste=["Travaux : "+(c.client||"")+" ("+c.ref+")",
     c.adresse||"", "Archivé le "+new Date().toLocaleString("fr-FR"), "", "Documents :"];
   var suite=Promise.resolve();
@@ -124,7 +170,7 @@ function archiver(c, bouton){
       });
     }
   });
-  suite.then(function(){
+  return suite.then(function(){
     fichiers.push({nom:c.ref+"/00-contenu.txt", octets:new TextEncoder().encode(manifeste.join("\n"))});
     return fetch(API+"?action=messages&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
       .then(function(r){ return r.ok ? r.json() : null; })
@@ -137,6 +183,7 @@ function archiver(c, bouton){
               +" "+heureLocale(m.quand));
             if(m.texte) lignes.push("  "+m.texte.replace(/\n/g, "\n  "));
             if(m.photo) lignes.push("  [photo jointe]");
+            if(m.doc) lignes.push("  [document du dossier : "+m.doc.titre+"]");
             lignes.push("");
           });
           fichiers.push({nom:c.ref+"/discussion.txt",
@@ -153,50 +200,49 @@ function archiver(c, bouton){
     setTimeout(function(){ URL.revokeObjectURL(a.href); }, 3000);
     bouton.textContent="Suppression…";
     return new Promise(function(res){ setTimeout(res, 1200); });
-  }).then(function(){
-    /* le client a un lien ou un QR de tableau : on lui garde son espace, ou on supprime tout */
-    return fetch(API+"?action=liens&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
-      .then(function(d){
-        var liens=(d && d.liens) || [];
-        if(!liens.length){
-          return window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\nSupprimer maintenant ce dossier du site ?") ? "tout" : null;
-        }
-        return choixArchivage(c, liens);
-      });
-  }).then(function(choix){
-    if(!choix){
-      bouton.textContent="Archiver"; bouton.disabled=false;
-      return null;
-    }
-    return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
-      {headers:{"x-auth":S.jeton}})
-      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
-      .then(function(res){
-        if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
-        if(CFG.apresArchive) CFG.apresArchive(c); else charger();
-      });
-  }).catch(function(){
-    window.alert("Export interrompu. Rien n'a été supprimé.");
-    bouton.textContent="Archiver"; bouton.disabled=false;
   });
+}
+function supprimerApresArchive(c, bouton, avecZip){
+  /* le client a un lien ou un QR de tableau : on lui garde son espace, ou on supprime tout */
+  return fetch(API+"?action=liens&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; })
+    .then(function(d){
+      var liens=(d && d.liens) || [];
+      if(!liens.length){
+        if(!avecZip) return "tout";             /* déjà confirmé : « Supprimer sans télécharger » */
+        return window.confirm("Le ZIP a été téléchargé. Vérifiez-le si vous le souhaitez.\n\nSupprimer maintenant ce dossier du site ?") ? "tout" : null;
+      }
+      return choixArchivage(c, liens, avecZip);
+    }).then(function(choix){
+      if(!choix){
+        bouton.textContent="Archiver"; bouton.disabled=false;
+        return null;
+      }
+      return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
+        {headers:{"x-auth":S.jeton}})
+        .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
+        .then(function(res){
+          if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
+          if(CFG.apresArchive) CFG.apresArchive(c); else charger();
+        });
+    });
 }
 
 /* après l'export : garder l'espace du client (ses documents et ses liens), ou tout supprimer */
-function choixArchivage(c, liens){
+function choixArchivage(c, liens, avecZip){
   return new Promise(function(fini){
     var ov=document.createElement("div");
-    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
+    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
       +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
     var f=document.createElement("div");
     f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
       +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
     var nbQr=liens.filter(function(l){ return l.genre==="tableau"; }).length, client=liens.some(function(l){ return l.genre==="client"; });
     var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
-    h.textContent="Le ZIP est téléchargé. Et l'espace du client ?";
+    h.textContent=(avecZip===false ? "" : "Le ZIP est téléchargé. ")+"Et l'espace du client ?";
     var p=document.createElement("p"); p.className="hint"; p.style.margin="0 0 14px";
     p.textContent=(c.client||c.ref)+" a "+[client ? "un lien client" : "", nbQr ? nbQr+" QR code"+(nbQr>1?"s":"")+" de tableau" : ""].filter(Boolean).join(" et ")
-      +". Vous pouvez lui garder ses documents (PV, DOE, schéma, étiquettes, mise en service, interventions SAV) : ses liens restent ouverts. Le reste du dossier (relevé, suivi, commandes, point, photos) part avec l'archive.";
+      +". Vous pouvez lui garder ses documents (PV, DOE, schéma, étiquettes, mise en service, interventions SAV) : ses liens restent ouverts. Le reste du dossier (relevé, suivi, commandes, point, photos) "+(avecZip===false ? "est supprimé." : "part avec l'archive.");
     f.appendChild(h); f.appendChild(p);
     function choix(txt, sous, cls, val){
       var b=document.createElement("button"); b.type="button"; b.className="act "+cls;
@@ -217,7 +263,7 @@ function choixArchivage(c, liens){
 
 function ouvrirAcces(c){
   var ov=document.createElement("div");
-  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(26,24,21,.55);"
+  ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
     +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
   var feuille=document.createElement("div");
   feuille.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
@@ -244,17 +290,36 @@ function ouvrirAcces(c){
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ hote.textContent=res.d.erreur||"Accès refusé."; return; }
-      var equipe=res.d.equipe.slice(), auteur=res.d.auteur;
+      var equipe=res.d.equipe.slice(), auteur=res.d.auteur, revoques=(res.d.revoques||[]).slice();
       function peindre(){
         hote.textContent="";
         var dedans=document.createElement("div");
         dedans.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
         equipe.forEach(function(nom){
           dedans.appendChild(PastillePersonne(nom,
-            res.d.peutModifier && nom!==auteur ? function(){ equipe=equipe.filter(function(n){ return n!==nom; }); enregistrer(); } : null,
+            res.d.peutModifier ? function(){
+              /* le bureau peut retirer tout le monde, l'auteur du dossier compris : on le dit avant */
+              if(!window.confirm(nom===auteur
+                ? nom+" est l'auteur de ce dossier.\n\nLui retirer l'accès ? Il ne verra plus le dossier, ni même les documents qu'il y a publiés, et ne pourra plus y publier. Vous pourrez lui rendre l'accès ensuite."
+                : "Retirer l'accès de "+nom+" à ce dossier ?\n\nIl ne verra plus le dossier, ni les documents qu'il y a publiés. Vous pourrez lui rendre l'accès ensuite.")) return;
+              equipe=equipe.filter(function(n){ return n!==nom; }); enregistrer();
+            } : null,
             {etiquette: nom===auteur ? "auteur" : ""}));
         });
         hote.appendChild(dedans);
+        /* ceux à qui le bureau a retiré l'accès : un toucher le leur rend */
+        if(res.d.peutModifier && revoques.length){
+          var lr=document.createElement("p"); lr.className="legend"; lr.textContent="Accès retiré";
+          hote.appendChild(lr);
+          var bloc=document.createElement("div"); bloc.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
+          revoques.forEach(function(nom){
+            var b=document.createElement("button"); b.type="button"; b.className="act ghost mini";
+            b.textContent="Rendre l'accès à "+nom;
+            b.addEventListener("click", function(){ if(equipe.indexOf(nom)<0) equipe.push(nom); enregistrer(); });
+            bloc.appendChild(b);
+          });
+          hote.appendChild(bloc);
+        }
         if(!res.d.peutModifier){
           var note=document.createElement("p"); note.className="hint"; note.style.margin="0";
           note.textContent="Seul le bureau peut modifier les accès.";
@@ -275,7 +340,7 @@ function ouvrirAcces(c){
           .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
           .then(function(res2){
             if(!res2.ok){ alert(res2.d.erreur||"Modification refusée."); return; }
-            equipe=res2.d.equipe; peindre();
+            equipe=res2.d.equipe; revoques=res2.d.revoques||[]; peindre();
           })
           .catch(function(){ alert("Pas de réseau."); });
       }
@@ -284,19 +349,40 @@ function ouvrirAcces(c){
     .catch(function(){ hote.textContent="Pas de réseau."; });
 }
 
-var DISCU_RETOUR=null;
-function ouvrirDiscussion(c){
-  var vue=document.createElement("div");
-  vue.style.cssText="position:fixed;inset:0;z-index:75;background:#F7F3EA;display:flex;flex-direction:column;"
+/* Les fenêtres pleine page s'empilent (la galerie, la photo en grand, la
+   discussion) : chacune s'ouvre au-dessus de celles déjà ouvertes. */
+function zDessus(base){
+  var z=base;
+  Array.prototype.forEach.call(document.querySelectorAll(".dg-gal,.dg-plein,.dg-discu"), function(e){
+    var v=parseInt(e.style.zIndex || getComputedStyle(e).zIndex, 10); if(v>=z) z=v+1;
+  });
+  return z;
+}
+/* une autre de ces fenêtres est-elle posée au-dessus de « el » ? */
+function auDessus(el){
+  var z=parseInt(el.style.zIndex, 10)||0;
+  return Array.prototype.some.call(document.querySelectorAll(".dg-gal,.dg-plein,.dg-discu"), function(e){
+    return e!==el && (parseInt(e.style.zIndex, 10)||0) > z;
+  });
+}
+var DISCU_RETOUR=null, DOSSIERS_VUS={};
+/* La discussion du chantier. « joint » (facultatif) : ce qu'on veut y envoyer,
+   prêt à partir — {photo:"data:image/jpeg…"} (une photo d'un lot) ou {doc:f}
+   (un document du dossier : plan, notice, note, photo…) ; on ajoute un mot
+   si besoin, puis « Envoyer ». */
+function ouvrirDiscussion(c, joint){
+  var vue=document.createElement("div"); vue.className="dg-discu";
+  vue.style.cssText="position:fixed;inset:0;z-index:"+zDessus(75)+";background:var(--bg,#F4F6FB);display:flex;flex-direction:column;"
     +"padding-top:env(safe-area-inset-top,0px)";
   var barre=document.createElement("div");
-  barre.style.cssText="display:flex;align-items:center;gap:8px;padding:11px 13px;background:#22201C;flex:0 0 auto";
+  barre.style.cssText="display:flex;align-items:center;gap:8px;padding:11px 13px;flex:0 0 auto;"
+    +"background:linear-gradient(160deg,#0B1220 0%,#172554 60%,#1E3A8A 100%)";
   var t=document.createElement("span");
-  t.style.cssText="flex:1;color:#E8D9C4;font-size:13.5px;font-weight:600;overflow:hidden;"
+  t.style.cssText="flex:1;color:#E2E8F0;font-size:14.5px;font-weight:700;overflow:hidden;"
     +"white-space:nowrap;text-overflow:ellipsis";
   t.textContent=(c.client||c.ref)+" · "+c.ref;
   var bf=document.createElement("button"); bf.type="button"; bf.textContent="Fermer";
-  bf.style.cssText="padding:7px 12px;border:0;background:#B4621A;color:#fff;font-size:12.5px;"
+  bf.style.cssText="min-height:0;padding:8px 14px;border:1px solid rgba(255,255,255,.18);border-radius:999px;background:rgba(255,255,255,.12);color:#fff;font-size:13px;"
     +"font-weight:600;font-family:inherit;cursor:pointer";
   bf.addEventListener("click", function(){
     if(DISCU_RETOUR){ location.href=DISCU_RETOUR; return; }
@@ -317,7 +403,7 @@ function ouvrirDiscussion(c){
     +"padding-bottom:calc(11px + env(safe-area-inset-bottom,0px))";
   var photoBtn=document.createElement("button"); photoBtn.type="button";
   photoBtn.setAttribute("aria-label","Joindre une photo");
-  photoBtn.style.cssText="width:40px;height:40px;min-height:40px;border:1px solid var(--rule);"
+  photoBtn.style.cssText="width:40px;height:40px;min-height:40px;padding:0;border-radius:50%;flex:0 0 auto;border:1px solid var(--rule);"
     +"background:var(--card);color:var(--ink-2);cursor:pointer;display:flex;align-items:center;justify-content:center";
   photoBtn.innerHTML='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" '
     +'style="width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;'
@@ -326,26 +412,61 @@ function ouvrirDiscussion(c){
   champPhoto.type="file"; champPhoto.accept="image/*"; champPhoto.hidden=true;
   var champ=document.createElement("textarea");
   champ.rows=1; champ.placeholder="Écrire un message…";
-  champ.style.cssText="flex:1;min-height:40px;max-height:110px;padding:10px 12px;border:0;border-radius:var(--r-field);"
+  champ.style.cssText="flex:1;min-height:40px;max-height:110px;padding:10px 14px;border:0;border-radius:20px;"
     +"background:var(--field);font-size:16px;font-family:inherit;resize:none";
   var envoi=document.createElement("button"); envoi.type="button"; envoi.textContent="Envoyer";
-  envoi.style.cssText="padding:11px 14px;border:0;background:var(--accent);color:#fff;font-size:13.5px;"
+  envoi.style.cssText="min-height:40px;padding:10px 16px;border:0;border-radius:20px;background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff;font-size:13.5px;"
     +"font-weight:600;font-family:inherit;cursor:pointer";
   pied.appendChild(photoBtn); pied.appendChild(champPhoto); pied.appendChild(champ); pied.appendChild(envoi);
+  /* ce qui part avec le prochain message : une photo, ou un document du dossier */
+  var jointBarre=document.createElement("div");
+  jointBarre.style.cssText="flex:0 0 auto;display:flex;align-items:center;gap:10px;padding:9px 13px;"
+    +"border-top:1px solid var(--rule);background:var(--card)";
+  jointBarre.style.display="none";
 
-  vue.appendChild(barre); vue.appendChild(fil); vue.appendChild(pied);
+  vue.appendChild(barre); vue.appendChild(fil); vue.appendChild(jointBarre); vue.appendChild(pied);
   document.body.appendChild(vue);
 
-  var enAttente=null;
+  var enAttente=null, docAttente=null;
+  function peindreJoint(){
+    jointBarre.textContent="";
+    var vide=!enAttente && !docAttente;
+    jointBarre.style.display = vide ? "none" : "flex";
+    if(vide){ champ.placeholder="Écrire un message…"; photoBtn.style.borderColor="var(--rule)"; return; }
+    if(enAttente){
+      var im=document.createElement("img"); im.src=enAttente; im.alt="";
+      im.style.cssText="width:44px;height:44px;object-fit:cover;border-radius:8px;flex:0 0 auto";
+      jointBarre.appendChild(im);
+    } else {
+      var ic=document.createElement("span"); ic.textContent=extDoc(docAttente).toUpperCase();
+      ic.style.cssText="flex:0 0 auto;width:38px;height:44px;border-radius:7px;background:var(--accent);color:#fff;"
+        +"font-size:10px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:6px";
+      jointBarre.appendChild(ic);
+    }
+    var nom=document.createElement("span");
+    nom.style.cssText="flex:1;min-width:0;font-size:13.5px;font-weight:600;color:var(--ink);overflow:hidden;white-space:nowrap;text-overflow:ellipsis";
+    nom.textContent = enAttente ? "Photo prête à partir" : (docAttente.titre || nomFichier(docAttente));
+    jointBarre.appendChild(nom);
+    var x=document.createElement("button"); x.type="button"; x.textContent="×";
+    x.setAttribute("aria-label","Ne pas joindre");
+    x.style.cssText="flex:0 0 auto;width:34px;height:34px;min-height:0;padding:0;border:1px solid var(--rule);border-radius:50%;"
+      +"background:var(--card);color:var(--ink-2);font-size:18px;line-height:1;cursor:pointer";
+    x.addEventListener("click", function(){ enAttente=null; docAttente=null; peindreJoint(); });
+    jointBarre.appendChild(x);
+    champ.placeholder="Ajoutez un mot si besoin, puis Envoyer";
+  }
+  if(joint && joint.photo) enAttente=joint.photo;
+  if(joint && joint.doc) docAttente=joint.doc;
+  peindreJoint();
   photoBtn.addEventListener("click", function(){ champPhoto.click(); });
   champPhoto.addEventListener("change", function(){
     var f=this.files[0]; this.value="";
     if(!f) return;
     compresserPhoto(f, function(data){
       if(!data){ alert("Photo illisible."); return; }
-      enAttente=data;
+      enAttente=data; docAttente=null;
       photoBtn.style.borderColor="var(--accent)";
-      champ.placeholder="Photo jointe — ajoutez un mot si besoin";
+      peindreJoint();
     });
   });
 
@@ -366,17 +487,20 @@ function ouvrirDiscussion(c){
       qui.style.cssText="margin:0 0 3px;font-size:11.5px;color:var(--ink-3);"+(mien?"text-align:right":"");
       qui.textContent=(mien ? "Vous" : m.auteur)+" · "+quandLisible(m.quand);
       var bulle=document.createElement("div");
-      bulle.style.cssText="border:1px solid "+(mien?"#F0DCC6":"var(--rule)")+";background:"
-        +(mien?"var(--accent-soft)":"var(--card)")+";padding:10px 12px;font-size:14.5px;"
-        +"color:var(--ink);line-height:1.5;white-space:pre-wrap;word-break:break-word";
+      bulle.style.cssText=(mien
+          ? "background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff;border-radius:18px 18px 6px 18px;"
+          : "background:var(--card);color:var(--ink);border-radius:18px 18px 18px 6px;box-shadow:0 1px 2px rgba(16,24,40,.06);")
+        +"padding:10px 13px;font-size:14.5px;line-height:1.5;white-space:pre-wrap;word-break:break-word;overflow:hidden";
       if(m.texte) bulle.appendChild(document.createTextNode(m.texte));
       if(m.photo){
         var im=document.createElement("img");
         im.src=m.photo; im.alt="Photo jointe"; im.loading="lazy";
-        im.style.cssText="display:block;width:100%;margin-top:"+(m.texte?"8px":"0")+";cursor:zoom-in";
+        im.style.cssText="display:block;width:100%;margin-top:"+(m.texte?"8px":"0")+";cursor:zoom-in;border-radius:"+(m.texte?"10px":"15px");
+        if(!m.texte && !m.doc) bulle.style.padding="4px";
         im.addEventListener("click", function(){ agrandir(m.photo); });
         bulle.appendChild(im);
       }
+      if(m.doc) bulle.appendChild(carteDocMessage(c, m.doc, !!m.texte, mien));
       bloc.appendChild(qui); bloc.appendChild(bulle);
       fil.appendChild(bloc);
     });
@@ -393,7 +517,7 @@ function ouvrirDiscussion(c){
   }
   function agrandir(src){
     var g=document.createElement("div");
-    g.style.cssText="position:fixed;inset:0;z-index:95;background:#0F0E0C;display:flex;"
+    g.style.cssText="position:fixed;inset:0;z-index:"+zDessus(95)+";background:#0A0A0B;display:flex;"
       +"align-items:center;justify-content:center;padding:12px";
     var im=document.createElement("img");
     im.src=src; im.style.cssText="max-width:100%;max-height:88vh;object-fit:contain";
@@ -413,18 +537,19 @@ function ouvrirDiscussion(c){
   }
   function envoyer(){
     var texte=champ.value.trim();
-    if(!texte && !enAttente) return;
+    if(!texte && !enAttente && !docAttente) return;
     envoi.disabled=true; envoi.textContent="…";
+    var corps={ref:c.ref, texte:texte, photo:enAttente||""};
+    if(docAttente) corps.doc={cle:docAttente.cle};
     fetch(API+"?action=message-envoyer", {method:"POST",
       headers:{"Content-Type":"application/json","x-auth":S.jeton},
-      body:JSON.stringify({ref:c.ref, texte:texte, photo:enAttente||""})})
+      body:JSON.stringify(corps)})
       .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
       .then(function(res){
         envoi.disabled=false; envoi.textContent="Envoyer";
         if(!res.ok){ alert(res.d.erreur||"Envoi refusé."); return; }
-        champ.value=""; enAttente=null;
-        photoBtn.style.borderColor="var(--rule)";
-        champ.placeholder="Écrire un message…";
+        champ.value=""; enAttente=null; docAttente=null;
+        peindreJoint();
         charge();
       })
       .catch(function(){
@@ -438,6 +563,37 @@ function ouvrirDiscussion(c){
     champ.style.height=Math.min(110, champ.scrollHeight)+"px";
   });
   charge();
+}
+function extDoc(f){ return (String((f && f.cle) || "").split(".").pop() || "doc").slice(0, 4); }
+/* un document du dossier, dans une bulle : son nom, et « Ouvrir » comme dans la liste */
+function carteDocMessage(c, d, apresTexte, mien){
+  var f=(c.fichiers||[]).filter(function(x){ return x.cle===d.cle; })[0];
+  var box=document.createElement("div");
+  box.style.cssText="display:flex;align-items:center;gap:10px;margin-top:"+(apresTexte?"8px":"0")+";padding:8px;"
+    +"border-radius:12px;background:"+(mien ? "rgba(255,255,255,.18)" : "rgba(10,18,32,.05)")+";white-space:normal";
+  var ic=document.createElement("span"); ic.textContent=extDoc(d).toUpperCase();
+  ic.style.cssText="flex:0 0 auto;width:34px;height:40px;border-radius:6px;background:"+(mien ? "rgba(255,255,255,.25)" : "var(--accent)")+";color:#fff;"
+    +"font-size:9.5px;font-weight:800;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px";
+  var t=document.createElement("span");
+  t.style.cssText="flex:1;min-width:0;font-size:13.5px;font-weight:600;line-height:1.3;overflow-wrap:anywhere";
+  t.textContent=(f && f.titre) || d.titre;
+  box.appendChild(ic); box.appendChild(t);
+  var b=document.createElement("button"); b.type="button";
+  b.style.cssText="flex:0 0 auto;min-height:0;padding:6px 12px;border:1px solid "+(mien ? "transparent" : "var(--rule)")+";border-radius:999px;"
+    +"background:#fff;color:#0B1220;font-size:12.5px;font-weight:700;font-family:inherit;cursor:pointer";
+  if(!f){ b.disabled=true; b.textContent="Retiré"; b.title="Ce document n'est plus dans le dossier"; }
+  else {
+    b.textContent="Ouvrir";
+    b.addEventListener("click", function(){
+      if(/\.zip$/i.test(f.cle)){ marquerLu(f); ouvrirGalerie(f); return; }
+      if(/\.(dwg|dxf)$/i.test(f.cle)){ location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
+      if(PHOTO_AFFICHABLE.test(f.cle)){ ouvrirPhoto(f, b); return; }
+      if(ouvrirPlan(f, c)) return;
+      ouvrirDocument(f, b);
+    });
+  }
+  box.appendChild(b);
+  return box;
 }
 function quandLisible(iso){
   var d=new Date(iso), maintenant=new Date();
@@ -486,16 +642,72 @@ var TYPES_GLISSER={pdf:"application/pdf", zip:"application/zip", jpg:"image/jpeg
   xls:"application/vnd.ms-excel", xlsx:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   ppt:"application/vnd.ms-powerpoint", pptx:"application/vnd.openxmlformats-officedocument.presentationml.presentation",
   odt:"application/vnd.oasis.opendocument.text", ods:"application/vnd.oasis.opendocument.spreadsheet", txt:"text/plain", csv:"text/csv"};
+/* Glisser un document de la liste hors du site (Chrome, Edge) :
+   - vers le bureau, un dossier, l'Explorateur, le Finder, Outlook, l'appli
+     Mail : le fichier est posé là où on le lâche (DownloadURL), une seule
+     fois — rien d'autre n'est glissé avec (ni lien, ni raccourci) ;
+   - vers une messagerie ouverte dans le navigateur (iCloud Mail, Gmail,
+     Outlook web) : le fichier lui-même, en pièce jointe. Il est préparé dès
+     que la souris passe sur la ligne, pour être prêt quand on commence à glisser. */
+var FICHIERS_PRETS={};
+function preparerGlisser(f){
+  if(FICHIERS_PRETS[f.cle] || (f.taille && f.taille > 25*1024*1024)) return;
+  FICHIERS_PRETS[f.cle]="…";
+  telecharger(f).then(function(blob){
+    var ext=String(f.cle).split(".").pop().toLowerCase();
+    var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
+    try{ FICHIERS_PRETS[f.cle]=new File([blob], nom, {type:TYPES_GLISSER[ext]||blob.type||"application/octet-stream"}); }
+    catch(e){ delete FICHIERS_PRETS[f.cle]; }
+  }).catch(function(){ delete FICHIERS_PRETS[f.cle]; });
+}
 function glisserVersOrdinateur(a, f){
+  /* à l'ordinateur seulement : sur l'iPad, une ligne « glissable » partait en glisser-déposer à l'appui long */
+  if(!surOrdinateur()) return;
   a.draggable=true;
+  a.addEventListener("mouseenter", function(){ preparerGlisser(f); });
+  a.addEventListener("pointerdown", function(e){ if(e.pointerType==="mouse") preparerGlisser(f); });
   a.addEventListener("dragstart", function(e){
     if(!e.dataTransfer) return;
     var ext=String(f.cle).split(".").pop().toLowerCase();
     var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
     var url=location.origin+API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+    /* rien que le fichier : pas de lien ni de texte, qui faisaient un second élément (raccourci, page) */
+    try{ e.dataTransfer.clearData(); }catch(er){}
     try{ e.dataTransfer.setData("DownloadURL", (TYPES_GLISSER[ext]||"application/octet-stream")+":"+nom+":"+url); }catch(er){}
+    var pret=FICHIERS_PRETS[f.cle];
+    if(pret && typeof pret==="object"){ try{ e.dataTransfer.items.add(pret); }catch(er){} }
     try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
   });
+}
+/* le partage de fichiers du système (Chrome et Edge sous Windows, Chrome et Safari sur Mac) */
+var PEUT_ENVOYER=null;
+function peutEnvoyerFichiers(){
+  if(PEUT_ENVOYER!==null) return PEUT_ENVOYER;
+  PEUT_ENVOYER=false;
+  try{ PEUT_ENVOYER = surOrdinateur() && !!navigator.canShare && navigator.canShare({files:[new File(["x"], "essai.pdf", {type:"application/pdf"})]}); }catch(e){ PEUT_ENVOYER=false; }
+  return PEUT_ENVOYER;
+}
+function envoyerDocument(f, bouton){
+  var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f)).replace(/:/g, " ");
+  function partager(fichier){
+    navigator.share({files:[fichier], title:f.titre||nom}).then(function(){ marquerLu(f); }).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      /* le navigateur veut un clic tout frais : le fichier est prêt, un second clic l'envoie aussitôt */
+      if(err && err.name==="NotAllowedError") toast("Fichier prêt : touchez de nouveau « Envoyer ».");
+      else toast("Le partage n'a pas abouti. Ouvrez le document et enregistrez-le, puis joignez-le.");
+    });
+  }
+  var pret=FICHIERS_PRETS[f.cle];
+  if(pret && typeof pret==="object"){ partager(pret); return; }
+  var avant=bouton.textContent; bouton.disabled=true; bouton.textContent="…";
+  telecharger(f).then(function(blob){
+    bouton.disabled=false; bouton.textContent=avant;
+    var ext=String(f.cle).split(".").pop().toLowerCase(), fichier;
+    try{ fichier=new File([blob], nom, {type:TYPES_GLISSER[ext]||blob.type||"application/octet-stream"}); }catch(e){ fichier=null; }
+    if(!fichier){ toast("Fichier illisible."); return; }
+    FICHIERS_PRETS[f.cle]=fichier;
+    partager(fichier);
+  }).catch(function(){ bouton.disabled=false; bouton.textContent=avant; toast("Document indisponible. Vérifiez la connexion."); });
 }
 function partagerDocument(f, bouton){
   var avant = bouton ? bouton.textContent : "";
@@ -530,7 +742,31 @@ function enregistrer(blob, nom){
    En passant par le même téléchargement que « Partager », le
    téléphone montre sa propre visionneuse, avec tous ses boutons —
    dont celui pour partager, si besoin. */
+/* Sur ordinateur (Chrome, Edge, Firefox, Safari du Mac), un PDF s'affiche dans un nouvel onglet,
+   avec la visionneuse du navigateur (imprimer, enregistrer sous son nom) : rien n'est téléchargé.
+   L'onglet s'ouvre tout de suite, au clic, pour que le navigateur ne le bloque pas. */
+function surOrdinateur(){
+  var ua=navigator.userAgent||"";
+  if(/iPhone|iPad|iPod|Android|Mobile/i.test(ua)) return false;
+  if(navigator.platform==="MacIntel" && (navigator.maxTouchPoints||0)>1) return false;   /* un iPad qui se dit Mac */
+  return true;
+}
+/* un plan en PDF (rangé dans « Plans ») : dans le panneau Document de la page (doc-cote.js), où il
+   se zoome jusqu'à 20 fois en restant net ; sans panneau, ou un autre document, comme d'habitude */
+function ouvrirPlan(f, c){
+  var sd=sousDossierDe(f);
+  if((sd!=="plans" && sd!=="plansModifies") || !/\.pdf$/i.test(f.cle||"") || !window.DocCote || !DocCote.ouvrir) return false;
+  if(!DocCote.ouvrir({cle:f.cle, titre:f.titre || nomFichier(f), chantier:(c && (c.client || c.ref)) || refDeCle(f.cle)})) return false;
+  marquerLu(f);
+  return true;
+}
 function ouvrirDocument(f, bouton){
+  if(surOrdinateur() && /\.pdf$/i.test(f.cle||"")){
+    var lien=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
+    var w=window.open(lien, "_blank");
+    if(w){ try{ w.opener=null; }catch(e){} marquerLu(f); return; }
+    /* fenêtre bloquée : on retombe sur le téléchargement */
+  }
   var avant = bouton ? bouton.textContent : "";
   if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
   telecharger(f)
@@ -565,7 +801,7 @@ function lireZip(octets){
   }
   return out;
 }
-/* la photo en grand : toujours sur fond noir, en mode clair comme en sombre
+/* la galerie et la photo en grand : toujours sur fond noir, en mode clair comme en sombre
    (data-theme-propre : le thème n'y touche pas) */
 var STYLE_GALERIE=false;
 function styleGalerie(){
@@ -574,375 +810,851 @@ function styleGalerie(){
   var st=document.createElement("style");
   st.setAttribute("data-theme-propre","");
   st.textContent=
-    ".dg-plein{position:fixed;inset:0;z-index:90;display:flex;flex-direction:column;background:#0F0E0C;color:#F4F1EA;outline:none;"
-    +"padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px)}"
-    +".dg-haut{flex:0 0 auto;display:flex;justify-content:flex-end;padding:8px 12px 4px}"
-    +".dg-x{width:44px;height:44px;min-height:0;padding:0;border:0;border-radius:50%;background:rgba(244,241,234,.14);color:#F4F1EA;"
-    +"display:flex;align-items:center;justify-content:center;cursor:pointer}"
-    +".dg-x svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
-    +".dg-scene{flex:1 1 auto;min-height:0;position:relative;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}"
+    /* les boutons communs : rond (icône seule), et ceux de la barre flottante */
+    ".dg-x{width:42px;height:42px;min-height:0;flex:0 0 auto;padding:0;border:0;border-radius:50%;background:rgba(234,237,244,.14);color:#EAEDF4;"
+    +"display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px)}"
+    +".dg-x svg,.dg-b svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round;flex:0 0 auto}"
+    +".dg-flot{position:absolute;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3;"
+    +"display:flex;gap:4px;padding:6px;border-radius:30px;max-width:calc(100% - 24px);box-sizing:border-box;white-space:nowrap;"
+    +"background:rgba(34,36,40,.86);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);box-shadow:0 8px 24px rgba(0,0,0,.45);transition:opacity .2s}"
+    +".dg-b{height:46px;min-height:0;padding:0 16px;border:0;border-radius:23px;background:transparent;color:#EAEDF4;display:flex;align-items:center;gap:8px;"
+    +"font-size:14.5px;font-weight:700;font-family:inherit;cursor:pointer}"
+    +".dg-b.o{background:linear-gradient(135deg,#2563EB,#06B6D4);color:#fff}.dg-b:disabled{opacity:.4;cursor:default}.dg-b[hidden]{display:none}"
+    +".dg-b.dg-ic{width:46px;padding:0;justify-content:center}"
+    +".dg-bulle{position:absolute;left:50%;top:calc(76px + env(safe-area-inset-top,0px));transform:translateX(-50%);z-index:4;max-width:calc(100% - 32px);"
+    +"padding:9px 15px;border-radius:18px;background:rgba(34,36,40,.94);color:#EAEDF4;font-size:13.5px;font-weight:600;text-align:center;pointer-events:none;"
+    +"box-shadow:0 8px 24px rgba(0,0,0,.4);transition:opacity .25s}"
+    +".dg-bulle[hidden]{display:block;opacity:0}"
+    /* ---- la galerie : une mosaïque, la 1re photo en grand ---- */
+    +".dg-gal{position:fixed;inset:0;z-index:80;display:flex;flex-direction:column;background:#0A0A0B;color:#EAEDF4;"
+    +"padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px)}"
+    +".dg-gtete{flex:0 0 auto;display:flex;align-items:flex-start;gap:10px;width:100%;max-width:1200px;margin:0 auto;box-sizing:border-box;padding:14px 16px 12px}"
+    +".dg-gtit{flex:1;min-width:0}"
+    +".dg-gtit h2{margin:0;font-size:24px;line-height:1.15;font-weight:800;letter-spacing:-.02em;color:#EAEDF4;overflow-wrap:anywhere}"
+    +".dg-gtit p{margin:5px 0 0;font-size:13px;color:#9299A7}"
+    +".dg-gtit p b{color:#3B82F6;font-weight:700}"
+    +".dg-gtit p button{margin-left:10px;padding:0;min-height:0;border:0;background:none;color:#EAEDF4;font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}"
+    +".dg-choisir{height:42px;min-height:0;padding:0 15px;border:0;border-radius:21px;background:rgba(234,237,244,.14);color:#EAEDF4;"
+    +"font-size:14px;font-weight:700;font-family:inherit;cursor:pointer;flex:0 0 auto}"
+    +".dg-choisir.on{background:#EAEDF4;color:#1A1208}"
+    +".dg-gcorps{flex:1 1 auto;min-height:0;overflow:auto;-webkit-overflow-scrolling:touch;padding:0 3px calc(100px + env(safe-area-inset-bottom,0px))}"
+    +".dg-mos{display:grid;grid-template-columns:repeat(3,1fr);grid-auto-flow:dense;gap:3px;max-width:1200px;margin:0 auto}"
+    +"@media (min-width:700px){.dg-mos{grid-template-columns:repeat(5,1fr)}}"
+    +"@media (min-width:1100px){.dg-mos{grid-template-columns:repeat(6,1fr)}}"
+    +".dg-etat{grid-column:1/-1;margin:8px 13px;color:#9299A7;font-size:14px}"
+    +".dg-tuile{position:relative;display:block;width:100%;aspect-ratio:1/1;min-height:0;margin:0;padding:0;border:0;border-radius:6px;overflow:hidden;"
+    +"background:#181A1D;cursor:zoom-in;-webkit-tap-highlight-color:transparent}"
+    +".dg-tuile.g{grid-column:span 2;grid-row:span 2}"
+    +".dg-tuile img{display:block;width:100%;height:100%;object-fit:cover;-webkit-user-drag:none;transition:transform .15s}"
+    +".dg-choix .dg-tuile{cursor:pointer}"
+    +".dg-choix .dg-tuile::after{content:\"\";position:absolute;right:7px;bottom:7px;width:22px;height:22px;box-sizing:border-box;border-radius:50%;"
+    +"border:2px solid #fff;background:rgba(0,0,0,.25);box-shadow:0 1px 4px rgba(0,0,0,.4)}"
+    +".dg-tuile.sel::before{content:\"\";position:absolute;inset:0;z-index:1;border:3px solid #3B82F6;border-radius:6px}"
+    +".dg-tuile.sel img{transform:scale(.94)}"
+    +".dg-choix .dg-tuile.sel::after{border:0;background:#3B82F6 url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 12.5l4 4 8-9' fill='none' stroke='%23FFFFFF' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\") center/15px no-repeat}"
+    +".dg-tuile:focus-visible,.dg-x:focus-visible,.dg-b:focus-visible,.dg-choisir:focus-visible,.dg-fl:focus-visible{outline:3px solid #3B82F6;outline-offset:2px}"
+    /* ---- la photo en grand : tout l'écran pour la photo, les boutons par-dessus ---- */
+    +".dg-plein{position:fixed;inset:0;z-index:90;background:#0A0A0B;color:#EAEDF4;outline:none;overflow:hidden}"
+    +".dg-scene{position:absolute;inset:0;overflow:hidden;touch-action:none;-webkit-user-select:none;user-select:none}"
     +".dg-piste{position:absolute;inset:0;will-change:transform}"
-    +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;padding:0 12px;display:flex;align-items:center;justify-content:center}"
+    +".dg-case{position:absolute;top:0;bottom:0;width:100%;box-sizing:border-box;display:flex;align-items:center;justify-content:center}"
     +".dg-case img{display:block;max-width:100%;max-height:100%;object-fit:contain;-webkit-user-drag:none;transform-origin:50% 50%}"
     +".dg-case img[hidden]{display:none}"
-    +".dg-fl{display:none;position:absolute;top:50%;z-index:1;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
-    +"background:rgba(15,14,12,.55);color:#F4F1EA;align-items:center;justify-content:center;cursor:pointer}"
+    +".dg-haut{position:absolute;left:0;right:0;top:0;z-index:3;display:flex;align-items:center;gap:10px;pointer-events:none;transition:opacity .2s;"
+    +"padding:calc(8px + env(safe-area-inset-top,0px)) calc(12px + env(safe-area-inset-right,0px)) 36px calc(12px + env(safe-area-inset-left,0px));"
+    +"background:linear-gradient(rgba(0,0,0,.62),rgba(0,0,0,0))}"
+    +".dg-haut>*{pointer-events:auto}"
+    +".dg-tc{flex:1;min-width:0;text-align:center;font-size:14.5px;font-weight:700;text-shadow:0 1px 3px rgba(0,0,0,.5)}"
+    +".dg-tc span{display:block;margin-top:1px;font-size:12px;font-weight:500;color:#C5CBD8;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
+    +".dg-esp{width:42px;flex:0 0 auto}"
+    +".dg-pts{position:absolute;left:0;right:0;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:2;display:flex;justify-content:center;gap:6px;"
+    +"pointer-events:none;transition:opacity .2s}"
+    +".dg-pts i{width:6px;height:6px;border-radius:3px;background:rgba(234,237,244,.4);box-shadow:0 0 3px rgba(0,0,0,.4);transition:width .2s}"
+    +".dg-pts i.on{width:18px;background:#EAEDF4}"
+    +".dg-fl{display:none;position:absolute;top:50%;z-index:2;width:48px;height:48px;min-height:0;margin-top:-24px;padding:0;border:0;border-radius:50%;"
+    +"background:rgba(12,13,15,.55);color:#EAEDF4;align-items:center;justify-content:center;cursor:pointer;transition:opacity .2s}"
     +".dg-fl svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
     +".dg-fl.g{left:16px}.dg-fl.d{right:16px}"
-    +".dg-nom{flex:0 0 auto;margin:10px 16px 0;color:#BDB5A6;font-size:12.5px;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-    +".dg-bas{flex:0 0 auto;display:flex;justify-content:center;padding:14px 16px 18px}"
-    +".dg-enr{min-height:48px;min-width:170px;padding:0 28px;border:0;border-radius:var(--r-field,10px);background:rgba(244,241,234,.14);"
-    +"color:#F4F1EA;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer}"
-    +".dg-x:focus-visible,.dg-fl:focus-visible,.dg-enr:focus-visible{outline:3px solid #FB923C;outline-offset:2px}"
+    /* un toucher sur la photo cache les boutons, un autre les remet */
+    +".dg-cache .dg-haut,.dg-cache .dg-flot,.dg-cache .dg-pts,.dg-cache .dg-fl{opacity:0;pointer-events:none}"
+    +".dg-cache .dg-haut>*{pointer-events:none}"
+    /* tirée vers le bas pour fermer : les boutons s'effacent, le fond s'éclaircit */
+    +".dg-tire .dg-haut,.dg-tire .dg-flot,.dg-tire .dg-pts,.dg-tire .dg-fl{opacity:0;pointer-events:none}"
     /* à la souris : la main qui saisit, les deux flèches sur les côtés, le survol */
     +"@media (hover:hover) and (pointer:fine){.dg-scene{cursor:grab}.dg-scene.dg-tient{cursor:grabbing}"
     +".dg-fl{display:flex}.dg-fl[hidden]{display:none}"
-    +".dg-x:hover,.dg-enr:hover{background:rgba(244,241,234,.24)}.dg-fl:hover{background:rgba(15,14,12,.8)}}";
+    +".dg-x:hover,.dg-choisir:hover{background:rgba(234,237,244,.26)}.dg-choisir.on:hover{background:#fff}"
+    +".dg-b:hover{background:rgba(234,237,244,.12)}.dg-b.o:hover{filter:brightness(1.08)}.dg-fl:hover{background:rgba(12,13,15,.8)}"
+    +".dg-tuile:hover img{transform:scale(1.03)}.dg-tuile.sel:hover img{transform:scale(.94)}}"
+    +"@media (prefers-reduced-motion:reduce){.dg-tuile img,.dg-pts i,.dg-haut,.dg-flot,.dg-fl{transition:none}}";
   (document.head||document.documentElement).appendChild(st);
 }
+var ICONE={
+  partager:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M8 7l4-4 4 4M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"/></svg>',
+  enregistrer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>',
+  fermer:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>',
+  retour:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 18l-6-6 6-6"/></svg>',
+  discu:'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 12c0 4-3.8 7.2-8.5 7.2a9.9 9.9 0 0 1-2.8-.4L4.5 20.5l1.2-3.4A6.8 6.8 0 0 1 3.5 12c0-4 3.8-7.2 8.5-7.2s8.5 3.2 8.5 7.2z"/></svg>'
+};
+function boutonGalerie(classe, icone, texte, etiquette){
+  var b=document.createElement("button"); b.type="button"; b.className=classe;
+  b.innerHTML=(icone ? ICONE[icone] : "")+(texte ? "<span></span>" : "");
+  if(texte) b.querySelector("span").textContent=texte;
+  if(etiquette){ b.setAttribute("aria-label", etiquette); b.title=etiquette; }
+  return b;
+}
+/* un petit message posé sur la galerie ou la photo (le toast de la page reste dessous) */
+function bulleGalerie(dans){
+  var b=document.createElement("div"); b.className="dg-bulle"; b.hidden=true; b.setAttribute("role","status");
+  dans.appendChild(b);
+  var t;
+  return function(texte){ b.textContent=texte; b.hidden=false; clearTimeout(t); t=setTimeout(function(){ b.hidden=true; }, 2600); };
+}
+
+/* ---------- enregistrer et partager les photos ---------- */
+function surIOS(){
+  var ua=navigator.userAgent||"";
+  return /iPhone|iPad|iPod/i.test(ua) || (navigator.platform==="MacIntel" && (navigator.maxTouchPoints||0)>1);
+}
+function fichierPhoto(f, ph){
+  var type=ph.type || (/\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg");
+  var nom=nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()).replace(/:/g, " ");
+  var blob=new Blob([ph.octets], {type:type}), fichier=null;
+  try{ fichier=new File([blob], nom, {type:type}); }catch(e){}
+  return {blob:blob, nom:nom, fichier:fichier};
+}
+function peutPartagerPhotos(liste){
+  var fics=liste.map(function(p){ return p.fichier; });
+  try{ return fics.length>0 && fics.every(Boolean) && !!navigator.canShare && navigator.canShare({files:fics}); }catch(e){ return false; }
+}
+function telechargerPhotos(liste){
+  /* l'une après l'autre : le navigateur refuse plusieurs téléchargements d'un coup */
+  liste.forEach(function(p, i){ setTimeout(function(){ enregistrer(p.blob, p.nom); }, i*350); });
+}
+/* « Enregistrer » : la photo va dans la galerie du téléphone.
+   Sur iPhone et iPad, un site n'a pas le droit d'écrire lui-même dans
+   Photos : la feuille de partage s'ouvre, « Enregistrer l'image » (ou
+   « Enregistrer N images ») en tête — un toucher et c'est dans Photos.
+   Sur Android, la photo est téléchargée : Galerie et Google Photos la
+   montrent (album Download). Sur ordinateur : un téléchargement. */
+function photosVersGalerie(f, photos, dire){
+  var liste=photos.map(function(ph){ return fichierPhoto(f, ph); });
+  if(!liste.length) return;
+  if(surIOS() && peutPartagerPhotos(liste)){
+    navigator.share({files:liste.map(function(p){ return p.fichier; })}).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      telechargerPhotos(liste);
+    });
+    return;
+  }
+  telechargerPhotos(liste);
+  if(dire) dire(liste.length>1 ? liste.length+" photos enregistrées" : "Photo enregistrée");
+}
+/* Sur iPhone et iPad (Safari comme Chrome), « Enregistrer » et « Partager »
+   ouvraient la même feuille de partage, où « Enregistrer l'image » est en
+   tête : un seul bouton, « Partager », suffit. Ailleurs (Android,
+   ordinateur), « Enregistrer » télécharge : les deux restent. */
+var UN_SEUL_BOUTON=surIOS() && (function(){
+  try{ return !!navigator.canShare && navigator.canShare({files:[new File(["x"], "essai.jpg", {type:"image/jpeg"})]}); }catch(e){ return false; }
+})();
+/* « Partager » : les photos elles-mêmes (Mail, WhatsApp, SMS…) ; sans partage
+   de fichiers, on retombe sur « secours » (l'archive) ou le téléchargement */
+function partagerPhotos(f, photos, secours){
+  var liste=photos.map(function(ph){ return fichierPhoto(f, ph); });
+  if(!liste.length) return;
+  if(peutPartagerPhotos(liste)){
+    navigator.share({files:liste.map(function(p){ return p.fichier; })}).catch(function(err){
+      if(err && err.name==="AbortError") return;
+      if(secours) secours(); else telechargerPhotos(liste);
+    });
+    return;
+  }
+  if(secours) secours(); else telechargerPhotos(liste);
+}
+/* Une photo en grand. On passe de l'une à l'autre en la faisant glisser
+   du doigt : vers la gauche la suivante, vers la droite la précédente.
+   La photo suit le doigt ; aux deux bouts, elle résiste et revient.
+   Le zoom : deux doigts qui s'écartent agrandissent la photo vers
+   l'endroit pincé (jusqu'à 5 fois) ; un double toucher l'agrandit là où
+   l'on touche, un autre la remet entière. Agrandie, un doigt la promène
+   (sans qu'elle sorte du cadre) et le glissé ne change plus de photo.
+   Tirée du doigt vers le bas, la photo rapetisse, le fond s'efface, et
+   lâchée assez bas (ou d'un coup vif) elle se ferme : retour aux photos.
+   En haut : la flèche (ou la croix) referme, au milieu « 3 sur 9 » et
+   le nom. En bas, une barre flottante : « Partager » et « Enregistrer »
+   (la photo affichée, dans la galerie du téléphone). Un toucher sur la
+   photo cache les boutons, un autre les remet. À l'ordinateur : la souris fait glisser de
+   même ; la molette (ou le pincement du pavé tactile) et le double clic
+   zooment, + et − aussi, 0 remet la photo entière ; les flèches du
+   clavier et les deux flèches sur les côtés changent de photo, Échap
+   referme. */
+function pleinEcran(f, photos, urls, depart, quandFerme, retour){
+  styleGalerie();
+  var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false, finir=null;
+  /* l'espace noir entre deux photos, pendant qu'on passe de l'une à l'autre */
+  var ECART=24, COURBE="cubic-bezier(.2,.85,.3,1)";
+  /* les doigts posés, et le geste en cours : null (pas encore décidé), « glisse »
+     (changer de photo), « promene » (déplacer la photo agrandie), « pince »
+     (zoomer à deux doigts), « ferme » (tirer la photo vers le bas pour la fermer),
+     « rien » (un glissé vers le haut) */
+  var DOIGTS={}, geste=null, bouge=false, origine={x:0, y:0}, pince=null, toucherAvant=null;
+  var Z={s:1, x:0, y:0}, ZMAX=20, ZDOUBLE=2.5;
+  var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
+  vue.style.zIndex=zDessus(90);
+  vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
+  var haut=document.createElement("div"); haut.className="dg-haut";
+  var croix=boutonGalerie("dg-x", retour ? "retour" : "fermer", "", retour ? "Retour aux photos" : "Fermer");
+  var titre=document.createElement("div"); titre.className="dg-tc"; titre.setAttribute("aria-live","polite");
+  var esp=document.createElement("div"); esp.className="dg-esp";
+  haut.appendChild(croix); haut.appendChild(titre); haut.appendChild(esp);
+  var scene=document.createElement("div"); scene.className="dg-scene";
+  var piste=document.createElement("div"); piste.className="dg-piste";
+  /* trois cases côte à côte : la précédente, celle qu'on voit, la suivante */
+  var cases=[0,1,2].map(function(){
+    var c=document.createElement("div"); c.className="dg-case";
+    var im=document.createElement("img"); im.draggable=false; im.alt="";
+    c.appendChild(im); piste.appendChild(c); return c;
+  });
+  scene.appendChild(piste);
+  function fleche(cote, etiquette, trace){
+    var b=document.createElement("button"); b.type="button"; b.className="dg-fl "+cote;
+    b.setAttribute("aria-label", etiquette); b.title=etiquette;
+    b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+trace+'"/></svg>';
+    scene.appendChild(b); return b;
+  }
+  var flG=fleche("g", "Photo précédente", "M15 5l-7 7 7 7");
+  var flD=fleche("d", "Photo suivante", "M9 5l7 7-7 7");
+  /* les petits points : où l'on en est dans le lot */
+  var pts=document.createElement("div"); pts.className="dg-pts"; pts.setAttribute("aria-hidden","true");
+  if(n>1 && n<=15) for(var ip=0; ip<n; ip++) pts.appendChild(document.createElement("i"));
+  var flot=document.createElement("div"); flot.className="dg-flot";
+  var part=boutonGalerie(UN_SEUL_BOUTON ? "dg-b o" : "dg-b", "partager", "Partager");
+  var enr=boutonGalerie("dg-b o", "enregistrer", "Enregistrer");
+  enr.hidden=UN_SEUL_BOUTON;
+  /* la photo affichée part dans la discussion du chantier */
+  var dis=boutonGalerie("dg-b dg-ic", "discu", "", "Envoyer dans la discussion du chantier");
+  flot.appendChild(part); flot.appendChild(enr); flot.appendChild(dis);
+  vue.appendChild(scene); vue.appendChild(pts); vue.appendChild(haut); vue.appendChild(flot);
+  var dire=bulleGalerie(vue);
+
+  function remplir(c, i){
+    var im=c.firstChild;
+    im.style.transition="none"; im.style.transform="";
+    if(i<0 || i>=n){ im.hidden=true; im.removeAttribute("src"); im.alt=""; return; }
+    im.hidden=false;
+    if(im.getAttribute("src")!==urls[i]) im.src=urls[i];
+    im.alt=photos[i].nom.split("/").pop();
+  }
+  function placer(){
+    Z={s:1, x:0, y:0}; scene.classList.remove("dg-zoom");
+    cases[0].style.left="calc(-100% - "+ECART+"px)"; cases[1].style.left="0"; cases[2].style.left="calc(100% + "+ECART+"px)";
+    remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
+    cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
+    titre.textContent = n>1 ? (k+1)+" sur "+n : "";
+    var lib=document.createElement("span");
+    lib.textContent = retour ? joliNomPhoto(photos[k].nom) : (f.titre || photos[k].nom.split("/").pop());
+    titre.appendChild(lib);
+    Array.prototype.forEach.call(pts.children, function(p, i){ p.className = i===k ? "on" : ""; });
+    vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
+    flG.hidden = k<=0; flD.hidden = k>=n-1;
+  }
+  function poser(x, anime, duree){
+    piste.style.transition = anime && !reduit ? "transform "+(duree||240)+"ms "+COURBE : "none";
+    piste.style.transform = "translate3d("+x+"px,0,0)";
+  }
+  /* la vitesse du doigt (px/ms) sur ses 100 derniers millisecondes */
+  function vitesse(e, axe){
+    var t=e.timeStamp, a=null;
+    for(var i=0; i<traces.length; i++){ if(t-traces[i].t<=100){ a=traces[i]; break; } }
+    if(!a) a=traces[traces.length-1];
+    if(!a) return 0;
+    return ((axe==="y" ? e.clientY-a.y : e.clientX-a.x))/Math.max(16, t-a.t);
+  }
+
+  /* ---------- le zoom de la photo affichée ---------- */
+  function image(){ return cases[1].firstChild; }
+  function centre(){ var r=scene.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
+  /* jusqu'où la photo agrandie peut aller : ses bords ne quittent pas ceux de l'écran */
+  function bornes(s){
+    var im=image();
+    return {x:Math.max(0, (im.offsetWidth*s-scene.clientWidth)/2), y:Math.max(0, (im.offsetHeight*s-scene.clientHeight)/2)};
+  }
+  function borner(){ var b=bornes(Z.s); Z.x=Math.max(-b.x, Math.min(b.x, Z.x)); Z.y=Math.max(-b.y, Math.min(b.y, Z.y)); }
+  function resiste(v, m){ return v>m ? m+(v-m)*.35 : v<-m ? -m+(v+m)*.35 : v; }
+  function zoomer(anime){
+    var im=image();
+    im.style.transition = anime && !reduit ? "transform .25s cubic-bezier(.2,.8,.2,1)" : "none";
+    im.style.transform = Z.s===1 && !Z.x && !Z.y ? "" : "translate("+Z.x+"px,"+Z.y+"px) scale("+Z.s+")";
+    scene.classList.toggle("dg-zoom", Z.s>1.01);
+  }
+  function remettre(anime){ Z={s:1, x:0, y:0}; zoomer(anime); }
+  /* agrandir à s fois en gardant sous (mx, my) le point de la photo qui s'y trouve */
+  function zoomerVers(s, mx, my, anime){
+    s=Math.min(ZMAX, Math.max(1, s));
+    if(s<1.01){ remettre(anime); return; }
+    var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s;
+    Z.s=s; Z.x=mx-c.x-s*px; Z.y=my-c.y-s*py;
+    borner(); zoomer(anime);
+  }
+  /* la fin d'un pincement : entre 1 et 5 fois, et dans le cadre */
+  function finZoom(mx, my){
+    if(Z.s<1.01){ remettre(true); return; }
+    if(Z.s>ZMAX){ var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s; Z.s=ZMAX; Z.x=mx-c.x-ZMAX*px; Z.y=my-c.y-ZMAX*py; }
+    borner(); zoomer(true);
+  }
+
+  /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place.
+     Lancée du doigt, la photo garde l'élan : plus le geste est vif, plus elle file vite
+     (entre 140 et 300 ms), et elle ralentit en douceur en arrivant. */
+  function aller(sens, v){
+    if(enCours && finir) finir();
+    if(k+sens<0 || k+sens>=n){ poser(0, true, 220); return; }
+    if(Z.s!==1 || Z.x || Z.y) remettre(false);
+    enCours=true; W=scene.clientWidth||1;
+    var fini=false, but=-sens*(W+ECART), reste=Math.abs(but-dx);
+    var duree = v && Math.abs(v)>.15 ? Math.round(Math.max(140, Math.min(300, 1.8*reste/Math.abs(v)))) : 260;
+    function fin(){
+      if(fini) return; fini=true; finir=null;
+      k+=sens; dx=0;
+      /* la case arrivée au milieu y reste : son image ne se recharge pas */
+      if(sens>0) cases.push(cases.shift()); else cases.unshift(cases.pop());
+      placer(); poser(0, false); enCours=false;
+    }
+    finir=fin;
+    if(reduit){ fin(); return; }
+    poser(but, true, duree);
+    piste.addEventListener("transitionend", fin, {once:true});
+    setTimeout(fin, duree+80);
+  }
+  /* ---------- tirer la photo vers le bas : elle se ferme ---------- */
+  function tirer(mx, my){
+    var H=scene.clientHeight||1, ty = my>0 ? my : my*.2;
+    var sc=1-Math.min(.3, Math.max(0, ty)/H*.6), al=1-Math.min(1, Math.max(0, ty)/(H*.55));
+    var im=image();
+    im.style.transition="none";
+    im.style.transform="translate("+mx+"px,"+ty+"px) scale("+sc+")";
+    vue.style.transition="none";
+    vue.style.backgroundColor="rgba(10,10,11,"+al.toFixed(3)+")";
+  }
+  function lacherTire(e, annule){
+    var my=e.clientY-y0, mx=e.clientX-x0, vy=vitesse(e, "y"), H=scene.clientHeight||1, im=image();
+    if(!annule && !reduit && (my>H*.16 || (vy>.45 && my>24))){
+      /* elle part vers le bas en suivant l'élan, le fond s'efface, on revient aux photos */
+      var d=Math.round(Math.max(140, Math.min(260, (H-my)/Math.max(.8, vy))));
+      im.style.transition="transform "+d+"ms cubic-bezier(.4,0,.8,.6), opacity "+d+"ms ease";
+      im.style.transform="translate("+mx+"px,"+H+"px) scale(.7)";
+      im.style.opacity="0";
+      vue.style.transition="background-color "+d+"ms ease";
+      vue.style.backgroundColor="rgba(10,10,11,0)";
+      setTimeout(fermer, d);
+      return;
+    }
+    if(!annule && reduit && my>H*.16){ fermer(); return; }
+    /* pas assez loin : elle revient en place */
+    im.style.transition="transform 260ms "+COURBE;
+    im.style.transform="";
+    vue.style.transition="background-color 260ms ease";
+    vue.style.backgroundColor="";
+    vue.classList.remove("dg-tire");
+  }
+
+  /* ---------- les doigts (ou la souris) ---------- */
+  function doigts(){ return Object.keys(DOIGTS).map(function(i){ return DOIGTS[i]; }); }
+  scene.addEventListener("pointerdown", function(e){
+    if(e.pointerType==="mouse" && e.button!==0) return;
+    if(e.target.closest && e.target.closest(".dg-fl")) return;
+    /* un doigt posé pendant que la photo file : elle arrive tout de suite, et le geste suivant part */
+    if(enCours && finir) finir();
+    if(enCours) return;
+    /* le premier doigt posé : aucun autre ne compte encore (un lâcher perdu ne bloque rien) */
+    if(e.isPrimary) DOIGTS={};
+    DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
+    try{ scene.setPointerCapture(e.pointerId); }catch(er){}
+    var l=doigts();
+    if(l.length===1){
+      geste = Z.s>1.01 ? "promene" : null; bouge=false;
+      x0=e.clientX; y0=e.clientY; dx=0; W=scene.clientWidth||1;
+      traces=[{x:e.clientX, y:e.clientY, t:e.timeStamp}];
+      origine={x:Z.x, y:Z.y};
+      if(geste==="promene"){ image().style.transition="none"; scene.classList.add("dg-tient"); }
+    } else if(l.length===2){
+      /* deux doigts : on zoome ; un glissé commencé reprend sa place */
+      if(geste==="glisse") poser(0, true);
+      geste="pince"; bouge=true; scene.classList.remove("dg-tient");
+      var a=l[0], b=l[1];
+      pince={d:Math.max(1, Math.hypot(b.x-a.x, b.y-a.y)), mx:(a.x+b.x)/2, my:(a.y+b.y)/2, s:Z.s, x:Z.x, y:Z.y};
+      image().style.transition="none";
+    }
+  });
+  scene.addEventListener("pointermove", function(e){
+    if(!DOIGTS[e.pointerId]) return;
+    DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
+    var l=doigts();
+    if(geste==="pince"){
+      if(l.length<2) return;
+      var a=l[0], b=l[1], d=Math.hypot(b.x-a.x, b.y-a.y), cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
+      var s=pince.s*d/pince.d;
+      if(s>ZMAX) s=ZMAX+(s-ZMAX)*.3;   /* au-delà de 20 fois, ça résiste */
+      if(s<.6) s=.6;
+      var c=centre(), px=(pince.mx-c.x-pince.x)/pince.s, py=(pince.my-c.y-pince.y)/pince.s;
+      Z.s=s; Z.x=cx-c.x-s*px; Z.y=cy-c.y-s*py;
+      zoomer(false);
+      return;
+    }
+    if(l.length!==1) return;
+    var mx=e.clientX-x0, my=e.clientY-y0;
+    if(!bouge && (Math.abs(mx)>8 || Math.abs(my)>8)) bouge=true;
+    if(geste==="promene"){
+      var bo=bornes(Z.s);
+      Z.x=resiste(origine.x+mx, bo.x); Z.y=resiste(origine.y+my, bo.y);
+      zoomer(false);
+      return;
+    }
+    traces.push({x:e.clientX, y:e.clientY, t:e.timeStamp}); if(traces.length>12) traces.shift();
+    if(geste===null){
+      if(!bouge) return;
+      geste = Math.abs(mx)>Math.abs(my) ? "glisse" : my>0 ? "ferme" : "rien";
+      if(geste==="glisse") scene.classList.add("dg-tient");
+      if(geste==="ferme"){ clearTimeout(unToucher); unToucher=null; vue.classList.add("dg-tire"); }
+    }
+    if(geste==="ferme"){ tirer(mx, my); return; }
+    if(geste!=="glisse") return;
+    /* au premier et au dernier bout, la photo résiste */
+    dx = (k<=0 && mx>0) || (k>=n-1 && mx<0) ? mx*.3 : mx;
+    poser(dx, false);
+  });
+  function lacher(e){
+    if(!DOIGTS[e.pointerId]) return;
+    delete DOIGTS[e.pointerId];
+    var l=doigts();
+    if(geste==="pince"){
+      if(l.length===1){
+        /* un doigt reste posé : il promène la photo agrandie */
+        x0=l[0].x; y0=l[0].y; origine={x:Z.x, y:Z.y};
+        if(Z.s>1.01){ geste="promene"; scene.classList.add("dg-tient"); }
+        else { geste="rien"; finZoom(pince.mx, pince.my); }
+      } else if(!l.length){ geste=null; finZoom(pince.mx, pince.my); }
+      return;
+    }
+    if(l.length) return;
+    scene.classList.remove("dg-tient");
+    var g=geste; geste=null;
+    if(g==="promene"){
+      finZoom(e.clientX, e.clientY);
+      if(!bouge && e.type!=="pointercancel") toucher(e);
+      return;
+    }
+    if(g==="ferme"){ lacherTire(e, e.type==="pointercancel"); return; }
+    if(g==="glisse"){
+      if(e.type==="pointercancel"){ poser(0, true, 220); return; }
+      /* un petit coup suffit : la vitesse des derniers instants compte, et un
+         geste qui revient en arrière au dernier moment ne change pas de photo */
+      var v=vitesse(e, "x");
+      if(k<n-1 && ((dx<-W*.15 && v<.2) || (v<-.2 && dx<-10))) aller(1, v);
+      else if(k>0 && ((dx>W*.15 && v>-.2) || (v>.2 && dx>10))) aller(-1, v);
+      else poser(0, true, 220);
+      return;
+    }
+    if(g===null && !bouge && e.type!=="pointercancel") toucher(e);
+  }
+  /* deux touchers rapprochés : la photo s'agrandit là, ou redevient entière ;
+     un toucher seul (sans second qui le suive) cache ou remet les boutons */
+  var unToucher=null;
+  function toucher(e){
+    var t=e.timeStamp, x=e.clientX, y=e.clientY, avant=toucherAvant;
+    toucherAvant={t:t, x:x, y:y};
+    if(!avant || t-avant.t>320 || Math.hypot(x-avant.x, y-avant.y)>30){
+      clearTimeout(unToucher);
+      unToucher=setTimeout(function(){ unToucher=null; vue.classList.toggle("dg-cache"); }, 330);
+      return;
+    }
+    clearTimeout(unToucher); unToucher=null;
+    toucherAvant=null;
+    if(Z.s>1.01) remettre(true); else zoomerVers(ZDOUBLE, x, y, true);
+  }
+  scene.addEventListener("pointerup", lacher);
+  scene.addEventListener("pointercancel", lacher);
+  scene.addEventListener("dragstart", function(e){ e.preventDefault(); });
+  /* la molette, ou le pincement du pavé tactile (une molette avec Ctrl, plus fine) */
+  scene.addEventListener("wheel", function(e){
+    e.preventDefault();
+    if(enCours) return;
+    var d=e.deltaY*(e.deltaMode===1 ? 33 : e.deltaMode===2 ? 400 : 1);
+    zoomerVers(Z.s*Math.exp(-d*(e.ctrlKey ? .01 : .0018)), e.clientX, e.clientY, false);
+  }, {passive:false});
+  flG.addEventListener("click", function(){ aller(-1); });
+  flD.addEventListener("click", function(){ aller(1); });
+
+  /* enregistrer juste cette photo, à l'unité : dans la galerie du téléphone */
+  enr.addEventListener("click", function(){ photosVersGalerie(f, [photos[k]], dire); });
+  part.addEventListener("click", function(){ partagerPhotos(f, [photos[k]]); });
+  dis.addEventListener("click", function(){
+    var ph=photos[k], ref=refDeCle(f.cle);
+    var c=DOSSIERS_VUS[ref] || {ref:ref, client:CLIENTS[ref]||"", fichiers:[]};
+    /* une photo seule rangée dans le dossier : le document lui-même ; une photo d'un lot : l'image */
+    if(!retour && f.cle && PHOTO_AFFICHABLE.test(f.cle)){ ouvrirDiscussion(c, {doc:f}); return; }
+    var type=ph.type || (/\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg");
+    compresserPhoto(new Blob([ph.octets], {type:type}), function(data){
+      if(!data){ dire("Photo illisible."); return; }
+      ouvrirDiscussion(c, {photo:data});
+    });
+  });
+  function touche(e){
+    var c;
+    if(auDessus(vue)) return;     /* une fenêtre ouverte par-dessus (la discussion) garde le clavier */
+    if(e.key==="Escape") fermer();
+    else if(e.key==="ArrowRight") aller(1);
+    else if(e.key==="ArrowLeft") aller(-1);
+    else if(e.key==="+" || e.key==="=" || e.key==="-" || e.key==="_"){
+      c=centre(); zoomerVers(Z.s*(e.key==="+" || e.key==="=" ? 1.5 : 1/1.5), c.x, c.y, true);
+    }
+    else if(e.key==="0") remettre(true);
+    else return;
+    e.preventDefault(); e.stopPropagation();
+  }
+  /* l'écran tourne : la photo agrandie reste dans le cadre */
+  function recaler(){ if(Z.s>1.01){ borner(); zoomer(false); } }
+  function fermer(){
+    clearTimeout(unToucher);
+    if(finir) finir();
+    document.removeEventListener("keydown", touche, true);
+    window.removeEventListener("resize", recaler);
+    if(vue.parentNode) vue.parentNode.removeChild(vue);
+    if(quandFerme) quandFerme();
+  }
+  croix.addEventListener("click", fermer);
+  document.addEventListener("keydown", touche, true);
+  window.addEventListener("resize", recaler);
+  document.body.appendChild(vue);
+  placer(); poser(0, false);
+  try{ vue.focus({preventScroll:true}); }catch(e){}
+}
+/* une photo seule (rangée dans les documents du chantier) : « Ouvrir » l'affiche
+   en grand, comme dans la galerie, au lieu de la page de téléchargement de l'iPhone */
+var PHOTO_AFFICHABLE=/\.(jpe?g|png|webp|gif)$/i;
+function ouvrirPhoto(f, bouton){
+  var avant = bouton ? bouton.textContent : "";
+  if(bouton){ bouton.disabled=true; bouton.textContent="…"; }
+  telecharger(f)
+    .then(function(blob){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      marquerLu(f);
+      return blob.arrayBuffer().then(function(buf){
+        var ext=String(f.cle).split(".").pop().toLowerCase();
+        var type=TYPES_GLISSER[ext] || blob.type || "image/jpeg";
+        var url=URL.createObjectURL(new Blob([buf], {type:type}));
+        pleinEcran(f, [{nom:nomFichier(f), octets:new Uint8Array(buf), type:type}], [url], 0,
+          function(){ URL.revokeObjectURL(url); });
+      });
+    })
+    .catch(function(){
+      if(bouton){ bouton.disabled=false; bouton.textContent=avant; }
+      alert("Photo indisponible. Vérifiez la connexion.");
+    });
+}
+/* le nom d'une photo de l'archive, lisible : « 03-Passage-des-gaines.jpg » → « Passage des gaines » */
+function joliNomPhoto(nom){
+  var t=String(nom||"").split("/").pop().replace(/\.(jpe?g|png|webp|gif)$/i, "").replace(/^\d+-?/, "").replace(/-/g, " ").trim();
+  return t || String(nom||"").split("/").pop();
+}
+/* La galerie d'un lot de photos : une mosaïque (la 1re photo en grand),
+   une barre flottante en bas — « Partager » et « Tout enregistrer ».
+   « Choisir » permet de cocher plusieurs photos : la barre devient
+   « Partager (n) » et « Enregistrer (n) », pour ces photos-là seulement.
+   Un toucher sur une photo l'ouvre en grand. */
 function ouvrirGalerie(f){
-  var ov=document.createElement("div");
-  ov.style.cssText="position:fixed;inset:0;z-index:80;background:#1A1815;display:flex;flex-direction:column;"
-    +"padding-top:env(safe-area-inset-top,0px)";
-  var barre=document.createElement("div");
-  barre.style.cssText="display:flex;align-items:center;gap:10px;padding:10px 12px;background:#262320;flex:0 0 auto";
-  var titre=document.createElement("span");
-  titre.style.cssText="flex:1;color:#BDB5A6;font-size:13.5px;font-weight:600";
-  titre.textContent=f.titre || "Photos";
-  var telecharger=document.createElement("button");
-  telecharger.type="button"; telecharger.textContent="Partager";
-  telecharger.style.cssText="padding:9px 13px;border:0;background:rgba(244,241,234,.12);"
-    +"color:#F4F1EA;font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
-  telecharger.addEventListener("click", function(){ partagerDocument(f, telecharger); });
-  var fermer=document.createElement("button"); fermer.type="button"; fermer.textContent="Fermer";
-  fermer.style.cssText="padding:9px 13px;border:0;border-radius:var(--r-field);background:#B4621A;color:#fff;"
-    +"font-size:13.5px;font-weight:600;font-family:inherit;cursor:pointer";
-  barre.appendChild(titre); barre.appendChild(telecharger); barre.appendChild(fermer);
-  var corps=document.createElement("div");
-  corps.style.cssText="flex:1;overflow:auto;padding:12px;display:grid;"
-    +"grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;align-content:start";
-  var etat=document.createElement("p");
-  etat.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px;margin:6px 2px";
-  etat.textContent="Ouverture des photos…";
-  corps.appendChild(etat);
-  ov.appendChild(barre); ov.appendChild(corps);
+  styleGalerie();
+  var ov=document.createElement("div"); ov.className="dg-gal";
+  ov.style.zIndex=zDessus(80);
+  ov.setAttribute("role","dialog"); ov.setAttribute("aria-modal","true"); ov.setAttribute("aria-label", f.titre || "Photos");
+  var tete=document.createElement("div"); tete.className="dg-gtete";
+  var tit=document.createElement("div"); tit.className="dg-gtit";
+  var h=document.createElement("h2"); h.textContent=f.titre || "Photos";
+  var sous=document.createElement("p"); sous.textContent="Ouverture des photos…";
+  tit.appendChild(h); tit.appendChild(sous);
+  var choisir=document.createElement("button"); choisir.type="button"; choisir.className="dg-choisir"; choisir.textContent="Choisir";
+  choisir.hidden=true;
+  var croix=boutonGalerie("dg-x", "fermer", "", "Fermer");
+  tete.appendChild(tit); tete.appendChild(choisir); tete.appendChild(croix);
+  var corps=document.createElement("div"); corps.className="dg-gcorps";
+  var mos=document.createElement("div"); mos.className="dg-mos";
+  corps.appendChild(mos);
+  var flot=document.createElement("div"); flot.className="dg-flot"; flot.hidden=true;
+  var part=boutonGalerie(UN_SEUL_BOUTON ? "dg-b o" : "dg-b", "partager", "Partager");
+  var enr=boutonGalerie("dg-b o", "enregistrer", "Tout enregistrer");
+  enr.hidden=UN_SEUL_BOUTON;
+  flot.appendChild(part); flot.appendChild(enr);
+  ov.appendChild(tete); ov.appendChild(corps); ov.appendChild(flot);
+  var dire=bulleGalerie(ov);
   document.body.appendChild(ov);
 
-  var urls=[];
-  function refermer(){
-    urls.forEach(function(u){ URL.revokeObjectURL(u); });
-    if(ov.parentNode) document.body.removeChild(ov);
+  var urls=[], photos=[], tuiles=[], CHOIX=null;   /* CHOIX : null, ou les numéros des photos cochées */
+  function etat(texte){
+    mos.textContent="";
+    var v=document.createElement("p"); v.className="dg-etat"; v.textContent=texte;
+    mos.appendChild(v);
   }
-  fermer.addEventListener("click", refermer);
+  etat("Ouverture des photos…");
+  function retenues(){ return CHOIX ? photos.filter(function(p, i){ return CHOIX[i]; }) : photos; }
+  function peindre(){
+    var n=photos.length, nb=CHOIX ? Object.keys(CHOIX).length : 0;
+    ov.classList.toggle("dg-choix", !!CHOIX);
+    choisir.textContent = CHOIX ? "Annuler" : "Choisir";
+    choisir.classList.toggle("on", !!CHOIX);
+    sous.textContent="";
+    if(CHOIX){
+      var b=document.createElement("b");
+      b.textContent = nb ? nb+(nb>1 ? " sélectionnées" : " sélectionnée") : "Touchez les photos à garder";
+      sous.appendChild(b);
+      var tout=document.createElement("button"); tout.type="button";
+      tout.textContent = nb===n ? "Tout décocher" : "Tout cocher";
+      tout.addEventListener("click", function(){
+        if(Object.keys(CHOIX).length===n) CHOIX={};
+        else { CHOIX={}; photos.forEach(function(p, i){ CHOIX[i]=true; }); }
+        peindre();
+      });
+      sous.appendChild(tout);
+    } else {
+      sous.textContent = n+(n>1 ? " photos" : " photo")+(f.date ? " · "+frDate(f.date) : "");
+    }
+    tuiles.forEach(function(t, i){
+      var s=!!(CHOIX && CHOIX[i]);
+      t.classList.toggle("sel", s);
+      if(CHOIX) t.setAttribute("aria-pressed", s ? "true" : "false"); else t.removeAttribute("aria-pressed");
+    });
+    part.querySelector("span").textContent = CHOIX ? "Partager ("+nb+")" : "Partager";
+    enr.querySelector("span").textContent = CHOIX ? "Enregistrer ("+nb+")" : "Tout enregistrer";
+    part.disabled = enr.disabled = !!CHOIX && !nb;
+  }
+  function refermer(){
+    document.removeEventListener("keydown", touche, true);
+    urls.forEach(function(u){ URL.revokeObjectURL(u); });
+    if(ov.parentNode) ov.parentNode.removeChild(ov);
+  }
+  /* Échap : quitte le choix, puis referme (la photo en grand, au-dessus, garde la main) */
+  function touche(e){
+    if(e.key!=="Escape" || auDessus(ov)) return;
+    e.preventDefault(); e.stopPropagation();
+    if(CHOIX){ CHOIX=null; peindre(); } else refermer();
+  }
+  document.addEventListener("keydown", touche, true);
+  croix.addEventListener("click", refermer);
+  choisir.addEventListener("click", function(){ CHOIX = CHOIX ? null : {}; peindre(); });
+  part.addEventListener("click", function(){
+    /* toutes les photos : si le téléphone ne sait pas partager des fichiers, l'archive comme avant */
+    partagerPhotos(f, retenues(), CHOIX ? null : function(){ partagerDocument(f, null); });
+  });
+  enr.addEventListener("click", function(){
+    var r=retenues(); if(!r.length) return;
+    photosVersGalerie(f, r, dire);
+  });
 
   fetch(API+"?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
     .then(function(r){ if(!r.ok) throw new Error("refus"); return r.arrayBuffer(); })
     .then(function(buf){
-      var photos=lireZip(new Uint8Array(buf));
-      corps.textContent="";
-      if(!photos.length){
-        var v=document.createElement("p");
-        v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
-        v.textContent="Archive illisible dans le navigateur. Utilisez Télécharger.";
-        corps.appendChild(v); return;
-      }
+      photos=lireZip(new Uint8Array(buf));
+      if(!photos.length){ sous.textContent=""; etat("Archive illisible dans le navigateur. Utilisez Télécharger."); return; }
       marquerLu(f);
+      mos.textContent="";
       photos.forEach(function(p, i){
         var blob=new Blob([p.octets], {type: /\.png$/i.test(p.nom) ? "image/png" : "image/jpeg"});
         var url=URL.createObjectURL(blob); urls.push(url);
-        var fig=document.createElement("figure");
-        fig.style.cssText="margin:0;background:#262320;border:1px solid rgba(244,241,234,.10)";
-        var im=document.createElement("img");
-        im.src=url; im.alt=p.nom; im.loading="lazy";
-        im.style.cssText="display:block;width:100%;height:150px;object-fit:cover;cursor:zoom-in";
-        im.addEventListener("click", function(){ plein(i); });
-        var cap=document.createElement("figcaption");
-        cap.style.cssText="padding:7px 9px;color:#BDB5A6;font-size:11.5px;overflow:hidden;"
-          +"text-overflow:ellipsis;white-space:nowrap";
-        cap.textContent=p.nom.split("/").pop().replace(/\.(jpe?g|png)$/i,"").replace(/^\d+-?/,"").replace(/-/g," ");
-        fig.appendChild(im); fig.appendChild(cap);
-        corps.appendChild(fig);
+        var t=document.createElement("button"); t.type="button";
+        t.className="dg-tuile"+(i===0 && photos.length>=4 ? " g" : "");
+        t.setAttribute("aria-label", joliNomPhoto(p.nom));
+        var im=document.createElement("img"); im.src=url; im.alt=""; im.loading="lazy"; im.draggable=false;
+        t.appendChild(im);
+        t.addEventListener("click", function(){
+          if(CHOIX){ if(CHOIX[i]) delete CHOIX[i]; else CHOIX[i]=true; peindre(); return; }
+          pleinEcran(f, photos, urls, i, null, true);
+        });
+        mos.appendChild(t); tuiles.push(t);
       });
-      /* Une photo en grand. On passe de l'une à l'autre en la faisant glisser
-         du doigt : vers la gauche la suivante, vers la droite la précédente.
-         La photo suit le doigt ; aux deux bouts, elle résiste et revient.
-         Le zoom : deux doigts qui s'écartent agrandissent la photo vers
-         l'endroit pincé (jusqu'à 5 fois) ; un double toucher l'agrandit là où
-         l'on touche, un autre la remet entière. Agrandie, un doigt la promène
-         (sans qu'elle sorte du cadre) et le glissé ne change plus de photo.
-         La croix en haut à droite referme ; « Enregistrer », seul au centre,
-         garde la photo affichée. À l'ordinateur : la souris fait glisser de
-         même ; la molette (ou le pincement du pavé tactile) et le double clic
-         zooment, + et − aussi, 0 remet la photo entière ; les flèches du
-         clavier et les deux flèches sur les côtés changent de photo, Échap
-         referme. */
-      function plein(depart){
-        styleGalerie();
-        var k=depart, n=urls.length, W=1, dx=0, x0=0, y0=0, traces=[], enCours=false;
-        /* les doigts posés, et le geste en cours : null (pas encore décidé), « glisse »
-           (changer de photo), « promene » (déplacer la photo agrandie), « pince »
-           (zoomer à deux doigts), « rien » (un glissé vertical) */
-        var DOIGTS={}, geste=null, bouge=false, origine={x:0, y:0}, pince=null, toucherAvant=null;
-        var Z={s:1, x:0, y:0}, ZMAX=5, ZDOUBLE=2.5;
-        var reduit=!!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
-        var vue=document.createElement("div"); vue.className="dg-plein"; vue.tabIndex=-1;
-        vue.setAttribute("role","dialog"); vue.setAttribute("aria-modal","true");
-        var haut=document.createElement("div"); haut.className="dg-haut";
-        var croix=document.createElement("button"); croix.type="button"; croix.className="dg-x";
-        croix.setAttribute("aria-label","Fermer"); croix.title="Fermer";
-        croix.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
-        haut.appendChild(croix);
-        var scene=document.createElement("div"); scene.className="dg-scene";
-        var piste=document.createElement("div"); piste.className="dg-piste";
-        /* trois cases côte à côte : la précédente, celle qu'on voit, la suivante */
-        var cases=[0,1,2].map(function(){
-          var c=document.createElement("div"); c.className="dg-case";
-          var im=document.createElement("img"); im.draggable=false; im.alt="";
-          c.appendChild(im); piste.appendChild(c); return c;
-        });
-        scene.appendChild(piste);
-        function fleche(cote, etiquette, trace){
-          var b=document.createElement("button"); b.type="button"; b.className="dg-fl "+cote;
-          b.setAttribute("aria-label", etiquette); b.title=etiquette;
-          b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="'+trace+'"/></svg>';
-          scene.appendChild(b); return b;
-        }
-        var flG=fleche("g", "Photo précédente", "M15 5l-7 7 7 7");
-        var flD=fleche("d", "Photo suivante", "M9 5l7 7-7 7");
-        var nom=document.createElement("p"); nom.className="dg-nom"; nom.setAttribute("aria-live","polite");
-        var bas=document.createElement("div"); bas.className="dg-bas";
-        var enr=document.createElement("button"); enr.type="button"; enr.className="dg-enr"; enr.textContent="Enregistrer";
-        bas.appendChild(enr);
-        vue.appendChild(haut); vue.appendChild(scene); vue.appendChild(nom); vue.appendChild(bas);
-
-        function remplir(c, i){
-          var im=c.firstChild;
-          im.style.transition="none"; im.style.transform="";
-          if(i<0 || i>=n){ im.hidden=true; im.removeAttribute("src"); im.alt=""; return; }
-          im.hidden=false;
-          if(im.getAttribute("src")!==urls[i]) im.src=urls[i];
-          im.alt=photos[i].nom.split("/").pop();
-        }
-        function placer(){
-          Z={s:1, x:0, y:0}; scene.classList.remove("dg-zoom");
-          cases[0].style.left="-100%"; cases[1].style.left="0"; cases[2].style.left="100%";
-          remplir(cases[0], k-1); remplir(cases[1], k); remplir(cases[2], k+1);
-          cases[0].setAttribute("aria-hidden","true"); cases[1].removeAttribute("aria-hidden"); cases[2].setAttribute("aria-hidden","true");
-          nom.textContent=(k+1)+" sur "+n+"  ·  "+photos[k].nom.split("/").pop();
-          vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
-          flG.hidden = k<=0; flD.hidden = k>=n-1;
-        }
-        function poser(x, anime){
-          piste.style.transition = anime && !reduit ? "transform .28s cubic-bezier(.2,.8,.2,1)" : "none";
-          piste.style.transform = "translate3d("+x+"px,0,0)";
-        }
-
-        /* ---------- le zoom de la photo affichée ---------- */
-        function image(){ return cases[1].firstChild; }
-        function centre(){ var r=scene.getBoundingClientRect(); return {x:r.left+r.width/2, y:r.top+r.height/2}; }
-        /* jusqu'où la photo agrandie peut aller : ses bords ne quittent pas ceux de l'écran */
-        function bornes(s){
-          var im=image();
-          return {x:Math.max(0, (im.offsetWidth*s-scene.clientWidth)/2), y:Math.max(0, (im.offsetHeight*s-scene.clientHeight)/2)};
-        }
-        function borner(){ var b=bornes(Z.s); Z.x=Math.max(-b.x, Math.min(b.x, Z.x)); Z.y=Math.max(-b.y, Math.min(b.y, Z.y)); }
-        function resiste(v, m){ return v>m ? m+(v-m)*.35 : v<-m ? -m+(v+m)*.35 : v; }
-        function zoomer(anime){
-          var im=image();
-          im.style.transition = anime && !reduit ? "transform .25s cubic-bezier(.2,.8,.2,1)" : "none";
-          im.style.transform = Z.s===1 && !Z.x && !Z.y ? "" : "translate("+Z.x+"px,"+Z.y+"px) scale("+Z.s+")";
-          scene.classList.toggle("dg-zoom", Z.s>1.01);
-        }
-        function remettre(anime){ Z={s:1, x:0, y:0}; zoomer(anime); }
-        /* agrandir à s fois en gardant sous (mx, my) le point de la photo qui s'y trouve */
-        function zoomerVers(s, mx, my, anime){
-          s=Math.min(ZMAX, Math.max(1, s));
-          if(s<1.01){ remettre(anime); return; }
-          var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s;
-          Z.s=s; Z.x=mx-c.x-s*px; Z.y=my-c.y-s*py;
-          borner(); zoomer(anime);
-        }
-        /* la fin d'un pincement : entre 1 et 5 fois, et dans le cadre */
-        function finZoom(mx, my){
-          if(Z.s<1.01){ remettre(true); return; }
-          if(Z.s>ZMAX){ var c=centre(), px=(mx-c.x-Z.x)/Z.s, py=(my-c.y-Z.y)/Z.s; Z.s=ZMAX; Z.x=mx-c.x-ZMAX*px; Z.y=my-c.y-ZMAX*py; }
-          borner(); zoomer(true);
-        }
-
-        /* une photo plus loin (sens 1) ou plus tôt (sens -1) ; au bout, la photo revient en place */
-        function aller(sens){
-          if(enCours) return;
-          if(k+sens<0 || k+sens>=n){ poser(0, true); return; }
-          if(Z.s!==1 || Z.x || Z.y) remettre(false);
-          enCours=true; W=scene.clientWidth||1;
-          var fini=false;
-          function fin(){
-            if(fini) return; fini=true;
-            k+=sens;
-            /* la case arrivée au milieu y reste : son image ne se recharge pas */
-            if(sens>0) cases.push(cases.shift()); else cases.unshift(cases.pop());
-            placer(); poser(0, false); enCours=false;
-          }
-          if(reduit){ fin(); return; }
-          poser(-sens*W, true);
-          piste.addEventListener("transitionend", fin, {once:true});
-          setTimeout(fin, 360);
-        }
-
-        /* ---------- les doigts (ou la souris) ---------- */
-        function doigts(){ return Object.keys(DOIGTS).map(function(i){ return DOIGTS[i]; }); }
-        scene.addEventListener("pointerdown", function(e){
-          if(e.pointerType==="mouse" && e.button!==0) return;
-          if(e.target.closest && e.target.closest(".dg-fl")) return;
-          if(enCours) return;
-          /* le premier doigt posé : aucun autre ne compte encore (un lâcher perdu ne bloque rien) */
-          if(e.isPrimary) DOIGTS={};
-          DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
-          try{ scene.setPointerCapture(e.pointerId); }catch(er){}
-          var l=doigts();
-          if(l.length===1){
-            geste = Z.s>1.01 ? "promene" : null; bouge=false;
-            x0=e.clientX; y0=e.clientY; dx=0; W=scene.clientWidth||1;
-            traces=[{x:e.clientX, t:e.timeStamp}];
-            origine={x:Z.x, y:Z.y};
-            if(geste==="promene"){ image().style.transition="none"; scene.classList.add("dg-tient"); }
-          } else if(l.length===2){
-            /* deux doigts : on zoome ; un glissé commencé reprend sa place */
-            if(geste==="glisse") poser(0, true);
-            geste="pince"; bouge=true; scene.classList.remove("dg-tient");
-            var a=l[0], b=l[1];
-            pince={d:Math.max(1, Math.hypot(b.x-a.x, b.y-a.y)), mx:(a.x+b.x)/2, my:(a.y+b.y)/2, s:Z.s, x:Z.x, y:Z.y};
-            image().style.transition="none";
-          }
-        });
-        scene.addEventListener("pointermove", function(e){
-          if(!DOIGTS[e.pointerId]) return;
-          DOIGTS[e.pointerId]={x:e.clientX, y:e.clientY};
-          var l=doigts();
-          if(geste==="pince"){
-            if(l.length<2) return;
-            var a=l[0], b=l[1], d=Math.hypot(b.x-a.x, b.y-a.y), cx=(a.x+b.x)/2, cy=(a.y+b.y)/2;
-            var s=pince.s*d/pince.d;
-            if(s>ZMAX) s=ZMAX+(s-ZMAX)*.3;   /* au-delà de 5 fois, ça résiste */
-            if(s<.6) s=.6;
-            var c=centre(), px=(pince.mx-c.x-pince.x)/pince.s, py=(pince.my-c.y-pince.y)/pince.s;
-            Z.s=s; Z.x=cx-c.x-s*px; Z.y=cy-c.y-s*py;
-            zoomer(false);
-            return;
-          }
-          if(l.length!==1) return;
-          var mx=e.clientX-x0, my=e.clientY-y0;
-          if(!bouge && (Math.abs(mx)>8 || Math.abs(my)>8)) bouge=true;
-          if(geste==="promene"){
-            var bo=bornes(Z.s);
-            Z.x=resiste(origine.x+mx, bo.x); Z.y=resiste(origine.y+my, bo.y);
-            zoomer(false);
-            return;
-          }
-          if(geste===null){
-            if(!bouge) return;
-            geste = Math.abs(mx)>Math.abs(my) ? "glisse" : "rien";
-            if(geste==="glisse") scene.classList.add("dg-tient");
-          }
-          if(geste!=="glisse") return;
-          /* au premier et au dernier bout, la photo résiste */
-          dx = (k<=0 && mx>0) || (k>=n-1 && mx<0) ? mx*.3 : mx;
-          traces.push({x:e.clientX, t:e.timeStamp}); if(traces.length>6) traces.shift();
-          poser(dx, false);
-        });
-        function lacher(e){
-          if(!DOIGTS[e.pointerId]) return;
-          delete DOIGTS[e.pointerId];
-          var l=doigts();
-          if(geste==="pince"){
-            if(l.length===1){
-              /* un doigt reste posé : il promène la photo agrandie */
-              x0=l[0].x; y0=l[0].y; origine={x:Z.x, y:Z.y};
-              if(Z.s>1.01){ geste="promene"; scene.classList.add("dg-tient"); }
-              else { geste="rien"; finZoom(pince.mx, pince.my); }
-            } else if(!l.length){ geste=null; finZoom(pince.mx, pince.my); }
-            return;
-          }
-          if(l.length) return;
-          scene.classList.remove("dg-tient");
-          var g=geste; geste=null;
-          if(g==="promene"){
-            finZoom(e.clientX, e.clientY);
-            if(!bouge && e.type!=="pointercancel") toucher(e);
-            return;
-          }
-          if(g==="glisse"){
-            if(e.type==="pointercancel"){ poser(0, true); return; }
-            /* un petit coup sec suffit : la vitesse des derniers instants compte */
-            var a=traces[0], v=a ? (e.clientX-a.x)/Math.max(16, e.timeStamp-a.t) : 0;
-            if(k<n-1 && (dx<-W*.2 || (v<-.35 && dx<-24))) aller(1);
-            else if(k>0 && (dx>W*.2 || (v>.35 && dx>24))) aller(-1);
-            else poser(0, true);
-            return;
-          }
-          if(g===null && !bouge && e.type!=="pointercancel") toucher(e);
-        }
-        /* deux touchers rapprochés : la photo s'agrandit là, ou redevient entière */
-        function toucher(e){
-          var t=e.timeStamp, x=e.clientX, y=e.clientY, avant=toucherAvant;
-          toucherAvant={t:t, x:x, y:y};
-          if(!avant || t-avant.t>320 || Math.hypot(x-avant.x, y-avant.y)>30) return;
-          toucherAvant=null;
-          if(Z.s>1.01) remettre(true); else zoomerVers(ZDOUBLE, x, y, true);
-        }
-        scene.addEventListener("pointerup", lacher);
-        scene.addEventListener("pointercancel", lacher);
-        scene.addEventListener("dragstart", function(e){ e.preventDefault(); });
-        /* la molette, ou le pincement du pavé tactile (une molette avec Ctrl, plus fine) */
-        scene.addEventListener("wheel", function(e){
-          e.preventDefault();
-          if(enCours) return;
-          var d=e.deltaY*(e.deltaMode===1 ? 33 : e.deltaMode===2 ? 400 : 1);
-          zoomerVers(Z.s*Math.exp(-d*(e.ctrlKey ? .01 : .0018)), e.clientX, e.clientY, false);
-        }, {passive:false});
-        flG.addEventListener("click", function(){ aller(-1); });
-        flD.addEventListener("click", function(){ aller(1); });
-
-        /* enregistrer juste cette photo, à l'unité (pour n'avoir que la photo) */
-        enr.addEventListener("click", function(){
-          var ph=photos[k];
-          var blob=new Blob([ph.octets], {type: /\.png$/i.test(ph.nom) ? "image/png" : "image/jpeg"});
-          enregistrer(blob, nomAvecChantier(refDeCle(f.cle), ph.nom.split("/").pop()));
-        });
-        function touche(e){
-          var c;
-          if(e.key==="Escape") fermer();
-          else if(e.key==="ArrowRight") aller(1);
-          else if(e.key==="ArrowLeft") aller(-1);
-          else if(e.key==="+" || e.key==="=" || e.key==="-" || e.key==="_"){
-            c=centre(); zoomerVers(Z.s*(e.key==="+" || e.key==="=" ? 1.5 : 1/1.5), c.x, c.y, true);
-          }
-          else if(e.key==="0") remettre(true);
-          else return;
-          e.preventDefault(); e.stopPropagation();
-        }
-        /* l'écran tourne : la photo agrandie reste dans le cadre */
-        function recaler(){ if(Z.s>1.01){ borner(); zoomer(false); } }
-        function fermer(){
-          document.removeEventListener("keydown", touche, true);
-          window.removeEventListener("resize", recaler);
-          if(vue.parentNode) vue.parentNode.removeChild(vue);
-        }
-        croix.addEventListener("click", fermer);
-        document.addEventListener("keydown", touche, true);
-        window.addEventListener("resize", recaler);
-        document.body.appendChild(vue);
-        placer(); poser(0, false);
-        try{ vue.focus({preventScroll:true}); }catch(e){}
-      }
+      choisir.hidden = photos.length<2;
+      flot.hidden=false;
+      peindre();
     })
-    .catch(function(){
-      corps.textContent="";
-      var v=document.createElement("p");
-      v.style.cssText="grid-column:1/-1;color:#BDB5A6;font-size:14px";
-      v.textContent="Photos indisponibles. Réessayez ou utilisez Télécharger.";
-      corps.appendChild(v);
+    .catch(function(){ sous.textContent=""; etat("Photos indisponibles. Réessayez ou utilisez Télécharger."); });
+}
+/* ---------- la vignette de chaque document, et son aperçu à l'appui long ----------
+   Comme dans le panneau Document : un PDF montre sa première page, une photo elle-même,
+   un lot de photos sa première photo. Elles se font à mesure qu'on fait défiler, deux à
+   la fois, et sont gardées sur l'appareil (pas retéléchargées à chaque visite) ; un
+   fichier de plus de 8 Mo n'en a pas. Un appui long sur la ligne montre le document en
+   grand tant que le doigt reste posé. Ni l'une ni l'autre ne comptent comme une lecture. */
+var VG_MAX=8*1024*1024, VG_CLE="dossier:vignettes", VG_MEM=null, VG_FILE=[], VG_ACTIFS=0, VG_OBS=null, VG_BLOBS=[], AP_ID=0, AP_VUE=null;
+function genreVg(f){
+  var c=String(f.cle||"").toLowerCase();
+  if(/\.pdf$/.test(c)) return "pdf";
+  if(/\.(jpe?g|png|webp|gif)$/.test(c)) return "image";
+  if(/\.zip$/.test(c)) return "zip";
+  return "";
+}
+function cleVg(f){ return f.cle+"|"+(f.publie||f.date||"")+"|"+(f.taille||0)+"|"+(f.versions||1); }
+function memVg(){
+  if(VG_MEM) return VG_MEM;
+  try{ VG_MEM=JSON.parse(localStorage.getItem(VG_CLE)||"{}")||{}; }catch(e){ VG_MEM={}; }
+  return VG_MEM;
+}
+function garderVg(k, u){
+  var m=memVg(); m[k]={u:u, t:Date.now()};
+  var ks=Object.keys(m).sort(function(a, b){ return m[a].t-m[b].t; });
+  ks.slice(0, Math.max(0, ks.length-150)).forEach(function(x){ delete m[x]; });
+  try{ localStorage.setItem(VG_CLE, JSON.stringify(m)); }
+  catch(e){ ks.slice(0, Math.ceil(ks.length/2)).forEach(function(x){ delete m[x]; }); try{ localStorage.setItem(VG_CLE, JSON.stringify(m)); }catch(er){} }
+}
+function styleVg(){
+  if(document.getElementById("styleVg")) return;
+  var st=document.createElement("style"); st.id="styleVg";
+  st.setAttribute("data-theme-propre","");            /* l'aperçu reste sur fond sombre, en mode clair comme en sombre */
+  st.textContent=
+    ".f .dvg{flex:0 0 auto;align-self:flex-start;width:40px;height:52px;border-radius:6px;overflow:hidden;background:rgba(127,140,160,.16);"
+    +"display:flex;align-items:center;justify-content:center;color:var(--ink-3,#8792A2);font:800 9px/1 system-ui,sans-serif;letter-spacing:.04em}"
+    +".f .dvg.vu{background:#fff;box-shadow:0 1px 4px rgba(0,0,0,.28)}"
+    +".f .dvg img{display:block;width:100%;height:100%;object-fit:cover;object-position:top center}"
+    +".f.avec-vg{-webkit-touch-callout:none}"
+    /* sur téléphone, le nom prend la ligne : à côté de sa vignette */
+    +"@media (max-width:599px){.travaux .f.avec-vg .t{flex-basis:calc(100% - 52px)}}"
+    +".dg-apercu{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:24px;"
+    +"background:rgba(5,9,18,.78);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);pointer-events:none;animation:dgAp .16s ease-out}"
+    +"@keyframes dgAp{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:none}}"
+    +".dg-apercu .cadre{max-width:92vw;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;min-width:150px;min-height:190px}"
+    +".dg-apercu .cadre img{display:block;max-width:92vw;max-height:calc(100vh - 180px);object-fit:contain}"
+    +".dg-apercu .etat{color:#64748B;font:600 14px/1.3 system-ui,sans-serif;margin:20px}"
+    +".dg-apercu .titre{margin:0;max-width:90vw;color:#fff;font:700 15px/1.3 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}"
+    +".dg-apercu .sous{margin:0;color:#9FB0CC;font:500 12.5px/1.3 system-ui,sans-serif}";
+  (document.head||document.documentElement).appendChild(st);
+}
+function pdfjsVg(){
+  if(window.Visionneuse && Visionneuse.pdfjs) return Visionneuse.pdfjs();
+  if(window.pdfjsLib) return Promise.resolve(window.pdfjsLib);
+  if(pdfjsVg.p) return pdfjsVg.p;
+  pdfjsVg.p=new Promise(function(ok, ko){
+    var s=document.createElement("script"); s.src="./vendor/pdfjs-3.11.174/pdf.min.js"; s.async=true;
+    s.onload=function(){
+      if(!window.pdfjsLib) return ko(new Error("pdf.js"));
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc="./vendor/pdfjs-3.11.174/pdf.worker.min.js"; ok(window.pdfjsLib);
+    };
+    s.onerror=function(){ pdfjsVg.p=null; ko(new Error("pdf.js")); };
+    document.head.appendChild(s);
+  });
+  return pdfjsVg.p;
+}
+/* le fichier, gardé un moment (les six derniers) : la vignette puis l'aperçu ne le téléchargent qu'une fois */
+function blobVg(f){
+  var k=cleVg(f), b=VG_BLOBS.filter(function(x){ return x.k===k; })[0];
+  if(b) return Promise.resolve(b.blob);
+  return fetch(API+"?action=fichier&apercu=1&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); })
+    .then(function(blob){ VG_BLOBS.push({k:k, blob:blob}); if(VG_BLOBS.length>6) VG_BLOBS.shift(); return blob; });
+}
+/* une image du document, large de L points : {u (adresse), n (photos d'un lot)} */
+function renduVg(f, L){
+  var g=genreVg(f);
+  function image(blob){
+    return new Promise(function(ok, ko){
+      var u=URL.createObjectURL(blob), im=new Image();
+      im.onload=function(){
+        var k=Math.min(1, L/im.naturalWidth), cv=document.createElement("canvas");
+        cv.width=Math.max(1, Math.round(im.naturalWidth*k)); cv.height=Math.max(1, Math.round(im.naturalHeight*k));
+        cv.getContext("2d").drawImage(im, 0, 0, cv.width, cv.height); URL.revokeObjectURL(u); ok(cv.toDataURL("image/jpeg", 0.82));
+      };
+      im.onerror=function(){ URL.revokeObjectURL(u); ko(new Error("image")); };
+      im.src=u;
     });
+  }
+  return blobVg(f).then(function(blob){
+    if(g==="image") return image(blob).then(function(u){ return {u:u}; });
+    if(g==="zip"){
+      return blob.arrayBuffer().then(function(buf){
+        var l=lireZip(new Uint8Array(buf)); if(!l.length) throw new Error("vide");
+        var t=/\.png$/i.test(l[0].nom) ? "image/png" : "image/jpeg";
+        return image(new Blob([l[0].octets], {type:t})).then(function(u){ return {u:u, n:l.length}; });
+      });
+    }
+    return pdfjsVg().then(function(pdfjs){
+      return blob.arrayBuffer().then(function(buf){ return pdfjs.getDocument({data:new Uint8Array(buf)}).promise; });
+    }).then(function(doc){
+      return doc.getPage(1).then(function(page){
+        var v1=page.getViewport({scale:1}), v=page.getViewport({scale:L/v1.width});
+        var cv=document.createElement("canvas"); cv.width=Math.round(v.width); cv.height=Math.round(v.height);
+        var cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0, 0, cv.width, cv.height);
+        return page.render({canvasContext:cx, viewport:v}).promise.then(function(){
+          var u=cv.toDataURL("image/jpeg", 0.82); try{ doc.destroy(); }catch(e){} return {u:u, n:doc.numPages};
+        });
+      });
+    });
+  });
+}
+function poserVg(el, u){ el.textContent=""; el.classList.add("vu"); var im=new Image(); im.alt=""; im.src=u; el.appendChild(im); }
+/* la case de la vignette d'une ligne (rien pour un format sans aperçu) */
+function vignetteDoc(f){
+  var g=genreVg(f); if(!g) return null;
+  styleVg();
+  var el=document.createElement("span"); el.className="dvg"; el.setAttribute("aria-hidden","true");
+  if(g==="pdf") el.textContent="PDF";
+  else el.innerHTML='<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>';
+  var k=cleVg(f), m=memVg();
+  if(m[k]){ poserVg(el, m[k].u); return el; }
+  if((f.taille||0) > VG_MAX || !("IntersectionObserver" in window)) return el;
+  el.__f=f;
+  if(!VG_OBS) VG_OBS=new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ VG_OBS.unobserve(e.target); VG_FILE.push(e.target); pomperVg(); } });
+  }, {rootMargin:"240px 0px"});
+  VG_OBS.observe(el);
+  return el;
+}
+function pomperVg(){
+  while(VG_ACTIFS<2 && VG_FILE.length){
+    var el=VG_FILE.shift(); if(!el.isConnected) continue;
+    VG_ACTIFS++;
+    (function(el){
+      var f=el.__f, k=cleVg(f);
+      renduVg(f, 96).then(function(r){ garderVg(k, r.u); if(el.isConnected) poserVg(el, r.u); })
+        .catch(function(){}).then(function(){ VG_ACTIFS--; pomperVg(); });
+    })(el);
+  }
+}
+/* l'appui long : le document en grand, tant que le doigt reste posé ; on lâche, il s'en va */
+function montrerApercuDoc(f){
+  styleVg(); cacherApercuDoc();
+  var o=AP_VUE=document.createElement("div"); o.className="dg-apercu"; o.setAttribute("aria-hidden","true");
+  o.style.zIndex=zDessus(90);
+  var g=genreVg(f), cadre=document.createElement("div"); cadre.className="cadre";
+  var etat=document.createElement("p"); etat.className="etat"; etat.textContent = g ? "Aperçu…" : "Pas d'aperçu pour ce format";
+  cadre.appendChild(etat); o.appendChild(cadre);
+  var ti=document.createElement("p"); ti.className="titre"; ti.textContent=f.titre||"Document"; o.appendChild(ti);
+  var so=document.createElement("p"); so.className="sous"; so.textContent=[frDate(f.date), f.auteur, f.taille ? octets(f.taille) : ""].filter(Boolean).join(" · "); o.appendChild(so);
+  document.body.appendChild(o);
+  try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
+  if(!g) return;
+  if((f.taille||0) > 4*VG_MAX){ etat.textContent="Trop lourd pour un aperçu : « Ouvrir »."; return; }
+  var L=Math.min(1100, Math.round(Math.min(window.innerWidth, 900)*0.9*Math.min(2, window.devicePixelRatio||1)));
+  var id=++AP_ID;
+  renduVg(f, L).then(function(r){
+    if(id!==AP_ID) return;
+    cadre.textContent=""; var im=new Image(); im.alt=""; im.src=r.u; cadre.appendChild(im);
+    if(r.n>1) so.textContent=(g==="zip" ? r.n+" photos" : r.n+" pages")+(so.textContent ? " · "+so.textContent : "");
+  }).catch(function(){ if(id===AP_ID) etat.textContent="Aperçu indisponible."; });
+}
+function cacherApercuDoc(){ AP_ID++; if(AP_VUE){ AP_VUE.remove(); AP_VUE=null; } }
+function appuiLongDoc(a, f){
+  var t=null, x0=0, y0=0, montre=false;
+  a.addEventListener("pointerdown", function(e){
+    if(e.pointerType==="mouse") return;                               /* à la souris, la ligne se glisse vers l'ordinateur */
+    if(e.target.closest && e.target.closest("button,select,input,textarea,label,a.lien")) return;
+    x0=e.clientX; y0=e.clientY; clearTimeout(t);
+    t=setTimeout(function(){ t=null; montre=true; a.__long=true; montrerApercuDoc(f); }, 430);
+  });
+  a.addEventListener("pointermove", function(e){
+    if(t && (Math.abs(e.clientX-x0)>10 || Math.abs(e.clientY-y0)>10)){ clearTimeout(t); t=null; }   /* on fait défiler : rien */
+  });
+  function fin(){ clearTimeout(t); t=null; if(!montre) return; montre=false; cacherApercuDoc(); setTimeout(function(){ a.__long=false; }, 400); }
+  a.addEventListener("pointerup", fin); a.addEventListener("pointercancel", fin);
+  a.addEventListener("contextmenu", function(e){ if(t || montre) e.preventDefault(); });    /* pas le menu du système pendant l'appui */
+  /* lâcher après un aperçu ne déclenche rien */
+  a.addEventListener("click", function(e){ if(a.__long){ e.stopImmediatePropagation(); e.preventDefault(); } }, true);
 }
 function marquerLu(f){
   fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
@@ -999,6 +1711,17 @@ function ligneSaisie(f){
     + (f.saisie.note ? " — "+f.saisie.note : "");
   return p;
 }
+function motEnvoiSaisie(d){
+  var t=(d && d.technicien) || "le technicien";
+  switch(d && d.envoi){
+    case "envoyee": return t+" est prévenu sur son téléphone.";
+    case "silence": return "la notification partira à "+t+" à la fin du silence (le matin).";
+    case "aucune": return t+" n'a pas activé les notifications : il le verra sur la commande.";
+    case "coupee": return t+" a coupé les notifications de documents : il le verra sur la commande.";
+    case "echec": return "la notification n'a pas pu partir : "+t+" le verra sur la commande.";
+    default: return "";
+  }
+}
 function boutonSaisie(f, repeindre){
   if(!MOI || (MOI.role!=="bureau" && MOI.role!=="admin")) return null;
   if(f.type !== "commande") return null;
@@ -1014,7 +1737,7 @@ function boutonSaisie(f, repeindre){
       if(!window.confirm("Retirer la marque « saisie » de cette commande ?")) return;
       corps.saisie=false;
     } else {
-      var note=window.prompt("Commande saisie. Un mot pour le technicien ? (facultatif)", "");
+      var note=window.prompt("Commande saisie : le technicien en est prévenu sur son téléphone. Un mot pour lui ? (facultatif)", "");
       if(note === null) return;
       corps.note=note;
     }
@@ -1027,6 +1750,7 @@ function boutonSaisie(f, repeindre){
         b.disabled=false;
         if(!res.ok){ alert(res.d.erreur || "Impossible d'enregistrer."); return; }
         f.saisie = res.d.saisie || null;
+        if(f.saisie){ var m=motEnvoiSaisie(res.d); toast("Commande saisie"+(m ? " : "+m : ".")); }
         repeindre();
       })
       .catch(function(){ b.disabled=false; alert("Pas de réseau."); });
@@ -1113,6 +1837,10 @@ var SOUS_DOSSIERS={
     ico:'<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>'},
   plans:{nom:"Plans", classe:"sous-dossier dossier-plans", memo:"rapports:plans", mot:"plan",
     ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v13L15 19.5l-6-2-5.5 2z"/><path d="M9 4.5v13M15 6.5v13"/>'},
+  reserve:{nom:"Réservé chargés d'affaires", classe:"sous-dossier dossier-reserve", memo:"rapports:reserve", mot:"document", ajouter:true,
+    ico:'<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1.4"/>'},
+  plansModifies:{nom:"Plans modifiés", classe:"sous-dossier dossier-plans-modifies", memo:"rapports:plansModifies", mot:"plan",
+    ico:'<path d="M3.5 6.5 9 4.5l6 2 5.5-2v6"/><path d="M3.5 6.5v13l5.5-2 4 1.3M9 4.5v13"/><path d="m14.5 20.5.6-2.6 4.6-4.6 2 2-4.6 4.6z"/>'},
   techniques:{nom:"Documents techniques", classe:"sous-dossier dossier-techniques", memo:"rapports:techniques", mot:"document",
     ico:'<path d="M3.5 7.2 12 3.5l8.5 3.7v9.6L12 20.5 3.5 16.8z"/><path d="M3.5 7.2 12 11l8.5-3.8M12 11v9.5"/>'},
   commandes:{nom:"Commandes", classe:"sous-dossier dossier-commandes", memo:"rapports:commandes", mot:"commande",
@@ -1125,13 +1853,123 @@ var SOUS_DOSSIERS={
   photos:{nom:"Photos du chantier", classe:"sous-dossier dossier-photos", memo:"rapports:photos", mot:"document", exporter:true,
     ico:'<path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/>'}
 };
+/* ---------- la catégorie d'un document technique ----------
+   Montrée à côté de l'étiquette ; le bureau, ou celui qui l'a déposé, la
+   change d'un choix : le document passe dans le bon sous-dossier. */
+var CATEGORIES_TECHNIQUE=["Plan","Plan modifié","Fiche technique","Schéma","Notice","Photo","Autre"];
+/* le dossier réservé aux chargés d'affaires (offre de prix, e-mail…) : le serveur ne le montre qu'au
+   bureau et à l'administrateur, jamais à un technicien ni au client */
+var RESERVE_CA="Réservé chargés d'affaires";
+/* un petit menu, à la taille d'une étiquette : il ne déborde plus sur « Ouvrir » */
+var STYLE_CATEGORIE=false;
+function styleCategorie(){
+  if(STYLE_CATEGORIE) return; STYLE_CATEGORIE=true;
+  var st=document.createElement("style");
+  st.textContent=
+    /* une pastille à la taille de son texte : le menu natif, invisible, est posé dessus
+       (Safari sur iPhone donnait au menu la largeur de sa plus longue catégorie, coupée à droite) */
+    ".f .meta{min-width:0;overflow:hidden;flex-wrap:wrap;row-gap:4px}"
+    +".cat-doc{position:relative;display:inline-flex;align-items:center;flex:0 1 auto;min-width:0;max-width:140px;height:22px;"
+    +"padding:0 20px 0 9px;box-sizing:border-box;border:1px solid var(--rule,#CBCFD8);border-radius:999px;"
+    +"font-size:11.5px;font-weight:600;line-height:20px;color:inherit;cursor:pointer}"
+    +".cat-doc>span{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin:0;font:inherit;color:inherit}"
+    +".cat-doc::after{content:\"\";position:absolute;right:8px;top:50%;width:5px;height:5px;margin-top:-4px;"
+    +"border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:rotate(45deg);opacity:.75}"
+    +".cat-doc>select{position:absolute;inset:0;width:100%!important;height:100%!important;min-height:0!important;margin:0!important;padding:0!important;"
+    +"opacity:0;border:0!important;font-size:16px!important;cursor:pointer;-webkit-appearance:none;appearance:none}"
+    +".cat-doc.off{opacity:.55}";
+  document.head.appendChild(st);
+}
+function categorieDocument(f, bureau, apres){
+  var actuelle=String(f.visite||"").trim();
+  var peut = bureau || (MOI && f.auteur===MOI.nom);
+  if(!peut){
+    if(!actuelle) return null;
+    var s=document.createElement("span"); s.className="infos"; s.textContent=actuelle; return s;
+  }
+  styleCategorie();
+  var pastille=document.createElement("span"); pastille.className="cat-doc";
+  var lib=document.createElement("span");
+  var sel=document.createElement("select");
+  pastille.appendChild(lib); pastille.appendChild(sel);
+  sel.title="Changer la catégorie de ce document";
+  sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
+  var liste=CATEGORIES_TECHNIQUE.slice();
+  /* le dossier réservé : le bureau seulement l'y range (ou l'en sort) */
+  if(bureau) liste.push(RESERVE_CA);
+  if(actuelle && liste.indexOf(actuelle)<0) liste.unshift(actuelle);
+  if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
+  liste.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
+  sel.value=actuelle;
+  function montrer(){ lib.textContent = sel.value || "Catégorie…"; pastille.classList.toggle("off", sel.disabled); }
+  montrer();
+  ["click","pointerdown","touchstart"].forEach(function(ev){ pastille.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+  sel.addEventListener("change", function(e){
+    e.stopPropagation();
+    var c=sel.value; if(!c || c===actuelle) return;
+    sel.disabled=true; montrer();
+    fetch(API+"?action=categorie-document", {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify({cle:f.cle, categorie:c})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        if(!res.ok){ alert(res.d.erreur || "Catégorie non changée."); sel.disabled=false; sel.value=actuelle; montrer(); return; }
+        f.visite=c; if(c===RESERVE_CA) f.prive=true; else delete f.prive;
+        if(apres) apres();
+      })
+      .catch(function(){ alert("Pas de réseau."); sel.disabled=false; sel.value=actuelle; montrer(); });
+  });
+  return pastille;
+}
+
+/* renommer un document : seul son nom change, dans la liste (et au téléchargement d'un document importé) ;
+   le bureau seulement, et le nom tient même si le document est republié */
+var STYLE_RENOMMER=false;
+function boutonRenommer(f, bureau, apres){
+  if(!bureau) return null;
+  if(!STYLE_RENOMMER){
+    STYLE_RENOMMER=true;
+    var st=document.createElement("style");
+    st.textContent=".ren-doc{flex:0 0 auto;width:30px;height:30px;min-width:0!important;min-height:0!important;margin:-6px 0!important;padding:0!important;"
+      +"border:0!important;border-radius:8px;background:transparent!important;color:inherit;opacity:.55;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:none!important}"
+      +".ren-doc:hover,.ren-doc:focus-visible{opacity:1}"
+      +".ren-doc svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}";
+    document.head.appendChild(st);
+  }
+  var b=document.createElement("button"); b.type="button"; b.className="ren-doc";
+  b.title="Renommer"; b.setAttribute("aria-label","Renommer "+(f.titre||"ce document"));
+  b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l1-4L16 5l3 3L8 19z"/><path d="M14 7l3 3"/></svg>';
+  ["pointerdown","touchstart"].forEach(function(ev){ b.addEventListener(ev, function(e){ e.stopPropagation(); }); });
+  b.addEventListener("click", function(e){
+    e.preventDefault(); e.stopPropagation();
+    var nv=window.prompt("Nouveau nom", f.titre||"");
+    if(nv==null) return;
+    nv=String(nv).replace(/\s+/g, " ").trim();
+    if(!nv || nv===f.titre) return;
+    b.disabled=true;
+    fetch(API+"?action=renommer-document", {method:"POST", headers:{"content-type":"application/json","x-auth":S.jeton},
+      body:JSON.stringify({cle:f.cle, titre:nv})})
+      .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+      .then(function(res){
+        b.disabled=false;
+        if(!res.ok){ alert(res.d.erreur || "Nom non changé."); return; }
+        f.titre=res.d.titre; delete FICHIERS_PRETS[f.cle];
+        if(apres) apres();
+      })
+      .catch(function(){ b.disabled=false; alert("Pas de réseau."); });
+  });
+  return b;
+}
+
 /* le sous-dossier où range un document, s'il y en a un */
 function sousDossierDe(f){
+  if(f.prive) return "reserve";
   if(f.type==="suivi") return "suivi";
   if(f.type==="commande") return "commandes";
   if(f.type==="point") return "points";
   /* les plans : les documents techniques rangés dans la nature « Plan » */
   /* une photo déposée comme document technique rejoint les photos du chantier */
+  /* les plans annotés dans un suivi, déposés à part : leur propre sous-dossier */
+  if(f.type==="technique" && /^plans?\s+modifi/i.test(String(f.visite||"").trim())) return "plansModifies";
   if(f.type==="technique") return /^plans?(\s|$)/i.test(String(f.visite||"").trim()) ? "plans"
     : /^photos?(\s|$)/i.test(String(f.visite||"").trim()) ? "photos" : "techniques";
   if(f.type==="photos" || f.type==="reportage") return "photos";
@@ -1258,6 +2096,19 @@ function sousDossier(ref, genre){
       barre.appendChild(bx); barre.appendChild(mot);
       dedans.appendChild(barre);
     }
+    if(g.ajouter){
+      /* déposer dans le dossier réservé : la fenêtre d'import, la catégorie déjà choisie */
+      var ba=document.createElement("div"); ba.className="ds-export";
+      var bt=document.createElement("button"); bt.type="button"; bt.className="ds-tout";
+      bt.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Ajouter un document</span>';
+      bt.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        if(window.Transfert && Transfert.ouvrir) Transfert.ouvrir(window.reglagesTransfert ? reglagesTransfert({onglet:"importer", ref:ref, nature:RESERVE_CA}) : {onglet:"importer", ref:ref, nature:RESERVE_CA});
+      });
+      var mt=document.createElement("span"); mt.className="hint";
+      mt.textContent=lignes.length ? "Vu par les chargés d'affaires seulement" : "Offre de prix, e-mail… : vu par les chargés d'affaires seulement";
+      ba.appendChild(bt); ba.appendChild(mt); dedans.appendChild(ba);
+    }
     lignes.forEach(function(l){ dedans.appendChild(l.a); });
   }};
 }
@@ -1266,7 +2117,7 @@ function carteDossier(c, i, opts){
   trierDocs(c);
   var ouvertParDefaut = opts.ouvertParDefaut !== undefined ? !!opts.ouvertParDefaut : true;
   var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin"));
-  if(c && c.ref) CLIENTS[c.ref]=c.client||"";
+  if(c && c.ref){ CLIENTS[c.ref]=c.client||""; DOSSIERS_VUS[c.ref]=c; }
   var box=document.createElement("div"); box.className="travaux"+(opts.integree ? " integree" : "");
   box.setAttribute("data-ref", c.ref);
   if(c.etat === "attente") box.classList.add("attente");
@@ -1291,7 +2142,8 @@ function carteDossier(c, i, opts){
     iti.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation();
       var q=String(c.adresse).replace(/\n/g, ", ");
-      window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
+      if(window.Itineraire) Itineraire.ouvrir(q);
+      else window.open("https://www.google.com/maps/dir/?api=1&destination="+encodeURIComponent(q), "_blank");
     });
     outils.appendChild(iti);
   }
@@ -1349,6 +2201,13 @@ function carteDossier(c, i, opts){
     tsb.title=c.ts+(c.ts>1 ? " travaux supplémentaires à chiffrer" : " travaux supplémentaire à chiffrer");
     sous.appendChild(tsb);
   }
+  /* un autocontrôle demandé (case rouge de l'avancement), pas encore publié dans le dossier */
+  if(c.autocontrole && !c.autocontrole.fait){
+    var au=document.createElement("span"); au.className="etiq-autoc";
+    au.textContent="Autocontrôle";
+    au.title="Autocontrôle demandé par "+(c.autocontrole.par||"le bureau")+(c.autocontrole.le ? " le "+frDate(c.autocontrole.le) : "")+" : pas encore publié";
+    sous.appendChild(au);
+  }
   if(c.accepte){
     var acc=document.createElement("span");
     acc.className="etiq-accepte";
@@ -1372,37 +2231,25 @@ function carteDossier(c, i, opts){
   c.fichiers.forEach(function(f){
     var a=document.createElement("a"); a.className="f";
     var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
-    /* Un document s'ouvre dans son propre onglet : c'est un vrai lien,
-       pas un lecteur qui recouvre la page. Le site reste ouvert à
-       côté, « précédent » du navigateur marche comme partout ailleurs,
-       et on peut ouvrir plusieurs documents en même temps, chacun dans
-       le sien. Un ensemble de photos reste une galerie sur place : un
-       ZIP ne s'affiche pas tout seul dans un onglet. */
-    if(zip){
-      a.style.cursor="pointer";
-      a.addEventListener("click", function(e){ e.preventDefault(); ouvrirGalerie(f); });
-    } else if(/\.(dwg|dxf)$/i.test(f.cle||"")){
-      /* un plan DWG ou DXF : le navigateur ne l'affiche pas, l'outil Plan si (cotes, symboles) */
-      a.href="./dwg.html?cle="+encodeURIComponent(f.cle);
-    } else {
-      a.href=API+"?action=fichier&cle="+encodeURIComponent(f.cle)+"&auth="+encodeURIComponent(S.jeton);
-      /* toujours à part, même dans l'appli installée : le téléphone l'ouvre
-         alors dans sa fenêtre avec OK en haut à gauche, qui ramène ici.
-         Dans la même fenêtre, le PDF remplaçait l'appli, sans barre ni retour. */
-      a.target="_blank"; a.rel="noopener";
-    }
+    var dwg = /\.(dwg|dxf)$/i.test(f.cle||"");
+    /* la ligne n'ouvre rien : seul le bouton « Ouvrir » ouvre le document
+       (un toucher au hasard en faisant défiler n'ouvre plus un PDF) ;
+       à l'ordinateur, on la glisse toujours vers un dossier */
+    a.style.cursor="default";
+    a.style.webkitUserSelect="none"; a.style.userSelect="none"; a.style.webkitTouchCallout="none";
     glisserVersOrdinateur(a, f);
-    a.addEventListener("click", function(){
-      /* accusé de lecture immédiat, sans dépendre du chargement du PDF */
-      fetch(API+"?action=lu&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
-        .then(function(r){ return r.ok ? r.json() : null; })
-        .then(function(d){ if(d && d.lectures){ f.lectures=d.lectures; setTimeout(charger, 1200); } })
-        .catch(function(){});
-    });
+    var vg=vignetteDoc(f);
+    if(vg){ a.classList.add("avec-vg"); a.appendChild(vg); }
+    appuiLongDoc(a, f);
     var t=document.createElement("div"); t.className="t";
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
     tl.appendChild(tb);
+    /* tout document du dossier (plan, photos, suivi, commande…) : le bureau seul le renomme */
+    if(!f.brouillon){
+      var bRen=boutonRenommer(f, bureau, charger);
+      if(bRen) tl.appendChild(bRen);
+    }
     if(pasEncoreLu(f)){
       var neuf=document.createElement("span"); neuf.className="neuf";
       neuf.textContent="Nouveau";
@@ -1419,7 +2266,7 @@ function carteDossier(c, i, opts){
                     : f.type==="suivi" ? (f.visite ? "Visite "+f.visite : "Suivi")
                     : f.type==="commande" ? "Commande"
                     : f.type==="photos" ? "Photos"
-                    : f.type==="reportage" ? "Reportage"
+                    : f.type==="reportage" ? "Photo et croquis"
                     : f.type==="autocontrole" ? "Autocontrôle"
                     : f.type==="carnet" ? "Carnet"
                     : f.type==="memoire" ? "Mémoire"
@@ -1429,6 +2276,11 @@ function carteDossier(c, i, opts){
                     : f.type==="sav" ? "SAV" : "Relevé";
     var meta=document.createElement("div"); meta.className="meta";
     meta.appendChild(tag);
+    /* un document technique : sa catégorie (Plan, Notice…), à changer s'il a été mal rangé */
+    if(f.type==="technique"){
+      var cat=categorieDocument(f, bureau, charger);
+      if(cat) meta.appendChild(cat);
+    }
     var ts=document.createElement("span"); ts.className="infos";
     ts.textContent=[frDate(f.date), f.etape, f.auteur,
       (f.versions>1 ? "mis à jour "+f.versions+" fois" : ""), octets(f.taille)].filter(Boolean).join(" · ");
@@ -1465,9 +2317,33 @@ function carteDossier(c, i, opts){
     bPartage.setAttribute("aria-label","Ouvrir "+(f.titre||"ce document"));
     bPartage.addEventListener("click", function(e){
       e.preventDefault(); e.stopPropagation();
+      /* un lot de photos s'ouvre en galerie, un plan DWG ou DXF dans l'outil Plan */
+      if(zip){ marquerLu(f); ouvrirGalerie(f); return; }
+      if(dwg){ marquerLu(f); location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
+      if(PHOTO_AFFICHABLE.test(f.cle||"")){ ouvrirPhoto(f, bPartage); return; }
+      if(ouvrirPlan(f, c)) return;
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
+    /* le document part dans la discussion du chantier (plan, notice, note, photo…) */
+    var bDis=document.createElement("button"); bDis.type="button"; bDis.className="part dis";
+    bDis.innerHTML=icone("discu");
+    bDis.firstChild.style.cssText="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round";
+    bDis.title="Envoyer dans la discussion du chantier";
+    bDis.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" dans la discussion du chantier");
+    bDis.style.cssText="padding:0;width:32px;min-width:32px;justify-content:center";
+    bDis.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); ouvrirDiscussion(c, {doc:f}); });
+    if(!f.prive) droite.appendChild(bDis);          /* un document réservé ne part pas dans la discussion, où sont les techniciens */
+    /* Envoyer (ordinateur) : le partage de Windows ou du Mac, avec le fichier en pièce jointe
+       (Outlook, Courrier, Teams…) — un glisser vers l'Outlook installé n'emporte pas le fichier */
+    if(peutEnvoyerFichiers() && !zip){
+      var bEnv=document.createElement("button"); bEnv.type="button"; bEnv.className="part env";
+      bEnv.textContent="Envoyer"; bEnv.title="Envoyer en pièce jointe (Outlook, Courrier, Teams…)";
+      bEnv.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" en pièce jointe");
+      bEnv.addEventListener("mouseenter", function(){ preparerGlisser(f); });
+      bEnv.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); envoyerDocument(f, bEnv); });
+      droite.appendChild(bEnv);
+    }
     /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour prendre des cotes */
     if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
       var bCote=document.createElement("a");
@@ -1502,6 +2378,11 @@ function carteDossier(c, i, opts){
     a.appendChild(droite);
     ranger(f, a);
   });
+  /* le dossier réservé aux chargés d'affaires : toujours là pour le bureau (même vide), en tête */
+  if(bureau){
+    if(!sous.reserve){ sous.reserve=sousDossier(c.ref, "reserve"); lignesDe.reserve=[]; }
+    fs.insertBefore(sous.reserve.boite, fs.firstChild);
+  }
   Object.keys(sous).forEach(function(genre){ sous[genre].remplir(lignesDe[genre]); });
   if(!c.fichiers.length && opts.integree){
     var vide=document.createElement("p"); vide.className="vide";
