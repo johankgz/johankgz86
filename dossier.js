@@ -1483,7 +1483,7 @@ function ouvrirGalerie(f){
    la fois, et sont gardées sur l'appareil (pas retéléchargées à chaque visite) ; un
    fichier de plus de 8 Mo n'en a pas. Un appui long sur la ligne montre le document en
    grand tant que le doigt reste posé. Ni l'une ni l'autre ne comptent comme une lecture. */
-var VG_MAX=8*1024*1024, VG_CLE="dossier:vignettes", VG_MEM=null, VG_FILE=[], VG_ACTIFS=0, VG_OBS=null, VG_BLOBS=[], AP_ID=0, AP_VUE=null;
+var VG_MAX=8*1024*1024, VG_CLE="dossier:vignettes", VG_MEM=null, VG_FILE=[], VG_ACTIFS=0, VG_OBS=null, VG_BLOBS=[], VG_ATTENTE={}, AP_ID=0, AP_VUE=null, AP_CACHE={}, AP_CLES=[];
 function genreVg(f){
   var c=String(f.cle||"").toLowerCase();
   if(/\.pdf$/.test(c)) return "pdf";
@@ -1522,6 +1522,9 @@ function styleVg(){
     +".dg-apercu .cadre{max-width:92vw;background:#fff;border-radius:10px;overflow:hidden;box-shadow:0 22px 60px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;min-width:150px;min-height:190px}"
     +".dg-apercu .cadre img{display:block;max-width:92vw;max-height:calc(100vh - 180px);object-fit:contain}"
     +".dg-apercu .etat{color:#64748B;font:600 14px/1.3 system-ui,sans-serif;margin:20px}"
+    +".dg-apercu .cadre{position:relative}"
+    +".dg-apercu .cadre img.flou{width:min(92vw,560px);height:auto;filter:blur(1.5px)}"
+    +".dg-apercu .etat.sur{position:absolute;left:50%;bottom:12px;transform:translateX(-50%);margin:0;padding:6px 12px;border-radius:999px;background:rgba(15,23,42,.82);color:#fff;white-space:nowrap}"
     +".dg-apercu .titre{margin:0;max-width:90vw;color:#fff;font:700 15px/1.3 system-ui,sans-serif;text-align:center;overflow-wrap:anywhere}"
     +".dg-apercu .sous{margin:0;color:#9FB0CC;font:500 12.5px/1.3 system-ui,sans-serif}";
   (document.head||document.documentElement).appendChild(st);
@@ -1542,15 +1545,33 @@ function pdfjsVg(){
   return pdfjsVg.p;
 }
 /* le fichier, gardé un moment (les six derniers) : la vignette puis l'aperçu ne le téléchargent qu'une fois */
-function blobVg(f){
+function blobVg(f, suivi){
   var k=cleVg(f), b=VG_BLOBS.filter(function(x){ return x.k===k; })[0];
   if(b) return Promise.resolve(b.blob);
-  return fetch(API+"?action=fichier&apercu=1&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
-    .then(function(r){ if(!r.ok) throw new Error("refus"); return r.blob(); })
-    .then(function(blob){ VG_BLOBS.push({k:k, blob:blob}); if(VG_BLOBS.length>6) VG_BLOBS.shift(); return blob; });
+  var w=VG_ATTENTE[k];
+  if(w){ if(suivi) w.suivis.push(suivi); return w.p; }        /* déjà en route (l'appui a commencé, ou la vignette) : on attend le même */
+  w=VG_ATTENTE[k]={suivis: suivi ? [suivi] : []};
+  function avance(n, t){ w.suivis.forEach(function(fn){ try{ fn(n, t); }catch(e){} }); }
+  w.p=fetch(API+"?action=fichier&apercu=1&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){
+      if(!r.ok) throw new Error("refus");
+      var t=Number(r.headers.get("content-length")||0)||f.taille||0;
+      if(!r.body || !r.body.getReader) return r.blob();
+      var lu=r.body.getReader(), morceaux=[], n=0;
+      function suite(){
+        return lu.read().then(function(x){
+          if(x.done) return new Blob(morceaux, {type:r.headers.get("content-type")||""});
+          morceaux.push(x.value); n+=x.value.length; avance(n, t); return suite();
+        });
+      }
+      return suite();
+    })
+    .then(function(blob){ delete VG_ATTENTE[k]; VG_BLOBS.push({k:k, blob:blob}); if(VG_BLOBS.length>6) VG_BLOBS.shift(); return blob; },
+          function(e){ delete VG_ATTENTE[k]; throw e; });
+  return w.p;
 }
 /* une image du document, large de L points : {u (adresse), n (photos d'un lot)} */
-function renduVg(f, L){
+function renduVg(f, L, suivi){
   var g=genreVg(f);
   function image(blob){
     return new Promise(function(ok, ko){
@@ -1564,7 +1585,7 @@ function renduVg(f, L){
       im.src=u;
     });
   }
-  return blobVg(f).then(function(blob){
+  return blobVg(f, suivi).then(function(blob){
     if(g==="image") return image(blob).then(function(u){ return {u:u}; });
     if(g==="zip"){
       return blob.arrayBuffer().then(function(buf){
@@ -1616,41 +1637,76 @@ function pomperVg(){
     })(el);
   }
 }
-/* l'appui long : le document en grand, tant que le doigt reste posé ; on lâche, il s'en va */
+/* l'appui long : le document en grand, tant que le doigt reste posé ; on lâche, il s'en va.
+   Tout de suite la vignette agrandie, puis l'image nette. Le rendu continue
+   quand on lâche : le prochain appui sur le même document est immédiat. */
+function largeurAp(){ return Math.min(900, Math.round(Math.min(window.innerWidth, 900)*0.9*Math.min(2, window.devicePixelRatio||1))); }
+function garderAp(k, r){
+  if(!AP_CACHE[k]) AP_CLES.push(k);
+  AP_CACHE[k]=r;
+  while(AP_CLES.length>8) delete AP_CACHE[AP_CLES.shift()];
+}
+/* lancé dès que le doigt se pose : le téléchargement prend de l'avance sur les 430 ms de l'appui */
+function prechargerApercu(f){
+  var g=genreVg(f), k=cleVg(f);
+  if(!g || AP_CACHE[k] || (f.taille||0) > 4*VG_MAX) return null;
+  if(!prechargerApercu.en) prechargerApercu.en={};
+  if(prechargerApercu.en[k]) return prechargerApercu.en[k];
+  var w={suivis:[]};
+  w.p=renduVg(f, largeurAp(), function(n, t){ w.n=n; w.t=t; w.suivis.forEach(function(fn){ fn(n, t); }); })
+    .then(function(r){ garderAp(k, r); return r; })
+    .then(function(r){ delete prechargerApercu.en[k]; return r; }, function(e){ delete prechargerApercu.en[k]; throw e; });
+  prechargerApercu.en[k]=w;
+  return w;
+}
 function montrerApercuDoc(f){
   styleVg(); cacherApercuDoc();
   var o=AP_VUE=document.createElement("div"); o.className="dg-apercu"; o.setAttribute("aria-hidden","true");
   o.style.zIndex=zDessus(90);
-  var g=genreVg(f), cadre=document.createElement("div"); cadre.className="cadre";
+  var g=genreVg(f), k=cleVg(f), cadre=document.createElement("div"); cadre.className="cadre";
   var etat=document.createElement("p"); etat.className="etat"; etat.textContent = g ? "Aperçu…" : "Pas d'aperçu pour ce format";
-  cadre.appendChild(etat); o.appendChild(cadre);
-  var ti=document.createElement("p"); ti.className="titre"; ti.textContent=f.titre||"Document"; o.appendChild(ti);
-  var so=document.createElement("p"); so.className="sous"; so.textContent=[frDate(f.date), f.auteur, f.taille ? octets(f.taille) : ""].filter(Boolean).join(" · "); o.appendChild(so);
+  var ti=document.createElement("p"); ti.className="titre"; ti.textContent=f.titre||"Document";
+  var so=document.createElement("p"); so.className="sous"; var base=[frDate(f.date), f.auteur, f.taille ? octets(f.taille) : ""].filter(Boolean).join(" · ");
+  so.textContent=base;
+  function poser(u, flou){
+    cadre.textContent=""; var im=new Image(); im.alt=""; im.src=u; if(flou) im.className="flou"; cadre.appendChild(im);
+    if(flou){ cadre.appendChild(etat); etat.classList.add("sur"); }
+  }
+  function nombre(r){ if(r && r.n>1) so.textContent=(g==="zip" ? r.n+" photos" : r.n+" pages")+(base ? " · "+base : ""); }
+  o.appendChild(cadre); o.appendChild(ti); o.appendChild(so);
   document.body.appendChild(o);
   try{ if(navigator.vibrate) navigator.vibrate(8); }catch(e){}
-  if(!g) return;
-  if((f.taille||0) > 4*VG_MAX){ etat.textContent="Trop lourd pour un aperçu : « Ouvrir »."; return; }
-  var L=Math.min(1100, Math.round(Math.min(window.innerWidth, 900)*0.9*Math.min(2, window.devicePixelRatio||1)));
-  var id=++AP_ID;
-  renduVg(f, L).then(function(r){
+  if(!g){ cadre.appendChild(etat); return; }
+  if(AP_CACHE[k]){ poser(AP_CACHE[k].u); nombre(AP_CACHE[k]); return; }   /* déjà vu : immédiat */
+  if((f.taille||0) > 4*VG_MAX){ cadre.appendChild(etat); etat.textContent="Trop lourd pour un aperçu : « Ouvrir »."; return; }
+  var m=memVg()[k];
+  if(m) poser(m.u, true); else cadre.appendChild(etat);                   /* la vignette, agrandie, en attendant */
+  var id=++AP_ID, w=prechargerApercu(f);
+  if(!w){ etat.textContent="Aperçu indisponible."; return; }
+  function avance(n, t){
     if(id!==AP_ID) return;
-    cadre.textContent=""; var im=new Image(); im.alt=""; im.src=r.u; cadre.appendChild(im);
-    if(r.n>1) so.textContent=(g==="zip" ? r.n+" photos" : r.n+" pages")+(so.textContent ? " · "+so.textContent : "");
-  }).catch(function(){ if(id===AP_ID) etat.textContent="Aperçu indisponible."; });
+    etat.textContent = t ? "Aperçu… "+Math.min(99, Math.round(n*100/t))+" %" : "Aperçu… "+octets(n);
+  }
+  if(w.n) avance(w.n, w.t);
+  w.suivis.push(avance);
+  w.p.then(function(r){ if(id!==AP_ID) return; poser(r.u); nombre(r); })
+    .catch(function(){ if(id===AP_ID){ if(!etat.parentNode) cadre.appendChild(etat); etat.textContent="Aperçu indisponible : « Ouvrir »."; } });
 }
 function cacherApercuDoc(){ AP_ID++; if(AP_VUE){ AP_VUE.remove(); AP_VUE=null; } }
 function appuiLongDoc(a, f){
-  var t=null, x0=0, y0=0, montre=false;
+  var t=null, tp=null, x0=0, y0=0, montre=false;
   a.addEventListener("pointerdown", function(e){
     if(e.pointerType==="mouse") return;                               /* à la souris, la ligne se glisse vers l'ordinateur */
     if(e.target.closest && e.target.closest("button,select,input,textarea,label,a.lien")) return;
     x0=e.clientX; y0=e.clientY; clearTimeout(t);
+    clearTimeout(tp);                                                 /* le doigt reste posé : le document part déjà (pas quand on fait défiler) */
+    tp=setTimeout(function(){ tp=null; try{ prechargerApercu(f); }catch(er){} }, 140);
     t=setTimeout(function(){ t=null; montre=true; a.__long=true; montrerApercuDoc(f); }, 430);
   });
   a.addEventListener("pointermove", function(e){
-    if(t && (Math.abs(e.clientX-x0)>10 || Math.abs(e.clientY-y0)>10)){ clearTimeout(t); t=null; }   /* on fait défiler : rien */
+    if(t && (Math.abs(e.clientX-x0)>10 || Math.abs(e.clientY-y0)>10)){ clearTimeout(t); t=null; clearTimeout(tp); tp=null; }   /* on fait défiler : rien */
   });
-  function fin(){ clearTimeout(t); t=null; if(!montre) return; montre=false; cacherApercuDoc(); setTimeout(function(){ a.__long=false; }, 400); }
+  function fin(){ clearTimeout(t); t=null; clearTimeout(tp); tp=null; if(!montre) return; montre=false; cacherApercuDoc(); setTimeout(function(){ a.__long=false; }, 400); }
   a.addEventListener("pointerup", fin); a.addEventListener("pointercancel", fin);
   a.addEventListener("contextmenu", function(e){ if(t || montre) e.preventDefault(); });    /* pas le menu du système pendant l'appui */
   /* lâcher après un aperçu ne déclenche rien */

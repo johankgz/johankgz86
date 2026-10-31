@@ -2471,12 +2471,23 @@ async function traiter(req) {
         entree.appel = fB.appel || null;
       }
     }
-    /* un relevé publié n'est plus un relevé en cours */
+    /* un relevé publié n'est plus un relevé en cours : celui de ce dossier, et
+       celui enregistré sous la référence provisoire (code client + date) avant
+       que la référence du chantier soit posée (le relevé dit d'où il vient) */
     if (entree.type === "releve") {
       const brouillon = ref + "/releve-a-poursuivre.json";
       if (c.fichiers.some((f) => f.cle === brouillon)) {
         c.fichiers = c.fichiers.filter((f) => f.cle !== brouillon);
         try { await store.delete(brouillon); } catch { /* rien à retirer */ }
+      }
+      const refDe = slug(String(d.brouillonDe || "")).toUpperCase();
+      const cB = refDe && refDe !== ref ? idx.chantiers[refDe] : null;
+      const cleB = refDe + "/releve-a-poursuivre.json";
+      const fB = cB && (cB.fichiers || []).find((f) => f.cle === cleB && f.brouillon);
+      if (fB && (fB.auteur === personne.nom || (fB.destinataires || []).indexOf(personne.nom) >= 0 || bureau)) {
+        cB.fichiers = cB.fichiers.filter((f) => f.cle !== cleB);
+        if (!cB.fichiers.length && !(cB.liens || []).length) delete idx.chantiers[refDe];
+        try { await store.delete(cleB); } catch { /* rien à retirer */ }
       }
     }
     if (entree.type === "releve") {
@@ -2804,6 +2815,26 @@ async function traiter(req) {
     /* un dossier par ligne, avec ce qu'on peut en reprendre */
     const idx = await lireIndex();
     const out = [];
+    /* un relevé en cours dépassé : un relevé publié après lui dans ce dossier ;
+       ou, seul dans un dossier à référence provisoire (code client + date),
+       un relevé du même client publié après lui ailleurs (déjà fait : le
+       relevé a été publié sous la référence du chantier) */
+    const publiesParClient = {};
+    Object.values(idx.chantiers).forEach((c) => {
+      const cl = majuscules(String(c.client || "")).trim();
+      (c.fichiers || []).forEach((f) => {
+        if (f.type !== "releve" || f.brouillon) return;
+        const p = String(f.publie || "");
+        if (cl && p > (publiesParClient[cl] || "")) publiesParClient[cl] = p;
+      });
+    });
+    const releveDepasse = (c, f) => {
+      const p = String(f.publie || "");
+      if ((c.fichiers || []).some((x) => x.type === "releve" && !x.brouillon && String(x.publie || "") > p)) return true;
+      if (!/-\d{8}$/.test(c.ref || "") || (c.fichiers || []).some((x) => x !== f)) return false;
+      const cl = majuscules(String(c.client || "")).trim();
+      return !!(cl && (publiesParClient[cl] || "") > p);
+    };
     Object.values(idx.chantiers).forEach((c) => {
       const visibles = (c.fichiers || []).filter((f) => voit(personne, f, c));
       if (!visibles.length) return;
@@ -2811,6 +2842,7 @@ async function traiter(req) {
         const t = visibles
           .filter((f) => f.type === type && f.donnees
             && (!f.brouillon || (f.destinataires || []).indexOf(personne.nom) >= 0))
+          .filter((f) => !(f.brouillon && type === "releve" && releveDepasse(c, f)))
           .sort((a, b) => (b.publie || "").localeCompare(a.publie || ""))[0];
         return t ? { cle: t.cle, date: t.date, titre: t.titre, brouillon: !!t.brouillon } : null;
       };
