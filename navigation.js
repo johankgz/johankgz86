@@ -41,7 +41,8 @@ var ICO={
   importer:'<path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/>',
   retour:'<path d="M15 5l-7 7 7 7"/>',
   suite:'<path d="M9 5l7 7-7 7"/>',
-  loupe:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>'
+  loupe:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>',
+  outils:'<path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/>'
 };
 /* les petits outils, comme dans le menu de l'accueil */
 var OUTILS=[
@@ -51,8 +52,14 @@ var OUTILS=[
   ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"],
   /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
   ["./importer.html", "Importer et exporter"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
-  ["./etiquettes.html", "Étiquettes", "etiquettes"]
+  ["./etiquettes.html", "Étiquettes", "etiquettes"],
+  ["./tableau.html", "Tableau de bord", "", "bureau"], ["./facturation.html", "Facturation", "", "bureau"]
 ];
+/* les favoris (3 au plus), choisis dans la fenêtre Outils de l'accueil : la même clé */
+function favoris(s){
+  var k="outils:favoris:"+((s && (s.societe||""))+":"+(s && (s.identifiant||s.nom)||""));
+  try{ var v=JSON.parse(localStorage.getItem(k)||"[]"); return Array.isArray(v) ? v.slice(0, 3) : []; }catch(e){ return []; }
+}
 /* les mêmes droits que l'accueil : rien d'attribué, tout est ouvert */
 function accesAppli(s, id){
   if(!id) return true;
@@ -93,6 +100,7 @@ var STYLE=
 +".nv-it[aria-current=\"page\"] svg{stroke:currentColor}"
 +"@media (hover:hover){.nv-it:hover:not([aria-current=\"page\"]){background:#F1F3F6}.nv-ch:hover{background:#F4F6F8}}"
 +".nv-it:focus-visible,.nv-x:focus-visible,.nv-ch:focus-visible,.nv-outils a:focus-visible,.nv-compte:focus-visible{outline:2px solid #3B82F6;outline-offset:2px}"
++".nv-fav-vide{grid-column:1/-1;margin:0;padding:0 8px 6px;font-size:12.5px;color:#8A929B;line-height:1.3}"
 +".nv-titre{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8A929B;padding:14px 12px 8px}"
 +".nv-outils{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 2px 4px}"
 +".nv-outils a{min-height:46px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px 4px;border-radius:10px;background:#F6F8FA;color:#3E4650;font-size:12px;font-weight:600;text-decoration:none;line-height:1.15}"
@@ -181,10 +189,17 @@ function construire(){
   vm.appendChild(entree("a", "notes", "Notes", {href:"./mesnotes.html", page:["mesnotes.html"]}));
   vm.appendChild(entree("a", "discu", "Discussions", {href:"./discussions.html", page:["discussions.html"]}));
   vm.appendChild(entree("a", "cloud", "Cloud", {href:"./cloud.html", page:["cloud.html"]}));
-  vm.appendChild(el("div", "nv-titre", "Outils"));
+  /* « Outils » ouvre la fenêtre de tous les outils (sur l'accueil) ; dessous, les favoris */
+  vm.appendChild(entree("a", "outils", "Outils", {href:"./index.html?outils=1", page:["utilitaires.html"]}));
   var outils=el("div", "nv-outils");
   var ses=session();
-  OUTILS.forEach(function(o){ if(!accesAppli(ses, o[2])) return; var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a); });
+  var bureau = ses && (ses.role==="bureau" || ses.role==="admin");
+  favoris(ses).forEach(function(h){
+    var o=OUTILS.filter(function(x){ return x[0]===h; })[0];
+    if(!o || !accesAppli(ses, o[2]) || (o[3]==="bureau" && !bureau)) return;
+    var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a);
+  });
+  if(!outils.children.length){ var v=el("p", "nv-fav-vide", "Vos outils favoris (3 au plus) : « Favoris » dans Outils."); outils.appendChild(v); }
   vm.appendChild(outils);
   var s=session()||{};
   var cpt=el("a", "nv-compte"); cpt.href="./compte.html";
