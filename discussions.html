@@ -370,8 +370,11 @@ function filDeChantier(c){
     dernier:c.dernier, maj:c.dernier ? c.dernier.quand : "", nonLus:c.nonLus||0, cree:{le:c.dernier ? c.dernier.quand : ""}};
 }
 function quandFil(f){ return String((f.dernier && f.dernier.quand) || f.maj || (f.cree && f.cree.le) || ""); }
+/* équipe et chantiers mêlés : d'abord ceux qui ont un message en attente, puis les plus récents */
 function assembler(){
-  FILS=EQUIPE.concat(CHANTIERS).sort(function(a, b){ return quandFil(b).localeCompare(quandFil(a)); });
+  FILS=EQUIPE.concat(CHANTIERS).sort(function(a, b){
+    return ((b.nonLus ? 1 : 0)-(a.nonLus ? 1 : 0)) || quandFil(b).localeCompare(quandFil(a));
+  });
 }
 function chargerListe(){
   var eq=appel("discu-liste").then(function(r){
