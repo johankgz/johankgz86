@@ -1263,7 +1263,7 @@ function texteRdv(t) {
 }
 
 const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichier", "fiche", "fiches", "dossiers", "suivi-precedent", "equipe", "equipe-dossier", "moi", "autocontroles-a-faire",
-  "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "comptes", "demandes", "societes",
+  "mon-compte", "notes", "notes-corbeille", "taches", "messages-non-lus", "discussions-chantiers", "comptes", "demandes", "societes",
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "knx-chiffrages", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
@@ -4109,6 +4109,30 @@ async function traiter(req) {
     }
     if (change) await store.setJSON(INDEX, idx);
     return json({ ok: true, documents: docs, messages: msgs });
+  }
+
+  /* les discussions des chantiers commencées (au moins un message), pour l'onglet
+     Discussions : y répondre sans ouvrir le chantier. Mes dossiers seulement. */
+  if (action === "discussions-chantiers") {
+    const idx = await lireIndex();
+    const out = [];
+    for (const c of Object.values(idx.chantiers)) {
+      if (!membreDe(c)) continue;
+      const d = await lireMessages(c.ref);
+      if (!d.messages.length) continue;
+      const vu = d.lectures[personne.nom] || "", acquis = (d.acquis || {})[personne.nom] || "";
+      let n = 0;
+      for (let i = d.messages.length - 1; i >= 0; i--) {
+        if (d.messages[i].id === vu || d.messages[i].id === acquis) break;
+        if (d.messages[i].auteur !== personne.nom) n++;
+      }
+      const m = d.messages[d.messages.length - 1];
+      const apercu = m.texte ? String(m.texte).slice(0, 140) : m.doc ? "Document : " + (m.doc.titre || "") : m.photo ? "Photo" : "";
+      out.push({ ref: c.ref, client: c.client || c.ref, adresse: c.adresse || "", equipe: c.equipe || [], nonLus: n,
+        nb: d.messages.length, dernier: { auteur: m.auteur, apercu, quand: m.quand } });
+    }
+    out.sort((a, b) => String(b.dernier.quand || "").localeCompare(String(a.dernier.quand || "")));
+    return json({ chantiers: out });
   }
 
   if (action === "messages-non-lus") {
