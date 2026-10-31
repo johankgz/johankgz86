@@ -274,6 +274,11 @@ function importer(){
     IMP.bilan={faits:faits, echecs:echecs, ref:c.ref, nom:nomChantier(c), session:session401};
     majImport();
     peindreFichiers();
+    if(IMP.auto){
+      IMP.auto=false;
+      var refuses=IMP.items.some(function(i){ return i.etat==="refuse"; });
+      if(faits && !echecs && !refuses) setTimeout(function(){ if(FEN && !FEN.hidden && !IMP.envoi) fermer(); }, 1600);
+    }
     if(faits){
       /* les documents arrivés comptent tout de suite, dans l'export aussi */
       LISTE=null;
@@ -954,13 +959,16 @@ function ouvrir(o){
   /* une catégorie imposée (le dossier réservé) : les fichiers ajoutés y vont d'office */
   IMP.natureForcee = natures().indexOf(o.nature)>=0 ? o.nature : "";
   if(o.fichiers && o.fichiers.length){ ONGLET="importer"; ajouter(o.fichiers); }
+  /* déposé dans une rubrique du chantier (Plans, Photos…) : ça part tout de suite, sans « Importer » */
+  var auto = !!(o.auto && o.fichiers && o.fichiers.length && IMP.ref && IMP.natureForcee && accesImport() && !IMP.envoi);
+  IMP.auto = auto;
   if(!dejaOuvert){
     AVANT=document.activeElement;
     FEN.hidden=false;
     if(!FEN.classList.contains("tr-page")) document.documentElement.style.overflow="hidden";
   }
   peindre();
-  lesChantiers().then(function(){ peindre(); }, function(e){
+  lesChantiers().then(function(){ peindre(); if(auto && !IMP.envoi) importer(); }, function(e){
     if(e && e.message==="session"){ etatImp("Session expirée : reconnectez-vous.", "alerte"); return; }
     if(!LISTE){ LISTE=[]; peindre(); etatImp("Liste des chantiers indisponible hors connexion.", "alerte"); }
   });
@@ -1009,7 +1017,9 @@ function depot(o){
       SURVOL.addEventListener("dragleave", function(e){ if(!e.relatedTarget || !SURVOL.contains(e.relatedTarget)) cacher(); });
     }
     var c=ref() ? (trouver(ref()) || (typeof o.chantier==="function" ? o.chantier() : null)) : null;
-    SURVOL.querySelector("span").textContent = c ? "dans « "+nomChantier(c)+" »" : "vos plans et vos documents, dans un chantier";
+    var rub=typeof o.rubrique==="function" ? o.rubrique() : null;
+    SURVOL.querySelector("b").textContent = rub ? "Déposez : envoi direct" : "Déposez pour importer";
+    SURVOL.querySelector("span").textContent = c ? "dans « "+nomChantier(c)+" »"+(rub ? " › "+rub.libelle : "") : "vos plans et vos documents, dans un chantier";
     SURVOL.hidden=false;
   }
   function cacher(){ if(SURVOL) SURVOL.hidden=true; if(R.imp) R.imp.zone.classList.remove("survol"); }
@@ -1020,8 +1030,10 @@ function depot(o){
   window.addEventListener("drop", function(e){
     if(!actif() || !aDesFichiers(e)) return;
     e.preventDefault(); cacher();
+    var rub=typeof o.rubrique==="function" ? o.rubrique() : null;
     lireDepot(e.dataTransfer).then(function(l){
-      if(l.length) ouvrir({onglet:"importer", fichiers:l, ref:ref(), chantiers:o.chantiers, apres:o.apres, quandOuvert:o.quandOuvert});
+      if(l.length) ouvrir({onglet:"importer", fichiers:l, ref:ref(), chantiers:o.chantiers, apres:o.apres, quandOuvert:o.quandOuvert,
+        nature: rub ? rub.nature : "", auto: !!rub});
     });
   });
   document.addEventListener("paste", function(e){

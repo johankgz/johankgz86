@@ -1285,7 +1285,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
 <script src="./dossier.js?v=20261101a"></script>
-<script src="./transfert.js?v=20261031a"></script>
+<script src="./transfert.js?v=20261101a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
 <script>
@@ -1385,7 +1385,9 @@ if(window.Transfert) Transfert.depot({
   chantier:function(){ return CHANTIER; },
   chantiers:function(){ return TOUS; },
   apres:function(){ charger(); },
-  actif:function(){ return !!CHANTIER; }
+  actif:function(){ return !!CHANTIER; },
+  /* dans la rubrique Plans, Photos ou Documents chargés d'affaires : le fichier déposé y part tout de suite */
+  rubrique:function(){ return window.rubriqueDeDepot ? rubriqueDeDepot() : null; }
 });
 var TOUT_PUBLIER_DEMANDE=(function(){
   try{ return new URLSearchParams(location.search).get("toutPublier")==="1"; }catch(e){ return false; }
@@ -2613,6 +2615,12 @@ var RUBRIQUES=[
 /* ce qui s'ouvre depuis une rubrique : [rubrique, clé de l'appli, libellé] */
 var ACTION_RUB={suivi:["suivi","Nouveau suivi"], commande:["commande","Nouvelle commande"], point:["point","Nouveau point"], photos:["photos","Photo et croquis"]};
 var CONTACT_OUVERT=false;
+var DEPOT_RUB={plans:"Plan", photos:"Photo", reserve:"Réservé chargés d'affaires"};
+window.rubriqueDeDepot=function(){
+  var r=rubCourante(); if(!DEPOT_RUB[r[0]]) return null;
+  if(r[0]==="reserve" && !bureauIci()) return null;
+  return {nature:DEPOT_RUB[r[0]], libelle:r[1]};
+};
 function bureauIci(){ return !!(SESSION && (SESSION.role==="bureau" || SESSION.role==="admin")); }
 function rubriquesVues(){ return RUBRIQUES.filter(function(r){ return !r[4] || bureauIci(); }); }
 function rubCourante(){
