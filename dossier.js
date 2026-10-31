@@ -2378,10 +2378,13 @@ function carteDossier(c, i, opts){
     a.appendChild(droite);
     ranger(f, a);
   });
-  /* le dossier réservé aux chargés d'affaires : toujours là pour le bureau (même vide), en tête */
+  /* le dossier réservé aux chargés d'affaires : toujours là pour le bureau (même vide), juste après
+     le relevé technique (qui reste en tête), avant les autres sous-dossiers */
   if(bureau){
     if(!sous.reserve){ sous.reserve=sousDossier(c.ref, "reserve"); lignesDe.reserve=[]; }
-    fs.insertBefore(sous.reserve.boite, fs.firstChild);
+    var premier=null;
+    Array.prototype.some.call(fs.children, function(x){ if(x!==sous.reserve.boite && /\bsous-dossier\b/.test(x.className)){ premier=x; return true; } return false; });
+    fs.insertBefore(sous.reserve.boite, premier);
   }
   Object.keys(sous).forEach(function(genre){ sous[genre].remplir(lignesDe[genre]); });
   if(!c.fichiers.length && opts.integree){
