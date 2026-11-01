@@ -12,6 +12,7 @@ import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
 import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
+import { mesplans } from "./mesplans.mjs";
 import { encours, oublisARappeler, laisseSur } from "./encours.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore, enSilence } from "./notifications.mjs";
@@ -1267,7 +1268,7 @@ const LECTURES = new Set(["push-journal", "contacts", "contact", "liste", "fichi
   "societes-publiques", "push-cle", "push-etat", "tableau-bord", "knx-outil", "knx-chiffrages", "societe-fiche", "lien", "lien-fichier",
   "liens", "depots-client", "depot-client", "espaces", "rdv-public", "rdv-ics", "rdv-reglages", "ts-dossier",
   "cloud-public", "cloud-public-fichier", "cloud-public-vignette", "cloud-public-zip",
-  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "encours-liste", "encours-lire", "encours-blob-lire", "encours-oublis"]);
+  "mesnotes-liste", "mesnote", "mesnote-photo-lire", "plans-liste", "plan-lire", "plan-fichier", "encours-liste", "encours-lire", "encours-blob-lire", "encours-oublis"]);
 export default async (req) => {
   let action = "";
   try { action = new URL(req.url).searchParams.get("action") || ""; } catch { action = ""; }
@@ -1760,6 +1761,8 @@ async function traiter(req) {
     return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
   }
   if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
+  /* les plans du module Plan, enregistrés pour être repris (serveur/mesplans.mjs) */
+  if (action === "plans-liste" || action.startsWith("plan-")) return mesplans(action, { req, url, store, personne, json });
   /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
   if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
 
