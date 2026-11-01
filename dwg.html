@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20261007a"></script>
+<script src="./symboles-elec.js?v=20261102a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -484,6 +484,8 @@ body.clair #scene{background:#FFFFFF}
     <datalist id="lTypes"><option value="60 cm" label="réglette 60"><option value="120 cm" label="réglette 120"><option value="150 cm" label="réglette 150"></datalist>
     <span class="champ-h"><span class="seg seg-usaisie" role="group" aria-label="Unité des longueurs tapées"><button type="button" data-u="mm">mm</button><button type="button" data-u="cm">cm</button><button type="button" data-u="m">m</button></span></span>
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> <span class="u-saisie">cm</span></label>
+    <label class="champ-h" id="grpHvSym" hidden><input id="symbHv" type="checkbox"> Écrire la hauteur</label>
+    <input class="champ-rep" id="symbTs" type="text" autocomplete="off" maxlength="20" placeholder="Texte (LL, LV…)" aria-label="Texte de la prise spécialisée" hidden>
     <datalist id="hTypes"><option value="30 cm" label="prise"><option value="70 cm" label="prise au-dessus du chevet"><option value="90 cm" label="interrupteur de tête de lit"><option value="110 cm" label="commande, plan de travail"><option value="130 cm" label="liseuse"><option value="180 cm" label="applique"><option value="200 cm" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
@@ -1180,6 +1182,8 @@ function peindreSymboles(c){
       return;
     }
     SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1});
+    var tdS=texteDessusS(o);
+    if(tdS && R>3 && SymbolesElec.ecrire) SymbolesElec.ecrire(c, o.cle, p[0], p[1], R, tdS, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, couleur: (!CLAIR && def.couleur==="#0000FF") ? "#6B8BFF" : undefined});
     if(o.t && R>3){
       var b=SymbolesElec.boite(o.cle);
       c.save(); c.font="600 "+Math.max(10, Math.min(28, R*0.9)).toFixed(0)+"px Helvetica, Arial, sans-serif";
@@ -1939,6 +1943,14 @@ function accrocherSymbole(cle, p, R, rot){
   if(c.acc) return {x:c.pt[0], y:c.pt[1], rot:rot||0, acc:{pt:c.pt, genre:c.genre}};
   return libre;
 }
+/* au-dessus d'un symbole : le texte d'une prise spécialisée, et la hauteur quand on l'écrit */
+function texteDessusS(o){
+  var def=window.SymbolesElec && SymbolesElec.trouver(o.cle); if(!def) return "";
+  var t=[];
+  if(def.texte!=null){ var ts=String(o.ts!=null ? o.ts : def.texte).trim(); if(ts) t.push(ts); }
+  if(o.hv && def.cat==="prise") t.push(SymbolesElec.texteHauteur(hauteurDe(o)));
+  return t.join("  ");
+}
 function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
@@ -1976,6 +1988,10 @@ function majSymb(){
   $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
   $("grpHSym").hidden=!o;
   if(o && document.activeElement!==$("symbH")) $("symbH").value=enUnite(hauteurDe(o));
+  /* une prise : sa hauteur peut s'écrire au-dessus (« h 1,10 ») ; une prise spécialisée a son texte */
+  $("grpHvSym").hidden=!(o && def && def.cat==="prise"); $("symbHv").checked=!!(o && o.hv);
+  $("symbTs").hidden=!(o && def && def.texte!=null);
+  if(o && def && def.texte!=null && document.activeElement!==$("symbTs")) $("symbTs").value = o.ts!=null ? o.ts : def.texte;
   $("grpLSym").hidden=!(o && longueurS(o));
   if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=enUnite(longueurS(o));
   if(o && longueurS(o)) $("symbL").setAttribute("list", bandeauDe(o) ? "lBandeau" : "lTypes");
@@ -4653,7 +4669,7 @@ function dxfBandeaux(){
   });
   return L;
 }
-function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); }).map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, etirer:etirerS(o)}; }); }
+function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); }).map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, dessus:texteDessusS(o), etirer:etirerS(o)}; }); }
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
@@ -6581,6 +6597,10 @@ $("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:a
 $("btSuppSymb").addEventListener("click", supprimerSymb);
 $("btDefaireS").addEventListener("click", defaireSymb);
 $("symbRep").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbHv").addEventListener("change", function(){ if(SEL<0) return; garderSymb(); SYMB[SEL].hv=this.checked; enregistrerSymb(); demander(); });
+$("symbTs").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbTs").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].ts=this.value.trim(); enregistrerSymb(); demander(); });
+$("symbTs").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("symbRep").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].t=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbRep").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("segTaille").addEventListener("click", function(e){

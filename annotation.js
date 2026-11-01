@@ -67,7 +67,7 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
   try{
     var moi=document.currentScript && document.currentScript.src;
     var sc=document.createElement("script");
-    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20260930b";
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20261102a";
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
@@ -93,8 +93,22 @@ var SYMBOLES = [
    trait pour trait, dans ses couleurs, quelle que soit la couleur choisie ;
    un liseré sombre la garde lisible sur une photo. */
 function legendeCfo(nom){ return /^cfo-/.test(nom||"") && window.SymbolesElec && window.SymbolesElec.trouver(nom); }
+/* le texte écrit au-dessus d'un symbole posé : celui d'une prise spécialisée (LL, LV…)
+   et la hauteur de pose d'une prise (« h 1,10 »), quand on l'a demandée */
+function texteDessus(o){
+  var s=legendeCfo(o.nom); if(!s) return "";
+  var t=[];
+  if(s.texte!=null && String(o.ts||"").trim()) t.push(String(o.ts).trim());
+  if(String(o.hv||"").trim()) t.push("h "+String(o.hv).trim().replace(".", ","));
+  return t.join("  ");
+}
 /* un symbole large (une sortie de secours, un tableau) garde la place d'une prise */
-function echelleCfo(nom){ var b=window.SymbolesElec.boite(nom); return b ? Math.min(1.4, 2/Math.max(b.x1-b.x0, b.y1-b.y0, 0.1)) : 1; }
+function echelleCfo(nom){
+  var s=window.SymbolesElec.trouver(nom), b=window.SymbolesElec.boite(nom);
+  /* des prises en ligne : chacune garde la taille d'une prise */
+  if(s && /^cfo-prise-x\d/.test(s.cle)) return 1;
+  return b ? Math.min(1.4, 2/Math.max(b.x1-b.x0, b.y1-b.y0, 0.1)) : 1;
+}
 function dessinerSymbole(c, nom, x, y, r, couleur, halo){
   if(legendeCfo(nom)){ window.SymbolesElec.dessiner(c, nom, x, y, r, {halo:!!halo, epMin:1}); return; }
   c.save();
@@ -410,6 +424,8 @@ function dessinerObjet(c, o){
     c.translate(o.x, o.y); c.rotate(o.rot||0);
     dessinerSymbole(c, o.nom, 0, 0, o.r, o.c, !!A.img);
     c.restore();
+    var td=texteDessus(o);
+    if(td && window.SymbolesElec.ecrire) window.SymbolesElec.ecrire(c, o.nom, o.x, o.y, o.r, td, {rot:o.rot||0, halo:!!A.img});
     if(o.label){
       c.save();
       c.font=policeTexte(Math.round(o.r*1.15)); c.textAlign="center"; c.textBaseline="top";
@@ -997,7 +1013,11 @@ function surAppui(e){
       }
       o=trouver(p, function(x){ return x.t==="pastille" || x.t==="symbole"; });
       if(!o){
-        o=nouveau({t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""});
+        var nv={t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""};
+        var dsy=legendeCfo(PREFS.symbole);
+        if(dsy && dsy.texte!=null) nv.ts=String(PREFS.texteSpe||dsy.texte);
+        if(dsy && dsy.cat==="prise" && PREFS.hEcrite) nv.hv=String(PREFS.hPrise||"1,10");
+        o=nouveau(nv);
         A.sel=o;
         G={type:"deplacer", o:o, base:clone(o), p0:p, s0:s, avant:avant1, tap:false, pose:true};
         peindre(); majUI();
@@ -1651,6 +1671,9 @@ function remplirSelection(op, o){
     } else if(o.t==="pastille"){
       champ(op, o, "texte", "Légende du repère " + o.n);
     } else if(o.t==="symbole"){
+      var dso=legendeCfo(o.nom);
+      if(dso && dso.texte!=null) champ(op, o, "ts", "Texte (LL, LV, SL, F…)");
+      if(dso && dso.cat==="prise") champ(op, o, "hv", "Hauteur en m (1,10), vide : sans");
       champ(op, o, "label", "Repère (ex. P1)");
     }
     op.appendChild(el("span","an-sep"));
@@ -1721,6 +1744,24 @@ function remplirOptions(op, o){
               op.appendChild(b);
             });
           });
+          /* pour la prise choisie : la hauteur écrite au-dessus, le texte d'une prise spécialisée */
+          var dch=legendeCfo(PREFS.symbole);
+          if(dch && dch.cat==="prise"){
+            op.appendChild(el("span","an-sep"));
+            if(dch.texte!=null){
+              var it=el("input","an-champ"); it.type="text"; it.maxLength=20; it.value=PREFS.texteSpe||dch.texte; it.placeholder="Texte (LL, LV, SL, F…)";
+              it.setAttribute("aria-label","Texte de la prise spécialisée");
+              it.addEventListener("input", function(){ PREFS.texteSpe=it.value.trim(); garderPrefs(); });
+              op.appendChild(it);
+            }
+            op.appendChild(chip(PREFS.hEcrite ? "Hauteur écrite ✓" : "Hauteur écrite", !!PREFS.hEcrite, function(){ PREFS.hEcrite=!PREFS.hEcrite; garderPrefs(); majUI(); }));
+            if(PREFS.hEcrite){
+              var ih=el("input","an-champ"); ih.type="text"; ih.inputMode="decimal"; ih.maxLength=8; ih.value=PREFS.hPrise||"1,10"; ih.placeholder="1,10";
+              ih.style.width="5.5em"; ih.setAttribute("aria-label","Hauteur de pose en mètres");
+              ih.addEventListener("input", function(){ PREFS.hPrise=ih.value.trim(); garderPrefs(); });
+              op.appendChild(ih); op.appendChild(el("span","an-lab","m"));
+            }
+          }
           /* les anciens symboles génériques restent, repliés */
           op.appendChild(el("span","an-sep"));
           op.appendChild(chip(PREFS.autresSymb ? "Autres ▾" : "Autres ▸", !!PREFS.autresSymb, function(){ PREFS.autresSymb=!PREFS.autresSymb; garderPrefs(); majUI(); }));
