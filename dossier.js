@@ -285,16 +285,24 @@ function ouvrirAcces(c){
   ov.addEventListener("click", function(e){ if(e.target===ov){ document.body.removeChild(ov); charger(); } });
   document.body.appendChild(ov);
 
+  equipeDans(hote, c);
+}
+/* l'équipe d'un dossier, dans un hôte : les noms (× pour retirer), et de quoi en ajouter.
+   o.plus : un bouton « + Ajouter » ouvre la recherche (la rubrique Équipe et accès du chantier) ;
+   sans, la recherche est toujours là (la fenêtre Accès). */
+function equipeDans(hote, c, o){
+  o=o||{};
   hote.textContent="Chargement…";
   fetch(API+"?action=equipe-dossier&ref="+encodeURIComponent(c.ref), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ hote.textContent=res.d.erreur||"Accès refusé."; return; }
-      var equipe=res.d.equipe.slice(), auteur=res.d.auteur, revoques=(res.d.revoques||[]).slice();
+      var equipe=res.d.equipe.slice(), auteur=res.d.auteur, revoques=(res.d.revoques||[]).slice(), cherche=false;
       function peindre(){
         hote.textContent="";
         var dedans=document.createElement("div");
-        dedans.style.cssText="display:flex;flex-wrap:wrap;gap:7px;margin-bottom:12px";
+        dedans.style.cssText="display:flex;flex-wrap:wrap;align-items:center;gap:7px;margin-bottom:12px";
+        if(!equipe.length){ var v=document.createElement("span"); v.className="hint"; v.style.margin="0"; v.textContent="Personne pour l'instant."; dedans.appendChild(v); }
         equipe.forEach(function(nom){
           dedans.appendChild(PastillePersonne(nom,
             res.d.peutModifier ? function(){
@@ -306,6 +314,15 @@ function ouvrirAcces(c){
             } : null,
             {etiquette: nom===auteur ? "auteur" : ""}));
         });
+        /* le + : ajouter quelqu'un */
+        if(o.plus && res.d.peutModifier){
+          var plus=document.createElement("button"); plus.type="button"; plus.className="eq-plus";
+          plus.setAttribute("aria-expanded", cherche ? "true" : "false");
+          plus.setAttribute("aria-label", "Ajouter quelqu'un à ce dossier"); plus.title="Ajouter quelqu'un";
+          plus.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Ajouter</span>';
+          plus.addEventListener("click", function(){ cherche=!cherche; peindre(); if(cherche){ var q=hote.querySelector("input"); if(q) try{ q.focus(); }catch(e){} } });
+          dedans.appendChild(plus);
+        }
         hote.appendChild(dedans);
         /* ceux à qui le bureau a retiré l'accès : un toucher le leur rend */
         if(res.d.peutModifier && revoques.length){
@@ -326,6 +343,7 @@ function ouvrirAcces(c){
           hote.appendChild(note);
           return;
         }
+        if(o.plus && !cherche) return;
         /* une recherche plutôt que la liste de tous les comptes */
         var l=document.createElement("p"); l.className="legend"; l.textContent="Ajouter quelqu'un";
         hote.appendChild(l);
@@ -341,6 +359,7 @@ function ouvrirAcces(c){
           .then(function(res2){
             if(!res2.ok){ alert(res2.d.erreur||"Modification refusée."); return; }
             equipe=res2.d.equipe; revoques=res2.d.revoques||[]; peindre();
+            if(o.apres) o.apres(equipe);
           })
           .catch(function(){ alert("Pas de réseau."); });
       }
@@ -2567,7 +2586,7 @@ function photosDe(f){
 }
 window.Dossier={
   quandLisible:quandLisible, frDate:frDate,
-  photosDe:photosDe, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
+  photosDe:photosDe, equipe:equipeDans, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
   moi:function(m){ MOI=m; },
   carte:carteDossier,

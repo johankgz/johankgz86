@@ -1111,6 +1111,11 @@ body.rub-ouvert .dc-onglet{visibility:hidden}
 .rub-vide{padding:22px 18px;border-radius:12px;background:var(--card);color:var(--ink-3);text-align:center;font-size:14.5px}
 .rub-vide[hidden]{display:none}
 .rub-cache{display:none!important}
+/* l'équipe : le + à la suite des noms */
+.eq-plus{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px 0 10px;border-radius:999px;border:1.5px dashed #3B82F6;
+  background:transparent;color:#3B82F6;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
+.eq-plus svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
+.eq-plus[aria-expanded="true"]{background:#3B82F6;color:#fff;border-style:solid}
 /* la galerie de la rubrique Photos (ordinateur) : chaque photo, à glisser seule vers l'ordinateur */
 .rub-galerie .rg-aide{margin:0 0 10px}
 .rg-lot{margin:0 0 14px}
@@ -1280,6 +1285,10 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
   </div>
 
 
+  <div class="block" id="rubEquipe" hidden>
+    <h2>Qui voit ce dossier</h2>
+    <div id="rubEquipeHote"></div>
+  </div>
   <div class="block" id="client" hidden>
     <h2>Le client</h2>
     <p class="hint" style="margin:0 0 6px">Le lien du client ouvre une page à lui, sans compte : ses documents (PV, DOE, schéma…), l'avancement, l'envoi de fichiers (sa courbe de charge, des photos) et la demande d'intervention, qui arrive au SAV. Le QR code « Nous contacter », le même pour tous vos clients, est dans Outils.</p>
@@ -1290,18 +1299,13 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
     <div id="clientDepots"></div>
   </div>
 
-  <div class="block" id="rubEquipe" hidden>
-    <h2>Qui voit ce dossier</h2>
-    <p class="hint" style="margin:0 0 10px">Les personnes de l'équipe voient tous les documents du dossier, passés et à venir.</p>
-    <button type="button" class="act primary" id="rubEquipeBtn">Gérer l'équipe et les accès</button>
-  </div>
   <h2 class="sec" id="secDocs" style="margin:24px 0 10px">Documents du dossier</h2>
   <div id="docs"><p class="vide">Chargement…</p></div>
 </main>
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
-<script src="./dossier.js?v=20261101b"></script>
+<script src="./dossier.js?v=20261101c"></script>
 <script src="./transfert.js?v=20261101a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2631,7 +2635,7 @@ var RUBRIQUES=[
 ];
 /* ce qui s'ouvre depuis une rubrique : [rubrique, clé de l'appli, libellé] */
 var ACTION_RUB={suivi:["suivi","Nouveau suivi"], commande:["commande","Nouvelle commande"], point:["point","Nouveau point"], photos:["photos","Photo et croquis"]};
-var CONTACT_OUVERT=false;
+var CONTACT_OUVERT=false, EQUIPE_LUE="";
 var DEPOT_RUB={plans:"Plan", photos:"Photo", reserve:"Réservé chargés d'affaires"};
 window.rubriqueDeDepot=function(){
   var r=rubCourante(); if(!DEPOT_RUB[r[0]]) return null;
@@ -2748,8 +2752,11 @@ function appliquerRubrique(enHaut){
   if(fiche && !CONTACT_OUVERT && CHANTIER){ var cct=$("cc_titre"); if(cct && cct.getAttribute("aria-expanded")==="false" && !$("cc").hidden){ CONTACT_OUVERT=true; cct.click(); } }
   if(id==="taches"){ var rc=$("resteCorps"), rb=$("resteBascule"); if(rc) rc.hidden=false; if(rb) rb.setAttribute("aria-expanded","true"); }
   if(id==="ts"){ var tc=$("tsCorps"), tb=$("tsBascule"); if(tc) tc.hidden=false; if(tb) tb.setAttribute("aria-expanded","true"); }
-  /* l'équipe : le bouton d'accès du dossier (bureau) */
-  $("rubEquipe").hidden = !document.querySelector("#docs .travaux .head .outil.acces");
+  /* l'équipe : les noms, × pour retirer, + pour ajouter (lu une fois en entrant dans la rubrique) */
+  var eq=$("rubEquipe");
+  eq.hidden = !(id==="equipe" && CHANTIER && window.Dossier && Dossier.equipe && bureauIci());
+  if(eq.hidden) EQUIPE_LUE="";
+  else if(EQUIPE_LUE!==CHANTIER.ref){ EQUIPE_LUE=CHANTIER.ref; Dossier.equipe($("rubEquipeHote"), CHANTIER, {plus:true, apres:function(l){ CHANTIER.equipe=l; }}); }
   /* la barre des applis du chantier : sur la fiche */
   var nw=$("navWrap"); if(nw) nw.classList.toggle("rub-cache", !fiche);
   /* le titre de la rubrique, et ce qu'on y fait */
@@ -2861,7 +2868,6 @@ function peindreGalerie(){
   document.addEventListener("keydown", function(e){ if(e.key==="Escape" && document.body.classList.contains("rub-ouvert")) ouvrirTiroir(false); });
   window.addEventListener("hashchange", function(){ appliquerRubrique(true); });
   window.addEventListener("popstate", function(){ appliquerRubrique(true); });
-  $("rubEquipeBtn").addEventListener("click", function(){ var b=document.querySelector("#docs .travaux .head .outil.acces"); if(b) b.click(); });
   document.body.classList.add("avec-rub");
   /* chaque fois que la page se repeint, la rubrique se remet en place */
   var pd=peindreDocs; peindreDocs=function(){ pd(); appliquerRubrique(false); };
