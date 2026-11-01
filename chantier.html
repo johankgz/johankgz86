@@ -1111,6 +1111,15 @@ body.rub-ouvert .dc-onglet{visibility:hidden}
 .rub-vide{padding:22px 18px;border-radius:12px;background:var(--card);color:var(--ink-3);text-align:center;font-size:14.5px}
 .rub-vide[hidden]{display:none}
 .rub-cache{display:none!important}
+/* au téléphone : le bouton du bas, qui dit la rubrique ouverte et ouvre le panneau */
+.rub-bas{position:fixed;z-index:1300;left:50%;transform:translateX(-50%);bottom:calc(14px + env(safe-area-inset-bottom,0px));
+  display:inline-flex;align-items:center;gap:9px;max-width:calc(100vw - 120px);min-height:48px;padding:0 20px 0 16px;border-radius:999px;border:0;
+  background:#1B2129;color:#F2F5F9;font:inherit;font-size:15px;font-weight:700;cursor:pointer;
+  box-shadow:0 0 0 1px rgba(255,255,255,.12) inset,0 12px 28px -8px rgba(0,0,0,.6)}
+.rub-bas svg{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:#6FA3FF;stroke-width:2.2;stroke-linecap:round}
+.rub-bas span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.rub-ouvert .rub-bas{display:none}
+body.avec-rub main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 /* l'équipe : le + à la suite des noms */
 .eq-plus{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px 0 10px;border-radius:999px;border:1.5px dashed #3B82F6;
   background:transparent;color:#3B82F6;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
@@ -1137,6 +1146,8 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
   .rub-tiroir{transform:none;visibility:visible;width:270px;box-shadow:none;border-right:1px solid rgba(255,255,255,.06);transition:none}
   body.avec-rub{padding-left:270px}
   .rub-btn{display:none}
+  .rub-bas{display:none}
+  body.avec-rub main{padding-bottom:16px}
   .rub-fond{display:none!important}
   .rub-tete a.rub-x{display:none}
 }
@@ -1157,6 +1168,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
   <div class="nav-wrap" id="navWrap"><nav id="nav" aria-label="Les onglets du chantier"></nav></div>
 </header>
 <div class="rub-fond" id="rubFond" hidden></div>
+<button type="button" class="rub-bas" id="rubBas" aria-controls="rubTiroir" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span id="rubBasNom">Le chantier</span></button>
 <nav class="rub-tiroir" id="rubTiroir" aria-label="Rubriques du chantier"></nav>
 <main>
   <div class="rub-vue" id="rubVue" hidden><h2 id="rubNom"></h2><p id="rubSous"></p><div class="rub-act" id="rubAct"></div></div>
@@ -2705,7 +2717,7 @@ function peindreTiroir(){
 }
 function ouvrirTiroir(v){
   document.body.classList.toggle("rub-ouvert", !!v);
-  $("rubFond").hidden=!v; $("rubBtn").setAttribute("aria-expanded", v ? "true" : "false");
+  $("rubFond").hidden=!v; $("rubBtn").setAttribute("aria-expanded", v ? "true" : "false"); $("rubBas").setAttribute("aria-expanded", v ? "true" : "false");
   if(v){ var c=$("rubTiroir").querySelector('[aria-current="page"]') || $("rubTiroir").querySelector(".rub-it"); setTimeout(function(){ try{ c.focus(); }catch(e){} }, 30); }
 }
 function appliquerRubrique(enHaut){
@@ -2790,6 +2802,7 @@ function appliquerRubrique(enHaut){
   }
   vide.hidden=!rien; vide.textContent=r[5];
   document.title=(fiche ? "" : r[1]+" — ")+(CHANTIER ? (CHANTIER.client||CHANTIER.ref) : "Chantier");
+  $("rubBasNom").textContent=r[1];
   peindreTiroir();
   peindreGalerie();
   if(enHaut) try{ window.scrollTo(0, 0); }catch(e){}
@@ -2865,6 +2878,35 @@ function peindreGalerie(){
 (function(){
   $("rubBtn").addEventListener("click", function(){ ouvrirTiroir(!document.body.classList.contains("rub-ouvert")); });
   $("rubFond").addEventListener("click", function(){ ouvrirTiroir(false); });
+  $("rubBas").addEventListener("click", function(){ ouvrirTiroir(true); });
+  /* le doigt glisse vers la droite : le panneau s'ouvre ; vers la gauche, il se referme.
+     Pas depuis ce qui défile de côté (la barre des applis, un champ), ni sur un grand écran. */
+  (function(){
+    var x0=0, y0=0, t0=0, actif=false;
+    function grandEcran(){ try{ return matchMedia("(min-width:1000px)").matches; }catch(e){ return false; } }
+    function defileDeCote(el){
+      for(var e=el; e && e!==document.body; e=e.parentElement){
+        if(/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName)) return true;
+        if(e.scrollWidth>e.clientWidth+4){ var o=getComputedStyle(e).overflowX; if(o==="auto" || o==="scroll") return true; }
+      }
+      return false;
+    }
+    document.addEventListener("touchstart", function(e){
+      actif=false;
+      if(grandEcran() || e.touches.length!==1) return;
+      if(!document.body.classList.contains("rub-ouvert") && defileDeCote(e.target)) return;
+      if(document.querySelector(".dg-gal,.dg-plein,.dg-discu") || document.documentElement.classList.contains("dc-ouvert")) return;   /* une fenêtre est par-dessus */
+      var p=e.touches[0]; x0=p.clientX; y0=p.clientY; t0=Date.now(); actif=true;
+    }, {passive:true});
+    document.addEventListener("touchend", function(e){
+      if(!actif) return; actif=false;
+      var p=e.changedTouches[0], dx=p.clientX-x0, dy=p.clientY-y0;
+      if(Date.now()-t0>700 || Math.abs(dy)>Math.abs(dx)*0.6 || Math.abs(dx)<70) return;
+      var ouvert=document.body.classList.contains("rub-ouvert");
+      if(dx>0 && !ouvert) ouvrirTiroir(true);
+      else if(dx<0 && ouvert) ouvrirTiroir(false);
+    }, {passive:true});
+  })();
   document.addEventListener("keydown", function(e){ if(e.key==="Escape" && document.body.classList.contains("rub-ouvert")) ouvrirTiroir(false); });
   window.addEventListener("hashchange", function(){ appliquerRubrique(true); });
   window.addEventListener("popstate", function(){ appliquerRubrique(true); });
