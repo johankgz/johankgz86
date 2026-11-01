@@ -1236,6 +1236,7 @@ var CSS = [
   ".an-ep{flex:0 0 auto;width:34px;height:34px;border-radius:50%;border:1px solid rgba(255,255,255,.2);background:transparent;display:inline-flex;align-items:center;justify-content:center;padding:0}",
   ".an-ep i{display:block;border-radius:50%;background:#E5E9EF}",
   ".an-ep.on{background:#F2F5F9}.an-ep.on i{background:#0B0E12}",
+  ".an-champ.an-court{flex:0 0 auto;min-width:0;padding-left:10px;padding-right:10px}",
   ".an-champ{flex:1 1 180px;min-width:150px;min-height:36px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:#F2F5F9;",
   "font:inherit;font-size:14px;padding:6px 10px;-webkit-user-select:text;user-select:text}",
   /* la colonne d'outils, à droite : elle se déploie d'un symbole et se replie */
@@ -1585,9 +1586,19 @@ function majUI(){
     if(o) remplirSelection(sr, o);
   }
   sr.hidden = !sr.children.length;
+  /* la barre reste où elle était quand on y choisit quelque chose (même outil) */
+  var gardeX = op.dataset.outil===A.outil ? op.scrollLeft : 0;
   op.textContent="";
   remplirOptions(op, o);
   op.hidden = !op.children.length;
+  op.dataset.outil=A.outil||""; op.scrollLeft=gardeX;
+  /* une prise choisie : ses options (texte, hauteur) se voient sans chercher au bout de la barre */
+  var chOn=op.querySelector(".an-chip.on.forme"), optDeb=op.querySelector(".an-optdeb"), optFin=op.querySelector(".an-optfin");
+  if(chOn && optDeb && optFin && !op.hidden){
+    /* d'abord la prise choisie à gauche ; si ça ne tient pas, les options seules */
+    var rB=op.getBoundingClientRect(), rC=chOn.getBoundingClientRect(), rD=optDeb.getBoundingClientRect(), rF=optFin.getBoundingClientRect();
+    if(rF.right>rB.right) op.scrollLeft += Math.max(0, Math.min(rF.right-rB.right+8, rF.right-rC.left<=rB.width ? rC.left-rB.left-8 : rD.left-rB.left));
+  }
   co.textContent="";
   var montrerCouleurs = !(A.outil==="gomme" && !o) && !(o && o.t==="flou") && !(A.outil==="reperes" && PREFS.repere==="flou" && !o);
   if(montrerCouleurs){
@@ -1733,6 +1744,24 @@ function remplirOptions(op, o){
         op.appendChild(el("span","an-sep"));
         /* d'abord la légende CFO, rangée comme sur nos plans */
         if(window.SymbolesElec){
+          /* pour la prise choisie, juste à côté d'elle : le texte d'une prise spécialisée, la hauteur écrite au-dessus */
+          var optionsPrise=function(dch){
+            op.appendChild(el("span","an-sep an-optdeb"));
+            if(dch.texte!=null){
+              var it=el("input","an-champ"); it.type="text"; it.maxLength=20; it.value=PREFS.texteSpe||dch.texte; it.placeholder="Texte (LL, LV, SL, F…)";
+              it.setAttribute("aria-label","Texte de la prise spécialisée"); it.className="an-champ an-court"; it.style.width="5.5em";
+              it.addEventListener("input", function(){ PREFS.texteSpe=it.value.trim(); garderPrefs(); });
+              op.appendChild(it);
+            }
+            op.appendChild(chip(PREFS.hEcrite ? "Hauteur écrite ✓" : "Hauteur écrite", !!PREFS.hEcrite, function(){ PREFS.hEcrite=!PREFS.hEcrite; garderPrefs(); majUI(); }));
+            if(PREFS.hEcrite){
+              var ih=el("input","an-champ"); ih.type="text"; ih.inputMode="decimal"; ih.maxLength=8; ih.value=PREFS.hPrise||"1,10"; ih.placeholder="1,10";
+              ih.className="an-champ an-court"; ih.style.width="4.5em"; ih.setAttribute("aria-label","Hauteur de pose en mètres");
+              ih.addEventListener("input", function(){ PREFS.hPrise=ih.value.trim(); garderPrefs(); });
+              op.appendChild(ih); op.appendChild(el("span","an-lab","m"));
+            }
+            op.appendChild(el("span","an-sep an-optfin"));
+          };
           window.SymbolesElec.groupes.forEach(function(gr){
             op.appendChild(el("span","an-lab an-groupe", gr));
             window.SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){
@@ -1742,26 +1771,9 @@ function remplirOptions(op, o){
               b.appendChild(ic); b.appendChild(document.createTextNode(sy.court||sy.nom));
               b.title=sy.nom; b.setAttribute("aria-label", sy.nom);
               op.appendChild(b);
+              if(on && sy.cat==="prise") optionsPrise(sy);
             });
           });
-          /* pour la prise choisie : la hauteur écrite au-dessus, le texte d'une prise spécialisée */
-          var dch=legendeCfo(PREFS.symbole);
-          if(dch && dch.cat==="prise"){
-            op.appendChild(el("span","an-sep"));
-            if(dch.texte!=null){
-              var it=el("input","an-champ"); it.type="text"; it.maxLength=20; it.value=PREFS.texteSpe||dch.texte; it.placeholder="Texte (LL, LV, SL, F…)";
-              it.setAttribute("aria-label","Texte de la prise spécialisée");
-              it.addEventListener("input", function(){ PREFS.texteSpe=it.value.trim(); garderPrefs(); });
-              op.appendChild(it);
-            }
-            op.appendChild(chip(PREFS.hEcrite ? "Hauteur écrite ✓" : "Hauteur écrite", !!PREFS.hEcrite, function(){ PREFS.hEcrite=!PREFS.hEcrite; garderPrefs(); majUI(); }));
-            if(PREFS.hEcrite){
-              var ih=el("input","an-champ"); ih.type="text"; ih.inputMode="decimal"; ih.maxLength=8; ih.value=PREFS.hPrise||"1,10"; ih.placeholder="1,10";
-              ih.style.width="5.5em"; ih.setAttribute("aria-label","Hauteur de pose en mètres");
-              ih.addEventListener("input", function(){ PREFS.hPrise=ih.value.trim(); garderPrefs(); });
-              op.appendChild(ih); op.appendChild(el("span","an-lab","m"));
-            }
-          }
           /* les anciens symboles génériques restent, repliés */
           op.appendChild(el("span","an-sep"));
           op.appendChild(chip(PREFS.autresSymb ? "Autres ▾" : "Autres ▸", !!PREFS.autresSymb, function(){ PREFS.autresSymb=!PREFS.autresSymb; garderPrefs(); majUI(); }));

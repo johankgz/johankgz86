@@ -148,11 +148,11 @@
       if(e.c) out.push('<circle cx="'+n(e.c[0])+'" cy="'+n(e.c[1])+'" r="'+n(e.c[2])+'" fill="'+(e.f?col:'none')+'" '+st+'/>');
       else if(e.l) out.push('<line x1="'+n(e.l[0])+'" y1="'+n(e.l[1])+'" x2="'+n(e.l[2])+'" y2="'+n(e.l[3])+'" '+st+'/>');
       else if(e.p) out.push('<path d="M'+e.p.map(function(q){ return n(q[0])+' '+n(q[1]); }).join('L')+(e.z?'Z':'')+'" fill="none" '+st+'/>');
-      else if(e.q) out.push('<path d="'+e.q.map(function(L){ return 'M'+L.map(function(q){ return n(q[0])+' '+n(q[1]); }).join('L')+'Z'; }).join('')+'" fill="'+col+'" fill-rule="evenodd"/>');
-      else if(e.x){ var t=posTexte(e); out.push('<text x="'+n(t.x)+'" y="'+n(t.y)+'" font-size="'+n(t.taille)+'" font-family="Arial, Helvetica, sans-serif" text-anchor="'+({left:"start",center:"middle",right:"end"})[t.align]+'" fill="'+col+'">'+echap(t.texte)+'</text>'); }
+      else if(e.q) out.push('<path d="'+e.q.map(function(L){ return 'M'+L.map(function(q){ return n(q[0])+' '+n(q[1]); }).join('L')+'Z'; }).join('')+'" fill="'+col+'" fill-rule="evenodd" stroke="none"/>');
+      else if(e.x){ var t=posTexte(e); out.push('<text x="'+n(t.x)+'" y="'+n(t.y)+'" font-size="'+n(t.taille)+'" font-family="Arial, Helvetica, sans-serif" text-anchor="'+({left:"start",center:"middle",right:"end"})[t.align]+'" fill="'+col+'" stroke="none">'+echap(t.texte)+'</text>'); }
       else if(e.t) out.push('<path d="M'+e.t.map(function(q){ return n(q[0])+' '+n(q[1]); }).join('L')+'Z" fill="'+col+'" '+st+'/>');
       else if(e.a) out.push('<path d="'+p2(e.a,false)+'" fill="none" '+st+'/>');
-      else if(e.s) out.push('<path d="'+p2(e.s,true)+'" fill="'+col+'"/>');
+      else if(e.s) out.push('<path d="'+p2(e.s,true)+'" fill="'+col+'" stroke="none"/>');
       else if(e.r) out.push('<circle cx="'+n(e.r[0])+'" cy="'+n(e.r[1])+'" r="'+n((e.r[2]+e.r[3])/2)+'" fill="none" stroke="'+col+'" stroke-width="'+n(e.r[3]-e.r[2])+'"/>');
     });
     out.push('</svg>');
