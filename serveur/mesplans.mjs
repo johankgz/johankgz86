@@ -14,11 +14,11 @@
                          type « vierge » (dessiné de zéro) ou « fichier » (importé) ;
                          source : {nom, taille, ext, cle, page} du fichier importé
                          (cle : son nom sur l'appareil, « plan.pdf#p2 » pour une page de PDF)
-     plans/<u>/c/<id>.json   le contenu : {dessin, symb, echelle, calques, mep, vue, fond?}
+     plans/<u>/c/<id>.json   le contenu : {dessin, symb, echelle, calques, mep, vue, fond?, fondPdf?}
      plans/<u>/f/<id>        le fichier importé, tel quel (DWG, DXF, PDF, image)
    ===================================================================== */
 
-const MAX_CONTENU = 12 * 1024 * 1024;      /* le dessin et les symboles, en texte */
+const MAX_CONTENU = 24 * 1024 * 1024;      /* le dessin et les symboles, en texte (et le fond, avec son PDF) */
 const MAX_FICHIER = 40 * 1024 * 1024;      /* le fichier importé */
 const EXTS = ["dwg", "dxf", "pdf", "png", "jpg", "jpeg", "webp"];
 
@@ -90,7 +90,7 @@ export async function mesplans(action, o) {
   if (action === "plan-enregistrer") {
     let texte = "";
     try { texte = await req.text(); } catch { texte = ""; }
-    if (texte.length > MAX_CONTENU) return json({ erreur: "Plan trop lourd pour être enregistré (12 Mo de dessin au plus)." }, 413);
+    if (texte.length > MAX_CONTENU) return json({ erreur: "Plan trop lourd pour être enregistré (24 Mo au plus, fond compris)." }, 413);
     let d = null;
     try { d = JSON.parse(texte); } catch { d = null; }
     if (!d || typeof d !== "object") return json({ erreur: "Requête illisible." }, 400);
@@ -114,7 +114,10 @@ export async function mesplans(action, o) {
       mep: d.mep && typeof d.mep === "object" ? d.mep : null,
       vue: d.vue && typeof d.vue === "object" ? d.vue : null,
       /* le fond d'une page vierge (PDF ou photo du plan, en JPEG) */
-      fond: typeof d.fond === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(d.fond) ? d.fond : null
+      fond: typeof d.fond === "string" && /^data:image\/(jpeg|png|webp);base64,/.test(d.fond) ? d.fond : null,
+      /* et, s'il vient d'un PDF, le PDF lui-même (redessiné net quand on zoome) */
+      fondPdf: d.fondPdf && typeof d.fondPdf.data === "string" && /^data:application\/pdf;base64,/.test(d.fondPdf.data)
+        ? { data: d.fondPdf.data, page: Math.max(1, Math.min(9999, Math.round(Number(d.fondPdf.page) || 1))) } : null
     };
     const quand = new Date().toISOString();
     return modifier(async (x) => {

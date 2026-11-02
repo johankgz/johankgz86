@@ -5520,7 +5520,7 @@ function peindreVierges(){
     var x=document.createElement("button"); x.type="button"; x.className="bt"; x.textContent="✕"; x.setAttribute("aria-label","Supprimer "+v.nom);
     x.addEventListener("click", function(){
       if(!window.confirm("Supprimer le plan « "+v.nom+" » ? Il est effacé de cet appareil.")) return;
-      fondEffacer(v.id);
+      fondEffacer(v.id); fondEffacer(clePdfFond(v.id));
       try{ localStorage.removeItem("dwg:dessin:vierge:"+v.id); localStorage.removeItem("dwg:symboles:vierge:"+v.id);
         localStorage.setItem("dwg:vierges", JSON.stringify(listeVierges().filter(function(z){ return z.id!==v.id; }))); }catch(e){}
       peindreVierges();
@@ -7935,15 +7935,17 @@ function fondEffacer(id){ return fondAction("readwrite", function(st){ return st
 function imageDeUrl(u){ return new Promise(function(ok, ko){ var im=new Image(); im.onload=function(){ ok(im); }; im.onerror=function(){ ko(new Error("image")); }; im.src=u; }); }
 /* l'image du fond, rouverte avec la page vierge */
 function chargerFond(){
-  FOND_IMG=null; FOND_ETAPE=null; FOND_PTS=[];
+  FOND_IMG=null; FOND_ETAPE=null; FOND_PTS=[]; oublierPdfFond();
   if(!PLAN || !PLAN.vierge || !fondD()) { majFondPanel(); return; }
   var id=PLAN.id;
+  chargerPdfFond(id);
   fondLire(id).then(function(u){ if(!u || !PLAN || PLAN.id!==id) return null; return imageDeUrl(u); })
     .then(function(im){ if(im && PLAN && PLAN.id===id){ FOND_IMG=im; demander(); } majFondPanel(); })
     .catch(function(){ majFondPanel(); });
 }
 /* un canevas réduit (3000 px au plus) devient le fond : JPEG, sur fond blanc */
 function poserFond(cv0, wmm, nom, pdf){
+  oublierPdfFond();
   var k=Math.min(1, 3000/Math.max(cv0.width, cv0.height)), c=document.createElement("canvas");
   c.width=Math.max(1, Math.round(cv0.width*k)); c.height=Math.max(1, Math.round(cv0.height*k));
   var x=c.getContext("2d"); x.fillStyle="#FFFFFF"; x.fillRect(0, 0, c.width, c.height); x.drawImage(cv0, 0, 0, c.width, c.height);
@@ -7952,14 +7954,61 @@ function poserFond(cv0, wmm, nom, pdf){
     if(!PLAN || PLAN.id!==id) return;
     var hmm=wmm*c.height/c.width, vc=versPlan(W/2, H/2), ancien=fondD();
     garderD();
+    if(pdf && pdf.garder && ancien){
+      /* même place, même échelle, même angle et mêmes réglages : seule l'image change, et le PDF est gardé */
+      DESSIN.fond=Object.assign({}, ancien, {nom:nom||ancien.nom, pts:pdf.pts, ptsH:pdf.ptsH, q:pdf.garder.q});
+      if(ancien.n) DESSIN.fond.n=ancien.n;
+      FOND_AJ=null; FOND_IMG=im; enregistrerD(); majDessin(); majFondPanel(); demander();
+      toast("Fond remplacé par son PDF, à la même place : il reste net quand on zoome.", 6000);
+      return;
+    }
     DESSIN.fond={x:vc[0]-wmm/2/DESSIN_MM, y:vc[1]-hmm/2/DESSIN_MM, w:wmm/DESSIN_MM, h:hmm/DESSIN_MM,
       op:ancien ? ancien.op : (CLAIR ? 0.6 : 0.45), vis:true, sol3d:ancien ? ancien.sol3d!==false : true, imp:ancien ? !!ancien.imp : false, nom:nom||"Fond de plan"};
-    if(pdf){ DESSIN.fond.pts=pdf.pts; DESSIN.fond.n=pdf.n; }
+    if(pdf){ DESSIN.fond.pts=pdf.pts; DESSIN.fond.ptsH=pdf.ptsH; DESSIN.fond.n=pdf.n; }
     FOND_AJ=null;
     FOND_IMG=im; enregistrerD(); vueEntiere();
     FOND_ETAPE="echA"; FOND_PTS=[]; majDessin();
     toast(pdf ? "Fond posé au 1/"+pdf.n+(pdf.n===50 ? " (supposé)" : "")+". Si le PDF est à une autre échelle, choisissez-la dans « Le PDF est au » ; ou touchez une longueur connue (une cote), début puis fin." : "Fond posé. Mise à l'échelle : touchez le début d'une longueur connue sur le fond (une cote, une porte), puis sa fin.", 9000);
   });
+}
+/* le PDF qu'on importe est-il le plan déjà posé en fond (posé avant que le PDF
+   soit gardé) ? On compare l'image en petit, dans les 4 quarts de tour : le
+   même dessin, aux mêmes proportions, renvoie {q, cv} (cv tourné), sinon null. */
+function calerSurAncien(cv){
+  var f=fondD(); if(!f || !FOND_IMG || FOND_PDF || !(f.w>0 && f.h>0)) return null;
+  var N=48;
+  function petit(src, q){
+    /* réduit par moitiés successives (d'un coup, les traits fins disparaîtraient au hasard) */
+    var w=src.naturalWidth||src.width, h=src.naturalHeight||src.height, cur=src;
+    while(w>2*N || h>2*N){
+      var nw=Math.max(N, Math.round(w/2)), nh=Math.max(N, Math.round(h/2)), t=document.createElement("canvas"); t.width=nw; t.height=nh;
+      var tx=t.getContext("2d"); tx.imageSmoothingQuality="high"; tx.drawImage(cur, 0, 0, nw, nh); cur=t; w=nw; h=nh;
+    }
+    var c=document.createElement("canvas"); c.width=N; c.height=N; var x=c.getContext("2d");
+    x.fillStyle="#FFFFFF"; x.fillRect(0, 0, N, N); x.imageSmoothingQuality="high";
+    x.translate(N/2, N/2); x.rotate(q*Math.PI/2);
+    x.drawImage(cur, -N/2, -N/2, N, N);
+    var d=x.getImageData(0, 0, N, N).data, g=new Float32Array(N*N), m=0;
+    for(var i=0; i<N*N; i++){ g[i]=(d[i*4]+d[i*4+1]+d[i*4+2])/3; m+=g[i]; }
+    m/=N*N; for(i=0; i<N*N; i++) g[i]-=m;
+    return g;
+  }
+  try{
+    var ref=petit(FOND_IMG, 0), rA=f.w/f.h, mieux=null;
+    for(var q=0; q<4; q++){
+      var r = q%2 ? cv.height/cv.width : cv.width/cv.height;
+      if(Math.abs(r/rA-1)>0.02) continue;
+      var g=petit(cv, q), sab=0, saa=0, sbb=0;
+      for(var i=0; i<g.length; i++){ sab+=g[i]*ref[i]; saa+=g[i]*g[i]; sbb+=ref[i]*ref[i]; }
+      var co = saa>0 && sbb>0 ? sab/Math.sqrt(saa*sbb) : 0;      /* ressemblance, de -1 à 1 */
+      if(!mieux || co>mieux.co) mieux={q:q, co:co};
+    }
+    if(!mieux || mieux.co<0.75) return null;
+    if(!mieux.q) return {q:0, cv:cv};
+    var t=document.createElement("canvas"), odd=mieux.q%2; t.width=odd ? cv.height : cv.width; t.height=odd ? cv.width : cv.height;
+    var x=t.getContext("2d"); x.translate(t.width/2, t.height/2); x.rotate(mieux.q*Math.PI/2); x.drawImage(cv, -cv.width/2, -cv.height/2);
+    return {q:mieux.q, cv:t};
+  }catch(e){ return null; }
 }
 function importerFond(f){
   if(!f || !PLAN || !PLAN.vierge) return;
@@ -7968,8 +8017,9 @@ function importerFond(f){
   var fin=function(){ charge(""); }, raté=function(e){ charge(""); toast(/stockage|quota/i.test(String(e && (e.message||e.name))) ? "Mémoire de l'appareil pleine : le fond n'a pas pu être gardé." : "Ce fichier n'a pas pu être lu comme fond de plan.", 6000); };
   if(ext==="pdf"){
     var lib;
+    var copie=null;
     chargerPdfJs().then(function(L){ lib=L; return f.arrayBuffer(); })
-      .then(function(buf){ return lib.getDocument({data:new Uint8Array(buf)}).promise; })
+      .then(function(buf){ copie=buf.slice(0); return lib.getDocument({data:new Uint8Array(buf)}).promise; })
       .then(function(doc){
         var n=1;
         var choix = doc.numPages>1 ? (charge(""), choisirPagePdf(doc, "Quelle page prendre en fond ?")) : Promise.resolve(1);
@@ -7977,7 +8027,12 @@ function importerFond(f){
         return doc.getPage(n).then(function(page){
           var vp=page.getViewport({scale:1});
           return page.getTextContent().then(function(tc){ return echelleEcrite((tc.items||[]).map(function(i){ return i.str; }).join(" ")); }, function(){ return 0; })
-            .then(function(nE){ return rendrePagePdf(page).then(function(cv){ return poserFond(cv, vp.width*PT_MM*(nE||50), f.name, {pts:vp.width, n:nE||50}); }); });
+            .then(function(nE){ return rendrePagePdf(page).then(function(cv){
+              /* le même plan que le fond déjà posé (sans son PDF) : il prend sa place, son échelle, son angle */
+              var cal=calerSurAncien(cv);
+              if(cal) return poserFond(cal.cv, 0, f.name, {pts:cal.q%2 ? vp.height : vp.width, ptsH:cal.q%2 ? vp.width : vp.height, n:nE||50, garder:{q:cal.q}});
+              return poserFond(cv, vp.width*PT_MM*(nE||50), f.name, {pts:vp.width, ptsH:vp.height, n:nE||50}); }); })
+            .then(function(){ return garderPdfFond(copie, n); });
         });
         });
       }).then(fin, raté);
@@ -7988,7 +8043,7 @@ function importerFond(f){
     imageDeUrl(url).then(function(im){
       URL.revokeObjectURL(url);
       var c=document.createElement("canvas"); c.width=im.naturalWidth; c.height=im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0);
-      return poserFond(c, 12000, f.name);           /* une photo : 12 m de large, en attendant la mise à l'échelle */
+      return poserFond(c, 12000, f.name).then(function(){ return garderPdfFond(null); });   /* une photo : 12 m de large, en attendant la mise à l'échelle */
     }).then(fin, function(e){ URL.revokeObjectURL(url); raté(e); });
     return;
   }
@@ -7997,7 +8052,7 @@ function importerFond(f){
 function retirerFond(){
   if(!fondD()) return;
   if(!window.confirm("Retirer le fond de plan ? Le dessin reste.")) return;
-  garderD(); delete DESSIN.fond; FOND_IMG=null; FOND_ETAPE=null; enregistrerD(); fondEffacer(PLAN.id); majFondPanel(); demander();
+  garderD(); delete DESSIN.fond; FOND_IMG=null; FOND_ETAPE=null; enregistrerD(); fondEffacer(PLAN.id); garderPdfFond(null); majFondPanel(); demander();
 }
 function tournerFond(){
   var f=fondD(); if(!f || !FOND_IMG) return;
@@ -8006,7 +8061,8 @@ function tournerFond(){
   var url=c.toDataURL("image/jpeg", 0.86), id=PLAN.id;
   fondEcrire(id, url).then(function(){ return imageDeUrl(url); }).then(function(im){
     garderD();
-    var cx=f.x+f.w/2, cy=f.y+f.h/2, w=f.h, h=f.w; f.x=cx-w/2; f.y=cy-h/2; f.w=w; f.h=h;
+    var cx=f.x+f.w/2, cy=f.y+f.h/2, w=f.h, h=f.w; f.x=cx-w/2; f.y=cy-h/2; f.w=w; f.h=h; f.q=((f.q||0)+1)%4; FOND_NET=null;
+    if(f.pts && f.ptsH){ var pw=f.pts; f.pts=f.ptsH; f.ptsH=pw; }
     FOND_IMG=im; enregistrerD(); demander();
   }).catch(function(){ toast("Le fond n'a pas pu être tourné."); });
 }
@@ -8047,7 +8103,15 @@ function peindreFond(c, E){
   var Ct=E([f.x+f.w/2, f.y+f.h/2]), w=f.w*V.k, h=f.h*V.k, img=imageFond(f);
   c.save(); c.globalAlpha=Math.max(0.05, Math.min(1, f.op!=null ? f.op : 0.5)); c.imageSmoothingEnabled=true;
   c.translate(Ct[0], Ct[1]); if(f.rot) c.rotate(-f.rot*Math.PI/180);      /* l'angle : dans le sens inverse des aiguilles, comme les murs */
-  try{ c.drawImage(img, -w/2, -h/2, w, h); }catch(e){}
+  var N = IMPRIME ? null : netFond(f);
+  if(N){
+    /* l'image floue autour seulement : sous la partie nette, elle doublerait l'opacité */
+    c.save(); c.beginPath(); c.rect(-w/2-2, -h/2-2, w+4, h+4); c.rect(-w/2+N.u0*w, -h/2+N.v0*h, (N.u1-N.u0)*w, (N.v1-N.v0)*h); c.clip("evenodd");
+    try{ c.drawImage(img, -w/2, -h/2, w, h); }catch(e){}
+    c.restore();
+    try{ c.drawImage(N.c, -w/2+N.u0*w, -h/2+N.v0*h, (N.u1-N.u0)*w, (N.v1-N.v0)*h); }catch(e){}
+  } else { try{ c.drawImage(img, -w/2, -h/2, w, h); }catch(e){} }
+  if(!IMPRIME) suivreFondNet(f, Ct, w, h);
   c.restore();
   if(!IMPRIME && FOND_ETAPE && MODE==="dessin"){
     c.save(); c.translate(Ct[0], Ct[1]); if(f.rot) c.rotate(-f.rot*Math.PI/180); c.strokeStyle="#22D3EE"; c.setLineDash([8, 6]); c.lineWidth=1.5; c.strokeRect(-w/2, -h/2, w, h); c.setLineDash([]); c.restore();
@@ -8062,12 +8126,109 @@ function imageFond(f){
   var c=document.createElement("canvas"); c.width=FOND_IMG.naturalWidth||FOND_IMG.width; c.height=FOND_IMG.naturalHeight||FOND_IMG.height;
   var x=c.getContext("2d"); x.drawImage(FOND_IMG, 0, 0);
   try{
-    var d=x.getImageData(0, 0, c.width, c.height), a=d.data, t=cl/100, lut=new Uint8ClampedArray(256);
-    for(var v=0; v<256; v++){ var u=v/255; lut[v]=Math.round(255*(t>0 ? u+(1-u)*t*0.9 : Math.pow(u, 1+(-t)*2.5))); }
-    for(var i=0; i<a.length; i+=4){ a[i]=lut[a[i]]; a[i+1]=lut[a[i+1]]; a[i+2]=lut[a[i+2]]; }
-    x.putImageData(d, 0, 0);
+    eclaircirToile(x, c.width, c.height, cl);
   }catch(e){ return FOND_IMG; }
   FOND_AJ={img:FOND_IMG, cl:cl, c:c}; return c;
+}
+function eclaircirToile(x, w, h, cl){
+  var d=x.getImageData(0, 0, w, h), a=d.data, t=cl/100, lut=new Uint8ClampedArray(256);
+  for(var v=0; v<256; v++){ var u=v/255; lut[v]=Math.round(255*(t>0 ? u+(1-u)*t*0.9 : Math.pow(u, 1+(-t)*2.5))); }
+  for(var i=0; i<a.length; i+=4){ a[i]=lut[a[i]]; a[i+1]=lut[a[i+1]]; a[i+2]=lut[a[i+2]]; }
+  x.putImageData(d, 0, 0);
+}
+/* ---------- le fond net : un fond venu d'un PDF reste un PDF ----------
+   L'image du fond (3000 px au plus) sert de vue d'ensemble. Dès qu'on zoome
+   plus fin qu'elle, la partie à l'écran (et un peu autour) est redessinée
+   depuis le PDF, à la résolution de l'écran, un instant après le zoom : les
+   traits et les textes restent nets, même de très près. Le PDF est gardé sur
+   l'appareil (IndexedDB, « <id>#pdf ») et suit le plan enregistré sur le site. */
+var FOND_PDF=null, FOND_NET=null, FOND_NET_ATT=null, FOND_NET_T=0, FOND_NET_TACHE=null;
+var FOND_NET_MAXPX=8e6;                     /* pixels de la partie nette, au plus (mémoire d'un iPad) */
+function clePdfFond(id){ return id+"#pdf"; }
+function oublierPdfFond(){
+  if(FOND_NET_TACHE){ try{ FOND_NET_TACHE.cancel(); }catch(e){} FOND_NET_TACHE=null; }
+  clearTimeout(FOND_NET_T); FOND_NET_ATT=null;
+  if(FOND_NET) FOND_NET.c.width=0;
+  FOND_NET=null;
+  if(FOND_PDF && FOND_PDF.doc){ try{ FOND_PDF.doc.destroy(); }catch(e){} }
+  FOND_PDF=null;
+}
+function chargerPdfFond(id){
+  fondLire(clePdfFond(id)).then(function(o){
+    if(!o || !o.data || !PLAN || PLAN.id!==id) return;
+    FOND_PDF={id:id, data:o.data, n:o.page||1}; demander();
+  }).catch(function(){});
+}
+/* garder le PDF du fond qu'on vient de poser (data null : le fond n'est plus un PDF) */
+function garderPdfFond(data, n){
+  if(!PLAN) return Promise.resolve();
+  var id=PLAN.id; oublierPdfFond();
+  if(!data) return fondEffacer(clePdfFond(id));
+  FOND_PDF={id:id, data:data, n:n||1}; demander();
+  return fondEcrire(clePdfFond(id), {data:data, page:n||1}).catch(function(){});
+}
+function pagePdfFond(){
+  var P=FOND_PDF; if(!P) return Promise.reject(new Error("pdf"));
+  if(!P.attente) P.attente=chargerPdfJs().then(function(L){ return L.getDocument({data:new Uint8Array(P.data.slice(0))}).promise; })
+    .then(function(doc){ P.doc=doc; return doc.getPage(Math.min(doc.numPages, P.n)); });
+  return P.attente;
+}
+/* la partie nette prête pour ce fond (même quart de tour, même clarté), ou null */
+function netFond(f){
+  var N=FOND_NET; if(!N || !FOND_PDF || !PLAN || FOND_PDF.id!==PLAN.id) return null;
+  return N.q===(f.q||0) && N.cl===Math.max(-100, Math.min(100, Number(f.clair)||0)) ? N : null;
+}
+/* après chaque dessin du fond : faut-il (re)dessiner une partie nette ? */
+function suivreFondNet(f, Ct, w, h){
+  if(!FOND_PDF || !PLAN || FOND_PDF.id!==PLAN.id || !FOND_IMG) return;
+  var cl=Math.max(-100, Math.min(100, Number(f.clair)||0)), q=f.q||0, N=FOND_NET;
+  var pleine=w*DPR;                          /* la largeur du fond entier, en pixels de l'écran */
+  /* assez loin : l'image suffit */
+  if(pleine < 1.15*(FOND_IMG.naturalWidth||FOND_IMG.width)){
+    if(N || FOND_NET_ATT){ clearTimeout(FOND_NET_T); FOND_NET_ATT=null; if(N){ N.c.width=0; FOND_NET=null; } }
+    return;
+  }
+  /* la partie du fond à l'écran, en fractions du fond (0 à 1) */
+  var a=(f.rot||0)*Math.PI/180, co=Math.cos(a), si=Math.sin(a), u0=1, v0=1, u1=0, v1=0;
+  [[0,0],[W,0],[0,H],[W,H]].forEach(function(S){
+    var dx=S[0]-Ct[0], dy=S[1]-Ct[1], lx=dx*co-dy*si, ly=dx*si+dy*co, u=(lx+w/2)/w, v=(ly+h/2)/h;
+    u0=Math.min(u0, u); u1=Math.max(u1, u); v0=Math.min(v0, v); v1=Math.max(v1, v);
+  });
+  u0=Math.max(0, u0); v0=Math.max(0, v0); u1=Math.min(1, u1); v1=Math.min(1, v1);
+  if(u1<=u0 || v1<=v0) return;
+  /* déjà net ici, et assez fin ? */
+  if(N && N.q===q && N.cl===cl && N.u0<=u0+1e-6 && N.v0<=v0+1e-6 && N.u1>=u1-1e-6 && N.v1>=v1-1e-6 && N.pleine>=0.8*pleine) return;
+  var A=FOND_NET_ATT;
+  if(A && A.q===q && A.cl===cl && A.u0<=u0 && A.v0<=v0 && A.u1>=u1 && A.v1>=v1 && A.pleine>=0.8*pleine && A.pleine<=1.25*pleine) return;
+  /* un peu autour, pour garder le net en promenant le plan */
+  var mu=(u1-u0)*0.2, mv=(v1-v0)*0.2;
+  u0=Math.max(0, u0-mu); v0=Math.max(0, v0-mv); u1=Math.min(1, u1+mu); v1=Math.min(1, v1+mv);
+  var px=(u1-u0)*pleine*(v1-v0)*h*DPR, k=px>FOND_NET_MAXPX ? Math.sqrt(FOND_NET_MAXPX/px) : 1;
+  FOND_NET_ATT={u0:u0, v0:v0, u1:u1, v1:v1, q:q, cl:cl, pleine:pleine*k, hpleine:h*DPR*k};
+  clearTimeout(FOND_NET_T); FOND_NET_T=setTimeout(rendreFondNet, 200);
+}
+function rendreFondNet(){
+  var C=FOND_NET_ATT, P=FOND_PDF; if(!C || !P) return;
+  if(FOND_NET_TACHE){ try{ FOND_NET_TACHE.cancel(); }catch(e){} FOND_NET_TACHE=null; }
+  pagePdfFond().then(function(pg){
+    if(FOND_NET_ATT!==C || FOND_PDF!==P) return;
+    var rot=((pg.rotate||0)+90*C.q)%360, vp1=pg.getViewport({scale:1, rotation:rot}), S=C.pleine/vp1.width;
+    var cw=Math.max(1, Math.round((C.u1-C.u0)*C.pleine)), chh=Math.max(1, Math.round((C.v1-C.v0)*C.hpleine));
+    var vp=pg.getViewport({scale:S, rotation:rot, offsetX:-C.u0*C.pleine, offsetY:-C.v0*vp1.height*S});
+    var cv=document.createElement("canvas"); cv.width=cw; cv.height=chh;
+    var x=cv.getContext("2d"); x.fillStyle="#FFFFFF"; x.fillRect(0, 0, cw, chh);
+    var t=pg.render({canvasContext:x, viewport:vp}); FOND_NET_TACHE=t;
+    return t.promise.then(function(){
+      if(FOND_NET_TACHE===t) FOND_NET_TACHE=null;
+      if(FOND_PDF!==P){ cv.width=0; return; }
+      if(C.cl){ try{ eclaircirToile(x, cw, chh, C.cl); }catch(e){} }
+      var vieux=FOND_NET;
+      FOND_NET={c:cv, u0:C.u0, v0:C.v0, u1:C.u0+cw/C.pleine, v1:C.v0+chh/(vp1.height*S), q:C.q, cl:C.cl, pleine:C.pleine};
+      if(vieux && vieux!==FOND_NET) vieux.c.width=0;
+      if(FOND_NET_ATT===C) FOND_NET_ATT=null;
+      demander();
+    }, function(){ if(FOND_NET_TACHE===t) FOND_NET_TACHE=null; cv.width=0; });
+  }).catch(function(){});
 }
 function peindreEtapeFond(c, E){
   if(IMPRIME || !FOND_ETAPE || !FOND_PTS.length) return;
@@ -10072,7 +10233,7 @@ $("rbOnglets").addEventListener("click", function(e){
 });
 $("btReplier").addEventListener("click", function(){ replier(!$("ruban").classList.contains("replie")); });
 $("btAnnulerR").addEventListener("click", annulerR);
-$("btEnreg").addEventListener("click", enregistrerPlanSite);
+$("btEnreg").addEventListener("click", function(){ enregistrerPlanSite(); });   /* sans l'événement : il passerait pour les options */
 document.addEventListener("keydown", function(e){
   if((e.key==="s" || e.key==="S") && (e.ctrlKey || e.metaKey)){ e.preventDefault(); if(PLAN) enregistrerPlanSite(); }
 });
@@ -10488,11 +10649,16 @@ function enregistrerPlanSite(o){
   var mep=null; try{ mep=JSON.parse(localStorage.getItem(cleMep())||"null"); }catch(e){}
   var acces = PLAN_SITE && PLAN_SITE.u ? {u:PLAN_SITE.u, ref:PLAN_SITE.ref} : null, idPlan="";
   charge("Enregistrement du plan…");
-  var fond = vierge && fondD() ? fondLire(PLAN.id).catch(function(){ return null; }) : Promise.resolve(null);
-  fond.then(function(fu){
+  var fond = vierge && fondD() ? fondLire(PLAN.id).catch(function(){ return null; }) : Promise.resolve(null), fondPdf=null;
+  /* le PDF du fond part avec (12 Mo au plus) : rouvert ailleurs, le fond reste net */
+  var pdfF = vierge && fondD() ? fondLire(clePdfFond(PLAN.id)).then(function(o){
+    if(!o || !o.data || o.data.byteLength>12*1048576) return;
+    return blobEnBase64(new Blob([o.data], {type:"application/pdf"})).then(function(b){ fondPdf={data:"data:application/pdf;base64,"+b, page:o.page||1}; });
+  }).catch(function(){}) : Promise.resolve();
+  Promise.all([fond, pdfF]).then(function(r){ return r[0]; }).then(function(fu){
     var corps={id:PLAN_SITE ? PLAN_SITE.id : "", nom:nom, type:vierge ? "vierge" : "fichier",
       source: vierge ? null : {nom:FICHIER_SRC.name, taille:FICHIER_SRC.size, ext:ext, cle:cleNomFichier(), page:PLAN.page||0},
-      dessin:DESSIN, symb:SYMB, echelle:{mm:DESSIN_MM, src:ECHELLE_SRC}, calques:CQ_MASQUES, mep:mep, fond:fu||null};
+      dessin:DESSIN, symb:SYMB, echelle:{mm:DESSIN_MM, src:ECHELLE_SRC}, calques:CQ_MASQUES, mep:mep, fond:fu||null, fondPdf:fu ? fondPdf : null};
     return appelSite("plan-enregistrer"+accesPlan(corps.id, acces), {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(corps)});
   }).then(function(d){
     idPlan=d.plan.id;
@@ -10536,6 +10702,9 @@ function ouvrirPlanSite(id, a){
         if(c.mep) localStorage.setItem("dwg:mep:"+p.nom, JSON.stringify(c.mep));
       }catch(e){ throw new Error("Mémoire de l'appareil pleine."); }
       var f = c.fond ? fondEcrire(p.id, c.fond).catch(function(){}) : Promise.resolve();
+      var fp = c.fond && c.fondPdf && c.fondPdf.data ? fetch(c.fondPdf.data).then(function(r){ return r.arrayBuffer(); }).then(function(b){ return fondEcrire(clePdfFond(p.id), {data:b, page:c.fondPdf.page||1}); }).catch(function(){})
+        : fondEffacer(clePdfFond(p.id));
+      f=Promise.all([f, fp]);
       return f.then(function(){
         base.cle="dwg:dessin:vierge:"+p.id; PLAN_SITE_ATTENTE=base;
         charge(""); $("fenSite").hidden=true;
@@ -10613,6 +10782,7 @@ window.__dwg={peindre:function(){ peindre(); }, pvEtiquettes:function(){ return 
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, rendrePlan:function(dpi){ return rendrePlan(echelleMep(), dpi||150); }, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 window.__dwg.arcLien=function(ia, ib){ return arcLien(SYMB[ia], SYMB[ib]); };
+window.__dwg.fondNet=function(){ var N=FOND_NET, A=FOND_NET_ATT; return {pdf:!!FOND_PDF, net:N ? {u0:N.u0, v0:N.v0, u1:N.u1, v1:N.v1, q:N.q, cl:N.cl, px:[N.c.width, N.c.height]} : null, att:A ? {q:A.q, cl:A.cl} : null, img:FOND_IMG ? FOND_IMG.naturalWidth : 0}; };
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
