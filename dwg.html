@@ -2245,16 +2245,39 @@ function toucherRelier(ti){
 }
 /* un arc de cercle bien rond (la flèche fait 30 % de la corde), du bord d'un symbole au bord de
    l'autre, bombé à gauche du départ (à droite si on l'a retourné) : ses points, en coordonnées du plan */
+/* où la liaison touche le symbole : une commande (interrupteur, bouton…) par le bas de son rond,
+   côté mur ; un luminaire (DCL, spot, applique) en son centre ; les autres au bord, vers l'autre */
+function ancreLien(o, vers){
+  var def=window.SymbolesElec && SymbolesElec.trouver(o.cle);
+  if(def && (def.lum || def.groupe==="Éclairage")) return [o.x, o.y];
+  if(def && def.cat==="commande"){
+    var cs=(def.el||[]).filter(function(e){ return e.c; }).sort(function(p, q){ return q.c[2]-p.c[2]; })[0], b=SymbolesElec.boite(o.cle);
+    var lx = cs ? cs.c[0] : 0, ly = cs ? cs.c[1]+cs.c[2] : (b ? b.y1 : 1);     /* le bas du rond, dans le repère du symbole (y vers le mur) */
+    var th=-(o.rot||0)*Math.PI/180, sx=(lx*Math.cos(th)-ly*Math.sin(th))*o.r, sy=(lx*Math.sin(th)+ly*Math.cos(th))*o.r;
+    return [o.x+sx, o.y-sy];
+  }
+  var dx=vers[0]-o.x, dy=vers[1]-o.y, L=Math.hypot(dx, dy)||1, r=o.r*1.15;
+  return [o.x+dx/L*r, o.y+dy/L*r];
+}
+function ancreFixe(o){ var def=window.SymbolesElec && SymbolesElec.trouver(o.cle); return !!def && (def.lum || def.groupe==="Éclairage" || def.cat==="commande"); }
+function cordeLien(a, b){
+  /* un bout fixe (centre, bas du rond) d'abord ; le bout « au bord » se tourne vers lui */
+  var P0, P1;
+  if(ancreFixe(a) || !ancreFixe(b)){ P0=ancreLien(a, [b.x, b.y]); P1=ancreLien(b, P0); if(!ancreFixe(a)) P0=ancreLien(a, P1); }
+  else { P1=ancreLien(b, [a.x, a.y]); P0=ancreLien(a, P1); }
+  return [P0, P1];
+}
 function arcLien(a, b){
-  var dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx, dy); if(!L) return null;
-  var ux=dx/L, uy=dy/L, ra=a.r*1.15, rb=b.r*1.15; if(L<=ra+rb) return null;
-  var fl=(a.lf && a.lf[b.id]!=null) ? a.lf[b.id] : 0.3;
-  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], d=L-ra-rb, h=d*Math.max(0, Math.min(1.5, fl));
-  if(h<d*0.01){ var pd=[]; for(var kd=0;kd<=24;kd++) pd.push([P0[0]+(P1[0]-P0[0])*kd/24, P0[1]+(P1[1]-P0[1])*kd/24]); return pd; }   /* tendue : droite */
+  var cd=cordeLien(a, b), P0=cd[0], P1=cd[1], dx=P1[0]-P0[0], dy=P1[1]-P0[1], d=Math.hypot(dx, dy); if(d<1e-9) return null;
+  var ux=dx/d, uy=dy/d;
+  var fl=(a.lf && a.lf[b.id]!=null) ? a.lf[b.id] : 0.3, h=d*Math.max(0, Math.min(1.5, fl));
+  if(h<d*0.01){ var pd=[]; for(var kd=0;kd<=24;kd++) pd.push([P0[0]+dx*kd/24, P0[1]+dy*kd/24]); return pd; }   /* tendue : droite */
   var inv=(a.inv||[]).indexOf(b.id)>=0, n = inv ? [uy, -ux] : [-uy, ux];
-  var R=(d*d/4+h*h)/(2*h), M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2], C=[M[0]+n[0]*(h-R), M[1]+n[1]*(h-R)];
-  var a0=Math.atan2(P0[1]-C[1], P0[0]-C[0]), sw=Math.atan2(P1[1]-C[1], P1[0]-C[0])-a0;
-  while(sw>Math.PI) sw-=2*Math.PI; while(sw<-Math.PI) sw+=2*Math.PI;
+  var R=(d*d/4+h*h)/(2*h), M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2], C=[M[0]+n[0]*(h-R), M[1]+n[1]*(h-R)], X=[M[0]+n[0]*h, M[1]+n[1]*h];
+  function nm(v){ while(v>Math.PI) v-=2*Math.PI; while(v<=-Math.PI) v+=2*Math.PI; return v; }
+  var a0=Math.atan2(P0[1]-C[1], P0[0]-C[0]), sw=nm(Math.atan2(P1[1]-C[1], P1[0]-C[0])-a0), tx=nm(Math.atan2(X[1]-C[1], X[0]-C[0])-a0);
+  /* l'arc passe par son sommet : plus d'un demi-tour si on l'a beaucoup bombé */
+  if(!((sw>0 && tx>0 && tx<sw) || (sw<0 && tx<0 && tx>sw))) sw = sw>0 ? sw-2*Math.PI : sw+2*Math.PI;
   var pts=[]; for(var k=0;k<=24;k++){ var an=a0+sw*k/24; pts.push([C[0]+R*Math.cos(an), C[1]+R*Math.sin(an)]); }
   return pts;
 }
@@ -2311,9 +2334,9 @@ function choisirLien(l){ LIEN_SEL=l; if(l){ SEL=-1; D_SEL=null; GRP=null; RELIER
 /* la flèche de l'arc d'après le doigt : sa distance à la corde (de l'autre côté : l'arc s'inverse) */
 function bomberLien(p){
   var L=lienSelValide(); if(!L) return; var a=L.a, b=L.b;
-  var q=versPlan(p[0], p[1]), dx=b.x-a.x, dy=b.y-a.y, Lg=Math.hypot(dx, dy); if(!Lg) return;
-  var ux=dx/Lg, uy=dy/Lg, d=Lg-a.r*1.15-b.r*1.15; if(d<=0) return;
-  var s=(q[0]-a.x)*(-uy)+(q[1]-a.y)*ux;     /* > 0 : du côté gauche, le côté de départ */
+  var q=versPlan(p[0], p[1]), cd=cordeLien(a, b), P0=cd[0], P1=cd[1], dx=P1[0]-P0[0], dy=P1[1]-P0[1], d=Math.hypot(dx, dy); if(!(d>0)) return;
+  var ux=dx/d, uy=dy/d, M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2];
+  var s=(q[0]-M[0])*(-uy)+(q[1]-M[1])*ux;     /* > 0 : du côté gauche, le côté de départ */
   a.lf=a.lf||{}; a.lf[b.id]=Math.round(Math.min(1.5, Math.abs(s)/d)*100)/100;
   var inv=(a.inv||[]).indexOf(b.id)>=0;
   if((s<0) !== inv){ if(s<0) a.inv=(a.inv||[]).concat([b.id]); else { a.inv=(a.inv||[]).filter(function(x){ return x!==b.id; }); if(!a.inv.length) delete a.inv; } }
