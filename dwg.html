@@ -192,8 +192,15 @@ button,select{font:inherit}
 @media (max-width:520px){ .haut{gap:6px} .haut #btCalques,.haut #btFond,.haut #btImage{display:none} #btPlus{display:inline-flex} }
 @media (max-width:380px){ .haut{gap:4px;padding-left:8px;padding-right:8px} .haut .bt{padding:6px 8px} .haut a{padding:6px 10px} }
 #scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
-/* la croix du curseur : c'est le curseur de la souris lui-même (dessiné par l'ordinateur, sans aucun retard) */
-@media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="33" height="33" shape-rendering="crispEdges"%3E%3Cpath d="M0 16.5h33M16.5 0v33" stroke="%23E5E9EF" stroke-width="1"/%3E%3Crect x="13.5" y="13.5" width="6" height="6" fill="none" stroke="%23E5E9EF" stroke-width="1"/%3E%3C/svg%3E') 16 16, crosshair} body.clair #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="33" height="33" shape-rendering="crispEdges"%3E%3Cpath d="M0 16.5h33M16.5 0v33" stroke="%23111827" stroke-width="1"/%3E%3Crect x="13.5" y="13.5" width="6" height="6" fill="none" stroke="%23111827" stroke-width="1"/%3E%3C/svg%3E') 16 16, crosshair} }
+/* la croix du curseur, sur tout l'écran : deux traits que l'écran glisse sans repeindre le plan,
+   et au centre le petit carré, qui est le curseur de la souris lui-même (sans aucun retard) */
+@media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="11" height="11" shape-rendering="crispEdges"%3E%3Crect x="1.5" y="1.5" width="8" height="8" fill="none" stroke="%23E5E9EF" stroke-width="1"/%3E%3C/svg%3E') 5 5, crosshair} body.clair #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="11" height="11" shape-rendering="crispEdges"%3E%3Crect x="1.5" y="1.5" width="8" height="8" fill="none" stroke="%23111827" stroke-width="1"/%3E%3C/svg%3E') 5 5, crosshair} }
+#reticule{position:fixed;inset:0;pointer-events:none;overflow:hidden}
+#reticule[hidden]{display:none}
+#reticule i{position:absolute;left:0;top:0;background:rgba(229,233,239,.55);will-change:transform}
+#reticule .rh{width:100%;height:1px}
+#reticule .rv{width:1px;height:100%}
+body.clair #reticule i{background:rgba(17,24,39,.55)}
 body.clair #scene{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--haut,62px) + 16px) 20px 20px;text-align:center;overflow:auto}
 .accueil[hidden]{display:none}
@@ -434,6 +441,7 @@ body.clair #scene{background:#FFFFFF}
 </head>
 <body>
 <canvas id="scene" aria-label="Plan"></canvas>
+<div id="reticule" hidden aria-hidden="true"><i class="rh"></i><i class="rv"></i></div>
 
 <div class="haut ruban" id="ruban">
   <div class="rb-ligne">
@@ -8956,7 +8964,7 @@ var ACTIONS={
   guide2:["Oblique","guide2","Une ligne de construction par deux points touchés"],
   guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
   couleur:["Couleur","couleur","La couleur de l'élément choisi ou de la sélection (sinon : celle de son calque, dans Calques)"],
-  reticule:["Croix","reticule","La croix du curseur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
+  reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
@@ -9451,7 +9459,18 @@ function apercuGuide(c){
   }
   if(GUIDE && GUIDE.a){ var A=versEcran(GUIDE.a[0], GUIDE.a[1]); c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.fillStyle="#E879F9"; c.beginPath(); c.arc(A[0], A[1], 4, 0, Math.PI*2); c.fill(); c.restore(); }
 }
-function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); }
+function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); if(!(RETICULE && PLAN)) $("reticule").hidden=true; }
+/* les deux grands traits suivent la souris tout de suite, sans attendre l'image suivante du plan */
+(function(){
+  var boite=$("reticule"), rh=boite.querySelector(".rh"), rv=boite.querySelector(".rv");
+  cv.addEventListener("pointermove", function(e){
+    if(e.pointerType!=="mouse" || !RETICULE || !PLAN || !cv.classList.contains("reticule")){ if(!boite.hidden) boite.hidden=true; return; }
+    var x=Math.round(e.clientX), y=Math.round(e.clientY);
+    rh.style.transform="translateY("+y+"px)"; rv.style.transform="translateX("+x+"px)";
+    if(boite.hidden) boite.hidden=false;
+  });
+  cv.addEventListener("pointerleave", function(){ boite.hidden=true; });
+})();
 /* un toucher (sans glisser) pose la ligne ; le reste du toucher suit son cours (Choisir ne garde rien) */
 cv.addEventListener("pointerdown", function(e){ if(GUIDE && e.isPrimary && (e.pointerType!=="mouse" || e.button===0)) GUIDE.bas=[e.clientX, e.clientY]; else if(GUIDE) GUIDE.bas=null; }, true);
 cv.addEventListener("pointerup", function(e){
