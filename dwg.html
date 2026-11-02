@@ -135,6 +135,19 @@ button,select{font:inherit}
 .fe-champ input,#feCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
 .fe-case{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;margin:6px 0 8px;cursor:pointer}
 .fe-case input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.pg-boite{max-width:min(920px, calc(100vw - 24px))}
+.pg-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;max-height:70vh;overflow:auto;padding:4px}
+.pg-case{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#0B0E12;color:var(--ink);cursor:pointer;font:inherit}
+.pg-case:hover,.pg-case:focus-visible{border-color:#3B82F6;background:#111827}
+.pg-img{display:flex;align-items:center;justify-content:center;width:100%;aspect-ratio:1/1;background:#fff;border-radius:4px;overflow:hidden}
+.pg-img canvas{max-width:100%;max-height:100%;width:auto;height:auto}
+.pg-img i{color:#6B7280;font-style:normal}
+.pg-case b{font-size:13px}
+@media (max-width:420px){ .pg-grille{grid-template-columns:repeat(2,1fr)} }
+.fp-ech select{min-height:34px;border-radius:8px;background:#0B0E12;color:var(--ink);border:1px solid rgba(255,255,255,.22);padding:0 6px;margin-left:6px}
+.fp-ang{display:flex;align-items:center;gap:6px}
+.fp-ang input[type=range]{width:140px}
+.fp-ang input[type=text]{width:56px;min-height:32px;border-radius:8px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);padding:0 6px}
 .racc-liste{list-style:none;margin:6px 0;padding:0;max-height:52vh;overflow:auto}
 .racc-liste li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px}
 .racc-touche{min-width:64px;min-height:34px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -521,6 +534,12 @@ body.clair #scene{background:#FFFFFF}
   </div>
 </div>
 
+<div class="fen-site" id="fenPages" hidden role="dialog" aria-modal="true" aria-labelledby="fenPagesT">
+  <div class="fs-boite pg-boite">
+    <div class="fs-tete"><b id="fenPagesT">Quelle page ?</b><button class="bt" type="button" id="pgAnnuler" aria-label="Annuler">✕</button></div>
+    <div class="pg-grille" id="pgGrille"></div>
+  </div>
+</div>
 <div class="fen-site" id="fenRacc" hidden role="dialog" aria-modal="true" aria-labelledby="fenRaccT">
   <div class="fs-boite">
     <div class="fs-tete"><b id="fenRaccT">Raccourcis clavier</b><button class="bt" type="button" id="frFermer" aria-label="Fermer">✕</button></div>
@@ -646,6 +665,11 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="fpEchelle" type="button" disabled>Mettre à l'échelle</button>
     <button class="bt" id="fpDeplacer" type="button" disabled>Déplacer</button>
     <button class="bt" id="fpTourner" type="button" disabled>Tourner 90°</button>
+  </div>
+  <div class="rp-ligne">
+    <label class="fp-ech">Le PDF est au <select id="fpEch" disabled aria-label="Échelle à laquelle le PDF est dessiné"><option value="">—</option><option value="10">1/10</option><option value="20">1/20</option><option value="25">1/25</option><option value="50">1/50</option><option value="75">1/75</option><option value="100">1/100</option><option value="200">1/200</option><option value="250">1/250</option><option value="500">1/500</option><option value="1000">1/1000</option></select></label>
+    <label class="fp-ang">Angle <input id="fpAngR" type="range" min="-180" max="180" step="0.5" value="0" disabled><input id="fpAng" type="text" inputmode="decimal" value="0" disabled aria-label="Angle du fond en degrés"><span class="lab">°</span></label>
+    <label class="fp-op">Clarté <input id="fpClair" type="range" min="-100" max="100" step="5" value="0" disabled aria-label="Éclaircir (vers la droite) ou assombrir (vers la gauche)"></label>
   </div>
   <div class="rp-ligne">
     <label class="fp-op">Visibilité <input id="fpOp" type="range" min="10" max="100" step="5" value="50" disabled></label>
@@ -7151,22 +7175,39 @@ function rendrePagePdf(page){
   var x=c.getContext("2d"); x.fillStyle="#FFFFFF"; x.fillRect(0, 0, c.width, c.height);
   return page.render({canvasContext:x, viewport:vp}).promise.then(function(){ return c; });
 }
-function ouvrirPdf(f){
-  charge("Lecture de « "+f.name+" »…");
-  var lib;
-  chargerPdfJs().then(function(L){ lib=L; return f.arrayBuffer(); }).then(function(buf){
-    return lib.getDocument({data:new Uint8Array(buf)}).promise;
-  }).then(function(doc){
-    var n=1;
-    if(doc.numPages>1 && PDF_PAGE_FORCEE){ n=Math.max(1, Math.min(doc.numPages, PDF_PAGE_FORCEE)); PDF_PAGE_FORCEE=0; }
-    else if(doc.numPages>1){
-      charge("");
-      var r=window.prompt("Ce PDF a "+doc.numPages+" pages : laquelle ouvrir ? (1 à "+doc.numPages+")", "1");
-      if(r==null) return null;
-      n=Math.max(1, Math.min(doc.numPages, parseInt(r, 10)||1));
-      charge("Lecture de la page "+n+"…");
-    }
-    return doc.getPage(n).then(function(page){
+/* une page d'un PDF, ouverte comme plan : vectorielle (ses traits), ou en image si scannée */
+/* un PDF de plusieurs pages : on choisit la page sur ses aperçus */
+function choisirPagePdf(doc, titre){
+  return new Promise(function(fini){
+    var fen=$("fenPages"), gr=$("pgGrille"), stop=false; $("fenPagesT").textContent=titre+" ("+doc.numPages+" pages)"; gr.textContent="";
+    function fermer(n){ stop=true; fen.hidden=true; document.removeEventListener("keydown", clavier, true); fini(n); }
+    function clavier(e){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); fermer(null); } }
+    document.addEventListener("keydown", clavier, true);
+    $("pgAnnuler").onclick=function(){ fermer(null); };
+    var cases=[];
+    for(var k=1;k<=doc.numPages;k++){ (function(k){
+      var b=document.createElement("button"); b.type="button"; b.className="pg-case"; b.setAttribute("aria-label", "Page "+k);
+      b.innerHTML='<span class="pg-img"><i>…</i></span><b>Page '+k+'</b>';
+      b.addEventListener("click", function(){ fermer(k); });
+      gr.appendChild(b); cases.push(b);
+    })(k); }
+    fen.hidden=false;
+    /* les aperçus, l'un après l'autre (180 px de large) */
+    var k=0;
+    (function suivant(){
+      if(stop || k>=doc.numPages) return; k++;
+      var b=cases[k-1];
+      doc.getPage(k).then(function(page){
+        var v1=page.getViewport({scale:1}), sc=180/Math.max(v1.width, v1.height)*(window.devicePixelRatio>1 ? 2 : 1), vp=page.getViewport({scale:sc});
+        var c=document.createElement("canvas"); c.width=Math.round(vp.width); c.height=Math.round(vp.height);
+        var x=c.getContext("2d"); x.fillStyle="#fff"; x.fillRect(0,0,c.width,c.height);
+        return page.render({canvasContext:x, viewport:vp}).promise.then(function(){ var sp=b.querySelector(".pg-img"); sp.textContent=""; sp.appendChild(c); });
+      }).catch(function(){}).then(suivant);
+    })();
+  });
+}
+function ouvrirPagePdf(doc, n, lib){
+  return doc.getPage(n).then(function(page){
       return construirePdf(page, lib).then(function(P){
         /* vectoriel : les traits ; un logo dans le cartouche n'y change rien, un plan scanné (peu de traits) passe en image */
         var vectoriel = P.segments>=150 && (!P.images || P.segments>=3000);
@@ -7178,7 +7219,25 @@ function ouvrirPdf(f){
           fondImage(P, c, P.largeur, P.hauteur); return P;
         });
       }).then(function(P){ P.page=n; P.pages=doc.numPages; return P; });
-    });
+  });
+}
+function ouvrirPdf(f){
+  charge("Lecture de « "+f.name+" »…");
+  var lib;
+  chargerPdfJs().then(function(L){ lib=L; return f.arrayBuffer(); }).then(function(buf){
+    return lib.getDocument({data:new Uint8Array(buf)}).promise;
+  }).then(function(doc){
+    var n=1;
+    if(doc.numPages>1 && PDF_PAGE_FORCEE){ n=Math.max(1, Math.min(doc.numPages, PDF_PAGE_FORCEE)); PDF_PAGE_FORCEE=0; }
+    else if(doc.numPages>1){
+      charge("");
+      return choisirPagePdf(doc, "Quelle page ouvrir ?").then(function(k){
+        if(!k) return null;
+        charge("Lecture de la page "+k+"…");
+        return ouvrirPagePdf(doc, k, lib);
+      });
+    }
+    return ouvrirPagePdf(doc, n, lib);
   }).then(function(P){
     if(!P) return;
     var nE=echelleEcrite(P.texte), d = nE ? {mm:PT_MM*nE, source:"pdf-echelle"} : {mm:PT_MM*50, source:"suppose"};
@@ -7630,7 +7689,7 @@ function chargerFond(){
     .catch(function(){ majFondPanel(); });
 }
 /* un canevas réduit (3000 px au plus) devient le fond : JPEG, sur fond blanc */
-function poserFond(cv0, wmm, nom){
+function poserFond(cv0, wmm, nom, pdf){
   var k=Math.min(1, 3000/Math.max(cv0.width, cv0.height)), c=document.createElement("canvas");
   c.width=Math.max(1, Math.round(cv0.width*k)); c.height=Math.max(1, Math.round(cv0.height*k));
   var x=c.getContext("2d"); x.fillStyle="#FFFFFF"; x.fillRect(0, 0, c.width, c.height); x.drawImage(cv0, 0, 0, c.width, c.height);
@@ -7641,9 +7700,11 @@ function poserFond(cv0, wmm, nom){
     garderD();
     DESSIN.fond={x:vc[0]-wmm/2/DESSIN_MM, y:vc[1]-hmm/2/DESSIN_MM, w:wmm/DESSIN_MM, h:hmm/DESSIN_MM,
       op:ancien ? ancien.op : (CLAIR ? 0.6 : 0.45), vis:true, sol3d:ancien ? ancien.sol3d!==false : true, imp:ancien ? !!ancien.imp : false, nom:nom||"Fond de plan"};
+    if(pdf){ DESSIN.fond.pts=pdf.pts; DESSIN.fond.n=pdf.n; }
+    FOND_AJ=null;
     FOND_IMG=im; enregistrerD(); vueEntiere();
     FOND_ETAPE="echA"; FOND_PTS=[]; majDessin();
-    toast("Fond posé. Mise à l'échelle : touchez le début d'une longueur connue sur le fond (une cote, une porte), puis sa fin.", 8000);
+    toast(pdf ? "Fond posé au 1/"+pdf.n+(pdf.n===50 ? " (supposé)" : "")+". Si le PDF est à une autre échelle, choisissez-la dans « Le PDF est au » ; ou touchez une longueur connue (une cote), début puis fin." : "Fond posé. Mise à l'échelle : touchez le début d'une longueur connue sur le fond (une cote, une porte), puis sa fin.", 9000);
   });
 }
 function importerFond(f){
@@ -7657,11 +7718,13 @@ function importerFond(f){
       .then(function(buf){ return lib.getDocument({data:new Uint8Array(buf)}).promise; })
       .then(function(doc){
         var n=1;
-        if(doc.numPages>1){ charge(""); var r=window.prompt("Ce PDF a "+doc.numPages+" pages : laquelle prendre en fond ? (1 à "+doc.numPages+")", "1"); if(r==null) return null; n=Math.max(1, Math.min(doc.numPages, parseInt(r, 10)||1)); charge("Lecture de la page "+n+"…"); }
+        var choix = doc.numPages>1 ? (charge(""), choisirPagePdf(doc, "Quelle page prendre en fond ?")) : Promise.resolve(1);
+        return choix.then(function(n){ if(!n) return null; charge("Lecture de la page "+n+"…");
         return doc.getPage(n).then(function(page){
           var vp=page.getViewport({scale:1});
           return page.getTextContent().then(function(tc){ return echelleEcrite((tc.items||[]).map(function(i){ return i.str; }).join(" ")); }, function(){ return 0; })
-            .then(function(nE){ return rendrePagePdf(page).then(function(cv){ return poserFond(cv, vp.width*PT_MM*(nE||50), f.name); }); });
+            .then(function(nE){ return rendrePagePdf(page).then(function(cv){ return poserFond(cv, vp.width*PT_MM*(nE||50), f.name, {pts:vp.width, n:nE||50}); }); });
+        });
         });
       }).then(fin, raté);
     return;
@@ -7712,7 +7775,7 @@ function toucherFond(cible, p){
     if(!(reel>0)){ toast("Tapez une longueur en cm, par exemple 350."); return; }
     var k=reel/d;
     garderD();
-    f.x=A[0]+(f.x-A[0])*k; f.y=A[1]+(f.y-A[1])*k; f.w*=k; f.h*=k; f.echelle=true;
+    f.x=A[0]+(f.x-A[0])*k; f.y=A[1]+(f.y-A[1])*k; f.w*=k; f.h*=k; f.echelle=true; if(f.pts) f.n=Math.round(f.w*DESSIN_MM/(f.pts*PT_MM)*10)/10;
     FOND_ETAPE=null; FOND_PTS=[]; enregistrerD(); vueEntiere(); majDessin();
     toast("Fond à l'échelle ("+cm(reel)+" cm). Dessinez dessus : murs, cloisons, portes, mobilier, symboles. « Déplacer » le cale sur un point.", 7000);
     return;
@@ -7727,13 +7790,30 @@ function toucherFond(cible, p){
 }
 function peindreFond(c, E){
   var f=fondD(); if(!f || !FOND_IMG || f.vis===false || (IMPRIME && !f.imp)) return;
-  var P=E([f.x, f.y+f.h]);
+  var Ct=E([f.x+f.w/2, f.y+f.h/2]), w=f.w*V.k, h=f.h*V.k, img=imageFond(f);
   c.save(); c.globalAlpha=Math.max(0.05, Math.min(1, f.op!=null ? f.op : 0.5)); c.imageSmoothingEnabled=true;
-  try{ c.drawImage(FOND_IMG, P[0], P[1], f.w*V.k, f.h*V.k); }catch(e){}
+  c.translate(Ct[0], Ct[1]); if(f.rot) c.rotate(-f.rot*Math.PI/180);      /* l'angle : dans le sens inverse des aiguilles, comme les murs */
+  try{ c.drawImage(img, -w/2, -h/2, w, h); }catch(e){}
   c.restore();
   if(!IMPRIME && FOND_ETAPE && MODE==="dessin"){
-    c.save(); c.strokeStyle="#22D3EE"; c.setLineDash([8, 6]); c.lineWidth=1.5; c.strokeRect(P[0], P[1], f.w*V.k, f.h*V.k); c.setLineDash([]); c.restore();
+    c.save(); c.translate(Ct[0], Ct[1]); if(f.rot) c.rotate(-f.rot*Math.PI/180); c.strokeStyle="#22D3EE"; c.setLineDash([8, 6]); c.lineWidth=1.5; c.strokeRect(-w/2, -h/2, w, h); c.setLineDash([]); c.restore();
   }
+}
+/* éclaircir ou assombrir le fond : le blanc reste blanc, les traits pâlissent ou foncent (calculé une fois) */
+var FOND_AJ=null;
+function imageFond(f){
+  var cl=Math.max(-100, Math.min(100, Number(f.clair)||0));
+  if(!cl || !FOND_IMG) return FOND_IMG;
+  if(FOND_AJ && FOND_AJ.img===FOND_IMG && FOND_AJ.cl===cl) return FOND_AJ.c;
+  var c=document.createElement("canvas"); c.width=FOND_IMG.naturalWidth||FOND_IMG.width; c.height=FOND_IMG.naturalHeight||FOND_IMG.height;
+  var x=c.getContext("2d"); x.drawImage(FOND_IMG, 0, 0);
+  try{
+    var d=x.getImageData(0, 0, c.width, c.height), a=d.data, t=cl/100, lut=new Uint8ClampedArray(256);
+    for(var v=0; v<256; v++){ var u=v/255; lut[v]=Math.round(255*(t>0 ? u+(1-u)*t*0.9 : Math.pow(u, 1+(-t)*2.5))); }
+    for(var i=0; i<a.length; i+=4){ a[i]=lut[a[i]]; a[i+1]=lut[a[i+1]]; a[i+2]=lut[a[i+2]]; }
+    x.putImageData(d, 0, 0);
+  }catch(e){ return FOND_IMG; }
+  FOND_AJ={img:FOND_IMG, cl:cl, c:c}; return c;
 }
 function peindreEtapeFond(c, E){
   if(IMPRIME || !FOND_ETAPE || !FOND_PTS.length) return;
@@ -7755,6 +7835,14 @@ function majFondPanel(){
   $("btFondD").classList.toggle("on", !pn.hidden);
   ["fpEchelle","fpDeplacer","fpTourner","fpVoir","fpRetirer"].forEach(function(id){ $(id).disabled=!a; });
   $("fpOp").disabled=!a; $("fpSol").disabled=!a; $("fpImp").disabled=!a;
+  $("fpEch").disabled=!a || !f.pts; $("fpAng").disabled=$("fpAngR").disabled=!a; $("fpClair").disabled=!a;
+  if(a){
+    var ne=f.pts ? Math.round(f.w*DESSIN_MM/(f.pts*PT_MM)) : 0, sl=$("fpEch");
+    if(ne && !sl.querySelector('option[value="'+ne+'"]')){ var op=document.createElement("option"); op.value=String(ne); op.textContent="1/"+ne+" (mis à l'échelle)"; sl.appendChild(op); }
+    sl.value = ne ? String(ne) : "";
+    if(document.activeElement!==$("fpAng")) $("fpAng").value=String(Math.round((f.rot||0)*10)/10).replace(".", ",");
+    $("fpAngR").value=String(f.rot||0); $("fpClair").value=String(f.clair||0);
+  }
   $("fpEchelle").classList.toggle("on", FOND_ETAPE==="echA" || FOND_ETAPE==="echB");
   $("fpDeplacer").classList.toggle("on", FOND_ETAPE==="depA" || FOND_ETAPE==="depB");
   if(a){
@@ -7980,9 +8068,9 @@ function toits3D(sc){
 /* le fond de plan au sol, en 3D (page vierge, DESSIN en mm) */
 function fond3D(sc){
   var f=fondD(); if(!f || !FOND_IMG || f.vis===false || f.sol3d===false || !PLAN.vierge) return;
-  var THREE=V3.THREE, tex=new THREE.Texture(FOND_IMG); tex.needsUpdate=true; tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8;
+  var THREE=V3.THREE, tex=new THREE.Texture(imageFond(f)); tex.needsUpdate=true; tex.colorSpace=THREE.SRGBColorSpace; tex.anisotropy=8;
   var me=new THREE.Mesh(new THREE.PlaneGeometry(f.w/1000, f.h/1000), new THREE.MeshBasicMaterial({map:tex, transparent:true, opacity:Math.max(0.35, Math.min(1, (f.op||0.5)+0.25)), depthWrite:false}));
-  me.rotation.x=-Math.PI/2; me.position.set((f.x+f.w/2)/1000, 0.003, -(f.y+f.h/2)/1000); me.renderOrder=1; me.raycast=function(){}; sc.add(me);
+  me.rotation.x=-Math.PI/2; me.rotation.z=(f.rot||0)*Math.PI/180; me.position.set((f.x+f.w/2)/1000, 0.003, -(f.y+f.h/2)/1000); me.renderOrder=1; me.raycast=function(){}; sc.add(me);
 }
 /* le DXF : TOITURE (contour, faîtage, égouts) et PV (panneaux), en mm */
 function dxfToits(g){
@@ -8055,6 +8143,24 @@ function brancherToit(){
   $("fpVoir").addEventListener("click", function(){ var f=fondD(); if(!f) return; garderD(); f.vis = f.vis===false; enregistrerD(); majFondPanel(); demander(); });
   $("fpRetirer").addEventListener("click", retirerFond);
   $("fpOp").addEventListener("input", function(){ var f=fondD(); if(!f) return; f.op=Number(this.value)/100; demander(); });
+  /* l'échelle à laquelle le PDF est dessiné : le fond se met à sa taille réelle, autour de son centre */
+  $("fpEch").addEventListener("change", function(){
+    var f=fondD(), n=Number(this.value); if(!f || !f.pts || !(n>0)) return;
+    var w=f.pts*PT_MM*n/DESSIN_MM, k=w/f.w, cx=f.x+f.w/2, cy=f.y+f.h/2;
+    garderD(); f.w*=k; f.h*=k; f.x=cx-f.w/2; f.y=cy-f.h/2; f.n=n; f.echelle=true; enregistrerD(); majFondPanel(); demander();
+    toast("Fond au 1/"+n+" : "+metres(f.w*DESSIN_MM)+" × "+metres(f.h*DESSIN_MM)+" m. « Déplacer » le cale sur un point.", 4000);
+  });
+  /* l'angle, au degré (ou au demi-degré) près */
+  function angleFond(v, garde){ var f=fondD(); if(!f || !isFinite(v)) return; v=((v+180)%360+360)%360-180; if(garde) garderD(); f.rot=Math.round(v*10)/10; if(garde) enregistrerD(); majFondPanel(); demander(); }
+  var angGarde=false;
+  $("fpAngR").addEventListener("input", function(){ if(!angGarde){ garderD(); angGarde=true; } angleFond(Number(this.value), false); });
+  $("fpAngR").addEventListener("change", function(){ angGarde=false; enregistrerD(); });
+  $("fpAng").addEventListener("change", function(){ angleFond(parseFloat(String(this.value).replace(",", ".")), true); });
+  $("fpAng").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+  /* éclaircir, assombrir */
+  var clGarde=false;
+  $("fpClair").addEventListener("input", function(){ var f=fondD(); if(!f) return; if(!clGarde){ garderD(); clGarde=true; } f.clair=Number(this.value); demander(); });
+  $("fpClair").addEventListener("change", function(){ clGarde=false; enregistrerD(); });
   $("fpOp").addEventListener("change", function(){ enregistrerD(); });
   $("fpSol").addEventListener("change", function(){ var f=fondD(); if(!f) return; f.sol3d=this.checked; enregistrerD(); });
   $("fpImp").addEventListener("change", function(){ var f=fondD(); if(!f) return; f.imp=this.checked; enregistrerD(); });
