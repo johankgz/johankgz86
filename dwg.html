@@ -1635,7 +1635,7 @@ function peindre(){
     c2.restore(); n++;
   }
   /* les cotes */
-  if(cqVu("mesures")) COTES.forEach(function(ct){ dessinerCote(ct.a, ct.b); });
+  if(cqVu("mesures")) COTES.forEach(function(ct, i){ dessinerCote(ct.a, ct.b, false, !IMPRIME && MODE==="cote" && i===COTE_SEL); });
   if(A_PT){
     var fin = VISEE ? VISEE.pt : (SURVOL ? SURVOL.pt : null);
     if(fin) dessinerCote(A_PT, contraindre(A_PT, fin), true);
@@ -1738,9 +1738,30 @@ function facteurMolette(e){
   var k=(e.ctrlKey ? 0.01 : 0.0015)*MOLETTE;          /* un cran de souris (100) : × 1,16 en normal */
   return Math.exp(-Math.max(-2.5, Math.min(2.5, d*k)));
 }
-function dessinerCote(a, b, provisoire){
+/* la mesure choisie (outil Mesurer) : touchée sur son étiquette, la corbeille de la barre la supprime */
+var COTE_SEL=-1;
+function mesureChoisie(){ return MODE==="cote" && COTE_SEL>=0 && COTES[COTE_SEL] ? COTES[COTE_SEL] : null; }
+/* l'étiquette d'une mesure sous le doigt (en pixels de l'écran), la plus récente d'abord */
+function mesureSous(s){
+  if(!cqVu("mesures")) return -1;
+  c2.save(); c2.font="bold 13px system-ui, sans-serif";
+  for(var i=COTES.length-1;i>=0;i--){
+    var ct=COTES[i], p=versEcran(ct.a[0],ct.a[1]), q=versEcran(ct.b[0],ct.b[1]), L=Math.hypot(q[0]-p[0], q[1]-p[1]); if(L<2) continue;
+    var ang=Math.atan2(q[1]-p[1], q[0]-p[0]); if(ang>Math.PI/2) ang-=Math.PI; if(ang<-Math.PI/2) ang+=Math.PI;
+    var tw=c2.measureText(formater(distance(ct.a, ct.b))).width, dx=s[0]-(p[0]+q[0])/2, dy=s[1]-(p[1]+q[1])/2;
+    var lx=dx*Math.cos(ang)+dy*Math.sin(ang), ly=-dx*Math.sin(ang)+dy*Math.cos(ang);
+    if(Math.abs(lx)<=tw/2+12 && ly>=-30 && ly<=2){ c2.restore(); return i; }
+  }
+  c2.restore(); return -1;
+}
+function supprimerMesure(){
+  if(!mesureChoisie()) return;
+  COTES.splice(COTE_SEL, 1); COTE_SEL=-1; majBas(); majBarreSel(); demander();
+  toast("Mesure supprimée.", 1800);
+}
+function dessinerCote(a, b, provisoire, choisie){
   var p=versEcran(a[0],a[1]), q=versEcran(b[0],b[1]), L=Math.hypot(q[0]-p[0], q[1]-p[1]);
-  c2.strokeStyle="#3B82F6"; c2.fillStyle="#3B82F6"; c2.lineWidth=2; c2.setLineDash(provisoire ? [6,5] : []);
+  c2.strokeStyle=choisie ? "#F59E0B" : "#3B82F6"; c2.fillStyle=c2.strokeStyle; c2.lineWidth=choisie ? 3 : 2; c2.setLineDash(provisoire ? [6,5] : []);
   c2.beginPath(); c2.moveTo(p[0],p[1]); c2.lineTo(q[0],q[1]); c2.stroke(); c2.setLineDash([]);
   if(L<2) return;
   var ux=(q[0]-p[0])/L, uy=(q[1]-p[1])/L, nx=-uy*7, ny=ux*7;
@@ -1749,8 +1770,8 @@ function dessinerCote(a, b, provisoire){
   var txt=formater(distance(a,b));
   c2.save(); c2.translate((p[0]+q[0])/2,(p[1]+q[1])/2); c2.rotate(ang);
   c2.font="bold 13px system-ui, sans-serif"; var tw=c2.measureText(txt).width;
-  c2.fillStyle="rgba(11,14,18,.88)"; c2.beginPath(); if(c2.roundRect) c2.roundRect(-tw/2-7,-24,tw+14,20,10); else c2.rect(-tw/2-7,-24,tw+14,20); c2.fill();
-  c2.fillStyle="#93C5FD"; c2.textAlign="center"; c2.textBaseline="middle"; c2.fillText(txt,0,-14);
+  c2.fillStyle=choisie ? "#F59E0B" : "rgba(11,14,18,.88)"; c2.beginPath(); if(c2.roundRect) c2.roundRect(-tw/2-7,-24,tw+14,20,10); else c2.rect(-tw/2-7,-24,tw+14,20); c2.fill();
+  c2.fillStyle=choisie ? "#1A1206" : "#93C5FD"; c2.textAlign="center"; c2.textBaseline="middle"; c2.fillText(txt,0,-14);
   c2.restore();
 }
 /* la loupe : sous le doigt, on ne voit rien ; on montre donc la zone visée plus haut, agrandie */
@@ -2203,6 +2224,10 @@ function lacher(e){
     GUIDES_S=null; G=null; demander(); return;
   }
   if(e.type!=="pointercancel"){
+    /* l'étiquette d'une mesure : elle se choisit (la corbeille de la barre la supprime) */
+    var mi = !A_PT && !G.bouge && !(G.visee && VISEE) ? mesureSous(p) : -1;
+    if(mi>=0){ COTE_SEL = COTE_SEL===mi ? -1 : mi; majBarreSel(); VISEE=null; G=null; demander(); return; }
+    if(COTE_SEL>=0 && !G.bouge){ COTE_SEL=-1; majBarreSel(); }
     if(G.visee && VISEE) poserPoint(VISEE);
     else if(!G.bouge) poserPoint(chercher(p[0],p[1]));
   }
@@ -2271,6 +2296,7 @@ document.addEventListener("keydown", function(e){
     return;
   }
   if(LIEN_SEL && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerLien(); return; }
+  if(mesureChoisie() && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerMesure(); return; }
   if(e.key==="Escape" && LIEN_SEL){ choisirLien(null); }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } if(PV_EC){ PV_EC=null; majDessin(); } }
@@ -3160,11 +3186,19 @@ function majBarreSel(){
   $("bsCote").hidden = !cs || enCote;
   $("bsCoteEd").hidden = !enCote;
   if(enCote){ $("bsDist").hidden=$("bsDup").hidden=$("bsTourne").hidden=true; }
+  /* une mesure choisie : son nom et la corbeille, rien d'autre */
+  var ms=mesureChoisie();
+  if(ms){
+    nom="Mesure : "+formater(distance(ms.a, ms.b));
+    Array.prototype.forEach.call(b.children, function(x){ if(x.id && x.id!=="barreSelNom" && x.id!=="bsFermer") x.hidden=true; });
+    $("bsFermer").hidden=false; b.hidden=false;
+  }
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
 }
 /* la corbeille de la barre : l'élément choisi (ou la sélection) est supprimé ; Annuler le remet */
 $("bsFermer").addEventListener("click", function(){
+  if(mesureChoisie()){ supprimerMesure(); return; }
   if(lienSelValide()){ supprimerLien(); return; }
   if(MODE==="symb") supprimerSymb();
   else if(grpTaille(GRP)) supprimerGrp();
@@ -4583,6 +4617,8 @@ function finGeo(a, cible){ if(cible.acc || OUTIL_D==="spline") return cible.pt; 
 function memePoint(p, q){ var P=versEcran(p[0],p[1]), Q=versEcran(q[0],q[1]); return Math.hypot(P[0]-Q[0], P[1]-Q[1]) < 14; }
 function toucherGeo(cible, p){
   var t=OUTIL_D, pt=cible.pt;
+  /* outil Cote : toucher le texte d'une cote la choisit (la corbeille de la barre la supprime) */
+  if(t==="cote" && !GEO_EC){ var cT=coteTexteSous(p); if(cT){ D_SEL={t:"geo", id:cT.id}; majDessin(); majBarreSel(); demander(); return; } }
   if(t==="gtexte"){
     var txG=texteSous(pt); if(txG){ editerTexte(txG); return; }
     var s=window.prompt("Texte :", ""); if(s==null || !String(s).trim()) return;
@@ -4704,10 +4740,20 @@ function tirerPoignee(o, h, cible, p){
   if(o.t==="cote" && h.i==="off"){ var g=geomCote(o); o.off=(p[0]-g.a[0])*g.n[0]+(p[1]-g.a[1])*g.n[1]; return; }
   o.pts[h.i]=q;
 }
+/* le texte d'une cote (outil Cote) sous le point : il est au-dessus du trait, au milieu */
+function texteCoteSous(o, p){
+  if(o.t!=="cote" || !o.h) return false;
+  var g=geomCote(o), m=[(g.A[0]+g.B[0])/2+g.n[0]*g.s*o.h*0.75, (g.A[1]+g.B[1])/2+g.n[1]*g.s*o.h*0.75];
+  var d=[p[0]-m[0], p[1]-m[1]], lu=Math.abs(d[0]*g.u[0]+d[1]*g.u[1]), ln=Math.abs(d[0]*g.n[0]+d[1]*g.n[1]), tol=8/V.k;
+  var w=String(texteCote(lng(sub(g.b, g.a)))).length*o.h*0.32;
+  return lu<=w+tol && ln<=o.h*0.7+tol;
+}
+function coteTexteSous(p){ var l=geosVue(); for(var i=l.length-1;i>=0;i--){ if(uVu(l[i]) && texteCoteSous(l[i], p)) return l[i]; } return null; }
 function geoSous(p){
   var l=geosVue(), tol=10/V.k;
   for(var i=l.length-1;i>=0;i--){
     var o=l[i]; if(!uVu(o)) continue;
+    if(o.t==="cote" && texteCoteSous(o, p)) return o;
     if(o.t==="gtexte"){ if(Math.hypot(p[0]-o.pts[0][0], p[1]-o.pts[0][1]) < Math.max(o.h*Math.max(1,String(o.s).length)*0.35, tol)) return o; continue; }
     if(segmentsG(o).some(function(s){ return distSeg(p, s[0], s[1]).d < tol; })) return o;
     if(fermee(o) && o.remp!=="aucun" && dansPoly(p, contourG(o))) return o;
