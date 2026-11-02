@@ -1505,6 +1505,7 @@ function ouvrirGalerie(f){
 var VG_MAX=8*1024*1024, VG_CLE="dossier:vignettes", VG_MEM=null, VG_FILE=[], VG_ACTIFS=0, VG_OBS=null, VG_BLOBS=[], VG_ATTENTE={}, AP_ID=0, AP_VUE=null, AP_CACHE={}, AP_CLES=[];
 function genreVg(f){
   var c=String(f.cle||"").toLowerCase();
+  if(/\.plan$/.test(c)) return "plan";
   if(/\.pdf$/.test(c)) return "pdf";
   if(/\.(jpe?g|png|webp|gif)$/.test(c)) return "image";
   if(/\.zip$/.test(c)) return "zip";
@@ -1634,6 +1635,7 @@ function vignetteDoc(f){
   styleVg();
   var el=document.createElement("span"); el.className="dvg"; el.setAttribute("aria-hidden","true");
   if(g==="pdf") el.textContent="PDF";
+  else if(g==="plan"){ el.textContent="PLAN"; el.title="Plan à reprendre dans l'outil Plan"; return el; }
   else el.innerHTML='<svg viewBox="0 0 24 24" style="width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><path d="M3.5 8.5a1.5 1.5 0 0 1 1.5-1.5h2l1.3-2h6.4l1.3 2h2a1.5 1.5 0 0 1 1.5 1.5v9a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><circle cx="12" cy="12.5" r="3.4"/></svg>';
   var k=cleVg(f), m=memVg();
   if(m[k]){ poserVg(el, m[k].u); return el; }
@@ -2308,15 +2310,18 @@ function carteDossier(c, i, opts){
     a.setAttribute("data-type", f.type||"");                    /* la page du chantier range ses rubriques d'après lui */
     var zip = f.type==="photos" || String(f.cle).slice(-4)===".zip";
     var dwg = /\.(dwg|dxf)$/i.test(f.cle||"");
+    /* un plan du module Plan déposé tel quel : il s'ouvre dans l'outil Plan, pour le continuer */
+    var planM = !!(f.plan && f.plan.id && f.plan.u && /\.plan$/i.test(f.cle||""));
+    var urlPlan = f.plan && f.plan.id && f.plan.u ? "./dwg.html?plan="+encodeURIComponent(f.plan.id)+"&u="+encodeURIComponent(f.plan.u)+"&ref="+encodeURIComponent((c && c.ref) || String(f.cle||"").split("/")[0]) : "";
     /* la ligne n'ouvre rien : seul le bouton « Ouvrir » ouvre le document
        (un toucher au hasard en faisant défiler n'ouvre plus un PDF) ;
        à l'ordinateur, on la glisse toujours vers un dossier */
     a.style.cursor="default";
     a.style.webkitUserSelect="none"; a.style.userSelect="none"; a.style.webkitTouchCallout="none";
-    glisserVersOrdinateur(a, f);
+    if(!planM) glisserVersOrdinateur(a, f);
     var vg=vignetteDoc(f);
     if(vg){ a.classList.add("avec-vg"); a.appendChild(vg); }
-    appuiLongDoc(a, f);
+    if(!planM) appuiLongDoc(a, f);
     var t=document.createElement("div"); t.className="t";
     var tl=document.createElement("div"); tl.className="tl";
     var tb=document.createElement("b"); tb.textContent=f.titre;
@@ -2395,6 +2400,7 @@ function carteDossier(c, i, opts){
       e.preventDefault(); e.stopPropagation();
       /* un lot de photos s'ouvre en galerie, un plan DWG ou DXF dans l'outil Plan */
       if(zip){ marquerLu(f); ouvrirGalerie(f); return; }
+      if(planM){ marquerLu(f); location.href=urlPlan; return; }
       if(dwg){ marquerLu(f); location.href="./dwg.html?cle="+encodeURIComponent(f.cle); return; }
       if(PHOTO_AFFICHABLE.test(f.cle||"")){ ouvrirPhoto(f, bPartage); return; }
       if(ouvrirPlan(f, c)) return;
@@ -2412,7 +2418,7 @@ function carteDossier(c, i, opts){
     if(!f.prive) droite.appendChild(bDis);          /* un document réservé ne part pas dans la discussion, où sont les techniciens */
     /* Envoyer (ordinateur) : le partage de Windows ou du Mac, avec le fichier en pièce jointe
        (Outlook, Courrier, Teams…) — un glisser vers l'Outlook installé n'emporte pas le fichier */
-    if(peutEnvoyerFichiers() && !zip){
+    if(peutEnvoyerFichiers() && !zip && !planM){
       var bEnv=document.createElement("button"); bEnv.type="button"; bEnv.className="part env";
       bEnv.textContent="Envoyer"; bEnv.title="Envoyer en pièce jointe (Outlook, Courrier, Teams…)";
       bEnv.setAttribute("aria-label","Envoyer "+(f.titre||"ce document")+" en pièce jointe");
@@ -2421,10 +2427,11 @@ function carteDossier(c, i, opts){
       droite.appendChild(bEnv);
     }
     /* un plan du module Plan déposé ici (réservé chargés d'affaires) : le reprendre tel qu'il était */
-    if(f.plan && f.plan.id && f.plan.u){
+    if(planM){ /* « Ouvrir » le reprend déjà */ }
+    else if(f.plan && f.plan.id && f.plan.u){
       var bRep=document.createElement("a");
       bRep.className="part"; bRep.textContent="Reprendre";
-      bRep.href="./dwg.html?plan="+encodeURIComponent(f.plan.id)+"&u="+encodeURIComponent(f.plan.u)+"&ref="+encodeURIComponent((c && c.ref) || String(f.cle||"").split("/")[0]);
+      bRep.href=urlPlan;
       bRep.title="Rouvrir ce plan dans l'outil Plan, pour le modifier";
       bRep.setAttribute("aria-label","Reprendre le plan "+(f.titre||""));
       bRep.addEventListener("click", function(e){ e.stopPropagation(); });

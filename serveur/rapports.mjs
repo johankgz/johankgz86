@@ -1773,7 +1773,7 @@ async function traiter(req) {
       if (!fP || !bureau || !voit(personne, fP, cP)) return json({ erreur: "Ce plan du chantier ne vous est pas ouvert." }, 403);
       proprio = uP;
     }
-    /* déposer le plan (son PDF) dans le dossier du chantier, côté réservé chargés d'affaires */
+    /* déposer le plan (lui-même, ou son PDF) dans le dossier du chantier, côté réservé chargés d'affaires */
     if (action === "plan-chantier") {
       if (!bureau) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
       let d;
@@ -1787,25 +1787,42 @@ async function traiter(req) {
       const c = idx.chantiers[String(d.ref || "")] || idx.chantiers[slug(d.ref || "")];
       if (!c) return json({ erreur: "Dossier introuvable." }, 404);
       if (revoque(c, personne.nom)) return json({ erreur: "Ce dossier ne vous est plus attribué." }, 403);
-      const octets = Buffer.from(String(d.pdf || ""), "base64");
-      if (!octets.length || octets.subarray(0, 4).toString() !== "%PDF") return json({ erreur: "PDF illisible." }, 400);
-      if (octets.length > 25 * 1024 * 1024) return json({ erreur: "PDF trop lourd pour le dossier (25 Mo au plus)." }, 413);
-      const cle = c.ref + "/plan-" + id + ".pdf";
-      const ancien = c.fichiers.find((f) => f.cle === cle);
-      await store.set(cle, octets, { metadata: { type: "application/pdf" } });
+      /* deux formes : « plan » (le plan lui-même, à reprendre et modifier dans l'outil Plan)
+         ou « pdf » (sa mise en page, qui se reprend aussi). Une seule à la fois par plan. */
+      const format = d.format === "pdf" ? "pdf" : "plan";
+      let octets, typeMime;
+      if (format === "pdf") {
+        octets = Buffer.from(String(d.pdf || ""), "base64");
+        if (!octets.length || octets.subarray(0, 4).toString() !== "%PDF") return json({ erreur: "PDF illisible." }, 400);
+        if (octets.length > 25 * 1024 * 1024) return json({ erreur: "PDF trop lourd pour le dossier (25 Mo au plus)." }, 413);
+        typeMime = "application/pdf";
+      } else {
+        /* le plan tel qu'il vient d'être enregistré : sa fiche et son contenu (dessin, symboles, calques, mise en page) */
+        let contenu = null;
+        try { contenu = await store.get("plans/" + u + "/c/" + id + ".json", { type: "json" }); } catch { contenu = null; }
+        if (!contenu) return json({ erreur: "Enregistrez d'abord le plan." }, 404);
+        octets = Buffer.from(JSON.stringify({ format: "plan-tle", version: 1, plan, contenu }));
+        typeMime = "application/json";
+      }
+      const cle = c.ref + "/plan-" + id + "." + format;
+      const memePlan = (f) => f.plan && f.plan.id === id && f.plan.u === u;
+      const ancien = c.fichiers.find((f) => f.cle === cle) || c.fichiers.find(memePlan);
+      /* l'autre forme du même plan, déposée avant : remplacée */
+      for (const f of c.fichiers) if (memePlan(f) && f.cle !== cle) { try { await store.delete(f.cle); } catch { /* déjà parti */ } }
+      await store.set(cle, octets, { metadata: { type: typeMime } });
       const quand = new Date().toISOString();
       const entree = { cle, titre: "Plan — " + (String(d.nom || plan.nom || "").replace(/\s+/g, " ").trim().slice(0, 100) || "sans titre"), type: "technique",
         visite: RESERVE_CA, etape: "", date: jourParis(), auteur: (ancien && ancien.auteur) || personne.nom, destinataires: [], versDossier: true,
         publiePar: Array.from(new Set([...((ancien && ancien.publiePar) || []), personne.nom])), taille: octets.length, publie: quand, donnees: false,
-        versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {}, prive: true, plan: { id, u, nom: plan.nom } };
+        versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {}, prive: true, plan: { id, u, nom: plan.nom, format } };
       if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
-      c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
+      c.fichiers = c.fichiers.filter((f) => f.cle !== cle && !memePlan(f));
       c.fichiers.push(entree);
       c.fichiers.sort((a, b) => rang(b) - rang(a));
       c.maj = quand;
       await store.setJSON(INDEX, idx);
-      await noterChantierPlan(store, personne.societe, u, id, { ref: c.ref, client: c.client || "", cle, le: quand });
-      return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
+      await noterChantierPlan(store, personne.societe, u, id, { ref: c.ref, client: c.client || "", cle, le: quand, format });
+      return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions, format });
     }
     return mesplans(action, { req, url, store, personne, json, proprio });
   }

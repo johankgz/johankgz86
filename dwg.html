@@ -135,6 +135,13 @@ button,select{font:inherit}
 .fe-champ input,#feCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
 .fe-case{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;margin:6px 0 8px;cursor:pointer}
 .fe-case input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.fe-format{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
+.fe-format label{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;font-size:13px;line-height:1.35}
+.fe-format label:has(input:checked){border-color:var(--acc,#3B82F6);background:rgba(59,130,246,.12)}
+.fe-format input{width:18px;height:18px;flex:0 0 auto;margin:1px 0 0}
+.fe-format b{display:block;font-size:14px}
+.fe-format small{color:var(--ink2)}
+@media (max-width:420px){.fe-format{grid-template-columns:1fr}}
 #feChoix{display:flex;flex-direction:column;gap:8px}
 #feChoix[hidden]{display:none}
 .fe-liste{max-height:240px}
@@ -473,8 +480,12 @@ body.clair #scene{background:#FFFFFF}
     <label class="fe-champ"><span>Nom du plan</span><input id="feNom" type="text" maxlength="120" autocomplete="off" placeholder="Dupont RDC électricité"></label>
     <p class="fs-aide">Il est gardé dans <b>Mes plans</b> : vous seul le voyez, sur tous vos appareils.</p>
     <div id="feCh" hidden>
-      <label class="fe-case"><input type="checkbox" id="feChOui"> <span>Le déposer aussi dans le dossier d'un chantier, côté <b>Réservé chargés d'affaires</b> (son PDF, à reprendre depuis le chantier)</span></label>
+      <label class="fe-case"><input type="checkbox" id="feChOui"> <span>Le déposer aussi dans le dossier d'un chantier, côté <b>Réservé chargés d'affaires</b></span></label>
       <div id="feChoix" hidden>
+        <div class="fe-format" role="radiogroup" aria-label="Sous quelle forme ?">
+          <label><input type="radio" name="feFormat" value="plan" checked><span><b>Le plan, à reprendre</b><small>Il s'ouvre dans l'outil Plan, comme pas fini : on le modifie et on l'enregistre.</small></span></label>
+          <label><input type="radio" name="feFormat" value="pdf"><span><b>Son PDF</b><small>La mise en page, avec le cartouche. Le bouton Reprendre rouvre le plan.</small></span></label>
+        </div>
         <input type="search" id="feCherche" placeholder="Chercher un chantier, une référence…" autocomplete="off" aria-label="Chercher un chantier">
         <div class="fs-liste fe-liste" id="feListe" role="listbox" aria-label="Chantiers"></div>
       </div>
@@ -7045,7 +7056,9 @@ function peindreSite(){
       b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/></svg><span><b></b><small></small></span>';
       b.querySelector("b").textContent=f.titre || nomDoc(f);
       b.querySelector("small").textContent=[f.visite || f.etape || "", f.date ? new Date(f.date).toLocaleDateString("fr-FR") : ""].filter(Boolean).join(" · ");
-      b.addEventListener("click", function(){ ouvrirDuSite(f.cle, nomDoc(f)); });
+      /* un plan déposé à reprendre : il se rouvre tel qu'il était, pour le continuer */
+      if(f.plan && f.plan.id && /\.plan$/i.test(f.cle||"")){ b.querySelector("small").textContent="Plan à reprendre"+(f.date ? " · "+new Date(f.date).toLocaleDateString("fr-FR") : ""); b.addEventListener("click", function(){ $("fenSite").hidden=true; ouvrirPlanSite(f.plan.id, {u:f.plan.u, ref:c.ref}); }); }
+      else b.addEventListener("click", function(){ ouvrirDuSite(f.cle, nomDoc(f)); });
       bloc.appendChild(b);
     });
     h.appendChild(bloc);
@@ -7060,7 +7073,7 @@ function ouvrirFenSite(){
     .then(function(d){
       SITE_DOCS=(d.chantiers||[]).map(function(c){
         return {ref:c.ref, client:c.client||"", adresse:c.adresse||"", maj:c.maj||"",
-          docs:(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(f.cle||""); })};
+          docs:(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /\.(pdf|jpe?g|png|webp|dwg|dxf|plan)$/i.test(f.cle||""); })};
       }).filter(function(c){ return c.docs.length; });
       peindreSite();
     })
@@ -8920,7 +8933,7 @@ var ACTIONS={
   etudepv:["Étude PV","etudepv","Module, onduleurs, calculs et matériel"],
   v3d:["3D","v3d","Voir le plan monté en 3D"], entiere:["Vue entière","entiere","Tout le plan à l'écran"], clair:["Fond clair","clair","Fond clair ou sombre"],
   enreg:["Enregistrer","enreg","Enregistrer le plan sur le site, pour le reprendre plus tard (Ctrl+S)"],
-  enregch:["Dans un chantier","chantier","Enregistrer le plan et déposer son PDF dans le dossier d'un chantier, côté réservé chargés d'affaires"],
+  enregch:["Dans un chantier","chantier","Enregistrer le plan et le déposer (à reprendre, ou en PDF) dans le dossier d'un chantier, côté réservé chargés d'affaires"],
   pdf:["PDF","pdf","Mise en page A4, A3, A2, A1 ou A0, avec le cartouche"],
   guideh:["Horizontale","guideh","Une ligne de construction horizontale, par le point touché : elle aide à tracer, ne s'imprime pas"],
   guidev:["Verticale","guidev","Une ligne de construction verticale, par le point touché"],
@@ -9506,6 +9519,9 @@ function ouvrirEnreg(versChantier){
   $("feErr").hidden=true;
   var ca=estCA(); $("feCh").hidden=!ca;
   FE.ch = PLAN_SITE && PLAN_SITE.chantier ? {ref:PLAN_SITE.chantier.ref, client:PLAN_SITE.chantier.client||""} : null;
+  /* le plan lui-même, sauf si on a choisi son PDF */
+  var fmt = PLAN_SITE && PLAN_SITE.chantier && PLAN_SITE.chantier.format==="pdf" ? "pdf" : "plan";
+  Array.prototype.forEach.call(document.querySelectorAll('input[name="feFormat"]'), function(r){ r.checked = r.value===fmt; });
   $("feChOui").checked = ca && (!!versChantier || !!FE.ch);
   $("feChoix").hidden = !$("feChOui").checked;
   $("fenEnreg").hidden=false;
@@ -9545,7 +9561,8 @@ $("fenEnreg").addEventListener("submit", function(e){
   var vers=estCA() && $("feChOui").checked;
   if(vers && !FE.ch){ $("feErr").textContent="Choisissez le chantier où le déposer."; $("feErr").hidden=false; return; }
   $("fenEnreg").hidden=true;
-  enregistrerPlanSite({nom:nom, chantier: vers ? FE.ch : null, retirerChantier: !vers});
+  var fmt=(document.querySelector('input[name="feFormat"]:checked')||{}).value==="pdf" ? "pdf" : "plan";
+  enregistrerPlanSite({nom:nom, chantier: vers ? {ref:FE.ch.ref, client:FE.ch.client, format:fmt} : null, retirerChantier: !vers});
 });
 /* le PDF du plan, pour le chantier : la mise en page retenue, l'affaire et la référence du chantier */
 function pdfPourChantier(ch){
@@ -9561,7 +9578,7 @@ function enregistrerPlanSite(o){
   if(!o && !PLAN_SITE){ ouvrirEnreg(false); return; }
   o=o||{};
   var nom=o.nom || PLAN_SITE.nom;
-  /* déposé dans un chantier : son PDF y suit chaque enregistrement */
+  /* déposé dans un chantier : le plan (ou son PDF, si on l'a choisi) y suit chaque enregistrement */
   var ch = o.chantier || (!o.retirerChantier && PLAN_SITE && PLAN_SITE.chantier) || null;
   var vierge=!!PLAN.vierge;
   if(!vierge && !FICHIER_SRC){ toast("Le fichier d'origine n'est plus ouvert : rouvrez-le, puis enregistrez.", 5000); return; }
@@ -9583,14 +9600,17 @@ function enregistrerPlanSite(o){
     return appelSite("plan-fichier-envoyer"+(acces ? accesPlan(idPlan, acces) : "&id="+encodeURIComponent(idPlan)), {method:"POST", headers:{"content-type":"application/octet-stream"}, body:FICHIER_SRC});
   }).then(function(){
     if(!ch) return null;
-    charge("PDF du plan pour le chantier "+ch.ref+"…");
-    return pdfPourChantier(ch).then(function(res){ return blobEnBase64(res.blob); }).then(function(b64){
-      return appelSite("plan-chantier"+accesPlan(idPlan, acces), {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({id:idPlan, nom:nom, ref:ch.ref, pdf:b64})});
-    }).then(function(r){ PLAN_SITE.chantier={ref:r.ref, client:r.client}; return r; });
+    var enPdf = ch.format==="pdf";
+    charge((enPdf ? "PDF du plan" : "Le plan")+" pour le chantier "+ch.ref+"…");
+    var envoi = enPdf ? pdfPourChantier(ch).then(function(res){ return blobEnBase64(res.blob); }) : Promise.resolve("");
+    return envoi.then(function(b64){
+      return appelSite("plan-chantier"+accesPlan(idPlan, acces), {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({id:idPlan, nom:nom, ref:ch.ref, format:enPdf ? "pdf" : "plan", pdf:b64})});
+    }).then(function(r){ PLAN_SITE.chantier={ref:r.ref, client:r.client, format:r.format||"plan"}; return r; });
   }).then(function(r){
     charge(""); SALE_PLAN=false; majNomPlan(); majRuban();
     var ou = acces ? "Plan enregistré" : "Plan enregistré dans Mes plans";
-    if(r) toast(ou+(r.versions>1 ? ", et son PDF mis à jour dans le chantier "+r.ref+" (version "+r.versions+")" : ", et déposé dans le chantier "+r.ref+(r.client ? " ("+r.client+")" : "")+", côté réservé chargés d'affaires")+".", 6000);
+    var quoi = r && r.format==="pdf" ? "son PDF" : "le plan, à reprendre,";
+    if(r) toast(ou+(r.versions>1 ? ", et "+quoi+" mis à jour dans le chantier "+r.ref+" (version "+r.versions+")" : ", et "+quoi+" déposé dans le chantier "+r.ref+(r.client ? " ("+r.client+")" : "")+", côté réservé chargés d'affaires")+".", 6000);
     else toast("Plan enregistré dans Mes plans : « "+PLAN_SITE.nom+" ». Il se rouvre depuis Ouvrir, sur tous vos appareils.", 5000);
   }).catch(function(e){
     charge("");
