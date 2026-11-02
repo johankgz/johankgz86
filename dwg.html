@@ -6285,10 +6285,11 @@ function page(){ var f=FORMATS[MEP.format]||FORMATS.a3, l=MEP.orient==="l"; var 
    se range au-dessus du cartouche, en colonne (paysage) ou en bande (portrait) ; à gauche
    du cartouche, les notes. Le cadre et les zones suivent le format, le cartouche garde
    sa taille réelle, du A4 au A0. */
-var CART={marge:20, bord:10, largeur:180, revision:10, haut:36};
+/* le cadre au plus près du bord : 7 mm à gauche et en haut (la bande des repères), 4 mm à droite et en bas */
+var CART={gauche:7, haut0:7, droite:4, bas:4, largeur:180, revision:10, haut:36};
 function gabarit(){
   var P=page(), l=MEP.orient==="l", k=0.3;   /* la légende : 0,3 mm par unité, comme sur un A3 */
-  var F={x:CART.marge, y:CART.bord, w:P.w-CART.marge-CART.bord, h:P.h-2*CART.bord};
+  var F={x:CART.gauche, y:CART.haut0, w:P.w-CART.gauche-CART.droite, h:P.h-CART.haut0-CART.bas};
   var CW=Math.min(CART.largeur, F.w), Hc=CART.revision+CART.haut;
   var g={P:P, k:k, cadre:F, cart:{x:F.x+F.w-CW, y:F.y+F.h-Hc, w:CW, h:Hc}};
   var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length, leg=nl && MEP.legende!==false;
@@ -6309,32 +6310,32 @@ function gabarit(){
 }
 /* le cadre, ses repères de zones et de centrage */
 function cadreIso(doc, g){
-  var F=g.cadre, P=g.P;
+  var F=g.cadre, P=g.P, B=5;   /* B : la bande des repères, en haut et à gauche seulement */
   doc.setDrawColor(0,0,0); doc.setTextColor(0,0,0); doc.setLineDashPattern([],0);
-  doc.setLineWidth(0.25); doc.rect(F.x-5, F.y-5, F.w+10, F.h+10);
+  doc.setLineWidth(0.25); doc.line(F.x-B, F.y-B, F.x+F.w, F.y-B); doc.line(F.x-B, F.y-B, F.x-B, F.y+F.h);
   doc.setLineWidth(0.7); doc.rect(F.x, F.y, F.w, F.h);
   var nH=Math.max(2, Math.round(F.w/50)), nV=Math.max(2, Math.round(F.h/50)), dx=F.w/nH, dy=F.h/nV;
   var LETTRES="ABCDEFGHJKLMNPQRSTUVWXYZ";
   doc.setFont("helvetica", "normal"); doc.setFontSize(7);
   doc.setLineWidth(0.35);
+  /* les chiffres en haut, les lettres à gauche */
   for(var i=0;i<nH;i++){
-    if(i){ var x=F.x+i*dx; doc.line(x, F.y-5, x, F.y); doc.line(x, F.y+F.h, x, F.y+F.h+5); }
-    var xc=F.x+(i+0.5)*dx; doc.text(String(i+1), xc, F.y-1.6, {align:"center"}); doc.text(String(i+1), xc, F.y+F.h+3.9, {align:"center"});
+    if(i){ var x=F.x+i*dx; doc.line(x, F.y-B, x, F.y); }
+    doc.text(String(i+1), F.x+(i+0.5)*dx, F.y-1.6, {align:"center"});
   }
   for(var j=0;j<nV;j++){
-    if(j){ var y=F.y+j*dy; doc.line(F.x-5, y, F.x, y); doc.line(F.x+F.w, y, F.x+F.w+5, y); }
-    var yc=F.y+(j+0.5)*dy+1.2, L=LETTRES[j]||"";
-    doc.text(L, F.x-2.5, yc, {align:"center"}); doc.text(L, F.x+F.w+2.5, yc, {align:"center"});
+    if(j){ var y=F.y+j*dy; doc.line(F.x-B, y, F.x, y); }
+    doc.text(LETTRES[j]||"", F.x-2.5, F.y+(j+0.5)*dy+1.2, {align:"center"});
   }
   /* la signature du site, sous le cadre, à droite (le pied de page commun n'en ajoute pas une seconde) */
   doc.setFontSize(5); doc.setTextColor(150,155,165);
-  doc.text((window.Signature && Signature.texte) || "Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", F.x+F.w+5, P.h-1.4, {align:"right"});
+  doc.text((window.Signature && Signature.texte) || "Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", F.x+F.w, P.h-1.2, {align:"right"});
   doc.setTextColor(0,0,0); doc.setFontSize(7);
-  /* les repères de centrage, du bord de la feuille à 5 mm dans le cadre */
+  /* les repères de centrage : à travers la bande en haut et à gauche, 5 mm dans le cadre en bas et à droite */
   doc.setLineWidth(0.7);
   var cx=F.x+F.w/2, cy=F.y+F.h/2;
-  doc.line(cx, F.y-5, cx, F.y+5); doc.line(cx, F.y+F.h-5, cx, F.y+F.h+5);
-  doc.line(F.x-5, cy, F.x+5, cy); doc.line(F.x+F.w-5, cy, F.x+F.w+5, cy);
+  doc.line(cx, F.y-B, cx, F.y+5); doc.line(cx, F.y+F.h-5, cx, F.y+F.h);
+  doc.line(F.x-B, cy, F.x+5, cy); doc.line(F.x+F.w-5, cy, F.x+F.w, cy);
 }
 /* le cartouche : tableau des indices, société et logo, objet, affaire, référence,
    échelle, format, indice, folio, dessinateur, date, fichier */
