@@ -1011,7 +1011,7 @@ function nomUnite(mm){
   return n || (mm>=1 ? mm.toLocaleString("fr-FR",{maximumFractionDigits:3})+" mm" : (mm).toLocaleString("fr-FR",{maximumSignificantDigits:4})+" mm");
 }
 
-function construire(db){
+function construire(db, progres){
   var P={groupes:{}, textes:[], calques:{}, pts:[], minx:Infinity, miny:Infinity, maxx:-Infinity, maxy:-Infinity, xs:[], ys:[], cotesPlan:[]};
   var styles={};
   ((db.tables && db.tables.DIMSTYLE && db.tables.DIMSTYLE.entries)||[]).forEach(function(d){ styles[d.name]=d; });
@@ -1026,7 +1026,7 @@ function construire(db){
   function calque(nom){ if(!P.calques[nom]) P.calques[nom]={nom:nom, couleur:aci(couleurCalque[nom]||7), visible:true, n:0}; return P.calques[nom]; }
   function groupe(cq, coul){
     var k=cq+"|"+coul, g=P.groupes[k];
-    if(!g){ g=P.groupes[k]={calque:cq, couleur:coul, chemin:new Path2D(), pleins:null, n:0}; }
+    if(!g){ g=P.groupes[k]={calque:cq, couleur:coul, A:null, F:null, n:0}; }
     return g;
   }
   function T(m, x, y){ return [m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; }
@@ -1035,17 +1035,19 @@ function construire(db){
     if(!isFinite(x) || !isFinite(y)) return;
     if(P.xs.length<200000){ P.xs.push(x); P.ys.push(y); }
   }
-  function acc(x, y, genre){ P.pts.push(x, y, genre); }
+  function acc(x, y, genre){ var u=placeF(P, "pb", 3), b=P.pb; b[u]=x; b[u+1]=y; b[u+2]=genre; P.pbn=u+3; }
   /* une polyligne (points déjà transformés) */
+  /* une polyligne : rangée dans le tableau de son groupe (n, x0, y0, x1, y1…, n<0 : fermée) ;
+     les Path2D se font une fois, à la fin, par tuiles (en ajouter au fil de l'eau est très lent) */
   function poly(ctx, pts, ferme, plein){
     if(pts.length<2) return;
-    var g=groupe(ctx.calque, ctx.couleur);
-    g.chemin.moveTo(pts[0][0], pts[0][1]);
-    for(var i=1;i<pts.length;i++) g.chemin.lineTo(pts[i][0], pts[i][1]);
-    if(ferme) g.chemin.closePath();
-    if(plein){ if(!g.pleins) g.pleins=new Path2D(); g.pleins.moveTo(pts[0][0], pts[0][1]); for(var j=1;j<pts.length;j++) g.pleins.lineTo(pts[j][0], pts[j][1]); g.pleins.closePath(); }
+    var g=groupe(ctx.calque, ctx.couleur), u=placeF(g, "A", 1+2*pts.length), A=g.A;
+    A[u++]=ferme ? -pts.length : pts.length;
+    for(var i=0;i<pts.length;i++){ A[u++]=pts[i][0]; A[u++]=pts[i][1]; }
+    g.An=u;
+    if(plein){ var v=placeF(g, "F", 1+2*pts.length), F=g.F; F[v++]=-pts.length; for(var j=0;j<pts.length;j++){ F[v++]=pts[j][0]; F[v++]=pts[j][1]; } g.Fn=v; }
     g.n++; P.calques[ctx.calque] && P.calques[ctx.calque].n++;
-    pts.forEach(function(p){ borne(p[0], p[1]); });
+    if(P.xs.length<200000) for(var k=0;k<pts.length;k++) borne(pts[k][0], pts[k][1]);
   }
   function arcPts(m, cx, cy, r, a0, a1, ccw){
     if(ccw===false){ var t=a0; a0=a1; a1=t; }
@@ -1225,8 +1227,77 @@ function construire(db){
       default: break;   /* XLINE, RAY, VIEWPORT, 3DSOLID, WIPEOUT… : rien à coter */
     }
   }
-  ents.forEach(function(e){ dessiner(e, [1,0,0,1,0,0], null, 0); });
-  return finirPlan(P);
+  /* par morceaux de 25 ms : la page reste vivante, l'avancement s'affiche */
+  return new Promise(function(fini, rate){
+    var i0=0, I=[1,0,0,1,0,0];
+    (function morceau(){
+      try{
+        var t0=performance.now();
+        while(i0<ents.length && performance.now()-t0<25){ var fin=Math.min(ents.length, i0+200); for(;i0<fin;i0++) dessiner(ents[i0], I, null, 0); }
+        if(i0<ents.length){ if(progres) progres(i0/ents.length); setTimeout(morceau, 0); return; }
+        if(progres) progres(1);
+        finirPlan(P); tuilerPlan(P); fini(P);
+      }catch(er){ rate(er); }
+    })();
+  });
+}
+/* un tableau de nombres (Float32Array) qui grandit : bien moins de mémoire et de ménage qu'un tableau ordinaire */
+function placeF(o, cle, n){
+  var b=o[cle], u=o[cle+"n"]||0;
+  if(!b || u+n>b.length){ var nb=new Float32Array(Math.max(4096, Math.ceil((u+n)*1.8))); if(b) nb.set(b.subarray(0, u)); o[cle]=nb; }
+  return u;
+}
+/* ---------- les traits d'un plan importé, rangés par tuiles ----------
+   Chaque groupe (calque, couleur) est découpé en tuiles : à l'écran, seules les
+   tuiles visibles se dessinent ; vu de loin, les tout petits traits (un détail de
+   meuble) ne se dessinent pas ; un Path2D par tuile, fait au premier affichage. */
+function tuilerPlan(P){
+  var L=Math.max(P.maxx-P.minx, P.maxy-P.miny)||1, total=0;
+  Object.keys(P.groupes).forEach(function(k){ total+=P.groupes[k].n; });
+  var T=Math.max(1, Math.min(48, Math.round(Math.sqrt(total/900)))), cel=L/T;
+  P.tuileT=T;
+  Object.keys(P.groupes).forEach(function(k){
+    var g=P.groupes[k];
+    ["A","F"].forEach(function(cle){
+      var A=g[cle] ? g[cle].subarray(0, g[cle+"n"]||0) : null; if(!A || !A.length){ g[cle]=null; return; }
+      var tu={}, i=0;
+      while(i<A.length){
+        var n=Math.abs(A[i]), d=i+1, x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
+        for(var j=0;j<n;j++){ var x=A[d+2*j], y=A[d+2*j+1]; if(x<x0) x0=x; if(x>x1) x1=x; if(y<y0) y0=y; if(y>y1) y1=y; }
+        var tx=Math.max(0, Math.min(T-1, Math.floor(((x0+x1)/2-P.minx)/cel))), ty=Math.max(0, Math.min(T-1, Math.floor(((y0+y1)/2-P.miny)/cel)));
+        var key=tx+ty*T, t=tu[key]; if(!t) t=tu[key]={x0:Infinity, y0:Infinity, x1:-Infinity, y1:-Infinity, cl:{}};
+        if(x0<t.x0) t.x0=x0; if(y0<t.y0) t.y0=y0; if(x1>t.x1) t.x1=x1; if(y1>t.y1) t.y1=y1;
+        /* sa classe de taille (puissance de 2) : vu de loin, les plus petites ne se dessinent pas */
+        var dm=Math.max(x1-x0, y1-y0), kc = dm>0 ? Math.max(-40, Math.floor(Math.log2(dm))) : -40;
+        (t.cl[kc]||(t.cl[kc]={ix:[], p:null})).ix.push(i);
+        i=d+2*n;
+      }
+      g[cle]=A;
+      g[cle==="A" ? "tA" : "tF"]=Object.keys(tu).map(function(q){ var t=tu[q]; t.ks=Object.keys(t.cl).map(Number).sort(function(a,b){ return b-a; }); return t; });
+    });
+  });
+}
+function cheminTuile(A, ix){
+  var p=new Path2D();
+  for(var q=0;q<ix.length;q++){
+    var i=ix[q], n=A[i], ferme=n<0; n=Math.abs(n);
+    p.moveTo(A[i+1], A[i+2]); for(var j=1;j<n;j++) p.lineTo(A[i+1+2*j], A[i+2+2*j]); if(ferme) p.closePath();
+  }
+  return p;
+}
+/* dessiner un groupe : les tuiles dans la vue ; les petits traits seulement s'ils font plus d'un demi-pixel */
+function peindreTuiles(c, g, remplir, vx0, vy0, vx1, vy1){
+  var liste = remplir ? g.tF : g.tA, A = remplir ? g.F : g.A; if(!liste) return;
+  /* la plus petite classe visible : un trait de 2^k unités fait au moins un quart de pixel */
+  var kmin = IMPRIME ? -999 : Math.floor(Math.log2(0.25/(V.k*DPR)));
+  for(var i=0;i<liste.length;i++){
+    var t=liste[i]; if(t.x1<vx0 || t.x0>vx1 || t.y1<vy0 || t.y0>vy1) continue;
+    for(var j=0;j<t.ks.length;j++){
+      var k=t.ks[j]; if(k<kmin && k>-40) break;      /* triées de la plus grande à la plus petite ; les points (taille 0) restent */
+      var cl=t.cl[k]; if(!cl.p) cl.p=cheminTuile(A, cl.ix);
+      remplir ? c.fill(cl.p) : c.stroke(cl.p);
+    }
+  }
 }
 /* l'étendue, la grille d'accrochage, le nombre de tracés : commun au DWG, au PDF et à l'image */
 function finirPlan(P){
@@ -1243,13 +1314,21 @@ function finirPlan(P){
     if(P.maxx-P.minx<1e-9){ P.minx-=1; P.maxx+=1; } if(P.maxy-P.miny<1e-9){ P.miny-=1; P.maxy+=1; }
   }
   P.xs=null; P.ys=null;
-  /* une grille pour retrouver vite le point d'accrochage le plus proche */
-  var L=Math.max(P.maxx-P.minx, P.maxy-P.miny), cel=L/160 || 1, grille={};
-  for(var z=0; z<P.pts.length; z+=3){
-    var key=Math.floor(P.pts[z]/cel)+","+Math.floor(P.pts[z+1]/cel);
-    (grille[key]=grille[key]||[]).push(z);
+  if(P.pb){ P.pts=P.pb.subarray(0, P.pbn||0); P.pb=null; }
+  /* une grille pour retrouver vite le point d'accrochage le plus proche : chaque case
+     donne sa tranche d'indices (deb[c] à deb[c+1]) ; les points égarés n'y sont pas */
+  var L=Math.max(P.maxx-P.minx, P.maxy-P.miny), cel=L/160 || 1, pt=P.pts, np=Math.floor(pt.length/3);
+  var gx0=Math.floor(P.minx/cel), gy0=Math.floor(P.miny/cel), NX=Math.floor(P.maxx/cel)-gx0+1, NY=Math.floor(P.maxy/cel)-gy0+1, NC=NX*NY;
+  var cas=new Int32Array(np), deb=new Int32Array(NC+1);
+  for(var z=0; z<np; z++){
+    var ix=Math.floor(pt[3*z]/cel)-gx0, iy=Math.floor(pt[3*z+1]/cel)-gy0;
+    if(ix<0 || iy<0 || ix>=NX || iy>=NY || ix!==ix){ cas[z]=-1; continue; }
+    var cc=ix+iy*NX; cas[z]=cc; deb[cc+1]++;
   }
-  P.grille=grille; P.cel=cel;
+  for(var c0=0; c0<NC; c0++) deb[c0+1]+=deb[c0];
+  var idx=new Int32Array(deb[NC]), pos=deb.slice(0, NC);
+  for(var z2=0; z2<np; z2++){ var c1=cas[z2]; if(c1>=0) idx[pos[c1]++]=3*z2; }
+  P.grille={gx0:gx0, gy0:gy0, NX:NX, NY:NY, deb:deb, idx:idx}; P.cel=cel;
   P.nb=Object.keys(P.groupes).reduce(function(s,k){ return s+P.groupes[k].n; },0);
   return P;
 }
@@ -1469,11 +1548,16 @@ function peindre(){
   if(aPlatP && PLAN.fond && !(PLAN.calques["Image du plan"] && !PLAN.calques["Image du plan"].visible)){
     c2.save(); c2.translate(0, PLAN.fondH); c2.scale(1, -1); c2.imageSmoothingEnabled=true; c2.drawImage(PLAN.fond, 0, 0, PLAN.fondW, PLAN.fondH); c2.restore();
   }
-  if(aPlatP) for(var k in PLAN.groupes){
-    var g=PLAN.groupes[k]; if(g.cache || (PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible)) continue;
-    var cqI=PLAN.calques[g.calque], col=cqI && cqI.force ? visible(cqI.force) : couleurTrait(g.couleur);
-    if(g.pleins){ c2.globalAlpha=0.35; c2.fillStyle=col; c2.fill(g.pleins); c2.globalAlpha=1; }
-    c2.strokeStyle=col; c2.stroke(g.chemin);
+  if(aPlatP){
+    var va=versPlan(-20, -20), vb=versPlan(W+20, H+20), vx0=Math.min(va[0], vb[0]), vx1=Math.max(va[0], vb[0]), vy0=Math.min(va[1], vb[1]), vy1=Math.max(va[1], vb[1]);
+    for(var k in PLAN.groupes){
+      var g=PLAN.groupes[k]; if(g.cache || (PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible)) continue;
+      var cqI=PLAN.calques[g.calque], col=cqI && cqI.force ? visible(cqI.force) : couleurTrait(g.couleur);
+      if(g.tF){ c2.globalAlpha=0.35; c2.fillStyle=col; peindreTuiles(c2, g, true, vx0, vy0, vx1, vy1); c2.globalAlpha=1; }
+      else if(g.pleins){ c2.globalAlpha=0.35; c2.fillStyle=col; c2.fill(g.pleins); c2.globalAlpha=1; }
+      c2.strokeStyle=col;
+      if(g.tA) peindreTuiles(c2, g, false, vx0, vy0, vx1, vy1); else if(g.chemin) c2.stroke(g.chemin);
+    }
   }
   /* les textes, lisibles à partir de 3 px */
   c2.setTransform(DPR,0,0,DPR,0,0);
@@ -1625,9 +1709,11 @@ function chercher(sx, sy){
   var tol=16/V.k, best=null, bd=tol, cel=PLAN.cel;
   var gx=Math.floor(pt[0]/cel), gy=Math.floor(pt[1]/cel), r=Math.ceil(tol/cel);
   if(r>6) r=6;
-  for(var i=gx-r;i<=gx+r;i++) for(var j=gy-r;j<=gy+r;j++){
-    var l=PLAN.grille[i+","+j]; if(!l) continue;
-    for(var z=0;z<l.length;z++){ var o=l[z], d=Math.hypot(PLAN.pts[o]-pt[0], PLAN.pts[o+1]-pt[1]);
+  var Gr=PLAN.grille;
+  if(Gr && Gr.deb) for(var i=gx-r;i<=gx+r;i++) for(var j=gy-r;j<=gy+r;j++){
+    var ii=i-Gr.gx0, jj=j-Gr.gy0; if(ii<0 || jj<0 || ii>=Gr.NX || jj>=Gr.NY) continue;
+    var cc=ii+jj*Gr.NX, t0=Gr.deb[cc], t1=Gr.deb[cc+1];
+    for(var z=t0;z<t1;z++){ var o=Gr.idx[z], d=Math.hypot(PLAN.pts[o]-pt[0], PLAN.pts[o+1]-pt[1]);
       if(d<bd || (Math.abs(d-bd)<1e-9 && best && PLAN.pts[o+2]<best.genre)){ bd=d; best={pt:[PLAN.pts[o],PLAN.pts[o+1]], genre:PLAN.pts[o+2], acc:true}; } }
   }
   if(typeof DESSIN!=="undefined" && DESSIN.murs.length){
@@ -7202,7 +7288,7 @@ function construirePdf(page, lib){
   P.calques["PDF"]={nom:"PDF", couleur:"#FFFFFF", visible:true, n:0};
   function mul(a, b){ return [a[0]*b[0]+a[2]*b[1], a[1]*b[0]+a[3]*b[1], a[0]*b[2]+a[2]*b[3], a[1]*b[2]+a[3]*b[3], a[0]*b[4]+a[2]*b[5]+a[4], a[1]*b[4]+a[3]*b[5]+a[5]]; }
   function T(m, x, y){ var q=[m[0]*x+m[2]*y+m[4], m[1]*x+m[3]*y+m[5]]; return [q[0], H0-q[1]]; }
-  function groupe(coul){ var k="PDF|"+coul, g=P.groupes[k]; if(!g) g=P.groupes[k]={calque:"PDF", couleur:coul, chemin:new Path2D(), pleins:null, n:0}; return g; }
+  function groupe(coul){ var k="PDF|"+coul, g=P.groupes[k]; if(!g) g=P.groupes[k]={calque:"PDF", couleur:coul, A:null, F:null, n:0}; return g; }
   return page.getOperatorList().then(function(ol){
     var fn=ol.fnArray, ar=ol.argsArray, ctm=vt.slice(), pile=[], trait="#000000", fond="#000000", chemin=[];
     function bez(p0, c1, c2, p3, out){ for(var k=1;k<=8;k++){ var t=k/8, u=1-t; out.push([u*u*u*p0[0]+3*u*u*t*c1[0]+3*u*t*t*c2[0]+t*t*t*p3[0], u*u*u*p0[1]+3*u*u*t*c1[1]+3*u*t*t*c2[1]+t*t*t*p3[1]]); } }
@@ -7249,8 +7335,9 @@ function construirePdf(page, lib){
       chemin.forEach(function(sp2){
         var q=sp2.pts; if(q.length<2) return;
         var g=groupe(cs || cf);
-        if(cs){ g.chemin.moveTo(q[0][0], q[0][1]); for(var i=1;i<q.length;i++) g.chemin.lineTo(q[i][0], q[i][1]); if(sp2.ferme) g.chemin.closePath(); }
-        if(cf && q.length>2){ if(!g.pleins) g.pleins=new Path2D(); g.pleins.moveTo(q[0][0], q[0][1]); for(var k=1;k<q.length;k++) g.pleins.lineTo(q[k][0], q[k][1]); g.pleins.closePath(); }
+        /* dans les tableaux du groupe : les Path2D se font à la fin, par tuiles (tuilerPlan) */
+        if(cs){ var u=placeF(g, "A", 1+2*q.length), A=g.A; A[u++]=sp2.ferme ? -q.length : q.length; for(var i=0;i<q.length;i++){ A[u++]=q[i][0]; A[u++]=q[i][1]; } g.An=u; }
+        if(cf && q.length>2){ var v=placeF(g, "F", 1+2*q.length), F=g.F; F[v++]=-q.length; for(var k=0;k<q.length;k++){ F[v++]=q[k][0]; F[v++]=q[k][1]; } g.Fn=v; }
         g.n++; P.calques.PDF.n++; P.segments+=q.length-1;
         if(P.pts.length<1800000){
           /* l'accrochage : les sommets (bouts, coins), le milieu des segments droits, les bouts des courbes */
@@ -7295,7 +7382,7 @@ function construirePdf(page, lib){
       P.calques["PDF textes"].n++;
     });
     P.texte=tout.join(" ");
-    return finirPlan(P);
+    finirPlan(P); tuilerPlan(P); return P;
   });
 }
 /* un PDF scanné, une photo de plan : l'image en fond (unité : le point du PDF, ou le pixel de l'image) */
@@ -7401,6 +7488,30 @@ function ouvrirImagePlan(f){
   };
   im.onerror=function(){ URL.revokeObjectURL(url); charge(""); toast("Cette image n'a pas pu être lue."); };
   im.src=url;
+}
+/* le DWG lu à part (dwg-lecteur.js) : la page reste vivante ; sinon, ici même */
+var LECTEUR=null;
+function lireDwgAPart(buf, type){
+  return new Promise(function(ok, ko){
+    var w;
+    try{ w = LECTEUR || (LECTEUR=new Worker("./dwg-lecteur.js?v=20261105a", {type:"module"})); }catch(e){ ko(e); return; }
+    var copie=buf.slice(0), fini=false;
+    function fin(){ fini=true; w.onmessage=null; w.onerror=null; }
+    w.onmessage=function(e){
+      var d=e.data||{};
+      if(d.etape){ charge(d.etape==="chargement" ? "Chargement du lecteur DWG… (9 Mo la première fois)" : d.etape==="lecture" ? "Lecture du DWG…" : "Lecture du DWG : les entités…"); return; }
+      fin(); if(d.ok) ok(d.db); else ko(new Error(d.err||"illisible"));
+    };
+    w.onerror=function(e){ if(fini) return; fin(); try{ w.terminate(); }catch(er){} LECTEUR=null; ko(new Error("lecteur")); };
+    try{ w.postMessage({buf:copie, type:type}, [copie]); }catch(e){ fin(); ko(e); }
+  });
+}
+/* d'abord à part ; si le navigateur ne le permet pas (ou le lecteur n'a pas démarré), ici même */
+function lireDwg(buf, type){
+  return lireDwgAPart(buf, type).catch(function(e){
+    if(/illisible/.test(String(e && e.message))) throw e;
+    return chargerLib().then(function(L){ charge("Lecture de la page…"); return lireAvecLib(L, buf, type==="dxf" ? L.m.Dwg_File_Type.DXF : L.m.Dwg_File_Type.DWG); });
+  });
 }
 function lireAvecLib(L, buf, type){
   var brut=L.l.dwg_read_data(buf, type);
@@ -7544,19 +7655,22 @@ function ouvrirFichier(f){
   if(/^(png|jpe?g|webp)$/.test(ext)){ ouvrirImagePlan(f); return; }
   if(ext!=="dwg" && ext!=="dxf"){ toast("Choisissez un plan .dwg, .dxf, .pdf ou une image."); return; }
   /* un DXF se lit ici même (texte) ; le lecteur DWG ne sert qu'en secours */
-  (ext==="dxf" ? Promise.resolve(null) : chargerLib()).then(function(L){
+  Promise.resolve().then(function(){
     charge("Lecture de « "+f.name+" »…");
     return f.arrayBuffer().then(function(buf){
       return new Promise(function(ok){ setTimeout(ok, 30); }).then(function(){
         var db=null;
         if(ext==="dxf"){
           db=lireDxf(new TextDecoder("utf-8").decode(buf));
-          if(!db) return chargerLib().then(function(L2){ return lireAvecLib(L2, buf, L2.m.Dwg_File_Type.DXF); });
+          if(!db) return lireDwg(buf, "dxf");
           return db;
         }
-        return lireAvecLib(L, buf, L.m.Dwg_File_Type.DWG);
+        return lireDwg(buf, "dwg");
       }).then(function(db){
-        var P=construire(db);
+        charge("Préparation du plan…");
+        return construire(db, function(x){ charge("Préparation du plan… "+Math.round(x*100)+" %"); }).then(function(P){ return {P:P, db:db}; });
+      }).then(function(r){
+        var P=r.P, db=r.db; charge("");
         if(!P.nb && !P.textes.length) throw new Error("vide");
         /* l'unité du dessin : un étalonnage déjà fait sur ce fichier, sinon ce que
            disent le fichier et les cotes du plan */
