@@ -159,6 +159,7 @@ button,select{font:inherit}
 @media (max-width:520px){ .haut{gap:6px} .haut #btCalques,.haut #btFond,.haut #btImage{display:none} #btPlus{display:inline-flex} }
 @media (max-width:380px){ .haut{gap:4px;padding-left:8px;padding-right:8px} .haut .bt{padding:6px 8px} .haut a{padding:6px 10px} }
 #scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
+@media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:none} }
 body.clair #scene{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--haut,62px) + 16px) 20px 20px;text-align:center;overflow:auto}
 .accueil[hidden]{display:none}
@@ -1263,12 +1264,14 @@ function peindre(){
     repere(A_PT);
   }
   peindreDessin(c2);
+  peindreGuides(c2);
   peindreSymboles(c2);
   var cible = VISEE ? VISEE : SURVOL;
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
   peindreGroupe(c2);
   if(ZONE_ACTIF && !IMPRIME) peindreZone(c2);
+  peindreReticule(c2);
 }
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
@@ -1497,6 +1500,8 @@ cv.addEventListener("pointerdown", function(e){
     }
   }
   if(MODE==="dessin"){
+    /* une ligne de construction à poser : le toucher ne prend rien, un glissé déplace le plan */
+    if(GUIDE) return;
     /* « Choisir » prend tout le plan : un symbole touché se choisit (et se glisse) comme le reste */
     if(OUTIL_D==="choisir" && !REF && vueD()==="dessus" && FAM_D!=="pv"){
       var tiU=symboleSous(p);
@@ -2485,12 +2490,12 @@ function majBarreSel(){
   var nom="";
   if(MODE==="dessin" && D_SEL){
     var o=objetSel();
-    if(o) nom = D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)
+    if(o) nom = D_SEL.t==="guide" ? "Ligne de construction" : D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)
       : D_SEL.t==="ouv" ? NOMS_OUTILS[o.type] : D_SEL.t==="texte" ? "« "+o.s+" »" : D_SEL.t==="mob" ? (o.nom || defMob(o.cle).court) : D_SEL.t==="geo" ? nommerG(o) : D_SEL.t==="toit" ? NOMS_TOIT[o.type] : D_SEL.t==="pvp" ? (pvStrDe(o.id) ? "Panneau "+pvStrDe(o.id).nom+"."+(pvStrDe(o.id).pans.indexOf(o.id)+1) : "Panneau") : D_SEL.t==="pvo" ? "Onduleur "+o.nom : D_SEL.t==="pvs" ? "String "+o.nom : "";
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
-  var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && !/^pv/.test(D_SEL.t) && !!objetSel();
+  var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && D_SEL.t!=="guide" && !/^pv/.test(D_SEL.t) && !!objetSel();
   if(MODE==="dessin" && nG){
     var nPan=GRP.pan.length, nOnd=GRP.ond.length;
     nom = nPan===nG ? nPan+" panneau"+(nPan>1?"x":"") : nPan+nOnd===nG ? [nPan ? nPan+" panneau"+(nPan>1?"x":"") : "", nOnd ? nOnd+" onduleur"+(nOnd>1?"s":"") : ""].filter(Boolean).join(" + ") : nG+" élément"+(nG>1?"s":"");
@@ -2512,7 +2517,7 @@ function majBarreSel(){
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || !!nG || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = gA || !!nG || (D_SEL && D_SEL.t==="guide") || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* Coter : le bouton, ou la saisie de la cote à sa place (les autres boutons s'effacent le temps de taper) */
   var cs=coteSel();
   if(BS_COTE && (!cs || cs.o!==BS_COTE)) BS_COTE=null;
@@ -2980,6 +2985,7 @@ function chercherD(sx, sy){
   pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:1}; } });
   /* le centre d'un symbole, pour une cote ou un tracé (pas pour un mur) */
   if(vueD()==="dessus" && !/^(mur|cloison|piece|porte|fenetre)$/.test(OUTIL_D||"")) pointsSymboles().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:3}; } });
+  if(vueD()==="dessus") croisementsGuides().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:5}; } });
   if(best) return best;
   bd=14/V.k;
   var plat=vueD()==="dessus";
@@ -2998,6 +3004,11 @@ function chercherD(sx, sy){
   }); });
   traitsAutresVues(vueD()).forEach(function(sg){
     var r=distSeg(p, sg[0], sg[1]); if(r.d<bd){ bd=r.d; best={pt:[sg[0][0]+(sg[1][0]-sg[0][0])*r.t, sg[0][1]+(sg[1][1]-sg[0][1])*r.t], acc:true, genre:5}; }
+  });
+  /* le long d'une ligne de construction (au centimètre) */
+  if(plat && cqVu("guides")) guides().forEach(function(g){
+    var u=[Math.cos(g.a), Math.sin(g.a)], t=(p[0]-g.p[0])*u[0]+(p[1]-g.p[1])*u[1], q=[g.p[0]+u[0]*t, g.p[1]+u[1]*t], d=Math.hypot(q[0]-p[0], q[1]-p[1]);
+    if(d<bd){ bd=d; var t10=Math.round(t*DESSIN_MM/10)*10/DESSIN_MM; best={pt:[g.p[0]+u[0]*t10, g.p[1]+u[1]*t10], acc:true, genre:5}; }
   });
   if(best) return best;
   return {pt:grille10(p), acc:false};
@@ -3098,11 +3109,12 @@ function objetSous(p){
   if(cqVu("murs")) DESSIN.murs.forEach(function(m){ var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
   if(!best && cqVu("pv")){ var pv1=pvSous(p); if(pv1) best=pv1; }
   if(!best && cqVu("toits")){ var tt=toitSous(p); if(tt) best={t:"toit", id:tt.id}; }
+  if(!best && cqVu("guides")){ var gs2=guideSous(p); if(gs2) best={t:"guide", id:gs2.id}; }
   return best;
 }
 function objetSel(){
   if(!D_SEL) return null;
-  var l = D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : D_SEL.t==="mob" ? mobs() : D_SEL.t==="geo" ? geos() : D_SEL.t==="toit" ? toits() : D_SEL.t==="pvp" ? PVD().pan : D_SEL.t==="pvo" ? PVD().ond : D_SEL.t==="pvs" ? PVD().str : DESSIN.textes;
+  var l = D_SEL.t==="guide" ? guides() : D_SEL.t==="mur" ? DESSIN.murs : D_SEL.t==="ouv" ? DESSIN.ouv : D_SEL.t==="mob" ? mobs() : D_SEL.t==="geo" ? geos() : D_SEL.t==="toit" ? toits() : D_SEL.t==="pvp" ? PVD().pan : D_SEL.t==="pvo" ? PVD().ond : D_SEL.t==="pvs" ? PVD().str : DESSIN.textes;
   for(var i=0;i<l.length;i++) if(l[i].id===D_SEL.id) return l[i];
   return null;
 }
@@ -3115,6 +3127,7 @@ function supprimerD(){
   else if(D_SEL.t==="geo") DESSIN.geo=geos().filter(function(x){ return x.id!==o.id; });
   else if(D_SEL.t==="toit") DESSIN.toits=toits().filter(function(x){ return x.id!==o.id; });
   else if(/^pv/.test(D_SEL.t)) pvSupprimer(D_SEL.t, o);
+  else if(D_SEL.t==="guide") DESSIN.guides=guides().filter(function(x){ return x.id!==o.id; });
   else DESSIN.textes=DESSIN.textes.filter(function(x){ return x.id!==o.id; });
   D_SEL=null; enregistrerD(); majDessin();
 }
@@ -4120,7 +4133,7 @@ var CHOIX_MOB=lire("dwg:mob","lit140"), VOLS=lire("dwg:volumes","1")!=="0";
 function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; for(var j=0;j<MOB.length;j++) if(MOB[j].cle==="pave") return MOB[j]; return MOB[0]; }
 function mobs(){ return (DESSIN && DESSIN.mob) || []; }
 function mobDe(id){ var l=mobs(); for(var i=0;i<l.length;i++) if(l[i].id===id) return l[i]; return null; }
-function normD(D){ D=D||{}; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; D.geo=D.geo||[]; D.toits=D.toits||[]; D.pv=normPv(D.pv); return D; }
+function normD(D){ D=D||{}; D.guides=D.guides||[]; D.murs=D.murs||[]; D.ouv=D.ouv||[]; D.textes=D.textes||[]; D.mob=D.mob||[]; D.geo=D.geo||[]; D.toits=D.toits||[]; D.pv=normPv(D.pv); return D; }
 function repereMob(o){ var a=(o.rot||0)*Math.PI/180; return {ux:[Math.cos(a), Math.sin(a)], uy:[-Math.sin(a), Math.cos(a)]}; }
 function versMob(o, lx, ly){ var r=repereMob(o); return [o.x+r.ux[0]*lx+r.uy[0]*ly, o.y+r.ux[1]*lx+r.uy[1]*ly]; }
 function localMob(o, p){ var r=repereMob(o), dx=p[0]-o.x, dy=p[1]-o.y; return [dx*r.ux[0]+dy*r.ux[1], dx*r.uy[0]+dy*r.uy[1]]; }
@@ -8643,7 +8656,7 @@ function garderCalques(){ var k=cleCalques(); if(k) garder(k, JSON.stringify(CQ_
 function cqVu(k){ return !CQ_MASQUES[k]; }
 function symbVu(o){ var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return !d || cqVu("sy:"+d.groupe); }
 var CQ_DESSIN=[["fond","Fond de plan", "#94A3B8"], ["murs","Murs et cloisons", "#C9D1D9"], ["ouv","Portes et fenêtres", "#E5E9EF"], ["mob","Mobilier", "#60A5FA"],
-  ["noms","Noms de pièces", "#E5E9EF"], ["geo","Dessin, cotes et textes", "#F2F5F9"], ["toits","Toitures", "#F59E0B"], ["pv","Photovoltaïque", "#1E3A8A"], ["mesures","Mesures", "#3B82F6"]];
+  ["noms","Noms de pièces", "#E5E9EF"], ["geo","Dessin, cotes et textes", "#F2F5F9"], ["toits","Toitures", "#F59E0B"], ["pv","Photovoltaïque", "#1E3A8A"], ["mesures","Mesures", "#3B82F6"], ["guides","Lignes de construction", "#E879F9"]];
 function nbCalque(k){
   if(!PLAN) return 0;
   if(k==="fond") return (PLAN.vierge && fondD()) ? 1 : 0;
@@ -8655,6 +8668,7 @@ function nbCalque(k){
   if(k==="toits") return toits().length;
   if(k==="pv") return DESSIN.pv ? DESSIN.pv.pan.length+DESSIN.pv.ond.length : 0;
   if(k==="mesures") return COTES.length;
+  if(k==="guides") return guides().length;
   if(k==="liens") return SYMB.reduce(function(n, o){ return n+((o.lien||[]).length); }, 0);
   if(/^sy:/.test(k)){ var gr=k.slice(3); return SYMB.filter(function(o){ var d=SymbolesElec.trouver(o.cle); return d && d.groupe===gr; }).length; }
   return 0;
@@ -8729,7 +8743,12 @@ var ICO={
   enreg:'<path d="M4 4h12.5L20 7.5V20H4z"/><path d="M8 4v5h7V4M7.5 20v-6.5h9V20"/>',
   pdf:'<path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M8.5 13h7M8.5 16.5h7"/>',
   dxf:'<path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4"/><path d="M9 17.5l6-6M11 11.5h4v4"/>',
-  image:'<rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="10" r="1.8"/><path d="M3 17l5-4 4 3 3-2 6 4"/>'
+  image:'<rect x="3" y="5" width="18" height="14"/><circle cx="9" cy="10" r="1.8"/><path d="M3 17l5-4 4 3 3-2 6 4"/>',
+  guideh:'<path d="M2 12h20" stroke-dasharray="3 2.5"/><circle cx="12" cy="12" r="1.6"/>',
+  guidev:'<path d="M12 2v20" stroke-dasharray="3 2.5"/><circle cx="12" cy="12" r="1.6"/>',
+  guide2:'<path d="M3 20 21 4" stroke-dasharray="3 2.5"/><circle cx="8" cy="15.6" r="1.6"/><circle cx="16" cy="8.4" r="1.6"/>',
+  guidesEff:'<path d="M2 8h20M2 16h20" stroke-dasharray="3 2.5"/><path d="M8 4l8 16M16 4 8 20"/>',
+  reticule:'<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/><rect x="10" y="10" width="4" height="4"/>'
 };
 function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden="true">'+(ICO[k]||"")+'</svg>'; }
 /* ce que dit chaque bouton : [libellé, icône, aide] */
@@ -8746,7 +8765,12 @@ var ACTIONS={
   v3d:["3D","v3d","Voir le plan monté en 3D"], entiere:["Vue entière","entiere","Tout le plan à l'écran"], clair:["Fond clair","clair","Fond clair ou sombre"],
   enreg:["Enregistrer","enreg","Enregistrer le plan sur le site, pour le reprendre plus tard (Ctrl+S)"],
   enregch:["Dans un chantier","chantier","Enregistrer le plan et déposer son PDF dans le dossier d'un chantier, côté réservé chargés d'affaires"],
-  pdf:["PDF","pdf","Mise en page A4, A3, A2, A1 ou A0, avec le cartouche"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
+  pdf:["PDF","pdf","Mise en page A4, A3, A2, A1 ou A0, avec le cartouche"],
+  guideh:["Horizontale","guideh","Une ligne de construction horizontale, par le point touché : elle aide à tracer, ne s'imprime pas"],
+  guidev:["Verticale","guidev","Une ligne de construction verticale, par le point touché"],
+  guide2:["Oblique","guide2","Une ligne de construction par deux points touchés"],
+  guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
+  reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
@@ -8755,11 +8779,13 @@ var ONGLETS=[
     {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
     {nom:"Modification", gros:["o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:depuis"]},
+    {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Calques", gros:["a:calques"]}
   ]},
   {id:"dessin", nom:"Dessin", g:[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
     {nom:"Annotation", gros:["o:cote","o:gtexte"], petits:["o:texte","a:mesurer","a:etalonner"]},
+    {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Modification", gros:["o:choisir"], petits:["a:dupliquer","a:tourner","a:supprimer"]}
   ]},
   {id:"elec", nom:"Électricité", elec:true},
@@ -8775,7 +8801,7 @@ var ONGLETS=[
   ]},
   {id:"vues", nom:"Vues", g:[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
-    {nom:"Affichage", gros:["a:entiere","a:clair","a:calques"]}
+    {nom:"Affichage", gros:["a:entiere","a:clair","a:reticule","a:calques"]}
   ]},
   {id:"exporter", nom:"Exporter", g:[
     {nom:"Plan", gros:["a:enreg","a:enregch"]},
@@ -8860,7 +8886,7 @@ function majRuban(){
   var pn=$("rbPanneau"); if(!pn) return;
   Array.prototype.forEach.call($("rbOnglets").children, function(b){ var on=b.dataset.onglet===RB_ONGLET; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
     if(on){ var to=$("rbOnglets"); if(b.offsetLeft+b.offsetWidth>to.scrollLeft+to.clientWidth || b.offsetLeft<to.scrollLeft) to.scrollLeft=Math.max(0, b.offsetLeft-12); } });
-  var choisirOn = (MODE==="dessin" && OUTIL_D==="choisir") || (MODE==="symb" && !ARME_S && DEPUIS_CHOISIR);
+  var choisirOn = !GUIDE && ((MODE==="dessin" && OUTIL_D==="choisir") || (MODE==="symb" && !ARME_S && DEPUIS_CHOISIR));
   Array.prototype.forEach.call(pn.querySelectorAll("button[data-r]"), function(b){
     var r=b.dataset.r, t=r.slice(0,2), k=r.slice(2), on=false, off=!PLAN && !SANS_PLAN[r];
     if(t==="o:") on = k==="choisir" ? choisirOn : (MODE==="dessin" && OUTIL_D===k);
@@ -8872,10 +8898,13 @@ function majRuban(){
     else if(k==="relier") on = RELIER;
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
+    else if(/^guide[hv2]$/.test(k)) on = !!GUIDE && GUIDE.mode===k.slice(5);
+    else if(k==="reticule") on = RETICULE;
     if(PLAN){
       if(k==="fond") off = !PLAN.vierge;
       else if(k==="etalonner") off = !!PLAN.vierge;
       else if(k==="enregch") off = !estCA();
+      else if(/^guide/.test(k)) off = VUE_D!=="dessus" || (k==="guidesEff" && !guides().length);
       else if(k==="relier") off = !(MODE==="symb" && SEL>=0) && !RELIER;
       else if(t==="o:" && VUE_D!=="dessus" && !outilVueRuban(k)) off = true;
     }
@@ -8883,6 +8912,8 @@ function majRuban(){
     if(b.className!=="rb-sym") b.setAttribute("aria-pressed", on ? "true" : "false");
   });
   $("btEnreg").disabled=!PLAN; $("btAnnulerR").disabled=!PLAN;
+  if(GUIDE && MODE==="dessin"){ $("dsInfo").textContent="Ligne de construction"; $("dsDetail").textContent = GUIDE.mode==="2" ? (GUIDE.a ? "Touchez le second point." : "Touchez un premier point.") : "Touchez le point par où passe la ligne "+(GUIDE.mode==="h" ? "horizontale." : "verticale.")+" Échap ou un autre outil l'arrête."; }
+  majReticule();
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
 }
 /* les outils permis en Face et en Côté : les formes du dessin, le mobilier, Choisir */
@@ -8890,6 +8921,7 @@ function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o
 /* ---------- ce que fait chaque bouton ---------- */
 function choisirOutilR(o){
   if(!PLAN) return;
+  GUIDE=null;
   DEPUIS_CHOISIR=false;
   if(RELIER) basculerRelier(false);
   var fam = (o==="choisir" || o==="selection") ? (FAM_D==="pv" ? "plan" : (FAM_D||"plan")) : famDe(o);
@@ -8899,6 +8931,7 @@ function choisirOutilR(o){
 }
 function choisirSymboleR(cle){
   if(!PLAN) return;
+  GUIDE=null;
   DEPUIS_CHOISIR=false;
   if(RELIER) basculerRelier(false);
   if(MODE!=="symb") basculerMode("symb");
@@ -8957,6 +8990,9 @@ function actionR(k){
     case "clair": $("btFond").click(); break;
     case "enreg": enregistrerPlanSite(); break;
     case "enregch": ouvrirEnreg(true); break;
+    case "guideh": case "guidev": case "guide2": armerGuide(k.slice(5)); break;
+    case "guidesEff": effacerGuides(); break;
+    case "reticule": RETICULE=!RETICULE; garder("dwg:reticule", RETICULE ? "1" : "0"); majReticule(); demander(); break;
     case "pdf": $("btPdf").click(); break;
     case "dxf": exporterDxf(); break;
     case "image": $("btImage").click(); break;
@@ -8972,7 +9008,7 @@ $("rbPanneau").addEventListener("click", function(e){
   else actionR(k);
   majRuban();
   /* sur un téléphone, le ruban se replie : le plan reprend la place (un onglet le rouvre) */
-  if(petitEcran() && PLAN && (t==="o:" || t==="s:")) replier(true);
+  if(petitEcran() && PLAN && (t==="o:" || t==="s:" || /^a:guide[hv2]$/.test(r))) replier(true);
 });
 $("rbOnglets").addEventListener("click", function(e){
   var b=e.target.closest("button[data-onglet]"); if(!b) return;
@@ -8994,6 +9030,110 @@ document.addEventListener("keydown", function(e){
   majDessin=apres(majDessin); majSymb=apres(majSymb); majBas=apres(majBas);
   var bm=basculerMode; basculerMode=function(m){ if(m!=="symb") DEPUIS_CHOISIR=false; var r=bm.apply(this, arguments); majRuban(); return r; };
 })();
+
+/* =====================================================================
+   LES LIGNES DE CONSTRUCTION ET LA CROIX DU CURSEUR
+   ---------------------------------------------------------------------
+   Des lignes infinies, en pointillés, qui aident à tracer : horizontale
+   ou verticale par un point touché, ou oblique par deux points. Le tracé
+   s'accroche à leurs croisements (entre elles et avec les murs) et le long
+   d'elles. Elles ne s'impriment pas et ne partent pas au DXF ; elles ont
+   leur calque ; une se choisit et se supprime, ou toutes d'un coup.
+   La croix du curseur (souris) traverse le plan, comme sur un logiciel
+   de DAO ; Vues › Croix la coupe ou la remet.
+   ===================================================================== */
+var GUIDE=null, RETICULE=lire("dwg:reticule", "1")!=="0", CURSEUR=null;
+function guides(){ return (DESSIN && DESSIN.guides) || []; }
+function dirGuide(g){ return [Math.cos(g.a), Math.sin(g.a)]; }
+function guideSous(p){
+  var best=null, bd=10/V.k;
+  guides().forEach(function(g){ var u=dirGuide(g), d=Math.abs((p[0]-g.p[0])*u[1]-(p[1]-g.p[1])*u[0]); if(d<bd){ bd=d; best=g; } });
+  return best;
+}
+/* les croisements : entre lignes de construction, et avec l'axe et les faces des murs */
+function croisementsGuides(){
+  var G=cqVu("guides") ? guides() : [], out=[];
+  if(!G.length) return out;
+  function inter(p, u, q, v){ var den=u[0]*v[1]-u[1]*v[0]; if(Math.abs(den)<1e-9) return null; var t=((q[0]-p[0])*v[1]-(q[1]-p[1])*v[0])/den; return [p[0]+u[0]*t, p[1]+u[1]*t, ((q[0]-p[0])*u[1]-(q[1]-p[1])*u[0])/den]; }
+  for(var i=0;i<G.length;i++){
+    var ui=dirGuide(G[i]);
+    for(var j=i+1;j<G.length;j++){ var r=inter(G[i].p, ui, G[j].p, dirGuide(G[j])); if(r) out.push([r[0], r[1]]); }
+    if(cqVu("murs")) DESSIN.murs.forEach(function(m){
+      var x=axes(m), L=x.L; if(!L) return;
+      [0, m.ep/2, -m.ep/2].forEach(function(off){
+        var a=[m.a[0]+x.n[0]*off, m.a[1]+x.n[1]*off], r2=inter(G[i].p, ui, a, x.u);
+        if(r2 && r2[2]>=-1e-6 && r2[2]<=L+1e-6) out.push([r2[0], r2[1]]);
+      });
+    });
+  }
+  return out;
+}
+function armerGuide(mode){
+  if(!PLAN) return;
+  if(VUE_D!=="dessus") choisirVue("dessus");
+  choisirOutilR("choisir");
+  GUIDE={mode:mode, a:null};
+  D_SEL=null; majDessin(); majBarreSel();
+  toast(mode==="2" ? "Ligne oblique : touchez un premier point, puis un second." : "Touchez le point par où passe la ligne "+(mode==="h" ? "horizontale" : "verticale")+". L'outil reste actif ; un autre outil l'arrête.", 4000);
+}
+function poserGuide(pt){
+  if(!GUIDE || !pt) return;
+  if(GUIDE.mode==="2" && !GUIDE.a){ GUIDE.a=pt.slice(); majRuban(); demander(); return; }
+  var a = GUIDE.mode==="h" ? 0 : GUIDE.mode==="v" ? Math.PI/2 : Math.atan2(pt[1]-GUIDE.a[1], pt[0]-GUIDE.a[0]);
+  if(GUIDE.mode==="2" && Math.hypot(pt[0]-GUIDE.a[0], pt[1]-GUIDE.a[1])<1e-6) return;
+  garderD();
+  DESSIN.guides=guides(); DESSIN.guides.push({id:idD(), p:GUIDE.mode==="2" ? GUIDE.a.slice() : pt.slice(), a:a});
+  GUIDE.a=null; D_SEL=null; enregistrerD(); majDessin(); majBarreSel(); demander();
+}
+function effacerGuides(){
+  if(!guides().length) return;
+  garderD(); var n=guides().length; DESSIN.guides=[]; if(D_SEL && D_SEL.t==="guide") D_SEL=null;
+  enregistrerD(); majDessin(); majBarreSel(); demander();
+  toast(n+" ligne"+(n>1 ? "s" : "")+" de construction effacée"+(n>1 ? "s" : "")+" (Annuler les remet).");
+}
+/* à l'écran : en pointillés, d'un bord à l'autre ; jamais au PDF */
+function peindreGuides(c){
+  if(IMPRIME || !PLAN || vueD()!=="dessus") return;
+  var G=cqVu("guides") ? guides() : [], L=W+H;
+  var coul=CLAIR ? "rgba(192,38,211,.75)" : "rgba(232,121,249,.7)";
+  function ligne(p, u, sel, apercu){
+    var P=versEcran(p[0], p[1]), d=[u[0], -u[1]];
+    c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.strokeStyle= sel ? "#06B6D4" : coul; c.lineWidth= sel ? 2 : 1; c.setLineDash(apercu ? [3,4] : [9,5]);
+    c.beginPath(); c.moveTo(P[0]-d[0]*L, P[1]-d[1]*L); c.lineTo(P[0]+d[0]*L, P[1]+d[1]*L); c.stroke(); c.restore();
+  }
+  G.forEach(function(g){ ligne(g.p, dirGuide(g), D_SEL && D_SEL.t==="guide" && D_SEL.id===g.id); });
+  /* l'aperçu de la ligne en cours, sous le curseur */
+  if(GUIDE && D_SOURIS){
+    var q=D_SOURIS.pt;
+    if(GUIDE.mode==="h") ligne(q, [1,0], false, true);
+    else if(GUIDE.mode==="v") ligne(q, [0,1], false, true);
+    else if(GUIDE.a){ var dx=q[0]-GUIDE.a[0], dy=q[1]-GUIDE.a[1], n=Math.hypot(dx, dy); if(n>0) ligne(GUIDE.a, [dx/n, dy/n], false, true); }
+  }
+  if(GUIDE && GUIDE.a){ var A=versEcran(GUIDE.a[0], GUIDE.a[1]); c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.fillStyle="#E879F9"; c.beginPath(); c.arc(A[0], A[1], 4, 0, Math.PI*2); c.fill(); c.restore(); }
+}
+/* la croix du curseur, à la souris */
+function peindreReticule(c){
+  if(IMPRIME || !RETICULE || !CURSEUR || !PLAN) return;
+  var x=Math.round(CURSEUR[0])+0.5, y=Math.round(CURSEUR[1])+0.5;
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.setLineDash([]);
+  c.strokeStyle=CLAIR ? "rgba(17,24,39,.55)" : "rgba(229,233,239,.55)"; c.lineWidth=1;
+  c.beginPath(); c.moveTo(0, y); c.lineTo(x-6, y); c.moveTo(x+6, y); c.lineTo(W, y); c.moveTo(x, 0); c.lineTo(x, y-6); c.moveTo(x, y+6); c.lineTo(x, H); c.stroke();
+  c.strokeRect(x-4, y-4, 8, 8);
+  c.restore();
+}
+function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); }
+cv.addEventListener("pointermove", function(e){ if(e.pointerType!=="mouse"){ CURSEUR=null; return; } CURSEUR=pos(e); if(RETICULE) demander(); });
+cv.addEventListener("pointerleave", function(){ if(CURSEUR){ CURSEUR=null; demander(); } });
+/* un toucher (sans glisser) pose la ligne ; le reste du toucher suit son cours (Choisir ne garde rien) */
+cv.addEventListener("pointerdown", function(e){ if(GUIDE && e.isPrimary && (e.pointerType!=="mouse" || e.button===0)) GUIDE.bas=[e.clientX, e.clientY]; else if(GUIDE) GUIDE.bas=null; }, true);
+cv.addEventListener("pointerup", function(e){
+  if(!GUIDE || !GUIDE.bas) return;
+  var b=GUIDE.bas; GUIDE.bas=null;
+  if(Math.hypot(e.clientX-b[0], e.clientY-b[1])>6) return;
+  var p=pos(e), cible=VISEE ? VISEE : chercherD(p[0], p[1]);
+  setTimeout(function(){ D_SEL=null; poserGuide(cible.pt); }, 0);
+}, true);
+document.addEventListener("keydown", function(e){ if(e.key==="Escape" && GUIDE){ if(GUIDE.a){ GUIDE.a=null; } else GUIDE=null; majRuban(); demander(); } });
 
 /* =====================================================================
    ENREGISTRER UN PLAN SUR LE SITE, LE ROUVRIR
