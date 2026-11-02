@@ -12,7 +12,7 @@ import { rangerPhotos } from "./photos-seules.mjs";
 import { cloud, cloudPublic } from "./cloud.mjs";
 import { analyseTableau } from "./analyse-tableau.mjs";
 import { mesnotes, noterChantier } from "./mesnotes.mjs";
-import { mesplans } from "./mesplans.mjs";
+import { mesplans, slugNom as slugPlan, planDe, noterChantierPlan } from "./mesplans.mjs";
 import { encours, oublisARappeler, laisseSur } from "./encours.mjs";
 import { lireIcs, occupations, creneauxLibres, ics as ecrireIcs, versUtc, champs as champsZone, PARIS } from "./agenda.mjs";
 import { clesVapid, prevenirPush, lireAbonne, cleAbonne, repererRappelsDus, PREFS_DEFAUT, maintenantParis, nomDuCompte, envoyerAttentes, noterActif, pushVu, pushEncore, enSilence } from "./notifications.mjs";
@@ -1761,8 +1761,54 @@ async function traiter(req) {
     return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
   }
   if (action.startsWith("mesnote")) return mesnotes(action, { req, url, store, personne, json });
-  /* les plans du module Plan, enregistrés pour être repris (serveur/mesplans.mjs) */
-  if (action === "plans-liste" || action.startsWith("plan-")) return mesplans(action, { req, url, store, personne, json });
+  /* les plans du module Plan, enregistrés pour être repris (serveur/mesplans.mjs) ;
+     un plan déposé dans un chantier (réservé chargés d'affaires) se reprend par ses chargés d'affaires */
+  if (action === "plans-liste" || action.startsWith("plan-")) {
+    const refP = url.searchParams.get("ref") || "";
+    let proprio = null;
+    if (refP) {
+      const idP = url.searchParams.get("id") || "", uP = url.searchParams.get("u") || "";
+      const idxP = await lireIndex(), cP = idxP.chantiers[refP] || idxP.chantiers[slug(refP)];
+      const fP = cP && (cP.fichiers || []).find((f) => f.plan && f.plan.id === idP && f.plan.u === uP);
+      if (!fP || !bureau || !voit(personne, fP, cP)) return json({ erreur: "Ce plan du chantier ne vous est pas ouvert." }, 403);
+      proprio = uP;
+    }
+    /* déposer le plan (son PDF) dans le dossier du chantier, côté réservé chargés d'affaires */
+    if (action === "plan-chantier") {
+      if (!bureau) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
+      let d;
+      try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+      const id = String(d.id || "");
+      if (!/^[a-z0-9]{6,32}$/.test(id)) return json({ erreur: "Plan introuvable." }, 404);
+      const u = proprio || slugPlan(personne.nom);
+      const plan = await planDe(store, u, id);
+      if (!plan) return json({ erreur: "Enregistrez d'abord le plan." }, 404);
+      const idx = await lireIndex();
+      const c = idx.chantiers[String(d.ref || "")] || idx.chantiers[slug(d.ref || "")];
+      if (!c) return json({ erreur: "Dossier introuvable." }, 404);
+      if (revoque(c, personne.nom)) return json({ erreur: "Ce dossier ne vous est plus attribué." }, 403);
+      const octets = Buffer.from(String(d.pdf || ""), "base64");
+      if (!octets.length || octets.subarray(0, 4).toString() !== "%PDF") return json({ erreur: "PDF illisible." }, 400);
+      if (octets.length > 25 * 1024 * 1024) return json({ erreur: "PDF trop lourd pour le dossier (25 Mo au plus)." }, 413);
+      const cle = c.ref + "/plan-" + id + ".pdf";
+      const ancien = c.fichiers.find((f) => f.cle === cle);
+      await store.set(cle, octets, { metadata: { type: "application/pdf" } });
+      const quand = new Date().toISOString();
+      const entree = { cle, titre: "Plan — " + (String(d.nom || plan.nom || "").replace(/\s+/g, " ").trim().slice(0, 100) || "sans titre"), type: "technique",
+        visite: RESERVE_CA, etape: "", date: jourParis(), auteur: (ancien && ancien.auteur) || personne.nom, destinataires: [], versDossier: true,
+        publiePar: Array.from(new Set([...((ancien && ancien.publiePar) || []), personne.nom])), taille: octets.length, publie: quand, donnees: false,
+        versions: ancien ? (ancien.versions || 1) + 1 : 1, lectures: (ancien && ancien.lectures) || {}, prive: true, plan: { id, u, nom: plan.nom } };
+      if (ancien && ancien.titreBureau) { entree.titre = ancien.titreBureau; entree.titreBureau = ancien.titreBureau; }
+      c.fichiers = c.fichiers.filter((f) => f.cle !== cle);
+      c.fichiers.push(entree);
+      c.fichiers.sort((a, b) => rang(b) - rang(a));
+      c.maj = quand;
+      await store.setJSON(INDEX, idx);
+      await noterChantierPlan(store, personne.societe, u, id, { ref: c.ref, client: c.client || "", cle, le: quand });
+      return json({ ok: true, ref: c.ref, client: c.client || "", cle, versions: entree.versions });
+    }
+    return mesplans(action, { req, url, store, personne, json, proprio });
+  }
   /* la fiche en cours suit la personne d'un appareil à l'autre (serveur/encours.mjs) */
   if (action.startsWith("encours-")) return encours(action, { req, url, store, personne, json });
 

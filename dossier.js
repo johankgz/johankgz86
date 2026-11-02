@@ -2420,8 +2420,18 @@ function carteDossier(c, i, opts){
       bEnv.addEventListener("click", function(e){ e.preventDefault(); e.stopPropagation(); envoyerDocument(f, bEnv); });
       droite.appendChild(bEnv);
     }
+    /* un plan du module Plan déposé ici (réservé chargés d'affaires) : le reprendre tel qu'il était */
+    if(f.plan && f.plan.id && f.plan.u){
+      var bRep=document.createElement("a");
+      bRep.className="part"; bRep.textContent="Reprendre";
+      bRep.href="./dwg.html?plan="+encodeURIComponent(f.plan.id)+"&u="+encodeURIComponent(f.plan.u)+"&ref="+encodeURIComponent((c && c.ref) || String(f.cle||"").split("/")[0]);
+      bRep.title="Rouvrir ce plan dans l'outil Plan, pour le modifier";
+      bRep.setAttribute("aria-label","Reprendre le plan "+(f.titre||""));
+      bRep.addEventListener("click", function(e){ e.stopPropagation(); });
+      droite.appendChild(bRep);
+    }
     /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour prendre des cotes */
-    if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
+    else if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
       var bCote=document.createElement("a");
       bCote.className="part"; bCote.textContent="Coter";
       bCote.href="./dwg.html?cle="+encodeURIComponent(f.cle);

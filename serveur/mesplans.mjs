@@ -3,16 +3,19 @@
    ---------------------------------------------------------------------
    Un plan commencé (page vierge, ou DWG / DXF / PDF / image importé, avec
    ce qu'on y a dessiné et posé) s'enregistre ici : on le rouvre plus tard,
-   sur n'importe quel appareil, pour le reprendre. Les plans sont ceux de
-   la société : chacun les voit et les reprend.
+   sur n'importe quel appareil, pour le reprendre. Chacun a les siens.
+   Un plan peut aussi être déposé dans le dossier d'un chantier, côté
+   « Réservé chargés d'affaires » (rapports.mjs, action plan-chantier) :
+   son PDF y est rangé, et les chargés d'affaires du chantier le
+   reprennent (rapports.mjs vérifie leur accès, puis passe « proprio »).
 
-   Rangement, dans le magasin de la société :
-     plans/index.json    {plans: [{id, nom, type, source?, maj, auteur, cree, creePar, taille}]}
+   Rangement, dans le magasin de la société, par personne (<u>) :
+     plans/<u>/index.json    {plans: [{id, nom, type, source?, maj, auteur, cree, creePar, taille, chantier?}]}
                          type « vierge » (dessiné de zéro) ou « fichier » (importé) ;
                          source : {nom, taille, ext, cle, page} du fichier importé
                          (cle : son nom sur l'appareil, « plan.pdf#p2 » pour une page de PDF)
-     plans/c/<id>.json   le contenu : {dessin, symb, echelle, calques, mep, vue, fond?}
-     plans/f/<id>        le fichier importé, tel quel (DWG, DXF, PDF, image)
+     plans/<u>/c/<id>.json   le contenu : {dessin, symb, echelle, calques, mep, vue, fond?}
+     plans/<u>/f/<id>        le fichier importé, tel quel (DWG, DXF, PDF, image)
    ===================================================================== */
 
 const MAX_CONTENU = 12 * 1024 * 1024;      /* le dessin et les symboles, en texte */
@@ -29,21 +32,36 @@ function enFile(cle, fn) {
 const idValide = (id) => /^[a-z0-9]{6,32}$/.test(String(id || ""));
 const nouvelId = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 const court = (t, n) => String(t || "").replace(/[\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, n);
-const BASE = "plans/";
+export function slugNom(n) {
+  return String(n || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 60) || "sans-nom";
+}
+const baseDe = (u) => "plans/" + u + "/";
 
-async function lireIndex(store) {
-  try { const x = await store.get(BASE + "index.json", { type: "json" }); if (x && Array.isArray(x.plans)) return x; } catch { /* vide */ }
+async function lireIndex(store, u) {
+  try { const x = await store.get(baseDe(u) + "index.json", { type: "json" }); if (x && Array.isArray(x.plans)) return x; } catch { /* vide */ }
   return { plans: [] };
+}
+/* rapports.mjs : le plan existe-t-il, et le noter déposé dans un chantier */
+export async function planDe(store, u, id) { const x = await lireIndex(store, u); return x.plans.find((p) => p.id === id) || null; }
+export async function noterChantierPlan(store, societe, u, id, info) {
+  return enFile(societe + "/" + u, async () => {
+    const x = await lireIndex(store, u), e = x.plans.find((p) => p.id === id);
+    if (!e) return false;
+    e.chantier = info; await store.setJSON(baseDe(u) + "index.json", x);
+    return true;
+  });
 }
 
 export async function mesplans(action, o) {
   const { req, url, store, personne, json } = o;
-  const modifier = (fn) => enFile(personne.societe || "societe", async () => { const x = await lireIndex(store); const r = await fn(x); return r; });
+  /* le plan d'un autre, ouvert depuis un chantier : rapports.mjs a vérifié l'accès */
+  const u = o.proprio || slugNom(personne.nom), BASE = baseDe(u);
+  const modifier = (fn) => enFile((personne.societe || "societe") + "/" + u, async () => { const x = await lireIndex(store, u); const r = await fn(x); return r; });
   const ecrire = (x) => store.setJSON(BASE + "index.json", x);
 
   /* ---------- la liste ---------- */
   if (action === "plans-liste") {
-    const x = await lireIndex(store);
+    const x = await lireIndex(store, u);
     return json({ plans: x.plans.slice().sort((a, b) => String(b.maj).localeCompare(String(a.maj))) });
   }
 
@@ -51,7 +69,7 @@ export async function mesplans(action, o) {
   if (action === "plan-lire") {
     const id = url.searchParams.get("id") || "";
     if (!idValide(id)) return json({ erreur: "Plan introuvable." }, 404);
-    const x = await lireIndex(store), e = x.plans.find((p) => p.id === id);
+    const x = await lireIndex(store, u), e = x.plans.find((p) => p.id === id);
     if (!e) return json({ erreur: "Plan introuvable." }, 404);
     let c = null;
     try { c = await store.get(BASE + "c/" + id + ".json", { type: "json" }); } catch { c = null; }
@@ -88,6 +106,7 @@ export async function mesplans(action, o) {
     }
     const id = d.id == null || d.id === "" ? nouvelId() : String(d.id);
     if (!idValide(id)) return json({ erreur: "Plan illisible." }, 400);
+    if (o.proprio && id !== url.searchParams.get("id")) return json({ erreur: "Plan illisible." }, 400);
     const contenu = {
       dessin: d.dessin, symb: d.symb,
       echelle: d.echelle && typeof d.echelle === "object" ? { mm: Number(d.echelle.mm) || 1, src: court(d.echelle.src, 30) } : { mm: 1, src: "vierge" },
@@ -100,7 +119,7 @@ export async function mesplans(action, o) {
     const quand = new Date().toISOString();
     return modifier(async (x) => {
       let e = x.plans.find((p) => p.id === id);
-      if (!e) { e = { id, cree: quand, creePar: personne.nom }; x.plans.unshift(e); }
+      if (!e) { if (o.proprio) return json({ erreur: "Plan introuvable." }, 404); e = { id, cree: quand, creePar: personne.nom }; x.plans.unshift(e); }
       Object.assign(e, { nom: court(d.nom, 120) || "Plan", type, maj: quand, auteur: personne.nom, taille: texte.length });
       if (source) {
         /* un autre fichier qu'avant : l'ancien ne vaut plus */
