@@ -2437,13 +2437,14 @@ function carteDossier(c, i, opts){
       bRep.addEventListener("click", function(e){ e.stopPropagation(); });
       droite.appendChild(bRep);
     }
-    /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour prendre des cotes */
+    /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour le modifier (coter,
+       dessiner, poser des symboles) ; enregistré, il part dans « Plans modifiés », encadrés jaunes */
     else if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
       var bCote=document.createElement("a");
-      bCote.className="part"; bCote.textContent="Coter";
-      bCote.href="./dwg.html?cle="+encodeURIComponent(f.cle);
-      bCote.title="Ouvrir ce plan dans l'outil Plan pour prendre des cotes";
-      bCote.setAttribute("aria-label","Prendre des cotes sur "+(f.titre||"ce plan"));
+      bCote.className="part"; bCote.textContent="Modifier";
+      bCote.href="./dwg.html?cle="+encodeURIComponent(f.cle)+(f.titre ? "&titre="+encodeURIComponent(f.titre) : "");
+      bCote.title="Ouvrir ce plan dans l'outil Plan : coter, dessiner, poser des symboles. Enregistré, il part dans « Plans modifiés », les modifications encadrées en jaune";
+      bCote.setAttribute("aria-label","Modifier le plan "+(f.titre||""));
       bCote.addEventListener("click", function(e){ e.stopPropagation(); });
       droite.appendChild(bCote);
     }

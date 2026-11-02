@@ -158,6 +158,8 @@ button,select{font:inherit}
 .racc-touche{min-width:64px;min-height:34px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
 .racc-touche.attente{background:#1D4ED8;border-color:#1D4ED8;color:#fff;font-family:inherit;font-weight:600}
 .racc-fixes{font-size:12.5px;line-height:1.5}
+.fn-seg{display:flex;flex-wrap:wrap;width:max-content;max-width:100%}
+.fn-seg button{min-width:56px;min-height:40px}
 .fe-format{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
 .fe-format label{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;font-size:13px;line-height:1.35}
 .fe-format label:has(input:checked){border-color:var(--acc,#3B82F6);background:rgba(59,130,246,.12)}
@@ -435,6 +437,8 @@ body.clair #scene{background:#FFFFFF}
 .barre-zone .seg button{min-height:32px;padding:4px 10px}
 .barre-zone select{min-height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:13.5px;padding:0 6px}
 .barre-zone small{flex-basis:100%;text-align:center;font-size:12px;color:var(--ink-3,#8B949E)}
+.barre-feuille input{width:130px;min-height:34px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font:inherit;font-size:13.5px;padding:0 8px}
+.barre-feuille{max-width:calc(100vw - 16px);box-sizing:border-box}
 .barre-sel span{font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
 .barre-sel button{flex:0 0 auto;min-height:40px;border-radius:999px;border:0;font:inherit;font-size:14px;font-weight:700;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .barre-sel .bs-supp{padding:0 16px;background:#DC2626;color:#fff}
@@ -560,6 +564,20 @@ body.clair #scene{background:#FFFFFF}
   </div>
 </div>
 
+<form class="fen-site" id="fenNeuf" hidden role="dialog" aria-modal="true" aria-labelledby="fenNeufT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenNeufT">Nouveau plan</b><button class="bt" type="button" id="fnFermer" aria-label="Fermer">✕</button></div>
+    <label class="fe-champ"><span>Nom du plan</span><input id="fnNom" type="text" maxlength="120" autocomplete="off" value="Plan RDC" placeholder="Dupont RDC"></label>
+    <div class="fe-champ"><span>Échelle de travail</span>
+      <span class="seg fn-seg" id="fnEch" role="group" aria-label="Échelle de travail"><button type="button" data-n="20">1/20</button><button type="button" data-n="25">1/25</button><button type="button" data-n="50">1/50</button><button type="button" data-n="100">1/100</button><button type="button" data-n="200">1/200</button></span>
+    </div>
+    <p class="fs-aide">Les symboles, les textes et les cotes prennent la taille de cette échelle, comme sur le papier ; la mise en page PDF et les feuilles partent de là. Elle se change dans <b>Réglages</b>.</p>
+    <div class="fe-champ"><span>Les longueurs, je les tape en</span>
+      <span class="seg fn-seg" id="fnUnite" role="group" aria-label="Unité des longueurs tapées"><button type="button" data-u="mm">mm</button><button type="button" data-u="cm">cm</button><button type="button" data-u="m">m</button></span>
+    </div>
+    <div class="fo-bas"><button class="bt" type="button" id="fnAnnuler">Annuler</button><button class="bt or" type="submit" id="fnOk">Créer le plan</button></div>
+  </div>
+</form>
 <form class="fen-site" id="fenEnreg" hidden role="dialog" aria-modal="true" aria-labelledby="fenEnregT">
   <div class="fs-boite">
     <div class="fs-tete"><b id="fenEnregT">Enregistrer le plan</b><button class="bt" type="button" id="feFermer" aria-label="Fermer">✕</button></div>
@@ -894,6 +912,15 @@ body.clair #scene{background:#FFFFFF}
   <button class="bt" id="zAnnuler" type="button">Annuler</button><button class="bt or" id="zValider" type="button">Valider</button>
   <small id="zInfo">Glissez le cadre sur la partie à imprimer ; tirez un coin pour changer d'échelle.</small>
 </div>
+<div class="barre-zone barre-feuille" id="barreFeuille" hidden role="toolbar" aria-label="Feuille">
+  <b>Feuille</b>
+  <input id="ffNom" type="text" maxlength="40" autocomplete="off" placeholder="Nom (ex. RDC)" aria-label="Nom de la feuille">
+  <span class="seg" id="ffFormat"><button type="button" data-v="a4">A4</button><button type="button" data-v="a3">A3</button><button type="button" data-v="a2">A2</button><button type="button" data-v="a1">A1</button><button type="button" data-v="a0">A0</button></span>
+  <span class="seg" id="ffOrient"><button type="button" data-v="l">Paysage</button><button type="button" data-v="p">Portrait</button></span>
+  <select id="ffEchelle" aria-label="Échelle de la feuille"><option value="20">1/20</option><option value="25">1/25</option><option value="50">1/50</option><option value="75">1/75</option><option value="100">1/100</option><option value="200">1/200</option><option value="500">1/500</option></select>
+  <button class="bt" id="ffPdf" type="button">PDF de la feuille</button><button class="bt" id="ffSuppr" type="button">Supprimer</button><button class="bt or" id="ffOk" type="button">OK</button>
+  <small id="ffInfo"></small>
+</div>
 <form class="mep" id="mep" hidden>
   <header><b>Mise en page PDF</b><button class="bt" id="mepFermer" type="button" aria-label="Fermer">✕</button></header>
   <div class="mep-corps">
@@ -956,7 +983,7 @@ var SOURCES={"pdf-echelle":"d'après l'échelle écrite sur le PDF", "vierge":"p
 function majTitre(){
   if(!PLAN) return;
   if(PLAN.pdf){ var n=echellePdfDe(DESSIN_MM), nr=DESSIN_MM/PT_MM; $("sousTitre").textContent=PLAN.nom+" · "+(n ? "au 1/"+n : "≈ 1/"+(nr>=10 ? Math.round(nr) : nr.toLocaleString("fr-FR",{maximumFractionDigits:2})))+" ("+(SOURCES[ECHELLE_SRC]||"")+")"; return; }
-  $("sousTitre").textContent=PLAN.nom+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")";
+  $("sousTitre").textContent=PLAN.nom+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")"+(DESSIN && DESSIN.ech>0 ? " · travail au 1/"+DESSIN.ech : "");
 }
 function charge(t){ $("chargementTxt").textContent=t; $("chargement").hidden=!t; }
 function lire(k, d){ try{ var v=localStorage.getItem(k); return v==null ? d : v; }catch(e){ return d; } }
@@ -1420,6 +1447,10 @@ function tracerBandeau(c, o, p, vue, sel){
   c.restore();
 }
 var R_REEL=125;   /* le rayon du cercle de base, en mm : 2,5 mm sur un plan au 1/50, comme notre légende */
+/* l'échelle de travail du plan (1/50 si elle n'a pas été choisie) : la taille des symboles,
+   des textes et des cotes en dépend, comme sur le papier ; la mise en page et les feuilles en partent */
+function echTravail(){ var n=DESSIN && Number(DESSIN.ech); return n>0 ? n : 50; }
+function rSymbole(){ return R_REEL*(echTravail()/50)*TAILLE/DESSIN_MM; }
 document.body.classList.toggle("clair", CLAIR);
 function haut(){ return (document.querySelector(".haut").offsetHeight||56); }
 function basH(){ var l=[$("bas"), $("basSymb"), $("basDessin")]; for(var i=0;i<l.length;i++) if(l[i] && !l[i].hidden) return l[i].offsetHeight; return 0; }
@@ -1502,7 +1533,7 @@ function peindreFantome(c){
   var p=versPlan(SURV_P[0], SURV_P[1]);
   c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.globalAlpha=0.55;
   if(MODE==="symb"){
-    var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, p, R, 0), q=versEcran(a.x, a.y), def=SymbolesElec.trouver(CHOIX);
+    var R=rSymbole(), a=accrocherSymbole(CHOIX, p, R, 0), q=versEcran(a.x, a.y), def=SymbolesElec.trouver(CHOIX);
     if(def.long || def.bandeau){ var L=longueurDefaut(CHOIX)/DESSIN_MM*V.k, ra=-(a.rot||0)*Math.PI/180; c.translate(q[0], q[1]); c.rotate(ra); c.strokeStyle=def.couleur; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(-L/2, -Math.max(4, R*V.k*0.3), L, 2*Math.max(4, R*V.k*0.3)); }
     else SymbolesElec.dessiner(c, CHOIX, q[0], q[1], R*V.k, {rot:-(a.rot||0)*Math.PI/180, epMin:1, couleur:(DESSIN.couleurs||{})["sy:"+def.groupe] ? visible(DESSIN.couleurs["sy:"+def.groupe]) : undefined});
   } else {
@@ -1582,6 +1613,8 @@ function peindre(){
   peindreGuides(c2);
   peindreSymboles(c2);
   peindreGroupe(c2);
+  if(!IMPRIME) peindreFeuilles(c2);
+  if(IMPRIME) peindreZonesJaunes(c2);
   if(ZONE_ACTIF && !IMPRIME) peindreZone(c2);
   if(IMPRIME) return;
   garderCache();
@@ -1793,6 +1826,16 @@ cv.addEventListener("pointerdown", function(e){
   }
   var p=pos(e);
   G={depart:p, dernier:p, bouge:false, souris:e.pointerType==="mouse", vx:V.x, vy:V.y, minuteur:null};
+  if(!ZONE_ACTIF && vueD()==="dessus"){
+    var fi=feuilleSous(p);
+    if(fi>=0 && (FEUILLE_ED>=0 || outilLibre())){ if(fi!==FEUILLE_ED) ouvrirFeuille(fi); }
+    if(FEUILLE_ED>=0){
+      var feE=feuilles()[FEUILLE_ED];
+      G.feuille=true;
+      if(feE && (fi===FEUILLE_ED || dansFeuille(FEUILLE_ED, p))) G.feuilleBase=[feE.cx, feE.cy];
+      return;
+    }
+  }
   if(ZONE_ACTIF && MEP.zone){
     /* la zone à imprimer : un coin la redimensionne, l'intérieur la déplace, ailleurs le plan glisse */
     var rz=cadreZoneEcran(), coins=[[rz.x0,rz.y0],[rz.x1,rz.y0],[rz.x0,rz.y1],[rz.x1,rz.y1]];
@@ -1899,6 +1942,16 @@ cv.addEventListener("pointermove", function(e){
     } else RECT_SEL=[G.rect, versPlan(p[0], p[1])];
     demander(); return;
   }
+  if(G.feuille){
+    var dxf=p[0]-G.depart[0], dyf=p[1]-G.depart[1], feM=feuilles()[FEUILLE_ED];
+    if(Math.hypot(dxf, dyf)>3) G.bouge=true;
+    if(G.feuilleBase && feM){
+      if(!G.garde && G.bouge){ garderD(); G.garde=true; }
+      /* au centimètre */
+      var pasF=10/DESSIN_MM; feM.cx=Math.round((G.feuilleBase[0]+dxf/V.k)/pasF)*pasF; feM.cy=Math.round((G.feuilleBase[1]-dyf/V.k)/pasF)*pasF;
+    } else { V.x=G.vx+dxf; V.y=G.vy+dyf; }
+    demander(); return;
+  }
   if(G.zone){
     var dxz=p[0]-G.depart[0], dyz=p[1]-G.depart[1];
     if(G.zoneCoin){
@@ -2001,6 +2054,7 @@ function lacher(e){
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
   if(G.zone){ G=null; majZone(); demander(); return; }
+  if(G.feuille){ if(G.garde) enregistrerD(); G=null; demander(); return; }
   if(G.lien){ if(G.bouge) enregistrerSymb(); G=null; majBarreSel(); demander(); return; }
   if(G.grp || G.rect){
     if(e.type!=="pointercancel"){
@@ -2123,6 +2177,7 @@ cv.addEventListener("wheel", function(e){
 cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
+  if(e.key==="Escape" && FEUILLE_ED>=0){ fermerFeuille(); return; }
   if(e.key==="Escape" && V3 && V3.coteA && !$("vue3d").hidden){ V3.coteA=null; majVisee3D(); return; }
   if(V3 && V3.coteSel && !$("vue3d").hidden && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){
     if(e.key==="Delete" || e.key==="Backspace"){ e.preventDefault(); supprimerCote3D(); return; }
@@ -2585,7 +2640,7 @@ function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
-  var R=R_REEL*TAILLE/DESSIN_MM, a=accrocherSymbole(CHOIX, pt, R, 0);
+  var R=rSymbole(), a=accrocherSymbole(CHOIX, pt, R, 0);
   var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""};
   alignerSymbole(o, a); GUIDES_S=null;
   var hc=hauteurContexte(CHOIX, [o.x, o.y]);
@@ -3550,7 +3605,21 @@ function chercherD(sx, sy){
 var FACE_EXT=lire("dwg:faceExt","1")!=="0", COTE_FACE=Number(lire("dwg:coteFace","1"))===-1 ? -1 : 1, COTE_FORCE=false;
 function basculerAccroche(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); if(MODE==="symb") majSymb(); else majDessin(); toast(ACCR_D ? "Accrochage activé." : "Accrochage coupé.", 1500); majRuban(); }
 /* l'onglet Réglages : l'unité de saisie, la molette, le nom de l'ortho */
+/* changer l'échelle de travail : la mise en page suit ; les symboles déjà posés, si on le veut */
+function changerEchTravail(n){
+  if(!PLAN || !DESSIN || !(n>0)) return;
+  var avant=echTravail(); if(n===avant && DESSIN.ech){ majReglagesR(); return; }
+  garderD(); DESSIN.ech=n; enregistrerD();
+  MEP.echelle=n; garderMep();
+  var k=n/avant, nb=SYMB.length;
+  if(nb && k!==1 && window.confirm("Échelle de travail : 1/"+n+".\n\nMettre aussi les "+nb+" symbole"+(nb>1?"s":"")+" déjà posé"+(nb>1?"s":"")+" à la taille du 1/"+n+" ?\n(Annuler : ils gardent leur taille ; les prochains seront au 1/"+n+".)")){
+    garderSymb(); SYMB.forEach(function(o){ o.r*=k; }); enregistrerSymb();
+  }
+  majReglagesR(); majTitre(); demander();
+  toast("Échelle de travail : 1/"+n+". Les symboles, textes et cotes posés ensuite en prennent la taille ; la mise en page PDF part au 1/"+n+".", 5000);
+}
 function majReglagesR(){
+  Array.prototype.forEach.call(document.querySelectorAll(".rb-ech button"), function(b){ b.classList.toggle("on", !!PLAN && Number(b.dataset.n)===echTravail()); });
   Array.prototype.forEach.call(document.querySelectorAll(".rb-usaisie button"), function(b){ b.classList.toggle("on", b.dataset.u===USAISIE); });
   Array.prototype.forEach.call(document.querySelectorAll(".rb-molette button"), function(b){ b.classList.toggle("on", Number(b.dataset.m)===MOLETTE); });
   var bo=document.querySelector('#rbPanneau [data-r="a:ortho"] span'); if(bo) bo.textContent = ORTHO_D ? NOMS_ANGLE[ANGLE_D] : "Angle libre";
@@ -4113,7 +4182,7 @@ function poserMobVue(p){
   toast(defMob(o.cle).court+(fond ? " contre le mur du fond" : "")+(o.z ? ", à "+cm(o.z)+" cm du sol." : ", au sol.")+" Glissez-le de côté ou en hauteur ; sa profondeur se règle en vue de dessus.", 4000);
 }
 function poserSymboleVue(pt){
-  var vue=vueD(), R=R_REEL*TAILLE/DESSIN_MM, murs=mursDerriere(vue, pt[0]), fond=murs[0], o={cle:CHOIX, r:R, t:"", rot:0}, pr;
+  var vue=vueD(), R=rSymbole(), murs=mursDerriere(vue, pt[0]), fond=murs[0], o={cle:CHOIX, r:R, t:"", rot:0}, pr;
   if(!MURAUX[CHOIX]){
     /* au plafond, ou posé librement (un spot de jardin) : au milieu de la pièce, entre le mur du fond et celui de devant */
     pr = !fond ? 0 : murs[1] ? (fond.prof+murs[1].prof+murs[1].m.ep)/2 : fond.prof-1000/DESSIN_MM;
@@ -4375,8 +4444,11 @@ function creerGeo(o){
   if(vueD()!=="dessus") o.vue=vueD(); o.coul=o.coul||STYLE_G.coul; o.tir=o.tir!=null ? o.tir : STYLE_G.tir;
   if(STYLE_G.couleur && !o.couleur) o.couleur=STYLE_G.couleur;
   if(o.t==="hachure") o.remp="hach"; else if(fermee(o)) o.remp=o.remp||STYLE_G.remp; else o.remp="aucun";
-  if(o.t==="cote" || o.t==="gtexte") o.h=o.h||tailleDefaut(o.t==="cote" ? 12 : 16);
-  if(o.t==="fleche") o.fl=o.fl||tailleDefaut(12);
+  /* une échelle de travail choisie : la hauteur du texte sur le papier (2,5 mm pour une cote,
+     3,5 mm pour un texte, une pointe de 3 mm) ; sinon, la taille à l'écran comme avant */
+  var ePap = DESSIN && DESSIN.ech>0 ? DESSIN.ech/DESSIN_MM : 0;
+  if(o.t==="cote" || o.t==="gtexte") o.h=o.h||(ePap ? (o.t==="cote" ? 2.5 : 3.5)*ePap : tailleDefaut(o.t==="cote" ? 12 : 16));
+  if(o.t==="fleche") o.fl=o.fl||(ePap ? 3*ePap : tailleDefaut(12));
   garderD(); DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(o);
   GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; finOutil(); enregistrerD(); majDessin();
 }
@@ -5529,20 +5601,31 @@ function peindreVierges(){
   });
   $("vierges").hidden = !ul.firstChild;
 }
+/* un nouveau plan : son nom, son échelle de travail et l'unité des longueurs tapées, choisis une fois */
+var FN={u:"cm", n:50};
 function nouveauVierge(){
-  var nom=window.prompt("Nom du plan (ex. Dupont RDC) :", "Plan RDC");
-  if(nom==null) return;
-  nom=String(nom).trim() || "Plan";
-  /* l'unité des longueurs tapées, choisie une fois pour ce plan */
-  var u=window.prompt("Les longueurs, vous les tapez en : mm, cm ou m ?", USAISIE);
-  u=String(u||"").trim().toLowerCase().replace(/[^a-z]/g, "");
-  u = u==="mm" || u==="millimetre" || u==="millimetres" ? "mm" : u==="m" || u==="metre" || u==="metres" ? "m" : u==="cm" || u==="centimetre" || u==="centimetres" ? "cm" : USAISIE;
-  USAISIE=u; garder("dwg:uniteSaisie", USAISIE); UNITE_NEUF=u;
-  var id=idD(), l=listeVierges(); l.push({id:id, nom:nom, maj:new Date().toISOString()});
-  try{ localStorage.setItem("dwg:vierges", JSON.stringify(l)); }catch(e){}
-  ouvrirVierge(id, true);
+  FN.u=USAISIE; FN.n=Number(lire("dwg:echNeuf", "50"))||50;
+  $("fnNom").value="Plan RDC"; majNeuf(); $("fenNeuf").hidden=false;
+  setTimeout(function(){ try{ $("fnNom").focus(); $("fnNom").select(); }catch(e){} }, 50);
 }
-var UNITE_NEUF="";
+function majNeuf(){
+  Array.prototype.forEach.call($("fnEch").children, function(b){ b.classList.toggle("on", Number(b.dataset.n)===FN.n); });
+  Array.prototype.forEach.call($("fnUnite").children, function(b){ b.classList.toggle("on", b.dataset.u===FN.u); });
+}
+$("fnEch").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; FN.n=Number(b.dataset.n)||50; majNeuf(); });
+$("fnUnite").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; FN.u=b.dataset.u; majNeuf(); });
+["fnFermer","fnAnnuler"].forEach(function(id){ $(id).addEventListener("click", function(){ $("fenNeuf").hidden=true; }); });
+$("fenNeuf").addEventListener("keydown", function(e){ if(e.key==="Escape"){ e.preventDefault(); $("fenNeuf").hidden=true; } });
+$("fenNeuf").addEventListener("submit", function(e){
+  e.preventDefault();
+  var nom=String($("fnNom").value||"").trim() || "Plan";
+  $("fenNeuf").hidden=true;
+  USAISIE=FN.u; garder("dwg:uniteSaisie", USAISIE); UNITE_NEUF=FN.u; ECH_NEUF=FN.n; garder("dwg:echNeuf", String(FN.n));
+  var id=idD(), l=listeVierges(); l.push({id:id, nom:nom, maj:new Date().toISOString()});
+  try{ localStorage.setItem("dwg:vierges", JSON.stringify(l)); }catch(er){}
+  ouvrirVierge(id, true);
+});
+var UNITE_NEUF="", ECH_NEUF=0;
 /* le plan garde son unité de saisie : elle revient à son ouverture */
 function appliquerUniteDuPlan(){ var u=DESSIN && DESSIN.uSaisie; if(u==="mm" || u==="cm" || u==="m"){ USAISIE=u; majUnites(); majReglagesR(); } }
 function ouvrirVierge(id, neuf){
@@ -5560,8 +5643,9 @@ function ouvrirVierge(id, neuf){
   basculerMode("dessin");
   majTitre(); redim(); vueEntiere(); chargerFond();
   if(neuf && UNITE_NEUF){ DESSIN.uSaisie=UNITE_NEUF; UNITE_NEUF=""; enregistrerD(); }
+  if(neuf && ECH_NEUF){ DESSIN.ech=ECH_NEUF; ECH_NEUF=0; enregistrerD(); MEP.echelle=DESSIN.ech; garderMep(); }
   appliquerUniteDuPlan();
-  if(neuf) toast("Page vierge, grille du mètre ; longueurs tapées en "+USAISIE+" (Réglages pour changer). Tracez les murs, posez portes et fenêtres, puis les symboles.", 6500);
+  if(neuf) toast("Page vierge au 1/"+echTravail()+", grille du mètre ; longueurs tapées en "+USAISIE+" (Réglages pour changer). Tracez les murs, posez portes et fenêtres, puis les symboles.", 6500);
 }
 /* l'étendue d'un dessin (pour « Vue entière » et le PDF) */
 function etendueDessin(){
@@ -6978,10 +7062,12 @@ function placerLegApercu(){
 var CHAMPS_MEP=[["mepClient","client"],["mepRef","ref"],["mepObjet","objet"],["mepNiveau","niveau"],["mepIndice","indice"],["mepDate","date"],["mepDess","dess"],["mepMail","mail"],["mepRemarques","remarques"],["mepMention","mention"]];
 var MENTION_PLAN="Plan donné à titre indicatif, à des fins d'usage interne, ne pouvant servir à d'autres fins";
 function cleMep(){ return "dwg:mep:"+((PLAN && PLAN.nom)||""); }
+/* l'échelle de travail devient celle de la mise en page de ce plan */
+function garderMep(){ var d={}; try{ d=JSON.parse(localStorage.getItem(cleMep())||"{}")||{}; }catch(e){ d={}; } d.echelle=MEP.echelle; try{ localStorage.setItem(cleMep(), JSON.stringify(d)); }catch(e){} }
 function ouvrirMep(){
   var d={}; try{ d=JSON.parse(localStorage.getItem(cleMep())||localStorage.getItem("dwg:mep")||"{}")||{}; }catch(e){ d={}; }
   if(d.format) MEP.format=d.format; if(d.orient) MEP.orient=d.orient; if(d.cadre) MEP.cadre=d.cadre;
-  if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0; else if(PLAN && PLAN.vierge) MEP.echelle=50;
+  if(d.echelle!=null) MEP.echelle=Number(d.echelle)||0; else if(PLAN && (PLAN.vierge || (DESSIN && DESSIN.ech>0))) MEP.echelle=echTravail();
   MEP.zone = d.zone && isFinite(d.zone.cx) && isFinite(d.zone.cy) ? {cx:d.zone.cx, cy:d.zone.cy} : null;
   MEP.vues = Array.isArray(d.vues) && d.vues.length ? d.vues : null;
   MEP.echelles = d.echelles && typeof d.echelles==="object" ? d.echelles : {};
@@ -7066,6 +7152,117 @@ function peindreZone(c){
   c.fillRect(r.x0, r.y0-26, lw, 22); c.fillStyle="#1A1206"; c.textBaseline="middle"; c.fillText(et, r.x0+8, r.y0-15);
   c.restore();
 }
+/* ---------- les feuilles : des cadres A4 à A0 posés dans le plan, à une échelle ----------
+   Pour voir la place que prend une feuille (« une zone en A1 au 1/50, une autre en A3 »)
+   sans passer par le PDF : le bord de la feuille, son cadre et son cartouche, à l'échelle
+   du plan. On en pose autant qu'on veut, on les glisse, on les nomme ; elles sont gardées
+   avec le plan et ne s'impriment pas. « PDF de la feuille » ouvre la mise en page sur elle. */
+var FEUILLE_ED=-1, FEUILLE_ETQ=[], FEUILLE_AVANT=null;
+function feuilles(){ return (DESSIN && Array.isArray(DESSIN.feuilles)) ? DESSIN.feuilles : []; }
+/* la mise en page d'une feuille (cadre, cartouche, zone du dessin), en mm sur le papier */
+function gabaritDe(fmt, or){
+  var a=MEP.format, b=MEP.orient; MEP.format=fmt; MEP.orient=or;
+  try{ return gabarit(); } finally{ MEP.format=a; MEP.orient=b; }
+}
+/* un point du papier (mm depuis le coin haut gauche) vers le plan */
+function feuilleVersPlan(fe, g, px, py){ var k=fe.n/DESSIN_MM; return [fe.cx+(px-g.P.w/2)*k, fe.cy-(py-g.P.h/2)*k]; }
+function rectFeuilleEcran(fe, g, r){
+  var a=versEcran.apply(null, feuilleVersPlan(fe, g, r.x, r.y)), b=versEcran.apply(null, feuilleVersPlan(fe, g, r.x+r.w, r.y+r.h));
+  return {x0:Math.min(a[0],b[0]), y0:Math.min(a[1],b[1]), x1:Math.max(a[0],b[0]), y1:Math.max(a[1],b[1])};
+}
+function nomFeuille(fe){ return (fe.nom ? fe.nom+" · " : "")+String(fe.fmt).toUpperCase()+" "+(fe.or==="l" ? "paysage" : "portrait")+" · 1/"+fe.n; }
+function peindreFeuilles(c){
+  FEUILLE_ETQ=[];
+  if(!PLAN || vueD()!=="dessus" || !cqVu("feuilles")) return;
+  var l=feuilles(); if(!l.length) return;
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0);
+  l.forEach(function(fe, i){
+    var g=gabaritDe(fe.fmt, fe.or), ed=i===FEUILLE_ED, col=ed ? "#3B82F6" : "#A78BFA";
+    var P=rectFeuilleEcran(fe, g, {x:0, y:0, w:g.P.w, h:g.P.h});
+    if(P.x1<-40 || P.x0>W+40 || P.y1<-40 || P.y0>H+40) return;
+    var F=rectFeuilleEcran(fe, g, g.cadre), K=rectFeuilleEcran(fe, g, g.cart);
+    /* la feuille : un voile très léger, son bord ; le cadre en tirets ; le cartouche grisé */
+    c.fillStyle = ed ? "rgba(59,130,246,.06)" : "rgba(167,139,250,.04)"; c.fillRect(P.x0, P.y0, P.x1-P.x0, P.y1-P.y0);
+    c.strokeStyle=col; c.lineWidth=ed ? 2.5 : 1.6; c.setLineDash([]); c.strokeRect(P.x0, P.y0, P.x1-P.x0, P.y1-P.y0);
+    c.lineWidth=1; c.setLineDash([6, 4]); c.strokeRect(F.x0, F.y0, F.x1-F.x0, F.y1-F.y0); c.setLineDash([]);
+    c.fillStyle = ed ? "rgba(59,130,246,.16)" : "rgba(167,139,250,.14)"; c.fillRect(K.x0, K.y0, K.x1-K.x0, K.y1-K.y0);
+    c.strokeRect(K.x0, K.y0, K.x1-K.x0, K.y1-K.y0);
+    if(K.x1-K.x0>70 && K.y1-K.y0>18){ c.font="600 11px system-ui, -apple-system, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=col; c.fillText("Cartouche", (K.x0+K.x1)/2, (K.y0+K.y1)/2); }
+    /* l'étiquette, au-dessus du coin haut gauche : la toucher ouvre la feuille */
+    var et=nomFeuille(fe); c.font="700 12.5px system-ui, -apple-system, sans-serif"; c.textAlign="left"; c.textBaseline="middle";
+    var lw=c.measureText(et).width+16, ex=Math.max(4, Math.min(P.x0, W-lw-4)), ey=P.y0-26;
+    if(ey<haut()+4) ey=Math.max(P.y0+4, haut()+4);
+    c.fillStyle=col; c.beginPath(); if(c.roundRect) c.roundRect(ex, ey, lw, 22, 6); else c.rect(ex, ey, lw, 22); c.fill();
+    c.fillStyle=ed ? "#FFFFFF" : "#1A1030"; c.fillText(et, ex+8, ey+11);
+    FEUILLE_ETQ.push({i:i, x0:ex, y0:ey, x1:ex+lw, y1:ey+22});
+  });
+  c.restore();
+}
+/* l'outil en cours laisse-t-il toucher l'étiquette d'une feuille ? (pas pendant un tracé ou une pose) */
+function outilLibre(){
+  if(REF || GEO_EC || D_PT || A_PT) return false;
+  if(MODE==="dessin") return OUTIL_D==="main" || OUTIL_D==="choisir" || OUTIL_D==="selection";
+  if(MODE==="symb") return !ARME_S && !RELIER;
+  return true;
+}
+function feuilleSous(p){ for(var j=FEUILLE_ETQ.length-1; j>=0; j--){ var e=FEUILLE_ETQ[j]; if(p[0]>=e.x0-4 && p[0]<=e.x1+4 && p[1]>=e.y0-4 && p[1]<=e.y1+4) return e.i; } return -1; }
+function dansFeuille(i, p){ var fe=feuilles()[i]; if(!fe) return false; var g=gabaritDe(fe.fmt, fe.or), r=rectFeuilleEcran(fe, g, {x:0, y:0, w:g.P.w, h:g.P.h}); return p[0]>=r.x0 && p[0]<=r.x1 && p[1]>=r.y0 && p[1]<=r.y1; }
+/* une nouvelle feuille, au milieu de l'écran, à l'échelle de travail ; la vue la montre entière */
+function nouvelleFeuille(){
+  if(!PLAN || !DESSIN) return;
+  if(vueD()!=="dessus"){ toast("Les feuilles se posent en vue de dessus."); return; }
+  var der=feuilles()[feuilles().length-1];
+  var c=versPlan(W/2, (haut()+H-basH())/2);
+  var fe={id:idD(), fmt:der ? der.fmt : "a3", or:der ? der.or : "l", n:echTravail(), cx:c[0], cy:c[1], nom:""};
+  garderD(); DESSIN.feuilles=feuilles().slice(); DESSIN.feuilles.push(fe); enregistrerD();
+  if(!cqVu("feuilles")){ CQ_MASQUES.feuilles=false; }
+  ouvrirFeuille(DESSIN.feuilles.length-1, true);
+}
+function cadrerFeuille(fe){
+  var g=gabaritDe(fe.fmt, fe.or), k=fe.n/DESSIN_MM, w=g.P.w*k, h=g.P.h*k, h0=haut()+110, h1=H-basH()-20;
+  V.k=Math.min(V.k, (W-40)/w, (h1-h0)/h);
+  var e=versEcran(fe.cx, fe.cy);
+  if(e[0]-V.k*w/2<10 || e[0]+V.k*w/2>W-10 || e[1]-V.k*h/2<h0 || e[1]+V.k*h/2>h1){ V.x=W/2-V.k*fe.cx; V.y=(h0+h1)/2+V.k*fe.cy; }
+}
+function ouvrirFeuille(i, cadrer){
+  var fe=feuilles()[i]; if(!fe) return;
+  if(ZONE_ACTIF) return;
+  FEUILLE_ED=i; FEUILLE_AVANT=JSON.stringify(fe);
+  if(cadrer) cadrerFeuille(fe);
+  $("ffNom").value=fe.nom||""; $("barreFeuille").hidden=false; majFeuille(); demander();
+}
+function fermerFeuille(){ FEUILLE_ED=-1; FEUILLE_AVANT=null; $("barreFeuille").hidden=true; demander(); }
+function majFeuille(){
+  var fe=feuilles()[FEUILLE_ED]; if(!fe){ fermerFeuille(); return; }
+  Array.prototype.forEach.call($("ffFormat").children, function(b){ b.classList.toggle("on", b.dataset.v===fe.fmt); });
+  Array.prototype.forEach.call($("ffOrient").children, function(b){ b.classList.toggle("on", b.dataset.v===fe.or); });
+  var sel=$("ffEchelle"); if(!sel.querySelector('option[value="'+fe.n+'"]')){ var o=document.createElement("option"); o.value=String(fe.n); o.textContent="1/"+fe.n; sel.appendChild(o); }
+  sel.value=String(fe.n);
+  var g=gabaritDe(fe.fmt, fe.or), k=fe.n/DESSIN_MM;
+  function m(v){ return String(Math.round(v*DESSIN_MM/100)/10).replace(".", ","); }
+  $("ffInfo").textContent=String(fe.fmt).toUpperCase()+" "+(fe.or==="l"?"paysage":"portrait")+" au 1/"+fe.n+" : la feuille couvre "+m(g.P.w*k)+" × "+m(g.P.h*k)+" m, dont "+m(g.zone.w*k)+" × "+m(g.zone.h*k)+" m pour le dessin (hors cartouche). Glissez la feuille pour la placer.";
+}
+function changerFeuille(f){ var fe=feuilles()[FEUILLE_ED]; if(!fe) return; garderD(); f(fe); enregistrerD(); majFeuille(); demander(); }
+$("ffFormat").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; changerFeuille(function(fe){ fe.fmt=b.dataset.v; }); });
+$("ffOrient").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; changerFeuille(function(fe){ fe.or=b.dataset.v; }); });
+$("ffEchelle").addEventListener("change", function(){ var n=Number(this.value)||50; changerFeuille(function(fe){ fe.n=n; }); });
+$("ffNom").addEventListener("change", function(){ var v=String(this.value||"").trim().slice(0, 40); changerFeuille(function(fe){ fe.nom=v; }); });
+$("ffNom").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); this.blur(); } e.stopPropagation(); });
+$("ffOk").addEventListener("click", fermerFeuille);
+$("ffSuppr").addEventListener("click", function(){
+  var fe=feuilles()[FEUILLE_ED]; if(!fe) return;
+  garderD(); DESSIN.feuilles=feuilles().filter(function(x){ return x!==fe; }); enregistrerD(); fermerFeuille();
+  toast("Feuille retirée (Annuler la remet).", 2500);
+});
+/* le PDF de cette feuille : la mise en page reprend son format, son échelle et sa place */
+$("ffPdf").addEventListener("click", function(){
+  var fe=feuilles()[FEUILLE_ED]; if(!fe) return;
+  var g=gabaritDe(fe.fmt, fe.or), c=feuilleVersPlan(fe, g, g.zone.x+g.zone.w/2, g.zone.y+g.zone.h/2);
+  var d={}; try{ d=JSON.parse(localStorage.getItem(cleMep())||"{}")||{}; }catch(er){ d={}; }
+  d.format=fe.fmt; d.orient=fe.or; d.echelle=fe.n; d.cadre="zone"; d.zone={cx:c[0], cy:c[1]};
+  try{ localStorage.setItem(cleMep(), JSON.stringify(d)); }catch(er){}
+  fermerFeuille(); ouvrirMep();
+});
 Array.prototype.forEach.call(document.querySelectorAll(".seg-usaisie"), function(sg){ sg.addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return; USAISIE=b.dataset.u; garder("dwg:uniteSaisie", USAISIE); majUnites();
   if(MODE==="symb") majSymb(); else majDessin();
@@ -7215,7 +7412,8 @@ function creerPdf(d, logo, soc, imgPersp){
       objet:d.objet||"PLAN ÉLECTRIQUE", niveau:objet2 || d.niveau || "", affaire:String(d.client||"").toUpperCase(), ref:d.ref||"",
       echelle: lesCases ? textePlancheEchelles(lesCases) : "1/"+e.n, format:nomFormat()+" "+(MEP.orient==="l" ? "paysage" : "portrait"),
       indice:d.indice||"A", folio:folio+"/"+total, dess:d.dess||"", mail:d.mail||"", date:frDateCourte(d.date), fichier:nomDeBase(),
-      modif:d.remarques ? String(d.remarques).split(/\n/)[0] : (String(d.indice||"A").toUpperCase()==="A" ? "Première diffusion" : ""),
+      modif:ZONES_JAUNES && ZONES_JAUNES.length ? "Plan modifié : "+ZONES_JAUNES.length+" endroit"+(ZONES_JAUNES.length>1?"s":"")+" encadré"+(ZONES_JAUNES.length>1?"s":"")+" en jaune"
+        : d.remarques ? String(d.remarques).split(/\n/)[0] : (String(d.indice||"A").toUpperCase()==="A" ? "Première diffusion" : ""),
       remarques:"", mention:d.mention==null ? MENTION_PLAN : d.mention
     });
   }
@@ -7699,7 +7897,11 @@ function ouvrirFichier(f){
    téléchargé depuis le site puis ouvert ici comme un fichier de l'appareil. */
 function sessionPlan(){ try{ var s=JSON.parse(localStorage.getItem("outils:session")||"null"); return s && s.jeton ? s : null; }catch(e){ return null; } }
 var SITE_DOCS=null;
-function ouvrirDuSite(cle, nom){
+/* le document du chantier qu'on ouvre (cle, chantier, titre) : modifié puis enregistré, il part
+   dans « Plans modifiés » du chantier */
+var DOC_ATT=null;
+function ouvrirDuSite(cle, nom, titre){
+  DOC_ATT={cle:cle, ref:String(cle||"").split("/")[0], titre:String(titre||"").trim() || String(nom||"").replace(/\.[^.]+$/, ""), f:null};
   var ses=sessionPlan();
   if(!ses){ toast("Connectez-vous au site pour ouvrir un document d'un chantier."); return; }
   $("fenSite").hidden=true;
@@ -7708,6 +7910,7 @@ function ouvrirDuSite(cle, nom){
     .then(function(r){ if(!r.ok) return r.json().then(function(d){ throw new Error(d.erreur || "Document introuvable."); }, function(){ throw new Error("Document introuvable."); }); return r.blob(); })
     .then(function(b){
       var f; try{ f=new File([b], nom, {type:b.type || ""}); }catch(e){ f=b; f.name=nom; }
+      if(DOC_ATT && DOC_ATT.cle===cle) DOC_ATT.f=f;
       charge(""); ouvrirFichier(f);
     })
     .catch(function(e){ charge(""); toast(/fetch|network/i.test(String(e && e.message)) ? "Pas de réseau : le document n'a pas pu être téléchargé." : (e && e.message) || "Document introuvable."); });
@@ -7729,7 +7932,7 @@ function peindreSite(){
       b.querySelector("small").textContent=[f.visite || f.etape || "", f.date ? new Date(f.date).toLocaleDateString("fr-FR") : ""].filter(Boolean).join(" · ");
       /* un plan déposé à reprendre : il se rouvre tel qu'il était, pour le continuer */
       if(f.plan && f.plan.id && /\.plan$/i.test(f.cle||"")){ b.querySelector("small").textContent="Plan à reprendre"+(f.date ? " · "+new Date(f.date).toLocaleDateString("fr-FR") : ""); b.addEventListener("click", function(){ $("fenSite").hidden=true; ouvrirPlanSite(f.plan.id, {u:f.plan.u, ref:c.ref}); }); }
-      else b.addEventListener("click", function(){ ouvrirDuSite(f.cle, nomDoc(f)); });
+      else b.addEventListener("click", function(){ ouvrirDuSite(f.cle, nomDoc(f), f.titre); });
       bloc.appendChild(b);
     });
     h.appendChild(bloc);
@@ -7763,7 +7966,7 @@ $("fsCherche").addEventListener("input", peindreSite);
 /* venu d'un chantier : dwg.html?cle=REF/technique-….pdf ouvre le document tout de suite */
 (function(){
   var cle=new URLSearchParams(location.search).get("cle")||"";
-  if(cle && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop()); }, 50);
+  if(cle && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop(), new URLSearchParams(location.search).get("titre")||""); }, 50);
 })();
 /* iPhone / iPad : le sélecteur de fichiers grise les .dwg et .dxf (iOS ne connaît pas ces types).
    On y laisse tout choisir ; ouvrirFichier refuse ensuite ce qui n'est pas un plan. */
@@ -7820,7 +8023,7 @@ $("segTaille").addEventListener("click", function(e){
   var b=e.target.closest("button"); if(!b) return;
   TAILLE=Number(b.dataset.t)||1; garder("dwg:taille", String(TAILLE));
   /* la taille choisie vaut aussi pour le symbole sélectionné */
-  if(SEL>=0){ garderSymb(); SYMB[SEL].r=R_REEL*TAILLE/DESSIN_MM; enregistrerSymb(); }
+  if(SEL>=0){ garderSymb(); SYMB[SEL].r=rSymbole(); enregistrerSymb(); }
   majSymb(); demander();
 });
 $("btQuantites").addEventListener("click", function(){ peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; });
@@ -7968,7 +8171,7 @@ function poserFond(cv0, wmm, nom, pdf){
     FOND_AJ=null;
     FOND_IMG=im; enregistrerD(); vueEntiere();
     FOND_ETAPE="echA"; FOND_PTS=[]; majDessin();
-    toast(pdf ? "Fond posé au 1/"+pdf.n+(pdf.n===50 ? " (supposé)" : "")+". Si le PDF est à une autre échelle, choisissez-la dans « Le PDF est au » ; ou touchez une longueur connue (une cote), début puis fin." : "Fond posé. Mise à l'échelle : touchez le début d'une longueur connue sur le fond (une cote, une porte), puis sa fin.", 9000);
+    toast(pdf ? "Fond posé au 1/"+pdf.n+(pdf.suppose ? " (supposé : l'échelle de travail)" : "")+". Si le PDF est à une autre échelle, choisissez-la dans « Le PDF est au » ; ou touchez une longueur connue (une cote), début puis fin." : "Fond posé. Mise à l'échelle : touchez le début d'une longueur connue sur le fond (une cote, une porte), puis sa fin.", 9000);
   });
 }
 /* le PDF qu'on importe est-il le plan déjà posé en fond (posé avant que le PDF
@@ -8030,8 +8233,8 @@ function importerFond(f){
             .then(function(nE){ return rendrePagePdf(page).then(function(cv){
               /* le même plan que le fond déjà posé (sans son PDF) : il prend sa place, son échelle, son angle */
               var cal=calerSurAncien(cv);
-              if(cal) return poserFond(cal.cv, 0, f.name, {pts:cal.q%2 ? vp.height : vp.width, ptsH:cal.q%2 ? vp.width : vp.height, n:nE||50, garder:{q:cal.q}});
-              return poserFond(cv, vp.width*PT_MM*(nE||50), f.name, {pts:vp.width, ptsH:vp.height, n:nE||50}); }); })
+              if(cal) return poserFond(cal.cv, 0, f.name, {pts:cal.q%2 ? vp.height : vp.width, ptsH:cal.q%2 ? vp.width : vp.height, n:nE||echTravail(), garder:{q:cal.q}});
+              return poserFond(cv, vp.width*PT_MM*(nE||echTravail()), f.name, {pts:vp.width, ptsH:vp.height, n:nE||echTravail(), suppose:!nE}); }); })
             .then(function(){ return garderPdfFond(copie, n); });
         });
         });
@@ -9792,7 +9995,7 @@ function selectCalqueCourant(){
 /* le groupe Calques du ruban : le bouton du panneau, et dessous le calque courant */
 function colonneCalques(){ var c=document.createElement("div"); c.className="rb-col rb-cq-grp"; c.appendChild(boutonRuban("a:calques", "rb-petit")); c.appendChild(selectCalqueCourant()); return c; }
 var CQ_DESSIN=[["fond","Fond de plan", "#94A3B8"], ["murs","Murs et cloisons", "#C9D1D9"], ["ouv","Portes et fenêtres", "#E5E9EF"], ["mob","Mobilier", "#60A5FA"],
-  ["noms","Noms de pièces", "#E5E9EF"], ["geo","Dessin, cotes et textes", "#F2F5F9"], ["toits","Toitures", "#F59E0B"], ["pv","Photovoltaïque", "#1E3A8A"], ["mesures","Mesures", "#3B82F6"], ["guides","Lignes de construction", "#E879F9"]];
+  ["noms","Noms de pièces", "#E5E9EF"], ["geo","Dessin, cotes et textes", "#F2F5F9"], ["toits","Toitures", "#F59E0B"], ["pv","Photovoltaïque", "#1E3A8A"], ["mesures","Mesures", "#3B82F6"], ["guides","Lignes de construction", "#E879F9"], ["feuilles","Feuilles (cadres A4 à A0)", "#A78BFA"]];
 function nbCalque(k){
   if(!PLAN) return 0;
   if(k==="fond") return (PLAN.vierge && fondD()) ? 1 : 0;
@@ -9805,6 +10008,7 @@ function nbCalque(k){
   if(k==="pv") return DESSIN.pv ? DESSIN.pv.pan.length+DESSIN.pv.ond.length : 0;
   if(k==="mesures") return COTES.length;
   if(k==="guides") return guides().length;
+  if(k==="feuilles") return feuilles().length;
   if(k==="liens") return SYMB.reduce(function(n, o){ return n+((o.lien||[]).length); }, 0);
   if(/^sy:/.test(k)){ var gr=k.slice(3); return SYMB.filter(function(o){ var d=SymbolesElec.trouver(o.cle); return d && d.groupe===gr; }).length; }
   return 0;
@@ -9891,6 +10095,7 @@ var ICO={
   vierge:'<path d="M6 3.5h9l4 4v13H6z"/><path d="M15 3.5v4h4M12.5 11v6M9.5 14h6"/>',
   plans:'<path d="M4 4h12.5L20 7.5V20H4z"/><path d="M8 4v5h7V4M7.5 20v-6.5h9V20"/>',
   fond:'<rect x="3" y="5" width="18" height="14"/><path d="M3 15l5-4 4 3 4-5 5 6"/>',
+  feuille:'<rect x="3" y="4" width="18" height="16" rx="1"/><rect x="5.5" y="6.5" width="13" height="11" stroke-dasharray="2 1.6"/><path d="M12.5 14.5h6v3h-6z"/>',
   relier:'<circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 16c5-1 7-4 10-8" stroke-dasharray="3 2"/>',
   quantites:'<path d="M9 6h11M9 12h11M9 18h11"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>',
   etudepv:'<rect x="3" y="3" width="18" height="18"/><path d="M7 16l3-4 3 3 4-6"/>',
@@ -9927,6 +10132,7 @@ var ACTIONS={
   fichier:["Fichier","fichier","Ouvrir un DWG, un DXF, un PDF ou une image de cet appareil"], chantier:["D'un chantier","chantier","Un plan déposé dans les documents techniques d'un chantier"],
   vierge:["Page vierge","vierge","Un nouveau plan, en millimètres"], plans:["Mes plans","plans","Les plans enregistrés sur le site, à reprendre"],
   fond:["Fond de plan","fond","Un PDF ou une photo sous la page vierge, mis à l'échelle"],
+  feuille:["Feuille","feuille","Poser un cadre de feuille (A4 à A0) à l'échelle dans le plan : sa place, son cadre et son cartouche"],
   relier:["Relier","relier","Relier le symbole choisi : l'interrupteur à ses points lumineux, les prises entre elles"], quantites:["Quantités","quantites","Le nombre de chaque symbole, et la bibliothèque DXF"],
   etudepv:["Étude PV","etudepv","Module, onduleurs, calculs et matériel"],
   v3d:["3D","v3d","Voir le plan monté en 3D"], entiere:["Vue entière","entiere","Tout le plan à l'écran"], clair:["Fond clair","clair","Fond clair ou sombre"],
@@ -9972,7 +10178,8 @@ var ONGLETS=[
   {id:"inserer", nom:"Insérer", g:[
     {nom:"Ouvrir un plan", gros:["a:fichier","a:chantier","a:plans"]},
     {nom:"Nouveau", gros:["a:vierge"]},
-    {nom:"Fond de plan", gros:["a:fond"], note:"Sous une page vierge : un PDF ou une photo du plan, mis à l'échelle."}
+    {nom:"Fond de plan", gros:["a:fond"], note:"Sous une page vierge : un PDF ou une photo du plan, mis à l'échelle."},
+    {nom:"Feuilles", gros:["a:feuille"], note:"Un cadre A4 à A0 à l'échelle, pour voir la place qu'il prend."}
   ]},
   {id:"vues", nom:"Vues", g:[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
@@ -10038,6 +10245,8 @@ function peindrePanneau(){
     var Gk=groupeRuban("Clavier"); Gk.o.appendChild(boutonRuban("a:raccourcis", "rb-gros")); pn.appendChild(Gk.g);
     function segR(nom, cls, items){ var G=groupeRuban(nom), sg=document.createElement("span"); sg.className="seg rb-seg "+cls; sg.setAttribute("role","group"); sg.setAttribute("aria-label", nom);
       items.forEach(function(it){ var b=document.createElement("button"); b.type="button"; b.dataset[it[0]]=it[1]; b.textContent=it[2]; sg.appendChild(b); }); G.o.appendChild(sg); pn.appendChild(G.g); return sg; }
+    var se=segR("Échelle de travail", "rb-ech", [["n","20","1/20"],["n","25","1/25"],["n","50","1/50"],["n","100","1/100"],["n","200","1/200"]]);
+    se.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b || !PLAN) return; changerEchTravail(Number(b.dataset.n)); });
     var su=segR("Saisie des longueurs", "rb-usaisie", [["u","mm","mm"],["u","cm","cm"],["u","m","m"]]);
     su.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; var o=document.querySelector('#grpUSaisie .seg-usaisie button[data-u="'+b.dataset.u+'"]'); if(o) o.click(); if(PLAN && DESSIN){ DESSIN.uSaisie=USAISIE; enregistrerD(); } majReglagesR(); });
     var sm=segR("Molette", "rb-molette", [["m","0.5","lente"],["m","1","normale"],["m","2","rapide"]]);
@@ -10179,6 +10388,7 @@ function actionR(k){
     case "fichier": $("fichier").click(); break;
     case "chantier": case "plans": ouvrirFenSite(); break;
     case "vierge": nouveauVierge(); break;
+    case "feuille": nouvelleFeuille(); break;
     case "fond": if(MODE!=="dessin") basculerMode("dessin"); $("btFondD").click(); break;
     case "relier":
       /* rien de choisi : on touche d'abord le symbole de départ (l'interrupteur), puis ceux à relier */
@@ -10544,6 +10754,13 @@ var PLAN_SITE=null, PLAN_SITE_ATTENTE=null, FICHIER_ORIG=null, FICHIER_SRC=null,
 })();
 function apresOuverture(){
   var a=PLAN_SITE_ATTENTE;
+  if(typeof fermerFeuille==="function" && FEUILLE_ED>=0) fermerFeuille();
+  /* ouvert depuis un document du chantier : le plan s'en souvient (gardé avec son dessin) */
+  if(DOC_ATT && PLAN && !PLAN.vierge && DOC_ATT.f && DOC_ATT.f===FICHIER_SRC && DESSIN){
+    DESSIN.chantierDoc={cle:DOC_ATT.cle, ref:DOC_ATT.ref, titre:DOC_ATT.titre};
+    try{ localStorage.setItem(DESSIN_CLE, JSON.stringify(DESSIN)); }catch(e){}
+  }
+  DOC_ATT=null;
   PLAN_SITE = a && a.cle===DESSIN_CLE ? {id:a.id, nom:a.nom, u:a.u||"", ref:a.ref||"", chantier:a.chantier||null} : null;
   PLAN_SITE_ATTENTE=null; SALE_PLAN=false; DEPUIS_CHOISIR=false;
   chargerCalques(); $("calques").hidden=true;
@@ -10628,6 +10845,79 @@ $("fenEnreg").addEventListener("submit", function(e){
   enregistrerPlanSite({nom:nom, chantier: vers ? {ref:FE.ch.ref, client:FE.ch.client, format:fmt} : null, retirerChantier: !vers});
 });
 /* le PDF du plan, pour le chantier : la mise en page retenue, l'affaire et la référence du chantier */
+/* ---------- le plan modifié, déposé dans le chantier ----------
+   Un plan ouvert depuis les documents d'un chantier (bouton « Modifier ») : à chaque
+   enregistrement, s'il porte des ajouts (dessin, symboles, cotes, textes), son PDF part dans
+   le dossier, documents techniques, catégorie « Plan modifié » (sous-dossier « Plans
+   modifiés »), titré « Plan modifié - <le plan> ». Les endroits modifiés y sont encadrés en
+   jaune et numérotés, comme les plans modifiés du suivi de chantier. Le même plan
+   redéposé le même jour remplace sa version. */
+var ZONES_JAUNES=null, PM_DEPOT=null;
+function boitesModifs(){
+  var b=[];
+  function bt(pts, m){ if(!pts || !pts.length) return; var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity; pts.forEach(function(q){ if(!q) return; x0=Math.min(x0,q[0]); y0=Math.min(y0,q[1]); x1=Math.max(x1,q[0]); y1=Math.max(y1,q[1]); }); m=m||0; if(isFinite(x0)) b.push([x0-m, y0-m, x1+m, y1+m]); }
+  if(!DESSIN) return b;
+  (DESSIN.murs||[]).forEach(function(w){ bt([w.a, w.b], (w.ep||0)/2); });
+  (DESSIN.textes||[]).forEach(function(t){ var h=t.h||200/DESSIN_MM, l=String(t.s||"").length*h*0.3; bt([[t.x-l, t.y-h/2], [t.x+l, t.y+h/2]]); });
+  (DESSIN.mob||[]).forEach(function(o){ bt(coinsMob(o)); });
+  (DESSIN.geo||[]).forEach(function(o){ if(o.vue) return; bt(o.pts, Math.max(o.r||0, o.rx||0, o.ry||0, o.t==="gtexte" ? (o.h||0)*String(o.s||"").length*0.35 : 0)); });
+  (DESSIN.toits||[]).forEach(function(t){ bt([[t.x0, t.y0], [t.x1, t.y1]]); });
+  SYMB.forEach(function(o){ if(o.vue) return; bt([[o.x, o.y]], (o.r||0)*1.6); });
+  COTES.forEach(function(c){ bt([c.a, c.b]); });
+  return b;
+}
+/* les ajouts proches se regroupent : quelques encadrés, pas un par symbole */
+function zonesModifs(){
+  var bx=boitesModifs(); if(!bx.length) return [];
+  /* deux ajouts à moins d'1,5 m (ou de 5 % du plan) vont dans le même encadré */
+  var e=etendue2(bx), m=Math.max(1500/DESSIN_MM, Math.max(e[2]-e[0], e[3]-e[1])*0.05);
+  for(var essai=0; essai<6; essai++){
+    var z=bx.map(function(r){ return r.slice(); }), fini=false;
+    while(!fini){
+      fini=true;
+      for(var i=0; i<z.length && fini; i++) for(var j=i+1; j<z.length; j++){
+        var a=z[i], c=z[j];
+        if(a[0]-m<=c[2] && c[0]-m<=a[2] && a[1]-m<=c[3] && c[1]-m<=a[3]){ z[i]=[Math.min(a[0],c[0]), Math.min(a[1],c[1]), Math.max(a[2],c[2]), Math.max(a[3],c[3])]; z.splice(j, 1); fini=false; break; }
+      }
+    }
+    if(z.length<=12) break;
+    m*=2;
+  }
+  var pad=Math.max(250/DESSIN_MM, m*0.25);
+  /* de gauche à droite, de haut en bas : les numéros se lisent dans l'ordre */
+  return z.map(function(r){ return [r[0]-pad, r[1]-pad, r[2]+pad, r[3]+pad]; })
+    .sort(function(a, c){ var ha=Math.abs(a[3]-c[3]) < (a[3]-a[1])*0.5; return ha ? a[0]-c[0] : c[3]-a[3]; });
+}
+function etendue2(bx){ var r=[Infinity, Infinity, -Infinity, -Infinity]; bx.forEach(function(b){ r[0]=Math.min(r[0],b[0]); r[1]=Math.min(r[1],b[1]); r[2]=Math.max(r[2],b[2]); r[3]=Math.max(r[3],b[3]); }); return r; }
+function peindreZonesJaunes(c){
+  if(!ZONES_JAUNES || !ZONES_JAUNES.length || vueD()!=="dessus") return;
+  var mm=PX_MM>0 ? PX_MM : 4;     /* pixels par mm du papier */
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.setLineDash([]);
+  ZONES_JAUNES.forEach(function(z, n){
+    var a=versEcran(z[0], z[3]), b=versEcran(z[2], z[1]), x=Math.min(a[0],b[0]), y=Math.min(a[1],b[1]), w=Math.abs(b[0]-a[0]), h=Math.abs(b[1]-a[1]), r=1.2*mm;
+    c.beginPath(); if(c.roundRect) c.roundRect(x, y, w, h, r); else c.rect(x, y, w, h);
+    c.fillStyle="rgba(250,204,21,.14)"; c.fill();
+    c.strokeStyle="#EAB308"; c.lineWidth=0.6*mm; c.stroke();
+    var R=2.1*mm; c.beginPath(); c.arc(x+0.8*mm, y+0.8*mm, R, 0, 2*Math.PI); c.fillStyle="#FACC15"; c.fill(); c.strokeStyle="#785A00"; c.lineWidth=0.25*mm; c.stroke();
+    c.fillStyle="#0B0E12"; c.font="700 "+(2.6*mm).toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillText(String(n+1), x+0.8*mm, y+0.9*mm);
+  });
+  c.restore();
+}
+function titrePlanModifie(dc){ var t=String(dc.titre||"Plan").replace(/^plan modifi[ée]\s*-\s*/i, "").trim() || "Plan"; return "Plan modifié - "+t; }
+function deposerPlanModifie(){
+  var dc=DESSIN && DESSIN.chantierDoc; if(!dc || !dc.ref || PLAN.vierge) return Promise.resolve(null);
+  var zs=zonesModifs(); if(!zs.length) return Promise.resolve(null);
+  charge("Plan modifié pour le chantier "+dc.ref+"…");
+  ZONES_JAUNES=zs;
+  return pdfPourChantier({ref:dc.ref, client:""}).then(function(res){ ZONES_JAUNES=null; return blobEnBase64(res.blob); }, function(e){ ZONES_JAUNES=null; throw e; })
+    .then(function(b64){
+      var ses=sessionPlan()||{};
+      var corps={pdf:b64, ext:"pdf", chantier:dc.ref, client:"", adresse:"", type:"technique", date:jourLocal(),
+        titre:titrePlanModifie(dc), visite:"Plan modifié", etape:"Modifié dans l'outil Plan · "+zs.length+" endroit"+(zs.length>1?"s":"")+" encadré"+(zs.length>1?"s":"")+" en jaune",
+        auteur:ses.nom||"", destinataires:[], dossier:true};
+      return appelSite("publier", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(corps)});
+    }).then(function(){ return {ref:dc.ref, n:zs.length}; });
+}
 function pdfPourChantier(ch){
   ouvrirMep(); $("mep").hidden=true;
   if(!$("mepClient").value) $("mepClient").value=ch.client||"";
@@ -10675,7 +10965,16 @@ function enregistrerPlanSite(o){
       return appelSite("plan-chantier"+accesPlan(idPlan, acces), {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({id:idPlan, nom:nom, ref:ch.ref, format:enPdf ? "pdf" : "plan", pdf:b64})});
     }).then(function(r){ PLAN_SITE.chantier={ref:r.ref, client:r.client, format:r.format||"plan"}; return r; });
   }).then(function(r){
+    /* venu d'un document du chantier et modifié : son PDF part dans « Plans modifiés » */
+    return deposerPlanModifie().then(function(pm){ r=r||null; if(pm) PM_DEPOT=pm; return r; }, function(e){ PM_DEPOT={err:String((e && e.message)||e)}; return r; });
+  }).then(function(r){
+    var pm=PM_DEPOT; PM_DEPOT=null;
     charge(""); SALE_PLAN=false; majNomPlan(); majRuban();
+    if(pm){
+      if(pm.err) toast("Plan enregistré dans Mes plans, mais le plan modifié n'a pas pu être déposé dans le chantier : "+pm.err, 7000);
+      else toast("Plan enregistré, et déposé dans le chantier "+pm.ref+" sous « Plans modifiés » : "+pm.n+" endroit"+(pm.n>1?"s":"")+" modifié"+(pm.n>1?"s":"")+", encadré"+(pm.n>1?"s":"")+" en jaune.", 6500);
+      return;
+    }
     var ou = acces ? "Plan enregistré" : "Plan enregistré dans Mes plans";
     var quoi = r && r.format==="pdf" ? "son PDF" : "le plan, à reprendre,";
     if(r) toast(ou+(r.versions>1 ? ", et "+quoi+" mis à jour dans le chantier "+r.ref+" (version "+r.versions+")" : ", et "+quoi+" déposé dans le chantier "+r.ref+(r.client ? " ("+r.client+")" : "")+", côté réservé chargés d'affaires")+".", 6000);
