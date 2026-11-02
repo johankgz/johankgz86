@@ -1119,6 +1119,9 @@ body.rub-ouvert .dc-onglet{visibility:hidden}
 .rub-bas svg{width:20px;height:20px;flex:0 0 auto;fill:none;stroke:#6FA3FF;stroke-width:2.2;stroke-linecap:round}
 .rub-bas span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.rub-ouvert .rub-bas{display:none}
+/* une galerie, un document ouvert en plein écran, une discussion : le bouton du bas s'efface (il couvrait leurs boutons) */
+body.sur-fenetre .rub-bas{display:none}
+body.sur-galerie .dc-onglet{display:none}
 body.avec-rub main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 /* l'équipe : le + à la suite des noms */
 .eq-plus{display:inline-flex;align-items:center;gap:6px;min-height:34px;padding:0 14px 0 10px;border-radius:999px;border:1.5px dashed #3B82F6;
@@ -2879,6 +2882,14 @@ function peindreGalerie(){
   $("rubBtn").addEventListener("click", function(){ ouvrirTiroir(!document.body.classList.contains("rub-ouvert")); });
   $("rubFond").addEventListener("click", function(){ ouvrirTiroir(false); });
   $("rubBas").addEventListener("click", function(){ ouvrirTiroir(true); });
+  (function(){
+    function voir(){
+      document.body.classList.toggle("sur-fenetre", !!document.querySelector(".dg-gal,.dg-plein,.dg-discu"));
+      document.body.classList.toggle("sur-galerie", !!document.querySelector(".dg-gal"));
+    }
+    if(window.MutationObserver) new MutationObserver(voir).observe(document.body, {childList:true});
+    voir();
+  })();
   /* le doigt glisse vers la droite : le panneau s'ouvre ; vers la gauche, il se referme.
      Pas depuis ce qui défile de côté (la barre des applis, un champ), ni sur un grand écran. */
   (function(){
