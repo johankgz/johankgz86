@@ -416,7 +416,7 @@ function tuile(e, images){
   } else if(estImage(e) && (e.taille||0) < 1500000){
     var im2=el("img"); im2.loading="lazy"; im2.alt=""; im2.src=url("cloud-fichier", e); v.appendChild(im2);
   } else {
-    var x=extDe(e.nom), c=e.type==="note" ? "note" : /^pdf$/.test(x) ? "pdf" : /^(xls|xlsx|csv)$/.test(x) ? "xls" : /^(doc|docx|txt|md)$/.test(x) ? "doc" : /^(dwg|dxf)$/.test(x) ? "dwg" : /^zip$/.test(x) ? "zip" : /^(mp4|mov|m4a|mp3)$/.test(x) ? "vid" : "";
+    var x=extDe(e.nom), c=e.type==="note" ? "note" : /^pdf$/.test(x) ? "pdf" : /^(xls|xlsx|csv)$/.test(x) ? "xls" : /^(doc|docx|txt|md)$/.test(x) ? "doc" : /^(dwg|dxf|plan)$/.test(x) ? "dwg" : /^zip$/.test(x) ? "zip" : /^(mp4|mov|m4a|mp3)$/.test(x) ? "vid" : "";
     var f=el("span","ico-fic "+c);
     if(e.type==="note") f.appendChild(el("span"));
     else f.appendChild(el("b","",(x||"fic").toUpperCase().slice(0,4)));
@@ -485,6 +485,9 @@ function ouvrir(e, images){
   if(e.type==="dossier"){ aller(e.id); return; }
   if(e.type==="note"){ editerNote(e); return; }
   if(estImage(e)){ voir(e, images||[e]); return; }
+  /* un plan de l'outil Plan (.plan), un DWG ou un DXF : il s'ouvre dans l'outil Plan */
+  if(/\.plan$/i.test(e.nom||"")){ location.href="./dwg.html?cloud="+encodeURIComponent(e.id); return; }
+  if(/\.(dwg|dxf)$/i.test(e.nom||"")){ location.href="./dwg.html?cloudf="+encodeURIComponent(e.id)+"&nom="+encodeURIComponent(e.nom); return; }
   window.open(url("cloud-fichier", e), "_blank", "noopener");
 }
 
