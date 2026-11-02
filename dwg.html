@@ -2219,6 +2219,7 @@ cv.addEventListener("contextmenu", function(e){ e.preventDefault(); });
 document.addEventListener("keydown", function(e){
   if(e.key==="Escape" && ZONE_ACTIF){ fermerZone(false); return; }
   if(e.key==="Escape" && FEUILLE_ED>=0){ fermerFeuille(); return; }
+  if(e.key==="Escape" && RELIER){ basculerRelier(false); return; }
   if(e.key==="Escape" && V3 && V3.coteA && !$("vue3d").hidden){ V3.coteA=null; majVisee3D(); return; }
   if(V3 && V3.coteSel && !$("vue3d").hidden && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){
     if(e.key==="Delete" || e.key==="Backspace"){ e.preventDefault(); supprimerCote3D(); return; }
@@ -2412,20 +2413,37 @@ function basculerLien(a, b){
   if((de.inv||[]).indexOf(vers.id)<0){ de.inv=(de.inv||[]).concat([vers.id]); return "inverse"; }
   delier(a, b.id); delier(b, a.id); return "delie";
 }
+/* ---------- Relier, simple ----------
+   « Relier » : chaque symbole touché se relie au précédent, dans l'ordre (l'interrupteur, la
+   1re lumière, la 2e…). « Terminer » arrête la série ; « Relier » de nouveau en commence une
+   autre. Un symbole déjà choisi au moment de « Relier » est le premier de la série. Toucher le
+   vide ne fait rien (un glissé déplace le plan) ; une liaison qui existe déjà reste telle quelle. */
+var RELIER_DER=-1, RELIER_NB=0;
 function basculerRelier(v){
   RELIER_ATT=false;
+  var avant=RELIER;
   RELIER = v===undefined ? !RELIER : !!v;
-  if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
-  if(RELIER) ARME_S=false;
-  majSymb(); demander();
+  if(RELIER && vueD()!=="dessus"){ RELIER=false; toast("Les liaisons se font en vue de dessus."); }
+  if(RELIER && !avant){
+    if(MODE!=="symb") basculerMode("symb");
+    ARME_S=false; GRP=null; LIEN_SEL=null; RELIER_DER = SEL>=0 && SYMB[SEL] ? SEL : -1; RELIER_NB=0;
+    toast(RELIER_DER>=0 ? "Relier : touchez le symbole suivant, puis les autres dans l'ordre. « Terminer » quand c'est fini."
+                        : "Relier : touchez les symboles dans l'ordre (l'interrupteur, puis ses lumières). « Terminer » quand c'est fini.", 4500);
+  }
+  if(!RELIER && avant){
+    if(RELIER_NB) toast(RELIER_NB+" liaison"+(RELIER_NB>1?"s":"")+" faite"+(RELIER_NB>1?"s":"")+". « Relier » pour une autre série.", 3000);
+    RELIER_DER=-1; RELIER_NB=0; SEL=-1;      /* la série finie, plus rien de choisi : la suivante repart de zéro */
+  }
+  majSymb(); majBarreSel(); majRuban(); demander();
 }
 function toucherRelier(ti){
-  if(ti<0 || ti===SEL || SEL<0){ basculerRelier(false); return; }
-  garderSymb();
-  var a=SYMB[SEL], b=SYMB[ti], fait=basculerLien(a, b);
-  enregistrerSymb();
-  if(fait==="relie" && !COMMANDES_S[a.cle]) SEL=ti;
-  majSymb(); demander();
+  if(ti<0){ toast("Touchez un symbole ; « Terminer » quand la série est finie.", 2200); return; }
+  if(RELIER_DER<0 || !SYMB[RELIER_DER]){ RELIER_DER=ti; SEL=ti; majSymb(); majBarreSel(); demander(); return; }
+  if(ti===RELIER_DER) return;
+  var a=SYMB[RELIER_DER], b=SYMB[ti];
+  if(!relies(a, b)){ garderSymb(); idS(a); idS(b); a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); enregistrerSymb(); RELIER_NB++; }
+  RELIER_DER=ti; SEL=ti;
+  majSymb(); majBarreSel(); demander();
 }
 /* un arc de cercle bien rond (la flèche fait 30 % de la corde), du bord d'un symbole au bord de
    l'autre, bombé à gauche du départ (à droite si on l'a retourné) : ses points, en coordonnées du plan */
@@ -2703,13 +2721,13 @@ function compter(){
 }
 function majSymb(){
   if(!window.SymbolesElec) return;
-  if(RELIER && (SEL<0 || vueD()!=="dessus")) RELIER=false;
+  if(RELIER && vueD()!=="dessus") RELIER=false;
   var o=SEL>=0 ? SYMB[SEL] : null, def=o ? SymbolesElec.trouver(o.cle) : null, n=compter();
   $("symbNb").textContent=String(SYMB.length);
-  $("btRelier").disabled=!o || vueD()!=="dessus"; $("btRelier").classList.toggle("on", RELIER); $("btRelier").setAttribute("aria-pressed", RELIER ? "true" : "false");
-  $("btRelier").textContent = RELIER ? "Terminer les liaisons" : "Relier";
-  $("symbDetail").textContent = RELIER && def
-    ? "Liaisons depuis : "+def.nom+". "+(COMMANDES_S[o.cle] ? "Touchez ses spots l'un après l'autre." : "Touchez le symbole suivant : la liaison suit.")+" Retouché : l'arc change de côté, puis délié. Le vide : terminé."
+  $("btRelier").disabled=vueD()!=="dessus"; $("btRelier").classList.toggle("on", RELIER); $("btRelier").setAttribute("aria-pressed", RELIER ? "true" : "false");
+  $("btRelier").textContent = RELIER ? "Terminer" : "Relier";
+  $("symbDetail").textContent = RELIER
+    ? (RELIER_DER>=0 ? "Relier : touchez le symbole suivant ; « Terminer » quand c'est fini." : "Relier : touchez le premier symbole (l'interrupteur), puis les autres dans l'ordre.")
     : def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
     : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
@@ -3125,10 +3143,10 @@ function majBarreSel(){
   if(!$("bsDefOnd").hidden){ var oD=pvOnd(D_SEL.id); $("bsDefOnd").classList.toggle("on", pvOndAFaire(oD)); }
   var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2 || !!LS;
   $("bsCoul").hidden=!coul; if(coul) peindrePaletteLiens();
-  var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
+  var rel = MODE==="symb" && (SEL>=0 || RELIER) && vueD()==="dessus" && !REF;
   $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
   $("bsRelier").querySelector("span").textContent = RELIER ? "Terminer" : "Relier";
-  if(rel && RELIER) nom="Liaisons : "+nom;
+  if(rel && RELIER) nom = RELIER_DER>=0 && nom ? "Relier · "+nom : "Relier : touchez le 1er symbole";
   if(ptPv && nom) nom="Point du passage · "+nom;
   if(REF) nom="";
   b.hidden=!nom;
@@ -10410,7 +10428,7 @@ function majRuban(){
     else if(k==="mesurer") on = !!PLAN && MODE==="cote";
     else if(k==="calques") on = !$("calques").hidden;
     else if(k==="quantites") on = !$("quantites").hidden;
-    else if(k==="relier") on = RELIER || RELIER_ATT;
+    else if(k==="relier"){ on = RELIER; var sr=b.querySelector("span"); if(sr) sr.textContent = RELIER ? "Terminer" : "Relier"; }
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
     else if(/^guide[hv2]$/.test(k)) on = !!GUIDE && GUIDE.mode===k.slice(5);
@@ -10507,15 +10525,7 @@ function actionR(k){
     case "feuille": nouvelleFeuille(); break;
     case "cloud": ouvrirCloud(); break;
     case "fond": if(MODE!=="dessin") basculerMode("dessin"); $("btFondD").click(); break;
-    case "relier":
-      /* rien de choisi : on touche d'abord le symbole de départ (l'interrupteur), puis ceux à relier */
-      if(!RELIER && (MODE!=="symb" || SEL<0)){
-        if(vueD()!=="dessus"){ toast("Les liaisons se font en vue de dessus."); break; }
-        if(MODE!=="symb") basculerMode("symb");
-        SEL=-1; ARME_S=false; RELIER_ATT=true; majSymb(); majRuban();
-        toast("Relier : touchez le symbole de départ (l'interrupteur), puis ses points lumineux.", 4000); break;
-      }
-      basculerRelier(); break;
+    case "relier": basculerRelier(); break;
     case "quantites": peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; break;
     case "etudepv": choisirOutilR("pvchamp"); $("btEtudePv").click(); break;
     case "v3d": $("btVue3d").click(); break;
