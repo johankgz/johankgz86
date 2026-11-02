@@ -142,6 +142,19 @@ button,select{font:inherit}
 .fe-liste button span{font-size:12px;font-weight:700;color:var(--cy);letter-spacing:.04em;flex:0 0 auto}
 .fe-liste button.on{border-color:var(--or);background:rgba(59,130,246,.18)}
 .plans-site{margin:0 0 18px;text-align:left}
+.pal-coul{position:fixed;z-index:30;width:236px;padding:10px;border-radius:14px;background:rgba(20,25,32,.98);border:1px solid var(--trait);box-shadow:0 16px 40px -10px rgba(0,0,0,.8);display:flex;flex-direction:column;gap:8px}
+.pal-coul[hidden]{display:none}
+.pal-coul b{font-size:12.5px;color:var(--ink2)}
+.pal-grille{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.pal-grille button{width:30px;height:30px;border-radius:8px;border:1px solid rgba(255,255,255,.25);cursor:pointer;padding:0}
+.pal-grille button.on{outline:2px solid var(--cy);outline-offset:2px}
+.pal-bas{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.pal-libre{display:flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
+.pal-libre input{width:34px;height:28px;border:0;padding:0;background:none}
+.pal-bas .bt{min-height:30px;font-size:12px;padding:4px 10px}
+.calques li.cq button.cq-coul{flex:0 0 auto;width:18px;height:18px;border-radius:4px;border:1px solid rgba(255,255,255,.4);padding:0;cursor:pointer}
+.bs-couleur i{display:inline-block;width:14px;height:14px;border-radius:50%;border:1px solid rgba(255,255,255,.5);margin-right:6px;vertical-align:-2px}
+@media (max-width:600px){ .bs-couleur{font-size:0!important;padding-left:12px!important;padding-right:12px!important} .bs-couleur i{margin:0;width:18px;height:18px} }
 .vierges .plans-site,.fs-boite .plans-site{margin:0 0 12px}
 .plans-site b{display:block;font-size:13px;margin-bottom:6px}
 .plans-site ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:6px;max-height:220px;overflow:auto}
@@ -517,12 +530,19 @@ body.clair #scene{background:#FFFFFF}
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
   <span class="bs-coul" id="bsCoul" hidden role="group" aria-label="Couleur des liaisons"></span>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
+  <button type="button" class="bs-act bs-couleur" id="bsCouleur" hidden title="Sa couleur"><i id="bsCouleurI"></i>Couleur</button>
   <button type="button" class="bs-act" id="bsSupPt" hidden title="Retirer ce point du passage du câble (le câble se redresse)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="8" height="8"/><path d="M4 4l16 16"/></svg>Supprimer le point</button>
   <button type="button" class="bs-act" id="bsDefOnd" hidden title="Ses caractéristiques : puissance, MPPT, tensions, courants">Définir</button>
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
   <button type="button" class="bs-supp" id="bsFermer" aria-label="Supprimer" title="Supprimer (Annuler le remet)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/></svg></button>
+</div>
+
+<div class="pal-coul" id="palCoul" hidden role="dialog" aria-label="Couleur">
+  <b id="palTitre">Couleur</b>
+  <div class="pal-grille" id="palGrille"></div>
+  <div class="pal-bas"><label class="pal-libre">Autre <input type="color" id="palLibre" value="#2563EB"></label><button class="bt" type="button" id="palDefaut">Couleur du calque</button></div>
 </div>
 
 <div class="ref-panel" id="refPanel" hidden role="dialog" aria-label="À distance d'un point">
@@ -1240,7 +1260,7 @@ function peindre(){
   }
   if(aPlatP) for(var k in PLAN.groupes){
     var g=PLAN.groupes[k]; if(g.cache || (PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible)) continue;
-    var col=couleurTrait(g.couleur);
+    var cqI=PLAN.calques[g.calque], col=cqI && cqI.force ? visible(cqI.force) : couleurTrait(g.couleur);
     if(g.pleins){ c2.globalAlpha=0.35; c2.fillStyle=col; c2.fill(g.pleins); c2.globalAlpha=1; }
     c2.strokeStyle=col; c2.stroke(g.chemin);
   }
@@ -1295,9 +1315,10 @@ function peindreSymboles(c){
       }
       return;
     }
-    SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1});
+    var colS=coulSymb(o, def);
+    SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1, couleur:colS});
     var tdS=texteDessusS(o);
-    if(tdS && R>3 && SymbolesElec.ecrire) SymbolesElec.ecrire(c, o.cle, p[0], p[1], R, tdS, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, couleur: (!CLAIR && def.couleur==="#0000FF") ? "#6B8BFF" : undefined});
+    if(tdS && R>3 && SymbolesElec.ecrire) SymbolesElec.ecrire(c, o.cle, p[0], p[1], R, tdS, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, couleur: colS || ((!CLAIR && def.couleur==="#0000FF") ? "#6B8BFF" : undefined)});
     if(o.t && R>3){
       var b=SymbolesElec.boite(o.cle);
       c.save(); c.font="600 "+Math.max(10, Math.min(28, R*0.9)).toFixed(0)+"px Helvetica, Arial, sans-serif";
@@ -2501,6 +2522,7 @@ function majBarreSel(){
     nom = nPan===nG ? nPan+" panneau"+(nPan>1?"x":"") : nPan+nOnd===nG ? [nPan ? nPan+" panneau"+(nPan>1?"x":"") : "", nOnd ? nOnd+" onduleur"+(nOnd>1?"s":"") : ""].filter(Boolean).join(" + ") : nG+" élément"+(nG>1?"s":"");
   }
   $("bsDup").hidden = !(nG || dupUn); $("bsTourne").hidden = !nG;
+  var cibC=cibleCouleur(); $("bsCouleur").hidden = !cibC || !!REF; if(cibC) $("bsCouleurI").style.background = couleurCible(cibC) || "transparent";
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
@@ -2857,7 +2879,7 @@ function peindreDessin(c){
   if(aPlat){
   if(cqVu("murs")) DESSIN.murs.forEach(function(m){
     var sel = D_SEL && D_SEL.t==="mur" && D_SEL.id===m.id;
-    c.fillStyle = sel ? orange : coulMur;
+    c.fillStyle = sel ? orange : coulEl(m, "murs", coulMur);
     morceaux(m).forEach(function(pc){
       var q=quadMorceau(m, pc).map(E);
       c.beginPath(); c.moveTo(q[0][0],q[0][1]); for(var i=1;i<4;i++) c.lineTo(q[i][0],q[i][1]); c.closePath(); c.fill();
@@ -2866,7 +2888,7 @@ function peindreDessin(c){
   /* les ouvertures */
   if(cqVu("ouv")) DESSIN.ouv.forEach(function(o){
     var m=murDe(o.mur); if(!m) return;
-    var x=axes(m), cc=o.t*x.L, g0=cc-o.l/2, g1=cc+o.l/2, e=m.ep/2, col=(D_SEL && D_SEL.t==="ouv" && D_SEL.id===o.id) ? orange : coulTrait;
+    var x=axes(m), cc=o.t*x.L, g0=cc-o.l/2, g1=cc+o.l/2, e=m.ep/2, col=(D_SEL && D_SEL.t==="ouv" && D_SEL.id===o.id) ? orange : coulEl(o, "ouv", coulTrait);
     ligne(surMur(m,g0,-e), surMur(m,g0,e), fin, col); ligne(surMur(m,g1,-e), surMur(m,g1,e), fin, col);   /* les tableaux */
     var ang=Math.atan2(x.u[1], x.u[0]), s=o.sens||1;
     if(o.type==="fenetre"){
@@ -2897,7 +2919,7 @@ function peindreDessin(c){
     var P=E([t.x, t.y]), hp=Math.max(9, t.h*V.k);
     if(hp>300) hp=300;
     c.font="600 "+hp.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle";
-    c.fillStyle=(D_SEL && D_SEL.t==="texte" && D_SEL.id===t.id) ? orange : coulTrait;
+    c.fillStyle=(D_SEL && D_SEL.t==="texte" && D_SEL.id===t.id) ? orange : coulEl(t, "noms", coulTrait);
     String(t.s).split("\n").forEach(function(l, i, tout){ c.fillText(l, P[0], P[1]+(i-(tout.length-1)/2)*hp*1.15); });
   });
   /* les toits et leurs panneaux, par-dessus */
@@ -3930,7 +3952,7 @@ function peindreGeo(c, E, coulTrait, orange){
     if(vueDe(o)===vue) return;
     var selA=!IMPRIME && D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id;
     c.save(); c.lineCap="round"; c.lineJoin="round";
-    c.strokeStyle = selA ? orange : (COULEURS_G[o.coul] || coulTrait); c.lineWidth=selA ? Math.max(2, largeurG(o)) : largeurG(o); tirets(o);
+    c.strokeStyle = selA ? orange : coulGeo(o, coulTrait); c.lineWidth=selA ? Math.max(2, largeurG(o)) : largeurG(o); tirets(o);
     projectionG(o, vue).forEach(function(tr){ c.beginPath(); tr.forEach(function(q, i){ var P=E(q); if(i) c.lineTo(P[0],P[1]); else c.moveTo(P[0],P[1]); }); c.stroke(); });
     c.restore();
   });
@@ -3952,7 +3974,7 @@ function peindreGeo(c, E, coulTrait, orange){
     c.stroke(); c.restore();
   }
   l.forEach(function(o){
-    var sel=D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id, col=sel ? orange : (COULEURS_G[o.coul] || coulTrait), w=largeurG(o);
+    var sel=D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id, col=sel ? orange : coulGeo(o, coulTrait), w=largeurG(o);
     c.save(); c.lineCap="round"; c.lineJoin="round"; c.strokeStyle=col; c.lineWidth=w; tirets(o);
     if(o.t==="gtexte"){
       var px=Math.max(7, o.h*V.k), P=E(o.pts[0]);
@@ -4042,7 +4064,7 @@ function typesLigneDxf(){
 function dxfGeo(g){
   var n=MEP && MEP.echelle>0 ? MEP.echelle : 50, sp=2*n/DESSIN_MM;
   geosVue().forEach(function(o){
-    var cal=o.t==="cote" ? "COTES" : (o.tir==="pts" ? "DESSIN_POINTILLES" : o.tir ? "DESSIN_TIRETS" : "DESSIN"), col=COUL_DXF[o.coul]||7;
+    var cal=o.t==="cote" ? "COTES" : (o.tir==="pts" ? "DESSIN_POINTILLES" : o.tir ? "DESSIN_TIRETS" : "DESSIN"), col=o.couleur ? aciDe(o.couleur) : (COUL_DXF[o.coul]||7);
     function ligne(a, b, calq){ g(0,"LINE", 8,calq||cal, 62,col, 10,a[0],20,a[1],30,0, 11,b[0],21,b[1],31,0); }
     function poly(pts, ferme){ g(0,"POLYLINE", 8,cal, 62,col, 66,1, 10,0,20,0,30,0, 70,ferme?1:0); pts.forEach(function(q){ g(0,"VERTEX", 8,cal, 10,q[0],20,q[1],30,0); }); g(0,"SEQEND", 8,cal); }
     function texte(s, p, h, ang){ g(0,"TEXT", 8,cal, 62,col, 10,p[0],20,p[1],30,0, 40,h, 1,String(s).replace(/[\r\n]+/g," "), 50,ang||0, 72,1, 73,2, 11,p[0],21,p[1],31,0); }
@@ -4329,7 +4351,7 @@ function peindreMobilier(c, E, fin, coulTrait, orange){
   var l=mobs(); if(!l.length) return;
   var q=1/DESSIN_MM;
   l.forEach(function(o){
-    var sel=D_SEL && D_SEL.t==="mob" && D_SEL.id===o.id, col=sel ? orange : coulTrait, d=defMob(o.cle);
+    var sel=D_SEL && D_SEL.t==="mob" && D_SEL.id===o.id, col=sel ? orange : coulEl(o, "mob", coulTrait), d=defMob(o.cle);
     function P(x,y){ return E(versMob(o, x, y)); }
     c.save(); c.lineWidth=fin; c.strokeStyle=col;
     /* le fond, à peine teinté, pour lire le meuble sur le plan */
@@ -4752,8 +4774,11 @@ function dxfDessin(){
   DESSIN.murs.forEach(function(m){
     morceaux(m).forEach(function(pc){
       var qm=quadMorceau(m, pc), p1=qm[0], p2=qm[1], p3=qm[2], p4=qm[3], cq=m.ep*DESSIN_MM<=90 ? "CLOISONS" : "MURS";   /* comme le panneau : 9 cm et moins, une cloison */
-      g(0,"SOLID", 8,cq, 10,p1[0],20,p1[1],30,0, 11,p2[0],21,p2[1],31,0, 12,p4[0],22,p4[1],32,0, 13,p3[0],23,p3[1],33,0);
-      g(0,"POLYLINE", 8,cq, 66,1, 10,0,20,0,30,0, 70,1);
+      var acM=aciDe(m.couleur || coulCalque("murs"));   /* sa couleur, sinon celle du calque */
+      if(acM) g(0,"SOLID", 8,cq, 62,acM, 10,p1[0],20,p1[1],30,0, 11,p2[0],21,p2[1],31,0, 12,p4[0],22,p4[1],32,0, 13,p3[0],23,p3[1],33,0);
+      else g(0,"SOLID", 8,cq, 10,p1[0],20,p1[1],30,0, 11,p2[0],21,p2[1],31,0, 12,p4[0],22,p4[1],32,0, 13,p3[0],23,p3[1],33,0);
+      if(acM) g(0,"POLYLINE", 8,cq, 62,acM, 66,1, 10,0,20,0,30,0, 70,1);
+      else g(0,"POLYLINE", 8,cq, 66,1, 10,0,20,0,30,0, 70,1);
       [p1,p2,p3,p4].forEach(function(q){ g(0,"VERTEX", 8,cq, 10,q[0],20,q[1],30,0); });
       g(0,"SEQEND", 8,cq);
     });
@@ -4775,7 +4800,7 @@ function dxfDessin(){
       });
     }
   });
-  DESSIN.textes.forEach(function(t){ g(0,"TEXT", 8,"TEXTES", 10,t.x,20,t.y-t.h/2,30,0, 40,t.h, 1,t.s.replace(/[\r\n]+/g," "), 72,1, 11,t.x,21,t.y-t.h/2,31,0); });
+  DESSIN.textes.forEach(function(t){ var acT=aciDe(t.couleur || coulCalque("noms")); if(acT) g(0,"TEXT", 8,"TEXTES", 62,acT, 10,t.x,20,t.y-t.h/2,30,0, 40,t.h, 1,t.s.replace(/[\r\n]+/g," "), 72,1, 11,t.x,21,t.y-t.h/2,31,0); else g(0,"TEXT", 8,"TEXTES", 10,t.x,20,t.y-t.h/2,30,0, 40,t.h, 1,t.s.replace(/[\r\n]+/g," "), 72,1, 11,t.x,21,t.y-t.h/2,31,0); });
   dxfMobilier(g, ligneD);
   dxfGeo(g);
   dxfToits(g);
@@ -4801,7 +4826,7 @@ function dxfBandeaux(){
   });
   return L;
 }
-function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); }).map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, dessus:texteDessusS(o), etirer:etirerS(o)}; }); }
+function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); }).map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, dessus:texteDessusS(o), etirer:etirerS(o), aci:aciDe(coulSymbBrute(o))}; }); }
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=SymbolesElec.dxf(posesSymboles(),
@@ -6431,7 +6456,7 @@ function creerPdf(d, logo, soc, imgPersp){
       var c=Math.floor(i/parCol), r=i%parCol, x=x0l+c*cw, y=y0l+30*k+r*lh, bb=SymbolesElec.boite(sy.cle);
       if(r===0){ trait(0.2); doc.line(x+cs, y0l+30*k, x+cs, y0l+30*k+parCol*lh); if(c) doc.line(x, y0l+30*k, x, y0l+30*k+parCol*lh); }
       var R=Math.min(lh*0.78/(bb.y1-bb.y0), cs*0.84/(bb.x1-bb.x0));
-      SymbolesElec.pdf(doc, sy.cle, x+cs/2, y+lh/2, R);
+      SymbolesElec.pdf(doc, sy.cle, x+cs/2, y+lh/2, R, {couleur:(DESSIN.couleurs||{})["sy:"+sy.groupe]});
       texte(nomQuantite(sy)+" ("+n[sy.cle]+")", x+cs+6*k, y+lh*0.64, Math.min(11, lh/k*0.4)*k/0.3528, {max:cw-cs-10*k});
       trait(0.15); doc.line(x, y+lh, x+cw, y+lh);
     });
@@ -8675,12 +8700,13 @@ function nbCalque(k){
 }
 var OEIL='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 var OEIL_X='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.6A11 11 0 0 1 12 5.5c6.5 0 10 6.5 10 6.5a17 17 0 0 1-3.2 3.9M6.6 6.6A17 17 0 0 0 2 12s3.5 6.5 10 6.5a10 10 0 0 0 4.4-1"/></svg>';
-function ligneCalque(ul, nom, couleur, n, vu, fn){
+function ligneCalque(ul, nom, couleur, n, vu, fn, fnCouleur){
   var li=document.createElement("li"); li.className="cq"+(vu ? "" : " cache");
   var b=document.createElement("button"); b.type="button"; b.className="oeil"; b.innerHTML=vu ? OEIL : OEIL_X;
   b.setAttribute("aria-label", (vu ? "Cacher " : "Montrer ")+nom); b.setAttribute("aria-pressed", vu ? "true" : "false");
   b.addEventListener("click", function(){ fn(!vu); });
-  var i=document.createElement("i"); i.style.background=couleur;
+  var i=document.createElement(fnCouleur ? "button" : "i"); i.style.background=couleur;
+  if(fnCouleur){ i.type="button"; i.className="cq-coul"; i.title="Couleur du calque « "+nom+" »"; i.setAttribute("aria-label", "Couleur du calque "+nom); i.addEventListener("click", function(e){ e.stopPropagation(); fnCouleur(i); }); }
   var s=document.createElement("span"); s.textContent=nom;
   var sm=document.createElement("small"); sm.textContent=n ? String(n) : "";
   li.appendChild(b); li.appendChild(i); li.appendChild(s); li.appendChild(sm); ul.appendChild(li);
@@ -8690,12 +8716,14 @@ function poserCalque(k, vu){ if(vu) delete CQ_MASQUES[k]; else CQ_MASQUES[k]=tru
 remplirCalques=function(){
   var ul=$("listeCalques"); ul.textContent=""; if(!PLAN) return;
   titreCalques(ul, "Plan");
-  CQ_DESSIN.forEach(function(c){ if(c[0]==="fond" && !PLAN.vierge) return; ligneCalque(ul, c[1], c[2], nbCalque(c[0]), cqVu(c[0]), function(v){ poserCalque(c[0], v); }); });
+  var CC=DESSIN.couleurs||{};
+  CQ_DESSIN.forEach(function(c){ if(c[0]==="fond" && !PLAN.vierge) return; ligneCalque(ul, c[1], CC[c[0]]||c[2], nbCalque(c[0]), cqVu(c[0]), function(v){ poserCalque(c[0], v); },
+    /^(murs|ouv|mob|noms|geo)$/.test(c[0]) ? function(b){ ouvrirPalette(b, {calque:c[0], nom:c[1]}); } : null); });
   if(window.SymbolesElec){
     titreCalques(ul, "Électricité");
     SymbolesElec.groupes.forEach(function(gr){
       var d=SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; })[0];
-      ligneCalque(ul, gr, (d && d.couleur)||"#FF0000", nbCalque("sy:"+gr), cqVu("sy:"+gr), function(v){ poserCalque("sy:"+gr, v); });
+      ligneCalque(ul, gr, CC["sy:"+gr]||(d && d.couleur)||"#FF0000", nbCalque("sy:"+gr), cqVu("sy:"+gr), function(v){ poserCalque("sy:"+gr, v); }, function(b){ ouvrirPalette(b, {calque:"sy:"+gr, nom:gr}); });
     });
     ligneCalque(ul, "Liaisons", "#22D3EE", nbCalque("liens"), cqVu("liens"), function(v){ poserCalque("liens", v); });
   }
@@ -8704,7 +8732,7 @@ remplirCalques=function(){
     titreCalques(ul, PLAN.pdf ? "Plan importé (PDF)" : PLAN.image ? "Plan importé (image)" : /\.dxf$/i.test(PLAN.nom||"") ? "Plan importé (DXF)" : "Plan importé (DWG)");
     noms.sort(function(a,b){ return a.localeCompare(b, "fr"); }).forEach(function(nom){
       var cq=PLAN.calques[nom];
-      ligneCalque(ul, nom, cq.couleur, cq.n, cq.visible!==false, function(v){ cq.visible=v; remplirCalques(); demander(); });
+      ligneCalque(ul, nom, cq.force||cq.couleur, cq.n, cq.visible!==false, function(v){ cq.visible=v; remplirCalques(); demander(); }, function(b){ ouvrirPalette(b, {importe:nom, nom:nom}); });
     });
   }
 };
@@ -8748,7 +8776,8 @@ var ICO={
   guidev:'<path d="M12 2v20" stroke-dasharray="3 2.5"/><circle cx="12" cy="12" r="1.6"/>',
   guide2:'<path d="M3 20 21 4" stroke-dasharray="3 2.5"/><circle cx="8" cy="15.6" r="1.6"/><circle cx="16" cy="8.4" r="1.6"/>',
   guidesEff:'<path d="M2 8h20M2 16h20" stroke-dasharray="3 2.5"/><path d="M8 4l8 16M16 4 8 20"/>',
-  reticule:'<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/><rect x="10" y="10" width="4" height="4"/>'
+  reticule:'<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/><rect x="10" y="10" width="4" height="4"/>',
+  couleur:'<circle cx="8" cy="9" r="4.2" fill="#DC2626" stroke="none"/><circle cx="16" cy="9" r="4.2" fill="#2563EB" stroke="none"/><circle cx="12" cy="16" r="4.2" fill="#16A34A" stroke="none"/>'
 };
 function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden="true">'+(ICO[k]||"")+'</svg>'; }
 /* ce que dit chaque bouton : [libellé, icône, aide] */
@@ -8770,6 +8799,7 @@ var ACTIONS={
   guidev:["Verticale","guidev","Une ligne de construction verticale, par le point touché"],
   guide2:["Oblique","guide2","Une ligne de construction par deux points touchés"],
   guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
+  couleur:["Couleur","couleur","La couleur de l'élément choisi ou de la sélection (sinon : celle de son calque, dans Calques)"],
   reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
@@ -8778,7 +8808,7 @@ var ONGLETS=[
     {nom:"Murs", gros:["o:mur","o:cloison","o:piece"]},
     {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
-    {nom:"Modification", gros:["o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:depuis"]},
+    {nom:"Modification", gros:["o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:depuis","a:couleur"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Calques", gros:["a:calques"]}
   ]},
@@ -8786,7 +8816,7 @@ var ONGLETS=[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
     {nom:"Annotation", gros:["o:cote","o:gtexte"], petits:["o:texte","a:mesurer","a:etalonner"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
-    {nom:"Modification", gros:["o:choisir"], petits:["a:dupliquer","a:tourner","a:supprimer"]}
+    {nom:"Modification", gros:["o:choisir"], petits:["a:dupliquer","a:tourner","a:supprimer","a:couleur"]}
   ]},
   {id:"elec", nom:"Électricité", elec:true},
   {id:"pv", nom:"Photovoltaïque", g:[
@@ -8862,7 +8892,7 @@ function peindrePanneau(){
       G.o.appendChild(d); pn.appendChild(G.g);
     });
     var Go=groupeRuban("Outils");
-    ["o:choisir","a:relier","a:quantites"].forEach(function(r){ Go.o.appendChild(boutonRuban(r, "rb-gros")); });
+    ["o:choisir","a:couleur","a:relier","a:quantites"].forEach(function(r){ Go.o.appendChild(boutonRuban(r, "rb-gros")); });
     pn.appendChild(Go.g);
   } else on.g.forEach(function(gr){
     var G=groupeRuban(gr.nom);
@@ -8992,6 +9022,7 @@ function actionR(k){
     case "enregch": ouvrirEnreg(true); break;
     case "guideh": case "guidev": case "guide2": armerGuide(k.slice(5)); break;
     case "guidesEff": effacerGuides(); break;
+    case "couleur": var bc=document.querySelector('#rbPanneau [data-r="a:couleur"]'); if(!cibleCouleur()){ toast("Choisissez d'abord un élément (Choisir) ou une sélection ; la couleur d'un calque se règle dans Calques, sur sa pastille.", 4500); break; } ouvrirPalette(bc, {element:true}); break;
     case "reticule": RETICULE=!RETICULE; garder("dwg:reticule", RETICULE ? "1" : "0"); majReticule(); demander(); break;
     case "pdf": $("btPdf").click(); break;
     case "dxf": exporterDxf(); break;
@@ -9042,6 +9073,87 @@ document.addEventListener("keydown", function(e){
    La croix du curseur (souris) traverse le plan, comme sur un logiciel
    de DAO ; Vues › Croix la coupe ou la remet.
    ===================================================================== */
+/* =====================================================================
+   LES COULEURS : celle du calque, et celle d'un élément
+   ---------------------------------------------------------------------
+   Chaque calque du plan (murs, portes et fenêtres, mobilier, noms,
+   dessin, chaque famille de symboles, chaque calque d'un plan importé)
+   prend une couleur dans Calques, sur sa pastille. Un élément choisi (ou
+   toute une sélection) peut avoir la sienne : Couleur, dans le ruban ou la
+   barre de l'élément ; « Couleur du calque » la lui retire. Une couleur
+   trop sombre sur le fond sombre (ou trop claire sur le clair) s'éclaircit
+   à l'écran ; le PDF garde la vraie.
+   ===================================================================== */
+var PALETTE=["#000000","#4B5563","#9CA3AF","#FFFFFF","#DC2626","#EA580C","#CA8A04","#16A34A","#0891B2","#2563EB","#7C3AED","#DB2777"];
+function lum(hex){ var h=String(hex||"").replace("#",""); if(h.length!==6) return 0.5; var r=parseInt(h.slice(0,2),16)/255, g=parseInt(h.slice(2,4),16)/255, b=parseInt(h.slice(4,6),16)/255; return 0.2126*r+0.7152*g+0.0722*b; }
+function visible(hex){ if(!hex) return hex; if(IMPRIME) return hex; var l=lum(hex); if(!CLAIR && l<0.18) return "#D1D5DB"; if(CLAIR && l>0.9) return "#374151"; return hex; }
+function coulCalque(k){ var C=DESSIN && DESSIN.couleurs; return C && C[k] || null; }
+function coulEl(o, k, defaut){ var c=(o && o.couleur) || coulCalque(k); return c ? visible(c) : defaut; }
+function coulGeo(o, defaut){ if(o.couleur) return visible(o.couleur); var n=COULEURS_G[o.coul]; if(n) return n; var cq=coulCalque("geo"); return cq ? visible(cq) : defaut; }
+function coulSymbBrute(o){ var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return o.couleur || (d && coulCalque("sy:"+d.groupe)) || null; }
+function coulSymb(o, def){ var c=coulSymbBrute(o); return c ? visible(c) : undefined; }
+/* la couleur DXF (index AutoCAD) la plus proche */
+var ACI_RVB={1:[255,0,0],2:[255,255,0],3:[0,255,0],4:[0,255,255],5:[0,0,255],6:[255,0,255],7:[255,255,255],8:[128,128,128],9:[192,192,192],30:[255,127,0],40:[255,191,0],140:[0,127,255],200:[127,0,255],210:[255,0,191]};
+function aciDe(hex){
+  if(!hex) return 0; var h=String(hex).replace("#",""); if(h.length!==6) return 0;
+  var r=parseInt(h.slice(0,2),16), g=parseInt(h.slice(2,4),16), b=parseInt(h.slice(4,6),16);
+  if(Math.max(r,g,b)<60) return 7;   /* le noir : la couleur de trait d'AutoCAD */
+  var best=7, bd=Infinity; for(var k in ACI_RVB){ var c=ACI_RVB[k], d=(c[0]-r)*(c[0]-r)+(c[1]-g)*(c[1]-g)+(c[2]-b)*(c[2]-b); if(d<bd){ bd=d; best=Number(k); } }
+  return best;
+}
+/* ce que la couleur vise : le symbole choisi, l'élément choisi, ou la sélection */
+function cibleCouleur(){
+  if(MODE==="symb" && SEL>=0 && SYMB[SEL]) return {symb:[SYMB[SEL]]};
+  if(MODE==="dessin" && grpTaille(GRP)){ var l=[].concat(GRP.murs||[], GRP.mob||[], GRP.geo||[], GRP.textes||[]); return {d:l, symb:GRP.symb||[]}; }
+  if(MODE==="dessin" && D_SEL && D_SEL.t!=="guide" && !/^pv/.test(D_SEL.t) && D_SEL.t!=="toit"){ var o=objetSel(); if(o) return {d:[o], symb:[]}; }
+  return null;
+}
+function couleurCible(c){ var o=(c.d && c.d[0]) || (c.symb && c.symb[0]); return o && o.couleur || null; }
+var PAL_CIBLE=null;
+function ouvrirPalette(ancre, cible){
+  PAL_CIBLE=cible;
+  var g=$("palGrille"); g.textContent="";
+  var actuelle = cible.element ? couleurCible(cibleCouleur()||{}) : cible.importe ? (PLAN.calques[cible.importe]||{}).force : coulCalque(cible.calque);
+  PALETTE.forEach(function(hx){
+    var b=document.createElement("button"); b.type="button"; b.style.background=hx; b.title=hx; b.setAttribute("aria-label", "Couleur "+hx);
+    if(actuelle && actuelle.toLowerCase()===hx.toLowerCase()) b.className="on";
+    b.addEventListener("click", function(){ appliquerCouleur(hx); });
+    g.appendChild(b);
+  });
+  $("palTitre").textContent = cible.element ? "Couleur de l'élément" : "Couleur du calque « "+cible.nom+" »";
+  $("palDefaut").textContent = cible.element ? "Couleur du calque" : "Couleur d'origine";
+  if(actuelle) $("palLibre").value=actuelle;
+  var p=$("palCoul"); p.hidden=false;
+  var r=ancre ? ancre.getBoundingClientRect() : {left:W/2, bottom:H/2, top:H/2};
+  var x=Math.min(window.innerWidth-p.offsetWidth-8, Math.max(8, r.left)), y=r.bottom+6;
+  if(y+p.offsetHeight>window.innerHeight-8) y=Math.max(8, r.top-p.offsetHeight-6);
+  p.style.left=x+"px"; p.style.top=y+"px";
+}
+function fermerPalette(){ $("palCoul").hidden=true; PAL_CIBLE=null; }
+function appliquerCouleur(hx){
+  var c=PAL_CIBLE; if(!c) return;
+  if(c.element){
+    var cib=cibleCouleur(); if(!cib){ fermerPalette(); return; }
+    garderTout();
+    (cib.d||[]).forEach(function(o){ if(hx) o.couleur=hx; else delete o.couleur; });
+    (cib.symb||[]).forEach(function(o){ if(hx) o.couleur=hx; else delete o.couleur; });
+    enregistrerD(); enregistrerSymb();
+  } else if(c.importe){
+    var cq=PLAN.calques[c.importe]; if(cq){ if(hx) cq.force=hx; else delete cq.force; }
+    remplirCalques();
+  } else {
+    garderD(); DESSIN.couleurs=DESSIN.couleurs||{};
+    if(hx) DESSIN.couleurs[c.calque]=hx; else delete DESSIN.couleurs[c.calque];
+    enregistrerD(); remplirCalques();
+  }
+  fermerPalette(); majBarreSel(); demander();
+}
+$("palDefaut").addEventListener("click", function(){ appliquerCouleur(null); });
+$("palLibre").addEventListener("change", function(){ appliquerCouleur(this.value); });
+$("bsCouleur").addEventListener("click", function(e){ e.stopPropagation(); if(cibleCouleur()) ouvrirPalette(this, {element:true}); });
+document.addEventListener("pointerdown", function(e){ if(!$("palCoul").hidden && !e.target.closest("#palCoul") && !e.target.closest(".cq-coul") && !e.target.closest("#bsCouleur") && !e.target.closest('[data-r="a:couleur"]')) fermerPalette(); }, true);
+document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("palCoul").hidden) fermerPalette(); });
+
 var GUIDE=null, RETICULE=lire("dwg:reticule", "1")!=="0", CURSEUR=null;
 function guides(){ return (DESSIN && DESSIN.guides) || []; }
 function dirGuide(g){ return [Math.cos(g.a), Math.sin(g.a)]; }
