@@ -389,6 +389,10 @@ body.clair #scene{background:#FFFFFF}
   max-width:calc(100vw - 20px);padding:6px 6px 6px 14px;border-radius:999px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
 .barre-sel[hidden]{display:none}
 .barre-sel{overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
+/* Enchaîner, Accrochage, Ortho, la saisie et la molette : dans l'onglet Réglages du ruban, plus dans la barre du bas */
+#btEnchainerD,#btEnchainerS,#btAccrD,#btAccrS,#btOrthoD,#grpUSaisie,.grp-molette,#btSuppD,#btSuppSymb,.champ-h .seg-usaisie{display:none!important}
+.rb-seg{align-self:center}
+.rb-seg button{min-height:34px;padding:0 12px}
 .barre-sel::-webkit-scrollbar{display:none}
 .barre-sel > *{flex:0 0 auto}
 @media (hover:none), (max-width:760px){ .grp-molette{display:none} }
@@ -1982,6 +1986,13 @@ document.addEventListener("keydown", function(e){
       if(grpTaille(g45)){ e.preventDefault(); garderTout(); grpTourner(g45, hor, 45); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Tourné de 45°"+(hor ? " (sens des aiguilles)." : "."), 1400); return; }
     }
   }
+  /* E : Enchaîner ; F3 : Accrochage ; F8 : Ortho ; I : le côté où le mur s'épaissit */
+  if(!champ && PLAN && !e.ctrlKey && !e.metaKey && !e.altKey){
+    if(e.key==="e" || e.key==="E"){ e.preventDefault(); $("btEnchainerD").click(); majRuban(); return; }
+    if(e.key==="F3"){ e.preventDefault(); basculerAccroche(); return; }
+    if(e.key==="F8"){ e.preventDefault(); $("btOrthoD").click(); majRuban(); toast(ORTHO_D ? NOMS_ANGLE[ANGLE_D] : "Angle libre", 1300); return; }
+    if((e.key==="i" || e.key==="I") && MODE==="dessin" && (OUTIL_D==="mur" || OUTIL_D==="cloison")){ e.preventDefault(); inverserFace(); majReglagesR(); return; }
+  }
   /* Échap deux fois : retour à l'outil Choisir, rien de choisi */
   if(e.key==="Escape" && !champ && PLAN){
     var maint=Date.now();
@@ -2682,7 +2693,7 @@ function majBarreSel(){
   var nom="";
   if(MODE==="dessin" && D_SEL){
     var o=objetSel();
-    if(o) nom = D_SEL.t==="guide" ? "Ligne de construction" : D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)
+    if(o) nom = D_SEL.t==="guide" ? "Ligne de construction" : D_SEL.t==="mur" ? (o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(longueurMur(o))
       : D_SEL.t==="ouv" ? NOMS_OUTILS[o.type] : D_SEL.t==="texte" ? "« "+o.s+" »" : D_SEL.t==="mob" ? (o.nom || defMob(o.cle).court) : D_SEL.t==="geo" ? nommerG(o) : D_SEL.t==="toit" ? NOMS_TOIT[o.type] : D_SEL.t==="pvp" ? (pvStrDe(o.id) ? "Panneau "+pvStrDe(o.id).nom+"."+(pvStrDe(o.id).pans.indexOf(o.id)+1) : "Panneau") : D_SEL.t==="pvo" ? "Onduleur "+o.nom : D_SEL.t==="pvs" ? "String "+o.nom : "";
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
@@ -3113,14 +3124,18 @@ function peindreDessin(c){
     var P0=E(D_PT); c.fillStyle=orange; c.beginPath(); c.arc(P0[0],P0[1],5,0,Math.PI*2); c.fill();
     if(D_SOURIS && (OUTIL_D==="mur" || OUTIL_D==="cloison")){
       var fin2=finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
-      var P1=E(fin2); c.strokeStyle="rgba(59,130,246,.8)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
-      c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke();
+      var P1=E(fin2), dec=[0,0];
+      /* tracé par la face extérieure : le mur s'épaissit vers l'intérieur, la face tracée en trait plein */
+      if(FACE_EXT){ var sF=coteFace(D_PT, fin2), nF=normaleFace(D_PT, fin2, sF); if(nF){ var Q0=E([D_PT[0]+nF[0]*ep/2, D_PT[1]+nF[1]*ep/2]); dec=[Q0[0]-P0[0], Q0[1]-P0[1]]; } }
+      c.strokeStyle="rgba(59,130,246,.55)"; c.lineWidth=Math.max(2, ep*V.k); c.lineCap="butt";
+      c.beginPath(); c.moveTo(P0[0]+dec[0],P0[1]+dec[1]); c.lineTo(P1[0]+dec[0],P1[1]+dec[1]); c.stroke();
+      if(FACE_EXT){ c.strokeStyle="#3B82F6"; c.lineWidth=2; c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke(); }
       var dg=sub(fin2, D_PT), angTxt="";
       if(lng(dg)>0 && Math.abs(dg[0])>1e-6 && Math.abs(dg[1])>1e-6) angTxt="  ·  "+String(angleMur({a:[0,0], b:dg})).replace(".", ",")+"°";
       etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(dg))+angTxt);
     }
   }
-  if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(axes(ms).L)); } }
+  if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(longueurMur(ms))+(refValide(ms) ? " ext." : "")); } }
   /* le repère d'accrochage sous la souris : peindreSurvol, par-dessus */
   if(!IMPRIME && MODE==="symb" && SYMB_ACC) accroche(SYMB_ACC.pt, SYMB_ACC.genre);
   if(!IMPRIME) peindreRef(c, E);
@@ -3214,6 +3229,59 @@ function chercherD(sx, sy){
   return {pt:grille10(p), acc:false};
 }
 /* la fin d'un mur : ortho, puis alignée sur un angle voisin (même x ou même y) */
+/* ---------- murs et cloisons tracés par leur face extérieure ----------
+   Le trait tracé (et la longueur tapée) est la face extérieure ; l'épaisseur part
+   vers l'intérieur : à droite du sens du tracé (en tournant dans le sens des
+   aiguilles d'une montre), ou du même côté que le mur dont on repart. La touche I
+   (ou « Inverser » dans Réglages) change de côté. Deux murs ainsi tracés qui se
+   suivent se rejoignent à l'angle : la cote d'angle à angle est extérieure. */
+var FACE_EXT=lire("dwg:faceExt","1")!=="0", COTE_FACE=Number(lire("dwg:coteFace","1"))===-1 ? -1 : 1, COTE_FORCE=false;
+function basculerAccroche(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); if(MODE==="symb") majSymb(); else majDessin(); toast(ACCR_D ? "Accrochage activé." : "Accrochage coupé.", 1500); majRuban(); }
+/* l'onglet Réglages : l'unité de saisie, la molette, le nom de l'ortho */
+function majReglagesR(){
+  Array.prototype.forEach.call(document.querySelectorAll(".rb-usaisie button"), function(b){ b.classList.toggle("on", b.dataset.u===USAISIE); });
+  Array.prototype.forEach.call(document.querySelectorAll(".rb-molette button"), function(b){ b.classList.toggle("on", Number(b.dataset.m)===MOLETTE); });
+  var bo=document.querySelector('#rbPanneau [data-r="a:ortho"] span'); if(bo) bo.textContent = ORTHO_D ? NOMS_ANGLE[ANGLE_D] : "Angle libre";
+  var bi=document.querySelector('#rbPanneau [data-r="a:inverser"] span'); if(bi) bi.textContent = "Côté : "+(COTE_FACE>0 ? "droite" : "gauche");
+}
+function inverserFace(){ COTE_FACE=-COTE_FACE; COTE_FORCE=true; garder("dwg:coteFace", String(COTE_FACE)); toast("Le mur s'épaissit maintenant à "+(COTE_FACE>0 ? "droite" : "gauche")+" du tracé.", 2200); demander(); }
+function pres(p, q){ return Math.hypot(p[0]-q[0], p[1]-q[1]) < Math.max(2/DESSIN_MM, 1.5/V.k); }
+/* la face retenue ne vaut que tant que le mur n'a pas bougé depuis */
+/* la longueur d'un mur : sa face extérieure s'il a été tracé par elle, sinon son axe */
+function longueurMur(w){ return refValide(w) ? lng(sub(w.ref.b, w.ref.a)) : axes(w).L; }
+function refValide(w){ var r=w.ref; return !!(r && r.ax && Math.hypot(r.ax.a[0]-w.a[0], r.ax.a[1]-w.a[1])<1e-6 && Math.hypot(r.ax.b[0]-w.b[0], r.ax.b[1]-w.b[1])<1e-6); }
+/* le côté de l'intérieur (+1 : à droite du sens du tracé) */
+function coteFace(a, b){
+  for(var i=DESSIN.murs.length-1;i>=0;i--){ var w=DESSIN.murs[i]; if(!refValide(w)) continue;
+    if(pres(w.ref.b, a)) return w.ref.s; if(pres(w.ref.a, b)) return w.ref.s;      /* on suit le mur : même sens */
+    if(pres(w.ref.a, a)) return -w.ref.s; if(pres(w.ref.b, b)) return -w.ref.s;    /* on repart à rebours */
+  }
+  /* sinon, du côté des murs déjà tracés (le centre du dessin) ; sur un plan vide, à droite (ou l'inverse, touche I) */
+  if(DESSIN.murs.length && !COTE_FORCE){
+    var cx=0, cy=0; DESSIN.murs.forEach(function(w){ cx+=(w.a[0]+w.b[0])/2; cy+=(w.a[1]+w.b[1])/2; }); cx/=DESSIN.murs.length; cy/=DESSIN.murs.length;
+    var n=normaleFace(a, b, 1); if(n){ var v=(cx-(a[0]+b[0])/2)*n[0]+(cy-(a[1]+b[1])/2)*n[1]; if(Math.abs(v)>1e-6) return v>0 ? 1 : -1; }
+  }
+  return COTE_FACE;
+}
+function normaleFace(a, b, sg){ var d=sub(b, a), L=lng(d); if(!L) return null; return [sg*d[1]/L, -sg*d[0]/L]; }
+function interLignes(p1, d1, p2, d2){ var den=d1[0]*d2[1]-d1[1]*d2[0]; if(Math.abs(den)<1e-9) return null; var t=((p2[0]-p1[0])*d2[1]-(p2[1]-p1[1])*d2[0])/den; return [p1[0]+d1[0]*t, p1[1]+d1[1]*t]; }
+function poserParFace(m){
+  var fa=m.a.slice(), fb=m.b.slice(), sg=coteFace(fa, fb), n=normaleFace(fa, fb, sg); if(!n) return;
+  var e=m.ep/2;
+  m.a=[fa[0]+n[0]*e, fa[1]+n[1]*e]; m.b=[fb[0]+n[0]*e, fb[1]+n[1]*e]; m.ref={a:fa, b:fb, s:sg};
+  /* les angles : avec un mur tracé de même, les axes se rejoignent */
+  var dm=sub(m.b, m.a);
+  DESSIN.murs.forEach(function(w){
+    if(!refValide(w) || w===m) return;
+    [["a",fa],["b",fb]].forEach(function(bt){
+      var ki = pres(w.ref.a, bt[1]) ? "a" : pres(w.ref.b, bt[1]) ? "b" : null; if(!ki) return;
+      var X=interLignes(m.a, dm, w.a, sub(w.b, w.a)); if(!X) return;
+      if(Math.hypot(X[0]-bt[1][0], X[1]-bt[1][1]) > 3*Math.max(m.ep, w.ep)) return;
+      m[bt[0]]=X.slice(); w[ki]=X.slice(); w.ref.ax[ki]=X.slice();
+    });
+  });
+  m.ref.ax={a:m.a.slice(), b:m.b.slice()};
+}
 function finMur(a, cible){
   var b=contraindreD(a, cible.pt);
   if(!ACCR_D || cible.acc || !ORTHO_D) return b;
@@ -3257,6 +3325,7 @@ function toucherD(sx, sy, force){
     garderD();
     var m={id:idD(), a:D_PT.slice(), b:fin, ep:(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM};
     var hd = OUTIL_D==="cloison" ? H_CLOISON : H_MUR; if(hd) m.h=hd;
+    if(FACE_EXT) poserParFace(m);
     DESSIN.murs.push(m); enregistrerD();
     if(garderOutil()){ D_PT=fin; D_SEL={t:"mur", id:m.id}; } else finOutil();
     majDessin(); return;
@@ -3366,7 +3435,7 @@ function majDessin(){
   else if(PV_OUTILS[OUTIL_D]) det=pvDetailOutil();
   else if(OUTIL_D==="toit") det = D_PT ? "Touchez le coin opposé de l'emprise (le débord s'ajoute autour)." : "Touchez un coin de l'emprise du toit puis le coin opposé, ou « Sur les murs ». Réglez le type, la pente et les panneaux.";
   else det="Touchez un mur, du côté où elle s'ouvre.";
-  if(o && t==="mur") det=(o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(axes(o).L)+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm, "+(o.h ? "hauteur "+cm(o.h)+" cm." : "jusqu'au plafond.");
+  if(o && t==="mur") det=(o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(longueurMur(o))+(refValide(o) ? " (face extérieure)" : "")+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm, "+(o.h ? "hauteur "+cm(o.h)+" cm." : "jusqu'au plafond.");
   if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm, hauteur "+cm(hautOuv(o))+" cm"+(o.type==="fenetre" ? ", allège "+cm(allegeOuv(o))+" cm." : ".");
   if(o && t==="texte") det="« "+o.s+" »";
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
@@ -3411,7 +3480,7 @@ function majDessin(){
     if(document.activeElement!==$("dsHaut")) $("dsHaut").value=hv;
     if(fen && document.activeElement!==$("dsAllege")) $("dsAllege").value=enUnite(allegeOuv(o));
   }
-  if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=enUnite(axes(o).L*DESSIN_MM);
+  if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=enUnite(longueurMur(o)*DESSIN_MM);
   if(t==="mur" && document.activeElement!==$("dsAngle")) $("dsAngle").value=String(angleMur(o)).replace(".",",");
   $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre");
   $("btMain").hidden = !(t==="ouv" && o.type==="porte");
@@ -3529,7 +3598,12 @@ $("selLarg").addEventListener("change", function(){
 });
 $("dsLong").addEventListener("change", function(){
   var cm=lireCm(this.value); if(!(cm>0)) return;
-  modifierSel(function(o){ var x=axes(o); o.b=[o.a[0]+x.u[0]*cm*10/DESSIN_MM, o.a[1]+x.u[1]*cm*10/DESSIN_MM]; });
+  modifierSel(function(o){
+    var x=axes(o), face=refValide(o), dl = face ? longueurMur(o)-x.L : 0, L=cm*10/DESSIN_MM-dl; if(!(L>0)) return;
+    var b0=o.b.slice(); o.b=[o.a[0]+x.u[0]*L, o.a[1]+x.u[1]*L];
+    /* tracé par la face : la face suit, la longueur tapée reste la longueur extérieure */
+    if(face){ var dv=[o.b[0]-b0[0], o.b[1]-b0[1]]; o.ref.b=[o.ref.b[0]+dv[0], o.ref.b[1]+dv[1]]; o.ref.ax={a:o.a.slice(), b:o.b.slice()}; }
+  });
 });
 $("dsLong").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 /* l'angle d'un mur, en degrés depuis l'horizontale (sens inverse des aiguilles) : 0 à 179,9 */
@@ -4298,37 +4372,51 @@ function dxfGeo(g){
    du plan ; h (épaisseur) et z (dessous, au-dessus du sol) en mm. Le dos
    d'un meuble (tête du lit, côté long de la baignoire) est son côté +p/2. */
 var MOB=[
+  /* le séjour */
+  {cle:"canape2", nom:"Canapé 2 places", court:"Canapé", groupe:"Séjour", l:1600, p:900, h:850, genre:"canape", n:2},
+  {cle:"canape3", nom:"Canapé 3 places", court:"Canapé", groupe:"Séjour", l:2100, p:900, h:850, genre:"canape", n:3},
+  {cle:"canapeangle", nom:"Canapé d'angle", court:"Canapé d'angle", groupe:"Séjour", l:2600, p:1700, h:850, genre:"angle"},
+  {cle:"tablebasse", nom:"Table basse", court:"Table basse", groupe:"Séjour", l:1100, p:600, h:400, genre:"table", libre:1},
+  {cle:"tv", nom:"Télévision murale", court:"TV", groupe:"Séjour", l:1250, p:60, h:720, z:1000, genre:"tv"},
+  {cle:"meubletv", nom:"Meuble TV (et sa télévision)", court:"Meuble TV", groupe:"Séjour", l:1600, p:450, h:500, genre:"meubletv"},
+  {cle:"table6", nom:"Table 6 personnes, avec ses chaises", court:"Table 6 pers.", groupe:"Séjour", l:1800, p:900, h:750, genre:"table6", libre:1},
+  {cle:"table", nom:"Table", court:"Table", groupe:"Séjour", l:1600, p:900, h:750, genre:"table", libre:1},
+  {cle:"chaise", nom:"Chaise", court:"Chaise", groupe:"Séjour", l:450, p:520, h:900, genre:"chaise", libre:1},
+  /* la cuisine : la prise, le circuit spécialisé, se placent d'après l'électroménager */
+  {cle:"bas60", nom:"Meuble bas 60 × 60", court:"Meuble bas", groupe:"Cuisine", l:600, p:600, h:900, genre:"bas"},
+  {cle:"haut60", nom:"Meuble haut 60", court:"Meuble haut", groupe:"Cuisine", l:600, p:350, h:700, z:1450, genre:"meuble"},
+  {cle:"plan", nom:"Meubles bas et plan de travail (linéaire)", court:"Plan de travail", groupe:"Cuisine", l:2400, p:650, h:900, genre:"plan"},
+  {cle:"hauts", nom:"Meubles hauts (linéaire)", court:"Meubles hauts", groupe:"Cuisine", l:2400, p:350, h:700, z:1450, genre:"meuble"},
+  {cle:"lavevaisselle", nom:"Lave-vaisselle", court:"Lave-vaiss.", groupe:"Cuisine", l:600, p:600, h:820, genre:"machine"},
+  {cle:"four", nom:"Four encastrable", court:"Four", groupe:"Cuisine", l:600, p:560, h:600, z:100, genre:"four"},
+  {cle:"plaque", nom:"Plaque de cuisson", court:"Plaque", groupe:"Cuisine", l:600, p:520, h:60, z:900, genre:"plaque"},
+  {cle:"frigo", nom:"Réfrigérateur", court:"Frigo", groupe:"Cuisine", l:600, p:650, h:1850, genre:"machine"},
+  /* la chambre */
+  {cle:"lit90", nom:"Lit 90 × 190", court:"Lit 90", groupe:"Chambre", l:900, p:1950, h:900, genre:"lit"},
   {cle:"lit140", nom:"Lit 140 × 190", court:"Lit 140", groupe:"Chambre", l:1400, p:1950, h:1000, genre:"lit"},
   {cle:"lit160", nom:"Lit 160 × 200", court:"Lit 160", groupe:"Chambre", l:1600, p:2050, h:1000, genre:"lit"},
   {cle:"lit180", nom:"Lit 180 × 200", court:"Lit 180", groupe:"Chambre", l:1800, p:2050, h:1000, genre:"lit"},
-  {cle:"lit90", nom:"Lit 90 × 190", court:"Lit 90", groupe:"Chambre", l:900, p:1950, h:900, genre:"lit"},
+  {cle:"lit200", nom:"Lit 200 × 200", court:"Lit 200", groupe:"Chambre", l:2000, p:2050, h:1000, genre:"lit"},
   {cle:"chevet", nom:"Table de chevet", court:"Chevet", groupe:"Chambre", l:450, p:400, h:550, genre:"meuble"},
   {cle:"commode", nom:"Commode", court:"Commode", groupe:"Chambre", l:1000, p:500, h:850, genre:"meuble"},
-  {cle:"armoire", nom:"Armoire, dressing", court:"Armoire", groupe:"Chambre", l:1200, p:600, h:2200, genre:"armoire"},
+  {cle:"armoire", nom:"Armoire", court:"Armoire", groupe:"Chambre", l:1200, p:600, h:2200, genre:"armoire"},
+  {cle:"dressing", nom:"Dressing", court:"Dressing", groupe:"Chambre", l:2000, p:600, h:2400, genre:"armoire"},
   {cle:"bureau", nom:"Bureau", court:"Bureau", groupe:"Chambre", l:1200, p:600, h:750, genre:"table"},
-  {cle:"baignoire", nom:"Baignoire 170 × 70", court:"Baignoire", groupe:"Salle de bains", l:1700, p:700, h:560, genre:"baignoire", vol:1},
+  /* la salle de bains : baignoire et douche ont leur volume 2, à 60 cm du bac */
+  {cle:"douche120", nom:"Douche 90 × 120 (bac : dimensions à régler)", court:"Douche", groupe:"Salle de bains", l:1200, p:900, h:50, genre:"douche", vol:1},
   {cle:"douche90", nom:"Douche 90 × 90", court:"Douche", groupe:"Salle de bains", l:900, p:900, h:50, genre:"douche", vol:1},
-  {cle:"douche120", nom:"Douche 120 × 90", court:"Douche", groupe:"Salle de bains", l:1200, p:900, h:50, genre:"douche", vol:1},
+  {cle:"baignoire", nom:"Baignoire 170 × 70", court:"Baignoire", groupe:"Salle de bains", l:1700, p:700, h:560, genre:"baignoire", vol:1},
   {cle:"vasque", nom:"Meuble vasque 80", court:"Vasque", groupe:"Salle de bains", l:800, p:500, h:850, genre:"vasque", n:1},
   {cle:"vasque2", nom:"Meuble double vasque 120", court:"Double vasque", groupe:"Salle de bains", l:1200, p:500, h:850, genre:"vasque", n:2},
   {cle:"miroir", nom:"Miroir", court:"Miroir", groupe:"Salle de bains", l:800, p:30, h:700, z:1100, genre:"miroir"},
-  {cle:"wc", nom:"WC", court:"WC", groupe:"Salle de bains", l:400, p:650, h:800, genre:"wc"},
+  {cle:"wcsusp", nom:"WC suspendu", court:"WC susp.", groupe:"Salle de bains", l:400, p:540, h:400, genre:"wc", susp:1},
+  {cle:"wc", nom:"WC à poser", court:"WC", groupe:"Salle de bains", l:400, p:650, h:800, genre:"wc"},
   {cle:"seche", nom:"Sèche-serviettes", court:"Sèche-serv.", groupe:"Salle de bains", l:500, p:100, h:1200, z:200, genre:"seche"},
-
-  {cle:"plan", nom:"Meubles bas et plan de travail", court:"Plan de travail", groupe:"Cuisine", l:2400, p:650, h:900, genre:"plan"},
-  {cle:"hauts", nom:"Meubles hauts", court:"Meubles hauts", groupe:"Cuisine", l:2400, p:350, h:700, z:1450, genre:"meuble"},
-  {cle:"table", nom:"Table", court:"Table", groupe:"Cuisine", l:1600, p:900, h:750, genre:"table", libre:1},
-  {cle:"chaise", nom:"Chaise", court:"Chaise", groupe:"Cuisine", l:450, p:520, h:900, genre:"chaise", libre:1},
-  {cle:"canape3", nom:"Canapé 3 places", court:"Canapé", groupe:"Salon", l:2100, p:900, h:850, genre:"canape", n:3},
-  {cle:"canape2", nom:"Canapé 2 places", court:"Canapé", groupe:"Salon", l:1600, p:900, h:850, genre:"canape", n:2},
-  {cle:"meubletv", nom:"Meuble TV (et sa télévision)", court:"Meuble TV", groupe:"Salon", l:1600, p:450, h:500, genre:"meubletv"},
-  /* l'électroménager : la prise, le circuit spécialisé, se placent d'après lui */
-  {cle:"frigo", nom:"Réfrigérateur", court:"Frigo", groupe:"Électroménager", l:600, p:650, h:1850, genre:"machine"},
-  {cle:"lavevaisselle", nom:"Lave-vaisselle", court:"Lave-vaiss.", groupe:"Électroménager", l:600, p:600, h:820, genre:"machine"},
-  {cle:"four", nom:"Four encastrable", court:"Four", groupe:"Électroménager", l:600, p:560, h:600, z:100, genre:"four"},
-  {cle:"plaque", nom:"Plaque de cuisson", court:"Plaque", groupe:"Électroménager", l:600, p:520, h:60, z:900, genre:"plaque"},
-  {cle:"lavelinge", nom:"Lave-linge", court:"Lave-linge", groupe:"Électroménager", l:600, p:600, h:850, genre:"machine"},
-  {cle:"sechelinge", nom:"Sèche-linge", court:"Sèche-linge", groupe:"Électroménager", l:600, p:600, h:850, genre:"machine"},
+  /* la buanderie */
+  {cle:"lavelinge", nom:"Machine à laver", court:"Lave-linge", groupe:"Buanderie", l:600, p:600, h:850, genre:"machine"},
+  {cle:"sechelinge", nom:"Sèche-linge", court:"Sèche-linge", groupe:"Buanderie", l:600, p:600, h:850, genre:"machine"},
+  /* divers */
+  {cle:"panierchien", nom:"Panier pour chien", court:"Panier", groupe:"Divers", l:900, p:650, h:250, genre:"panier", libre:1},
   {cle:"pave", nom:"Pavé", court:"Pavé", groupe:"Formes", l:1000, p:600, h:1000, genre:"pave"},
   {cle:"cylindre", nom:"Cylindre", court:"Cylindre", groupe:"Formes", l:600, p:600, h:1000, genre:"cyl", libre:1},
   {cle:"caisson", nom:"Caisson, soffite au plafond", court:"Caisson", groupe:"Formes", l:1200, p:400, h:300, genre:"pave", plafond:1},
@@ -4523,6 +4611,25 @@ function traceMob(o){
     var dos=Math.min(200*q, o.p*0.24), acc=Math.min(160*q, o.l*0.1), np=d.n||3;
     r(-L2,P2-dos,L2,P2); r(-L2,-P2,-L2+acc,P2-dos); r(L2-acc,-P2,L2,P2-dos);
     for(var kc=1;kc<np;kc++){ var xc=-L2+acc+(o.l-2*acc)*kc/np; l([xc,-P2],[xc,P2-dos]); }
+  } else if(d.genre==="angle"){
+    /* le canapé d'angle : l'assise le long du dos (côté +p), la méridienne à gauche, sur toute la profondeur */
+    var dosA=Math.min(200*q, o.p*0.2), accA=Math.min(160*q, o.l*0.08), merA=Math.min(950*q, o.l*0.4), assA=Math.min(950*q, o.p*0.6);
+    T.length=0;   /* pas de rectangle plein : un L */
+    T.push({t:"p", pts:[[-L2,-P2],[-L2+merA,-P2],[-L2+merA,P2-assA],[L2,P2-assA],[L2,P2],[-L2,P2]]});
+    r(-L2,P2-dosA,L2,P2); r(-L2,-P2,-L2+dosA,P2-dosA); r(L2-accA,P2-assA,L2,P2-dosA);
+    l([-L2+merA,P2-dosA],[-L2+merA,P2-assA]); var xm=(-L2+merA+L2-accA)/2; l([xm,P2-assA],[xm,P2-dosA]);
+  } else if(d.genre==="tv"){
+    r(-L2+20*q,-P2,L2-20*q,-P2+Math.max(10*q, o.p*0.35));
+  } else if(d.genre==="table6"){
+    /* la table, et ses six chaises : deux de chaque grand côté, une à chaque bout */
+    r(-L2+40*q,-P2+40*q,L2-40*q,P2-40*q);
+    var cw=450*q, cp=450*q, ec=80*q;
+    [-1,1].forEach(function(sy){ [-1,1].forEach(function(sx){ var cx=sx*o.l/4; r(cx-cw/2, sy*(P2+ec), cx+cw/2, sy*(P2+ec+cp)); l([cx-cw/2, sy*(P2+ec+cp-50*q)],[cx+cw/2, sy*(P2+ec+cp-50*q)]); }); });
+    [-1,1].forEach(function(sx){ r(sx*(L2+ec), -cw/2, sx*(L2+ec+cp), cw/2); l([sx*(L2+ec+cp-50*q), -cw/2],[sx*(L2+ec+cp-50*q), cw/2]); });
+  } else if(d.genre==="bas"){
+    l([-L2,-P2+30*q],[L2,-P2+30*q]); l([-L2+20*q,-P2],[-L2+20*q+o.l*0.45,-P2-Math.min(o.l*0.45, 280*q)]);
+  } else if(d.genre==="panier"){
+    T.length=0; e(0,0,L2,P2); e(0,0,L2*0.72,P2*0.62);
   } else if(d.genre==="meubletv"){
     var lt=Math.min(o.l*0.85, 1450*q); r(-lt/2,P2-110*q,lt/2,P2-60*q);
   } else if(d.genre==="chaise"){
@@ -4546,7 +4653,7 @@ function peindreMobilier(c, E, fin, coulTrait, orange){
     c.save(); c.lineWidth=fin; c.strokeStyle=col;
     /* le fond, à peine teinté, pour lire le meuble sur le plan */
     var k=coinsMob(o).map(E);
-    if(!MOB_ROND[d.genre] && d.genre!=="haie"){ c.fillStyle=CLAIR ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.beginPath(); c.moveTo(k[0][0],k[0][1]); for(var i=1;i<4;i++) c.lineTo(k[i][0],k[i][1]); c.closePath(); c.fill(); }
+    if(!MOB_ROND[d.genre] && d.genre!=="haie" && d.genre!=="angle" && d.genre!=="panier"){ c.fillStyle=CLAIR ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.beginPath(); c.moveTo(k[0][0],k[0][1]); for(var i=1;i<4;i++) c.lineTo(k[i][0],k[i][1]); c.closePath(); c.fill(); }
     traceMob(o).forEach(function(t){
       c.setLineDash(t.tir ? [Math.max(3, 60*q*V.k), Math.max(2, 40*q*V.k)] : []);
       c.beginPath();
@@ -4649,8 +4756,9 @@ function piecesMob(o){
       break;
     case "miroir": b(-L2,L2,-P2,P2,0,h,0xCFE3EE,{brille:1}); break;
     case "wc":
-      var rs=Math.min(180, p*0.3); b(-L2+20,L2-20,P2-rs,P2,300,h,BLANC);
-      b(-L2*0.85,L2*0.85,-P2,P2-rs,0,400,BLANC,{cyl:1});
+      var rs=Math.min(180, p*0.3);
+      if(d.susp){ b(-L2-50,L2+50,P2-rs,P2,0,1120,0xE5E7EB); b(-L2*0.85,L2*0.85,-P2,P2-rs,200,400,BLANC,{cyl:1}); b(-60,60,P2-rs-2,P2-rs,950,1050,CHROME); }
+      else { b(-L2+20,L2-20,P2-rs,P2,300,h,BLANC); b(-L2*0.85,L2*0.85,-P2,P2-rs,0,400,BLANC,{cyl:1}); }
       break;
     case "seche":
       b(-L2,-L2+30,-P2+20,P2-20,0,h,0xBFC5CC); b(L2-30,L2,-P2+20,P2-20,0,h,0xBFC5CC);
@@ -4662,6 +4770,32 @@ function piecesMob(o){
       b(-L2,-L2+accC,-P2,P2-dosC,400,620,TIS); b(L2-accC,L2,-P2,P2-dosC,400,620,TIS);
       for(i=0;i<npC;i++){ var xC=-L2+accC+i*wpC; b(xC+8,xC+wpC-8,-P2+20,P2-dosC,400,480,0x8E99A8); }
       [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s2){ var cx=s2[0]*(L2-60), cy=s2[1]*(P2-60); b(cx-20,cx+20,cy-20,cy+20,0,60,0x3F3A33); });
+      break;
+    case "angle":
+      var TA=0x7C8796, TA2=0x6B7684, dosA3=Math.min(200, p*0.2), accA3=Math.min(160, l*0.08), merA3=Math.min(950, l*0.4), assA3=Math.min(950, p*0.6);
+      b(-L2,L2,P2-assA3,P2,60,400,TA2); b(-L2,-L2+merA3,-P2,P2-assA3,60,400,TA2);
+      b(-L2,L2,P2-dosA3,P2,400,h,TA); b(-L2,-L2+dosA3,-P2,P2-dosA3,400,h,TA); b(L2-accA3,L2,P2-assA3,P2-dosA3,400,620,TA);
+      b(-L2+dosA3+8,L2-accA3-8,P2-assA3+20,P2-dosA3,400,480,0x8E99A8); b(-L2+dosA3+8,-L2+merA3-8,-P2+20,P2-assA3,400,480,0x8E99A8);
+      break;
+    case "tv":
+      b(-L2,L2,-P2,P2,0,h,0x111827,{brille:1}); b(-L2+15,L2-15,-P2-2,-P2,15,h-15,0x1F2937,{brille:1});
+      break;
+    case "table6":
+      b(-L2,L2,-P2,P2,h-30,h,BOIS);
+      [[-1,-1],[1,-1],[1,1],[-1,1]].forEach(function(s){ var cx=s[0]*(L2-60), cy=s[1]*(P2-60); b(cx-25,cx+25,cy-25,cy+25,0,h-30,BOIS2); });
+      (function(){ var cw=450, cp=450, ec=80, hs=460;
+        function chaise(x0,x1,y0,y1,dos){ b(x0,x1,y0,y1,hs-30,hs,BOIS); if(dos==="y+") b(x0,x1,y1-30,y1,hs,900,BOIS); if(dos==="y-") b(x0,x1,y0,y0+30,hs,900,BOIS); if(dos==="x+") b(x1-30,x1,y0,y1,hs,900,BOIS); if(dos==="x-") b(x0,x0+30,y0,y1,hs,900,BOIS);
+          [[x0+20,y0+20],[x1-20,y0+20],[x1-20,y1-20],[x0+20,y1-20]].forEach(function(q){ b(q[0]-15,q[0]+15,q[1]-15,q[1]+15,0,hs-30,BOIS2); }); }
+        [-1,1].forEach(function(sx){ var cx=sx*l/4; chaise(cx-cw/2,cx+cw/2,P2+ec,P2+ec+cp,"y+"); chaise(cx-cw/2,cx+cw/2,-P2-ec-cp,-P2-ec,"y-"); });
+        chaise(L2+ec,L2+ec+cp,-cw/2,cw/2,"x+"); chaise(-L2-ec-cp,-L2-ec,-cw/2,cw/2,"x-");
+      })();
+      break;
+    case "bas":
+      b(-L2,L2,-P2+60,P2,0,100,0x4B5563); b(-L2,L2,-P2+20,P2,100,h-40,0xE8E2D6); b(-L2,L2,-P2,P2,h-40,h,0x8B7D6B);
+      b(-L2+40,-L2+60,-P2+12,-P2+20,h-200,h-120,0xA8A29E);
+      break;
+    case "panier":
+      b(-L2,L2,-P2,P2,0,90,0x8B6F4E,{cyl:1}); b(-L2,L2,-P2,P2,90,h,0xA0826D,{cyl:1, opa:0.95}); b(-L2*0.72,L2*0.72,-P2*0.62,P2*0.62,90,140,0xD6C7B2,{cyl:1});
       break;
     case "meubletv":
       b(-L2,L2,-P2,P2,60,h,0x3F3A33); b(-L2+20,L2-20,-P2-3,-P2,120,h-40,BOIS2);
@@ -5078,10 +5212,18 @@ function nouveauVierge(){
   var nom=window.prompt("Nom du plan (ex. Dupont RDC) :", "Plan RDC");
   if(nom==null) return;
   nom=String(nom).trim() || "Plan";
+  /* l'unité des longueurs tapées, choisie une fois pour ce plan */
+  var u=window.prompt("Les longueurs, vous les tapez en : mm, cm ou m ?", USAISIE);
+  u=String(u||"").trim().toLowerCase().replace(/[^a-z]/g, "");
+  u = u==="mm" || u==="millimetre" || u==="millimetres" ? "mm" : u==="m" || u==="metre" || u==="metres" ? "m" : u==="cm" || u==="centimetre" || u==="centimetres" ? "cm" : USAISIE;
+  USAISIE=u; garder("dwg:uniteSaisie", USAISIE); UNITE_NEUF=u;
   var id=idD(), l=listeVierges(); l.push({id:id, nom:nom, maj:new Date().toISOString()});
   try{ localStorage.setItem("dwg:vierges", JSON.stringify(l)); }catch(e){}
   ouvrirVierge(id, true);
 }
+var UNITE_NEUF="";
+/* le plan garde son unité de saisie : elle revient à son ouverture */
+function appliquerUniteDuPlan(){ var u=DESSIN && DESSIN.uSaisie; if(u==="mm" || u==="cm" || u==="m"){ USAISIE=u; majUnites(); majReglagesR(); } }
 function ouvrirVierge(id, neuf){
   var v=listeVierges().filter(function(z){ return z.id===id; })[0]; if(!v) return;
   VUE_D="dessus";
@@ -5096,7 +5238,9 @@ function ouvrirVierge(id, neuf){
   $("accueil").hidden=true; $("btCalques").disabled=true; $("btImage").disabled=false; $("btSymb").disabled=false; $("btPdf").disabled=false; $("btDessin").disabled=false; $("btVue3d").disabled=false;
   basculerMode("dessin");
   majTitre(); redim(); vueEntiere(); chargerFond();
-  if(neuf) toast("Page vierge en millimètres, grille du mètre. Tracez les murs, posez portes et fenêtres, puis les symboles.", 6500);
+  if(neuf && UNITE_NEUF){ DESSIN.uSaisie=UNITE_NEUF; UNITE_NEUF=""; enregistrerD(); }
+  appliquerUniteDuPlan();
+  if(neuf) toast("Page vierge, grille du mètre ; longueurs tapées en "+USAISIE+" (Réglages pour changer). Tracez les murs, posez portes et fenêtres, puis les symboles.", 6500);
 }
 /* l'étendue d'un dessin (pour « Vue entière » et le PDF) */
 function etendueDessin(){
@@ -6773,7 +6917,7 @@ function installerPlan(P, f, d){
   SYMB_CLE="dwg:symboles:"+f.name+":"+f.size; HISTO_S=[]; SEL=-1;
   DESSIN_CLE="dwg:dessin:"+f.name+":"+f.size; HISTO_D=[]; D_SEL=null; GRP=null; D_PT=null;
   try{ DESSIN=normD(JSON.parse(localStorage.getItem(DESSIN_CLE)||"null")); }catch(e){ DESSIN=normD(null); }
-  connaitreCalquesU();
+  connaitreCalquesU(); appliquerUniteDuPlan();
   try{ SYMB=JSON.parse(localStorage.getItem(SYMB_CLE)||"[]"); if(!Array.isArray(SYMB)) SYMB=[]; }catch(e){ SYMB=[]; }
   SYMB.forEach(function(o){ o.cle=canonS(o.cle); });
   var garde=Number(lire(FICHIER_CLE, "0"));
@@ -9167,6 +9311,11 @@ var ICO={
   guide2:'<path d="M3 20 21 4" stroke-dasharray="3 2.5"/><circle cx="8" cy="15.6" r="1.6"/><circle cx="16" cy="8.4" r="1.6"/>',
   guidesEff:'<path d="M2 8h20M2 16h20" stroke-dasharray="3 2.5"/><path d="M8 4l8 16M16 4 8 20"/>',
   reticule:'<path d="M12 2v7M12 15v7M2 12h7M15 12h7"/><rect x="10" y="10" width="4" height="4"/>',
+  enchainer:'<rect x="3" y="9" width="6" height="6"/><rect x="15" y="9" width="6" height="6"/><path d="M9 12h6"/>',
+  accroche:'<rect x="9" y="9" width="6" height="6"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/>',
+  ortho:'<path d="M5 19V5M5 19h14"/><path d="M9 19v-4h-4"/>',
+  faceext:'<path d="M4 18h16"/><path d="M4 18V8h16v10" stroke-dasharray="2 2"/><path d="M4 8h16"/>',
+  inverser:'<path d="M4 9h14l-3-3M20 15H6l3 3"/>',
   couleur:'<circle cx="8" cy="9" r="4.2" fill="#DC2626" stroke="none"/><circle cx="16" cy="9" r="4.2" fill="#2563EB" stroke="none"/><circle cx="12" cy="16" r="4.2" fill="#16A34A" stroke="none"/>'
 };
 function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden="true">'+(ICO[k]||"")+'</svg>'; }
@@ -9190,7 +9339,12 @@ var ACTIONS={
   guide2:["Oblique","guide2","Une ligne de construction par deux points touchés"],
   guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
   couleur:["Couleur","couleur","La couleur de l'élément choisi ou de la sélection (sinon : celle de son calque, dans Calques)"],
-  reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
+  reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"],
+  enchainer:["Enchaîner","enchainer","Garder l'outil après chaque élément, pour en poser plusieurs à la suite (touche E, ou maintenir Ctrl)"],
+  accroche:["Accrochage","accroche","Accrocher aux bouts, milieux et angles (touche F3)"],
+  ortho:["Ortho 90°","ortho","Ortho 90°, Ortho 45° ou Angle libre (touche F8)"],
+  faceext:["Face ext.","faceext","Murs et cloisons tracés par leur face extérieure : l'épaisseur part vers l'intérieur"],
+  inverser:["Inverser","inverser","Le côté où le mur s'épaissit, à droite ou à gauche du tracé (touche I)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
@@ -9224,6 +9378,7 @@ var ONGLETS=[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
     {nom:"Affichage", gros:["a:entiere","a:clair","a:reticule","a:calques"]}
   ]},
+  {id:"reglages", nom:"Réglages", reglages:true},
   {id:"exporter", nom:"Exporter", g:[
     {nom:"Plan", gros:["a:enreg","a:enregch"]},
     {nom:"Exporter", gros:["a:pdf","a:dxf","a:image"]}
@@ -9276,6 +9431,17 @@ function peindreOnglets(){
 function peindrePanneau(){
   var pn=$("rbPanneau"); pn.textContent="";
   var on=ONGLETS.filter(function(x){ return x.id===RB_ONGLET; })[0] || ONGLETS[0];
+  if(on.reglages){
+    var Gt=groupeRuban("Tracé"); ["a:enchainer","a:accroche","a:ortho"].forEach(function(r){ Gt.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gt.g);
+    var Gm=groupeRuban("Murs et cloisons"); ["a:faceext","a:inverser"].forEach(function(r){ Gm.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gm.g);
+    function segR(nom, cls, items){ var G=groupeRuban(nom), sg=document.createElement("span"); sg.className="seg rb-seg "+cls; sg.setAttribute("role","group"); sg.setAttribute("aria-label", nom);
+      items.forEach(function(it){ var b=document.createElement("button"); b.type="button"; b.dataset[it[0]]=it[1]; b.textContent=it[2]; sg.appendChild(b); }); G.o.appendChild(sg); pn.appendChild(G.g); return sg; }
+    var su=segR("Saisie des longueurs", "rb-usaisie", [["u","mm","mm"],["u","cm","cm"],["u","m","m"]]);
+    su.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; var o=document.querySelector('#grpUSaisie .seg-usaisie button[data-u="'+b.dataset.u+'"]'); if(o) o.click(); if(PLAN && DESSIN){ DESSIN.uSaisie=USAISIE; enregistrerD(); } majReglagesR(); });
+    var sm=segR("Molette", "rb-molette", [["m","0.5","lente"],["m","1","normale"],["m","2","rapide"]]);
+    sm.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; var o=document.querySelector('.grp-molette .seg-molette button[data-m="'+b.dataset.m+'"]'); if(o) o.click(); majReglagesR(); });
+    majReglagesR(); pn.scrollLeft=0; majRuban(); return;
+  }
   if(on.elec){
     if(window.SymbolesElec) SymbolesElec.groupes.forEach(function(gr){
       var G=groupeRuban(gr), d=document.createElement("div"); d.className="rb-syms";
@@ -9323,6 +9489,10 @@ function majRuban(){
     else if(k==="etudepv") on = !$("etudePv").hidden;
     else if(/^guide[hv2]$/.test(k)) on = !!GUIDE && GUIDE.mode===k.slice(5);
     else if(k==="reticule") on = RETICULE;
+    else if(k==="enchainer") on = ENCHAINER;
+    else if(k==="accroche") on = ACCR_D;
+    else if(k==="ortho") on = ORTHO_D;
+    else if(k==="faceext") on = FACE_EXT;
     if(PLAN){
       if(k==="fond") off = !PLAN.vierge;
       else if(k==="etalonner") off = !!PLAN.vierge;
@@ -9338,6 +9508,7 @@ function majRuban(){
   if(GUIDE && MODE==="dessin"){ $("dsInfo").textContent="Ligne de construction"; $("dsDetail").textContent = GUIDE.mode==="2" ? (GUIDE.a ? "Touchez le second point." : "Touchez un premier point.") : "Touchez le point par où passe la ligne "+(GUIDE.mode==="h" ? "horizontale." : "verticale.")+" Échap ou un autre outil l'arrête."; }
   majReticule();
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
+  majReglagesR();
 }
 /* les outils permis en Face et en Côté : les formes du dessin, le mobilier, Choisir */
 function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o]; }
@@ -9417,6 +9588,11 @@ function actionR(k){
     case "guidesEff": effacerGuides(); break;
     case "couleur": var bc=document.querySelector('#rbPanneau [data-r="a:couleur"]'); if(!cibleCouleur()){ toast("Choisissez d'abord un élément (Choisir) ou une sélection ; la couleur d'un calque se règle dans Calques, sur sa pastille.", 4500); break; } ouvrirPalette(bc, {element:true}); break;
     case "reticule": RETICULE=!RETICULE; garder("dwg:reticule", RETICULE ? "1" : "0"); majReticule(); majRuban(); break;
+    case "enchainer": $("btEnchainerD").click(); majRuban(); break;
+    case "accroche": basculerAccroche(); break;
+    case "ortho": $("btOrthoD").click(); majReglagesR(); majRuban(); break;
+    case "faceext": FACE_EXT=!FACE_EXT; garder("dwg:faceExt", FACE_EXT ? "1" : "0"); toast(FACE_EXT ? "Murs tracés par la face extérieure : l'épaisseur part vers l'intérieur." : "Murs tracés par leur milieu (l'axe).", 3000); majRuban(); demander(); break;
+    case "inverser": inverserFace(); break;
     case "pdf": $("btPdf").click(); break;
     case "dxf": exporterDxf(); break;
     case "image": $("btImage").click(); break;
