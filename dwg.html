@@ -135,6 +135,11 @@ button,select{font:inherit}
 .fe-champ input,#feCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
 .fe-case{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;margin:6px 0 8px;cursor:pointer}
 .fe-case input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.saisie-trace{position:fixed;z-index:9;display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:10px;background:#0B1220;border:2px solid #3B82F6;box-shadow:0 8px 24px -8px rgba(0,0,0,.8);color:#BFDBFE;font:600 13px system-ui,sans-serif;transform:translate(-50%,-100%)}
+.saisie-trace[hidden]{display:none}
+.saisie-trace input{width:74px;min-height:30px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:#111827;color:#fff;font:700 15px ui-monospace,Menlo,Consolas,monospace;padding:0 6px;text-align:right}
+.saisie-trace input#stA{width:52px}
+.saisie-trace input:focus{outline:none;border-color:#FDE047;background:#1E293B;box-shadow:0 0 0 3px rgba(253,224,71,.35)}
 .pg-boite{max-width:min(920px, calc(100vw - 24px))}
 .pg-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;max-height:70vh;overflow:auto;padding:4px}
 .pg-case{display:flex;flex-direction:column;align-items:center;gap:6px;padding:8px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:#0B0E12;color:var(--ink);cursor:pointer;font:inherit}
@@ -534,6 +539,10 @@ body.clair #scene{background:#FFFFFF}
   </div>
 </div>
 
+<div class="saisie-trace" id="saisieTrace" hidden role="group" aria-label="Longueur et angle du mur">
+  <input id="stL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span class="u-saisie">cm</span>
+  <input id="stA" type="text" inputmode="decimal" autocomplete="off" aria-label="Angle en degrés"><span>°</span>
+</div>
 <div class="fen-site" id="fenPages" hidden role="dialog" aria-modal="true" aria-labelledby="fenPagesT">
   <div class="fs-boite pg-boite">
     <div class="fs-tete"><b id="fenPagesT">Quelle page ?</b><button class="bt" type="button" id="pgAnnuler" aria-label="Annuler">✕</button></div>
@@ -2036,6 +2045,11 @@ document.addEventListener("keydown", function(e){
       if(grpTaille(g45)){ e.preventDefault(); garderTout(); grpTourner(g45, hor, 45); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Tourné de 45°"+(hor ? " (sens des aiguilles)." : "."), 1400); return; }
     }
   }
+  /* Tab pendant un tracé : la longueur en surbrillance, à taper (Entrée la pose) */
+  if(e.key==="Tab" && !champ && PLAN && MODE==="dessin" && !e.ctrlKey && !e.metaKey && !e.altKey){
+    if(D_PT && !GEO_EC && (OUTIL_D==="mur" || OUTIL_D==="cloison")){ e.preventDefault(); ouvrirSaisieT(); return; }
+    if(GEO_EC && !$("grpSaisieG").hidden){ e.preventDefault(); var gl=$("gL"); gl.focus(); gl.select(); return; }
+  }
   /* les raccourcis d'une touche (Réglages › Raccourcis pour les changer) : M la Main, C Choisir, E Enchaîner… */
   if(!champ && PLAN && !e.ctrlKey && !e.metaKey && !e.altKey && $("fenRacc").hidden){
     var act=actionDeTouche(e);
@@ -2067,6 +2081,43 @@ document.addEventListener("keydown", function(e){
 });
 function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); }
 var ECHAP_T=0;
+/* ---------- la longueur tapée pendant le tracé d'un mur (Tab) ---------- */
+var SAISIE_T=null;
+function finSaisieT(){ var t=SAISIE_T; return [D_PT[0]+t.dir[0]*t.L/DESSIN_MM, D_PT[1]+t.dir[1]*t.L/DESSIN_MM]; }
+function ouvrirSaisieT(){
+  var fin=finMur(D_PT, D_SOURIS || {pt:D_PT, acc:false}), d=sub(fin, D_PT), L=lng(d);
+  var dir = L>1e-9 ? [d[0]/L, d[1]/L] : [1, 0];
+  SAISIE_T={dir:dir, L:L*DESSIN_MM};
+  $("stL").value = L>1e-9 ? enUnite(L*DESSIN_MM) : "";
+  var ang=Math.atan2(dir[1], dir[0])*180/Math.PI; $("stA").value=String(Math.round(((ang%360)+360)%360*10)/10).replace(".", ",");
+  $("saisieTrace").hidden=false; majUnites(); demander();
+  setTimeout(function(){ var i=$("stL"); i.focus(); i.select(); }, 0);
+}
+function fermerSaisieT(){ if(!SAISIE_T && $("saisieTrace").hidden) return; SAISIE_T=null; $("saisieTrace").hidden=true; try{ if(document.activeElement && document.activeElement.closest && document.activeElement.closest("#saisieTrace")) document.activeElement.blur(); }catch(e){} demander(); }
+function placerSaisieT(x, y){ var b=$("saisieTrace"), r=cv.getBoundingClientRect(); b.style.left=Math.round(r.left+x)+"px"; b.style.top=Math.round(r.top+y-10)+"px"; }
+function lireSaisieT(){
+  if(!SAISIE_T) return;
+  var L=lireCm($("stL").value)*10; if(L>0) SAISIE_T.L=L;
+  var a=parseFloat(String($("stA").value).replace(",", ".")); if(isFinite(a)){ var r=a*Math.PI/180; SAISIE_T.dir=[Math.cos(r), Math.sin(r)]; }
+}
+function validerSaisieT(){
+  if(!SAISIE_T || !D_PT) { fermerSaisieT(); return; }
+  lireSaisieT();
+  var L=lireCm($("stL").value)*10;
+  if(!(L>0)){ $("stL").focus(); $("stL").select(); toast("Tapez la longueur du mur, par exemple "+enUnite(3150)+".", 2500); return; }
+  var fin=finSaisieT();
+  fermerSaisieT();
+  toucherD(0, 0, {pt:fin, acc:true, genre:0, saisie:true});
+}
+["stL","stA"].forEach(function(id){
+  $(id).addEventListener("input", function(){ lireSaisieT(); demander(); });
+  $(id).addEventListener("keydown", function(e){
+    e.stopPropagation();
+    if(e.key==="Enter"){ e.preventDefault(); validerSaisieT(); }
+    else if(e.key==="Escape"){ e.preventDefault(); fermerSaisieT(); }
+    else if(e.key==="Tab"){ e.preventDefault(); var o=$(id==="stL" ? "stA" : "stL"); o.focus(); o.select(); }
+  });
+});
 /* ---------- les raccourcis d'une touche, modifiables (Réglages › Raccourcis) ---------- */
 var RACC_DEF={main:"M", choisir:"C", enchainer:"E", accroche:"F3", ortho:"F8", inverser:"I", tourner:"R", calques:"", mur:"", cloison:"", porte:"", fenetre:"", objet:"", trait:"", rect:"", gtexte:"", cote:"", texte:""};
 var RACC_NOMS={main:"Main : déplacer le plan", choisir:"Choisir : prendre et déplacer un élément", enchainer:"Enchaîner", accroche:"Accrochage", ortho:"Ortho 90° / 45° / angle libre", inverser:"Murs : changer le côté de l'épaisseur", tourner:"Tourner de 90° (avec Maj : dans l'autre sens)", calques:"Ouvrir ou fermer les calques", mur:"Outil Mur", cloison:"Outil Cloison", porte:"Outil Porte", fenetre:"Outil Fenêtre", objet:"Outil Mobilier", trait:"Outil Trait", rect:"Outil Rectangle", gtexte:"Outil Texte", cote:"Outil Cote", texte:"Outil Nom de pièce"};
@@ -3214,8 +3265,8 @@ function peindreDessin(c){
   /* le mur en cours, et sa longueur */
   if(!IMPRIME && MODE==="dessin" && D_PT && !GEO_EC){
     var P0=E(D_PT); c.fillStyle=orange; c.beginPath(); c.arc(P0[0],P0[1],5,0,Math.PI*2); c.fill();
-    if(D_SOURIS && (OUTIL_D==="mur" || OUTIL_D==="cloison")){
-      var fin2=finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
+    if((D_SOURIS || SAISIE_T) && (OUTIL_D==="mur" || OUTIL_D==="cloison")){
+      var fin2=SAISIE_T ? finSaisieT() : finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
       var P1=E(fin2), dec=[0,0];
       /* tracé par la face extérieure : le mur s'épaissit vers l'intérieur, la face tracée en trait plein */
       if(FACE_EXT){ var sF=coteFace(D_PT, fin2), nF=normaleFace(D_PT, fin2, sF); if(nF){ var Q0=E([D_PT[0]+nF[0]*ep/2, D_PT[1]+nF[1]*ep/2]); dec=[Q0[0]-P0[0], Q0[1]-P0[1]]; } }
@@ -3224,7 +3275,8 @@ function peindreDessin(c){
       if(FACE_EXT){ c.strokeStyle="#3B82F6"; c.lineWidth=2; c.beginPath(); c.moveTo(P0[0],P0[1]); c.lineTo(P1[0],P1[1]); c.stroke(); }
       var dg=sub(fin2, D_PT), angTxt="";
       if(lng(dg)>0 && Math.abs(dg[0])>1e-6 && Math.abs(dg[1])>1e-6) angTxt="  ·  "+String(angleMur({a:[0,0], b:dg})).replace(".", ",")+"°";
-      etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(dg))+angTxt);
+      if(SAISIE_T) placerSaisieT((P0[0]+P1[0])/2, (P0[1]+P1[1])/2);
+      else etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(dg))+angTxt);
     }
   }
   if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(longueurMur(ms))+(refValide(ms) ? " ext." : "")); } }
@@ -3414,7 +3466,7 @@ function toucherD(sx, sy, force){
     if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
     var fin=finMur(D_PT, cible);
     /* retoucher le point en cours (à un doigt près) : le mur s'arrête */
-    if(lng(sub(p, D_PT))*V.k < 18 || lng(sub(fin, D_PT))*DESSIN_MM < 50){ D_PT=null; majDessin(); return; }
+    if((!(force && force.saisie) && lng(sub(p, D_PT))*V.k < 18) || lng(sub(fin, D_PT))*DESSIN_MM < 50){ D_PT=null; majDessin(); return; }
     garderD();
     var m={id:idD(), a:D_PT.slice(), b:fin, ep:(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM};
     var hd = OUTIL_D==="cloison" ? H_CLOISON : H_MUR; if(hd) m.h=hd;
@@ -10079,7 +10131,7 @@ function apercuGuide(c){
   if(GUIDE && GUIDE.a){ var A=versEcran(GUIDE.a[0], GUIDE.a[1]); c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.fillStyle="#E879F9"; c.beginPath(); c.arc(A[0], A[1], 4, 0, Math.PI*2); c.fill(); c.restore(); }
 }
 var majDessin0=majDessin, majSymb0=majSymb;
-majDessin=function(){ var r=majDessin0.apply(this, arguments); majBasVide(); return r; };
+majDessin=function(){ var r=majDessin0.apply(this, arguments); majBasVide(); if(SAISIE_T && (!D_PT || MODE!=="dessin" || (OUTIL_D!=="mur" && OUTIL_D!=="cloison"))) fermerSaisieT(); return r; };
 majSymb=function(){ var r=majSymb0.apply(this, arguments); majBasVide(); return r; };
 function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); if(!(RETICULE && PLAN)) $("reticule").hidden=true; }
 /* les deux grands traits suivent la souris tout de suite, sans attendre l'image suivante du plan */
