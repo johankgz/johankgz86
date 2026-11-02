@@ -638,6 +638,8 @@ body.clair #scene{background:#FFFFFF}
   <span class="bs-cote" id="bsCoteEd" hidden><span id="bsCoteLabL">Longueur</span><input id="bsCoteL" type="text" inputmode="decimal" autocomplete="off" aria-label="Longueur"><span id="bsCoteLabH" hidden>×</span><input id="bsCoteH" type="text" inputmode="decimal" autocomplete="off" aria-label="Hauteur" hidden><span class="u-saisie">cm</span><button type="button" class="bs-ok" id="bsCoteOk">OK</button></span>
   <button type="button" class="bs-act" id="bsRelier" hidden title="Relier à d'autres symboles : l'interrupteur à ses spots, les prises entre elles"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="17" r="2.2"/><circle cx="19" cy="7" r="2.2"/><path d="M7 15.5C9 9 13 7.5 17 7.6" stroke-dasharray="2.6 2.2"/></svg><span>Relier</span></button>
   <span class="bs-coul" id="bsCoul" hidden role="group" aria-label="Couleur des liaisons"></span>
+  <button type="button" class="bs-act" id="bsLienInv" hidden title="L'arc passe de l'autre côté">Inverser</button>
+  <button type="button" class="bs-act" id="bsLienTendre" hidden title="Une liaison droite, ou de nouveau courbe">Droite</button>
   <button type="button" class="bs-act" id="bsDup" hidden title="Dupliquer (Ctrl+D)">Dupliquer</button>
   <button type="button" class="bs-act bs-couleur" id="bsCouleur" hidden title="Sa couleur"><i id="bsCouleurI"></i>Couleur</button>
   <label class="bs-calque" id="bsCalque" hidden title="Son calque"><span>Calque</span><select id="bsCalqueSel" aria-label="Calque de l'élément choisi"></select></label>
@@ -1411,7 +1413,8 @@ function peindreSurvol(){
    (contre le mur, tourné vers la pièce, comme à la pose) */
 function fantomeActif(){
   if(!PLAN || IMPRIME || G || vueD()!=="dessus") return false;
-  if(MODE==="symb") return ARME_S && !RELIER && SEL<0 && !!(window.SymbolesElec && SymbolesElec.trouver(CHOIX));
+  /* en Enchaîner (ou Ctrl), le symbole posé reste choisi : l'aperçu suit quand même la souris, pour poser le suivant */
+  if(MODE==="symb") return ARME_S && !RELIER && (SEL<0 || garderOutil()) && !!(window.SymbolesElec && SymbolesElec.trouver(CHOIX));
   return MODE==="dessin" && (OUTIL_D==="texte" || OUTIL_D==="gtexte") && !ED;
 }
 function peindreFantome(c){
@@ -1734,6 +1737,9 @@ cv.addEventListener("pointerdown", function(e){
     /* « Choisir » prend tout le plan : un symbole touché se choisit (et se glisse) comme le reste */
     if(OUTIL_D==="choisir" && !REF && vueD()==="dessus" && FAM_D!=="pv"){
       var tiU=symboleSous(p);
+      if(tiU<0){ var lsel=lienSelValide(), surSel=lsel && lienSous(p); if(surSel && surSel.a===LIEN_SEL.a && surSel.b===LIEN_SEL.b){ G.lien=true; return; }
+        var lu=lienSous(p); if(lu){ choisirLien(lu); G.lien=true; return; } }
+      if(LIEN_SEL){ LIEN_SEL=null; majBarreSel(); }
       if(tiU>=0){ basculerMode("symb"); ARME_S=false; DEPUIS_CHOISIR=true; G.symb=tiU; G.base=[SYMB[tiU].x, SYMB[tiU].y, hauteurDe(SYMB[tiU])]; majRuban(); return; }
     }
     if(OUTIL_D==="choisir" && !REF && vueD()==="dessus"){
@@ -1767,6 +1773,9 @@ cv.addEventListener("pointerdown", function(e){
   if(MODE==="symb"){
     if(RELIER) return;           /* relier : un toucher relie, un glissé déplace le plan */
     var ti=REF ? -1 : symboleSous(p);
+    if(ti<0 && !REF && vueD()==="dessus"){ var lsS=lienSelValide(), surS=lsS && lienSous(p); if(surS && surS.a===LIEN_SEL.a && surS.b===LIEN_SEL.b){ G.lien=true; return; }
+      var luS=lienSous(p); if(luS){ choisirLien(luS); G.lien=true; return; } }
+    if(LIEN_SEL){ LIEN_SEL=null; majBarreSel(); }
     if(ti>=0){ G.symb=ti; G.base=[SYMB[ti].x, SYMB[ti].y, hauteurDe(SYMB[ti])]; }
     return;
   }
@@ -1785,6 +1794,11 @@ cv.addEventListener("pointermove", function(e){
     var a=DOIGTS[ids[0]], b=DOIGTS[ids[1]], d=Math.hypot(a[0]-b[0],a[1]-b[1]), m=[(a[0]+b[0])/2,(a[1]+b[1])/2];
     var k=Math.max(1e-9, G.k0*d/(G.d0||1)), f=k/G.k0;
     V.k=k; V.x=m[0]-(G.m0[0]-G.vx)*f; V.y=m[1]-(G.m0[1]-G.vy)*f; demanderGeste(); return;
+  }
+  if(G.lien){
+    if(!G.bouge && Math.hypot(p[0]-G.depart[0], p[1]-G.depart[1])>4){ G.bouge=true; garderSymb(); }
+    if(G.bouge){ bomberLien(p); demander(); }
+    return;
   }
   /* un tracé glissé : le début est posé dès que le doigt part, la fin suit le doigt, avec la loupe */
   if(G.grp || G.rect){
@@ -1900,6 +1914,7 @@ function lacher(e){
   if(G.pince){ if(!Object.keys(DOIGTS).length) G=null; return; }
   clearTimeout(G.minuteur);
   if(G.zone){ G=null; majZone(); demander(); return; }
+  if(G.lien){ if(G.bouge) enregistrerSymb(); G=null; majBarreSel(); demander(); return; }
   if(G.grp || G.rect){
     if(e.type!=="pointercancel"){
       if(G.grp && G.garde){ enregistrerD(); enregistrerSymb(); }
@@ -2070,6 +2085,8 @@ document.addEventListener("keydown", function(e){
     }
     return;
   }
+  if(LIEN_SEL && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerLien(); return; }
+  if(e.key==="Escape" && LIEN_SEL){ choisirLien(null); }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } if(PV_EC){ PV_EC=null; majDessin(); } }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
@@ -2231,7 +2248,9 @@ function toucherRelier(ti){
 function arcLien(a, b){
   var dx=b.x-a.x, dy=b.y-a.y, L=Math.hypot(dx, dy); if(!L) return null;
   var ux=dx/L, uy=dy/L, ra=a.r*1.15, rb=b.r*1.15; if(L<=ra+rb) return null;
-  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], d=L-ra-rb, h=d*0.3;
+  var fl=(a.lf && a.lf[b.id]!=null) ? a.lf[b.id] : 0.3;
+  var P0=[a.x+ux*ra, a.y+uy*ra], P1=[b.x-ux*rb, b.y-uy*rb], d=L-ra-rb, h=d*Math.max(0, Math.min(1.5, fl));
+  if(h<d*0.01){ var pd=[]; for(var kd=0;kd<=24;kd++) pd.push([P0[0]+(P1[0]-P0[0])*kd/24, P0[1]+(P1[1]-P0[1])*kd/24]); return pd; }   /* tendue : droite */
   var inv=(a.inv||[]).indexOf(b.id)>=0, n = inv ? [uy, -ux] : [-uy, ux];
   var R=(d*d/4+h*h)/(2*h), M=[(P0[0]+P1[0])/2, (P0[1]+P1[1])/2], C=[M[0]+n[0]*(h-R), M[1]+n[1]*(h-R)];
   var a0=Math.atan2(P0[1]-C[1], P0[0]-C[0]), sw=Math.atan2(P1[1]-C[1], P1[0]-C[0])-a0;
@@ -2264,6 +2283,8 @@ function peindrePaletteLiens(){
     if(c[0]==="auto"){ b.textContent="A"; b.style.background="conic-gradient(#0000FF 0 33%, #FF0000 0 66%, #FF8000 0)"; b.style.color="#fff"; }
     else b.style.background=c[0];
     b.addEventListener("click", function(){
+      var LSc=lienSelValide();
+      if(LSc){ garderSymb(); var aL=LSc.a; if(c[0]==="auto"){ if(aL.lc){ delete aL.lc[LSc.b.id]; if(!Object.keys(aL.lc).length) delete aL.lc; } } else { aL.lc=aL.lc||{}; aL.lc[LSc.b.id]=c[0]; } enregistrerSymb(); peindrePaletteLiens(); demander(); return; }
       LIEN_COUL=c[0]; garder("dwg:lienCoul", LIEN_COUL);
       if(MODE==="symb" && RELIER && SEL>=0 && (SYMB[SEL].lien||[]).length){ garderSymb(); recolorerLiens(SYMB[SEL]); enregistrerSymb(); }
       peindrePaletteLiens(); demander();
@@ -2273,15 +2294,44 @@ function peindrePaletteLiens(){
   peindrePaletteLiens();
 }
 /* au plan : l'arc en tirets, de la couleur de celui qu'on relie (le bleu de l'éclairage depuis un interrupteur) */
+/* ---------- une liaison choisie : la toucher la prend ; on la bombe en la glissant, on l'inverse, on la colore, on la supprime ---------- */
+var LIEN_SEL=null;   /* {a: id du symbole de départ, b: id du symbole relié} */
+function lienChoisi(a, id){ return !!(LIEN_SEL && a.id===LIEN_SEL.a && id===LIEN_SEL.b); }
+function lienSelValide(){ if(!LIEN_SEL) return null; var a=symbParId(LIEN_SEL.a), b=symbParId(LIEN_SEL.b); if(!a || !b || (a.lien||[]).indexOf(b.id)<0){ LIEN_SEL=null; return null; } return {a:a, b:b}; }
+function lienSous(p){
+  if(!PLAN || vueD()!=="dessus" || !cqVu("liens")) return null;
+  var best=null, bd=8;
+  SYMB.forEach(function(a){ if(!symbVu(a)) return; (a.lien||[]).forEach(function(id){
+    var b=symbParId(id); if(!b || !symbVu(b)) return; var pts=arcLien(a, b); if(!pts) return;
+    for(var k=0;k<pts.length-1;k++){ var A=versEcran(pts[k][0], pts[k][1]), B=versEcran(pts[k+1][0], pts[k+1][1]), d=distSeg(p, A, B).d; if(d<bd){ bd=d; best={a:a.id, b:id}; } }
+  }); });
+  return best;
+}
+function choisirLien(l){ LIEN_SEL=l; if(l){ SEL=-1; D_SEL=null; GRP=null; RELIER=false; } majBarreSel(); demander(); }
+/* la flèche de l'arc d'après le doigt : sa distance à la corde (de l'autre côté : l'arc s'inverse) */
+function bomberLien(p){
+  var L=lienSelValide(); if(!L) return; var a=L.a, b=L.b;
+  var q=versPlan(p[0], p[1]), dx=b.x-a.x, dy=b.y-a.y, Lg=Math.hypot(dx, dy); if(!Lg) return;
+  var ux=dx/Lg, uy=dy/Lg, d=Lg-a.r*1.15-b.r*1.15; if(d<=0) return;
+  var s=(q[0]-a.x)*(-uy)+(q[1]-a.y)*ux;     /* > 0 : du côté gauche, le côté de départ */
+  a.lf=a.lf||{}; a.lf[b.id]=Math.round(Math.min(1.5, Math.abs(s)/d)*100)/100;
+  var inv=(a.inv||[]).indexOf(b.id)>=0;
+  if((s<0) !== inv){ if(s<0) a.inv=(a.inv||[]).concat([b.id]); else { a.inv=(a.inv||[]).filter(function(x){ return x!==b.id; }); if(!a.inv.length) delete a.inv; } }
+  if(a.lf[b.id]<0.02) a.lf[b.id]=0;
+}
+function supprimerLien(){ var L=lienSelValide(); if(!L) return; garderSymb(); delier(L.a, L.b.id); delier(L.b, L.a.id); if(L.a.lf){ delete L.a.lf[L.b.id]; if(!Object.keys(L.a.lf).length) delete L.a.lf; } LIEN_SEL=null; enregistrerSymb(); majSymb(); majBarreSel(); demander(); toast("Liaison supprimée (Annuler la remet).", 2000); }
+function inverserLien(){ var L=lienSelValide(); if(!L) return; garderSymb(); var a=L.a, id=L.b.id; if((a.inv||[]).indexOf(id)>=0){ a.inv=a.inv.filter(function(x){ return x!==id; }); if(!a.inv.length) delete a.inv; } else a.inv=(a.inv||[]).concat([id]); enregistrerSymb(); demander(); }
+function tendreLien(){ var L=lienSelValide(); if(!L) return; garderSymb(); var a=L.a; a.lf=a.lf||{}; a.lf[L.b.id] = a.lf[L.b.id]===0 ? 0.3 : 0; enregistrerSymb(); majBarreSel(); demander(); }
 function peindreLiens(c){
   SYMB.forEach(function(a){
     (a.lien||[]).forEach(function(id){
       var b=symbParId(id); if(!b) return;
       var pts=arcLien(a, b); if(!pts) return;
-      var R=Math.max(a.r, b.r)*V.k;
-      c.save(); c.strokeStyle=couleurLien(a, b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09)); c.lineJoin="round";
+      var R=Math.max(a.r, b.r)*V.k, choisie=!IMPRIME && lienChoisi(a, id);
+      c.save(); c.strokeStyle=choisie ? "#F59E0B" : couleurLien(a, b); c.lineWidth=Math.max(1, Math.min(2.4, R*0.09))+(choisie ? 1.5 : 0); c.lineJoin="round";
       c.setLineDash([Math.max(4, R*0.42), Math.max(3, R*0.26)]);
       c.beginPath(); pts.forEach(function(q, k){ var e=versEcran(q[0], q[1]); if(k) c.lineTo(e[0], e[1]); else c.moveTo(e[0], e[1]); }); c.stroke(); c.restore();
+      if(choisie){ var m=versEcran(pts[12][0], pts[12][1]); c.save(); c.fillStyle="#F59E0B"; c.strokeStyle="#111827"; c.lineWidth=2; c.beginPath(); c.arc(m[0], m[1], 7, 0, Math.PI*2); c.fill(); c.stroke(); c.restore(); }
     });
   });
 }
@@ -2841,6 +2891,10 @@ function majBarreSel(){
   } else if(MODE==="symb" && SEL>=0 && SYMB[SEL] && window.SymbolesElec){
     var d=SymbolesElec.trouver(SYMB[SEL].cle); nom=d ? d.court || d.nom : "Symbole";
   }
+  var LS=lienSelValide();
+  if(LS){ var da=SymbolesElec.trouver(LS.a.cle), db=SymbolesElec.trouver(LS.b.cle); nom="Liaison : "+(da ? da.court||da.nom : "?")+" → "+(db ? db.court||db.nom : "?"); }
+  $("bsLienInv").hidden=$("bsLienTendre").hidden=!LS;
+  if(LS) $("bsLienTendre").textContent = LS.a.lf && LS.a.lf[LS.b.id]===0 ? "Courber" : "Droite";
   var nG=grpTaille(GRP), dupUn = MODE==="dessin" && D_SEL && D_SEL.t!=="ouv" && D_SEL.t!=="toit" && D_SEL.t!=="guide" && !/^pv/.test(D_SEL.t) && !!objetSel();
   if(MODE==="dessin" && nG){
     var nPan=GRP.pan.length, nOnd=GRP.ond.length;
@@ -2850,13 +2904,14 @@ function majBarreSel(){
   var cibC=cibleCouleur(); $("bsCouleur").hidden = !cibC || !!REF; if(cibC) $("bsCouleurI").style.background = couleurCible(cibC) || "transparent";
   $("bsCalque").hidden = !cibC || !!REF;
   if(cibC && document.activeElement!==$("bsCalqueSel")){ var tous=[].concat(cibC.d||[], cibC.symb||[]), c0=tous.length ? (tous[0].cq||"") : ""; remplirSelectCalques($("bsCalqueSel"), tous.every(function(o){ return (o.cq||"")===c0; }) ? c0 : "", "Automatique (par type)"); }
+  if(LS){ $("bsCouleur").hidden=true; $("bsCalque").hidden=true; }    /* une liaison : sa couleur est dans sa palette */
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
   var ptPv = MODE==="dessin" && FAM_D==="pv" && !nG ? pvPointChoisi() : null;
   $("bsSupPt").hidden = !ptPv;
   if(!$("bsDefOnd").hidden){ var oD=pvOnd(D_SEL.id); $("bsDefOnd").classList.toggle("on", pvOndAFaire(oD)); }
-  var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2;
+  var coul = (MODE==="symb" && RELIER && SEL>=0) || nSg>=2 || !!LS;
   $("bsCoul").hidden=!coul; if(coul) peindrePaletteLiens();
   var rel = MODE==="symb" && SEL>=0 && vueD()==="dessus" && !REF;
   $("bsRelier").hidden=!rel; $("bsRelier").classList.toggle("on", RELIER);
@@ -2866,7 +2921,7 @@ function majBarreSel(){
   if(REF) nom="";
   b.hidden=!nom;
   var gA = MODE==="dessin" && D_SEL && D_SEL.t==="geo" && objetSel() && vueDe(objetSel())!==vueD();
-  $("bsDist").hidden = gA || !!nG || (D_SEL && D_SEL.t==="guide") || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
+  $("bsDist").hidden = !!LS || gA || !!nG || (D_SEL && D_SEL.t==="guide") || (MODE==="symb" && RELIER) || (D_SEL && (D_SEL.t==="toit" || /^pv/.test(D_SEL.t))) || (vueD()!=="dessus" && (MODE==="symb" || (D_SEL && D_SEL.t==="mob")));
   /* Coter : le bouton, ou la saisie de la cote à sa place (les autres boutons s'effacent le temps de taper) */
   var cs=coteSel();
   if(BS_COTE && (!cs || cs.o!==BS_COTE)) BS_COTE=null;
@@ -2879,12 +2934,15 @@ function majBarreSel(){
 }
 /* la corbeille de la barre : l'élément choisi (ou la sélection) est supprimé ; Annuler le remet */
 $("bsFermer").addEventListener("click", function(){
+  if(lienSelValide()){ supprimerLien(); return; }
   if(MODE==="symb") supprimerSymb();
   else if(grpTaille(GRP)) supprimerGrp();
   else supprimerD();
   majBarreSel(); demander();
 });
 $("bsDup").addEventListener("click", function(){ dupliquerSel(); });
+$("bsLienInv").addEventListener("click", function(){ inverserLien(); });
+$("bsLienTendre").addEventListener("click", function(){ tendreLien(); });
 $("bsSupPt").addEventListener("click", function(){ pvRetirerPoint(); });
 $("bsTourne").addEventListener("click", function(){ if(!grpTaille(GRP)) return; garderTout(); grpTourner(GRP); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); });
 
@@ -9755,6 +9813,7 @@ function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o
 /* ---------- ce que fait chaque bouton ---------- */
 function choisirOutilR(o){
   if(!PLAN) return;
+  LIEN_SEL=null;
   GUIDE=null;
   DEPUIS_CHOISIR=false;
   RELIER_ATT=false; if(RELIER) basculerRelier(false);
