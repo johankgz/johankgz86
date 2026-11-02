@@ -135,6 +135,11 @@ button,select{font:inherit}
 .fe-champ input,#feCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
 .fe-case{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;margin:6px 0 8px;cursor:pointer}
 .fe-case input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
+.racc-liste{list-style:none;margin:6px 0;padding:0;max-height:52vh;overflow:auto}
+.racc-liste li{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 2px;border-bottom:1px solid rgba(255,255,255,.08);font-size:14px}
+.racc-touche{min-width:64px;min-height:34px;font-weight:700;font-family:ui-monospace,Menlo,Consolas,monospace}
+.racc-touche.attente{background:#1D4ED8;border-color:#1D4ED8;color:#fff;font-family:inherit;font-weight:600}
+.racc-fixes{font-size:12.5px;line-height:1.5}
 .fe-format{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:2px 0 10px}
 .fe-format label{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:10px;border:1px solid rgba(255,255,255,.18);cursor:pointer;font-size:13px;line-height:1.35}
 .fe-format label:has(input:checked){border-color:var(--acc,#3B82F6);background:rgba(59,130,246,.12)}
@@ -209,6 +214,8 @@ select.rb-cq{width:130px;max-width:130px;min-height:30px;border-radius:8px;backg
 #scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
 /* la croix du curseur, sur tout l'écran : deux traits que l'écran glisse sans repeindre le plan,
    et au centre le petit carré, qui est le curseur de la souris lui-même (sans aucun retard) */
+#scene.main,#scene.reticule.main{cursor:grab!important}
+#scene.main:active,#scene.reticule.main:active{cursor:grabbing!important}
 @media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="11" height="11" shape-rendering="crispEdges"%3E%3Crect x="1.5" y="1.5" width="8" height="8" fill="none" stroke="%23E5E9EF" stroke-width="1"/%3E%3C/svg%3E') 5 5, crosshair} body.clair #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="11" height="11" shape-rendering="crispEdges"%3E%3Crect x="1.5" y="1.5" width="8" height="8" fill="none" stroke="%23111827" stroke-width="1"/%3E%3C/svg%3E') 5 5, crosshair} }
 #reticule{position:fixed;inset:0;pointer-events:none;overflow:hidden}
 #reticule[hidden]{display:none}
@@ -391,6 +398,9 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel{overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
 /* Enchaîner, Accrochage, Ortho, la saisie et la molette : dans l'onglet Réglages du ruban, plus dans la barre du bas */
 #btEnchainerD,#btEnchainerS,#btAccrD,#btAccrS,#btOrthoD,#grpUSaisie,.grp-molette,#btSuppD,#btSuppSymb,.champ-h .seg-usaisie{display:none!important}
+/* plus de ligne d'explication en bas (le nom de l'outil et sa consigne) : la barre ne garde que les réglages ; vide, elle disparaît */
+#dsInfo,#dsDetail,#symbNb,#symbDetail{display:none!important}
+.bas.vide{display:none!important}
 .rb-seg{align-self:center}
 #rbPanneau .rb-gros[data-r="a:enchainer"],#rbPanneau .rb-gros[data-r="a:accroche"],#rbPanneau .rb-gros[data-r="a:faceext"]{width:auto;min-width:62px;padding-left:6px;padding-right:6px}
 .rb-seg button{min-height:34px;padding:0 12px}
@@ -508,6 +518,16 @@ body.clair #scene{background:#FFFFFF}
     <p class="fs-aide">Ou un document technique déposé sur un chantier (onglet Documents techniques) :</p>
     <input type="search" id="fsCherche" placeholder="Chercher un chantier, une référence…" autocomplete="off" aria-label="Chercher un chantier">
     <div class="fs-liste" id="fsListe"><p class="fs-vide">Chargement…</p></div>
+  </div>
+</div>
+
+<div class="fen-site" id="fenRacc" hidden role="dialog" aria-modal="true" aria-labelledby="fenRaccT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenRaccT">Raccourcis clavier</b><button class="bt" type="button" id="frFermer" aria-label="Fermer">✕</button></div>
+    <p class="fs-aide">Cliquez sur une touche pour la changer, puis appuyez sur la nouvelle (une lettre, un chiffre, ou F1 à F12). Retour arrière : aucune touche.</p>
+    <ul class="racc-liste" id="raccListe"></ul>
+    <p class="fs-aide racc-fixes"><b>Toujours</b> : Échap deux fois : la Main · Échap : arrêter le tracé · Suppr : supprimer · Ctrl+Z : annuler · Ctrl+C, Ctrl+X, Ctrl+V : copier, couper, coller · Ctrl+D : dupliquer · Ctrl+A : tout sélectionner · Ctrl+S : enregistrer · Alt+→ / Alt+← : tourner de 45° · Ctrl maintenu : enchaîner · molette : zoomer.</p>
+    <div class="fo-bas"><button class="bt" type="button" id="frDefaut">Par défaut</button><button class="bt or" type="button" id="frOk">Fermer</button></div>
   </div>
 </div>
 
@@ -730,6 +750,7 @@ body.clair #scene{background:#FFFFFF}
     <button type="button" data-o="pvchemin"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4v7h9v9" stroke="#DC2626" stroke-width="1.8"/><path d="M6.5 4v4.5h9V20" stroke="#1D4ED8" stroke-width="1.8"/><rect x="11" y="18" width="9" height="4" fill="#111"/></svg></i>Cheminement</button>
     <button type="button" data-o="pvac"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M4 9.5 8 5.5"/><path d="M10 7.5h6v9" stroke="#2563EB" stroke-width="2.4"/><rect x="13" y="16" width="8" height="5" fill="#111"/></svg></i>Câble AC</button>
     <button type="button" data-o="pvrj"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="8" height="7"/><path d="M10 7.5h7v8" stroke="#16A34A" stroke-width="2" stroke-dasharray="2.5 2"/><path d="M13.5 15.5h7v5h-7z M15.5 15.5v-1.5h3v1.5" fill="#fff"/></svg></i>RJ45</button>
+    <button type="button" data-o="main"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 13V5.5a1.5 1.5 0 0 1 3 0V12M11 11.5V4a1.5 1.5 0 0 1 3 0v8M14 11.5V5.5a1.5 1.5 0 0 1 3 0V13M17 9.5a1.5 1.5 0 0 1 3 0V15a6 6 0 0 1-6 6h-1.5a6 6 0 0 1-4.6-2.2L4.5 14.5a1.6 1.6 0 0 1 2.4-2.1L8 13.5"/></svg></i>Main</button>
     <button type="button" data-o="choisir"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 3l12 9-5.5 1.2L9 19z"/></svg></i>Choisir</button>
     <button type="button" data-o="selection"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8" stroke-linecap="round"><path d="M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4" /><path d="M9.5 9.5h5v5h-5z" stroke-dasharray="2 1.6"/></svg></i>Sélection</button>
   </div>
@@ -1673,6 +1694,8 @@ cv.addEventListener("pointerdown", function(e){
     }
   }
   if(MODE==="dessin"){
+    /* la Main : un glissé déplace le plan, rien ne se prend ni ne bouge */
+    if(OUTIL_D==="main"){ G.main=true; return; }
     /* une ligne de construction à poser : le toucher ne prend rien, un glissé déplace le plan */
     if(GUIDE) return;
     /* « Choisir » prend tout le plan : un symbole touché se choisit (et se glisse) comme le reste */
@@ -1989,12 +2012,10 @@ document.addEventListener("keydown", function(e){
       if(grpTaille(g45)){ e.preventDefault(); garderTout(); grpTourner(g45, hor, 45); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Tourné de 45°"+(hor ? " (sens des aiguilles)." : "."), 1400); return; }
     }
   }
-  /* E : Enchaîner ; F3 : Accrochage ; F8 : Ortho ; I : le côté où le mur s'épaissit */
-  if(!champ && PLAN && !e.ctrlKey && !e.metaKey && !e.altKey){
-    if(e.key==="e" || e.key==="E"){ e.preventDefault(); $("btEnchainerD").click(); majRuban(); return; }
-    if(e.key==="F3"){ e.preventDefault(); basculerAccroche(); return; }
-    if(e.key==="F8"){ e.preventDefault(); $("btOrthoD").click(); majRuban(); toast(ORTHO_D ? NOMS_ANGLE[ANGLE_D] : "Angle libre", 1300); return; }
-    if((e.key==="i" || e.key==="I") && MODE==="dessin" && (OUTIL_D==="mur" || OUTIL_D==="cloison")){ e.preventDefault(); inverserFace(); majReglagesR(); return; }
+  /* les raccourcis d'une touche (Réglages › Raccourcis pour les changer) : M la Main, C Choisir, E Enchaîner… */
+  if(!champ && PLAN && !e.ctrlKey && !e.metaKey && !e.altKey && $("fenRacc").hidden){
+    var act=actionDeTouche(e);
+    if(act && act!=="tourner" && faireRacc(act)){ e.preventDefault(); return; }
   }
   /* Échap deux fois : retour à l'outil Choisir, rien de choisi */
   if(e.key==="Escape" && !champ && PLAN){
@@ -2003,7 +2024,7 @@ document.addEventListener("keydown", function(e){
     else ECHAP_T=maint;
   }
   /* R : un quart de tour de la sélection (ou de l'élément choisi), Maj+R dans l'autre sens */
-  if(MODE==="dessin" && !champ && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key==="r" || e.key==="R")){
+  if(MODE==="dessin" && !champ && !e.ctrlKey && !e.metaKey && !e.altKey && estRacc(e, "tourner")){
     var gt = grpTaille(GRP) ? GRP : grpDeSel();
     if(grpTaille(gt)){
       e.preventDefault(); garderTout(); grpTourner(gt, e.shiftKey); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander();
@@ -2017,17 +2038,60 @@ document.addEventListener("keydown", function(e){
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
   if(MODE==="symb" && SEL>=0 && document.activeElement!==$("symbRep")){
     if(e.key==="Delete" || e.key==="Backspace"){ e.preventDefault(); supprimerSymb(); }
-    else if(e.key==="r" || e.key==="R"){ e.preventDefault(); tournerSymb(); }
+    else if(estRacc(e, "tourner") && !e.ctrlKey && !e.metaKey && !e.altKey){ e.preventDefault(); tournerSymb(); }
   }
 });
 function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); }
 var ECHAP_T=0;
+/* ---------- les raccourcis d'une touche, modifiables (Réglages › Raccourcis) ---------- */
+var RACC_DEF={main:"M", choisir:"C", enchainer:"E", accroche:"F3", ortho:"F8", inverser:"I", tourner:"R", calques:"", mur:"", cloison:"", porte:"", fenetre:"", objet:"", trait:"", rect:"", gtexte:"", cote:"", texte:""};
+var RACC_NOMS={main:"Main : déplacer le plan", choisir:"Choisir : prendre et déplacer un élément", enchainer:"Enchaîner", accroche:"Accrochage", ortho:"Ortho 90° / 45° / angle libre", inverser:"Murs : changer le côté de l'épaisseur", tourner:"Tourner de 90° (avec Maj : dans l'autre sens)", calques:"Ouvrir ou fermer les calques", mur:"Outil Mur", cloison:"Outil Cloison", porte:"Outil Porte", fenetre:"Outil Fenêtre", objet:"Outil Mobilier", trait:"Outil Trait", rect:"Outil Rectangle", gtexte:"Outil Texte", cote:"Outil Cote", texte:"Outil Nom de pièce"};
+var RACC=(function(){ var r={}, k; for(k in RACC_DEF) r[k]=RACC_DEF[k]; try{ var x=JSON.parse(localStorage.getItem("dwg:raccourcis")||"null"); if(x) for(k in RACC_DEF) if(typeof x[k]==="string") r[k]=x[k]; }catch(e){} return r; })();
+function garderRacc(){ try{ localStorage.setItem("dwg:raccourcis", JSON.stringify(RACC)); }catch(e){} }
+function toucheDe(e){ var k=e.key||""; if(k.length===1) return k===" " ? "Espace" : k.toUpperCase(); return /^F\d{1,2}$/.test(k) ? k : ""; }
+function estRacc(e, act){ var t=RACC[act]; return !!t && toucheDe(e)===t; }
+function actionDeTouche(e){ var t=toucheDe(e); if(!t) return null; for(var k in RACC) if(RACC[k]===t) return k; return null; }
+function faireRacc(act){
+  if(act==="main" || act==="choisir"){ RELIER_ATT=false; if(RELIER) basculerRelier(false); SEL=-1; ARME_S=false; GRP=null; choisirOutilR(act); toast(act==="main" ? "Main : glissez pour déplacer le plan." : "Choisir.", 1200); return true; }
+  if(act==="enchainer"){ $("btEnchainerD").click(); majRuban(); return true; }
+  if(act==="accroche"){ basculerAccroche(); return true; }
+  if(act==="ortho"){ $("btOrthoD").click(); majRuban(); toast(ORTHO_D ? NOMS_ANGLE[ANGLE_D] : "Angle libre", 1300); return true; }
+  if(act==="inverser"){ if(MODE==="dessin" && (OUTIL_D==="mur" || OUTIL_D==="cloison")){ inverserFace(); majReglagesR(); return true; } return false; }
+  if(act==="calques"){ basculerCalques(); return true; }
+  if(boutonOutil(act)){ choisirOutilR(act); majRuban(); return true; }
+  return false;
+}
+/* la fenêtre des raccourcis */
+var RACC_ATTENTE=null;
+function peindreRacc(){
+  var ul=$("raccListe"); ul.textContent="";
+  Object.keys(RACC_DEF).forEach(function(k){
+    var li=document.createElement("li"), n=document.createElement("span"); n.textContent=RACC_NOMS[k]; li.appendChild(n);
+    var b=document.createElement("button"); b.type="button"; b.className="bt racc-touche"+(RACC_ATTENTE===k ? " attente" : "");
+    b.textContent = RACC_ATTENTE===k ? "Appuyez sur une touche…" : (RACC[k] || "—");
+    b.title="Cliquez, puis appuyez sur la touche voulue (Retour arrière : aucune ; Échap : annuler)";
+    b.addEventListener("click", function(){ RACC_ATTENTE = RACC_ATTENTE===k ? null : k; peindreRacc(); });
+    li.appendChild(b); ul.appendChild(li);
+  });
+}
+function ouvrirRacc(){ RACC_ATTENTE=null; peindreRacc(); $("fenRacc").hidden=false; }
+document.addEventListener("keydown", function(e){
+  if($("fenRacc").hidden) return;
+  if(!RACC_ATTENTE){ if(e.key==="Escape"){ e.preventDefault(); e.stopImmediatePropagation(); $("fenRacc").hidden=true; } return; }
+  e.preventDefault(); e.stopImmediatePropagation();
+  if(e.key==="Escape"){ RACC_ATTENTE=null; peindreRacc(); return; }
+  if(e.key==="Backspace" || e.key==="Delete"){ RACC[RACC_ATTENTE]=""; RACC_ATTENTE=null; garderRacc(); peindreRacc(); return; }
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  var t=toucheDe(e); if(!t) return;     /* une lettre, un chiffre, ou F1 à F12 */
+  for(var k in RACC) if(RACC[k]===t) RACC[k]="";        /* une touche ne sert qu'à une chose */
+  RACC[RACC_ATTENTE]=t; RACC_ATTENTE=null; garderRacc(); peindreRacc();
+}, true);
 function echapChoisir(){
   if(!PLAN) return;
   GUIDE=null; A_PT=null; D_PT=null; GEO_EC=null; REF && fermerRef(); GRP=null; D_SEL=null; SEL=-1; ARME_S=false;
-  if(typeof choisirOutilR==="function") choisirOutilR("choisir");
+  if(typeof choisirOutilR==="function") choisirOutilR("main");
   majBarreSel(); demander();
-  toast("Outil Choisir.", 1200);
+  toast("Main : glissez pour déplacer le plan ("+(RACC.choisir||"C")+" : Choisir).", 1800);
 }
 
 /* ---------- les symboles électriques ---------- */
@@ -3314,6 +3378,7 @@ function contraindreD(a, b){
 var NOMS_ANGLE={"90":"Ortho 90°", "45":"Ortho 45°", "libre":"Angle libre"};
 /* ---------- les gestes du dessin ---------- */
 function toucherD(sx, sy, force){
+  if(OUTIL_D==="main" && !force) return;
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
   if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(FOND_ETAPE){ if(vueD()!=="dessus"){ toast("Le fond de plan se règle en vue de dessus."); return; } toucherFond(cible, p); return; }
@@ -3411,6 +3476,14 @@ function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=G
   if(h && h.__groupe){ DESSIN=normD(h.d); SYMB=h.s; enregistrerSymb(); } else DESSIN=normD(h);
   D_SEL=null; GRP=null; enregistrerD(); majDessin(); majBarreSel(); }
 /* ---------- le panneau du dessin ---------- */
+/* la barre du bas sans rien à régler (la Main, Choisir sans rien de choisi) : cachée */
+function majBasVide(){
+  ["basDessin","basSymb"].forEach(function(id){
+    var bar=$(id); if(!bar) return; bar.classList.remove("vide"); if(bar.hidden) return;
+    var vu=Array.prototype.some.call(bar.querySelectorAll(".reglages > *, .palette, .mesure .seg, .vues-d, .mesure button"), function(el){ return el.offsetWidth>0 && el.offsetHeight>0; });
+    bar.classList.toggle("vide", !vu);
+  });
+}
 function majDessin(){
   if(PV_EC && !pvEcValide()) PV_EC=null;
   var o=objetSel(), t=D_SEL && D_SEL.t;
@@ -9320,6 +9393,7 @@ var ICO={
   ortho:'<path d="M5 19V5M5 19h14"/><path d="M9 19v-4h-4"/>',
   faceext:'<path d="M4 18h16"/><path d="M4 18V8h16v10" stroke-dasharray="2 2"/><path d="M4 8h16"/>',
   inverser:'<path d="M4 9h14l-3-3M20 15H6l3 3"/>',
+  raccourcis:'<rect x="2.5" y="6" width="19" height="12" rx="2"/><path d="M6 10h1M9.5 10h1M13 10h1M16.5 10h1M7 14h10"/>',
   couleur:'<circle cx="8" cy="9" r="4.2" fill="#DC2626" stroke="none"/><circle cx="16" cy="9" r="4.2" fill="#2563EB" stroke="none"/><circle cx="12" cy="16" r="4.2" fill="#16A34A" stroke="none"/>'
 };
 function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden="true">'+(ICO[k]||"")+'</svg>'; }
@@ -9344,11 +9418,12 @@ var ACTIONS={
   guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
   couleur:["Couleur","couleur","La couleur de l'élément choisi ou de la sélection (sinon : celle de son calque, dans Calques)"],
   reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"],
-  enchainer:["Enchaîner","enchainer","Garder l'outil après chaque élément, pour en poser plusieurs à la suite (touche E, ou maintenir Ctrl)"],
-  accroche:["Accrochage","accroche","Accrocher aux bouts, milieux et angles (touche F3)"],
-  ortho:["Ortho 90°","ortho","Ortho 90°, Ortho 45° ou Angle libre (touche F8)"],
+  enchainer:["Enchaîner","enchainer","Garder l'outil après chaque élément, pour en poser plusieurs à la suite (ou maintenir Ctrl)"],
+  accroche:["Accrochage","accroche","Accrocher aux bouts, milieux et angles"],
+  ortho:["Ortho 90°","ortho","Ortho 90°, Ortho 45° ou Angle libre"],
   faceext:["Face ext.","faceext","Murs et cloisons tracés par leur face extérieure : l'épaisseur part vers l'intérieur"],
-  inverser:["Inverser","inverser","Le côté où le mur s'épaissit, à droite ou à gauche du tracé (touche I)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
+  inverser:["Inverser","inverser","Le côté où le mur s'épaissit, à droite ou à gauche du tracé"],
+  raccourcis:["Raccourcis","raccourcis","La liste des raccourcis clavier, à changer"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
@@ -9356,7 +9431,7 @@ var ONGLETS=[
     {nom:"Murs", gros:["o:mur","o:cloison","o:piece"]},
     {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
-    {nom:"Modification", gros:["o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:depuis","a:couleur"]},
+    {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:depuis","a:couleur"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Calques", calque:true}
   ]},
@@ -9364,7 +9439,7 @@ var ONGLETS=[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
     {nom:"Annotation", gros:["o:cote","o:gtexte"], petits:["o:texte","a:mesurer","a:etalonner"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
-    {nom:"Modification", gros:["o:choisir"], petits:["a:dupliquer","a:tourner","a:supprimer","a:couleur"]},
+    {nom:"Modification", gros:["o:main","o:choisir"], petits:["a:dupliquer","a:tourner","a:supprimer","a:couleur"]},
     {nom:"Calques", calque:true}
   ]},
   {id:"elec", nom:"Électricité", elec:true},
@@ -9389,7 +9464,7 @@ var ONGLETS=[
   ]}
 ];
 /* les actions possibles sans plan ouvert */
-var SANS_PLAN={"a:fichier":1, "a:chantier":1, "a:vierge":1, "a:plans":1};
+var SANS_PLAN={"a:fichier":1, "a:chantier":1, "a:vierge":1, "a:plans":1, "a:raccourcis":1};
 function boutonOutil(o){ return $("outilsD").querySelector('button[data-o="'+o+'"]'); }
 function libelle(r){
   var t=r.slice(0,2), k=r.slice(2);
@@ -9405,7 +9480,8 @@ function icone(r){
   if(t==="s:") return SymbolesElec.svg(k, 22);
   return icoTrait((ACTIONS[k]||[])[1]||k);
 }
-function aide(r){
+function aide(r){ var t0=aide0(r), k0=r.slice(2); return RACC[k0] ? t0+" (touche "+RACC[k0]+")" : t0; }
+function aide0(r){
   var t=r.slice(0,2), k=r.slice(2);
   if(t==="o:"){ var b=boutonOutil(k); return (b && b.title) || libelle(r); }
   if(t==="v:") return "Vue de "+VUES_R[k].toLowerCase();
@@ -9438,6 +9514,7 @@ function peindrePanneau(){
   if(on.reglages){
     var Gt=groupeRuban("Tracé"); ["a:enchainer","a:accroche","a:ortho"].forEach(function(r){ Gt.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gt.g);
     var Gm=groupeRuban("Murs et cloisons"); ["a:faceext","a:inverser"].forEach(function(r){ Gm.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gm.g);
+    var Gk=groupeRuban("Clavier"); Gk.o.appendChild(boutonRuban("a:raccourcis", "rb-gros")); pn.appendChild(Gk.g);
     function segR(nom, cls, items){ var G=groupeRuban(nom), sg=document.createElement("span"); sg.className="seg rb-seg "+cls; sg.setAttribute("role","group"); sg.setAttribute("aria-label", nom);
       items.forEach(function(it){ var b=document.createElement("button"); b.type="button"; b.dataset[it[0]]=it[1]; b.textContent=it[2]; sg.appendChild(b); }); G.o.appendChild(sg); pn.appendChild(G.g); return sg; }
     var su=segR("Saisie des longueurs", "rb-usaisie", [["u","mm","mm"],["u","cm","cm"],["u","m","m"]]);
@@ -9453,7 +9530,7 @@ function peindrePanneau(){
       G.o.appendChild(d); pn.appendChild(G.g);
     });
     var Go=groupeRuban("Outils");
-    ["o:choisir","a:couleur","a:relier","a:quantites"].forEach(function(r){ Go.o.appendChild(boutonRuban(r, "rb-gros")); });
+    ["o:main","o:choisir","a:couleur","a:relier","a:quantites"].forEach(function(r){ Go.o.appendChild(boutonRuban(r, "rb-gros")); });
     pn.appendChild(Go.g);
     var Gc=groupeRuban("Calques"); Gc.o.appendChild(colonneCalques()); pn.appendChild(Gc.g);
   } else on.g.forEach(function(gr){
@@ -9476,6 +9553,7 @@ function replier(v){
 function petitEcran(){ return window.innerWidth<=600; }
 /* l'état du ruban : l'outil en cours, ce qui n'a pas de sens sans plan ou sans choix */
 function majRuban(){
+  cv.classList.toggle("main", !!PLAN && MODE==="dessin" && OUTIL_D==="main");
   var pn=$("rbPanneau"); if(!pn) return;
   Array.prototype.forEach.call($("rbOnglets").children, function(b){ var on=b.dataset.onglet===RB_ONGLET; b.classList.toggle("on", on); b.setAttribute("aria-selected", on ? "true" : "false");
     if(on){ var to=$("rbOnglets"); if(b.offsetLeft+b.offsetWidth>to.scrollLeft+to.clientWidth || b.offsetLeft<to.scrollLeft) to.scrollLeft=Math.max(0, b.offsetLeft-12); } });
@@ -9522,7 +9600,7 @@ function choisirOutilR(o){
   GUIDE=null;
   DEPUIS_CHOISIR=false;
   RELIER_ATT=false; if(RELIER) basculerRelier(false);
-  var fam = (o==="choisir" || o==="selection") ? (FAM_D==="pv" ? "plan" : (FAM_D||"plan")) : famDe(o);
+  var fam = (o==="choisir" || o==="selection" || o==="main") ? (FAM_D==="pv" ? "plan" : (FAM_D||"plan")) : famDe(o);
   if(MODE!=="dessin") basculerMode("dessin");
   if(FAM_D!==fam){ var bf=$("segFamD").querySelector('button[data-f="'+fam+'"]'); if(bf) bf.click(); }
   var b=boutonOutil(o); if(b) b.click();
@@ -9605,6 +9683,7 @@ function actionR(k){
     case "ortho": $("btOrthoD").click(); majReglagesR(); majRuban(); break;
     case "faceext": FACE_EXT=!FACE_EXT; garder("dwg:faceExt", FACE_EXT ? "1" : "0"); toast(FACE_EXT ? "Murs tracés par la face extérieure : l'épaisseur part vers l'intérieur." : "Murs tracés par leur milieu (l'axe).", 3000); majRuban(); demander(); break;
     case "inverser": inverserFace(); break;
+    case "raccourcis": ouvrirRacc(); break;
     case "pdf": $("btPdf").click(); break;
     case "dxf": exporterDxf(); break;
     case "image": $("btImage").click(); break;
@@ -9893,12 +9972,15 @@ function apercuGuide(c){
   }
   if(GUIDE && GUIDE.a){ var A=versEcran(GUIDE.a[0], GUIDE.a[1]); c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.fillStyle="#E879F9"; c.beginPath(); c.arc(A[0], A[1], 4, 0, Math.PI*2); c.fill(); c.restore(); }
 }
+var majDessin0=majDessin, majSymb0=majSymb;
+majDessin=function(){ var r=majDessin0.apply(this, arguments); majBasVide(); return r; };
+majSymb=function(){ var r=majSymb0.apply(this, arguments); majBasVide(); return r; };
 function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); if(!(RETICULE && PLAN)) $("reticule").hidden=true; }
 /* les deux grands traits suivent la souris tout de suite, sans attendre l'image suivante du plan */
 (function(){
   var boite=$("reticule"), rh=boite.querySelector(".rh"), rv=boite.querySelector(".rv");
   cv.addEventListener("pointermove", function(e){
-    if(e.pointerType!=="mouse" || !RETICULE || !PLAN || !cv.classList.contains("reticule")){ if(!boite.hidden) boite.hidden=true; return; }
+    if(e.pointerType!=="mouse" || !RETICULE || !PLAN || !cv.classList.contains("reticule") || cv.classList.contains("main")){ if(!boite.hidden) boite.hidden=true; return; }
     var x=Math.round(e.clientX), y=Math.round(e.clientY);
     rh.style.transform="translateY("+y+"px)"; rv.style.transform="translateX("+x+"px)";
     if(boite.hidden) boite.hidden=false;
@@ -10010,6 +10092,8 @@ function peindreChantiersFE(){
 }
 $("feChOui").addEventListener("change", function(){ $("feChoix").hidden=!this.checked; if(this.checked) chargerChantiersFE(); });
 $("feCherche").addEventListener("input", peindreChantiersFE);
+["frFermer","frOk"].forEach(function(id){ $(id).addEventListener("click", function(){ RACC_ATTENTE=null; $("fenRacc").hidden=true; majReglagesR(); }); });
+$("frDefaut").addEventListener("click", function(){ for(var k in RACC_DEF) RACC[k]=RACC_DEF[k]; garderRacc(); RACC_ATTENTE=null; peindreRacc(); });
 ["feFermer","feAnnuler"].forEach(function(id){ $(id).addEventListener("click", function(){ $("fenEnreg").hidden=true; }); });
 $("fenEnreg").addEventListener("submit", function(e){
   e.preventDefault();
