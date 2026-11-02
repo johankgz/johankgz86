@@ -2444,7 +2444,15 @@ function basculerLien(a, b){
    1re lumière, la 2e…). « Terminer » arrête la série ; « Relier » de nouveau en commence une
    autre. Un symbole déjà choisi au moment de « Relier » est le premier de la série. Toucher le
    vide ne fait rien (un glissé déplace le plan) ; une liaison qui existe déjà reste telle quelle. */
-var RELIER_DER=-1, RELIER_NB=0;
+var RELIER_DER=-1, RELIER_NB=0, RELIER_COUL=null, RELIER_LIENS=[];
+/* une série garde une seule couleur : la pastille choisie, sinon (A) celle du 1er symbole relié */
+function couleurSerie(b){ return LIEN_COUL!=="auto" ? LIEN_COUL : ((SymbolesElec.trouver(b.cle)||{}).couleur || "#FF0000"); }
+function recolorerSerie(){
+  if(!RELIER_LIENS.length) return false;
+  var b0=symbParId(RELIER_LIENS[0][1]); RELIER_COUL = b0 ? couleurSerie(b0) : (LIEN_COUL!=="auto" ? LIEN_COUL : RELIER_COUL);
+  RELIER_LIENS.forEach(function(l){ var a=symbParId(l[0]); if(a && (a.lien||[]).indexOf(l[1])>=0){ a.lc=a.lc||{}; a.lc[l[1]]=RELIER_COUL; } });
+  return true;
+}
 function basculerRelier(v){
   RELIER_ATT=false;
   var avant=RELIER;
@@ -2452,13 +2460,13 @@ function basculerRelier(v){
   if(RELIER && vueD()!=="dessus"){ RELIER=false; toast("Les liaisons se font en vue de dessus."); }
   if(RELIER && !avant){
     if(MODE!=="symb") basculerMode("symb");
-    ARME_S=false; GRP=null; LIEN_SEL=null; RELIER_DER = SEL>=0 && SYMB[SEL] ? SEL : -1; RELIER_NB=0;
+    ARME_S=false; GRP=null; LIEN_SEL=null; RELIER_DER = SEL>=0 && SYMB[SEL] ? SEL : -1; RELIER_NB=0; RELIER_COUL=null; RELIER_LIENS=[];
     toast(RELIER_DER>=0 ? "Relier : touchez le symbole suivant, puis les autres dans l'ordre. « Terminer » quand c'est fini."
                         : "Relier : touchez les symboles dans l'ordre (l'interrupteur, puis ses lumières). « Terminer » quand c'est fini.", 4500);
   }
   if(!RELIER && avant){
     if(RELIER_NB) toast(RELIER_NB+" liaison"+(RELIER_NB>1?"s":"")+" faite"+(RELIER_NB>1?"s":"")+". « Relier » pour une autre série.", 3000);
-    RELIER_DER=-1; RELIER_NB=0; SEL=-1;      /* la série finie, plus rien de choisi : la suivante repart de zéro */
+    RELIER_DER=-1; RELIER_NB=0; SEL=-1; RELIER_COUL=null; RELIER_LIENS=[];      /* la série finie, plus rien de choisi : la suivante repart de zéro */
   }
   majSymb(); majBarreSel(); majRuban(); demander();
 }
@@ -2467,7 +2475,12 @@ function toucherRelier(ti){
   if(RELIER_DER<0 || !SYMB[RELIER_DER]){ RELIER_DER=ti; SEL=ti; majSymb(); majBarreSel(); demander(); return; }
   if(ti===RELIER_DER) return;
   var a=SYMB[RELIER_DER], b=SYMB[ti];
-  if(!relies(a, b)){ garderSymb(); idS(a); idS(b); a.lien=(a.lien||[]).concat([b.id]); colorerLien(a, b.id); enregistrerSymb(); RELIER_NB++; }
+  if(!relies(a, b)){
+    garderSymb(); idS(a); idS(b); a.lien=(a.lien||[]).concat([b.id]);
+    if(!RELIER_COUL) RELIER_COUL=couleurSerie(b);
+    a.lc=a.lc||{}; a.lc[b.id]=RELIER_COUL; RELIER_LIENS.push([a.id, b.id]);
+    enregistrerSymb(); RELIER_NB++;
+  }
   RELIER_DER=ti; SEL=ti;
   majSymb(); majBarreSel(); demander();
 }
@@ -2538,7 +2551,7 @@ function peindrePaletteLiens(){
       var LSc=lienSelValide();
       if(LSc){ garderSymb(); var aL=LSc.a; if(c[0]==="auto"){ if(aL.lc){ delete aL.lc[LSc.b.id]; if(!Object.keys(aL.lc).length) delete aL.lc; } } else { aL.lc=aL.lc||{}; aL.lc[LSc.b.id]=c[0]; } enregistrerSymb(); peindrePaletteLiens(); demander(); return; }
       LIEN_COUL=c[0]; garder("dwg:lienCoul", LIEN_COUL);
-      if(MODE==="symb" && RELIER && SEL>=0 && (SYMB[SEL].lien||[]).length){ garderSymb(); recolorerLiens(SYMB[SEL]); enregistrerSymb(); }
+      if(MODE==="symb" && RELIER){ if(RELIER_LIENS.length){ garderSymb(); recolorerSerie(); enregistrerSymb(); } else RELIER_COUL=null; }
       peindrePaletteLiens(); demander();
     });
     z.appendChild(b);
