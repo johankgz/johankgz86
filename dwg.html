@@ -192,7 +192,8 @@ button,select{font:inherit}
 @media (max-width:520px){ .haut{gap:6px} .haut #btCalques,.haut #btFond,.haut #btImage{display:none} #btPlus{display:inline-flex} }
 @media (max-width:380px){ .haut{gap:4px;padding-left:8px;padding-right:8px} .haut .bt{padding:6px 8px} .haut a{padding:6px 10px} }
 #scene{position:fixed;inset:0;touch-action:none;display:block;background:var(--fond)}
-@media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:none} }
+/* la croix du curseur : c'est le curseur de la souris lui-même (dessiné par l'ordinateur, sans aucun retard) */
+@media (hover:hover) and (pointer:fine){ #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="33" height="33" shape-rendering="crispEdges"%3E%3Cpath d="M0 16.5h33M16.5 0v33" stroke="%23E5E9EF" stroke-width="1"/%3E%3Crect x="13.5" y="13.5" width="6" height="6" fill="none" stroke="%23E5E9EF" stroke-width="1"/%3E%3C/svg%3E') 16 16, crosshair} body.clair #scene.reticule{cursor:url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="33" height="33" shape-rendering="crispEdges"%3E%3Cpath d="M0 16.5h33M16.5 0v33" stroke="%23111827" stroke-width="1"/%3E%3Crect x="13.5" y="13.5" width="6" height="6" fill="none" stroke="%23111827" stroke-width="1"/%3E%3C/svg%3E') 16 16, crosshair} }
 body.clair #scene{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--haut,62px) + 16px) 20px 20px;text-align:center;overflow:auto}
 .accueil[hidden]{display:none}
@@ -1276,9 +1277,25 @@ function demanderGeste(){
   GESTE_T=setTimeout(function(){ GESTE=false; demander(); }, 140);
   if(DEMANDE) return; DEMANDE=true; requestAnimationFrame(function(){ DEMANDE=false; peindre(); });
 }
+/* la souris qui passe : l'accrochage se cherche une fois par image (pas à chaque mouvement),
+   et rien ne se repeint si rien n'a changé (la croix est le curseur lui-même) */
+var SURV_P=null, SURV_RAF=false;
+function suitSouris(){ return !!(D_PT || GEO_EC || A_PT || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF); }
+function memeSurvol(a, b){ var x=!!(a && a.acc), y=!!(b && b.acc); if(x!==y) return false; return !x || (a.genre===b.genre && a.pt[0]===b.pt[0] && a.pt[1]===b.pt[1]); }
+function survolSouris(p){
+  SURV_P=p; if(SURV_RAF) return; SURV_RAF=true;
+  requestAnimationFrame(function(){
+    SURV_RAF=false; if(!PLAN || G || !SURV_P) return;
+    var q=SURV_P, avant, apres;
+    if(MODE==="dessin"){ avant=D_SOURIS; apres=D_SOURIS=chercherD(q[0], q[1]); }
+    else { avant=SURVOL; apres=SURVOL=chercher(q[0], q[1]); }
+    if(!suitSouris() && !GUIDE && memeSurvol(avant, apres)) return;   /* une ligne de construction armée suit la souris */
+    demanderSurvol();
+  });
+}
 function demanderSurvol(){
   /* un tracé en cours suit la souris : là, tout se repeint */
-  if(D_PT || GEO_EC || A_PT || REF || (GUIDE && GUIDE.a) || MODE==="symb" || G || ZONE_ACTIF){ demander(); return; }
+  if(suitSouris() || G){ demander(); return; }
   if(DEMANDE) return; DEMANDE=true; requestAnimationFrame(function(){ DEMANDE=false; peindre(); });
 }
 function cacheValide(){ return CACHE.ok && !IMPRIME && cv===CACHE.ecran && CACHE.cv.width===cv.width && CACHE.cv.height===cv.height && CACHE.clair===CLAIR && CACHE.vue===vueD(); }
@@ -1297,7 +1314,6 @@ function peindreSurvol(){
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
   if(VISEE) loupe(VISEE.ecran);
   apercuGuide(c2);
-  peindreReticule(c2);
 }
 
 function couleurTrait(c){
@@ -1644,7 +1660,7 @@ cv.addEventListener("pointerdown", function(e){
 cv.addEventListener("pointermove", function(e){
   if(!PLAN) return;
   var p=pos(e);
-  if(!G){ if(e.pointerType==="mouse"){ if(MODE==="dessin") D_SOURIS=chercherD(p[0],p[1]); else SURVOL=chercher(p[0],p[1]); demanderSurvol(); } return; }
+  if(!G){ if(e.pointerType==="mouse") survolSouris(p); return; }
   if(DOIGTS[e.pointerId]) DOIGTS[e.pointerId]=p;
   if(G.pince){
     var ids=Object.keys(DOIGTS); if(ids.length<2) return;
@@ -8940,7 +8956,7 @@ var ACTIONS={
   guide2:["Oblique","guide2","Une ligne de construction par deux points touchés"],
   guidesEff:["Tout effacer","guidesEff","Effacer toutes les lignes de construction (une seule : Choisir, puis Supprimer)"],
   couleur:["Couleur","couleur","La couleur de l'élément choisi ou de la sélection (sinon : celle de son calque, dans Calques)"],
-  reticule:["Croix","reticule","La croix du curseur, sur toute la largeur et la hauteur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
+  reticule:["Croix","reticule","La croix du curseur, comme en DAO (souris)"], dxf:["DXF","dxf","Tout le plan en DXF, en millimètres, par calques"], image:["Image","image","Une image de la vue à l'écran"]
 };
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
@@ -9163,7 +9179,7 @@ function actionR(k){
     case "guideh": case "guidev": case "guide2": armerGuide(k.slice(5)); break;
     case "guidesEff": effacerGuides(); break;
     case "couleur": var bc=document.querySelector('#rbPanneau [data-r="a:couleur"]'); if(!cibleCouleur()){ toast("Choisissez d'abord un élément (Choisir) ou une sélection ; la couleur d'un calque se règle dans Calques, sur sa pastille.", 4500); break; } ouvrirPalette(bc, {element:true}); break;
-    case "reticule": RETICULE=!RETICULE; garder("dwg:reticule", RETICULE ? "1" : "0"); majReticule(); demander(); break;
+    case "reticule": RETICULE=!RETICULE; garder("dwg:reticule", RETICULE ? "1" : "0"); majReticule(); majRuban(); break;
     case "pdf": $("btPdf").click(); break;
     case "dxf": exporterDxf(); break;
     case "image": $("btImage").click(); break;
@@ -9357,7 +9373,7 @@ cv.addEventListener("pointerup", function(e){
   } else TOUCHER_AV={t:now, p:p, fin:true};
 }, true);
 
-var GUIDE=null, RETICULE=lire("dwg:reticule", "1")!=="0", CURSEUR=null;
+var GUIDE=null, RETICULE=lire("dwg:reticule", "1")!=="0";
 function guides(){ return (DESSIN && DESSIN.guides) || []; }
 function dirGuide(g){ return [Math.cos(g.a), Math.sin(g.a)]; }
 function guideSous(p){
@@ -9435,19 +9451,7 @@ function apercuGuide(c){
   }
   if(GUIDE && GUIDE.a){ var A=versEcran(GUIDE.a[0], GUIDE.a[1]); c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.fillStyle="#E879F9"; c.beginPath(); c.arc(A[0], A[1], 4, 0, Math.PI*2); c.fill(); c.restore(); }
 }
-/* la croix du curseur, à la souris : petite et fine (bras de 16 px, carré de 6 px, trait d'un pixel d'écran) */
-function peindreReticule(c){
-  if(IMPRIME || !RETICULE || !CURSEUR || !PLAN) return;
-  var x=Math.round(CURSEUR[0]*DPR)+0.5, y=Math.round(CURSEUR[1]*DPR)+0.5, b=Math.round(16*DPR), k=Math.round(3*DPR);
-  c.save(); c.setTransform(1,0,0,1,0,0); c.setLineDash([]);
-  c.strokeStyle=CLAIR ? "rgba(17,24,39,.85)" : "rgba(229,233,239,.85)"; c.lineWidth=1;
-  c.beginPath(); c.moveTo(x-b, y); c.lineTo(x+b, y); c.moveTo(x, y-b); c.lineTo(x, y+b); c.stroke();
-  c.strokeRect(x-k, y-k, 2*k, 2*k);
-  c.restore();
-}
 function majReticule(){ cv.classList.toggle("reticule", RETICULE && !!PLAN); }
-cv.addEventListener("pointermove", function(e){ if(e.pointerType!=="mouse"){ CURSEUR=null; return; } CURSEUR=pos(e); if(RETICULE && !G) demanderSurvol(); });
-cv.addEventListener("pointerleave", function(){ if(CURSEUR){ CURSEUR=null; demanderSurvol(); } });
 /* un toucher (sans glisser) pose la ligne ; le reste du toucher suit son cours (Choisir ne garde rien) */
 cv.addEventListener("pointerdown", function(e){ if(GUIDE && e.isPrimary && (e.pointerType!=="mouse" || e.button===0)) GUIDE.bas=[e.clientX, e.clientY]; else if(GUIDE) GUIDE.bas=null; }, true);
 cv.addEventListener("pointerup", function(e){
