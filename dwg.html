@@ -1938,7 +1938,9 @@ function lacher(e){
     }
     if(RELIER){ if(e.type!=="pointercancel" && !G.bouge) toucherRelier(symboleSous(p)); G=null; demander(); return; }
     if(e.type!=="pointercancel"){
-      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; GUIDES_S=null; }
+      if(G.symb!=null){ SEL=G.symb; if(G.garde) enregistrerSymb(); SYMB_ACC=null; GUIDES_S=null;
+        if(RELIER_ATT && !G.bouge){ RELIER_ATT=false; G=null; basculerRelier(true); majBarreSel(); majRuban(); toast("Touchez maintenant les symboles à relier ; le vide : terminé.", 3000); return; } }
+      else if(RELIER_ATT && !G.bouge){ RELIER_ATT=false; majRuban(); toast("Relier annulé : aucun symbole touché.", 2000); G=null; demander(); return; }
       else if(!G.bouge){
         if(ARME_S || garderOutil()) poserSymbole(versPlan(p[0], p[1]));
         else { SEL=-1; if(DEPUIS_CHOISIR){ var cibleU=objetSous(versPlan(p[0], p[1])); G=null; retourChoisir(cibleU); demander(); return; } }
@@ -1997,7 +1999,7 @@ document.addEventListener("keydown", function(e){
   /* Échap deux fois : retour à l'outil Choisir, rien de choisi */
   if(e.key==="Escape" && !champ && PLAN){
     var maint=Date.now();
-    if(maint-(ECHAP_T||0)<650){ ECHAP_T=0; setTimeout(function(){ retourChoisir(); }, 0); }
+    if(maint-(ECHAP_T||0)<650){ ECHAP_T=0; setTimeout(function(){ echapChoisir(); }, 0); }
     else ECHAP_T=maint;
   }
   /* R : un quart de tour de la sélection (ou de l'élément choisi), Maj+R dans l'autre sens */
@@ -2020,7 +2022,7 @@ document.addEventListener("keydown", function(e){
 });
 function defaire(){ if(A_PT) A_PT=null; else COTES.pop(); majBas(); demander(); }
 var ECHAP_T=0;
-function retourChoisir(){
+function echapChoisir(){
   if(!PLAN) return;
   GUIDE=null; A_PT=null; D_PT=null; GEO_EC=null; REF && fermerRef(); GRP=null; D_SEL=null; SEL=-1; ARME_S=false;
   if(typeof choisirOutilR==="function") choisirOutilR("choisir");
@@ -2053,7 +2055,7 @@ function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80)
    va-et-vient, bouton poussoir…), le départ reste la commande : on touche ses spots l'un après
    l'autre. Depuis une prise (ou un spot), la liaison suit : le symbole touché devient le départ
    du suivant, d'une prise à l'autre. Toucher le vide, ou le départ lui-même, termine. */
-var RELIER=false;
+var RELIER=false, RELIER_ATT=false;
 function idS(o){ if(!o.id) o.id="s"+Date.now().toString(36)+Math.random().toString(36).slice(2,7); return o.id; }
 function symbParId(id){ if(!id) return null; for(var i=0;i<SYMB.length;i++) if(SYMB[i].id===id) return SYMB[i]; return null; }
 function relies(a, b){ return !!(a.id && b.id) && ((a.lien||[]).indexOf(b.id)>=0 || (b.lien||[]).indexOf(a.id)>=0); }
@@ -2071,6 +2073,7 @@ function basculerLien(a, b){
   delier(a, b.id); delier(b, a.id); return "delie";
 }
 function basculerRelier(v){
+  RELIER_ATT=false;
   RELIER = v===undefined ? !RELIER : !!v;
   if(RELIER && (MODE!=="symb" || SEL<0 || vueD()!=="dessus")) RELIER=false;
   if(RELIER) ARME_S=false;
@@ -9485,7 +9488,7 @@ function majRuban(){
     else if(k==="mesurer") on = !!PLAN && MODE==="cote";
     else if(k==="calques") on = !$("calques").hidden;
     else if(k==="quantites") on = !$("quantites").hidden;
-    else if(k==="relier") on = RELIER;
+    else if(k==="relier") on = RELIER || RELIER_ATT;
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
     else if(/^guide[hv2]$/.test(k)) on = !!GUIDE && GUIDE.mode===k.slice(5);
@@ -9499,7 +9502,7 @@ function majRuban(){
       else if(k==="etalonner") off = !!PLAN.vierge;
       else if(k==="enregch") off = !estCA();
       else if(/^guide/.test(k)) off = VUE_D!=="dessus" || (k==="guidesEff" && !guides().length);
-      else if(k==="relier") off = !(MODE==="symb" && SEL>=0) && !RELIER;
+      else if(k==="relier") off = VUE_D!=="dessus";
       else if(t==="o:" && VUE_D!=="dessus" && !outilVueRuban(k)) off = true;
     }
     b.classList.toggle("on", !!on); b.disabled=!!off;
@@ -9518,7 +9521,7 @@ function choisirOutilR(o){
   if(!PLAN) return;
   GUIDE=null;
   DEPUIS_CHOISIR=false;
-  if(RELIER) basculerRelier(false);
+  RELIER_ATT=false; if(RELIER) basculerRelier(false);
   var fam = (o==="choisir" || o==="selection") ? (FAM_D==="pv" ? "plan" : (FAM_D||"plan")) : famDe(o);
   if(MODE!=="dessin") basculerMode("dessin");
   if(FAM_D!==fam){ var bf=$("segFamD").querySelector('button[data-f="'+fam+'"]'); if(bf) bf.click(); }
@@ -9528,7 +9531,7 @@ function choisirSymboleR(cle){
   if(!PLAN) return;
   GUIDE=null;
   DEPUIS_CHOISIR=false;
-  if(RELIER) basculerRelier(false);
+  RELIER_ATT=false; if(RELIER) basculerRelier(false);
   if(MODE!=="symb") basculerMode("symb");
   var b=$("palette").querySelector('button[data-cle="'+cle+'"]');
   if(b) b.click(); else { CHOIX=cle; ARME_S=true; garder("dwg:symbole", CHOIX); SEL=-1; majSymb(); }
@@ -9577,7 +9580,15 @@ function actionR(k){
     case "chantier": case "plans": ouvrirFenSite(); break;
     case "vierge": nouveauVierge(); break;
     case "fond": if(MODE!=="dessin") basculerMode("dessin"); $("btFondD").click(); break;
-    case "relier": basculerRelier(); break;
+    case "relier":
+      /* rien de choisi : on touche d'abord le symbole de départ (l'interrupteur), puis ceux à relier */
+      if(!RELIER && (MODE!=="symb" || SEL<0)){
+        if(vueD()!=="dessus"){ toast("Les liaisons se font en vue de dessus."); break; }
+        if(MODE!=="symb") basculerMode("symb");
+        SEL=-1; ARME_S=false; RELIER_ATT=true; majSymb(); majRuban();
+        toast("Relier : touchez le symbole de départ (l'interrupteur), puis ses points lumineux.", 4000); break;
+      }
+      basculerRelier(); break;
     case "quantites": peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; break;
     case "etudepv": choisirOutilR("pvchamp"); $("btEtudePv").click(); break;
     case "v3d": $("btVue3d").click(); break;
