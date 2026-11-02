@@ -7765,6 +7765,12 @@ $("fsCherche").addEventListener("input", peindreSite);
   var cle=new URLSearchParams(location.search).get("cle")||"";
   if(cle && /\.(pdf|jpe?g|png|webp|dwg|dxf)$/i.test(cle)) setTimeout(function(){ ouvrirDuSite(cle, cle.split("/").pop()); }, 50);
 })();
+/* iPhone / iPad : le sélecteur de fichiers grise les .dwg et .dxf (iOS ne connaît pas ces types).
+   On y laisse tout choisir ; ouvrirFichier refuse ensuite ce qui n'est pas un plan. */
+(function(){
+  var ios=/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+  if(ios) $("fichier").removeAttribute("accept");
+})();
 $("fichier").addEventListener("change", function(){ var f=this.files[0]; this.value=""; ouvrirFichier(f); });
 ["dragenter","dragover"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.add("survol"); }); });
 ["dragleave","drop"].forEach(function(t){ document.addEventListener(t, function(e){ e.preventDefault(); $("depot").classList.remove("survol"); }); });
