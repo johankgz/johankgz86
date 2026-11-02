@@ -272,7 +272,8 @@
       var s=trouver(p.cle); if(!s) return;
       var t=p.taille||1;
       /* p.etirer : une réglette, allongée à sa longueur réelle */
-      g(0,"INSERT", 8,CALQUES[s.groupe], 62,p.aci||ACI[s.couleur]||7, 2,s.dxf, 10,p.x, 20,p.y, 30,0, 41,t*(p.etirer||1), 42,t, 43,t, 50,p.rot||0);
+      /* p.calque : un calque choisi par l'utilisateur (« Fenêtres pièce 1 »), sinon celui de sa famille */
+      g(0,"INSERT", 8,p.calque||CALQUES[s.groupe], 62,p.aci||ACI[s.couleur]||7, 2,s.dxf, 10,p.x, 20,p.y, 30,0, 41,t*(p.etirer||1), 42,t, 43,t, 50,p.rot||0);
       if(p.texte){ var bb=boite(s.cle); g(0,"TEXT", 8,"ELEC-REPERES", 62,ACI[s.couleur]||7, 10,p.x+t*(bb.x1+0.3), 20,p.y-t*0.4, 30,0, 40,t*0.8, 1,String(p.texte).replace(/[\r\n]+/g," ")); }
       /* le texte au-dessus (hauteur de pose, prise spécialisée) : du côté de la pièce, droit, centré */
       if(p.dessus){
