@@ -827,6 +827,15 @@ depot.addEventListener("drop", function(e){ if(e.dataTransfer && e.dataTransfer.
 /* ---------- l'analyse ---------- */
 var RESULTAT=null, PAGE=0, minuteur=null;
 var ETAPES=["Lecture de la légende…","Reconstruction des symboles…","Comptage sur le plan…","Rattachement aux niveaux et aux pièces…","Dessin des plans annotés…"];
+/* l'analyse : jamais d'attente sans fin. Le serveur coupe à 170 s ; ici, rien après 200 s
+   (un relais qui perd la réponse) : on le dit, et on propose de relancer sans images */
+var DELAI_ANALYSE=200000;
+function relancerSansImages(){
+  var r=document.createElement("button"); r.type="button"; r.className="second"; r.style.marginTop="8px";
+  r.textContent="Relancer sans images annotées (bien plus rapide)";
+  r.addEventListener("click", function(){ $("zoom").value="0"; r.remove(); $("analyser").click(); });
+  $("err").appendChild(document.createElement("br")); $("err").appendChild(r);
+}
 $("analyser").addEventListener("click", function(){
   if(!FICHIER) return;
   var fd=new FormData(); fd.append("file", FICHIER, FICHIER.name);
@@ -841,16 +850,29 @@ $("analyser").addEventListener("click", function(){
   minuteur=setInterval(function(){
     var s=Math.round((Date.now()-debut)/1000);
     $("encoursTemps").textContent=s+" s";
-    $("encoursTexte").textContent=ETAPES[Math.min(ETAPES.length-1, Math.floor(s/4))];
+    $("encoursTexte").textContent=ETAPES[Math.min(ETAPES.length-1, Math.floor(s/4))]
+      + (s>=30 ? " Un grand plan (A1, A0, plusieurs pages) peut prendre jusqu'à 3 minutes." : "");
   }, 500);
-  fetch("/api/plan?"+q.join("&"), {method:"POST", headers:{"x-auth":S.jeton}, body:fd})
+  var delai=window.__delaiAnalyse || DELAI_ANALYSE;   /* (__delaiAnalyse : pour les essais) */
+  var ctrl=window.AbortController ? new AbortController() : null, coupe=setTimeout(function(){ if(ctrl) ctrl.abort(); }, delai);
+  fetch("/api/plan?"+q.join("&"), {method:"POST", headers:{"x-auth":S.jeton}, body:fd, signal:ctrl ? ctrl.signal : undefined})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }, function(){ return {ok:false, d:{erreur:"Réponse illisible (HTTP "+r.status+")."}}; }); })
     .then(function(res){
-      clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
-      if(!res.ok){ $("err").textContent=res.d.erreur||"Analyse impossible."; return; }
+      clearTimeout(coupe); clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
+      if(!res.ok){
+        $("err").textContent=res.d.erreur||"Analyse impossible.";
+        if(/trop de temps|HTTP 50[234]/.test($("err").textContent) && z!=="0"){ $("err").textContent+=" Choisissez une seule page (« Page du PDF »), ou relancez sans images."; relancerSansImages(); }
+        return;
+      }
       RESULTAT=res.d; PAGE=0; afficher();
     })
-    .catch(function(){ clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false; $("err").textContent="Pas de réseau."; });
+    .catch(function(e){
+      clearTimeout(coupe); clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
+      if(e && e.name==="AbortError"){
+        $("err").textContent="Le serveur n'a pas répondu en "+Math.round(delai/1000)+" s : le plan est sans doute trop lourd à annoter.";
+        if(z!=="0") relancerSansImages(); else $("err").textContent+=" Essayez une seule page (« Page du PDF »).";
+      } else $("err").textContent="Pas de réseau.";
+    });
 });
 
 function pagesDe(r){ return r && r.pages ? r.pages : (r ? [r] : []); }
