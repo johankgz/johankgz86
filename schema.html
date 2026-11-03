@@ -537,7 +537,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
 </header>
 <main class="sch">
   <div class="bandeau" id="reprise" hidden><span id="repriseTxt"></span><button type="button" class="or" id="repriseOui">Le rouvrir</button><button type="button" id="repriseNon">Partir d'un schéma vide</button></div>
-  <div class="bandeau" id="astuce" hidden><span>Touchez une case du dessin pour y poser un symbole. Reliez ensuite les colonnes par des lignes, et remplissez le tableau du bas. Ou partez d'un modèle.</span><button type="button" id="astuceOk">Compris</button></div>
+  <div class="bandeau" id="astuce" hidden><span>Touchez une case du dessin pour y poser un symbole : il se relie tout seul au rang au-dessus (le disjoncteur à son différentiel). Remplissez ensuite le tableau du bas. Ou partez d'un modèle.</span><button type="button" id="astuceOk">Compris</button></div>
   <div class="outils-sch">
     <button type="button" id="btnAnnuler" disabled>Annuler</button>
     <button type="button" id="btnColonne">+ Colonne</button>
@@ -591,7 +591,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
   <h2>Partir d'un modèle</h2>
   <button type="button" class="modele" data-modele="mono">Maison monophasée<small>Arrivée, parafoudre, 2 différentiels, 7 circuits</small></button>
   <button type="button" class="modele" data-modele="triPV">Triphasé avec photovoltaïque<small>3 différentiels, PAC, borne de recharge, départ PV avec onduleur</small></button>
-  <button type="button" class="modele" data-modele="vierge">Schéma vide<small>Quatre colonnes vides</small></button>
+  <button type="button" class="modele" data-modele="vierge">Schéma vide<small>Neuf colonnes vides</small></button>
   <button type="button" class="modele" id="btnEtiquettes">Reprendre les étiquettes du tableau<small>Les circuits de la fiche Étiquettes de ce chantier, rangés sous leurs différentiels</small></button>
   <div class="pied"><button type="button" class="fermer">Fermer</button></div>
 </section>
@@ -977,9 +977,13 @@ function cadre(T){
     T.t(g+bande/2,y+pasy/2+4,String.fromCharCode(65+j),10,{anchor:"middle",gris:true});
   }
 }
+/* une colonne sans symbole ni texte au tableau du bas */
+function colonneSansRien(c){ for(var n in (c.cases||{})) if(c.cases[n] && SYMBOLES[c.cases[n].sym]) return false; for(var k in (c.table||{})) if(String(c.table[k]||"").trim()) return false; return true; }
 function folios(S){
-  var n=Math.max(1, Math.ceil(S.colonnes.length/COLS_PAR_FOLIO));
-  var out=[]; for(var i=0;i<n;i++) out.push(S.colonnes.slice(i*COLS_PAR_FOLIO, (i+1)*COLS_PAR_FOLIO));
+  /* au PDF, les colonnes vides du bout (celles d'avance de l'écran) ne s'impriment pas */
+  var l=S.colonnes; if(!EDITION){ var k=l.length; while(k>1 && colonneSansRien(l[k-1])) k--; l=l.slice(0, k); }
+  var n=Math.max(1, Math.ceil(l.length/COLS_PAR_FOLIO));
+  var out=[]; for(var i=0;i<n;i++) out.push(l.slice(i*COLS_PAR_FOLIO, (i+1)*COLS_PAR_FOLIO));
   return out;
 }
 function xDe(i){ return X_COLS + i*COL + COL/2; }
@@ -1418,10 +1422,13 @@ function appel(action, corps, query){
 var LIGNES_DEFAUT=[{id:"repere",nom:"Repère"},{id:"designation",nom:"Désignation"},{id:"protection",nom:"Protection"},
   {id:"cable",nom:"Câble"},{id:"section",nom:"Section"}];
 function colonneVide(){ return {id:uid(), cases:{}, table:{}, auto:{}, fils:0}; }
+/* à l'ouverture, au moins neuf colonnes : de la place pour poser, sans cliquer sur « + » */
+var MIN_COLONNES=9;
+function auMoinsNeuf(x){ x.colonnes=x.colonnes||[]; while(x.colonnes.length<MIN_COLONNES) x.colonnes.push(colonneVide()); return x; }
 function vierge(ch){
   return {version:1, chantier:ch||{ref:"",client:"",adresse:""}, tableau:"TGBT", indice:"A", date:aujourdhui(),
     auteur:(SESSION&&SESSION.nom)||"", societe:(SESSION&&SESSION.societeNom)||"", mail:(SESSION&&SESSION.email)||"", remarques:"",
-    colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], cadres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
+    colonnes:auMoinsNeuf({colonnes:[]}).colonnes, barres:[], cadres:[], lignes:LIGNES_DEFAUT.slice(), publie:null};
 }
 var S=null, F=0, SEL=null, ZOOM=1, HISTO=[], REDO=[];
 
@@ -1961,7 +1968,7 @@ $("btnModeles").addEventListener("click", function(){ ouvrirFenetre("fModeles");
 function remplacer(nouveau, message){
   var plein=S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
   if(plein && !window.confirm("Remplacer le schéma en cours ? (« Annuler » en haut le fait revenir)")) return false;
-  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; delete S.liens; });
+  changer(function(){ S.colonnes=nouveau.colonnes; auMoinsNeuf(S); S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; delete S.liens; });
   F=0; fermerFenetres(); fermerPanneau(); toast(message); return true;
 }
 function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=table||{}; for(var k in c.table) c.auto[k]=false; return c; }
@@ -1998,7 +2005,7 @@ var MODELES={
     return {colonnes:cols, barres:[{id:uid(),niveau:"A",de:a.id,a:pv.id},{id:uid(),niveau:"B",de:i1.id,a:c4.id},
       {id:uid(),niveau:"B",de:i2.id,a:c6.id},{id:uid(),niveau:"B",de:i3.id,a:c8.id}]};
   },
-  vierge:function(){ return {colonnes:[colonneVide(),colonneVide(),colonneVide(),colonneVide()], barres:[], lignes:LIGNES_DEFAUT.slice()}; }
+  vierge:function(){ return {colonnes:auMoinsNeuf({colonnes:[]}).colonnes, barres:[], lignes:LIGNES_DEFAUT.slice()}; }
 };
 [].forEach.call(document.querySelectorAll("[data-modele]"), function(b){
   b.addEventListener("click", function(){ remplacer(MODELES[b.getAttribute("data-modele")](), "Modèle posé : modifiez-le à votre guise."); });
@@ -2565,7 +2572,7 @@ var REP_TOUS=null;
 function sansAccent(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
 /* un schéma repris prend sa place : l'adresse de la page suit son chantier (pour la retrouver en rechargeant) */
 function installerSchema(d, message){
-  S=d; S.modifie=false; HISTO=[]; $("btnAnnuler").disabled=true; F=0;
+  S=auMoinsNeuf(d); S.modifie=false; HISTO=[]; $("btnAnnuler").disabled=true; F=0;
   try{ var q=new URLSearchParams(location.search); q.set("ref", S.chantier.ref||""); q.delete("cle"); q.delete("cloud"); q.delete("client"); q.delete("adresse"); history.replaceState(null, "", location.pathname+"?"+q.toString()); }catch(e){}
   sauver(); peindre(); fermerFenetres(); fermerPanneau(); toast(message);
 }
@@ -2685,6 +2692,7 @@ function demarrer(){
   var brut=null; try{ brut=localStorage.getItem(cleLocale(ref)); }catch(e){}
   if(brut){ try{ S=JSON.parse(brut); }catch(e){ S=null; } }
   if(!S) S=vierge({ref:ref, client:client, adresse:adresse});
+  auMoinsNeuf(S);
   if(regleDifferentiels()) sauver();
   if(client && !S.chantier.client) S.chantier.client=client;
   if(adresse && !S.chantier.adresse) S.chantier.adresse=adresse;
