@@ -1,4 +1,4 @@
-/* L'outil Adresses de groupe KNX. Ce fichier n'est jamais servi tel quel :
+/* L'outil KNX installation & chiffrage (les adresses de groupe et le chiffrage). Ce fichier n'est jamais servi tel quel :
    le serveur ne le livre (action knx-outil) qu'à une personne connectée
    qui a son code d'accès, ou à l'administrateur. */
 (function(){

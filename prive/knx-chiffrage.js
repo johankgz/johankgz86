@@ -513,9 +513,9 @@ function construire(){
     var chif = v==="chiffrage";
     $("outil").hidden=chif; main.hidden=!chif;
     Array.prototype.forEach.call(nav.querySelectorAll("button"), function(b){ b.setAttribute("aria-pressed", b.dataset.vue===v ? "true" : "false"); });
-    var h=document.querySelector("header h1"); if(h) h.textContent = chif ? "Chiffrage KNX" : "Adresses de groupe KNX";
+    var h=document.querySelector("header h1"); if(h) h.textContent = chif ? "Chiffrage KNX" : "KNX installation & chiffrage";
     if($("total")) $("total").style.visibility = chif ? "hidden" : "";      /* le compte des adresses : seulement dans leur vue */
-    document.title = (chif ? "Chiffrage KNX" : "Adresses KNX")+" — Suivi travaux 360";
+    document.title = (chif ? "Chiffrage KNX" : "KNX installation & chiffrage")+" — Suivi travaux 360";
     try{ localStorage.setItem("knx:vue", v); }catch(e){}
     if(chif){ peindre(); chargerListe(); }
   };

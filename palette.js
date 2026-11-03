@@ -54,7 +54,7 @@
     ["./utilitaires.html#surface", "Surface", "utilitaires", "m2 outil"],
     ["./utilitaires.html#croix", "Produit en croix", "utilitaires", "regle de trois outil"],
     ["./dwg.html", "Plan", "plan", "dwg dxf 3d toiture photovoltaique"],
-    ["./knx.html", "Adresses de groupe KNX", "", "domotique ets"],
+    ["./knx.html", "KNX installation & chiffrage", "", "domotique ets adresses de groupe"],
     ["./notes.html", "To do list", "", "taches listes"],
     ["./mesnotes.html", "Notes", "", "note carnet stylet ecriture dossier"],
     ["./discussions.html", "Discussions", "", "messages groupe pole equipe photo croquis fichier"],

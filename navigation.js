@@ -49,7 +49,7 @@ var OUTILS=[
   ["./utilitaires.html#boussole", "Boussole", "utilitaires"], ["./utilitaires.html#niveau", "Niveau", "utilitaires"], ["./utilitaires.html#calcul", "Calculatrice", "utilitaires"],
   ["./utilitaires.html#conversion", "kW · A", "utilitaires"], ["./utilitaires.html#cable", "Câble", "utilitaires"], ["./utilitaires.html#surface", "Surface", "utilitaires"],
   ["./utilitaires.html#croix", "Produit en croix", "utilitaires"], ["./utilitaires.html#refs", "Bibliothèque", "utilitaires"],
-  ["./dwg.html", "Plan", "plan"], ["./knx.html", "KNX"],
+  ["./dwg.html", "Plan", "plan"], ["./knx.html", "KNX installation & chiffrage"],
   /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
   ["./importer.html", "Importer et exporter", "importer"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
   ["./etiquettes.html", "Étiquettes", "etiquettes"],
