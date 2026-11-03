@@ -2625,7 +2625,9 @@ function photosDe(f){
 }
 window.Dossier={
   quandLisible:quandLisible, frDate:frDate,
-  photosDe:photosDe, equipe:equipeDans, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
+  photosDe:photosDe, equipe:equipeDans,
+  /* la visionneuse plein écran (flèches, zoom, Partager, Enregistrer) : pour l'album du chantier */
+  pleinEcran:function(f, photos, urls, depart, quandFerme){ pleinEcran(f, photos, urls, depart, quandFerme, false); }, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
   moi:function(m){ MOI=m; },
   carte:carteDossier,

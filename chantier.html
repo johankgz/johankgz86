@@ -1132,18 +1132,21 @@ body.avec-rub main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
   background:transparent;color:#3B82F6;font:inherit;font-size:14px;font-weight:700;cursor:pointer}
 .eq-plus svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round}
 .eq-plus[aria-expanded="true"]{background:#3B82F6;color:#fff;border-style:solid}
-/* la galerie de la rubrique Photos (ordinateur) : chaque photo, à glisser seule vers l'ordinateur */
+/* l'album de la rubrique Photos (ordinateur) : toutes les photos, par date d'ajout */
+.rg-tete{display:flex;align-items:center;gap:12px;justify-content:space-between;margin:0 0 6px}
+.rg-tete b{font-size:15px}
+.rg-lots{min-height:34px;padding:0 14px;border-radius:999px;border:1px solid var(--rule,#d3d9e4);background:transparent;color:inherit;font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+.rg-jour{margin:16px 0 8px;font-size:14px;font-weight:700;color:var(--ink-2)}
+#docs.rg-sans-lots{display:none}
 .rub-galerie .rg-aide{margin:0 0 10px}
 .rg-lot{margin:0 0 14px}
 .rg-lot h3{margin:0 0 6px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
 .rg-lot h3 small{font-weight:500;color:var(--ink-3);margin-left:6px}
-.rg-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px}
-.rg-ph{position:relative;aspect-ratio:4/3;border-radius:8px;overflow:hidden;background:var(--field);cursor:grab;border:0;padding:0}
+.rg-grille{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:3px}
+.rg-ph{position:relative;aspect-ratio:1/1;border-radius:4px;overflow:hidden;background:var(--field);cursor:zoom-in;border:0;padding:0}
 .rg-ph img{display:block;width:100%;height:100%;object-fit:cover;pointer-events:none}
-.rg-ph:active{cursor:grabbing}
 .rg-ph:focus-visible{outline:3px solid #3B82F6;outline-offset:2px}
-.rg-ph .dl{position:absolute;right:6px;bottom:6px;padding:2px 7px;border-radius:999px;background:rgba(10,14,20,.7);color:#fff;font-size:11px;font-weight:600;opacity:0;transition:opacity .15s}
-.rg-ph:hover .dl{opacity:1}
+.rg-ph:hover img{filter:brightness(1.08)}
 .rg-attente{font-size:13px;color:var(--ink-3);padding:6px 0}
 /* une rubrique : seulement ses documents, ouverts */
 body.rub-docs #docs .travaux > .head,body.rub-docs #docs .travaux > .actions{display:none!important}
@@ -1181,7 +1184,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
   <div class="rub-vue" id="rubVue" hidden><h2 id="rubNom"></h2><p id="rubSous"></p><div class="rub-act" id="rubAct"></div></div>
   <div class="rub-vide" id="rubVide" hidden></div>
   <div class="block rub-galerie" id="rubGalerie" hidden>
-    <p class="hint rg-aide">Glissez une photo vers l'ordinateur, ou cliquez-la.</p>
+    
     <div id="rubGalerieLots"></div>
   </div>
   <div class="block entete-chantier" id="entete">
@@ -1324,7 +1327,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
-<script src="./dossier.js?v=20261106c"></script>
+<script src="./dossier.js?v=20261106d"></script>
 <script src="./transfert.js?v=20261106a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2842,60 +2845,80 @@ function photosDuChantier(){
     return photo && /\.(zip|jpe?g|png|webp)$/i.test(f.cle||"");
   }).sort(function(a, b){ return String(b.publie||b.date||"").localeCompare(String(a.publie||a.date||"")); });
 }
+/* Un seul album pour toutes les photos du chantier, comme la photothèque d'un téléphone :
+   les plus récentes en haut, rangées sous la date où elles ont été ajoutées. Un clic ouvre
+   la photo en grand ; les flèches (ou le clavier) passent aux autres, Partager et
+   Enregistrer sont dans la visionneuse. Les lots (les documents) restent à un clic. */
+var ALBUM_LOTS=false;
+function jourAlbum(iso){
+  var d=new Date(iso||0); if(isNaN(d)) return "Sans date";
+  var j=new Date(); j.setHours(0,0,0,0); var x=new Date(d); x.setHours(0,0,0,0);
+  var ecart=Math.round((j-x)/864e5);
+  if(ecart===0) return "Aujourd'hui"; if(ecart===1) return "Hier";
+  var t=d.toLocaleDateString("fr-FR", {weekday:"long", day:"numeric", month:"long", year: d.getFullYear()===j.getFullYear() ? undefined : "numeric"});
+  return t.charAt(0).toUpperCase()+t.slice(1);
+}
 function peindreGalerie(){
   var bloc=$("rubGalerie"); if(!bloc) return;
   var voir = rubCourante()[0]==="photos" && surOrdinateurIci() && !!CHANTIER && !!(window.Dossier && Dossier.photosDe);
   var lots = voir ? photosDuChantier() : [];
   bloc.hidden = !lots.length;
+  /* l'album à la place de la liste des lots ; « Les lots de photos » la remet */
+  var docs=$("docs"); if(docs) docs.classList.toggle("rg-sans-lots", !!lots.length && !ALBUM_LOTS);
   if(!lots.length) return;
   var cle=lots.map(function(f){ return f.cle+"|"+(f.publie||""); }).join(",");
   if(GALERIE.cle===cle) return;                     /* déjà là */
   GALERIE.urls.forEach(function(u){ try{ URL.revokeObjectURL(u); }catch(e){} });
-  GALERIE={cle:cle, urls:[]};
+  GALERIE={cle:cle, urls:[], photos:[]};
   var hote=$("rubGalerieLots"); hote.textContent="";
-  var file=lots.slice(0, 20);
-  function suivant(){
-    if(!file.length || GALERIE.cle!==cle) return;
-    var f=file.shift();
-    var lot=document.createElement("div"); lot.className="rg-lot";
-    var h=document.createElement("h3"); h.textContent=f.titre || f.visite || "Photos";
-    var sm=document.createElement("small"); sm.textContent=frDate(f.date)+(f.auteur ? " · "+f.auteur : ""); h.appendChild(sm);
-    var g=document.createElement("div"); g.className="rg-grille";
-    var att=document.createElement("p"); att.className="rg-attente"; att.textContent="Chargement des photos…";
-    lot.appendChild(h); lot.appendChild(att); lot.appendChild(g); hote.appendChild(lot);
-    Dossier.photosDe(f).then(function(ps){
-      if(GALERIE.cle!==cle) return;
-      att.remove();
-      if(!ps.length){ lot.remove(); return; }
-      ps.forEach(function(p, i){
-        var url=URL.createObjectURL(p.blob); GALERIE.urls.push(url);
-        var base=(f.titre||"Photos").replace(/[\/\\:*?"<>|]+/g, " ").trim()+(ps.length>1 ? " - "+(i+1) : "")+(/\.png$/i.test(p.nom) ? ".png" : ".jpg");
-        /* sans accents ni signes : le nom passe tel quel dans tous les navigateurs et sur le bureau */
-        var nom=Dossier.nomAvecChantier(CHANTIER.ref, base).normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-          .replace(/[^A-Za-z0-9 ._()'-]+/g, " ").replace(/\s+/g, " ").trim();
-        var fichier=null; try{ fichier=new File([p.blob], nom, {type:p.blob.type||"image/jpeg"}); }catch(e){}
-        var t=document.createElement("button"); t.type="button"; t.className="rg-ph"; t.draggable=true;
-        t.title=nom+" — glissez vers l'ordinateur, ou cliquez pour l'enregistrer";
-        t.setAttribute("aria-label", "Photo "+(i+1)+" : "+nom);
-        var im=document.createElement("img"); im.alt=""; im.loading="lazy"; im.src=url; t.appendChild(im);
-        var dl=document.createElement("span"); dl.className="dl"; dl.textContent="Glisser"; t.appendChild(dl);
-        t.addEventListener("dragstart", function(e){
-          if(!e.dataTransfer) return;
-          try{ e.dataTransfer.clearData(); }catch(er){}
-          try{ e.dataTransfer.setData("DownloadURL", (p.blob.type||"image/jpeg")+":"+nom+":"+url); }catch(er){}
-          if(fichier){ try{ e.dataTransfer.items.add(fichier); }catch(er){} }
-          try{ e.dataTransfer.effectAllowed="copy"; }catch(er){}
-        });
-        /* un clic : l'enregistrer (dans Téléchargements) */
-        t.addEventListener("click", function(){
-          var a=document.createElement("a"); a.href=url; a.download=nom; document.body.appendChild(a); a.click(); setTimeout(function(){ a.remove(); }, 500);
-        });
-        g.appendChild(t);
-      });
-      suivant();
-    }).catch(function(){ att.textContent="Ce lot n'a pas pu être lu (réseau)."; suivant(); });
+  var att=document.createElement("p"); att.className="rg-attente"; att.textContent="Chargement des photos…"; hote.appendChild(att);
+  var lus=0, a_lire=lots.slice(0, 60);
+  /* les lots se lisent tous (quatre à la fois), puis l'album se peint d'un coup, dans l'ordre */
+  var par=[], file=a_lire.map(function(f, i){ return i; });
+  function un(){
+    if(!file.length) return Promise.resolve();
+    var i=file.shift(), f=a_lire[i];
+    return Dossier.photosDe(f).then(function(ps){ par[i]=ps.map(function(p, k){ return {f:f, p:p, k:k, n:ps.length}; }); }, function(){ par[i]=[]; })
+      .then(function(){ lus++; att.textContent="Chargement des photos… ("+lus+"/"+a_lire.length+" lots)"; return un(); });
   }
-  suivant();
+  Promise.all([un(), un(), un(), un()]).then(function(){
+    if(GALERIE.cle!==cle) return;
+    var toutes=[].concat.apply([], par.filter(Boolean));
+    /* la date d'ajout : la publication du lot ; les plus récentes d'abord, dans l'ordre du lot */
+    toutes.sort(function(x, y){ var a=String(x.f.publie||x.f.date||""), b=String(y.f.publie||y.f.date||""); return b.localeCompare(a) || x.k-y.k; });
+    hote.textContent="";
+    if(!toutes.length){ var v=document.createElement("p"); v.className="rg-attente"; v.textContent="Aucune photo lisible dans les lots."; hote.appendChild(v); return; }
+    var tete=document.createElement("div"); tete.className="rg-tete";
+    var nb=document.createElement("b"); nb.textContent=toutes.length+" photo"+(toutes.length>1?"s":""); tete.appendChild(nb);
+    var bl=document.createElement("button"); bl.type="button"; bl.className="rg-lots"; bl.textContent=ALBUM_LOTS ? "Cacher les lots de photos" : "Les lots de photos";
+    bl.title="La liste des lots (les documents du dossier), pour les renommer, les déplacer ou les supprimer";
+    bl.addEventListener("click", function(){ ALBUM_LOTS=!ALBUM_LOTS; bl.textContent=ALBUM_LOTS ? "Cacher les lots de photos" : "Les lots de photos"; if(docs) docs.classList.toggle("rg-sans-lots", !ALBUM_LOTS); });
+    tete.appendChild(bl); hote.appendChild(tete);
+    var urls=[], photos=[], jour=null, grille=null;
+    toutes.forEach(function(x, i){
+      var url=URL.createObjectURL(x.p.blob); GALERIE.urls.push(url); urls.push(url);
+      photos.push({nom:x.p.nom, blob:x.p.blob, octets:null, type:x.p.blob.type||"image/jpeg"});
+      var j=jourAlbum(x.f.publie||x.f.date);
+      if(j!==jour){
+        jour=j;
+        var h=document.createElement("h3"); h.className="rg-jour"; h.textContent=j; hote.appendChild(h);
+        grille=document.createElement("div"); grille.className="rg-grille"; hote.appendChild(grille);
+      }
+      var t=document.createElement("button"); t.type="button"; t.className="rg-ph";
+      var lib=(x.f.titre||"Photos")+(x.n>1 ? " · "+(x.k+1)+"/"+x.n : "");
+      t.title=lib+" — cliquez pour l'ouvrir"; t.setAttribute("aria-label", "Photo "+(i+1)+" : "+lib);
+      var im=document.createElement("img"); im.alt=""; im.loading="lazy"; im.decoding="async"; im.src=url; im.draggable=false; t.appendChild(im);
+      t.addEventListener("click", function(){ ouvrirAlbum(i); });
+      grille.appendChild(t);
+    });
+    GALERIE.photos=photos;
+    /* la visionneuse lit les octets de chaque photo (Partager, Enregistrer) : lus avant de l'ouvrir */
+    function ouvrirAlbum(depart){
+      Promise.all(photos.map(function(ph){ return ph.octets ? null : ph.blob.arrayBuffer().then(function(b){ ph.octets=new Uint8Array(b); }); })).then(function(){
+        Dossier.pleinEcran({titre:"Photos du chantier", cle:CHANTIER.ref+"/album"}, photos, urls, depart, function(){});
+      });
+    }
+  });
 }
 (function(){
   $("rubBtn").addEventListener("click", function(){ ouvrirTiroir(!document.body.classList.contains("rub-ouvert")); });
