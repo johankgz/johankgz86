@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan</title>
-<script src="./symboles-elec.js?v=20261106c"></script>
+<script src="./symboles-elec.js?v=20261107a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -537,6 +537,9 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .v3-alerte p{margin:4px 0 0;font-size:11.5px;opacity:.85}
 .champ-h{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;color:var(--ink2)}
 .champ-h[hidden]{display:none}
+.grp-zones select{min-height:34px;padding:6px 10px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px}
+.zones-noms{display:inline-flex;gap:6px;flex-wrap:nowrap}
+.zones-noms input{width:96px!important;text-align:left!important}
 .champ-h input{width:64px;min-height:34px;padding:6px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:#0B0E12;color:var(--ink);font-size:14px;text-align:center}
 </style>
 <script src="./clavier.js?v=20261022a" defer></script>
@@ -829,6 +832,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> <span class="u-saisie">cm</span></label>
     <label class="champ-h" id="grpHvSym" hidden><input id="symbHv" type="checkbox"> Écrire la hauteur</label>
     <input class="champ-rep" id="symbTs" type="text" autocomplete="off" maxlength="20" placeholder="Texte (LL, LV…)" aria-label="Texte de la prise spécialisée" hidden>
+    <span class="champ-h grp-zones" id="grpZones" hidden><label for="symbZones">Multizone</label> <select id="symbZones" aria-label="Nombre de zones du gainable"><option value="0">non</option><option value="1">1 zone</option><option value="2">2 zones</option><option value="3">3 zones</option><option value="4">4 zones</option><option value="5">5 zones</option><option value="6">6 zones</option></select><span class="zones-noms" id="symbZonesNoms"></span></span>
     <datalist id="hTypes"><option value="30 cm" label="prise"><option value="70 cm" label="prise au-dessus du chevet"><option value="90 cm" label="interrupteur de tête de lit"><option value="110 cm" label="commande, plan de travail"><option value="130 cm" label="liseuse"><option value="180 cm" label="applique"><option value="200 cm" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
@@ -2967,7 +2971,23 @@ function texteDessusS(o){
   var t=[];
   if(def.texte!=null){ var ts=String(o.ts!=null ? o.ts : def.texte).trim(); if(ts) t.push(ts); }
   if(o.hv && def.cat==="prise") t.push(SymbolesElec.texteHauteur(hauteurDe(o)));
+  var nz=nbZones(o), zn=(o.zones||[]).slice(0, nz).map(function(z, k){ return z ? (k+1)+" "+z : ""; }).filter(Boolean).join(" · ");
+  if(zn) t.push(zn);
   return t.join("  ");
+}
+/* le gainable multizone : 1 à 6 zones, une sortie à registre motorisé par zone, chacune nommée (Séjour, Ch. 1…) */
+function estGainable(o){ return !!o && /^cfo-clim-gainable(-z[1-6])?$/.test(o.cle); }
+function nbZones(o){ var m=/^cfo-clim-gainable-z([1-6])$/.exec(o && o.cle || ""); return m ? Number(m[1]) : 0; }
+function peindreZones(o){
+  var n=nbZones(o), box=$("symbZonesNoms");
+  if(document.activeElement!==$("symbZones")) $("symbZones").value=String(n);
+  if(box.contains(document.activeElement) && box.children.length===n) return;
+  box.textContent="";
+  for(var k=0; k<n; k++){
+    var i=document.createElement("input"); i.type="text"; i.autocomplete="off"; i.maxLength=16; i.dataset.k=String(k);
+    i.placeholder="Zone "+(k+1); i.value=(o.zones||[])[k]||""; i.setAttribute("aria-label", "Nom de la zone "+(k+1));
+    box.appendChild(i);
+  }
 }
 /* l'orientation choisie avant de poser : 0, 45, 90… (sens des aiguilles = -45, comme Alt+→).
    Gardée d'un symbole à l'autre : sur un plan vu à l'envers, tout se pose à 180°.
@@ -3022,6 +3042,7 @@ function majSymb(){
   $("grpHvSym").hidden=!(o && def && def.cat==="prise"); $("symbHv").checked=!!(o && o.hv);
   $("symbTs").hidden=!(o && def && def.texte!=null);
   if(o && def && def.texte!=null && document.activeElement!==$("symbTs")) $("symbTs").value = o.ts!=null ? o.ts : def.texte;
+  $("grpZones").hidden=!estGainable(o); if(estGainable(o)) peindreZones(o);
   $("grpLSym").hidden=!(o && longueurS(o));
   if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=enUnite(longueurS(o));
   if(o && longueurS(o)) $("symbL").setAttribute("list", bandeauDe(o) ? "lBandeau" : "lTypes");
@@ -3064,7 +3085,7 @@ function remplirPalette(){
   var pal=$("palette"); if(!window.SymbolesElec || pal.firstChild) return;
   SymbolesElec.groupes.forEach(function(gr){
     var t=document.createElement("span"); t.className="pgr"; t.textContent=gr; t.dataset.gr=gr; pal.appendChild(t);
-    SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){
+    SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr && !sy.cache; }).forEach(function(sy){
       var b=document.createElement("button"); b.type="button"; b.dataset.cle=sy.cle; b.dataset.gr=gr; b.title=sy.nom; b.setAttribute("role","option");
       var i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(sy.cle, 28);
       b.appendChild(i); b.appendChild(document.createTextNode(sy.court||sy.nom));
@@ -8613,6 +8634,25 @@ $("symbHv").addEventListener("change", function(){ if(SEL<0) return; garderSymb(
 $("symbTs").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
 $("symbTs").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].ts=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbTs").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
+$("symbZones").addEventListener("change", function(){
+  var o=SEL>=0 ? SYMB[SEL] : null; if(!estGainable(o)) return;
+  garderSymb(); var n=Number(this.value)||0;
+  o.cle = n ? "cfo-clim-gainable-z"+n : "cfo-clim-gainable";
+  if(n) toast("Gainable multizone, "+n+" zone"+(n>1?"s":"")+" : nommez-les (Séjour, Ch. 1…), les noms s'écrivent sur le plan.", 3500);
+  enregistrerSymb(); majSymb(); demander();
+  var p=$("symbZonesNoms").querySelector("input"); if(p && !p.value && ORDI_S.matches) p.focus();
+});
+$("symbZonesNoms").addEventListener("focusin", function(){ if(SEL>=0) garderSymb(); });
+$("symbZonesNoms").addEventListener("input", function(e){
+  var o=SEL>=0 ? SYMB[SEL] : null, k=Number(e.target.dataset.k); if(!estGainable(o) || !isFinite(k)) return;
+  o.zones=(o.zones||[]).slice(); o.zones[k]=e.target.value.trim();
+  while(o.zones.length && !o.zones[o.zones.length-1]) o.zones.pop();
+  if(!o.zones.length) delete o.zones;
+  enregistrerSymb(); demander();
+});
+$("symbZonesNoms").addEventListener("keydown", function(e){
+  if(e.key!=="Enter") return; var n=e.target.nextElementSibling; if(n) n.focus(); else e.target.blur();
+});
 $("symbRep").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].t=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbRep").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("segTaille").addEventListener("click", function(e){
@@ -10887,7 +10927,7 @@ function peindrePanneau(){
   } else if(on.elec){
     if(window.SymbolesElec) SymbolesElec.groupes.filter(function(gr){ return gr!=="Ventilation et climatisation"; }).forEach(function(gr){
       var G=groupeRuban(gr), d=document.createElement("div"); d.className="rb-syms";
-      SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){ d.appendChild(boutonRuban("s:"+sy.cle, "rb-sym")); });
+      SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr && !sy.cache; }).forEach(function(sy){ d.appendChild(boutonRuban("s:"+sy.cle, "rb-sym")); });
       G.o.appendChild(d); pn.appendChild(G.g);
     });
     var Go=groupeRuban("Outils");

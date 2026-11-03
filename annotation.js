@@ -67,7 +67,7 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
   try{
     var moi=document.currentScript && document.currentScript.src;
     var sc=document.createElement("script");
-    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20261106b";
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20261107a";
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
@@ -1764,7 +1764,7 @@ function remplirOptions(op, o){
           };
           window.SymbolesElec.groupes.forEach(function(gr){
             op.appendChild(el("span","an-lab an-groupe", gr));
-            window.SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){
+            window.SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr && !sy.cache; }).forEach(function(sy){
               var on=PREFS.symbole===sy.cle;
               var b=chip("", on, function(){ PREFS.symbole=sy.cle; A.sel=null; garderPrefs(); peindre(); majUI(); }, "forme");
               var ic=el("span","an-cfo"); ic.innerHTML=window.SymbolesElec.svg(sy.cle, 22);
