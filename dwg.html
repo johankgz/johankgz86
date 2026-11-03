@@ -1587,7 +1587,7 @@ function peindreFantome(c){
   var p=versPlan(SURV_P[0], SURV_P[1]);
   c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.globalAlpha=0.55;
   if(MODE==="symb"){
-    var R=rSymbole(), a=accrocherSymbole(CHOIX, p, R, 0), q=versEcran(a.x, a.y), def=SymbolesElec.trouver(CHOIX);
+    var R=rSymbole(), a=accrocherSymbole(CHOIX, p, R, 0, ROT_PRE), q=versEcran(a.x, a.y), def=SymbolesElec.trouver(CHOIX);
     a.rot=rotPose(a);
     if(def.long || def.bandeau){ var L=longueurDefaut(CHOIX)/DESSIN_MM*V.k, ra=-(a.rot||0)*Math.PI/180; c.translate(q[0], q[1]); c.rotate(ra); c.strokeStyle=def.couleur; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(-L/2, -Math.max(4, R*V.k*0.3), L, 2*Math.max(4, R*V.k*0.3)); }
     else SymbolesElec.dessiner(c, CHOIX, q[0], q[1], R*V.k, {rot:-(a.rot||0)*Math.PI/180, epMin:1, couleur:(DESSIN.couleurs||{})["sy:"+def.groupe] ? visible(DESSIN.couleurs["sy:"+def.groupe]) : undefined, clair:CLAIR});
@@ -2072,7 +2072,7 @@ cv.addEventListener("pointermove", function(e){
       SEL=G.symb; demander(); return;
     }
     var brut=[G.base[0]+(p[0]-G.depart[0])/V.k, G.base[1]-(p[1]-G.depart[1])/V.k];
-    var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0));
+    var ac=accrocherSymbole(os.cle, brut, os.r, G.rot0!=null ? G.rot0 : (G.rot0=os.rot||0), os.rpre||0);
     os.x=ac.x; os.y=ac.y; os.rot=ac.rot; SYMB_ACC=ac.acc;
     alignerSymbole(os, ac);
     SEL=G.symb; demander(); return;
@@ -2727,7 +2727,7 @@ function canonS(cle){ return window.SymbolesElec && SymbolesElec.canon ? Symbole
 /* les symboles qu'on pose au mur : ils s'y collent, tournés vers la pièce (la bibliothèque dit où chacun se pose) */
 var MURAUX=carteS(function(s){ return s.pose==="mur"; });
 var SYMB_ACC=null;
-function accrocherSymbole(cle, p, R, rot){
+function accrocherSymbole(cle, p, R, rot, pre){
   var libre={x:p[0], y:p[1], rot:rot||0, acc:null};
   if(!ACCR_D || !window.SymbolesElec) return libre;
   var tolE=26/V.k;
@@ -2741,8 +2741,10 @@ function accrocherSymbole(cle, p, R, rot){
       var m=best.m, x=axes(m), cote=((p[0]-m.a[0])*x.n[0]+(p[1]-m.a[1])*x.n[1])>=0 ? 1 : -1;
       var nIn=[x.n[0]*cote, x.n[1]*cote], L=x.L*best.t;
       var pied=[m.a[0]+x.u[0]*L+nIn[0]*m.ep/2, m.a[1]+x.u[1]*L+nIn[1]*m.ep/2];
-      var bb=SymbolesElec.boite(cle), recul=bb.y1*R;
-      var ang=Math.atan2(-nIn[0], nIn[1])*180/Math.PI;
+      /* tourné en plus (pre, en degrés) : le côté qui touche le mur change, le symbole reste plaqué au mur */
+      var bb=SymbolesElec.boite(cle), pr=(pre||0)*Math.PI/180, dx=-Math.sin(pr), dy=Math.cos(pr);
+      var recul=Math.max(bb.x0*dx+bb.y0*dy, bb.x1*dx+bb.y0*dy, bb.x0*dx+bb.y1*dy, bb.x1*dx+bb.y1*dy)*R;
+      var ang=Math.atan2(-nIn[0], nIn[1])*180/Math.PI+(pre||0);
       return {x:pied[0]+nIn[0]*recul, y:pied[1]+nIn[1]*recul, rot:Math.round(((ang%360)+360)%360*10)/10, acc:{pt:pied, genre:5}};
     }
   }
@@ -2765,13 +2767,14 @@ function texteDessusS(o){
    Collé à un mur, le symbole suit le mur (il regarde la pièce), comme avant. */
 var ROT_PRE=0;
 function orienterPre(pas){ ROT_PRE=(((ROT_PRE+pas)%360)+360)%360; majSymb(); demander(); var v=(360-ROT_PRE)%360; toast("Le symbole se posera tourné de "+v+"°"+(v ? "" : " (droit)")+".", 1600); }
-function rotPose(a){ return a.acc && a.acc.genre===5 ? a.rot : Math.round(((((a.rot||0)+ROT_PRE)%360)+360)%360*10)/10; }
+function rotPose(a){ return a.acc && a.acc.genre===5 ? a.rot : Math.round(((((a.rot||0)+ROT_PRE)%360)+360)%360*10)/10; }   /* au mur : accrocherSymbole a déjà ajouté ROT_PRE */
 function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
-  var R=rSymbole(), a=accrocherSymbole(CHOIX, pt, R, 0);
+  var R=rSymbole(), a=accrocherSymbole(CHOIX, pt, R, 0, ROT_PRE);
   var o={cle:CHOIX, x:a.x, y:a.y, rot:rotPose(a), r:R, t:""};
+  if(ROT_PRE && a.acc && a.acc.genre===5) o.rpre=ROT_PRE;      /* retourné contre le mur : il le reste quand on le glisse */
   alignerSymbole(o, a); GUIDES_S=null;
   var hc=hauteurContexte(CHOIX, [o.x, o.y]);
   if(longueurS(o)) o.long=longueurDefaut(o.cle);
@@ -2782,7 +2785,7 @@ function poserSymbole(pt){
   if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
   enregistrerSymb();
 }
-function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; enregistrerSymb(); majSymb(); demander(); }
+function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; if(SYMB[SEL].rpre!=null) SYMB[SEL].rpre=(SYMB[SEL].rpre+90)%360; enregistrerSymb(); majSymb(); demander(); }
 function supprimerSymb(){ if(SEL<0) return; garderSymb(); var parti=SYMB.splice(SEL,1)[0]; if(parti && parti.id) SYMB.forEach(function(o){ delier(o, parti.id); }); SEL=-1; RELIER=false; enregistrerSymb(); majSymb(); demander(); }
 function defaireSymb(){ if(!HISTO_S.length) return; SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
 function compter(){
@@ -2995,7 +2998,7 @@ function mesureRef(){
 function deplacerRef(c, o, d){
   if(c.symb!=null){
     o.x+=d[0]; o.y+=d[1];
-    if(MURAUX[o.cle]){ var a=accrocherSymbole(o.cle, [o.x, o.y], o.r, o.rot||0); o.x=a.x; o.y=a.y; o.rot=a.rot; }
+    if(MURAUX[o.cle]){ var a=accrocherSymbole(o.cle, [o.x, o.y], o.r, o.rot||0, o.rpre||0); o.x=a.x; o.y=a.y; o.rot=a.rot; }
     return;
   }
   if(c.t==="mob" || c.t==="texte"){ o.x+=d[0]; o.y+=d[1]; return; }
@@ -6745,7 +6748,7 @@ function poserObjet3D(ob){
     var s2=SYMB[src.i]; if(!s2) return;
     garderSymb(); s2.x+=dxP; s2.y+=dyP;
     if(dz && !PLAFOND[s2.cle]) s2.h=Math.max(0, hauteurDe(s2)+dz);
-    if(MURAUX[s2.cle] && (dxP || dyP)){ var a=accrocherSymbole(s2.cle, [s2.x, s2.y], s2.r, s2.rot||0); s2.x=a.x; s2.y=a.y; s2.rot=a.rot; }
+    if(MURAUX[s2.cle] && (dxP || dyP)){ var a=accrocherSymbole(s2.cle, [s2.x, s2.y], s2.r, s2.rot||0, s2.rpre||0); s2.x=a.x; s2.y=a.y; s2.rot=a.rot; }
     enregistrerSymb(); if(MODE==="symb") majSymb();
   } else {
     var o = src.t==="mob" ? mobDe(src.id) : geoDe(src.id); if(!o) return;
