@@ -95,13 +95,19 @@
     };
     fc.__compte=true; window.fetch=fc;
   }
+  /* Un envoi de photos se fait en plusieurs fois (un lot, puis le suivant) :
+     on attend qu'il n'y ait plus rien en route depuis une seconde, et tant
+     que des photos partent (réseau lent), on ne coupe pas — un quart
+     d'heure au plus. */
   window.RetourAccueil=function(msg){
     if(window.top!==window) return;                       /* une page ouverte dans une autre : elle reste */
     try{ if(msg) sessionStorage.setItem("accueil:message", String(msg)); }catch(e){}
-    var t0=Date.now();
+    var t0=Date.now(), calme=0;
     (function attendre(){
-      if(ENVOIS>0 && Date.now()-t0<60000){ setTimeout(attendre, 250); return; }
-      setTimeout(function(){ location.href="./index.html"; }, Math.max(0, 1600-(Date.now()-t0)));
+      var occupe = ENVOIS>0 || window.PH_SITE_EN_COURS===true || (window.__envoisEnCours||0)>0;
+      calme = occupe ? 0 : calme+250;
+      if((occupe || calme<1000 || Date.now()-t0<1600) && Date.now()-t0<15*60000){ setTimeout(attendre, 250); return; }
+      location.href="./index.html";
     })();
   };
   /* sur l'accueil : la confirmation de ce qui vient d'être publié */

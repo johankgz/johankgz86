@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <script src="./theme.js?v=20261024f"></script>
 <script src="./personnes.js?v=20261024c"></script>
-<script src="./commun.js?v=20261030c" defer></script>
+<script src="./commun.js?v=20261103a" defer></script>
 <script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
@@ -2453,6 +2453,36 @@ function peindrePhotosSite(){
   } else if(st.erreur) el.textContent="Photos gardées sur l'appareil : "+st.erreur;
   else el.textContent="Photos gardées sur l'appareil : elles partiront dans le dossier à la publication.";
 }
+/* les photos du suivi publié partent dans le dossier (« Photos du chantier »).
+   Avant l'envoi, elles sont notées « en route » : un envoi coupé (page
+   quittée, téléphone verrouillé, réseau perdu) se voit, et repart tout seul
+   à la prochaine ouverture du suivi. */
+function envoyerPhotosDuSuivi(el){
+  var sigPub=signaturePhotos(), idSuivi=S.suiviId;
+  if(PH_SITE_EN_COURS) return;
+  if(!((S.photos||[]).length+photosReperes().length) || (S.photosSite && S.photosSite.sig===sigPub)) { peindrePhotosSite(); return; }
+  PH_SITE_EN_COURS=true;
+  S.photosSite={sig:"", erreur:"envoi interrompu, elles repartent à la prochaine ouverture du suivi.", enRoute:sigPub};
+  save(); peindrePhotosSite();
+  deposerPhotos(true).then(function(ok){
+    PH_SITE_EN_COURS=false;
+    if(S.suiviId!==idSuivi) return;
+    var d=deposerPhotos.derniere;
+    if(ok) S.photosSite={sig:sigPub, le:new Date().toISOString()};
+    else S.photosSite={sig:"", erreur:(d && d.erreur) ? d.erreur : "pas de réseau, elles repartiront à la prochaine publication."};
+    enregistrer(); peindrePhotosSite();
+    if(el) el.textContent += ok ? " Photos enregistrées dans le dossier." : " Photos non envoyées : republiez quand le réseau revient.";
+  });
+}
+/* un suivi publié dont les photos ne sont pas toutes arrivées (envoi coupé) :
+   elles repartent à l'ouverture, si le suivi n'a pas changé depuis sa publication */
+function relancerPhotosRestees(){
+  if(window.__autoPublier || PH_SITE_EN_COURS) return;
+  if(!S || !S.publie || !S.publie.cle || !S.photosSite || !S.photosSite.enRoute) return;
+  if(S.photosSite.enRoute!==signaturePhotos()) return;
+  if(!baseSite() || !jetonSession() || (navigator.onLine===false)) return;
+  envoyerPhotosDuSuivi(null);
+}
 /* appelé à chaque changement : ne fait que dire où en sont les photos (aucun envoi) */
 function planifierPhotosSite(){ peindrePhotosSite(); }
 
@@ -3572,20 +3602,7 @@ function bindAll(){
      suivi s'ouvre d'un appui */
   window.addEventListener("suivi:publie", function(){
     var el=$("pubEtat");
-    var sigPub=signaturePhotos(), idSuivi=S.suiviId;
-    if(!((S.photos||[]).length+photosReperes().length) || (S.photosSite && S.photosSite.sig===sigPub)) { peindrePhotosSite(); }
-    else {
-      PH_SITE_EN_COURS=true; peindrePhotosSite();
-      deposerPhotos(true).then(function(ok){
-        PH_SITE_EN_COURS=false;
-        if(S.suiviId!==idSuivi) return;
-        var d=deposerPhotos.derniere;
-        if(ok) S.photosSite={sig:sigPub, le:new Date().toISOString()};
-        else S.photosSite={sig:"", erreur:(d && d.erreur) ? d.erreur : "pas de réseau, elles repartiront à la prochaine publication."};
-        enregistrer(); peindrePhotosSite();
-        if(el) el.textContent += ok ? " Photos enregistrées dans le dossier." : " Photos non envoyées : republiez quand le réseau revient.";
-      });
-    }
+    envoyerPhotosDuSuivi(el);
     if(!el || document.getElementById("btnSuivant")) return;
     var b=document.createElement("button");
     b.type="button"; b.className="act ghost"; b.id="btnSuivant";
@@ -4850,6 +4867,9 @@ function pleinEcranPlan(i){
   cadrer(); peindre();
 }
 /* pour les essais automatiques */
+/* des photos restées en route au dernier envoi : elles repartent, une fois la page posée */
+setTimeout(function(){ try{ relancerPhotosRestees(); }catch(e){} }, 4000);
+window.addEventListener("online", function(){ try{ relancerPhotosRestees(); }catch(e){} });
 window.__suivi={etat:function(){ return S; }, buildPdf:function(){ return buildPdf(); }, nouveauSuivi:function(d){ nouveauSuivi(d); },
   rappelsActifs:function(){ return rappelsActifs(); }, poserStatut:function(it, st){ poserStatut(it, st); save(); rafraichirReperes(); },
   ecrire:function(){ return ecrireFiche(); }, reprise:function(){ proposerReprise(); },
