@@ -1036,7 +1036,8 @@ function rangAccepte(rp, rc){ return rc<=4 ? rp===rc-1 : rp>=2 && rp<=4; }
 function appareilPour(P, col){
   var hn=premierNiveau(col), rc=rangTete(col), best=0;
   if(!P || !hn || rc<=1 || P===col) return null;
-  for(var n=1;n<hn;n++){ var c=P.cases[n]; if(c && SYMBOLES[c.sym] && rangAccepte(rangSym(c.sym), rc)) best=n; }
+  /* un appareil terminal (parafoudre, récepteur…) n'alimente rien */
+  for(var n=1;n<hn;n++){ var c=P.cases[n]; if(c && SYMBOLES[c.sym] && !SYMBOLES[c.sym].terminal && rangAccepte(rangSym(c.sym), rc)) best=n; }
   return best ? {n:best} : null;
 }
 function amontDe(S, col){ if(!col.amont) return null; var P=null; S.colonnes.forEach(function(c){ if(c.id===col.amont) P=c; }); var a=P && appareilPour(P, col); return a ? {col:P, n:a.n} : null; }
