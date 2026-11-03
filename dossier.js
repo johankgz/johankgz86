@@ -110,18 +110,32 @@ function archiver(c, bouton){
       return supprimerApresArchive(c, bouton, avecZip);
     }).catch(function(){
       window.alert(avecZip ? "Export interrompu. Rien n'a été supprimé." : "Pas de réseau. Rien n'a été supprimé.");
-      bouton.textContent="Archiver"; bouton.disabled=false;
+      bouton.textContent=bouton.__lib||"Archiver"; bouton.disabled=false;
     });
   });
 }
+/* la fenêtre de suppression : au-dessus de tout (le menu du chantier, son
+   bouton du bas) ; en bas de l'écran sur téléphone, au milieu sur ordinateur */
+function voileSuppression(){
+  var large = window.innerWidth >= 700;
+  var ov=document.createElement("div");
+  ov.style.cssText="position:fixed;inset:0;z-index:2147481500;background:rgba(21,23,26,.55);"
+    +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;"
+    +(large ? "align-items:center;justify-content:center;padding:24px" : "align-items:flex-end");
+  var f=document.createElement("div");
+  f.setAttribute("role","dialog"); f.setAttribute("aria-modal","true");
+  f.style.cssText="background:var(--bg,#F1F3F7);color:var(--ink,#0B1220);width:100%;box-sizing:border-box;overflow:auto;"
+    +(large ? "max-width:520px;max-height:86vh;padding:22px 22px 12px;border-radius:18px;box-shadow:0 24px 60px -18px rgba(11,18,32,.55)"
+            : "max-height:84vh;padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink,#0B1220)");
+  /* Échap : comme Annuler */
+  function echap(e){ if(e.key==="Escape" && ov.parentNode){ var an=f.querySelector("[data-annuler]"); if(an) an.click(); } }
+  document.addEventListener("keydown", echap);
+  new MutationObserver(function(m, o){ if(!ov.parentNode){ document.removeEventListener("keydown", echap); o.disconnect(); } }).observe(document.body, {childList:true});
+  return {ov:ov, f:f};
+}
 function choisirSuppression(c){
   return new Promise(function(fini){
-    var ov=document.createElement("div");
-    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
-      +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
-    var f=document.createElement("div");
-    f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
-      +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+    var vo=voileSuppression(), ov=vo.ov, f=vo.f;
     var n=c.fichiers.length;
     var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
     h.textContent="Archiver "+(c.client||c.ref)+" ?";
@@ -134,6 +148,7 @@ function choisirSuppression(c){
       var t=document.createElement("b"); t.style.display="block"; t.textContent=txt;
       var s2=document.createElement("span"); s2.style.cssText="display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px"; s2.textContent=sous;
       b.appendChild(t); b.appendChild(s2);
+      if(val===null) b.setAttribute("data-annuler","");
       b.addEventListener("click", function(){ document.body.removeChild(ov); fini(val); });
       f.appendChild(b);
     }
@@ -215,14 +230,14 @@ function supprimerApresArchive(c, bouton, avecZip){
       return choixArchivage(c, liens, avecZip);
     }).then(function(choix){
       if(!choix){
-        bouton.textContent="Archiver"; bouton.disabled=false;
+        bouton.textContent=bouton.__lib||"Archiver"; bouton.disabled=false;
         return null;
       }
       return fetch(API+"?action=supprimer-chantier&ref="+encodeURIComponent(c.ref)+(choix==="garder" ? "&garder=1" : ""),
         {headers:{"x-auth":S.jeton}})
         .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
         .then(function(res){
-          if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent="Archiver"; bouton.disabled=false; return; }
+          if(!res.ok){ window.alert(res.d.erreur||"Suppression refusée."); bouton.textContent=bouton.__lib||"Archiver"; bouton.disabled=false; return; }
           if(CFG.apresArchive) CFG.apresArchive(c); else charger();
         });
     });
@@ -231,12 +246,7 @@ function supprimerApresArchive(c, bouton, avecZip){
 /* après l'export : garder l'espace du client (ses documents et ses liens), ou tout supprimer */
 function choixArchivage(c, liens, avecZip){
   return new Promise(function(fini){
-    var ov=document.createElement("div");
-    ov.style.cssText="position:fixed;inset:0;z-index:70;background:rgba(21,23,26,.55);"
-      +"-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);display:flex;align-items:flex-end";
-    var f=document.createElement("div");
-    f.style.cssText="background:var(--bg);width:100%;max-height:84vh;overflow:auto;"
-      +"padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px));border-top:2px solid var(--ink)";
+    var vo=voileSuppression(), ov=vo.ov, f=vo.f;
     var nbQr=liens.filter(function(l){ return l.genre==="tableau"; }).length, client=liens.some(function(l){ return l.genre==="client"; });
     var h=document.createElement("h2"); h.style.cssText="font-size:18px;font-weight:700;letter-spacing:-.02em;margin:0 0 6px";
     h.textContent=(avecZip===false ? "" : "Le ZIP est téléchargé. ")+"Et l'espace du client ?";
@@ -250,6 +260,7 @@ function choixArchivage(c, liens, avecZip){
       var t=document.createElement("b"); t.style.display="block"; t.textContent=txt;
       var s2=document.createElement("span"); s2.style.cssText="display:block;font-size:12.5px;font-weight:400;opacity:.85;margin-top:2px"; s2.textContent=sous;
       b.appendChild(t); b.appendChild(s2);
+      if(val===null) b.setAttribute("data-annuler","");
       b.addEventListener("click", function(){ document.body.removeChild(ov); fini(val); });
       f.appendChild(b);
     }
@@ -2618,6 +2629,8 @@ window.Dossier={
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
   moi:function(m){ MOI=m; },
   carte:carteDossier,
+  /* supprimer le chantier (ZIP d'abord, ou pas) : depuis le menu du chantier */
+  archiver:function(c, bouton){ archiver(c, bouton); },
   chargerNonLus:chargerNonLus,
   majPastillesDiscussion:majPastillesDiscussion,
   nonLus:function(ref){ return NON_LUS[ref]||0; },

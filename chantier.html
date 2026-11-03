@@ -1095,6 +1095,10 @@ body.rub-ouvert .dc-onglet{visibility:hidden}
 .rub-it[aria-current="page"] svg,.rub-it[aria-current="page"] .ca{stroke:#fff}
 .rub-it[aria-current="page"] .n{color:#fff}
 @media (hover:hover){ .rub-it:not([aria-current="page"]):hover{background:rgba(255,255,255,.05)} }
+.rub-it.suppr{color:#FCA5A5}
+.rub-it.suppr svg{stroke:#F87171}
+@media (hover:hover){ .rub-it.suppr:hover{background:rgba(248,113,113,.12)!important} }
+.rub-it.suppr:disabled{opacity:.6;cursor:wait}
 .rub-sec{padding:16px 18px 6px;font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:#8A97A6}
 .rub-pied{margin-top:auto;padding-top:10px}
 .rub-pied .rub-it{border-bottom:0;border-top:1px solid rgba(255,255,255,.06);color:#AEB7C2}
@@ -1320,7 +1324,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
-<script src="./dossier.js?v=20261106a"></script>
+<script src="./dossier.js?v=20261106b"></script>
 <script src="./transfert.js?v=20261101a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2711,6 +2715,20 @@ function peindreTiroir(){
       ouvrirTiroir(false);
     });
     t.appendChild(a);
+    /* supprimer le chantier, d'ici : la même fenêtre que « Archiver » (ZIP d'abord, ou pas) */
+    if(r[0]==="reserve" && CHANTIER && window.Dossier && Dossier.archiver){
+      var sp=document.createElement("button"); sp.type="button"; sp.className="rub-it suppr";
+      sp.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13M10 11v5.5M14 11v5.5"/></svg>';
+      var sl=document.createElement("span"); sl.className="lib"; sl.textContent="Supprimer le chantier"; sp.appendChild(sl);
+      sp.__lib="Supprimer le chantier";
+      sp.title="Télécharger le ZIP du dossier puis le retirer du site, ou le retirer sans rien télécharger";
+      sp.addEventListener("click", function(){
+        ouvrirTiroir(false);
+        Dossier.archiver(CHANTIER, {set textContent(v){ sl.textContent=v; }, get textContent(){ return sl.textContent; },
+          set disabled(v){ sp.disabled=v; }, get disabled(){ return sp.disabled; }, __lib:"Supprimer le chantier"});
+      });
+      t.appendChild(sp);
+    }
   });
   var pied=document.createElement("div"); pied.className="rub-pied";
   var mg=document.createElement("button"); mg.type="button"; mg.className="rub-it";
