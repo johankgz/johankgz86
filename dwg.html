@@ -10,7 +10,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan DWG — cotes et symboles</title>
-<script src="./symboles-elec.js?v=20261106b"></script>
+<script src="./symboles-elec.js?v=20261106c"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -427,6 +427,21 @@ body.clair #scene{background:#FFFFFF}
 .barre-sel{position:fixed;left:50%;bottom:200px;transform:translateX(-50%);z-index:7;display:flex;align-items:center;gap:8px;
   max-width:calc(100vw - 20px);padding:6px 6px 6px 14px;border-radius:999px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink)}
 .barre-sel[hidden]{display:none}
+/* le réseau en cours (ou choisi) : sa nature et son diamètre, sous le ruban à gauche */
+.fen-res{position:fixed;left:10px;top:calc(var(--haut,180px) + 10px);z-index:8;max-width:min(520px, calc(100vw - 20px));display:grid;gap:7px;
+  padding:10px 12px;border-radius:14px;background:rgba(20,25,32,.96);border:1px solid var(--trait);box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink);font-size:13px}
+.fen-res[hidden]{display:none}
+.fen-res b{font-size:13.5px}
+.fen-res .fr-l{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
+.fen-res .fr-l span{min-width:62px;color:var(--ink-2,#9AA3B2);font-size:12px}
+.fen-res button{min-height:30px;padding:3px 10px;border-radius:999px;border:1px solid var(--trait);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}
+.fen-res button.nat{border-color:var(--c);color:var(--c)}
+.fen-res button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
+.fen-res button.nat.on{background:var(--c);border-color:var(--c);color:#fff}
+.fen-res small{color:var(--ink-2,#9AA3B2);font-size:11.5px}
+@media (max-width:600px){ .fen-res{left:6px;right:6px;max-width:none;padding:7px 8px;gap:5px;font-size:12px}
+  .fen-res .fr-l{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .fen-res .fr-l span,.fen-res small{display:none}
+  .fen-res button{min-height:28px;padding:2px 9px;flex:0 0 auto} }
 .barre-sel{overflow-x:auto;scrollbar-width:none;overscroll-behavior-x:contain}
 /* Enchaîner, Accrochage, Ortho, la saisie et la molette : dans l'onglet Réglages du ruban, plus dans la barre du bas */
 #btEnchainerD,#btEnchainerS,#btAccrD,#btAccrS,#btOrthoD,#grpUSaisie,.grp-molette,#btSuppD,#btSuppSymb,.champ-h .seg-usaisie{display:none!important}
@@ -680,6 +695,7 @@ body.clair #scene{background:#FFFFFF}
   <details class="v3-alerte" id="v3Alerte" hidden><summary></summary><ul></ul><p>Repères indicatifs d'après la NF C 15-100 (volume 1 au-dessus de la baignoire ou du receveur jusqu'à 2,25 m, volume 2 à 60 cm autour jusqu'à 3 m) : à vérifier sur place.</p></details>
 </div>
 
+<div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer au centre, entre deux extrémités touchées"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v10M21 7v10M3 12h5M16 12h5"/><circle cx="12" cy="12" r="2.6"/></svg>Au centre</button>
@@ -2810,6 +2826,11 @@ function peindreQuantites(){
   var li=document.createElement("li"); li.className="total";
   li.innerHTML="<span></span><b></b>"; li.firstChild.textContent = total ? "Total" : "Aucun symbole posé."; li.lastChild.textContent = total ? String(total) : "";
   ul.appendChild(li);
+  reseauxPoses().forEach(function(x){
+    var lr=document.createElement("li"), ir=document.createElement("i"); ir.innerHTML=svgRes(x.res, 24);
+    var sr=document.createElement("span"); sr.textContent=libelleRes(x.res); var br=document.createElement("b"); br.textContent=metresRes(x.L);
+    lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(br); ul.appendChild(lr);
+  });
 }
 function remplirPalette(){
   var pal=$("palette"); if(!window.SymbolesElec || pal.firstChild) return;
@@ -3147,6 +3168,7 @@ $("bsCoteOk").addEventListener("click", validerCote);
 });
 /* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
 function majBarreSel(){
+  try{ majFenRes(); }catch(e){}
   var b=$("barreSel"); if(!b) return;
   var nom="";
   if(MODE==="dessin" && D_SEL){
@@ -3491,7 +3513,7 @@ function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).sl
    l'outil se relâche (retour à Choisir, rien de choisi) et le doigt redéplace
    le plan. « Enchaîner », ou Ctrl maintenu, garde l'outil pour en poser plusieurs. */
 var ENCHAINER=false, CTRL_TENU=false, ARME_S=true;
-function garderOutil(){ return ENCHAINER || CTRL_TENU; }
+function garderOutil(){ return ENCHAINER || CTRL_TENU || (OUTIL_D==="spline" && !!RES_EC); }
 function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=null; GEO_EC=null; D_SEL=null; return true; }
 function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
 /* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
@@ -4601,6 +4623,7 @@ function texteCote(L){
   return (Math.round(mm)/10).toLocaleString("fr-FR", {maximumFractionDigits:1});
 }
 function nommerG(o){
+  if(o.res && RES_TYPES[o.res.t]) return etiquetteRes(o.res)+" · "+formater(longueurRes(o)/DESSIN_MM);
   var n=GEO_NOMS[o.t];
   if(o.t==="rect"){ var W=lng(sub(o.pts[1],o.pts[0])), H=lng(sub(o.pts[3],o.pts[0])); return n+" "+cm(W*DESSIN_MM)+" × "+cm(H*DESSIN_MM)+" cm"; }
   if(o.t==="rond") return n+" Ø "+cm(2*o.r*DESSIN_MM)+" cm";
@@ -4611,7 +4634,113 @@ function nommerG(o){
   return n+((o.t==="poly" || o.t==="spline") ? (o.ferme ? " fermée" : "")+", "+o.pts.length+" points" : "");
 }
 /* ---------- créer ---------- */
+/* ---------- les réseaux : gaines VMC, liaisons de la clim, fourreaux ----------
+   Une spline qui porte sa nature et son diamètre (o.res = {t, n, d}) : sa couleur
+   en vient, et son étiquette est écrite le long du tracé (« ELEC Ø40 »,
+   « Extraction Ø125 »). Une gaine VMC est tracée en double trait, à son vrai
+   diamètre. Elles entrent dans la légende du PDF, les quantités (en mètres) et
+   le DXF (un calque par réseau). */
+var RES_TYPES={
+  fourreau:{nom:"Fourreau", calque:"RESEAUX-FOURREAUX", d:[20,25,32,40,50,63,75,90,110,160], dDef:40,
+    natures:[["elec","ELEC","#E11D48"],["gaz","GAZ","#CA8A04"],["fibre","FIBRE","#16A34A"],["telecom","TÉLÉCOM","#0891B2"],["eau","EAU","#2563EB"]]},
+  gaine:{nom:"Gaine VMC", calque:"RESEAUX-GAINES-VMC", d:[80,125,160,200,250], dDef:125, double:true,
+    natures:[["ext","Extraction","#C026D3"],["rejet","Rejet","#DC2626"],["neuf","Air neuf","#16A34A"],["souf","Soufflage","#2563EB"],["flex","Flexible","#64748B"]]},
+  frigo:{nom:"Liaison frigorifique", calque:"RESEAUX-FRIGO", d:["1/4 - 3/8","1/4 - 1/2","3/8 - 5/8","1/2 - 3/4"], dDef:"1/4 - 3/8",
+    natures:[["frigo","Frigo","#0891B2"]]},
+  telec:{nom:"Liaison télécommande", calque:"RESEAUX-TELECOMMANDE", d:[], dDef:"", tir:true,
+    natures:[["telec","Télécommande","#4F46E5"]]},
+  cond:{nom:"Évacuation des condensats", calque:"RESEAUX-CONDENSATS", d:[16,20,25,32], dDef:20,
+    natures:[["cond","Condensats","#15803D"]]}
+};
+var RES_EC=null, RES_ARME=false;
+var RES_DERNIER=(function(){ try{ return JSON.parse(lire("dwg:reseaux","{}"))||{}; }catch(e){ return {}; } })();
+function natureRes(r){ var T=RES_TYPES[r.t]; return T ? (T.natures.filter(function(n){ return n[0]===r.n; })[0] || T.natures[0]) : null; }
+function coulRes(r){ var n=natureRes(r); return n ? n[2] : "#E11D48"; }
+function texteDiam(d){ return d==="" || d==null ? "" : typeof d==="number" ? "Ø"+d : String(d); }
+function etiquetteRes(r){ var n=natureRes(r); if(!n) return ""; return [r.t==="gaine" && r.n!=="flex" ? n[1] : n[1], texteDiam(r.d)].filter(Boolean).join(" "); }
+/* le nom complet : « Fourreau ELEC Ø40 », « Gaine VMC Extraction Ø125 », « Liaison frigorifique 1/4 - 3/8 » */
+function libelleRes(r){ var T=RES_TYPES[r.t]; if(!T) return ""; return T.natures.length>1 ? T.nom+" "+etiquetteRes(r) : [T.nom, texteDiam(r.d)].filter(Boolean).join(" "); }
+function longueurRes(o){ var p=contourG(o), L=0; for(var i=1;i<p.length;i++) L+=Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1]); return L*DESSIN_MM; }
+/* un tracé décalé de d (unités du plan) : les deux bords d'une gaine */
+function decalerRes(pts, d){
+  var out=[];
+  for(var i=0;i<pts.length;i++){
+    var a=pts[Math.max(0,i-1)], b=pts[Math.min(pts.length-1,i+1)], ux=b[0]-a[0], uy=b[1]-a[1], L=Math.hypot(ux,uy)||1;
+    out.push([pts[i][0]-uy/L*d, pts[i][1]+ux/L*d]);
+  }
+  return out;
+}
+/* où écrire l'étiquette : au milieu du tracé, puis tous les 5 m sur un long réseau */
+function placesEtiquette(pts){
+  var cum=[0]; for(var i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]));
+  var L=cum[cum.length-1]; if(!(L>0)) return [];
+  var pas=5000/DESSIN_MM, n=Math.max(1, Math.floor(L/pas)), out=[];
+  for(var k=0;k<n;k++){
+    var s=L*(k+0.5)/n, j=1; while(j<cum.length-1 && cum[j]<s) j++;
+    var t=(s-cum[j-1])/((cum[j]-cum[j-1])||1), A=pts[j-1], B=pts[j];
+    out.push({p:[A[0]+(B[0]-A[0])*t, A[1]+(B[1]-A[1])*t], ang:Math.atan2(B[1]-A[1], B[0]-A[0])});
+  }
+  return out;
+}
+/* la hauteur de l'étiquette : 2,5 mm sur le papier à l'échelle de travail */
+function hauteurEtiquetteRes(){ var n = DESSIN && DESSIN.ech>0 ? DESSIN.ech : (MEP && MEP.echelle>0 ? MEP.echelle : 50); return 2.5*n/DESSIN_MM; }
+/* les réseaux du plan, par nature et diamètre, avec leur longueur (mm) */
+function reseauxPoses(){
+  var par={}, ordre=Object.keys(RES_TYPES);
+  geos().forEach(function(o){ if(!o.res || !RES_TYPES[o.res.t] || (o.vue && o.vue!=="dessus")) return;
+    var k=o.res.t+"|"+o.res.n+"|"+o.res.d, x=par[k]=par[k]||{res:{t:o.res.t, n:o.res.n, d:o.res.d}, L:0}; x.L+=longueurRes(o); });
+  return Object.keys(par).map(function(k){ return par[k]; }).sort(function(a, b){ return ordre.indexOf(a.res.t)-ordre.indexOf(b.res.t) || String(a.res.n).localeCompare(String(b.res.n)) || (parseFloat(a.res.d)||0)-(parseFloat(b.res.d)||0); });
+}
+function metresRes(mm){ return (Math.round(mm/100)/10).toLocaleString("fr-FR", {minimumFractionDigits:1, maximumFractionDigits:1})+" m"; }
+/* l'échantillon d'un réseau, pour la légende et les quantités */
+function svgRes(r, px){
+  var c=coulRes(r), T=RES_TYPES[r.t]||{};
+  var tr = T.double ? '<path d="M2 8h20M2 16h20" stroke="'+c+'" stroke-width="2" fill="none"/>' : '<path d="M2 12h20" stroke="'+c+'" stroke-width="2.6" fill="none"'+(T.tir ? ' stroke-dasharray="4 3"' : '')+'/>';
+  return '<svg viewBox="0 0 24 24" width="'+px+'" height="'+px+'" aria-hidden="true">'+tr+'</svg>';
+}
+function armerReseau(t){
+  if(!PLAN) return;
+  var T=RES_TYPES[t]; if(!T) return;
+  var d0=RES_DERNIER[t]||{};
+  RES_EC={t:t, n:d0.n && T.natures.some(function(n){ return n[0]===d0.n; }) ? d0.n : T.natures[0][0], d:d0.d!=null && (T.d.indexOf(d0.d)>=0 || !T.d.length) ? d0.d : T.dDef};
+  RES_ARME=true; choisirOutilR("spline"); RES_ARME=false;
+  majFenRes(); majRuban();
+  toast(T.nom+" : touchez chaque point du tracé (ou glissez), puis Terminer. Nature et diamètre : dans le cadre, en haut à gauche.", 4200);
+}
+/* le réseau choisi sur le plan, s'il y en a un */
+function resSel(){ if(MODE!=="dessin" || !D_SEL || D_SEL.t!=="geo") return null; var o=geoDe(D_SEL.id); return o && o.res ? o : null; }
+function majFenRes(){
+  var f=$("fenRes"); if(!f) return;
+  var o=resSel(), r = o ? o.res : (MODE==="dessin" && OUTIL_D==="spline" && RES_EC ? RES_EC : null);
+  f.hidden=!r; if(!r) return;
+  var T=RES_TYPES[r.t]; f.textContent="";
+  var h=document.createElement("b"); h.textContent=(o ? T.nom+" · "+formater(longueurRes(o)/DESSIN_MM) : T.nom+" : tracez-le"); f.appendChild(h);
+  function rangee(titre, items, cle){
+    if(items.length<2 && cle==="n") return;
+    if(!items.length) return;
+    var l=document.createElement("div"); l.className="fr-l";
+    var t=document.createElement("span"); t.textContent=titre; l.appendChild(t);
+    items.forEach(function(it){
+      var v=cle==="n" ? it[0] : it, b=document.createElement("button"); b.type="button";
+      b.textContent=cle==="n" ? it[1] : texteDiam(it);
+      if(cle==="n"){ b.style.setProperty("--c", it[2]); b.className="nat"; }
+      if(r[cle]===v) b.classList.add("on");
+      b.addEventListener("click", function(){
+        if(o){ garderD(); o.res[cle]=v; o.couleur=coulRes(o.res); enregistrerD(); }
+        else RES_EC[cle]=v;
+        RES_DERNIER[r.t]=Object.assign({}, RES_DERNIER[r.t]||{}); RES_DERNIER[r.t][cle]=v; garder("dwg:reseaux", JSON.stringify(RES_DERNIER));
+        majFenRes(); majBarreSel(); demander();
+      });
+      l.appendChild(b);
+    });
+    f.appendChild(l);
+  }
+  rangee("Nature", T.natures, "n");
+  rangee(r.t==="frigo" ? "Tubes" : "Diamètre", T.d, "d");
+  var et=document.createElement("small"); et.textContent="Écrit sur le plan : « "+etiquetteRes(r)+" »"; f.appendChild(et);
+}
 function creerGeo(o){
+  if(o.t==="spline" && RES_EC && OUTIL_D==="spline"){ o.res={t:RES_EC.t, n:RES_EC.n, d:RES_EC.d}; o.couleur=coulRes(o.res); o.ep="moyen"; o.tir=!!RES_TYPES[RES_EC.t].tir; o.remp="aucun"; }
   o.id=idD(); o.ep=o.ep||STYLE_G.ep;
   if(vueD()!=="dessus") o.vue=vueD(); o.coul=o.coul||STYLE_G.coul; o.tir=o.tir!=null ? o.tir : STYLE_G.tir;
   if(STYLE_G.couleur && !o.couleur) o.couleur=STYLE_G.couleur;
@@ -4802,6 +4931,21 @@ function peindreGeo(c, E, coulTrait, orange){
     c.rotate(a); c.font="600 "+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.fillStyle=col; c.textAlign="center"; c.textBaseline="middle";
     c.fillText(s, 0, 0); c.restore();
   }
+  /* l'étiquette d'un réseau, le long du tracé, sur un liseré du fond pour rester lisible */
+  function etiquettesRes(o, pts, col){
+    var h=hauteurEtiquetteRes(), px=Math.max(7, h*V.k), s=etiquetteRes(o.res);
+    var off=(RES_TYPES[o.res.t] && RES_TYPES[o.res.t].double && typeof o.res.d==="number" ? o.res.d/2/DESSIN_MM : 0)+h*0.85;
+    var fond=(IMPRIME || PX_MM || CLAIR) ? "#FFFFFF" : "#16181C";
+    placesEtiquette(pts).forEach(function(q){
+      var n=[-Math.sin(q.ang), Math.cos(q.ang)]; if(n[1]<0){ n=[-n[0], -n[1]]; }
+      var P=E([q.p[0]+n[0]*off, q.p[1]+n[1]*off]);
+      c.save(); c.translate(P[0], P[1]);
+      var a=-q.ang; if(a>Math.PI/2) a-=Math.PI; if(a<-Math.PI/2) a+=Math.PI;
+      c.rotate(a); c.setLineDash([]); c.font="700 "+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle";
+      c.lineJoin="round"; c.lineWidth=Math.max(2, px*0.28); c.strokeStyle=fond; c.strokeText(s, 0, 0);
+      c.fillStyle=col; c.fillText(s, 0, 0); c.restore();
+    });
+  }
   function hachurer(o, col, w){
     var pts=contourG(o).map(E), x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
     pts.forEach(function(P){ x0=Math.min(x0,P[0]); y0=Math.min(y0,P[1]); x1=Math.max(x1,P[0]); y1=Math.max(y1,P[1]); });
@@ -4842,7 +4986,13 @@ function peindreGeo(c, E, coulTrait, orange){
     if(ferme && o.remp==="gris"){ c.fillStyle = PX_MM || CLAIR ? "rgba(0,0,0,.14)" : "rgba(255,255,255,.16)"; chemin(pts, true); c.fill(); }
     if(ferme && o.remp==="hach") hachurer(o, col, w);
     tirets(o); c.strokeStyle=col; c.lineWidth=w;
-    chemin(pts, ferme); c.stroke();
+    if(o.res && RES_TYPES[o.res.t] && RES_TYPES[o.res.t].double && typeof o.res.d==="number"){
+      /* la gaine : ses deux bords, à son vrai diamètre, et son axe en léger */
+      var dg=o.res.d/2/DESSIN_MM;
+      chemin(decalerRes(pts, dg), false); c.stroke(); chemin(decalerRes(pts, -dg), false); c.stroke();
+      c.save(); c.globalAlpha=0.4; c.lineWidth=Math.max(0.6, w*0.5); c.setLineDash(PX_MM ? [2*PX_MM, 1.2*PX_MM] : [6,4]); chemin(pts, false); c.stroke(); c.restore();
+    } else { chemin(pts, ferme); c.stroke(); }
+    if(o.res) etiquettesRes(o, pts, col);
     if(o.t==="fleche"){
       c.setLineDash([]); var taille=o.fl*V.k;
       var A=E(o.pts[0]), B=E(o.pts[1]);
@@ -4909,6 +5059,19 @@ function dxfGeo(g){
     function poly(pts, ferme){ g(0,"POLYLINE", 8,cal, 62,col, 66,1, 10,0,20,0,30,0, 70,ferme?1:0); pts.forEach(function(q){ g(0,"VERTEX", 8,cal, 10,q[0],20,q[1],30,0); }); g(0,"SEQEND", 8,cal); }
     function texte(s, p, h, ang){ g(0,"TEXT", 8,cal, 62,col, 10,p[0],20,p[1],30,0, 40,h, 1,String(s).replace(/[\r\n]+/g," "), 50,ang||0, 72,1, 73,2, 11,p[0],21,p[1],31,0); }
     if(o.t==="gtexte"){ texte(o.s, o.pts[0], o.h, o.rot||0); return; }
+    if(o.res && RES_TYPES[o.res.t]){
+      var TR=RES_TYPES[o.res.t], pr=contourG(o), hR=hauteurEtiquetteRes();
+      cal=TR.calque; col=aciDe(coulRes(o.res))||1;
+      if(TR.double && typeof o.res.d==="number"){ var dR=o.res.d/2/DESSIN_MM; poly(decalerRes(pr, dR), false); poly(decalerRes(pr, -dR), false); }
+      else poly(pr, false);
+      var offR=(TR.double && typeof o.res.d==="number" ? o.res.d/2/DESSIN_MM : 0)+hR*0.85;
+      placesEtiquette(pr).forEach(function(q){
+        var nR=[-Math.sin(q.ang), Math.cos(q.ang)]; if(nR[1]<0) nR=[-nR[0], -nR[1]];
+        var aR=q.ang*180/Math.PI; if(aR>90) aR-=180; if(aR<-90) aR+=180;
+        texte(etiquetteRes(o.res), [q.p[0]+nR[0]*offR, q.p[1]+nR[1]*offR], hR, aR);
+      });
+      return;
+    }
     if(o.t==="rond") g(0,"CIRCLE", 8,cal, 62,col, 10,o.pts[0][0],20,o.pts[0][1],30,0, 40,o.r);
     else if(o.t==="cote"){
       var q=geomCote(o), s=q.s;
@@ -5756,7 +5919,7 @@ function dxfBandeaux(){
 function posesSymboles(){ return SYMB.filter(function(o){ return !bandeauDe(o); }).map(function(o){ return {cle:o.cle, x:o.x, y:o.y, rot:o.rot||0, taille:o.r, texte:o.t, dessus:texteDessusS(o), etirer:etirerS(o), aci:aciDe(coulSymbBrute(o)), calque:calqueDxfDe(o)||undefined}; }); }
 /* le DXF du plan : murs, ouvertures, mobilier, dessin, cotes et symboles, par calques */
 function dxfTexte(){ return SymbolesElec.dxf(posesSymboles(),
-    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:calquesU().map(function(c){ return [nomDxfU(c), aciDe(c.couleur)||7]; }).concat(PV_CALQUES).concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7]]), ltypes:typesLigneDxf()}); }
+    {extra:dxfDessin().concat(dxfBandeaux(), dxfLiens()), calquesExtra:calquesU().map(function(c){ return [nomDxfU(c), aciDe(c.couleur)||7]; }).concat(PV_CALQUES).concat([["ELEC-LIAISONS",1,"TIRETS"],["MURS",8],["CLOISONS",9],["OUVERTURES",7],["TOITURE",30],["PV",5],["TEXTES",7],["MOBILIER",5],["MOBILIER_HAUT",5],["VOLUMES_SDB",4],["DESSIN",7],["DESSIN_TIRETS",7,"TIRETS"],["DESSIN_POINTILLES",7,"POINTILLES"],["HACHURES",8],["COTES",7],["RESEAUX-FOURREAUX",1],["RESEAUX-GAINES-VMC",6],["RESEAUX-FRIGO",4],["RESEAUX-TELECOMMANDE",5,"TIRETS"],["RESEAUX-CONDENSATS",3]]), ltypes:typesLigneDxf()}); }
 function exporterDxf(){
   if(dessinVide() && !SYMB.length) return;
   var txt=dxfTexte();
@@ -7027,7 +7190,7 @@ function gabarit(){
   var F={x:CART.gauche, y:CART.haut0, w:P.w-CART.gauche-CART.droite, h:P.h-CART.haut0-CART.bas};
   var CW=Math.min(CART.largeur, F.w), Hc=CART.revision+CART.haut;
   var g={P:P, k:k, cadre:F, cart:{x:F.x+F.w-CW, y:F.y+F.h-Hc, w:CW, h:Hc}};
-  var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length, leg=nl && MEP.legende!==false;
+  var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length+reseauxPoses().length, leg=nl && MEP.legende!==false;
   g.zone={x:F.x, y:F.y, w:F.w, h:F.h-Hc};
   /* la légende : un cadre posé sur la feuille, là où on l'a glissé (en haut à droite au départ) */
   if(leg){
@@ -7574,15 +7737,31 @@ function creerPdf(d, logo, soc, imgPersp){
   var legBasGauche = d.legende && g.leg && g.leg.x < z.x+70 && g.leg.y+g.leg.h > z.y+z.h-18;
   if(!lesCases) barreEchelle(z.x+6, z.y+z.h-7, e.n, legBasGauche ? z.x+z.w-6 : null);
   /* 2. la légende CFO et les quantités : un cadre blanc posé sur le plan, là où on l'a placé */
-  var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; });
+  var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), lesRes=reseauxPoses();
+  var avecCvc=lesRes.length || lignes.some(function(sy){ return sy.groupe==="Ventilation et climatisation" || sy.groupe==="Chauffage et VMC"; });
+  lignes=lignes.concat(lesRes);
   if(d.legende && lignes.length && g.leg){
     var L=g.leg, lh=L.lh, cs=L.cs, cw=(L.w-2*L.pad)/L.cols, x0l=L.x+L.pad, y0l=L.y+L.pad, parCol=L.parCol, yT=y0l+L.tete;
     doc.setFillColor(255,255,255); trait(0.35); doc.rect(L.x, L.y, L.w, L.h, "FD");
-    texte("LÉGENDE CFO", x0l+1, y0l+L.tete*0.62, 9, {b:true});
+    texte(avecCvc ? "LÉGENDE" : "LÉGENDE CFO", x0l+1, y0l+L.tete*0.62, 9, {b:true});
     trait(0.25); doc.line(x0l, yT, L.x+L.w-L.pad, yT);
     lignes.forEach(function(sy, i){
-      var c=Math.floor(i/parCol), r=i%parCol, x=x0l+c*cw, y=yT+r*lh, bb=SymbolesElec.boite(sy.cle);
+      var c=Math.floor(i/parCol), r=i%parCol, x=x0l+c*cw, y=yT+r*lh;
       if(r===0){ trait(0.15); doc.line(x+cs, yT, x+cs, yT+parCol*lh); if(c) doc.line(x, yT, x, yT+parCol*lh); }
+      if(sy.res){
+        /* un réseau : un bout de son trait (double pour une gaine), sa nature, son diamètre et sa longueur */
+        var TRl=RES_TYPES[sy.res.t], cl=coulRes(sy.res).replace("#",""), rr=parseInt(cl.slice(0,2),16), gg=parseInt(cl.slice(2,4),16), bl=parseInt(cl.slice(4,6),16);
+        doc.setDrawColor(rr,gg,bl); doc.setLineWidth(TRl.double ? 0.3 : 0.5);
+        if(TRl.tir && doc.setLineDashPattern) doc.setLineDashPattern([1.2,0.9], 0);
+        if(TRl.double){ doc.line(x+2, y+lh/2-0.9, x+cs-2, y+lh/2-0.9); doc.line(x+2, y+lh/2+0.9, x+cs-2, y+lh/2+0.9); }
+        else doc.line(x+2, y+lh/2, x+cs-2, y+lh/2);
+        if(TRl.tir && doc.setLineDashPattern) doc.setLineDashPattern([], 0);
+        doc.setDrawColor(0,0,0);
+        texte(libelleRes(sy.res)+" ("+metresRes(sy.L)+")", x+cs+2, y+lh*0.64, 7.5, {max:cw-cs-4});
+        if(r<parCol-1){ trait(0.1); doc.line(x, y+lh, x+cw, y+lh); }
+        return;
+      }
+      var bb=SymbolesElec.boite(sy.cle);
       var R=Math.min(lh*0.74/(bb.y1-bb.y0), cs*0.84/(bb.x1-bb.x0));
       SymbolesElec.pdf(doc, sy.cle, x+cs/2, y+lh/2, R, {couleur:(DESSIN.couleurs||{})["sy:"+sy.groupe]});
       texte(nomQuantite(sy)+" ("+n[sy.cle]+")", x+cs+2, y+lh*0.64, 7.5, {max:cw-cs-4});
@@ -10269,6 +10448,11 @@ function basculerCalques(){ if(!PLAN) return; var p=$("calques"); p.hidden=!p.hi
 
 /* ---------- les icônes des actions (les outils de dessin reprennent les leurs) ---------- */
 var ICO={
+  resgaine:'<path d="M3 8h13a5 5 0 0 1 5 5v7"/><path d="M3 14h10a2 2 0 0 1 2 2v4"/>',
+  resfrigo:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1"/><path d="M12 2v4M10.5 3.5l3 1M10.5 4.5l3-1"/>',
+  restelec:'<path d="M3 17h5M11 17h4M18 17h3" /><rect x="15" y="5" width="6" height="7" rx="1"/><path d="M17 8h2"/>',
+  rescond:'<path d="M3 10h12l3 3v7"/><path d="M18 4c-1.5 2-2.5 3.2-2.5 4.3a2.5 2.5 0 0 0 5 0C20.5 7.2 19.5 6 18 4z"/>',
+  resfourreau:'<path d="M3 12c4-6 8 6 12 0s4-3 6-2"/><path d="M3 16.5c4-6 8 6 12 0s4-3 6-2"/><text x="3.5" y="7" font-size="5.5" font-family="Arial" font-weight="700" stroke="none" fill="currentColor">Ø</text>',
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
   grouper:'<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/><rect x="6.5" y="6.5" width="5" height="5"/><circle cx="15" cy="15" r="2.8"/>',
   degrouper:'<rect x="3" y="3" width="7" height="7"/><circle cx="16.5" cy="16.5" r="3.5"/><path d="M14 4l6 6M20 4l-6 6"/>',
@@ -10324,6 +10508,11 @@ var ACTIONS={
   vierge:["Page vierge","vierge","Un nouveau plan, en millimètres"], plans:["Mes plans","plans","Les plans enregistrés sur le site, à reprendre"],
   fond:["Fond de plan","fond","Un PDF ou une photo sous la page vierge, mis à l'échelle"],
   feuille:["Feuille","feuille","Poser un cadre de feuille (A4 à A0) à l'échelle dans le plan : sa place, son cadre et son cartouche"],
+  resgaine:["Gaine VMC","resgaine","Une gaine de VMC (extraction, rejet, air neuf, soufflage, flexible), Ø80 à Ø250 : tracée en double trait, à son diamètre"],
+  resfrigo:["Liaison frigo","resfrigo","Les liaisons frigorifiques entre l'unité intérieure et le groupe extérieur"],
+  restelec:["Liaison télécom.","restelec","La liaison de la télécommande filaire"],
+  rescond:["Condensats","rescond","L'évacuation des condensats"],
+  resfourreau:["Fourreau","resfourreau","Un fourreau : ELEC, GAZ, FIBRE, TÉLÉCOM ou EAU, avec son diamètre écrit le long du tracé"],
   relier:["Relier","relier","Relier le symbole choisi : l'interrupteur à ses points lumineux, les prises entre elles"], quantites:["Quantités","quantites","Le nombre de chaque symbole, et la bibliothèque DXF"],
   etudepv:["Étude PV","etudepv","Module, onduleurs, calculs et matériel"],
   v3d:["3D","v3d","Voir le plan monté en 3D"], entiere:["Vue entière","entiere","Tout le plan à l'écran"], clair:["Fond clair","clair","Fond clair ou sombre"],
@@ -10362,6 +10551,7 @@ var ONGLETS=[
     {nom:"Calques", calque:true}
   ]},
   {id:"elec", nom:"Électricité", elec:true},
+  {id:"cvc", nom:"CVC et réseaux", cvc:true},
   {id:"pv", nom:"Photovoltaïque", g:[
     {nom:"Pose", gros:["o:pvchamp","o:pvpan","o:pvond"]},
     {nom:"Câblage", gros:["o:pvstr","o:pvchemin","o:pvac","o:pvrj"]},
@@ -10445,8 +10635,23 @@ function peindrePanneau(){
     sm.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; var o=document.querySelector('.grp-molette .seg-molette button[data-m="'+b.dataset.m+'"]'); if(o) o.click(); majReglagesR(); });
     majReglagesR(); pn.scrollLeft=0; majRuban(); return;
   }
-  if(on.elec){
-    if(window.SymbolesElec) SymbolesElec.groupes.forEach(function(gr){
+  if(on.cvc){
+    [["VMC", ["cfo-caisson-vmc","cfo-vmc","cfo-bouche-80","cfo-bouche-125","cfo-bouche-160","cfo-bouche-applique","cfo-entree-air"]],
+     ["Climatisation", ["cfo-clim-murale","cfo-clim-cassette","cfo-clim-gainable","cfo-groupe-ext","cfo-bouche-soufflage","cfo-bouche-reprise","cfo-telecommande-clim"]]].forEach(function(gr){
+      var G=groupeRuban(gr[0]), d=document.createElement("div"); d.className="rb-syms";
+      gr[1].forEach(function(k){ if(SymbolesElec.trouver(k)) d.appendChild(boutonRuban("s:"+k, "rb-sym")); });
+      G.o.appendChild(d); pn.appendChild(G.g);
+    });
+    var Gr=groupeRuban("Réseaux");
+    ["a:resgaine","a:resfrigo","a:restelec","a:rescond"].forEach(function(r){ Gr.o.appendChild(boutonRuban(r, "rb-gros")); });
+    pn.appendChild(Gr.g);
+    var Gf=groupeRuban("Fourreaux"); Gf.o.appendChild(boutonRuban("a:resfourreau", "rb-gros")); pn.appendChild(Gf.g);
+    var Gx=groupeRuban("Outils");
+    ["o:main","o:choisir","a:couleur","a:quantites"].forEach(function(r){ Gx.o.appendChild(boutonRuban(r, "rb-gros")); });
+    pn.appendChild(Gx.g);
+    var Gk=groupeRuban("Calques"); Gk.o.appendChild(colonneCalques()); pn.appendChild(Gk.g);
+  } else if(on.elec){
+    if(window.SymbolesElec) SymbolesElec.groupes.filter(function(gr){ return gr!=="Ventilation et climatisation"; }).forEach(function(gr){
       var G=groupeRuban(gr), d=document.createElement("div"); d.className="rb-syms";
       SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; }).forEach(function(sy){ d.appendChild(boutonRuban("s:"+sy.cle, "rb-sym")); });
       G.o.appendChild(d); pn.appendChild(G.g);
@@ -10488,6 +10693,7 @@ function majRuban(){
     else if(k==="mesurer") on = !!PLAN && MODE==="cote";
     else if(k==="calques") on = !$("calques").hidden;
     else if(k==="quantites") on = !$("quantites").hidden;
+    else if(/^res/.test(k)) on = MODE==="dessin" && OUTIL_D==="spline" && !!RES_EC && RES_EC.t===k.slice(3);
     else if(k==="relier"){ on = RELIER; var sr=b.querySelector("span"); if(sr) sr.textContent = RELIER ? "Terminer" : "Relier"; }
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
@@ -10513,12 +10719,16 @@ function majRuban(){
   majReticule();
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
   majReglagesR();
+  /* un autre outil (Échap, un raccourci…) : le réseau s'arrête */
+  if(RES_EC && !RES_ARME && !(MODE==="dessin" && OUTIL_D==="spline")) RES_EC=null;
+  try{ majFenRes(); }catch(e){}
 }
 /* les outils permis en Face et en Côté : les formes du dessin, le mobilier, Choisir */
 function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o]; }
 /* ---------- ce que fait chaque bouton ---------- */
 function choisirOutilR(o){
   if(!PLAN) return;
+  if(!RES_ARME){ RES_EC=null; majFenRes(); }
   LIEN_SEL=null;
   GUIDE=null;
   DEPUIS_CHOISIR=false;
@@ -10586,6 +10796,7 @@ function actionR(k){
     case "cloud": ouvrirCloud(); break;
     case "fond": if(MODE!=="dessin") basculerMode("dessin"); $("btFondD").click(); break;
     case "relier": basculerRelier(); break;
+    case "resgaine": case "resfrigo": case "restelec": case "rescond": case "resfourreau": armerReseau(k.slice(3)); break;
     case "quantites": peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; break;
     case "etudepv": choisirOutilR("pvchamp"); $("btEtudePv").click(); break;
     case "v3d": $("btVue3d").click(); break;
