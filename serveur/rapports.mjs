@@ -228,7 +228,7 @@ async function lireComptes(code) {
   const a = magasinAnnuaire();
   let liste = null;
   try { liste = await a.get("comptes-" + code + ".json", { type: "json" }); } catch { liste = null; }
-  if (Array.isArray(liste) && liste.length) return liste;
+  if (Array.isArray(liste) && liste.length) return await droitsRemisAZero(a, code, liste);
 
   /* réparation : on réinstalle les comptes de départ plutôt que de bloquer tout le monde */
   const modele = [SOCIETE_DEPART, SOCIETE_DEMO].find((s) => s.code === code);
@@ -237,6 +237,22 @@ async function lireComptes(code) {
     return modele.utilisateurs;
   }
   return liste || [];
+}
+/* Novembre 2026 : rien de coché ne vaut plus « tout ». À la mise en ligne, une seule fois par
+   société, les applis et outils de chaque compte (sauf administrateur et propriétaire) sont
+   décochés : l'administrateur coche lui-même ce que chacun peut ouvrir. */
+const DROITS_REMIS = new Set();
+async function droitsRemisAZero(a, code, liste) {
+  if (DROITS_REMIS.has(code)) return liste;
+  const cle = "droits-v2-" + code + ".json";
+  let fait = null;
+  try { fait = await a.get(cle, { type: "json" }); } catch { fait = null; }
+  if (!fait) {
+    const neuve = liste.map((c) => (c.role === "admin" || c.proprietaire) ? c : { ...c, applis: [] });
+    try { await a.setJSON("comptes-" + code + ".json", neuve); await a.setJSON(cle, { le: new Date().toISOString() }); liste = neuve; } catch { return liste; }
+  }
+  DROITS_REMIS.add(code);
+  return liste;
 }
 async function ecrireComptes(code, comptes) {
   await magasinAnnuaire().setJSON("comptes-" + code + ".json", comptes);

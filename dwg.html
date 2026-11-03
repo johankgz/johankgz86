@@ -442,6 +442,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   max-width:calc(100vw - 20px);padding:8px 8px 8px 16px;border-radius:999px;background:rgba(20,25,32,.97);border:1px solid #F97316;box-shadow:0 12px 30px -12px rgba(0,0,0,.8);color:var(--ink);font-size:13.5px}
 .barre-eff[hidden]{display:none}
 .barre-eff #effTxt{font-weight:600}
+.barre-eff .bt.on{background:#F97316;border-color:#F97316;color:#fff}
 .barre-eff .bt.rouge{background:#DC2626;border-color:#DC2626;color:#fff;font-weight:700}
 @media (max-width:600px){ .barre-eff{border-radius:16px;padding:8px 10px} .barre-eff #effTxt{width:100%;text-align:center} }
 /* le réseau en cours (ou choisi) : sa nature et son diamètre, sous le ruban à gauche */
@@ -714,6 +715,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 
 <div class="barre-eff" id="barreEff" hidden role="toolbar" aria-label="Effacer du plan importé">
   <span id="effTxt">Effacer : touchez un élément du plan importé</span>
+  <button type="button" class="bt" id="effCadre" aria-pressed="false" title="Glisser un cadre : de gauche à droite, ce qui y tient en entier ; de droite à gauche, tout ce qu'il touche">Encadrer</button>
   <button type="button" class="bt rouge" id="effOk" hidden>Effacer</button>
   <button type="button" class="bt" id="effTout" hidden>Tout rétablir</button>
   <button type="button" class="bt" id="effFin">Terminer</button>
@@ -1605,6 +1607,7 @@ function garderCache(){
 /* ce qui suit la souris, par-dessus le plan peint */
 function peindreSurvol(){
   c2.setTransform(DPR,0,0,DPR,0,0);
+  peindreCadreEff(c2);
   if(MODE==="dessin" && D_SOURIS && D_SOURIS.acc) accroche(D_SOURIS.pt, D_SOURIS.genre);
   var cible = VISEE ? VISEE : SURVOL;
   if(cible && cible.acc && MODE==="cote") accroche(cible.pt, cible.genre);
@@ -1653,7 +1656,7 @@ function couleurTrait(c){
    s'entoure en orange, « Effacer » le retire. Le fichier n'est pas touché : la
    liste des objets effacés est gardée avec le plan (DESSIN.effaces), et se
    rétablit (Annuler, ou « Tout rétablir »). Un bloc (une porte) part en entier. */
-var EFF=new Set(), EFF_K="", EFF_PLAN=null, EFF_SEL=null, EFFACE_DWG=false;
+var EFF=new Set(), EFF_K="", EFF_PLAN=null, EFF_SEL=null, EFFACE_DWG=false, EFF_SELS=[], EFF_CADRE=false, EFF_RECT=null;
 function majEffaces(){
   var l=(DESSIN && DESSIN.effaces) || [], k=l.join(",");
   if(k===EFF_K && EFF_PLAN===PLAN) return;
@@ -1693,37 +1696,86 @@ function objetDwgSous(p){
   return best;
 }
 /* l'objet choisi, en orange par-dessus le plan */
+function idsChoisis(){ return EFF_SEL!=null ? [EFF_SEL] : EFF_SELS; }
+/* un objet et ce qu'il contient (le mur et sa porte) */
+function avecContenu(ids){
+  var E=(PLAN && PLAN.ents)||[], S=new Set(ids);
+  for(var id=0; id<E.length; id++){ var q=E[id] && E[id].p, g=0; while(q!=null && q>=0 && g++<12){ if(S.has(q)){ S.add(id); break; } q=E[q] && E[q].p; } }
+  return S;
+}
 function peindreObjetChoisi(c){
-  if(EFF_SEL==null || IMPRIME || !PLAN || !PLAN.parEnt) return;
-  var l=PLAN.parEnt[EFF_SEL]; if(!l) return;
-  c.save(); c.setTransform(DPR*V.k,0,0,-DPR*V.k,DPR*V.x,DPR*V.y);
-  c.strokeStyle="#F97316"; c.lineWidth=3.5/V.k; c.lineJoin="round"; c.lineCap="round"; c.beginPath();
-  l.forEach(function(r){ var A=PLAN.groupes[r[0]].A, i=r[1], n=A[i], ferme=n<0; n=Math.abs(n);
-    c.moveTo(A[i+1], A[i+2]); for(var j=1;j<n;j++) c.lineTo(A[i+1+2*j], A[i+2+2*j]); if(ferme) c.closePath(); });
-  c.stroke(); c.restore();
+  if(IMPRIME || !PLAN || !PLAN.parEnt) return;
+  var ids=idsChoisis();
+  if(ids.length){
+    c.save(); c.setTransform(DPR*V.k,0,0,-DPR*V.k,DPR*V.x,DPR*V.y);
+    c.strokeStyle="#F97316"; c.lineWidth=3.5/V.k; c.lineJoin="round"; c.lineCap="round"; c.beginPath();
+    avecContenu(ids).forEach(function(id){ (PLAN.parEnt[id]||[]).forEach(function(r){ var A=PLAN.groupes[r[0]].A, i=r[1], n=A[i], ferme=n<0; n=Math.abs(n);
+      c.moveTo(A[i+1], A[i+2]); for(var j=1;j<n;j++) c.lineTo(A[i+1+2*j], A[i+2+2*j]); if(ferme) c.closePath(); }); });
+    c.stroke(); c.restore();
+  }
+}
+/* le cadre en cours, en pointillé orange (dessiné sur le plan peint) */
+function peindreCadreEff(c){
+  if(!EFF_RECT) return;
+  var a=EFF_RECT.a, b=EFF_RECT.b;
+  var touche=b[0]<a[0];   /* de droite à gauche : tout ce qu'il touche (vert, comme dans AutoCAD) */
+  c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.strokeStyle=touche ? "#22C55E" : "#F97316"; c.fillStyle=touche ? "rgba(34,197,94,.10)" : "rgba(249,115,22,.10)"; c.lineWidth=1.5; c.setLineDash(touche ? [3,3] : [6,4]);
+  c.fillRect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1]));
+  c.strokeRect(Math.min(a[0],b[0]), Math.min(a[1],b[1]), Math.abs(b[0]-a[0]), Math.abs(b[1]-a[1])); c.restore();
+}
+/* les objets tout entiers dans le cadre (écran) : le plus grand qui y tient (le mur plutôt que sa porte) */
+function objetsDansCadre(a, b){
+  if(!PLAN || !PLAN.parEnt) return [];
+  /* de droite à gauche, comme dans AutoCAD : tout ce que le cadre touche */
+  var touche = b[0] < a[0], vus={};
+  var p0=versPlan(Math.min(a[0],b[0]), Math.max(a[1],b[1])), p1=versPlan(Math.max(a[0],b[0]), Math.min(a[1],b[1]));
+  var E=PLAN.ents||[], bo={};
+  for(var id in PLAN.parEnt){
+    if(EFF.has(+id)) continue;
+    PLAN.parEnt[id].forEach(function(r){ var g=PLAN.groupes[r[0]]; if(g.cache || (PLAN.calques[g.calque] && !PLAN.calques[g.calque].visible)) return;
+      var A=g.A, i=r[1], n=Math.abs(A[i]);
+      for(var j=0;j<n;j++){ var x=A[i+1+2*j], y=A[i+2+2*j];
+        if(touche && x>=p0[0] && x<=p1[0] && y>=p0[1] && y<=p1[1]) vus[id]=true;
+        /* la boîte de l'objet, et de ceux qui le contiennent */
+        var q=+id, gd=0; while(q!=null && q>=0 && gd++<12){ var B=bo[q]||(bo[q]={x0:Infinity,y0:Infinity,x1:-Infinity,y1:-Infinity}); if(x<B.x0) B.x0=x; if(x>B.x1) B.x1=x; if(y<B.y0) B.y0=y; if(y>B.y1) B.y1=y; q=E[q] && E[q].p; } } });
+  }
+  function dedans(B){ return B && B.x0>=p0[0] && B.x1<=p1[0] && B.y0>=p0[1] && B.y1<=p1[1]; }
+  var out=[];
+  if(touche){
+    /* ce qui est touché ; un objet dont le parent est déjà pris ne compte pas deux fois */
+    var pris=Object.keys(vus).map(Number), S=new Set(pris);
+    return pris.filter(function(k){ var q=E[k] && E[k].p, gd=0; while(q!=null && q>=0 && gd++<12){ if(S.has(q)) return false; q=E[q] && E[q].p; } return true; });
+  }
+  for(var k in bo){ if(!dedans(bo[k])) continue;
+    var q=E[k] && E[k].p, haut=false, gd=0; while(q!=null && q>=0 && gd++<12){ if(dedans(bo[q])){ haut=true; break; } q=E[q] && E[q].p; }
+    if(!haut) out.push(+k); }
+  return out;
 }
 function basculerEffaceDwg(v){
   if(!PLAN || PLAN.vierge){ toast("Ouvrez d'abord un plan DWG ou DXF : on y efface une porte, une cloison…"); return; }
   if(!PLAN.parEnt){ toast("Ce plan ne se découpe pas en éléments (PDF ou image) : seuls les DWG et DXF s'effacent."); return; }
   EFFACE_DWG = v==null ? !EFFACE_DWG : !!v;
-  EFF_SEL=null;
-  if(EFFACE_DWG){ choisirOutilR("main"); EFFACE_DWG=true; toast("Touchez la porte, la cloison ou le meuble à effacer.", 3000); }
+  EFF_SEL=null; EFF_SELS=[]; EFF_CADRE=false; EFF_RECT=null;
+  if(EFFACE_DWG){ choisirOutilR("main"); EFFACE_DWG=true; toast("Touchez la porte, la cloison ou le meuble à effacer, ou « Encadrer » pour en prendre plusieurs.", 3200); }
   majBarreEff(); majRuban(); demander();
 }
 function majBarreEff(){
   var b=$("barreEff"); if(!b) return;
   b.hidden=!EFFACE_DWG;
   if(!EFFACE_DWG) return;
-  var n=((DESSIN && DESSIN.effaces)||[]).length;
-  $("effTxt").textContent = EFF_SEL!=null ? nomObjet(EFF_SEL) : "Effacer : touchez un élément du plan importé";
-  $("effOk").hidden = EFF_SEL==null;
+  var n=((DESSIN && DESSIN.effaces)||[]).length, ids=idsChoisis();
+  $("effTxt").textContent = ids.length>1 ? ids.length+" éléments choisis" : ids.length ? nomObjet(ids[0])
+    : EFF_CADRE ? "Glissez un cadre · vers la gauche : tout ce qu'il touche" : "Effacer : touchez un élément du plan importé";
+  $("effOk").hidden = !ids.length; $("effOk").textContent = ids.length>1 ? "Effacer les "+ids.length : "Effacer";
+  $("effCadre").classList.toggle("on", EFF_CADRE); $("effCadre").setAttribute("aria-pressed", EFF_CADRE ? "true" : "false");
   $("effTout").hidden = !n; $("effTout").textContent="Tout rétablir ("+n+")";
 }
 function effacerObjetChoisi(){
-  if(EFF_SEL==null) return;
-  garderD(); DESSIN.effaces=(DESSIN.effaces||[]).concat([EFF_SEL]);
-  var nom=nomObjet(EFF_SEL); EFF_SEL=null; enregistrerD(); majBarreEff(); demander();
-  toast(nom.split(" · ")[0]+" effacé. « Annuler » le remet.", 2200);
+  var ids=idsChoisis(); if(!ids.length) return;
+  garderD(); DESSIN.effaces=(DESSIN.effaces||[]).concat(ids);
+  var nom = ids.length>1 ? ids.length+" éléments effacés" : nomObjet(ids[0]).split(" · ")[0]+" effacé";
+  EFF_SEL=null; EFF_SELS=[]; enregistrerD(); majBarreEff(); demander();
+  toast(nom+". « Annuler » les remet.", 2200);
 }
 function peindre(){
   if(PLAN && !IMPRIME && !SCENE_SALE && cacheValide()){
@@ -2386,18 +2438,31 @@ function lacher(e){
 }
 /* effacer du plan importé : un appui sans glisser choisit l'objet (le glissé déplace le plan) */
 var EFF_DEP=null;
-cv.addEventListener("pointerdown", function(e){ EFF_DEP = EFFACE_DWG && e.isPrimary ? [e.clientX, e.clientY, Object.keys(DOIGTS).length] : null; }, true);
+cv.addEventListener("pointerdown", function(e){
+  EFF_DEP = EFFACE_DWG && e.isPrimary ? [e.clientX, e.clientY, Object.keys(DOIGTS).length] : null;
+  if(EFFACE_DWG && EFF_CADRE && e.isPrimary && (e.pointerType!=="mouse" || e.button===0)){ var q=pos(e); EFF_RECT={a:q, b:q}; try{ cv.setPointerCapture(e.pointerId); }catch(er){} e.stopImmediatePropagation(); e.preventDefault(); }
+}, true);
+cv.addEventListener("pointermove", function(e){
+  if(!EFF_RECT) return;
+  EFF_RECT.b=pos(e); e.stopImmediatePropagation(); demanderSurvol();
+}, true);
 cv.addEventListener("pointerup", function(e){
+  if(EFF_RECT){
+    var R=EFF_RECT; EFF_RECT=null; EFF_DEP=null; e.stopImmediatePropagation();
+    if(Math.hypot(R.b[0]-R.a[0], R.b[1]-R.a[1])>8){ EFF_SEL=null; EFF_SELS=objetsDansCadre(R.a, R.b); if(!EFF_SELS.length) toast("Aucun élément tout entier dans le cadre.", 2000); }
+    majBarreEff(); demander(); return;
+  }
   if(!EFFACE_DWG || !EFF_DEP || !e.isPrimary) return;
   var d=EFF_DEP; EFF_DEP=null;
   if(Math.hypot(e.clientX-d[0], e.clientY-d[1])>6 || d[2]>1) return;
   var q=pos(e), id=objetDwgSous(versPlan(q[0], q[1]));
-  EFF_SEL = id==null ? null : id; majBarreEff(); demander();
+  EFF_SELS=[]; EFF_SEL = id==null ? null : id; majBarreEff(); demander();
 }, true);
+$("effCadre").addEventListener("click", function(){ EFF_CADRE=!EFF_CADRE; EFF_RECT=null; majBarreEff(); });
 $("effOk").addEventListener("click", effacerObjetChoisi);
-$("effTout").addEventListener("click", function(){ if(!DESSIN || !(DESSIN.effaces||[]).length) return; garderD(); DESSIN.effaces=[]; enregistrerD(); EFF_SEL=null; majBarreEff(); demander(); toast("Le plan importé est rétabli en entier.", 2200); });
+$("effTout").addEventListener("click", function(){ if(!DESSIN || !(DESSIN.effaces||[]).length) return; garderD(); DESSIN.effaces=[]; enregistrerD(); EFF_SEL=null; EFF_SELS=[]; majBarreEff(); demander(); toast("Le plan importé est rétabli en entier.", 2200); });
 $("effFin").addEventListener("click", function(){ basculerEffaceDwg(false); });
-document.addEventListener("keydown", function(e){ if(!EFFACE_DWG) return; if(e.key==="Escape"){ if(EFF_SEL!=null){ EFF_SEL=null; majBarreEff(); demander(); } else basculerEffaceDwg(false); } else if((e.key==="Delete" || e.key==="Backspace") && EFF_SEL!=null && !/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); effacerObjetChoisi(); } });
+document.addEventListener("keydown", function(e){ if(!EFFACE_DWG) return; if(e.key==="Escape"){ if(EFF_SEL!=null || EFF_SELS.length){ EFF_SEL=null; EFF_SELS=[]; majBarreEff(); demander(); } else basculerEffaceDwg(false); } else if((e.key==="Delete" || e.key==="Backspace") && idsChoisis().length && !/INPUT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); effacerObjetChoisi(); } });
 cv.addEventListener("pointerup", lacher);
 cv.addEventListener("pointercancel", lacher);
 cv.addEventListener("wheel", function(e){
@@ -4145,7 +4210,7 @@ function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=G
   var h=JSON.parse(HISTO_D.pop());
   /* une action sur un groupe garde aussi les symboles : Annuler les remet ensemble */
   if(h && h.__groupe){ DESSIN=normD(h.d); SYMB=h.s; enregistrerSymb(); } else DESSIN=normD(h);
-  D_SEL=null; GRP=null; EFF_SEL=null; enregistrerD(); majDessin(); majBarreSel(); demander(); }
+  D_SEL=null; GRP=null; EFF_SEL=null; EFF_SELS=[]; enregistrerD(); majDessin(); majBarreSel(); demander(); }
 /* ---------- le panneau du dessin ---------- */
 /* la barre du bas sans rien à régler (la Main, Choisir sans rien de choisi) : cachée */
 function majBasVide(){
@@ -10900,7 +10965,7 @@ function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o
 function choisirOutilR(o){
   if(!PLAN) return;
   if(!RES_ARME){ RES_EC=null; majFenRes(); }
-  if(EFFACE_DWG){ EFFACE_DWG=false; EFF_SEL=null; majBarreEff(); }
+  if(EFFACE_DWG){ EFFACE_DWG=false; EFF_SEL=null; EFF_SELS=[]; EFF_CADRE=false; EFF_RECT=null; majBarreEff(); }
   LIEN_SEL=null;
   GUIDE=null;
   DEPUIS_CHOISIR=false;
