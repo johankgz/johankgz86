@@ -30,7 +30,7 @@
 
   /* ---------- les applis : [lien, nom, droit, mots en plus, réservé] ----------
      droit : la clé d'appli du compte (comme accesAppli de l'accueil) ;
-     réservé : "bureau" (bureau et admin), "admin", ou rien. */
+     réservé : "bureau" (bureau, conducteur et admin), "ca" (chargés d'affaires : bureau et admin), "admin", ou rien. */
   var APPLIS = [
     ["./index.html", "Accueil", "", "menu maison"],
     ["./releve.html", "Relevé technique", "releve", "visite rendez-vous", "pas-tech"],
@@ -45,30 +45,31 @@
     ["./carnet.html", "Carnet et DOE", "carnet", "dossier ouvrages"],
     ["./technique.html", "Documents", "technique", "fiches techniques"],
     ["./schema.html", "Schéma unifilaire", "schema", "tableau electrique"],
-    ["./tableau.html", "Tableau de bord du bureau", "", "ts commandes rappels taches bloquants relances", "bureau"],
-    ["./facturation.html", "Facturation du mois", "", "facture factures fin de mois cocher oubli", "bureau"],
+    ["./tableau.html", "Tableau de bord du bureau", "tableau", "ts commandes rappels taches bloquants relances", "bureau"],
+    ["./facturation.html", "Facturation du mois", "", "facture factures fin de mois cocher oubli", "ca"],
     ["./rapports.html", "Carte des chantiers", "", "rapports dossiers plan"],
-    ["./utilitaires.html", "Outils", "", "calcul boussole niveau"],
-    ["./utilitaires.html#refs", "Bibliothèque", "", "références articles base catalogue batigest"],
-    ["./utilitaires.html#cable", "Section de câble", "", "chute de tension outil"],
-    ["./utilitaires.html#surface", "Surface", "", "m2 outil"],
-    ["./utilitaires.html#croix", "Produit en croix", "", "regle de trois outil"],
-    ["./dwg.html", "Plan", "", "dwg dxf 3d toiture photovoltaique"],
+    ["./utilitaires.html", "Outils", "utilitaires", "calcul boussole niveau"],
+    ["./utilitaires.html#refs", "Bibliothèque", "utilitaires", "références articles base catalogue batigest"],
+    ["./utilitaires.html#cable", "Section de câble", "utilitaires", "chute de tension outil"],
+    ["./utilitaires.html#surface", "Surface", "utilitaires", "m2 outil"],
+    ["./utilitaires.html#croix", "Produit en croix", "utilitaires", "regle de trois outil"],
+    ["./dwg.html", "Plan", "plan", "dwg dxf 3d toiture photovoltaique"],
     ["./knx.html", "Adresses de groupe KNX", "", "domotique ets"],
     ["./notes.html", "To do list", "", "taches listes"],
     ["./mesnotes.html", "Notes", "", "note carnet stylet ecriture dossier"],
     ["./discussions.html", "Discussions", "", "messages groupe pole equipe photo croquis fichier"],
     ["./cloud.html", "Cloud", "", "drive dossier fichiers stockage partage telephone ordinateur icloud onedrive"],
-    ["./plans.html", "Analyse de plan", "", "pdf symboles", "bureau"],
+    ["./plans.html", "Analyse de plan", "analyse", "pdf symboles", "bureau"],
     ["./equipe.html", "Équipe et comptes", "", "utilisateurs societe", "admin"],
     ["./compte.html", "Mon compte", "", "mot de passe apparence theme sombre clair"],
     ["./aide.html", "Aide", "", "mode d'emploi"]
   ];
   function permise(s, a){
-    var bureau = s.role === "bureau" || s.role === "admin" || s.proprietaire;
+    var bureau = s.role === "bureau" || s.role === "admin" || s.role==="conducteur" || s.proprietaire;
     if(a[4] === "pas-tech" && s.role === "technicien") return false;
     if(a[4] === "bureau" && !bureau) return false;
     if(a[4] === "admin" && !(s.role === "admin" || s.proprietaire)) return false;
+    if(a[4] === "ca" && !(s.role === "bureau" || s.role === "admin" || s.proprietaire)) return false;   /* la facturation : pas le conducteur de travaux */
     if(!a[2] || s.role === "admin" || s.proprietaire) return true;
     var l = s.applis;
     return !Array.isArray(l) || !l.length || l.indexOf(a[2]) >= 0;

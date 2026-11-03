@@ -430,7 +430,24 @@ const CLE_PARTICIPANTS_KNX = "knx/participants.json";
 /* ---------- applis du site et droits d'accès ---------- */
 /* Une liste vide vaut « toutes les applis ». L'administrateur et le
    propriétaire gardent tout, quoi qu'on leur attribue. */
-const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet", "technique", "schema"];
+const APPLIS = ["releve", "suivi", "commande", "reception", "autocontrole", "sav", "etiquettes", "photos", "carnet", "technique", "schema",
+  /* les outils : le plan, les petits outils (boussole, calculs…), l'import, le tableau de bord, l'analyse de plan
+     (les adresses KNX gardent leur code d'accès, donné personne par personne) */
+  "plan", "utilitaires", "importer", "tableau", "analyse"];
+/* Les rôles. Le conducteur de travaux travaille comme le bureau (ses chantiers, le parcours
+   d'une affaire, reprendre, archiver) mais sans la facturation du mois, sans les comptes et
+   sans le dossier réservé aux chargés d'affaires. */
+const ROLES = ["admin", "bureau", "conducteur", "technicien"];
+function estBureau(p) { return !!p && (p.role === "bureau" || p.role === "admin" || p.role === "conducteur"); }
+function estChargeAffaires(p) { return !!p && (p.role === "bureau" || p.role === "admin"); }
+/* Rien de coché : aucune appli, aucun outil (l'administrateur et le propriétaire gardent tout).
+   Les pages lisent une liste : vide, elle ne vaudrait « tout » ; on leur envoie « aucune ». */
+function applisEffectives(p) {
+  if (!p) return [];
+  if (p.role === "admin" || p.proprietaire) return applisValides(p.applis);
+  const l = applisValides(p.applis);
+  return l.length ? l : ["aucune"];
+}
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
   autocontrole: "autocontrole", sav: "sav", etiquettes: "etiquettes", reportage: "photos",
@@ -445,8 +462,7 @@ function applisValides(liste) {
 function aAcces(personne, appli) {
   if (!personne) return false;
   if (personne.role === "admin" || personne.proprietaire) return true;
-  const siennes = applisValides(personne.applis);
-  return !siennes.length || siennes.indexOf(appli) >= 0;
+  return applisValides(personne.applis).indexOf(appli) >= 0;
 }
 
 /* =====================================================================
@@ -851,16 +867,16 @@ function voit(personne, fichier, chantier) {
   if (fichier && fichier.prive) {
     /* réservé : les chargés d'affaires (et l'administrateur) attribués au dossier ; un chargé d'affaires
        retiré du dossier ne le voit plus, même s'il l'a déposé */
-    if (personne.role !== "bureau" && personne.role !== "admin") return false;
+    if (!estChargeAffaires(personne)) return false;
     if (revoque(chantier, personne.nom)) return false;
   }
-  if (personne.role !== "bureau" && personne.role !== "admin" && revoque(chantier, personne.nom)) return false;
+  if (!estBureau(personne) && revoque(chantier, personne.nom)) return false;
   const moi = (n) => n === personne.nom || memeNom(n, personne.nom);
   if (moi(fichier.auteur)) return true;
   /* celui qui l'a enregistré le voit, même au nom d'un autre conducteur de travaux */
   if ((fichier.publiePar || []).some(moi)) return true;
   if ((fichier.destinataires || []).some(moi)) return true;
-  if (chantier && chantier._orphelin && (personne.role === "bureau" || personne.role === "admin")) return true;
+  if (chantier && chantier._orphelin && estBureau(personne)) return true;
   return !!chantier && (chantier.equipe || []).some(moi);
 }
 /* un avertissement du navigateur sans conséquence, pas une erreur de la page */
@@ -1131,7 +1147,7 @@ async function rdvDuDossier(societe, c) {
   let carte = {}; try { carte = (await magasinAnnuaire().get("rdv-societe/" + societe + ".json", { type: "json" })) || {}; } catch { carte = {}; }
   const actifs = Object.keys(carte).filter((n) => carte[n] && carte[n].actif);
   const eq = ((c && c.equipe) || []).find((n) => actifs.some((a) => a === n || memeNom(a, n)));
-  const qui = eq ? actifs.find((a) => a === eq || memeNom(a, eq)) : actifs.find((n) => carte[n].role === "bureau" || carte[n].role === "admin") || actifs[0];
+  const qui = eq ? actifs.find((a) => a === eq || memeNom(a, eq)) : actifs.find((n) => estBureau(carte[n])) || actifs[0];
   return qui ? carte[qui].jeton : "";
 }
 function docVisible(f, lien) {
@@ -1361,7 +1377,7 @@ async function traiter(req) {
     const p = v.personne;
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === code) || {};
-    return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: p.applis || [],
+    return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: applisEffectives(p),
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
       proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger,
       cguVersion: CGU_VERSION, cguAJour: p.cgu === CGU_VERSION });
@@ -1457,7 +1473,7 @@ async function traiter(req) {
     const comptes = await lireComptes(lien.societe);
     /* qui prévenir : l'équipe du chantier et le bureau */
     const prevenus = Array.from(new Set((c.equipe || []).map((n) => nomDuCompte(n, comptes))
-      .concat(comptes.filter((u) => u.role === "bureau" || u.role === "admin").map((u) => u.nom)))).filter(Boolean);
+      .concat(comptes.filter((u) => estBureau(u)).map((u) => u.nom)))).filter(Boolean);
 
     if (action === "lien-demande") {
       if (d.site) return json({ ok: true });                                /* champ piège : un robot l'a rempli */
@@ -1659,7 +1675,7 @@ async function traiter(req) {
   if (!personne) return json({ erreur: "Session expirée. Reconnectez-vous." }, 401);
   /* une session de démonstration encore ouverte ne vaut plus rien */
   if (personne.societe === SOCIETE_DEMO.code) return json({ erreur: "L'accès de démonstration est fermé." }, 401);
-  const bureau = personne.role === "bureau" || personne.role === "admin";
+  const bureau = estBureau(personne), chargeAffaires = estChargeAffaires(personne);
   const admin = personne.role === "admin" || personne.proprietaire;
 
   /* ---------- chacun choisit son mot de passe ---------- */
@@ -1878,7 +1894,7 @@ async function traiter(req) {
   /* une page ouverte : la personne se sert du site (une notification en retard ailleurs n'a plus à sonner) */
   if (action === "push-actif") { await noterActif(store, personne.nom, url.searchParams.get("ap") || ""); return json({ ok: true }); }
   if (action === "moi") {
-    return json({ nom: personne.nom, role: personne.role, applis: personne.applis || [],
+    return json({ nom: personne.nom, role: personne.role, applis: applisEffectives(personne),
       proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,
       metier: "", ville: "", societe: personne.societe,
       cguVersion: CGU_VERSION, cguAJour: personne.cgu === CGU_VERSION });
@@ -2006,7 +2022,7 @@ async function traiter(req) {
     const id = String(d.identifiant || "").trim().toLowerCase();
     const nom = String(d.nom || "").trim();
     if (!id || !nom) return json({ erreur: "Identifiant et nom sont nécessaires." }, 400);
-    const role = ["admin", "bureau", "technicien"].indexOf(d.role) >= 0 ? d.role : "technicien";
+    const role = ROLES.indexOf(d.role) >= 0 ? d.role : "technicien";
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
     const applis = applisValides(d.applis);
@@ -2361,7 +2377,7 @@ async function traiter(req) {
     const memoire = d.type === "memoire";
     const doe = d.type === "doe";
     const technique = d.type === "technique";
-    if (technique && estReserve(d.visite) && !bureau) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
+    if (technique && estReserve(d.visite) && !chargeAffaires) return json({ erreur: "Le dossier réservé est pour les chargés d'affaires." }, 403);
     const point = d.type === "point";
     const schema = d.type === "schema";
     /* une note écrite dans Photo et croquis : son PDF, dans le sous-dossier « Notes » */
@@ -2385,7 +2401,7 @@ async function traiter(req) {
       /* le nom écrit sur la fiche renvoie au compte (« MICKAEL K. » → Mickaël) */
       const auMoinsUnBureau = concernes.some((n) => {
         const nom = nomDuCompte(n, comptesSoc);
-        return comptesSoc.some((u) => u.nom === nom && (u.role === "bureau" || u.role === "admin"));
+        return comptesSoc.some((u) => u.nom === nom && estBureau(u));
       });
       if (!auMoinsUnBureau) {
         return json({ erreur: versDossier
@@ -2632,7 +2648,7 @@ async function traiter(req) {
     if (!photos && !(technique && d.silencieux === true)) {
       /* et sur le téléphone, sans faire attendre la publication */
       lireComptes(personne.societe).then((comptes) => prevenirPush(store, magasinAnnuaire(),
-        concernes(entree, c, entree.auteur).filter((n) => !entree.prive || comptes.some((u) => memeNom(u.nom, n) && (u.role === "bureau" || u.role === "admin"))), "documents", {
+        concernes(entree, c, entree.auteur).filter((n) => !entree.prive || comptes.some((u) => memeNom(u.nom, n) && estChargeAffaires(u))), "documents", {
         titre: lot > 1 ? lot + " documents ajoutés" : libelleDocument(entree),
         texte: (c.client || ref) + " — " + (lot > 1 ? "déposés" : "déposé") + " par " + entree.auteur,
         url: "./chantier.html?ref=" + encodeURIComponent(ref),
@@ -4858,7 +4874,7 @@ async function traiter(req) {
      quand on le décide. Le bureau et l'administrateur.
      ===================================================================== */
   if (action === "facturation" || action === "facturation-cocher" || action === "facturation-nouveau-mois") {
-    if (!bureau) return json({ erreur: "La facturation est réservée au bureau." }, 403);
+    if (!chargeAffaires) return json({ erreur: "La facturation est réservée aux chargés d'affaires." }, 403);
     const cleF = "facturation/" + slug(personne.nom) + ".json";
     const lireF = async () => {
       const f = (await store.get(cleF, { type: "json" })) || {};
@@ -5135,7 +5151,7 @@ async function traiter(req) {
     if (!f || f.type !== "technique") return json({ erreur: "Document introuvable." }, 404);
     if (!bureau && f.auteur !== personne.nom) return json({ erreur: "Seul le bureau, ou celui qui l'a déposé, change sa catégorie." }, 403);
     /* entrer dans le dossier réservé, ou en sortir : le bureau seulement */
-    if ((cat === RESERVE_CA || f.prive) && !bureau) return json({ erreur: "Réservé aux chargés d'affaires." }, 403);
+    if ((cat === RESERVE_CA || f.prive) && !chargeAffaires) return json({ erreur: "Réservé aux chargés d'affaires." }, 403);
     f.visite = cat;
     if (cat === RESERVE_CA) f.prive = true; else delete f.prive;
     await store.setJSON(INDEX, idx);

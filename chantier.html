@@ -1162,7 +1162,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 </style><script src="./clavier.js?v=20261022a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
-<script src="./palette.js?v=20261106a" defer></script>
+<script src="./palette.js?v=20261106b" defer></script>
 </head>
 <body>
 <header>
@@ -1324,8 +1324,8 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261030a"></script>
-<script src="./dossier.js?v=20261106b"></script>
-<script src="./transfert.js?v=20261101a"></script>
+<script src="./dossier.js?v=20261106c"></script>
+<script src="./transfert.js?v=20261106a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
 <script>
@@ -1438,13 +1438,13 @@ var toastT;
 function peindreNomModif(){
   var b=$("c_nomModif"); if(!b || !CHANTIER) return;
   /* le nom, la référence et la note : le bureau et l'administrateur, pas les techniciens */
-  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   b.hidden = !bureau || !$("c_nomEdit").hidden;
 }
 /* la note du chantier */
 function peindreNote(){
   if(!CHANTIER) return;
-  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   var peut=!!bureau;
   var n=CHANTIER.note, edit=!$("c_noteEdit").hidden;
   $("c_note").hidden = !n || !n.texte || edit;
@@ -1541,7 +1541,7 @@ $("cc_edit").addEventListener("submit", function(e){
 function peindreRefModif(){
   var b=$("c_refModif"); if(!b || !CHANTIER) return;
   var releve=(CHANTIER.fichiers||[]).some(function(f){ return f.type==="releve" && !f.brouillon; });
-  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau=SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   b.hidden = releve || !bureau;
 }
 /* le PV du devis accepté, sans ouvrir le relevé */
@@ -2120,7 +2120,7 @@ function publierUnDocument(doc){
    Tout le monde le voit ; seul un chargé d'affaires de l'équipe du
    dossier le règle, ici, au curseur. Enregistré quand on relâche. */
 function chargeDuDossier(){
-  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   return !!bureau && (CHANTIER.equipe||[]).indexOf(SESSION.nom) >= 0;
 }
 var AV_VU = false, AV_OUVERT = false;   /* fermé à chaque ouverture de la page */
@@ -2164,7 +2164,7 @@ function peindreAvancement(){
 var COMMANDES=[["dossier","Dossier"],["filerie","Filerie"],["boites","Boîtes"],["appareillage","Appareillage"],["td","TD"],["finition","Finition"]];
 function peindreCommandes(){
   var host=$("cmdCases"); if(!host) return;
-  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   var cases=CHANTIER.commandes||{};
   host.textContent="";
   host.classList.toggle("lecture", !bureau);
@@ -2186,7 +2186,7 @@ function heureFr(iso){ var d=new Date(iso); return isNaN(d) ? "" : String(d.getH
 function listeNoms(l){ return l.length<=1 ? (l[0]||"") : l.slice(0,-1).join(", ")+" et "+l[l.length-1]; }
 function peindreAutocontrole(){
   var ligne=$("autocLigne"), bandeau=$("autocBandeau"); if(!ligne || !bandeau || !CHANTIER) return;
-  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin");
+  var bureau = SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur");
   var e=CHANTIER.autocontrole||null, pour=CHANTIER.autocontrolePour||[];
   var enCours=!!(e && !e.fait), fait=!!(e && e.fait);
   ligne.hidden=false; ligne.textContent="";
@@ -2658,11 +2658,12 @@ var CONTACT_OUVERT=false, EQUIPE_LUE="";
 var DEPOT_RUB={plans:"Plan", photos:"Photo", reserve:"Réservé chargés d'affaires"};
 window.rubriqueDeDepot=function(){
   var r=rubCourante(); if(!DEPOT_RUB[r[0]]) return null;
-  if(r[0]==="reserve" && !bureauIci()) return null;
+  if(r[0]==="reserve" && !caIci()) return null;
   return {nature:DEPOT_RUB[r[0]], libelle:r[1]};
 };
-function bureauIci(){ return !!(SESSION && (SESSION.role==="bureau" || SESSION.role==="admin")); }
-function rubriquesVues(){ return RUBRIQUES.filter(function(r){ return !r[4] || bureauIci(); }); }
+function bureauIci(){ return !!(SESSION && (SESSION.role==="bureau" || SESSION.role==="admin" || SESSION.role==="conducteur")); }
+function caIci(){ return !!(SESSION && (SESSION.role==="bureau" || SESSION.role==="admin")); }
+function rubriquesVues(){ return RUBRIQUES.filter(function(r){ return !r[4] || (r[0]==="reserve" ? caIci() : bureauIci()); }); }
 function rubCourante(){
   var h=String(location.hash||"").replace(/^#/, "");
   return rubriquesVues().filter(function(r){ return r[0]===h; })[0] || RUBRIQUES[0];
@@ -2953,6 +2954,6 @@ try{ if(new URLSearchParams(location.search).get("renomme")==="1"){ setTimeout(f
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261106a" defer></script>
+<script src="./navigation.js?v=20261106b" defer></script>
 </body>
 </html>

@@ -46,14 +46,14 @@ var ICO={
 };
 /* les petits outils, comme dans le menu de l'accueil */
 var OUTILS=[
-  ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
-  ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
-  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#refs", "Bibliothèque"],
-  ["./dwg.html", "Plan"], ["./knx.html", "KNX"],
+  ["./utilitaires.html#boussole", "Boussole", "utilitaires"], ["./utilitaires.html#niveau", "Niveau", "utilitaires"], ["./utilitaires.html#calcul", "Calculatrice", "utilitaires"],
+  ["./utilitaires.html#conversion", "kW · A", "utilitaires"], ["./utilitaires.html#cable", "Câble", "utilitaires"], ["./utilitaires.html#surface", "Surface", "utilitaires"],
+  ["./utilitaires.html#croix", "Produit en croix", "utilitaires"], ["./utilitaires.html#refs", "Bibliothèque", "utilitaires"],
+  ["./dwg.html", "Plan", "plan"], ["./knx.html", "KNX"],
   /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
-  ["./importer.html", "Importer et exporter"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
+  ["./importer.html", "Importer et exporter", "importer"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
   ["./etiquettes.html", "Étiquettes", "etiquettes"],
-  ["./tableau.html", "Tableau de bord", "", "bureau"], ["./facturation.html", "Facturation", "", "bureau"]
+  ["./tableau.html", "Tableau de bord", "tableau", "bureau"], ["./facturation.html", "Facturation", "", "ca"]
 ];
 /* les favoris (3 au plus), choisis dans la fenêtre Outils de l'accueil : la même clé */
 function favoris(s){
@@ -193,10 +193,10 @@ function construire(){
   vm.appendChild(entree("a", "outils", "Outils", {href:"./index.html?outils=1", page:["utilitaires.html"]}));
   var outils=el("div", "nv-outils");
   var ses=session();
-  var bureau = ses && (ses.role==="bureau" || ses.role==="admin");
+  var bureau = ses && (ses.role==="bureau" || ses.role==="admin" || ses.role==="conducteur");
   favoris(ses).forEach(function(h){
     var o=OUTILS.filter(function(x){ return x[0]===h; })[0];
-    if(!o || !accesAppli(ses, o[2]) || (o[3]==="bureau" && !bureau)) return;
+    if(!o || !accesAppli(ses, o[2]) || (o[3]==="bureau" && !bureau) || (o[3]==="ca" && !(ses.role==="bureau" || ses.role==="admin" || ses.proprietaire))) return;
     var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a);
   });
   if(!outils.children.length){ var v=el("p", "nv-fav-vide", "Vos outils favoris (3 au plus) : « Favoris » dans Outils."); outils.appendChild(v); }

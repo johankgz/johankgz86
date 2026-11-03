@@ -1984,7 +1984,7 @@ function categorieDocument(f, bureau, apres){
   sel.setAttribute("aria-label","Catégorie de "+(f.titre||"ce document"));
   var liste=CATEGORIES_TECHNIQUE.slice();
   /* le dossier réservé : le bureau seulement l'y range (ou l'en sort) */
-  if(bureau) liste.push(RESERVE_CA);
+  if(bureau && !(MOI && MOI.role==="conducteur")) liste.push(RESERVE_CA);   /* le dossier réservé : les chargés d'affaires */
   if(actuelle && liste.indexOf(actuelle)<0) liste.unshift(actuelle);
   if(!actuelle){ var o0=document.createElement("option"); o0.value=""; o0.textContent="Catégorie…"; sel.appendChild(o0); }
   liste.forEach(function(c){ var o=document.createElement("option"); o.value=c; o.textContent=c; sel.appendChild(o); });
@@ -2204,7 +2204,7 @@ function carteDossier(c, i, opts){
   opts=opts||{};
   trierDocs(c);
   var ouvertParDefaut = opts.ouvertParDefaut !== undefined ? !!opts.ouvertParDefaut : true;
-  var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin"));
+  var bureau = !!(MOI && (MOI.role==="bureau"||MOI.role==="admin" || MOI.role==="conducteur"));
   if(c && c.ref){ CLIENTS[c.ref]=c.client||""; DOSSIERS_VUS[c.ref]=c; }
   var box=document.createElement("div"); box.className="travaux"+(opts.integree ? " integree" : "");
   box.setAttribute("data-ref", c.ref);
