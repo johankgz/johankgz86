@@ -71,6 +71,11 @@ button,select{font:inherit}
 .rb-ligne{display:flex;align-items:center;gap:6px;padding:6px 10px 4px}
 .rb-ligne .titre{margin-left:4px}
 .rb-ligne .bt{min-height:34px;padding:5px 11px}
+/* l'orientation du symbole à poser : ↺ 45°, l'angle, ↻ 45° */
+.orient-pre{display:inline-flex;align-items:center;gap:6px;flex:0 0 auto}
+.orient-pre[hidden]{display:none}
+.orient-pre b{min-width:40px;text-align:center;font-variant-numeric:tabular-nums}
+.orient-pre.tourne b{color:#F59E0B}
 .rb-rapide svg{width:17px;height:17px}
 #btReplier svg{transition:transform .2s}
 .ruban.replie #btReplier svg{transform:rotate(180deg)}
@@ -795,6 +800,7 @@ body.clair #scene{background:#FFFFFF}
     <button class="bt" id="btAccrS" type="button" aria-pressed="true">Accrochage</button>
     <button class="bt" id="btEnchainerS" type="button" aria-pressed="false" title="Poser le même symbole plusieurs fois (ou maintenir Ctrl)">Enchaîner</button>
     <button class="bt" id="btTourner" type="button" disabled>Tourner 90°</button>
+    <span class="orient-pre" id="grpOrient" hidden role="group" aria-label="Orientation du symbole avant de le poser"><button class="bt" id="btOrientG" type="button" title="Tourner de 45° dans l'autre sens, avant de poser (Alt+←)">↺ 45°</button><b id="orientVal">0°</b><button class="bt" id="btOrientD" type="button" title="Tourner de 45° dans le sens des aiguilles d'une montre, avant de poser (Alt+→)">↻ 45°</button></span>
     <button class="bt" id="btRelier" type="button" disabled aria-pressed="false" title="Relier le symbole choisi : l'interrupteur à ses spots, les prises entre elles">Relier</button>
     <label class="champ-h" id="grpLSym" hidden>Longueur <input id="symbL" type="text" inputmode="decimal" autocomplete="off" list="lTypes" aria-label="Longueur de la réglette en cm"> <span class="u-saisie">cm</span></label>
     <datalist id="lBandeau"><option value="50 cm" label="bandeau 50 cm"><option value="100 cm" label="bandeau 1 m"><option value="200 cm" label="bandeau 2 m"><option value="300 cm" label="bandeau 3 m"><option value="500 cm" label="rouleau 5 m"></datalist>
@@ -1582,6 +1588,7 @@ function peindreFantome(c){
   c.save(); c.setTransform(DPR,0,0,DPR,0,0); c.globalAlpha=0.55;
   if(MODE==="symb"){
     var R=rSymbole(), a=accrocherSymbole(CHOIX, p, R, 0), q=versEcran(a.x, a.y), def=SymbolesElec.trouver(CHOIX);
+    a.rot=rotPose(a);
     if(def.long || def.bandeau){ var L=longueurDefaut(CHOIX)/DESSIN_MM*V.k, ra=-(a.rot||0)*Math.PI/180; c.translate(q[0], q[1]); c.rotate(ra); c.strokeStyle=def.couleur; c.lineWidth=2; c.setLineDash([5,4]); c.strokeRect(-L/2, -Math.max(4, R*V.k*0.3), L, 2*Math.max(4, R*V.k*0.3)); }
     else SymbolesElec.dessiner(c, CHOIX, q[0], q[1], R*V.k, {rot:-(a.rot||0)*Math.PI/180, epMin:1, couleur:(DESSIN.couleurs||{})["sy:"+def.groupe] ? visible(DESSIN.couleurs["sy:"+def.groupe]) : undefined, clair:CLAIR});
   } else {
@@ -2280,6 +2287,7 @@ document.addEventListener("keydown", function(e){
   /* Alt+→ : 45° dans le sens des aiguilles d'une montre ; Alt+← : dans l'autre sens */
   if(!champ && e.altKey && !e.ctrlKey && !e.metaKey && (e.key==="ArrowRight" || e.key==="ArrowLeft")){
     var hor=e.key==="ArrowRight";
+    if(MODE==="symb" && SEL<0 && ARME_S){ e.preventDefault(); orienterPre(hor ? -45 : 45); return; }
     if(MODE==="symb" && SEL>=0 && SYMB[SEL]){ e.preventDefault(); garderSymb(); SYMB[SEL].rot=(((SYMB[SEL].rot||0)+(hor ? -45 : 45))%360+360)%360; enregistrerSymb(); majSymb(); demander(); return; }
     if(MODE==="dessin"){
       var g45 = grpTaille(GRP) ? GRP : grpDeSel();
@@ -2752,12 +2760,18 @@ function texteDessusS(o){
   if(o.hv && def.cat==="prise") t.push(SymbolesElec.texteHauteur(hauteurDe(o)));
   return t.join("  ");
 }
+/* l'orientation choisie avant de poser : 0, 45, 90… (sens des aiguilles = -45, comme Alt+→).
+   Gardée d'un symbole à l'autre : sur un plan vu à l'envers, tout se pose à 180°.
+   Collé à un mur, le symbole suit le mur (il regarde la pièce), comme avant. */
+var ROT_PRE=0;
+function orienterPre(pas){ ROT_PRE=(((ROT_PRE+pas)%360)+360)%360; majSymb(); demander(); var v=(360-ROT_PRE)%360; toast("Le symbole se posera tourné de "+v+"°"+(v ? "" : " (droit)")+".", 1600); }
+function rotPose(a){ return a.acc && a.acc.genre===5 ? a.rot : Math.round(((((a.rot||0)+ROT_PRE)%360)+360)%360*10)/10; }
 function poserSymbole(pt){
   if(!window.SymbolesElec || !SymbolesElec.trouver(CHOIX)) return;
   if(vueD()!=="dessus"){ poserSymboleVue(pt); return; }
   garderSymb();
   var R=rSymbole(), a=accrocherSymbole(CHOIX, pt, R, 0);
-  var o={cle:CHOIX, x:a.x, y:a.y, rot:a.rot, r:R, t:""};
+  var o={cle:CHOIX, x:a.x, y:a.y, rot:rotPose(a), r:R, t:""};
   alignerSymbole(o, a); GUIDES_S=null;
   var hc=hauteurContexte(CHOIX, [o.x, o.y]);
   if(longueurS(o)) o.long=longueurDefaut(o.cle);
@@ -2785,9 +2799,13 @@ function majSymb(){
     ? (RELIER_DER>=0 ? "Relier : touchez le symbole suivant ; « Terminer » quand c'est fini." : "Relier : touchez le premier symbole (l'interrupteur), puis les autres dans l'ordre.")
     : def
     ? def.nom+" · "+(n[o.cle]||0)+" sur le plan. Glissez pour déplacer."
-    : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
+    : (SYMB.length ? "symbole"+(SYMB.length>1?"s":"")+" posé"+(SYMB.length>1?"s":"")+". "+((ARME_S || garderOutil()) ? "Touchez le plan pour poser : "+(SymbolesElec.trouver(CHOIX)||{}).court+(ROT_PRE ? ", tourné de "+((360-ROT_PRE)%360)+"°" : "")+"." : "Choisissez un symbole "+ouSymboles()+" pour en poser un autre.")
                    : "Choisissez un symbole, puis touchez le plan pour le poser.");
   $("btTourner").disabled=!o; $("btSuppSymb").disabled=!o; $("symbRep").disabled=!o;
+  /* avant de poser : l'orientation, réglable de 45° en 45° */
+  var avant = !o && !RELIER && (ARME_S || garderOutil()) && !!(SymbolesElec.trouver(CHOIX));
+  $("grpOrient").hidden=!avant; $("btTourner").hidden=avant;
+  $("orientVal").textContent=((360-ROT_PRE)%360)+"°"; $("grpOrient").classList.toggle("tourne", ROT_PRE!==0);
   $("grpHSym").hidden=!o;
   if(o && document.activeElement!==$("symbH")) $("symbH").value=enUnite(hauteurDe(o));
   /* une prise : sa hauteur peut s'écrire au-dessus (« h 1,10 ») ; une prise spécialisée a son texte */
@@ -8372,6 +8390,8 @@ $("etalon").addEventListener("submit", function(e){
 });
 $("btSymb").addEventListener("click", function(){ basculerMode(MODE==="symb" ? "cote" : "symb"); });
 $("btTourner").addEventListener("click", tournerSymb);
+$("btOrientG").addEventListener("click", function(){ orienterPre(45); });
+$("btOrientD").addEventListener("click", function(){ orienterPre(-45); });
 $("btRelier").addEventListener("click", function(){ basculerRelier(); });
 $("bsRelier").addEventListener("click", function(){ basculerRelier(); });
 $("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:accrD", ACCR_D?"1":"0"); majSymb(); });
