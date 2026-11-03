@@ -48,8 +48,8 @@ var ICO={
 var OUTILS=[
   ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
   ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
-  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Bibliothèque"],
-  ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"],
+  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#refs", "Bibliothèque"],
+  ["./dwg.html", "Plan"], ["./knx.html", "KNX"],
   /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
   ["./importer.html", "Importer et exporter"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
   ["./etiquettes.html", "Étiquettes", "etiquettes"],

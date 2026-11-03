@@ -53,7 +53,7 @@
     ["./utilitaires.html#cable", "Section de câble", "", "chute de tension outil"],
     ["./utilitaires.html#surface", "Surface", "", "m2 outil"],
     ["./utilitaires.html#croix", "Produit en croix", "", "regle de trois outil"],
-    ["./dwg.html", "Plan · dessin, cotes et symboles", "", "dwg dxf 3d toiture photovoltaique"],
+    ["./dwg.html", "Plan", "", "dwg dxf 3d toiture photovoltaique"],
     ["./knx.html", "Adresses de groupe KNX", "", "domotique ets"],
     ["./notes.html", "To do list", "", "taches listes"],
     ["./mesnotes.html", "Notes", "", "note carnet stylet ecriture dossier"],
