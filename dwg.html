@@ -261,6 +261,8 @@ select.rb-cq{width:130px;max-width:130px;min-height:30px;border-radius:8px;backg
 #reticule .rv{width:1px;height:100%}
 body.clair #reticule i{background:rgba(17,24,39,.55)}
 body.clair #scene{background:#FFFFFF}
+/* pendant un geste, le plan glisse : ce qu'il découvre a la couleur de son fond */
+body{background:#0B0E12} body.clair{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--haut,62px) + 16px) 20px 20px;text-align:center;overflow:auto}
 .accueil[hidden]{display:none}
 .depot{max-width:440px;width:100%;padding:28px 22px;border:2px dashed rgba(255,255,255,.2);border-radius:18px;background:rgba(255,255,255,.03)}
@@ -1529,12 +1531,23 @@ function demander(){ SCENE_SALE=true; if(DEMANDE) return; DEMANDE=true; requestA
 /* Fluidité : pendant un glissé, un pincement ou la molette, le plan déjà peint se déplace et
    s'agrandit tel quel (une seule image) ; il se repeint net 140 ms après le dernier mouvement.
    La souris qui passe ne repeint que la croix et le repère d'accrochage, sur le plan déjà peint. */
-var SCENE_SALE=true, GESTE=false, GESTE_T=0, CACHE={cv:null, ok:false};
+var SCENE_SALE=true, GESTE=false, GESTE_T=0, GESTE_DER=0, CACHE={cv:null, ok:false}, CV_TR=false;
+/* Pendant le geste, rien ne se repeint : c'est l'image même du plan qui glisse et
+   s'agrandit (une transformation CSS, faite par la carte graphique), à chaque image.
+   Le plan se repeint net au lâcher du doigt, ou quand il reste immobile 0,6 s. */
 function demanderGeste(){
-  GESTE=true; clearTimeout(GESTE_T);
-  GESTE_T=setTimeout(function(){ GESTE=false; demander(); }, 140);
+  GESTE=true; GESTE_DER=performance.now(); clearTimeout(GESTE_T);
+  (function finGeste(){
+    GESTE_T=setTimeout(function(){
+      if(G && performance.now()-GESTE_DER<600){ finGeste(); return; }   /* le doigt est encore posé : on attend */
+      GESTE=false;
+      /* déjà repeint au lâcher du doigt : rien à refaire */
+      var C=CACHE.V; if(CV_TR || !CACHE.ok || !C || C.k!==V.k || C.x!==V.x || C.y!==V.y) demander();
+    }, 140);
+  })();
   if(DEMANDE) return; DEMANDE=true; requestAnimationFrame(function(){ DEMANDE=false; peindre(); });
 }
+function sansTransformation(){ if(CV_TR){ cv.style.transform=""; CV_TR=false; } }
 /* la souris qui passe : l'accrochage se cherche une fois par image (pas à chaque mouvement),
    et rien ne se repeint si rien n'a changé (la croix est le curseur lui-même) */
 var SURV_P=null, SURV_RAF=false;
@@ -1613,8 +1626,16 @@ function couleurTrait(c){
 function peindre(){
   if(PLAN && !IMPRIME && !SCENE_SALE && cacheValide()){
     var C=CACHE.V, sk=V.k/C.k;
+    if(GESTE){
+      /* l'image peinte au début du geste, déplacée et agrandie par le navigateur, sans repeindre */
+      cv.style.transformOrigin="0 0";
+      cv.style.transform="translate("+(V.x-sk*C.x).toFixed(2)+"px,"+(V.y-sk*C.y).toFixed(2)+"px) scale("+sk.toFixed(5)+")";
+      CV_TR=true;
+      return;
+    }
+    sansTransformation();
     c2.setTransform(1,0,0,1,0,0);
-    if(GESTE || Math.abs(sk-1)>1e-9 || C.x!==V.x || C.y!==V.y){
+    if(Math.abs(sk-1)>1e-9 || C.x!==V.x || C.y!==V.y){
       /* le plan peint, déplacé et agrandi comme la vue (le reste se peint à la fin du geste) */
       c2.fillStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c2.fillRect(0,0,cv.width,cv.height);
       c2.imageSmoothingEnabled=true;
@@ -1625,6 +1646,7 @@ function peindre(){
     return;
   }
   SCENE_SALE=false;
+  sansTransformation();
   c2.setTransform(1,0,0,1,0,0);
   c2.fillStyle=CLAIR ? "#FFFFFF" : "#0B0E12"; c2.fillRect(0,0,cv.width,cv.height);
   if(!PLAN) return;
@@ -1888,7 +1910,7 @@ function debutGlisse(c){
   toucherD(0, 0, {pt:c.pt, acc:c.acc, genre:c.genre});
   if(OUTIL_D==="spline" && GEO_EC && GEO_EC.pts.length===1) GEO_EC.libre=true;
 }
-function pos(e){ var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
+function pos(e){ if(CV_TR) return [e.clientX, e.clientY]; var r=cv.getBoundingClientRect(); return [e.clientX-r.left, e.clientY-r.top]; }
 cv.addEventListener("pointerdown", function(e){
   if(!PLAN) return;
   try{ cv.setPointerCapture(e.pointerId); }catch(er){}
