@@ -2437,6 +2437,16 @@ function carteDossier(c, i, opts){
       bRep.addEventListener("click", function(e){ e.stopPropagation(); });
       droite.appendChild(bRep);
     }
+    /* un schéma unifilaire publié : le reprendre dans l'outil, tel qu'il était */
+    else if(f.type==="schema" && f.donnees){
+      var bSch=document.createElement("a");
+      bSch.className="part"; bSch.textContent="Reprendre";
+      bSch.href="./schema.html?ref="+encodeURIComponent(c.ref)+"&cle="+encodeURIComponent(f.cle);
+      bSch.title="Rouvrir ce schéma dans le schéma unifilaire, pour le modifier";
+      bSch.setAttribute("aria-label","Reprendre le schéma "+(f.titre||""));
+      bSch.addEventListener("click", function(e){ e.stopPropagation(); });
+      droite.appendChild(bSch);
+    }
     /* un plan en PDF des documents techniques : l'ouvrir dans « Plan » pour le modifier (coter,
        dessiner, poser des symboles) ; enregistré, il part dans « Plans modifiés », encadrés jaunes */
     else if(f.type==="technique" && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){

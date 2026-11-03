@@ -445,6 +445,21 @@ body.mode-deplacer .zone .cible:hover{fill:rgba(8,145,178,.12)}
 .barre-l span{flex:1}
 .ajout-barre{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:8px}
 .ajout-barre select{min-width:0;min-height:38px;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit}
+/* Reprendre, Dans le Cloud : des listes de boutons, une ligne chacun */
+.rep-liste{display:grid;gap:6px;margin:4px 0 10px;max-height:220px;overflow:auto}
+.rep-liste button{display:flex;flex-direction:column;align-items:flex-start;text-align:left;width:100%;padding:9px 12px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;font-size:14px;cursor:pointer}
+.rep-liste button small{color:var(--ink-3);font-size:12px}
+.rep-cherche,.sc-neuf input{width:100%;min-height:38px;padding:6px 12px;border-radius:10px;border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;font-size:14px}
+.sc-quoi{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:8px 0}
+@media (max-width:560px){.sc-quoi{grid-template-columns:1fr}}
+.sc-quoi label{display:flex;gap:8px;align-items:flex-start;padding:10px;border-radius:10px;border:1px solid var(--rule);cursor:pointer;font-size:13px;line-height:1.35}
+.sc-quoi label:has(input:checked){border-color:var(--accent);background:var(--accent-soft)}
+.sc-quoi b{display:block;font-size:14px}
+.sc-quoi small{color:var(--ink-3)}
+.sc-chemin{display:flex;flex-wrap:wrap;gap:4px;align-items:center;font-size:14px}
+.sc-chemin button{border:0;background:none;color:var(--accent);font:inherit;font-weight:600;padding:4px 2px;cursor:pointer}
+.sc-chemin button[aria-current]{color:var(--ink);cursor:default}
+.sc-neuf{display:flex;gap:8px;margin:4px 0 6px}
 /* « Alimenté par » : les appareils amont possibles, un par ligne */
 .amont-liste{display:grid;gap:6px;margin-top:6px}
 .amont-b{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;width:100%;padding:9px 12px;border-radius:10px;
@@ -531,12 +546,13 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
     <button type="button" id="btnModeles">Modèles</button>
     <button type="button" id="btnPV">Dimensionner un PV</button>
     <button type="button" id="btnMateriel">Matériel à commander</button>
-    <button type="button" id="btnOuvrir">Ouvrir</button>
+    <button type="button" id="btnOuvrir">Reprendre</button>
     <span class="groupe"><button type="button" id="zoomMoins" aria-label="Réduire">−</button><span id="zoomVal">100 %</span><button type="button" id="zoomPlus" aria-label="Agrandir">+</button><button type="button" id="zoomAjuste">Ajuster</button></span>
     <span class="groupe" id="folios" hidden><button type="button" id="folioPrec" aria-label="Folio précédent">◀</button><span id="folio"></span><button type="button" id="folioSuiv" aria-label="Folio suivant">▶</button></span>
     <span class="espace"></span>
     <button type="button" id="btnPdf">PDF</button>
-    <button type="button" class="or" id="btnPublier">Publier</button>
+    <button type="button" id="btnCloud">Dans le Cloud</button>
+    <button type="button" class="or" id="btnPublier">Dans le chantier</button>
   </div>
   <div class="etats"><span id="etatSauve"></span><span id="etatPub"></span></div>
   <div class="zone" id="zone"><svg id="dessin" viewBox="0 0 1400 990" xmlns="http://www.w3.org/2000/svg" role="group" aria-label="Schéma unifilaire"></svg></div>
@@ -587,7 +603,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
   <div class="pied"><button type="button" class="fermer">Fermer</button><button type="button" class="or" id="versCommande">Envoyer vers une commande</button></div>
 </section>
 <section class="fenetre" id="fPublier" hidden aria-label="Publier">
-  <h2>Publier le schéma</h2>
+  <h2>Enregistrer dans le chantier</h2>
   <p id="pubTexte" style="margin:0 0 6px;font-size:14.5px"></p>
   <p class="hint" id="pubEtat" style="min-height:18px"></p>
   <div class="pied"><button type="button" class="fermer">Annuler</button><button type="button" class="or" id="pubRevision" hidden></button><button type="button" class="or" id="pubRemplacer"></button></div>
@@ -604,10 +620,30 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
   <div class="pv-grille" id="pvChoix"></div>
   <div class="pied"><button type="button" class="fermer">Fermer</button><button type="button" class="fermer" id="pvRetirer" hidden>Retirer le folio PV</button><button type="button" class="or" id="pvPlacer">Ajouter le folio PV au schéma</button></div>
 </section>
-<section class="fenetre" id="fOuvrir" hidden aria-label="Ouvrir un schéma publié">
-  <h2>Rouvrir un schéma publié</h2>
+<section class="fenetre" id="fOuvrir" hidden aria-label="Reprendre un schéma">
+  <h2>Reprendre un schéma</h2>
+  <h3 class="pv-t">Ce chantier</h3>
   <div id="listePublies"></div>
+  <h3 class="pv-t">Les autres chantiers</h3>
+  <input type="search" id="repCherche" class="rep-cherche" placeholder="Chercher un chantier, un client…" aria-label="Chercher un chantier">
+  <div id="listeAutres" class="rep-liste"></div>
+  <h3 class="pv-t">Dans le Cloud</h3>
+  <div id="listeCloud" class="rep-liste"></div>
   <div class="pied"><button type="button" class="fermer">Fermer</button></div>
+</section>
+<section class="fenetre" id="fCloud" hidden aria-label="Enregistrer dans le Cloud">
+  <h2>Enregistrer dans le Cloud</h2>
+  <label class="champ-p large"><span>Nom</span><input type="text" id="scNom" maxlength="120" autocomplete="off"></label>
+  <div class="sc-quoi">
+    <label><input type="checkbox" id="scSchema" checked><span><b>Le schéma, à reprendre</b><small>Il se rouvre depuis le Cloud dans le schéma unifilaire, tel qu'il était.</small></span></label>
+    <label><input type="checkbox" id="scPdf" checked><span><b>Son PDF</b><small>Les folios, avec le cartouche.</small></span></label>
+  </div>
+  <h3 class="pv-t">Dans le dossier</h3>
+  <nav class="sc-chemin" id="scChemin" aria-label="Dossier choisi"></nav>
+  <div class="rep-liste" id="scListe"></div>
+  <div class="sc-neuf"><input type="text" id="scNeufNom" maxlength="80" autocomplete="off" placeholder="Nouveau dossier ici" aria-label="Nom du nouveau dossier"><button type="button" class="act petit" id="scNeufOk">Créer</button></div>
+  <p class="hint" id="scAide"></p>
+  <div class="pied"><button type="button" class="fermer">Annuler</button><button type="button" class="or" id="scOk">Enregistrer</button></div>
 </section>
 <div class="toast" id="toast" hidden></div>
 <script>
@@ -1059,6 +1095,20 @@ function barresAuto(S){
   });
   return out;
 }
+/* dans une colonne, de haut en bas, chaque appareil des rangs 1 à 4 est d'un rang plus bas
+   que celui au-dessus : pas de différentiel sous un différentiel (ni sous un disjoncteur),
+   pas de disjoncteur de branchement sous un différentiel. Rend le niveau fautif, ou 0. */
+function niveauFautif(cases){
+  var dernier=0;
+  for(var n=1;n<=7;n++){ var c=cases[n]; if(!c || !SYMBOLES[c.sym]) continue; var r=rangSym(c.sym); if(r>4) continue; if(dernier && r<=dernier) return n; dernier=r; }
+  return 0;
+}
+function messageRang(cases, n){
+  var c=cases[n], au=null; for(var m=n-1;m>=1;m--){ var x=cases[m]; if(x && SYMBOLES[x.sym] && rangSym(x.sym)<=4){ au=x; break; } }
+  if(!c || !au) return "";
+  var d1=SYMBOLES[c.sym].nom.toLowerCase(), d2=SYMBOLES[au.sym].nom.toLowerCase();
+  return (rangSym(c.sym)===3 && rangSym(au.sym)===3 ? "Un différentiel ne se pose pas sous un autre différentiel" : "Un "+d1+" (rang "+rangSym(c.sym)+") ne se pose pas sous un "+d2+" (rang "+rangSym(au.sym)+")")+" : posez-le dans sa propre colonne, il s'y reliera.";
+}
 function colonneParIdS(S, id){ for(var i=0;i<S.colonnes.length;i++) if(S.colonnes[i].id===id) return S.colonnes[i]; return null; }
 /* la colonne est-elle alimentée par une ligne tracée à la main (anciens schémas) ? */
 function alimenteeALaMain(S, col){
@@ -1461,6 +1511,13 @@ function peindre(){
       aide+='<rect x="'+(x+3)+'" y="'+(nv.y0+2)+'" width="'+(COL-6)+'" height="'+(nv.y1-nv.y0-4)+'" rx="6" fill="none" stroke="#E3E7EC" stroke-dasharray="3 4"/>';
     });
     aide+='<text x="'+(x+COL/2)+'" y="40" font-size="10" text-anchor="middle" fill="#9AA4B0">'+(r.debut+k+1)+'</text>';
+    /* un appareil sous un autre de même rang ou plus haut (un différentiel sous un différentiel) */
+    var nfx=niveauFautif(col.cases);
+    if(nfx){
+      var nvf=niveau(nfx);
+      aide+='<rect x="'+(x+2)+'" y="'+(nvf.y0+1)+'" width="'+(COL-4)+'" height="'+(nvf.y1-nvf.y0-2)+'" rx="7" fill="rgba(220,38,38,.08)" stroke="#DC2626" stroke-width="1.6"/>';
+      aide+='<text x="'+(x+COL/2)+'" y="'+(nvf.y1-4)+'" font-size="9.5" font-weight="700" text-anchor="middle" fill="#DC2626">à déplacer</text>';
+    }
     /* une tête sans amont (rang 2 à 5) : à relier */
     var rk=rangTete(col), hn=premierNiveau(col);
     if(rk>1 && !amontDe(S, col) && !alimenteeALaMain(S, col)){
@@ -1536,6 +1593,11 @@ function deplacerSymbole(de, vers){
   if(!a || !b || !a.cases[de.n] || !vers.n) return false;
   if(a===b && de.n===vers.n){ SEL={col:vers.col, n:vers.n}; peindre(); ouvrirPanneau(); return false; }
   var echange=!!b.cases[vers.n];
+  /* la règle des rangs, dans les deux colonnes, comme si c'était fait */
+  var ea={}, eb={}; for(var k1 in a.cases) ea[k1]=a.cases[k1];
+  if(a===b){ var t1=ea[de.n], t2=ea[vers.n]; ea[vers.n]=t1; if(t2) ea[de.n]=t2; else delete ea[de.n]; var f1=niveauFautif(ea); if(f1){ toast(messageRang(ea, f1)); return false; } }
+  else { for(var k2 in b.cases) eb[k2]=b.cases[k2]; var x0=ea[de.n], y0=eb[vers.n]; eb[vers.n]=x0; if(y0) ea[de.n]=y0; else delete ea[de.n];
+    var fa=niveauFautif(ea), fb=niveauFautif(eb); if(fb){ toast(messageRang(eb, fb)); return false; } if(fa){ toast(messageRang(ea, fa)); return false; } }
   changer(function(){
     var x=a.cases[de.n], y=b.cases[vers.n];
     b.cases[vers.n]=x;
@@ -1680,6 +1742,8 @@ function ouvrirPanneau(){
   var am=el("div","section-p amont-p");
   am.appendChild(el("h3",null,"Alimenté par"));
   var rk=rangTete(col), hn0=premierNiveau(col), head=hn0 ? col.cases[hn0] : null;
+  var nfp=niveauFautif(col.cases);
+  if(nfp) am.appendChild(el("p","hint amont-manque", messageRang(col.cases, nfp)));
   if(!head) am.appendChild(el("p","hint","Posez d'abord un appareil dans la colonne : il se reliera au rang au-dessus."));
   else if(rk===1) am.appendChild(el("p","hint","Rang 1, l'arrivée réseau : rien en amont. Les disjoncteurs de branchement (rang 2) s'y relient."));
   else {
@@ -1769,6 +1833,8 @@ function champ(nom, val, fn, long){
   l.appendChild(i); return l;
 }
 function poser(col, n, sym){
+  var essai={}; for(var k in col.cases) essai[k]=col.cases[k]; essai[n]={sym:sym};
+  var nf=niveauFautif(essai); if(nf){ toast(messageRang(essai, nf)); return; }
   changer(function(){
     var ancien=col.cases[n], d=SYMBOLES[sym];
     /* on garde les textes quand on change seulement de symbole dans la même famille */
@@ -2491,13 +2557,33 @@ function schemasPublies(ref){
 function rouvrir(f){
   return appel("fiche", null, "&cle="+encodeURIComponent(f.cle)).then(function(d){
     if(!d || !Array.isArray(d.colonnes)) throw new Error("Schéma illisible.");
-    S=d; S.modifie=false; HISTO=[]; $("btnAnnuler").disabled=true; F=0; sauver(); peindre(); fermerFenetres();
-    toast("Schéma rouvert : indice "+S.indice+".");
+    installerSchema(d, "Schéma repris : "+(d.tableau||"tableau")+", indice "+(d.indice||"A")+(d.chantier && d.chantier.ref && refNette(d.chantier.ref)!==refNette(PARAMS.get("ref")||"") ? " (chantier "+d.chantier.ref+")" : "")+".");
   }).catch(function(e){ toast(e.message||"Pas de réseau."); });
 }
+/* ---------- reprendre un schéma : ce chantier, un autre chantier, le Cloud ---------- */
+var REP_TOUS=null;
+function sansAccent(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+/* un schéma repris prend sa place : l'adresse de la page suit son chantier (pour la retrouver en rechargeant) */
+function installerSchema(d, message){
+  S=d; S.modifie=false; HISTO=[]; $("btnAnnuler").disabled=true; F=0;
+  try{ var q=new URLSearchParams(location.search); q.set("ref", S.chantier.ref||""); q.delete("cle"); q.delete("cloud"); q.delete("client"); q.delete("adresse"); history.replaceState(null, "", location.pathname+"?"+q.toString()); }catch(e){}
+  sauver(); peindre(); fermerFenetres(); fermerPanneau(); toast(message);
+}
+function peindreAutres(){
+  var h=$("listeAutres"); h.textContent="";
+  if(!REP_TOUS){ h.appendChild(el("p","hint","Recherche…")); return; }
+  var q=sansAccent($("repCherche").value).trim();
+  var l=REP_TOUS.filter(function(x){ return !q || sansAccent(x.ref+" "+x.client+" "+x.titre).indexOf(q)>=0; }).slice(0, 40);
+  if(!l.length){ h.appendChild(el("p","hint", REP_TOUS.length ? "Aucun schéma ne correspond." : "Aucun schéma publié dans les autres chantiers.")); return; }
+  l.forEach(function(x){
+    var b=el("button"); b.type="button"; b.appendChild(el("span",null,x.titre||"Schéma")); b.appendChild(el("small",null,x.ref+(x.client?" · "+x.client:"")+" · "+frDateS(x.date)));
+    b.addEventListener("click", function(){ rouvrir(x.f); }); h.appendChild(b);
+  });
+}
+$("repCherche").addEventListener("input", peindreAutres);
 $("btnOuvrir").addEventListener("click", function(){
   var h=$("listePublies"); h.textContent="Recherche…";
-  ouvrirFenetre("fOuvrir");
+  ouvrirFenetre("fOuvrir"); REP_TOUS=null; peindreAutres();
   schemasPublies(S.chantier.ref).then(function(l){
     h.textContent="";
     if(!l.length){ h.appendChild(el("p","hint","Aucun schéma publié pour ce chantier.")); return; }
@@ -2508,6 +2594,89 @@ $("btnOuvrir").addEventListener("click", function(){
       h.appendChild(b);
     });
   });
+  appel("liste").then(function(d){
+    var out=[];
+    (d.chantiers||[]).forEach(function(c){ if(refNette(c.ref)===refNette(S.chantier.ref)) return;
+      (c.fichiers||[]).forEach(function(f){ if(f.type==="schema" && f.donnees) out.push({ref:c.ref, client:c.client||"", titre:f.titre, date:f.date, publie:f.publie, f:f}); }); });
+    REP_TOUS=out.sort(function(a,b){ return String(b.publie||b.date).localeCompare(String(a.publie||a.date)); }); peindreAutres();
+  }).catch(function(){ REP_TOUS=[]; peindreAutres(); });
+  var hc=$("listeCloud"); hc.textContent="Recherche…";
+  appel("cloud-liste", null, "&vue=recents").then(function(d){
+    hc.textContent="";
+    var l=(d.elements||[]).filter(function(e){ return /\.schema$/i.test(e.nom||""); });
+    if(!l.length){ hc.appendChild(el("p","hint","Aucun schéma enregistré dans le Cloud (« Dans le Cloud », en haut, en enregistre un).")); return; }
+    l.forEach(function(e){
+      var b=el("button"); b.type="button"; b.appendChild(el("span",null,String(e.nom).replace(/\.schema$/i,""))); b.appendChild(el("small",null,"Cloud · "+frDateS(e.maj)));
+      b.addEventListener("click", function(){ ouvrirCloud(e.id); }); hc.appendChild(b);
+    });
+  }).catch(function(){ hc.textContent=""; hc.appendChild(el("p","hint","Le Cloud ne répond pas.")); });
+});
+/* un schéma du Cloud (.schema) */
+function ouvrirCloud(id){
+  fetch(API+"?action=cloud-fichier&id="+encodeURIComponent(id), {headers:{"x-auth":SESSION.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("Schéma introuvable dans le Cloud."); return r.text(); })
+    .then(function(t){
+      var x=null; try{ x=JSON.parse(t); }catch(e){}
+      var d = x && x.format==="schema-tle" ? x.schema : x;
+      if(!d || !Array.isArray(d.colonnes)) throw new Error("Ce fichier n'est pas un schéma unifilaire.");
+      d.cloud={id:id};
+      installerSchema(d, "Schéma repris du Cloud : "+(d.tableau||"tableau")+", indice "+(d.indice||"A")+".");
+    }).catch(function(e){ toast(e.message||"Pas de réseau."); });
+}
+/* ---------- enregistrer dans le Cloud : le schéma à reprendre et son PDF ---------- */
+var SC={dossier:"", chemin:[], elements:[]};
+function nomCloudS(){ return String($("scNom").value||"").replace(/[\\/:*?"<>|]+/g, "-").trim() || "Schéma"; }
+function allerSc(id){
+  SC.dossier=id; $("scListe").textContent="Chargement…";
+  appel("cloud-liste", null, id ? "&dossier="+encodeURIComponent(id) : "").then(function(d){ SC.chemin=d.chemin||[]; SC.elements=d.elements||[]; peindreSc(); })
+    .catch(function(e){ if(id){ allerSc(""); return; } $("scListe").textContent=""; $("scAide").textContent="Le Cloud ne répond pas : "+(e.message||""); });
+}
+function dejaSc(){ var n=nomCloudS().toLowerCase(), r={}; ["schema","pdf"].forEach(function(k){ var e=SC.elements.filter(function(x){ return x.type==="fichier" && String(x.nom).toLowerCase()===n+"."+k; })[0]; if(e) r[k]=e.id; }); return r; }
+function peindreSc(){
+  var ch=$("scChemin"); ch.textContent="";
+  [{id:"", nom:"Cloud"}].concat(SC.chemin).forEach(function(c, i){
+    if(i) ch.appendChild(el("span",null,"›"));
+    var b=el("button",null,c.nom); b.type="button"; if(c.id===SC.dossier) b.setAttribute("aria-current","page"); else b.addEventListener("click", function(){ allerSc(c.id); });
+    ch.appendChild(b);
+  });
+  var h=$("scListe"); h.textContent="";
+  var ds=SC.elements.filter(function(e){ return e.type==="dossier"; }).sort(function(a,b){ return String(a.nom).localeCompare(String(b.nom), "fr"); });
+  if(!ds.length) h.appendChild(el("p","hint","Pas de sous-dossier : le schéma ira ici."));
+  ds.forEach(function(e){ var b=el("button"); b.type="button"; b.appendChild(el("span",null,"▸ "+e.nom)); if((e.partage||[]).length) b.appendChild(el("small",null,"partagé")); b.addEventListener("click", function(){ allerSc(e.id); }); h.appendChild(b); });
+  var ici=SC.chemin.length ? SC.chemin[SC.chemin.length-1].nom : "Cloud", d=dejaSc(), k=Object.keys(d);
+  $("scAide").textContent="Enregistré dans « "+ici+" »"+(k.length ? ". Déjà là sous ce nom, remplacé"+(k.length>1?"s":"")+" en enregistrant : "+k.map(function(x){ return "« "+nomCloudS()+"."+x+" »"; }).join(", ")+"." : ".");
+}
+$("scNom").addEventListener("input", function(){ if(SC.elements) peindreSc(); });
+$("scNeufOk").addEventListener("click", function(){
+  var n=String($("scNeufNom").value||"").trim(); if(!n) return;
+  appel("cloud-dossier", {nom:n, parent:SC.dossier}).then(function(d){ $("scNeufNom").value=""; allerSc(d.element.id); }).catch(function(e){ toast(e.message||"Pas de réseau."); });
+});
+$("btnCloud").addEventListener("click", function(){
+  $("scNom").value = (S.cloud && S.cloud.nom) || ("Schéma "+(S.chantier.ref||"")+" "+(S.tableau||"")).replace(/\s+/g," ").trim();
+  ouvrirFenetre("fCloud"); allerSc((S.cloud && S.cloud.dossier) || (function(){ try{ return localStorage.getItem("schema:cloudDossier")||""; }catch(e){ return ""; } })());
+});
+function envoyerSc(nom, blob, remplacer){
+  var u=API+"?action=cloud-envoyer&nom="+encodeURIComponent(nom)+(SC.dossier ? "&dossier="+encodeURIComponent(SC.dossier) : "")+(remplacer ? "&remplacer="+encodeURIComponent(remplacer) : "");
+  return fetch(u, {method:"POST", headers:{"x-auth":SESSION.jeton, "content-type":"application/octet-stream"}, body:blob})
+    .then(function(r){ return r.json().catch(function(){ return {}; }).then(function(d){ if(r.status===404 && remplacer) return envoyerSc(nom, blob, ""); if(!r.ok || d.erreur) throw new Error(d.erreur||"Refusé."); return d.element; }); });
+}
+$("scOk").addEventListener("click", function(){
+  var veutS=$("scSchema").checked, veutP=$("scPdf").checked;
+  if(!veutS && !veutP){ toast("Cochez ce que vous enregistrez : le schéma, son PDF."); return; }
+  var nom=nomCloudS(), d=dejaSc(), faits=[], ici=SC.chemin.length ? SC.chemin[SC.chemin.length-1].nom : "Cloud";
+  $("scOk").disabled=true; $("scAide").textContent="Enregistrement…";
+  var suite=Promise.resolve();
+  if(veutS) suite=suite.then(function(){
+    var copie=JSON.parse(JSON.stringify(S)); delete copie.cloud;
+    return envoyerSc(nom+".schema", new Blob([JSON.stringify({format:"schema-tle", version:1, schema:copie})], {type:"application/octet-stream"}), d.schema);
+  }).then(function(e){ faits.push(e.nom); });
+  if(veutP) suite=suite.then(function(){ var doc=fabriquerPDF(); return envoyerSc(nom+".pdf", doc.output("blob"), d.pdf); }).then(function(e){ faits.push(e.nom); });
+  suite.then(function(){
+    S.cloud={dossier:SC.dossier, nom:nom}; sauver();
+    try{ localStorage.setItem("schema:cloudDossier", SC.dossier); }catch(e){}
+    fermerFenetres(); toast("Dans le Cloud, « "+ici+" » : "+faits.join(", ")+".");
+  }).catch(function(e){ $("scAide").textContent="Cloud : "+(e.message||"pas de réseau."); })
+    .then(function(){ $("scOk").disabled=false; });
 });
 /* pour les essais : l'état et les ordres de dessin d'un folio */
 window.__schema={etat:function(){ return S; }, changer:function(fn){ changer(function(){ fn(S); }); }, ordres:function(f){ return dessinerFolio(S, f||0).trace.o; }, x:function(i){ return xDe(i); }};
@@ -2535,6 +2704,13 @@ function demarrer(){
     });
   }
   if(vide) $("astuce").hidden=false;
+  /* repris depuis la page du chantier (?cle=) ou depuis le Cloud (?cloud=) */
+  var cleR=PARAMS.get("cle")||"", cloudR=PARAMS.get("cloud")||"";
+  if(cloudR){ ouvrirCloud(cloudR); return; }
+  if(cleR){
+    if(S.modifie && S.publie && S.publie.cle===cleR && !window.confirm("Ce schéma a des changements sur cet appareil, pas encore publiés. Reprendre quand même la version du chantier ?")) return;
+    rouvrir({cle:cleR}); return;
+  }
   if(!ref && !S.chantier.ref) setTimeout(function(){ $("btnCartouche").click(); }, 300);
 }
 $("repriseNon").addEventListener("click", function(){ $("reprise").hidden=true; });
