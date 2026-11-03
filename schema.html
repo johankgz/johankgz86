@@ -445,6 +445,14 @@ body.mode-deplacer .zone .cible:hover{fill:rgba(8,145,178,.12)}
 .barre-l span{flex:1}
 .ajout-barre{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:8px}
 .ajout-barre select{min-width:0;min-height:38px;font-size:13px;padding:6px 8px;border-radius:8px;font-family:inherit}
+/* « Alimenté par » : les appareils amont possibles, un par ligne */
+.amont-liste{display:grid;gap:6px;margin-top:6px}
+.amont-b{display:flex;flex-direction:column;align-items:flex-start;gap:1px;text-align:left;width:100%;padding:9px 12px;border-radius:10px;
+ border:1px solid var(--rule);background:var(--card);color:var(--ink);font:inherit;font-size:13.5px;cursor:pointer}
+.amont-b b{font-size:12px;color:var(--ink-3);font-weight:600}
+.amont-b.on{border-color:var(--accent);background:var(--accent-soft)}
+.amont-b.on b{color:var(--accent)}
+.amont-manque{color:#B42318}
 /* « Relier » passe dessous, sur toute la largeur : rien ne dépasse du panneau */
 .ajout-barre button{grid-column:1 / -1}
 .ajout-cadre{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -1010,6 +1018,119 @@ function regleDifferentiels(){
   return fait;
 }
 
+/* ---------- les liaisons par rang, comme dans XL Pro Calcul ----------
+   Chaque appareil a un rang : 1 l'arrivée réseau, 2 le disjoncteur de branchement (ou
+   l'interrupteur, le sectionneur de tête), 3 l'interrupteur ou le disjoncteur différentiel
+   (et le parafoudre), 4 le disjoncteur (ou le fusible) ; ce qui vient après (commande,
+   énergie, récepteur) est au rang 5, sous un disjoncteur. Dans une colonne, les appareils
+   l'un sous l'autre se suivent. Le premier appareil d'une colonne (sa tête) est relié à son
+   amont (col.amont : l'id de la colonne), un appareil du rang juste au-dessus, plus haut
+   que lui : le rang 4 à un rang 3, le rang 3 à un rang 2, le rang 2 à l'arrivée. Les lignes
+   entre colonnes se tracent d'elles-mêmes : sous l'appareil amont, jusqu'à ses départs. */
+var RANG={arrivee:1, agcp:2, inter:2, sect:2, id:3, disjdiff:3, parafoudre:3, disj:4, fus:4};
+var NOMS_RANG={1:"l'arrivée réseau", 2:"un disjoncteur de branchement", 3:"un différentiel", 4:"un disjoncteur"};
+function rangSym(sym){ return RANG[sym] || 5; }
+function rangTete(col){ var n=premierNiveau(col); return n ? rangSym(col.cases[n].sym) : 0; }
+function rangAccepte(rp, rc){ return rc<=4 ? rp===rc-1 : rp>=2 && rp<=4; }
+/* l'appareil de la colonne P qui peut alimenter la colonne col : {n} ou null */
+function appareilPour(P, col){
+  var hn=premierNiveau(col), rc=rangTete(col), best=0;
+  if(!P || !hn || rc<=1 || P===col) return null;
+  for(var n=1;n<hn;n++){ var c=P.cases[n]; if(c && SYMBOLES[c.sym] && rangAccepte(rangSym(c.sym), rc)) best=n; }
+  return best ? {n:best} : null;
+}
+function amontDe(S, col){ if(!col.amont) return null; var P=null; S.colonnes.forEach(function(c){ if(c.id===col.amont) P=c; }); var a=P && appareilPour(P, col); return a ? {col:P, n:a.n} : null; }
+/* les lignes tracées d'après les liens : une par appareil amont, de lui à ses départs */
+function yBarre(n){ var a=niveau(n), b=niveau(n+1); return b ? (a.y1+b.y0)/2 : a.y1+6; }
+function barresAuto(S){
+  var groupes={}, ordre=[];
+  S.colonnes.forEach(function(col){
+    var am=amontDe(S, col); if(!am) return;
+    var k=am.col.id+"@"+am.n;
+    if(!groupes[k]){ groupes[k]={de:am.col.id, n:am.n, a:[]}; ordre.push(k); }
+    groupes[k].a.push(col.id);
+  });
+  var out=[];
+  ordre.forEach(function(k){
+    var g=groupes[k], ids=[g.de].concat(g.a), idx=ids.map(function(id){ var i=-1; S.colonnes.forEach(function(c,j){ if(c.id===id) i=j; }); return i; });
+    var i1=Math.min.apply(null, idx), i2=Math.max.apply(null, idx);
+    out.push({de:S.colonnes[i1].id, a:S.colonnes[i2].id, y:yBarre(g.n), niveau:({2:"A",3:"B",4:"C"})[g.n]||"Z", auto:true, generale:rangSym(colonneParIdS(S, g.de).cases[g.n].sym)<=2});
+  });
+  return out;
+}
+function colonneParIdS(S, id){ for(var i=0;i<S.colonnes.length;i++) if(S.colonnes[i].id===id) return S.colonnes[i]; return null; }
+/* la colonne est-elle alimentée par une ligne tracée à la main (anciens schémas) ? */
+function alimenteeALaMain(S, col){
+  var i=-1; S.colonnes.forEach(function(c,j){ if(c===col) i=j; });
+  var l=[]; (S.barres||[]).forEach(function(b){ var a=-1, z=-1; S.colonnes.forEach(function(c,j){ if(c.id===b.de) a=j; if(c.id===b.a) z=j; }); if(a<0||z<0) return; if(Math.min(a,z)<=i && i<=Math.max(a,z)) l.push({y:BARRES[b.niveau].y, niveau:b.niveau}); });
+  var hn=premierNiveau(col); if(!hn) return false;
+  return branchements(col, l).some(function(t){ return t.y<niveau(hn).y0; });
+}
+/* les amonts possibles d'une colonne : les autres colonnes qui ont un appareil du bon rang */
+function candidatsAmont(col){ return S.colonnes.filter(function(P){ return P!==col && appareilPour(P, col); }); }
+/* l'amont proposé : le plus proche à gauche (ou celui d'une voisine du même rang), sinon à droite */
+function proposerAmont(col){
+  var i=indexCol(col.id), rc=rangTete(col);
+  function essai(j){
+    var P=S.colonnes[j]; if(!P) return null;
+    if(appareilPour(P, col)) return P.id;
+    if(rangTete(P)===rc && P.amont){ var Q=colonneParId(P.amont); if(Q && appareilPour(Q, col)) return Q.id; }
+    return null;
+  }
+  for(var j=i-1;j>=0;j--){ var g=essai(j); if(g) return g; }
+  for(var k=i+1;k<S.colonnes.length;k++){ var d=essai(k); if(d) return d; }
+  return null;
+}
+/* après chaque changement : un lien qui ne vaut plus est refait ; une tête sans amont en reçoit un */
+function normaliserAmonts(){
+  var fait=0;
+  S.colonnes.forEach(function(col){
+    var rc=rangTete(col);
+    if(rc<=1){ if(col.amont){ delete col.amont; fait++; } return; }
+    if(col.amont && amontDe(S, col)) return;
+    if(alimenteeALaMain(S, col)){ if(col.amont){ delete col.amont; fait++; } return; }
+    var p=proposerAmont(col);
+    if(p){ col.amont=p; fait++; } else if(col.amont){ delete col.amont; fait++; }
+  });
+  return fait;
+}
+/* un ancien schéma (des lignes tracées à la main) : ses lignes deviennent des liens, quand
+   c'est sûr ; une ligne qu'on ne sait pas lire reste telle quelle */
+function deduireAmonts(){
+  if(S.liens) return;
+  S.barres=S.barres||[];
+  var garder=[];
+  S.barres.forEach(function(b){
+    var i1=indexCol(b.de), i2=indexCol(b.a); if(i1<0||i2<0){ return; }
+    if(i1>i2){ var z=i1; i1=i2; i2=z; }
+    var y=BARRES[b.niveau].y, enfants=[], sources=[];
+    for(var k=i1;k<=i2;k++){
+      var col=S.colonnes[k], hn=premierNiveau(col); if(!hn) continue;
+      var l=[]; S.barres.forEach(function(x){ var a=indexCol(x.de), zz=indexCol(x.a); if(a<0||zz<0) return; if(Math.min(a,zz)<=k && k<=Math.max(a,zz)) l.push({y:BARRES[x.niveau].y, niveau:x.niveau, b:x}); });
+      var arr=branchements(col, l).filter(function(t){ return t.y<niveau(hn).y0; })[0];
+      if(arr && arr.b===b) enfants.push(col);
+      else if(niveau(hn).y0<y){ for(var n=hn;n<=7;n++){ var c=col.cases[n]; if(c && SYMBOLES[c.sym] && niveau(n).y1<=y && yBarre(n)===y) { sources.push(col); break; } } }
+    }
+    var src = sources.length===1 ? sources[0] : sources.filter(function(c){ return c.id===b.de; })[0] || null;
+    var ok = !!src && enfants.every(function(c){ return appareilPour(src, c); });
+    if(ok){ enfants.forEach(function(c){ c.amont=src.id; }); }
+    else garder.push(b);
+  });
+  S.barres=garder;
+  S.liens=true;
+  normaliserAmonts();
+}
+/* relié à la main par le panneau : la colonne va avec les départs de son amont, côte à côte */
+function rangerSousAmont(col){
+  var P=colonneParId(col.amont); if(!P) return;
+  function descend(c, vu){ return S.colonnes.filter(function(x){ return x.amont===c.id && x!==col && !vu[x.id]; }).reduce(function(acc, x){ vu[x.id]=1; return acc.concat([x], descend(x, vu)); }, []); }
+  var groupe=[P].concat(descend(P, {})), fin=Math.max.apply(null, groupe.map(function(x){ return indexCol(x.id); }));
+  var i=indexCol(col.id); if(i===fin+1 || (i>indexCol(P.id) && i<=fin)) return;
+  S.colonnes.splice(i, 1); fin=Math.max.apply(null, groupe.map(function(x){ return indexCol(x.id); }));
+  S.colonnes.splice(fin+1, 0, col);
+}
+function nomAppareil(P, n){ var c=P.cases[n]; return (c.rep ? c.rep+" · " : "")+SYMBOLES[c.sym].nom+((c.t||[]).filter(Boolean).length ? " "+(c.t||[]).filter(Boolean).slice(0,2).join(" · ") : ""); }
+
 /* ---------- le dessin d'un folio ---------- */
 function dessinerFolio(S, f, opts){
   opts=opts||{};
@@ -1032,16 +1153,17 @@ function dessinerFolio(S, f, opts){
   });
   /* barres : leurs bouts sur ce folio */
   var parCol={};   /* id colonne -> y des barres qui la touchent */
-  (S.barres||[]).forEach(function(b){
+  (S.barres||[]).concat(barresAuto(S)).forEach(function(b){
     var i1=index[b.de], i2=index[b.a]; if(i1==null||i2==null) return;
     if(i1>i2){ var z=i1; i1=i2; i2=z; }
-    for(var i=i1;i<=i2;i++){ var id=S.colonnes[i].id; (parCol[id]=parCol[id]||[]).push({y:BARRES[b.niveau].y, niveau:b.niveau, bout:i===i1||i===i2}); }
+    var yb = b.y!=null ? b.y : BARRES[b.niveau].y;
+    for(var i=i1;i<=i2;i++){ var id=S.colonnes[i].id; (parCol[id]=parCol[id]||[]).push({y:yb, niveau:b.niveau, bout:i===i1||i===i2}); }
     var g=Math.max(i1,debut), d=Math.min(i2,debut+cols.length-1);
     if(g>d) return;
-    var y=BARRES[b.niveau].y, xg=xDe(g-debut), xd=xDe(d-debut);
+    var y=yb, xg=xDe(g-debut), xd=xDe(d-debut);
     if(i1<debut){ xg=X_COLS-10; T.t(X_COLS-14,y-4,"F"+f,9,{anchor:"end",gris:true}); }
     if(i2>debut+cols.length-1){ xd=X_COLS+cols.length*COL; T.t(xd+4,y-4,"F"+(f+2),9,{gris:true}); }
-    T.l(xg,y,xd,y,b.niveau==="A"?2.2:1.8);
+    T.l(xg,y,xd,y,(b.auto ? b.generale : b.niveau==="A")?2.2:1.8);
   });
   /* bornier */
   T.l(40,Y_BORNIER,LARGEUR-40,Y_BORNIER,1.1,"8 6");
@@ -1272,6 +1394,7 @@ function avant(){ /* à appeler avant chaque changement : de quoi l'annuler */
 }
 function changer(fn){
   avant(); fn();
+  if(S.liens) normaliserAmonts();
   if(regleDifferentiels()) toast("Un différentiel ne se branche pas sous la rangée d'un autre : il reste seul sur la barre générale, ou prend les circuits à sa droite.");
   S.modifie=true; sauver(); peindre();
 }
@@ -1319,6 +1442,7 @@ function remplirTable(col){
 /* ---------- le dessin à l'écran ---------- */
 var NS="http://www.w3.org/2000/svg";
 function peindre(){
+  if(!S.liens){ deduireAmonts(); sauver(); }
   var nF=nbFolios(S);
   if(F>=nF) F=nF-1;
   var r=dessinerFolio(S, F);
@@ -1336,6 +1460,13 @@ function peindre(){
       aide+='<rect x="'+(x+3)+'" y="'+(nv.y0+2)+'" width="'+(COL-6)+'" height="'+(nv.y1-nv.y0-4)+'" rx="6" fill="none" stroke="#E3E7EC" stroke-dasharray="3 4"/>';
     });
     aide+='<text x="'+(x+COL/2)+'" y="40" font-size="10" text-anchor="middle" fill="#9AA4B0">'+(r.debut+k+1)+'</text>';
+    /* une tête sans amont (rang 2 à 5) : à relier */
+    var rk=rangTete(col), hn=premierNiveau(col);
+    if(rk>1 && !amontDe(S, col) && !alimenteeALaMain(S, col)){
+      var nvh=niveau(hn);
+      aide+='<rect x="'+(x+2)+'" y="'+(nvh.y0+1)+'" width="'+(COL-4)+'" height="'+(nvh.y1-nvh.y0-2)+'" rx="7" fill="rgba(220,38,38,.06)" stroke="#DC2626" stroke-width="1.6" stroke-dasharray="5 3"/>';
+      aide+='<text x="'+(x+COL/2)+'" y="'+(nvh.y0-5)+'" font-size="10" font-weight="700" text-anchor="middle" fill="#DC2626">à relier</text>';
+    }
   });
   var sel='';
   if(SEL){
@@ -1543,11 +1674,44 @@ function ouvrirPanneau(){
   sel.addEventListener("change", function(){ var v=parseInt(sel.value,10); changer(function(){ col.fils=v; remplirTable(col); }); });
   fl.appendChild(sel); tb.appendChild(fl);
   p.appendChild(tb);
-  /* les lignes (barres) qui touchent cette colonne */
+  /* l'amont de la colonne : la liaison par rang (rang 4 → un différentiel, rang 3 → un
+     disjoncteur de branchement, rang 2 → l'arrivée) */
+  var am=el("div","section-p amont-p");
+  am.appendChild(el("h3",null,"Alimenté par"));
+  var rk=rangTete(col), hn0=premierNiveau(col), head=hn0 ? col.cases[hn0] : null;
+  if(!head) am.appendChild(el("p","hint","Posez d'abord un appareil dans la colonne : il se reliera au rang au-dessus."));
+  else if(rk===1) am.appendChild(el("p","hint","Rang 1, l'arrivée réseau : rien en amont. Les disjoncteurs de branchement (rang 2) s'y relient."));
+  else {
+    am.appendChild(el("p","hint","Rang "+(rk<=4 ? rk : "5")+" · "+SYMBOLES[head.sym].nom+" : il se relie à "+(rk<=4 ? NOMS_RANG[rk-1]+" (rang "+(rk-1)+")" : "un disjoncteur (rang 4)")+"."));
+    var cands=candidatsAmont(col), actuel=amontDe(S, col);
+    if(!cands.length) am.appendChild(el("p","hint amont-manque","Aucun "+(rk<=4 ? NOMS_RANG[rk-1].replace(/^(un|l')\s*/,"") : "disjoncteur")+" dans les autres colonnes : posez-le d'abord, la colonne s'y reliera."));
+    var liste=el("div","amont-liste");
+    cands.forEach(function(P){
+      var ap=appareilPour(P, col), on=actuel && actuel.col===P;
+      var b=el("button","amont-b"+(on?" on":"")); b.type="button"; b.setAttribute("aria-pressed", on ? "true" : "false");
+      b.innerHTML='<b>Colonne '+(indexCol(P.id)+1)+'</b><span>'+echapper(nomAppareil(P, ap.n))+'</span>';
+      b.addEventListener("click", function(){
+        if(on) return;
+        changer(function(){ col.amont=P.id; rangerSousAmont(col); });
+        ouvrirPanneau(); toast("Colonne reliée à "+(P.cases[ap.n].rep || SYMBOLES[P.cases[ap.n].sym].nom)+" : elle passe à côté de ses autres départs.");
+      });
+      liste.appendChild(b);
+    });
+    am.appendChild(liste);
+  }
+  p.appendChild(am);
+  /* les départs de cette colonne */
+  var deps=S.colonnes.filter(function(c){ var a=amontDe(S, c); return a && a.col===col; });
+  if(deps.length){
+    var dp=el("div","section-p");
+    dp.appendChild(el("h3",null,"Ses départs"));
+    dp.appendChild(el("p","hint", deps.map(function(c){ var hh=premierNiveau(c), x=c.cases[hh]; return "colonne "+(indexCol(c.id)+1)+(x && x.rep ? " ("+x.rep+")" : ""); }).join(", ")+"."));
+    p.appendChild(dp);
+  }
+  /* les lignes tracées à la main (anciens schémas) qui touchent cette colonne */
   var br=el("div","section-p");
-  br.appendChild(el("h3",null,"Lignes entre colonnes"));
   var touchent=(S.barres||[]).filter(function(b){ var a=indexCol(b.de), z=indexCol(b.a); return Math.min(a,z)<=i && i<=Math.max(a,z); });
-  if(!touchent.length) br.appendChild(el("p","hint","Aucune ligne ne passe par cette colonne."));
+  if(touchent.length) br.appendChild(el("h3",null,"Lignes tracées à la main"));
   touchent.forEach(function(b){
     var ln=el("div","barre-l");
     ln.appendChild(el("span",null,BARRES[b.niveau].nom+" : colonnes "+(Math.min(indexCol(b.de),indexCol(b.a))+1)+" à "+(Math.max(indexCol(b.de),indexCol(b.a))+1)));
@@ -1555,19 +1719,7 @@ function ouvrirPanneau(){
     x.addEventListener("click", function(){ changer(function(){ S.barres=S.barres.filter(function(y){ return y!==b; }); }); ouvrirPanneau(); });
     ln.appendChild(x); br.appendChild(ln);
   });
-  var aj=el("div","ajout-barre");
-  var sn=el("select"); for(var k in BARRES){ var o=el("option",null,BARRES[k].nom); o.value=k; sn.appendChild(o); }
-  var sa=el("select");
-  S.colonnes.forEach(function(cc, j){ if(j===i) return; var o=el("option",null,"jusqu'à la colonne "+(j+1)); o.value=cc.id; if(j===i+1) o.selected=true; sa.appendChild(o); });
-  var bajout=el("button","act petit","Relier"); bajout.type="button";
-  bajout.addEventListener("click", function(){
-    if(!sa.value) return;
-    changer(function(){ S.barres.push({id:uid(), niveau:sn.value, de:col.id, a:sa.value}); });
-    ouvrirPanneau(); toast("Ligne ajoutée.");
-  });
-  aj.appendChild(sn); aj.appendChild(sa); aj.appendChild(bajout);
-  br.appendChild(aj);
-  p.appendChild(br);
+  if(touchent.length){ br.appendChild(el("p","hint","Retirez-les : les liens par rang les remplacent.")); p.appendChild(br); }
   /* les coffrets (cadres en pointillés bleus) qui prennent cette colonne */
   S.cadres=S.cadres||[];
   var cf=el("div","section-p");
@@ -1742,7 +1894,7 @@ $("btnModeles").addEventListener("click", function(){ ouvrirFenetre("fModeles");
 function remplacer(nouveau, message){
   var plein=S.colonnes.some(function(c){ return Object.keys(c.cases).length; });
   if(plein && !window.confirm("Remplacer le schéma en cours ? (« Annuler » en haut le fait revenir)")) return false;
-  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; });
+  changer(function(){ S.colonnes=nouveau.colonnes; S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; delete S.liens; });
   F=0; fermerFenetres(); fermerPanneau(); toast(message); return true;
 }
 function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=table||{}; for(var k in c.table) c.auto[k]=false; return c; }
