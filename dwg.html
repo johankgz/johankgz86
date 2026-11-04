@@ -5000,7 +5000,7 @@ function geomCote(o){
 }
 function segmentsG(o){
   if(o.t==="gtexte") return [];
-  if(o.cdc==="te") return [[o.pts[0], o.pts[1]], [o.pts[1], o.pts[2]], [o.pts[1], o.pts[3]]];
+  if(o.cdc==="te" || o.cdc==="croix") return [[o.pts[0], o.pts[2]], [o.pts[1], o.pts[3]]].concat(o.cdc==="croix" ? [[o.pts[1], o.pts[4]]] : []);
   if(o.t==="cote"){ var g=geomCote(o); return [[g.A, g.B]]; }
   var p=contourG(o), out=[];
   for(var i=0;i<p.length-1;i++) out.push([p[i], p[i+1]]);
@@ -5157,13 +5157,13 @@ function quantChemin(o){
    Posée, elle s'accroche au bout libre d'une autre pièce et prend sa direction. */
 var CDC=(function(){ var d={p:"droit", L:3000, s:1, rot:0}; try{ var x=JSON.parse(lire("dwg:cdc", "{}"))||{}; ["p","L","s"].forEach(function(k){ if(x[k]!=null) d[k]=x[k]; }); }catch(e){} return d; })();
 function garderCdc(){ garder("dwg:cdc", JSON.stringify({p:CDC.p, L:CDC.L, s:CDC.s})); }
-var NOMS_CDC={droit:"Longueur", coude:"Coude 90°", te:"Té"};
+var NOMS_CDC={droit:"Longueur", coude:"Coude 90°", te:"Té", croix:"Croix"};
 function brasCdc(r){ return (largeurRes(r)/2+100)/DESSIN_MM; }
 function piecesCdc(){ return geos().filter(function(o){ return o.cdc && o.res && (!o.vue || o.vue==="dessus"); }); }
 function portsCdc(o){
   var P=o.pts;
   if(o.cdc==="droit") return [{p:P[0], d:unite(sub(P[0], P[1]))}, {p:P[1], d:unite(sub(P[1], P[0]))}];
-  return [P[0], P[2], P[3]].filter(Boolean).map(function(q){ return {p:q, d:unite(sub(q, P[1]))}; });
+  return [P[0], P[2], P[3], P[4]].filter(Boolean).map(function(q){ return {p:q, d:unite(sub(q, P[1]))}; });
 }
 function memePort(a, b){ return Math.hypot(a[0]-b[0], a[1]-b[1])*DESSIN_MM<5; }
 function libreCdc(q, sauf){ return !piecesCdc().some(function(o){ return o!==sauf && portsCdc(o).some(function(t){ return memePort(t.p, q); }); }); }
@@ -5173,6 +5173,7 @@ function construireCdc(E, u, piece, L, sens, a){
   function at(x, y){ return [E[0]+u[0]*x+n[0]*y, E[1]+u[1]*x+n[1]*y]; }
   if(piece==="droit") return [at(0, 0), at(L, 0)];
   if(piece==="coude") return [at(0, 0), at(a, 0), at(a, a)];
+  if(piece==="croix") return [at(0, 0), at(a, 0), at(2*a, 0), at(a, a), at(a, -a)];
   return [at(0, 0), at(a, 0), at(2*a, 0), at(a, a)];
 }
 /* la pièce qu'on va poser sous le pointeur : accrochée au bout libre le plus proche, sinon là, dans l'orientation choisie */
@@ -5194,6 +5195,7 @@ function refaireCdc(o, sens){
   var P=o.pts, u=unite(sub(o.cdc==="droit" ? P[1] : P[1], P[0]));
   if(o.cdc==="droit"){ o.pts=construireCdc(P[0], u, "droit", (o.res.coupe||3000)/DESSIN_MM, 1, 0); return; }
   var q=o.cdc==="coude" ? P[2] : P[3], v=sub(q, P[1]), s0=(u[0]*v[1]-u[1]*v[0])>=0 ? 1 : -1;
+  if(o.cdc==="croix") s0=1;
   o.pts=construireCdc(P[0], u, o.cdc, 0, sens||s0, brasCdc(o.res));
 }
 /* le dessin d'une pièce, en coordonnées du plan : ses rebords, ses jonctions (aux bouts), l'onglet du coude, ses supports, sa surface */
@@ -5212,6 +5214,15 @@ function formeCdc(o){
     var g1=decalerRes([P[0], P[1], P[2]], h), g2=decalerRes([P[0], P[1], P[2]], -h);
     out.bords=[g1, g2]; out.joints=[[g1[0], g2[0]], [g1[2], g2[2]]]; out.diag=[g1[1], g2[1]];
     out.axes=[[P[0], P[1], P[2]]]; out.surf=g1.concat(g2.slice().reverse());
+    return out;
+  }
+  if(o.cdc==="croix"){
+    /* la croix : deux passages qui se croisent, ouverte des quatre côtés */
+    var A=P[0], Cx=P[1], Bx=P[2], Q1=P[3], Q2=P[4], ux=unite(sub(Bx, A)), Nx=unite(sub(Q1, Cx)), m=function(x, ku, kn){ return [x[0]+ux[0]*ku+Nx[0]*kn, x[1]+ux[1]*ku+Nx[1]*kn]; };
+    out.bords=[[m(A,0,h), m(Cx,-h,h), m(Q1,-h,0)], [m(Q1,h,0), m(Cx,h,h), m(Bx,0,h)], [m(A,0,-h), m(Cx,-h,-h), m(Q2,-h,0)], [m(Q2,h,0), m(Cx,h,-h), m(Bx,0,-h)]];
+    out.joints=[[m(A,0,h), m(A,0,-h)], [m(Bx,0,h), m(Bx,0,-h)], [m(Q1,-h,0), m(Q1,h,0)], [m(Q2,-h,0), m(Q2,h,0)]];
+    out.axes=[[A, Bx], [Q2, Q1]];
+    out.surf=[m(A,0,-h), m(A,0,h), m(Cx,-h,h), m(Q1,-h,0), m(Q1,h,0), m(Cx,h,h), m(Bx,0,h), m(Bx,0,-h), m(Cx,h,-h), m(Q2,h,0), m(Q2,-h,0), m(Cx,-h,-h)];
     return out;
   }
   var a=P[0], C=P[1], b=P[2], q=P[3], ur=unite(sub(b, a)), N=unite(sub(q, C));
@@ -5354,7 +5365,7 @@ function reseauxPoses(){
       /* une pièce : la longueur compte (coupée ou non), le coude et le té se comptent ; les supports, sur les longueurs seulement */
       x.L-=longueurRes(o);
       if(o.cdc==="droit"){ var Lp=lng(sub(o.pts[1], o.pts[0]))*DESSIN_MM; x.L+=Lp; x.ch.supports+=Math.max(1, Math.round(Lp/((o.res.sp||1.5)*1000))); }
-      else if(o.cdc==="coude") x.ch.coudes++; else x.ch.tes++;
+      else if(o.cdc==="coude") x.ch.coudes++; else if(o.cdc==="croix") x.ch.croix++; else x.ch.tes++;
       x.ch.eclisses+=ecl[o.id]||0;
     } else if(o.res.t==="chemin"){ var q=quantChemin(o); x.ch.supports+=q.supports; x.ch.eclisses+=q.eclisses; x.ch.coudes+=q.coudes; x.ch.tes+=q.tes; x.ch.croix+=q.croix; }
   });
@@ -5442,17 +5453,17 @@ function majFenRes(){
       f.appendChild(l4);
     }
     var piece = o ? o.cdc : CDC.p;
-    if(!o) ligneB("Pièce", [["droit","Longueur"],["coude","Coude 90°"],["te","Té"]], CDC.p, function(v){ CDC.p=v; garderCdc(); });
+    if(!o) ligneB("Pièce", [["droit","Longueur"],["coude","Coude 90°"],["te","Té"],["croix","Croix"]], CDC.p, function(v){ CDC.p=v; garderCdc(); });
     if(piece==="droit") ligneB("Longueur", [[3000,"3 m"],[2500,"2,5 m"],[2000,"2 m"],[1500,"1,5 m"],[1000,"1 m"],[500,"0,5 m"]], o ? (o.res.coupe||3000) : CDC.L, function(v){
       if(o){ garderD(); if(v===3000) delete o.res.coupe; else o.res.coupe=v; refaireCdc(o); enregistrerD(); } else { CDC.L=v; garderCdc(); } });
-    else {
+    else if(piece!=="croix"){
       var sCur=CDC.s; if(o){ var P4=o.pts, u4=unite(sub(P4[1], P4[0])), v4=sub(o.cdc==="coude" ? P4[2] : P4[3], P4[1]); sCur=(u4[0]*v4[1]-u4[1]*v4[0])>=0 ? 1 : -1; }
       ligneB(piece==="coude" ? "Sens" : "Dérivation", [[1,"À gauche"],[-1,"À droite"]], sCur, function(v){ if(o){ garderD(); refaireCdc(o, v); enregistrerD(); } else { CDC.s=v; garderCdc(); } });
     }
     if(!o) ligneB("Posée seule", [["t","Tourner de 90°"]], null, function(){ CDC.rot=(CDC.rot+90)%360; });
   }
   /* le chemin de câbles : l'écart des supports, et ce qu'il faut commander */
-  if(r.t==="chemin" && !(o && o.cdc && o.cdc!=="droit")){
+  if(r.t==="chemin" && !(o && o.cdc && o.cdc!=="droit")){   /* les supports : sur les longueurs */
     var l3=document.createElement("div"); l3.className="fr-l";
     var t3=document.createElement("span"); t3.textContent="Supports"; l3.appendChild(t3);
     [1, 1.2, 1.5, 2].forEach(function(v){
