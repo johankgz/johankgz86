@@ -5139,8 +5139,36 @@ function quantChemin(o){
   if(o.t==="poly") for(var j=1;j<p.length-1;j++){ var a=Math.atan2(p[j][1]-p[j-1][1], p[j][0]-p[j-1][0]), b=Math.atan2(p[j+1][1]-p[j][1], p[j+1][0]-p[j][0]), d=Math.abs(((b-a)*180/Math.PI+540)%360-180); if(d>20){ coudes++; pos.push(cum[j]); } }
   var n=Math.max(1, Math.ceil(L/sp)); for(var k=0;k<=n;k++) pos.push(L*k/n);
   pos.sort(function(x, y){ return x-y; }); var u=[]; pos.forEach(function(x){ if(!u.length || x-u[u.length-1]>200) u.push(x); });
-  var lg=Math.max(1, Math.ceil(L/3000));
-  return {L:L, longueurs:lg, eclisses:lg-1, supports:u.length, coudes:coudes, pos:u, cum:cum, pts:p};
+  var lg=Math.max(1, Math.ceil(L/3000)), jn=jonctionsChemins()[o.id]||{tes:0, croix:0};
+  return {L:L, longueurs:lg, eclisses:lg-1, supports:u.length, coudes:coudes, tes:jn.tes, croix:jn.croix, pos:u, cum:cum, pts:p};
+}
+/* les tés et les croix entre chemins de câbles : le bout d'un chemin posé sur un autre fait un té (compté sur celui qui le reçoit) ;
+   deux chemins qui se croisent font une croix */
+function jonctionsChemins(){
+  var ch=geos().filter(function(o){ return o.res && o.res.t==="chemin" && (!o.vue || o.vue==="dessus"); }), out={};
+  ch.forEach(function(o){ out[o.id]={tes:0, croix:0}; });
+  if(ch.length<2) return out;
+  var P=ch.map(function(o){ return contourG(o); });
+  function projSeg(q, a, b){ var dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy, t=l2 ? Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/l2)) : 0; return Math.hypot(q[0]-a[0]-t*dx, q[1]-a[1]-t*dy); }
+  function distPoly(q, p){ var m=Infinity; for(var i=1;i<p.length;i++) m=Math.min(m, projSeg(q, p[i-1], p[i])); return m; }
+  ch.forEach(function(A, ia){ ch.forEach(function(B, ib){
+    if(ia===ib) return; var pa=P[ia], pb=P[ib], tol=(largeurRes(B.res)/2+100)/DESSIN_MM;
+    [pa[0], pa[pa.length-1]].forEach(function(e){
+      if(distPoly(e, pb)>tol) return;
+      if(Math.hypot(e[0]-pb[0][0], e[1]-pb[0][1])<=tol*1.5 || Math.hypot(e[0]-pb[pb.length-1][0], e[1]-pb[pb.length-1][1])<=tol*1.5) return;   /* bout à bout : une éclisse ou un coude, pas un té */
+      out[B.id].tes++;
+    });
+    if(ia<ib) for(var i=1;i<pa.length;i++) for(var j=1;j<pb.length;j++){
+      var a=pa[i-1], b=pa[i], c=pb[j-1], d=pb[j], r=[b[0]-a[0], b[1]-a[1]], sv=[d[0]-c[0], d[1]-c[1]], den=r[0]*sv[1]-r[1]*sv[0];
+      if(Math.abs(den)<1e-9) continue;
+      var t=((c[0]-a[0])*sv[1]-(c[1]-a[1])*sv[0])/den, u=((c[0]-a[0])*r[1]-(c[1]-a[1])*r[0])/den;
+      if(t<=0 || t>=1 || u<=0 || u>=1) continue;
+      var X=[a[0]+r[0]*t, a[1]+r[1]*t], tolX=(largeurRes(A.res)/2+largeurRes(B.res)/2+100)/DESSIN_MM;
+      var pres=[pa[0], pa[pa.length-1], pb[0], pb[pb.length-1]].some(function(e){ return Math.hypot(e[0]-X[0], e[1]-X[1])<=tolX; });
+      if(!pres) out[A.id].croix++;   /* un bout tout près du croisement : c'est un té, déjà compté */
+    }
+  }); });
+  return out;
 }
 /* les câbles du photovoltaïque, pour la légende : chaque string, chaque câble AC et RJ45 */
 function cablesPvLegende(){
@@ -5152,7 +5180,7 @@ function cablesPvLegende(){
   });
   return out;
 }
-function texteChemin(q){ return q.longueurs+" longueur"+(q.longueurs>1?"s":"")+" de 3 m, "+q.supports+" support"+(q.supports>1?"s":"")+(q.eclisses ? ", "+q.eclisses+" éclisse"+(q.eclisses>1?"s":"") : "")+(q.coudes ? ", "+q.coudes+" coude"+(q.coudes>1?"s":"") : ""); }
+function texteChemin(q){ return q.longueurs+" longueur"+(q.longueurs>1?"s":"")+" de 3 m, "+q.supports+" support"+(q.supports>1?"s":"")+(q.eclisses ? ", "+q.eclisses+" éclisse"+(q.eclisses>1?"s":"") : "")+(q.coudes ? ", "+q.coudes+" coude"+(q.coudes>1?"s":"") : "")+(q.tes ? ", "+q.tes+" té"+(q.tes>1?"s":"") : "")+(q.croix ? ", "+q.croix+" croix" : ""); }
 function natureRes(r){ var T=RES_TYPES[r.t]; return T ? (T.natures.filter(function(n){ return n[0]===r.n; })[0] || T.natures[0]) : null; }
 function coulRes(r){ var n=natureRes(r); return n ? n[2] : "#E11D48"; }
 function texteDiam(d){ return d==="" || d==null ? "" : typeof d==="number" ? "Ø"+d : String(d); }
@@ -5188,7 +5216,7 @@ function reseauxPoses(){
   var par={}, ordre=Object.keys(RES_TYPES);
   geos().forEach(function(o){ if(!o.res || !RES_TYPES[o.res.t] || (o.vue && o.vue!=="dessus")) return;
     var k=o.res.t+"|"+o.res.n+"|"+o.res.d, x=par[k]=par[k]||{res:{t:o.res.t, n:o.res.n, d:o.res.d}, L:0}; x.L+=longueurRes(o);
-    if(o.res.t==="chemin"){ var q=quantChemin(o); x.ch=x.ch||{longueurs:0, eclisses:0, supports:0, coudes:0}; x.ch.supports+=q.supports; x.ch.eclisses+=q.eclisses; x.ch.coudes+=q.coudes; }
+    if(o.res.t==="chemin"){ var q=quantChemin(o); x.ch=x.ch||{longueurs:0, eclisses:0, supports:0, coudes:0, tes:0, croix:0}; x.ch.supports+=q.supports; x.ch.eclisses+=q.eclisses; x.ch.coudes+=q.coudes; x.ch.tes+=q.tes; x.ch.croix+=q.croix; }
   });
   Object.keys(par).forEach(function(k){ var x=par[k]; if(x.ch) x.ch.longueurs=Math.max(1, Math.ceil(x.L/3000)); });
   return Object.keys(par).map(function(k){ return par[k]; }).sort(function(a, b){ return ordre.indexOf(a.res.t)-ordre.indexOf(b.res.t) || String(a.res.n).localeCompare(String(b.res.n)) || (parseFloat(a.res.d)||0)-(parseFloat(b.res.d)||0); });
