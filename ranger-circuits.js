@@ -136,7 +136,7 @@
       } else ok=placer(ids, c, opt);
       if(!ok){ var d2=nouvelId(opt.typeA==="tous" ? "A" : "AC"); ids.push(d2); d2.circuits.push(c); }
     });
-    return finir({titre:"Répartie", desc:"L'éclairage et les prises partagés entre tous les différentiels : un défaut ne coupe qu'une partie de la maison. Les gros consommateurs sont équilibrés.", ids:ids.concat(sp.dedies)}, opt);
+    return finir({titre:"Répartie", desc:"L'éclairage et les prises partagés entre tous les différentiels : un défaut ne coupe qu'une partie de l'installation. Les gros consommateurs sont équilibrés.", ids:ids.concat(sp.dedies)}, opt);
   }
   /* 2. par usage : la vie (éclairage, prises), la cuisine et le linge en type A, le chauffage et l'eau chaude, l'extérieur */
   function proposerUsage(L, opt){
