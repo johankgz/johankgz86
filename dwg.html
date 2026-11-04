@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan</title>
-<script src="./symboles-elec.js?v=20261109a"></script>
+<script src="./symboles-elec.js?v=20261109b"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -460,6 +460,10 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fen-resa input[type=text]{width:64px;min-height:30px;padding:3px 8px;border-radius:999px;border:1px solid var(--trait);background:#0B0E12;color:var(--ink);font:inherit;text-align:center}
 .fen-resa label{display:inline-flex;align-items:center;gap:5px}
 .fen-resa input[type=checkbox]{width:18px;height:18px}
+#feuChoix{display:grid;gap:10px;margin-top:6px}
+#feuChoix .fe-l{display:flex;flex-wrap:wrap;gap:6px}
+#feuChoix .bt{min-width:62px;min-height:42px}
+#feuChoix .bt.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
 @media (max-width:600px){ .fen-res{left:6px;right:6px;max-width:none;padding:7px 8px;gap:5px;font-size:12px}
   .fen-res .fr-l{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .fen-res .fr-l span,.fen-res small{display:none}
   .fen-res button{min-height:28px;padding:2px 9px;flex:0 0 auto} }
@@ -682,6 +686,14 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <p class="fs-aide">Ce qui est rempli s'écrit dans l'encadré, à côté du symbole, sur le plan et au PDF. Tout est facultatif.</p>
     <div class="fo-grille" id="fkChamps"></div>
     <div class="fo-bas"><button class="bt" type="button" id="fkEffacer">Retirer l'encadré</button><button class="bt or" type="button" id="fkOk">Valider</button></div>
+  </div>
+</div>
+
+<div class="fen-site" id="fenEu" hidden role="dialog" aria-modal="true" aria-labelledby="fenEuT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenEuT">Évacuation : quel diamètre ?</b><button class="bt" type="button" id="feuFermer" aria-label="Fermer">✕</button></div>
+    <p class="fs-aide">EU, EV ou EP, puis le diamètre : il s'écrit à côté du rond. Il se change ensuite dans la barre du bas.</p>
+    <div id="feuChoix"></div>
   </div>
 </div>
 
@@ -1918,6 +1930,8 @@ function peindreSymboles(c){
 var CHAMPS_CARAC={
   clim:[["modele","Marque et modèle","t","Daikin FBA50A"],["froid","Puissance froid (kW)","n","5,0"],["chaud","Puissance chaud (kW)","n","6,0"],
         ["dim","Dimensions L × P × H (mm)","t","1000 × 800 × 245"],["poids","Poids (kg)","n","32"],["alim","Alimentation","alim",""],["fluide","Fluide","t","R32"],["note","Remarque","t",""]],
+  pacecs:[["modele","Marque et modèle","t","Daikin Altherma 3 R F"],["chaud","Puissance chaud (kW)","n","8"],["froid","Puissance froid (kW)","n",""],["vol","Ballon ECS (L)","n","230"],
+          ["dim","Dimensions L × P × H (mm)","t","595 × 625 × 1850"],["poids","Poids à vide (kg)","n","130"],["alim","Alimentation","alim",""],["fluide","Fluide","t","R32"],["note","Remarque","t",""]],
   ballon:[["modele","Marque et modèle","t","Atlantic 200 L"],["vol","Volume (L)","n","200"],["dim","Dimensions Ø × H (mm)","t","570 × 1550"],
           ["poids","Poids à vide (kg)","n","55"],["note","Remarque","t",""]]
 };
@@ -1929,6 +1943,7 @@ function lignesCarac(o, def){
   if(def.carac==="ballon"){
     if(k.vol) L.push({t:nb(k.vol)+" L"});
   } else {
+    if(k.vol) L.push({t:"Ballon ECS "+nb(k.vol)+" L"});
     var p=[k.froid ? "Froid "+nb(k.froid)+" kW" : "", k.chaud ? "Chaud "+nb(k.chaud)+" kW" : ""].filter(Boolean).join(" · ");
     if(p) L.push({t:p});
   }
@@ -1958,6 +1973,27 @@ function peindreCarac(c, o, def, p, R){
   L.forEach(function(l, i){ c.font=(l.b ? "700 " : "500 ")+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.fillStyle=l.b ? col : ((IMPRIME || PX_MM || CLAIR) ? "#1F2937" : "#E5E7EB"); c.fillText(l.t, x+pad*1.2, y+pad*0.6+lh*(i+0.5)); });
   c.restore();
 }
+/* l'évacuation qu'on vient de poser : EU, EV ou EP, et son diamètre, d'un toucher */
+var FEN_EU=-1;
+function ouvrirFenEu(i){
+  var o=SYMB[i]; if(!o) return; FEN_EU=i;
+  var z=$("feuChoix"); z.textContent="";
+  var ln=document.createElement("div"); ln.className="fe-l";
+  ["EU","EV","EP"].forEach(function(n){ var b=document.createElement("button"); b.type="button"; b.className="bt"+((o.nat||"EU")===n ? " on" : ""); b.textContent=n; b.dataset.nat=n; ln.appendChild(b); });
+  z.appendChild(ln);
+  var ld=document.createElement("div"); ld.className="fe-l";
+  [32,40,50,63,80,100,110,125,160].forEach(function(d){ var b=document.createElement("button"); b.type="button"; b.className="bt"+((o.dia||100)===d ? " on" : ""); b.textContent="Ø"+d; b.dataset.dia=String(d); ld.appendChild(b); });
+  z.appendChild(ld);
+  $("fenEu").hidden=false;
+}
+function fermerFenEu(){ FEN_EU=-1; $("fenEu").hidden=true; majSymb(); demander(); }
+$("feuChoix").addEventListener("click", function(e){
+  var b=e.target.closest("button"), o=SYMB[FEN_EU]; if(!b || !o) return;
+  if(b.dataset.nat){ o.nat=b.dataset.nat; [].forEach.call(this.querySelectorAll("[data-nat]"), function(x){ x.classList.toggle("on", x===b); }); enregistrerSymb(); demander(); return; }
+  o.dia=Number(b.dataset.dia)||100; enregistrerSymb(); fermerFenEu();
+  toast((o.nat||"EU")+" Ø"+o.dia+" : écrit à côté du rond.", 2000);
+});
+$("feuFermer").addEventListener("click", fermerFenEu);
 var FEN_CARAC=-1;
 function ouvrirFenCarac(){
   var o=SEL>=0 ? SYMB[SEL] : null, def=defDe(o); if(!def || !def.carac) return;
@@ -3113,6 +3149,7 @@ function poserSymbole(pt){
   if(hc){ o.h=hc.h; toast("Posé à "+cm(hc.h)+" cm : "+hc.raison+". Modifiable dans « Hauteur ».", 4000); }
   if(cqCourant()) o.cq=cqCourant();
   SYMB.push(o);
+  var dPose=SymbolesElec.trouver(o.cle); if(dPose && dPose.eu) setTimeout(function(){ ouvrirFenEu(SYMB.indexOf(o)); }, 30);
   /* posé : la palette se relâche et rien n'est choisi, le doigt redéplace le plan ; Enchaîner (ou Ctrl) garde le symbole */
   if(garderOutil()) SEL=SYMB.length-1; else { SEL=-1; ARME_S=false; }
   enregistrerSymb();
@@ -5117,7 +5154,7 @@ function majFenRes(){
 /* les réservations pour le maçon : un rectangle tracé sur le plan (rouge, en tirets, avec sa croix),
    numéroté R1, R2… ; son cadre donne le support (mur, dalle…), l'usage, ses dimensions (ou « à définir
    sur place ») et, dans un mur, la hauteur du bas */
-var RESA_EC=null, RESA_ARME=false, RESA_COUL="#DB2777";
+var RESA_EC=null, RESA_ARME=false, RESA_COUL="#DB2777", RESA_FOCUS=false;
 var RESA_SUPPORTS=[["mur","Mur"],["cloison","Cloison"],["dalle","Dalle"],["plancher","Plancher"],["toiture","Toiture"]];
 var RESA_USAGES=[["vmc","VMC"],["clim","Clim"],["eu","EU / EV"],["eau","Plomberie"],["elec","Élec"],["autre","Autre"]];
 function armerResa(){
@@ -5175,18 +5212,27 @@ function majFenResa(){
     function champ(cle, val, aria){ var i=document.createElement("input"); i.type="text"; i.inputMode="decimal"; i.autocomplete="off"; i.value=nomCm(val); i.setAttribute("aria-label", aria);
       i.addEventListener("focus", function(){ garderD(); });
       i.addEventListener("change", function(){ var n=parseFloat(String(i.value).replace(",", ".")); if(!(n>=0)) { delete o.resa[cle]; } else o.resa[cle]=n; enregistrerD(); majFenResa(); demander(); });
-      i.addEventListener("keydown", function(e){ if(e.key==="Enter") i.blur(); e.stopPropagation(); });
+      i.addEventListener("keydown", function(e){
+        e.stopPropagation(); if(e.key!=="Enter" && e.key!=="Tab") return; e.preventDefault();
+        var tous=[].slice.call(f.querySelectorAll('input[type=text]')), k=tous.indexOf(i), suiv=tous[k+(e.shiftKey ? -1 : 1)];
+        i.blur();     /* la valeur s'enregistre ; le cadre se redessine : on retrouve la case suivante par son rang */
+        if(suiv){ var rang=k+(e.shiftKey ? -1 : 1); setTimeout(function(){ var n=f.querySelectorAll('input[type=text]')[rang]; if(n){ n.focus(); n.select(); } }, 20); }
+      });
       return i; }
     l2.appendChild(champ("l", cs.l, "Largeur en cm")); l2.appendChild(document.createTextNode("×")); l2.appendChild(champ("h", cs.h, (r.sup==="mur" || r.sup==="cloison") ? "Hauteur en cm" : "Longueur en cm"));
     if(r.sup==="mur" || r.sup==="cloison"){ var tz=document.createElement("span"); tz.textContent="bas à"; tz.style.minWidth="0"; l2.appendChild(tz); l2.appendChild(champ("z", r.z!=null ? r.z : "", "Hauteur du bas en cm")); l2.appendChild(document.createTextNode("cm")); }
     f.appendChild(l2);
   }
   if(o){ var x=texteResa(o), et=document.createElement("small"); et.textContent="Écrit sur le plan : « "+x.num+" · "+x.l1+" · "+x.l2+" »"; f.appendChild(et); }
+  /* une réservation qu'on vient de tracer : le curseur dans sa largeur, prêt à taper (Entrée passe à la hauteur, puis au bas) */
+  if(o && RESA_FOCUS){ RESA_FOCUS=false; var i0=f.querySelector('input[type=text]'); if(i0){ var fx=function(){ try{ var j=f.querySelector('input[type=text]'); if(j && document.activeElement!==j){ j.focus(); j.select(); } }catch(e){} }; setTimeout(fx, 60); setTimeout(fx, 250); } }
 }
 function creerGeo(o){
   if(o.t==="rect" && RESA_EC && OUTIL_D==="rect"){
     var nMax=0; geos().forEach(function(g){ if(g.resa && g.resa.n>nMax) nMax=g.resa.n; });
-    o.resa={sup:RESA_EC.sup, us:RESA_EC.us, def:!!RESA_EC.def, n:nMax+1}; o.couleur=RESA_COUL; o.tir=true; o.remp="aucun"; o.ep="moyen";
+    /* les cotes se demandent tout de suite : largeur, hauteur (ou longueur), et le bas dans un mur ; « À définir sur place » reste possible */
+    o.resa={sup:RESA_EC.sup, us:RESA_EC.us, def:false, n:nMax+1}; o.couleur=RESA_COUL; o.tir=true; o.remp="aucun"; o.ep="moyen";
+    RESA_FOCUS=true;
   }
   if(o.t==="spline" && RES_EC && OUTIL_D==="spline"){ o.res={t:RES_EC.t, n:RES_EC.n, d:RES_EC.d}; o.couleur=coulRes(o.res); o.ep="moyen"; o.tir=!!RES_TYPES[RES_EC.t].tir; o.remp="aucun"; }
   o.id=idD(); o.ep=o.ep||STYLE_G.ep;
@@ -11135,7 +11181,7 @@ function peindrePanneau(){
     majReglagesR(); pn.scrollLeft=0; majRuban(); return;
   }
   if(on.plomb){
-    [["Production", ["cfo-pac-int","cfo-ballon-ecs","cfo-ballon-tampon","cfo-chauffe-eau"]],
+    [["Production", ["cfo-pac-ecs","cfo-ballon-tampon","cfo-chauffe-eau"]],
      ["Distribution", ["cfo-collecteur-ef","cfo-collecteur-ec"]],
      ["Évacuation", ["cfo-eu"]]].forEach(function(gr){
       var G=groupeRuban(gr[0]), d=document.createElement("div"); d.className="rb-syms";
