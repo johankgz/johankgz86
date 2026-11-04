@@ -9,10 +9,10 @@
      - 8 circuits au plus par différentiel 30 mA (réglable) ;
      - logement : 1 différentiel jusqu'à 35 m², 2 jusqu'à 100 m²,
        3 au-delà, au moins ;
-     - type A pour les plaques et le lave-linge (ou partout, au choix,
-       comme le demande la version 2024 de la norme) ; type F conseillé
-       pour le congélateur ; la borne de recharge a son propre
-       différentiel ;
+     - type A seulement là où il le faut : plaques de cuisson, lave-linge,
+       sèche-linge, lave-vaisselle, PAC et clim, borne de recharge ; type AC
+       pour tout le reste (ou type A partout, au choix) ; type F conseillé
+       pour le congélateur ; la borne a son propre différentiel ;
      - l'éclairage partagé entre plusieurs différentiels, pour qu'un
        défaut ne plonge pas toute la maison dans le noir ;
      - en triphasé, les circuits monophasés répartis sur L1, L2, L3.
@@ -24,11 +24,12 @@
   "use strict";
   /* les usages : dans l'ordre où on les cherche dans le nom (« prise lave-linge » est un lave-linge) */
   var USAGES=[
-    {k:"ve",     re:/borne|irve|recharge|v[ée]hicule|\bve\b|wallbox/i,                                  lib:"Borne de recharge",   ordre:90, cal:32, rec:"irve"},
+    {k:"ve",     re:/borne|irve|recharge|v[ée]hicule|\bve\b|wallbox/i,                                  lib:"Borne de recharge",   ordre:90, cal:32, rec:"irve", typeA:true},
     {k:"plaque", re:/plaque|cuisson|induction|cuisini[eè]re|piano/i,                                    lib:"Plaques de cuisson",  ordre:40, cal:32, typeA:true},
     {k:"ll",     re:/lave.?linge|\bll\b|s[eè]che.?linge|\bsl\b|machine [àa] laver|buanderie/i,          lib:"Lave-linge, sèche-linge", ordre:45, cal:20, typeA:true},
     {k:"cong",   re:/cong[ée]lateur|r[ée]frig[ée]rateur|frigo|cave [àa] vin/i,                         lib:"Froid (congélateur)", ordre:50, cal:20},
-    {k:"four",   re:/four|micro.?onde|lave.?vaisselle|\blv\b|hotte/i,                                   lib:"Cuisine (four, LV)",  ordre:42, cal:20},
+    {k:"lv",     re:/lave.?vaisselle|\blv\b/i,                                                           lib:"Lave-vaisselle",      ordre:43, cal:20, typeA:true},
+    {k:"four",   re:/four|micro.?onde|hotte/i,                                                          lib:"Cuisine (four)",      ordre:42, cal:20},
     {k:"ecs",    re:/chauffe.?eau|cumulus|ballon|\becs\b|thermodynamique/i,                             lib:"Chauffe-eau",         ordre:60, cal:20},
     {k:"pac",    re:/\bpac\b|pompe [àa] chaleur|clim|gainable|split|groupe ext|unit[ée] (int|ext)|module hydrau/i, lib:"PAC, climatisation", ordre:70, cal:20, typeA:true, rec:"moteur"},
     {k:"chauf",  re:/radiateur|chauffage|convecteur|plancher chauffant|s[eè]che.?serviette|panneau rayonnant/i, lib:"Chauffage", ordre:65, cal:20, rec:"chauffage"},
@@ -96,8 +97,18 @@
   /* ---------- les différentiels ---------- */
   function nouvelId(type, raison){ return {type:type, raison:raison||"", circuits:[]}; }
   function charge(id){ return id.circuits.reduce(function(s, c){ return s+c.I; }, 0); }
+  /* un différentiel tient 8 circuits au plus, et 63 A estimés (la somme × 0,8) */
+  var CAP=63/0.8;
+  function tient(d, c, opt){ return d.circuits.length<opt.max && (charge(d)+c.I<=CAP || !d.circuits.length); }
+  /* des circuits d'une même famille, répartis sur assez de différentiels (nombre et charge), le moins chargé d'abord */
+  function paquets(cs, type, raison, opt){
+    var tot=cs.reduce(function(s, c){ return s+c.I; }, 0), n=Math.max(1, Math.ceil(cs.length/opt.max), Math.ceil(tot/CAP)), ids=[];
+    for(var k=0;k<n;k++) ids.push(nouvelId(type, raison));
+    cs.slice().sort(function(a, b){ return b.I-a.I; }).forEach(function(c){ if(!placer(ids, c, opt)){ var d=nouvelId(type, raison); ids.push(d); d.circuits.push(c); } });
+    return ids;
+  }
   function placer(ids, c, opt, filtre){
-    var cand=ids.filter(function(d){ return !d.dedie && d.circuits.length<opt.max && (!filtre || filtre(d)); });
+    var cand=ids.filter(function(d){ return !d.dedie && tient(d, c, opt) && (!filtre || filtre(d)); });
     if(!cand.length) return false;
     cand.sort(function(a, b){ return charge(a)-charge(b) || a.circuits.length-b.circuits.length; });
     cand[0].circuits.push(c); return true;
@@ -142,14 +153,17 @@
   function proposerUsage(L, opt){
     var sp=separerBornes(L), familles=[
       {nom:"Éclairage et prises", u:["ecl","pc","vdi","volet","vmc"]},
-      {nom:"Cuisine et linge", u:["plaque","four","ll","cong"], A:true},
+      {nom:"Cuisine et linge", u:["plaque","four","lv","ll","cong"], A:true},
       {nom:"Chauffage, eau chaude, PAC", u:["chauf","ecs","pac"]},
       {nom:"Extérieur et divers", u:["ext","autre"]}], ids=[];
     familles.forEach(function(f){
       var cs=sp.reste.filter(function(c){ return f.u.indexOf(c.usage)>=0; }).sort(trierUsage); if(!cs.length) return;
-      var n=Math.ceil(cs.length/opt.max), grp=[];
-      for(var k=0;k<n;k++){ var d=nouvelId(opt.typeA==="tous" || f.A || cs.some(function(c){ return typeRequis(c, opt); }) ? "A" : "AC", f.nom); grp.push(d); ids.push(d); }
-      cs.forEach(function(c, j){ grp[Math.floor(j/opt.max)].circuits.push(c); });
+      var A=opt.typeA==="tous" || cs.some(function(c){ return typeRequis(c, opt); });
+      if(A && opt.typeA!=="tous"){
+        /* dans une famille, seul ce qui l'exige va sur un type A ; le reste sur un AC */
+        var ra=cs.filter(function(c){ return typeRequis(c, opt); }), rac=cs.filter(function(c){ return !typeRequis(c, opt); });
+        ids.push.apply(ids, paquets(ra, "A", f.nom, opt)); if(rac.length) ids.push.apply(ids, paquets(rac, "AC", f.nom, opt));
+      } else ids.push.apply(ids, paquets(cs, A ? "A" : "AC", f.nom, opt));
     });
     /* l'éclairage tout seul sur un différentiel : on en passe la moitié sur un autre */
     var ecl=[]; ids.forEach(function(d){ d.circuits.forEach(function(c){ if(c.usage==="ecl") ecl.push({d:d, c:c}); }); });
@@ -177,14 +191,12 @@
     if(noms.length<2 || avecZone<sp.reste.length*0.4) return proposerGros(L, opt);
     var ids=[];
     noms.sort().forEach(function(z){
-      var cs=zones[z].sort(trierUsage), n=Math.ceil(cs.length/opt.max), grp=[];
-      for(var k=0;k<n;k++){ var d=nouvelId(opt.typeA==="tous" ? "A" : "AC", "Zone "+z); grp.push(d); ids.push(d); }
-      cs.forEach(function(c, j){ grp[Math.floor(j/opt.max)].circuits.push(c); });
+      ids.push.apply(ids, paquets(zones[z].sort(trierUsage), opt.typeA==="tous" ? "A" : "AC", "Zone "+z, opt));
     });
     sans.sort(trierUsage).forEach(function(c){
-      if(!placer(ids, c, opt, function(d){ return d.type==="A" && /Cuisine|Sans zone/.test(d.raison); }) && !(typeRequis(c, opt) ? false : placer(ids, c, opt))){
-        var d=nouvelId(typeRequis(c, opt) || opt.typeA==="tous" ? "A" : "AC", typeRequis(c, opt) ? "Cuisine, linge, PAC (type A)" : "Sans zone"); ids.push(d); d.circuits.push(c);
-      }
+      var req=typeRequis(c, opt), ty=req ? "A" : "AC";
+      if(placer(ids, c, opt, function(d){ return d.type===ty && /type A|Sans zone/.test(d.raison); }) || (!req && placer(ids, c, opt, function(d){ return d.type==="AC"; }))) return;
+      var d=nouvelId(ty, req ? "Cuisine, linge, PAC (type A)" : "Sans zone"); ids.push(d); d.circuits.push(c);
     });
     return finir({titre:"Par zone", desc:"Un différentiel par zone ("+noms.join(", ")+") : on coupe une zone sans toucher aux autres. La cuisine, le linge et la PAC sur un type A à part.", ids:ids.concat(sp.dedies)}, opt);
   }
@@ -202,12 +214,32 @@
   }
 
   /* ---------- la fin : ordre, calibres, phases, remarques ---------- */
+  /* les petits différentiels (1 ou 2 circuits) se fondent dans un autre du même type, s'il y a la place */
+  function consolider(ids, opt){
+    var mini=opt.batiment==="tertiaire" ? 1 : minimumIds(0, opt), encore=true;
+    while(encore){
+      encore=false;
+      var actifs=ids.filter(function(d){ return d.circuits.length; });
+      if(actifs.filter(function(d){ return !d.dedie; }).length<=mini) break;
+      var petits=actifs.filter(function(d){ return !d.dedie && d.circuits.length<=2; }).sort(function(a, b){ return a.circuits.length-b.circuits.length || charge(a)-charge(b); });
+      for(var i=0;i<petits.length && !encore;i++){
+        var p=petits[i], autres=actifs.filter(function(d){ return d!==p && !d.dedie && d.type===p.type; });
+        var essai=autres.map(function(d){ return {d:d, n:d.circuits.length, I:charge(d)}; }), place=[];
+        var ok=p.circuits.every(function(c){
+          var cand=essai.filter(function(x){ return x.n<opt.max && x.I+c.I<=CAP; }).sort(function(a, b){ return a.I-b.I; })[0];
+          if(!cand) return false; cand.n++; cand.I+=c.I; place.push([cand.d, c]); return true;
+        });
+        if(ok && place.length){ place.forEach(function(x){ x[0].circuits.push(x[1]); }); p.circuits=[]; encore=true; }
+      }
+    }
+  }
   function finir(p, opt){
+    consolider(p.ids, opt);
     var ids=p.ids.filter(function(d){ return d.circuits.length; });
     ids.forEach(function(d){
       d.circuits.sort(trierUsage);
       if(opt.typeA!=="tous" && d.circuits.some(function(c){ return typeRequis(c, opt); })) d.type="A";
-      if(d.circuits.some(function(c){ return c.usage==="cong"; }) && d.type!=="A") d.type="F";
+
       var I=d.circuits.reduce(function(s, c){ return s+c.I; }, 0)*0.8;
       d.I=Math.round(I*10)/10;
       d.cal = d.dedie ? 40 : I<=40 ? 40 : I<=63 ? 63 : 80;
@@ -230,7 +262,7 @@
     var Ptot=0, Pf=0; ids.forEach(function(d){ d.circuits.forEach(function(c){ Ptot+=c.P; Pf+=c.P*(KU[c.usage]||0.3); }); });
     var notes=[];
     ids.forEach(function(d){ if(d.dedie) notes.push(d.rep+" : "+d.raison+"."); });
-    if(ids.some(function(d){ return d.type==="F"; })) notes.push("Le congélateur : différentiel type F (ou haute immunité) conseillé, contre les déclenchements intempestifs.");
+    ids.forEach(function(d){ if(d.type!=="A" && d.circuits.some(function(c){ return c.usage==="cong"; })) notes.push(d.rep+" : le congélateur est sur un type AC ; un type F (ou haute immunité) évite les déclenchements intempestifs."); });
     var porteurs=ids.filter(function(d){ return d.circuits.some(function(c){ return c.usage==="ecl"; }); }).length;
     var nEcl=0; ids.forEach(function(d){ d.circuits.forEach(function(c){ if(c.usage==="ecl") nEcl++; }); });
     if(nEcl>=2 && porteurs<2) notes.push("Tout l'éclairage est sur un seul différentiel : un défaut coupe toute la lumière.");
@@ -245,7 +277,7 @@
   function options(o){
     o=o||{};
     return {reseau:o.reseau==="tri" ? "tri" : "mono", batiment:o.batiment==="tertiaire" ? "tertiaire" : "logement", surface:Number(o.surface)||0,
-            typeA:o.typeA==="requis" ? "requis" : "tous", max:Math.max(2, Math.min(20, Number(o.max)||8)), pf:o.pf!==false, hc:o.hc!==false};
+            typeA:o.typeA==="tous" ? "tous" : "requis", max:Math.max(2, Math.min(20, Number(o.max)||8)), pf:o.pf!==false, hc:o.hc!==false};
   }
   function signature(p){ return p.ids.map(function(d){ return d.circuits.map(function(c){ return c.i; }).sort(function(a,b){ return a-b; }).join(","); }).sort().join("|"); }
   function proposer(circuits, o){
