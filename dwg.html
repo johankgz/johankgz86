@@ -882,6 +882,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <span class="vues-aide" id="vuesAide"></span>
   </div>
   <div class="palette outils-d" id="outilsD" role="toolbar" aria-label="Outils de dessin">
+    <button type="button" data-o="cdc" hidden>Chemin de câbles</button>
     <button type="button" data-o="mur"><i><svg viewBox="0 0 24 24"><path d="M3 9h18v6H3z" fill="#2F343B" stroke="none"/></svg></i>Mur</button>
     <button type="button" data-o="cloison"><i><svg viewBox="0 0 24 24"><path d="M3 11h18v2.4H3z" fill="#2F343B" stroke="none"/></svg></i>Cloison</button>
     <button type="button" data-o="piece"><i><svg viewBox="0 0 24 24"><path d="M3 4h18v16H3z" fill="none" stroke="#2F343B" stroke-width="3"/></svg></i>Pièce</button>
@@ -1610,7 +1611,7 @@ function sansTransformation(){ if(CV_TR){ cv.style.transform=""; CV_TR=false; } 
 /* la souris qui passe : l'accrochage se cherche une fois par image (pas à chaque mouvement),
    et rien ne se repeint si rien n'a changé (la croix est le curseur lui-même) */
 var SURV_P=null, SURV_RAF=false;
-function suitSouris(){ return !!(D_PT || GEO_EC || A_PT || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF); }
+function suitSouris(){ return !!(D_PT || GEO_EC || A_PT || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF || (MODE==="dessin" && OUTIL_D==="cdc")); }
 function memeSurvol(a, b){ var x=!!(a && a.acc), y=!!(b && b.acc); if(x!==y) return false; return !x || (a.genre===b.genre && a.pt[0]===b.pt[0] && a.pt[1]===b.pt[1]); }
 function survolSouris(p){
   SURV_P=p; if(SURV_RAF) return; SURV_RAF=true;
@@ -2639,6 +2640,7 @@ document.addEventListener("keydown", function(e){
     var hor=e.key==="ArrowRight";
     if(MODE==="symb" && SEL<0 && ARME_S){ e.preventDefault(); orienterPre(hor ? -45 : 45); return; }
     if(MODE==="symb" && SEL>=0 && SYMB[SEL]){ e.preventDefault(); garderSymb(); SYMB[SEL].rot=(((SYMB[SEL].rot||0)+(hor ? -45 : 45))%360+360)%360; enregistrerSymb(); majSymb(); demander(); return; }
+    if(MODE==="dessin" && OUTIL_D==="cdc"){ e.preventDefault(); CDC.rot=(((CDC.rot+(hor ? -90 : 90))%360)+360)%360; demander(); return; }   /* la pièce de chemin, avant de la poser : 90° */
     if(MODE==="dessin"){
       var g45 = grpTaille(GRP) ? GRP : grpDeSel();
       if(grpTaille(g45)){ e.preventDefault(); garderTout(); grpTourner(g45, hor, 45); enregistrerD(); enregistrerSymb(); majDessin(); majBarreSel(); demander(); toast("Tourné de 45°"+(hor ? " (sens des aiguilles)." : "."), 1400); return; }
@@ -3952,7 +3954,7 @@ function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
 function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
 var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
 var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", pvac:"Câble AC", pvrj:"Liaison RJ45", choisir:"Choisir", selection:"Sélection",
+var NOMS_OUTILS={cdc:"Chemin de câbles", mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", pvac:"Câble AC", pvrj:"Liaison RJ45", choisir:"Choisir", selection:"Sélection",
   trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
@@ -3962,7 +3964,8 @@ var ENCHAINER=false, CTRL_TENU=false, ARME_S=true;
 /* les noms des réseaux et des câbles (« E.F. MC 16 », « S1 · 2 × 6 mm² ») : écrits sur le plan, ou seulement dans la légende (par défaut) */
 function nomsRes(){ return !!(DESSIN && DESSIN.nomsRes); }
 function outilRes(){ return OUTIL_D==="spline" || OUTIL_D==="poly"; }
-function garderOutil(){ return ENCHAINER || CTRL_TENU || (outilRes() && !!RES_EC); }
+function outilResC(){ return outilRes() || OUTIL_D==="cdc"; }     /* un réseau, ou le chemin de câbles en pièces */
+function garderOutil(){ return ENCHAINER || CTRL_TENU || (outilResC() && !!RES_EC); }
 function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=null; GEO_EC=null; D_SEL=null; return true; }
 function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
 /* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
@@ -4340,6 +4343,7 @@ function toucherD(sx, sy, force){
   if(FOND_ETAPE){ if(vueD()!=="dessus"){ toast("Le fond de plan se règle en vue de dessus."); return; } toucherFond(cible, p); return; }
   if(PV_OUTILS[OUTIL_D]){ if(vueD()!=="dessus"){ toast("L'étude photovoltaïque se fait en vue de dessus."); return; } toucherPv(cible, p); return; }
   if(GEO_OUTILS[OUTIL_D]){ toucherGeo(cible, p); return; }
+  if(OUTIL_D==="cdc"){ if(vueD()!=="dessus"){ toast("Le chemin de câbles se pose en vue de dessus."); return; } poserCdc(cible.pt); return; }
   if(vueD()!=="dessus" && OUTIL_D!=="objet" && OUTIL_D!=="choisir"){ toast("Les murs, les portes et les pièces se tracent en vue de dessus."); return; }
   if(OUTIL_D==="toit"){ toucherToit(cible); return; }
   if(OUTIL_D==="mur" || OUTIL_D==="cloison"){
@@ -4996,6 +5000,7 @@ function geomCote(o){
 }
 function segmentsG(o){
   if(o.t==="gtexte") return [];
+  if(o.cdc==="te") return [[o.pts[0], o.pts[1]], [o.pts[1], o.pts[2]], [o.pts[1], o.pts[3]]];
   if(o.t==="cote"){ var g=geomCote(o); return [[g.A, g.B]]; }
   var p=contourG(o), out=[];
   for(var i=0;i<p.length-1;i++) out.push([p[i], p[i+1]]);
@@ -5146,10 +5151,85 @@ function quantChemin(o){
   var lg=Math.max(1, Math.ceil(L/3000)), jn=jonctionsChemins()[o.id]||{tes:0, croix:0};
   return {L:L, longueurs:lg, eclisses:lg-1, supports:u.length, coudes:coudes, coins:coins, tes:jn.tes, croix:jn.croix, pos:u, cum:cum, pts:p};
 }
+/* ---------- le chemin de câbles en pièces : la longueur de 3 m (ou coupée), le coude 90°, le té ----------
+   Chaque pièce est une forme du dessin (poly) avec o.cdc = "droit" | "coude" | "te" et o.res (chemin, nature, taille) ;
+   ses points sont ses bouts (et son centre) : droit [A, B] ; coude [E, C, S] ; té [E, C, S, D] (D : la dérivation).
+   Posée, elle s'accroche au bout libre d'une autre pièce et prend sa direction. */
+var CDC=(function(){ var d={p:"droit", L:3000, s:1, rot:0}; try{ var x=JSON.parse(lire("dwg:cdc", "{}"))||{}; ["p","L","s"].forEach(function(k){ if(x[k]!=null) d[k]=x[k]; }); }catch(e){} return d; })();
+function garderCdc(){ garder("dwg:cdc", JSON.stringify({p:CDC.p, L:CDC.L, s:CDC.s})); }
+var NOMS_CDC={droit:"Longueur", coude:"Coude 90°", te:"Té"};
+function brasCdc(r){ return (largeurRes(r)/2+100)/DESSIN_MM; }
+function piecesCdc(){ return geos().filter(function(o){ return o.cdc && o.res && (!o.vue || o.vue==="dessus"); }); }
+function portsCdc(o){
+  var P=o.pts;
+  if(o.cdc==="droit") return [{p:P[0], d:unite(sub(P[0], P[1]))}, {p:P[1], d:unite(sub(P[1], P[0]))}];
+  return [P[0], P[2], P[3]].filter(Boolean).map(function(q){ return {p:q, d:unite(sub(q, P[1]))}; });
+}
+function memePort(a, b){ return Math.hypot(a[0]-b[0], a[1]-b[1])*DESSIN_MM<5; }
+function libreCdc(q, sauf){ return !piecesCdc().some(function(o){ return o!==sauf && portsCdc(o).some(function(t){ return memePort(t.p, q); }); }); }
+/* les points d'une pièce, depuis son entrée E, dans la direction u ; s=1 : le coude (la dérivation) à gauche, -1 à droite */
+function construireCdc(E, u, piece, L, sens, a){
+  var n=[-u[1]*sens, u[0]*sens];
+  function at(x, y){ return [E[0]+u[0]*x+n[0]*y, E[1]+u[1]*x+n[1]*y]; }
+  if(piece==="droit") return [at(0, 0), at(L, 0)];
+  if(piece==="coude") return [at(0, 0), at(a, 0), at(a, a)];
+  return [at(0, 0), at(a, 0), at(2*a, 0), at(a, a)];
+}
+/* la pièce qu'on va poser sous le pointeur : accrochée au bout libre le plus proche, sinon là, dans l'orientation choisie */
+function candidatCdc(m){
+  var r={t:"chemin", n:RES_EC.n, d:RES_EC.d, sp:RES_EC.sp||1.5}, best=null, bd=Math.max(28/V.k, largeurRes(r)/DESSIN_MM);
+  piecesCdc().forEach(function(o){ portsCdc(o).forEach(function(t){ var d=Math.hypot(t.p[0]-m[0], t.p[1]-m[1]); if(d<bd && libreCdc(t.p, o)){ bd=d; best=t; } }); });
+  var E=best ? best.p : m, an=CDC.rot*Math.PI/180, u=best ? best.d : [Math.cos(an), Math.sin(an)];
+  return {t:"poly", pts:construireCdc(E, u, CDC.p, CDC.L/DESSIN_MM, CDC.s, brasCdc(r)), cdc:CDC.p, res:r, accroche:!!best};
+}
+function poserCdc(m){
+  if(!RES_EC || RES_EC.t!=="chemin") return;
+  var k=candidatCdc(m), o={t:"poly", pts:k.pts, cdc:k.cdc, res:k.res, id:idD(), ep:"moyen", tir:false, remp:"aucun", coul:STYLE_G.coul};
+  if(k.cdc==="droit" && CDC.L!==3000) o.res.coupe=CDC.L;
+  o.couleur=coulRes(o.res);
+  garderD(); DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(o); enregistrerD(); majDessin(); majFenRes();
+}
+/* refaire un coude ou un té (taille, sens), une longueur (coupe) : l'entrée et la direction restent */
+function refaireCdc(o, sens){
+  var P=o.pts, u=unite(sub(o.cdc==="droit" ? P[1] : P[1], P[0]));
+  if(o.cdc==="droit"){ o.pts=construireCdc(P[0], u, "droit", (o.res.coupe||3000)/DESSIN_MM, 1, 0); return; }
+  var q=o.cdc==="coude" ? P[2] : P[3], v=sub(q, P[1]), s0=(u[0]*v[1]-u[1]*v[0])>=0 ? 1 : -1;
+  o.pts=construireCdc(P[0], u, o.cdc, 0, sens||s0, brasCdc(o.res));
+}
+/* le dessin d'une pièce, en coordonnées du plan : ses rebords, ses jonctions (aux bouts), l'onglet du coude, ses supports, sa surface */
+function formeCdc(o){
+  var P=o.pts, h=largeurRes(o.res)/2/DESSIN_MM, out={bords:[], joints:[], supports:[], axes:[], surf:null, diag:null};
+  function add(a, v, k){ return [a[0]+v[0]*k, a[1]+v[1]*k]; }
+  if(o.cdc==="droit"){
+    var A=P[0], B=P[1], u=unite(sub(B, A)), n=[-u[1], u[0]], L=lng(sub(B, A)), sp=(o.res.sp||1.5)*1000/DESSIN_MM, ns=Math.max(1, Math.round(L/sp)), e=h+60/DESSIN_MM;
+    out.bords=[[add(A, n, h), add(B, n, h)], [add(A, n, -h), add(B, n, -h)]];
+    out.joints=[[add(A, n, h), add(A, n, -h)], [add(B, n, h), add(B, n, -h)]];
+    out.axes=[[A, B]];
+    for(var i=0;i<ns;i++){ var M=add(A, u, L*(i+0.5)/ns); out.supports.push([add(M, n, e), add(M, n, -e)]); }
+    return out;
+  }
+  if(o.cdc==="coude"){
+    var g1=decalerRes([P[0], P[1], P[2]], h), g2=decalerRes([P[0], P[1], P[2]], -h);
+    out.bords=[g1, g2]; out.joints=[[g1[0], g2[0]], [g1[2], g2[2]]]; out.diag=[g1[1], g2[1]];
+    out.axes=[[P[0], P[1], P[2]]]; out.surf=g1.concat(g2.slice().reverse());
+    return out;
+  }
+  var a=P[0], C=P[1], b=P[2], q=P[3], ur=unite(sub(b, a)), N=unite(sub(q, C));
+  var a1=add(a, N, -h), b1=add(b, N, -h), b2=add(b, N, h), a2=add(a, N, h), c1=add(add(C, ur, -h), N, h), c2=add(add(C, ur, h), N, h), q1=add(q, ur, -h), q2=add(q, ur, h);
+  out.bords=[[a1, b1], [a2, c1, q1], [q2, c2, b2]]; out.joints=[[a1, a2], [b1, b2], [q1, q2]];
+  out.axes=[[a, b], [C, q]]; out.surf=[a1, b1, b2, c2, q2, q1, c1, a2];
+  return out;
+}
+/* les jonctions entre pièces : deux bouts posés l'un sur l'autre, une éclisse */
+function eclissesCdc(){
+  var l=piecesCdc(), out={};
+  l.forEach(function(o, i){ portsCdc(o).forEach(function(t){ for(var j=i+1;j<l.length;j++) if(portsCdc(l[j]).some(function(t2){ return memePort(t.p, t2.p); })){ out[o.id]=(out[o.id]||0)+1; } }); });
+  return out;
+}
 /* les tés et les croix entre chemins de câbles : le bout d'un chemin posé sur un autre fait un té (compté sur celui qui le reçoit) ;
    deux chemins qui se croisent font une croix */
 function jonctionsChemins(){
-  var ch=geos().filter(function(o){ return o.res && o.res.t==="chemin" && (!o.vue || o.vue==="dessus"); }), out={};
+  var ch=geos().filter(function(o){ return o.res && o.res.t==="chemin" && !o.cdc && (!o.vue || o.vue==="dessus"); }), out={};
   ch.forEach(function(o){ out[o.id]={tes:0, croix:0, coupes:[], finsTe:{}}; });
   if(ch.length<2) return out;
   /* le point de B le plus proche de q : le pied, la direction du segment */
@@ -5266,10 +5346,17 @@ function placesEtiquette(pts, pasW){
 function hauteurEtiquetteRes(){ var n = DESSIN && DESSIN.ech>0 ? DESSIN.ech : (MEP && MEP.echelle>0 ? MEP.echelle : 50); return 2.5*n/DESSIN_MM; }
 /* les réseaux du plan, par nature et diamètre, avec leur longueur (mm) */
 function reseauxPoses(){
-  var par={}, ordre=Object.keys(RES_TYPES);
+  var par={}, ordre=Object.keys(RES_TYPES), ecl=eclissesCdc();
   geos().forEach(function(o){ if(!o.res || !RES_TYPES[o.res.t] || (o.vue && o.vue!=="dessus")) return;
     var k=o.res.t+"|"+o.res.n+"|"+o.res.d, x=par[k]=par[k]||{res:{t:o.res.t, n:o.res.n, d:o.res.d}, L:0}; x.L+=longueurRes(o);
-    if(o.res.t==="chemin"){ var q=quantChemin(o); x.ch=x.ch||{longueurs:0, eclisses:0, supports:0, coudes:0, tes:0, croix:0}; x.ch.supports+=q.supports; x.ch.eclisses+=q.eclisses; x.ch.coudes+=q.coudes; x.ch.tes+=q.tes; x.ch.croix+=q.croix; }
+    if(o.res.t==="chemin"){ x.ch=x.ch||{longueurs:0, eclisses:0, supports:0, coudes:0, tes:0, croix:0}; }
+    if(o.cdc){
+      /* une pièce : la longueur compte (coupée ou non), le coude et le té se comptent ; les supports, sur les longueurs seulement */
+      x.L-=longueurRes(o);
+      if(o.cdc==="droit"){ var Lp=lng(sub(o.pts[1], o.pts[0]))*DESSIN_MM; x.L+=Lp; x.ch.supports+=Math.max(1, Math.round(Lp/((o.res.sp||1.5)*1000))); }
+      else if(o.cdc==="coude") x.ch.coudes++; else x.ch.tes++;
+      x.ch.eclisses+=ecl[o.id]||0;
+    } else if(o.res.t==="chemin"){ var q=quantChemin(o); x.ch.supports+=q.supports; x.ch.eclisses+=q.eclisses; x.ch.coudes+=q.coudes; x.ch.tes+=q.tes; x.ch.croix+=q.croix; }
   });
   Object.keys(par).forEach(function(k){ var x=par[k]; if(x.ch) x.ch.longueurs=Math.max(1, Math.ceil(x.L/3000)); });
   return Object.keys(par).map(function(k){ return par[k]; }).sort(function(a, b){ return ordre.indexOf(a.res.t)-ordre.indexOf(b.res.t) || String(a.res.n).localeCompare(String(b.res.n)) || (parseFloat(a.res.d)||0)-(parseFloat(b.res.d)||0); });
@@ -5286,8 +5373,13 @@ function armerReseau(t){
   var T=RES_TYPES[t]; if(!T) return;
   var d0=RES_DERNIER[t]||{};
   RES_EC={t:t, n:d0.n && T.natures.some(function(n){ return n[0]===d0.n; }) ? d0.n : T.natures[0][0], d:d0.d!=null && (T.d.indexOf(d0.d)>=0 || !T.d.length) ? d0.d : T.dDef};
-  if(t==="chemin") RES_EC.sp=d0.sp||1.5;
-  RES_ARME=true; choisirOutilR(t==="chemin" || RES_TRACE==="droit" ? "poly" : "spline"); RES_ARME=false;   /* un chemin de câbles : toujours droit */
+  if(t==="chemin"){
+    /* le chemin de câbles se pose en pièces : longueur de 3 m, coude 90°, té ; elles s'accrochent bout à bout */
+    RES_EC.sp=d0.sp||1.5; RES_ARME=true; choisirOutilR("cdc"); RES_ARME=false; majFenRes(); majRuban();
+    toast("Chemin de câbles : choisissez la pièce dans le cadre (longueur, coude, té), puis touchez le plan. Elle s'accroche au bout libre de la précédente.", 4800);
+    return;
+  }
+  RES_ARME=true; choisirOutilR(RES_TRACE==="droit" ? "poly" : "spline"); RES_ARME=false;
   majFenRes(); majRuban();
   toast(T.nom+" : touchez chaque point du tracé (ou glissez), puis Terminer. "+(t==="chemin" ? "Nature et taille" : "Nature et diamètre")+" : dans le cadre, en haut à gauche.", 4200);
 }
@@ -5295,10 +5387,10 @@ function armerReseau(t){
 function resSel(){ if(MODE!=="dessin" || !D_SEL || D_SEL.t!=="geo") return null; var o=geoDe(D_SEL.id); return o && o.res ? o : null; }
 function majFenRes(){
   var f=$("fenRes"); if(!f) return;
-  var o=resSel(), r = o ? o.res : (MODE==="dessin" && outilRes() && RES_EC ? RES_EC : null);
+  var o=resSel(), r = o ? o.res : (MODE==="dessin" && outilResC() && RES_EC ? RES_EC : null);
   f.hidden=!r; if(!r) return;
   var T=RES_TYPES[r.t]; f.textContent="";
-  var h=document.createElement("b"); h.textContent=(o ? T.nom+" · "+formater(longueurRes(o)/DESSIN_MM) : T.nom+" : tracez-le"); f.appendChild(h);
+  var h=document.createElement("b"); h.textContent=(o && o.cdc ? T.nom+" · "+NOMS_CDC[o.cdc]+(o.cdc==="droit" ? " "+metresRes(lng(sub(o.pts[1], o.pts[0]))*DESSIN_MM).replace(",0 m", " m") : "") : o ? T.nom+" · "+formater(longueurRes(o)/DESSIN_MM) : T.nom+(r.t==="chemin" ? " : posez les pièces" : " : tracez-le")); f.appendChild(h);
   function rangee(titre, items, cle){
     if(items.length<2 && cle==="n") return;
     if(!items.length) return;
@@ -5310,7 +5402,7 @@ function majFenRes(){
       if(cle==="n"){ b.style.setProperty("--c", it[2]); b.className="nat"; }
       if(r[cle]===v) b.classList.add("on");
       b.addEventListener("click", function(){
-        if(o){ garderD(); o.res[cle]=v; o.couleur=coulRes(o.res); enregistrerD(); }
+        if(o){ garderD(); o.res[cle]=v; o.couleur=coulRes(o.res); if(o.cdc && cle==="d" && o.cdc!=="droit") refaireCdc(o); enregistrerD(); }
         else RES_EC[cle]=v;
         RES_DERNIER[r.t]=Object.assign({}, RES_DERNIER[r.t]||{}); RES_DERNIER[r.t][cle]=v; garder("dwg:reseaux", JSON.stringify(RES_DERNIER));
         majFenRes(); majBarreSel(); demander();
@@ -5342,8 +5434,25 @@ function majFenRes(){
     });
     f.appendChild(l);
   })();
+  /* le chemin de câbles en pièces : la pièce à poser, sa coupe ou son sens, l'orientation */
+  if(r.t==="chemin" && (!o || o.cdc)){
+    function ligneB(titre, items, cur, f2){
+      var l4=document.createElement("div"); l4.className="fr-l"; var t4=document.createElement("span"); t4.textContent=titre; l4.appendChild(t4);
+      items.forEach(function(it){ var b=document.createElement("button"); b.type="button"; b.textContent=it[1]; if(cur===it[0]) b.classList.add("on"); b.addEventListener("click", function(){ f2(it[0]); majFenRes(); majBarreSel(); majDessin(); demander(); }); l4.appendChild(b); });
+      f.appendChild(l4);
+    }
+    var piece = o ? o.cdc : CDC.p;
+    if(!o) ligneB("Pièce", [["droit","Longueur"],["coude","Coude 90°"],["te","Té"]], CDC.p, function(v){ CDC.p=v; garderCdc(); });
+    if(piece==="droit") ligneB("Longueur", [[3000,"3 m"],[2500,"2,5 m"],[2000,"2 m"],[1500,"1,5 m"],[1000,"1 m"],[500,"0,5 m"]], o ? (o.res.coupe||3000) : CDC.L, function(v){
+      if(o){ garderD(); if(v===3000) delete o.res.coupe; else o.res.coupe=v; refaireCdc(o); enregistrerD(); } else { CDC.L=v; garderCdc(); } });
+    else {
+      var sCur=CDC.s; if(o){ var P4=o.pts, u4=unite(sub(P4[1], P4[0])), v4=sub(o.cdc==="coude" ? P4[2] : P4[3], P4[1]); sCur=(u4[0]*v4[1]-u4[1]*v4[0])>=0 ? 1 : -1; }
+      ligneB(piece==="coude" ? "Sens" : "Dérivation", [[1,"À gauche"],[-1,"À droite"]], sCur, function(v){ if(o){ garderD(); refaireCdc(o, v); enregistrerD(); } else { CDC.s=v; garderCdc(); } });
+    }
+    if(!o) ligneB("Posée seule", [["t","Tourner de 90°"]], null, function(){ CDC.rot=(CDC.rot+90)%360; });
+  }
   /* le chemin de câbles : l'écart des supports, et ce qu'il faut commander */
-  if(r.t==="chemin"){
+  if(r.t==="chemin" && !(o && o.cdc && o.cdc!=="droit")){
     var l3=document.createElement("div"); l3.className="fr-l";
     var t3=document.createElement("span"); t3.textContent="Supports"; l3.appendChild(t3);
     [1, 1.2, 1.5, 2].forEach(function(v){
@@ -5352,10 +5461,15 @@ function majFenRes(){
       l3.appendChild(b);
     });
     f.appendChild(l3);
-    if(o){ var q3=document.createElement("small"); q3.className="fr-cmd"; q3.textContent="À commander : "+texteChemin(quantChemin(o))+"."; f.appendChild(q3); }
+    if(o && !o.cdc){ var q3=document.createElement("small"); q3.className="fr-cmd"; q3.textContent="À commander : "+texteChemin(quantChemin(o))+"."; f.appendChild(q3); }
+  }
+  if(r.t==="chemin" && (!o || o.cdc)){
+    /* les pièces posées, de cette nature et de cette taille : ce qu'il faut commander */
+    var grp=reseauxPoses().filter(function(x){ return x.res.t==="chemin" && x.res.n===r.n && x.res.d===r.d && x.ch; })[0];
+    if(grp){ var q5=document.createElement("small"); q5.className="fr-cmd"; q5.textContent="À commander ("+texteDiam(r.d)+", "+metresRes(grp.L)+") : "+texteChemin(grp.ch)+"."; f.appendChild(q5); }
   }
   /* le renvoi : un rond plein, de la couleur du réseau, au contour noir, au bout où il monte ou descend */
-  if(o){
+  if(o && !o.cdc){
     var l2=document.createElement("div"); l2.className="fr-l";
     var t2=document.createElement("span"); t2.textContent="Renvoi"; l2.appendChild(t2);
     [["a","Au début"],["b","À la fin"]].forEach(function(it){
@@ -5580,7 +5694,7 @@ function tirerCoinRect(o, i, p){
 function poigneesG(o){
   if(o.t==="rond") return [{i:"c", p:o.pts[0]}, {i:"r", p:[o.pts[0][0]+o.r, o.pts[0][1]]}];
   if(o.t==="ellipse"){ var e4=ptsEllipse(o, 4); return [{i:"c", p:o.pts[0]}, {i:"rx", p:e4[0]}, {i:"ry", p:e4[1]}]; }
-  if(o.t==="gtexte") return [];
+  if(o.t==="gtexte" || o.cdc) return [];      /* une pièce de chemin de câbles ne se déforme pas */
   var out=o.pts.map(function(q, i){ return {i:i, p:q}; });
   if(o.t==="cote"){ var g=geomCote(o); out.push({i:"off", p:[(g.A[0]+g.B[0])/2, (g.A[1]+g.B[1])/2]}); }
   return out;
@@ -5617,7 +5731,7 @@ function geoSous(p){
     var o=l[i]; if(!uVu(o)) continue;
     if(o.t==="cote" && texteCoteSous(o, p)) return o;
     if(o.t==="gtexte"){ if(Math.hypot(p[0]-o.pts[0][0], p[1]-o.pts[0][1]) < Math.max(o.h*Math.max(1,String(o.s).length)*0.35, tol)) return o; continue; }
-    if(segmentsG(o).some(function(s){ return distSeg(p, s[0], s[1]).d < tol; })) return o;
+    if(segmentsG(o).some(function(s){ return distSeg(p, s[0], s[1]).d < tol+(o.cdc && o.res ? largeurRes(o.res)/2/DESSIN_MM : 0); })) return o;   /* une pièce de chemin : sur toute sa largeur */
     if(fermee(o) && o.remp!=="aucun" && dansPoly(p, contourG(o))) return o;
   }
   return null;
@@ -5690,6 +5804,22 @@ function peindreGeo(c, E, coulTrait, orange){
       c.fillStyle=col; c.fillText(s, 0, 0); c.restore();
     });
   }
+  /* une pièce de chemin de câbles : les rebords, les jonctions fines, la surface teintée du coude et du té, les supports */
+  function dessinerCdc(o, col, w, fantome){
+    var f=formeCdc(o);
+    c.save(); c.setLineDash([]); c.strokeStyle=col; c.lineCap="butt";
+    if(f.surf){ c.save(); c.globalAlpha=fantome ? 0.2 : 0.4; c.fillStyle=col; chemin(f.surf, true); c.fill(); c.restore(); }
+    c.lineWidth=w; f.bords.forEach(function(l){ chemin(l, false); c.stroke(); });
+    c.lineWidth=Math.max(0.6, w*0.5); f.joints.forEach(function(l){ chemin(l, false); c.stroke(); });
+    if(f.diag){ chemin(f.diag, false); c.stroke(); }
+    c.save(); c.globalAlpha=0.4; c.setLineDash(PX_MM ? [2*PX_MM, 1.2*PX_MM] : [6,4]); f.axes.forEach(function(l){ chemin(l, false); c.stroke(); }); c.restore();
+    c.lineWidth=Math.max(1.6, w*1.6); f.supports.forEach(function(l){ chemin(l, false); c.stroke(); });
+    c.restore();
+  }
+  if(!IMPRIME && MODE==="dessin" && OUTIL_D==="cdc" && RES_EC && D_SOURIS && vue==="dessus"){
+    var kF=candidatCdc(D_SOURIS.pt);
+    c.save(); c.globalAlpha=0.75; dessinerCdc(kF, kF.accroche ? "#22C55E" : "#3B82F6", 1.6, true); c.restore();
+  }
   function hachurer(o, col, w){
     var pts=contourG(o).map(E), x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity;
     pts.forEach(function(P){ x0=Math.min(x0,P[0]); y0=Math.min(y0,P[1]); x1=Math.max(x1,P[0]); y1=Math.max(y1,P[1]); });
@@ -5726,6 +5856,7 @@ function peindreGeo(c, E, coulTrait, orange){
       texteTourne(texteCote(lng(sub(g.b, g.a))), E(m), Math.atan2(g.u[1], g.u[0]), Math.max(7, o.h*V.k), col);
       c.restore(); return;
     }
+    if(o.cdc && o.res){ dessinerCdc(o, col, w, false); c.restore(); return; }
     var pts=contourG(o), ferme=fermee(o);
     if(ferme && o.remp==="gris"){ c.fillStyle = PX_MM || CLAIR ? "rgba(0,0,0,.14)" : "rgba(255,255,255,.16)"; chemin(pts, true); c.fill(); }
     if(ferme && o.remp==="hach") hachurer(o, col, w);
@@ -5856,10 +5987,11 @@ function dxfGeo(g){
     if(o.res && RES_TYPES[o.res.t]){
       var TR=RES_TYPES[o.res.t], pr=contourG(o), hR=hauteurEtiquetteRes();
       cal=TR.calque; col=aciDe(coulRes(o.res))||1;
+      if(o.cdc){ var fC=formeCdc(o); fC.bords.concat(fC.joints, fC.supports, fC.diag ? [fC.diag] : []).forEach(function(l){ poly(l, false); }); return; }   /* une pièce de chemin de câbles */
       if(largeurRes(o.res) && o.res.t==="chemin") bordsChemin(o, pr).forEach(function(bq){ poly(bq, false); });
       else if(largeurRes(o.res)){ var dR=largeurRes(o.res)/2/DESSIN_MM; poly(decalerRes(pr, dR), false); poly(decalerRes(pr, -dR), false); }
-      if(o.res.t==="chemin") coudesChemin(o, quantChemin(o)).forEach(function(cd){ poly(cd.poly, true); poly(cd.diag, false); });   /* les coudes : la pièce d'angle et son onglet */
       else poly(pr, false);
+      if(o.res.t==="chemin") coudesChemin(o, quantChemin(o)).forEach(function(cd){ poly(cd.poly, true); poly(cd.diag, false); });   /* les coudes : la pièce d'angle et son onglet */
       [o.res.rva ? pr[0] : null, o.res.rvb ? pr[pr.length-1] : null].forEach(function(q){ if(q) g(0,"CIRCLE", 8,cal, 62,col, 10,q[0],20,q[1],30,0, 40,hR*0.7); });
       var offR=largeurRes(o.res)/2/DESSIN_MM+hR*0.85;
       if(nomsRes()) placesEtiquette(pr).forEach(function(q){
@@ -11594,7 +11726,7 @@ function majRuban(){
     else if(k==="calques") on = !$("calques").hidden;
     else if(k==="quantites") on = !$("quantites").hidden;
     else if(k==="effdwg") on = EFFACE_DWG;
-    else if(/^res/.test(k)) on = MODE==="dessin" && outilRes() && !!RES_EC && RES_EC.t===k.slice(3);
+    else if(/^res/.test(k)) on = MODE==="dessin" && outilResC() && !!RES_EC && RES_EC.t===k.slice(3);
     else if(k==="relier"){ on = RELIER; var sr=b.querySelector("span"); if(sr) sr.textContent = RELIER ? "Terminer" : "Relier"; }
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
@@ -11623,7 +11755,7 @@ function majRuban(){
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
   majReglagesR();
   /* un autre outil (Échap, un raccourci…) : le réseau s'arrête */
-  if(RES_EC && !RES_ARME && !(MODE==="dessin" && outilRes())) RES_EC=null;
+  if(RES_EC && !RES_ARME && !(MODE==="dessin" && outilResC())) RES_EC=null;
   if(RESA_EC && !RESA_ARME && !(MODE==="dessin" && OUTIL_D==="rect")) RESA_EC=null;
   try{ majFenRes(); }catch(e){}
   try{ majFenResa(); }catch(e){}
