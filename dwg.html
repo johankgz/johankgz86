@@ -1612,7 +1612,12 @@ function sansTransformation(){ if(CV_TR){ cv.style.transform=""; CV_TR=false; } 
 /* la souris qui passe : l'accrochage se cherche une fois par image (pas à chaque mouvement),
    et rien ne se repeint si rien n'a changé (la croix est le curseur lui-même) */
 var SURV_P=null, SURV_RAF=false;
-function suitSouris(){ return !!(D_PT || GEO_EC || A_PT || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF || (MODE==="dessin" && (OUTIL_D==="cdc" || !!PV_EC))); }
+/* Deux couches : le plan (peint une fois, gardé en image) et ce qui suit la souris (le tracé en cours, la pièce
+   ou la string à poser, la cote en cours), repeint seul par-dessus l'image à chaque mouvement.
+   PASSE : "" tout (impression), "fond" le plan sans les aperçus, "apercu" les aperçus seuls. */
+var PASSE="";
+function apercuSouris(){ return !!(D_PT || GEO_EC || A_PT || FOND_ETAPE || (MODE==="dessin" && (OUTIL_D==="cdc" || !!PV_EC))); }
+function suitSouris(){ return !!(apercuSouris() || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF); }
 function memeSurvol(a, b){ var x=!!(a && a.acc), y=!!(b && b.acc); if(x!==y) return false; return !x || (a.genre===b.genre && a.pt[0]===b.pt[0] && a.pt[1]===b.pt[1]); }
 function survolSouris(p){
   SURV_P=p; if(SURV_RAF) return; SURV_RAF=true;
@@ -1626,8 +1631,8 @@ function survolSouris(p){
   });
 }
 function demanderSurvol(){
-  /* un tracé en cours suit la souris : là, tout se repeint */
-  if(suitSouris() || G){ demander(); return; }
+  /* un tracé en cours suit la souris : seule sa couche se repeint, sur l'image du plan (le reste, rare, repeint tout) */
+  if(G || REF || (GUIDE && GUIDE.a) || ZONE_ACTIF){ demander(); return; }
   if(DEMANDE) return; DEMANDE=true; requestAnimationFrame(function(){ DEMANDE=false; peindre(); });
 }
 function cacheValide(){ return CACHE.ok && !IMPRIME && cv===CACHE.ecran && CACHE.cv.width===cv.width && CACHE.cv.height===cv.height && CACHE.clair===CLAIR && CACHE.vue===vueD(); }
@@ -1830,10 +1835,11 @@ function peindre(){
       c2.setTransform(sk,0,0,sk, DPR*(V.x-sk*C.x), DPR*(V.y-sk*C.y)); c2.drawImage(CACHE.cv, 0, 0);
       if(!GESTE){ SCENE_SALE=true; demander(); }
     } else c2.drawImage(CACHE.cv, 0, 0);
+    peindreApercus();
     peindreSurvol();
     return;
   }
-  SCENE_SALE=false;
+  SCENE_SALE=false; PASSE = IMPRIME ? "" : "fond";
   sansTransformation();
   majEffaces();
   c2.setTransform(1,0,0,1,0,0);
@@ -1871,11 +1877,7 @@ function peindre(){
   }
   /* les cotes */
   if(cqVu("mesures")) COTES.forEach(function(ct, i){ dessinerCote(ct.a, ct.b, false, !IMPRIME && MODE==="cote" && i===COTE_SEL); });
-  if(A_PT){
-    var fin = VISEE ? VISEE.pt : (SURVOL ? SURVOL.pt : null);
-    if(fin) dessinerCote(A_PT, contraindre(A_PT, fin), true);
-    repere(A_PT);
-  }
+  if(A_PT && PASSE!=="fond") apercuCote();
   peindreObjetChoisi(c2);
   peindreDessin(c2);
   peindreGuides(c2);
@@ -1884,9 +1886,27 @@ function peindre(){
   if(!IMPRIME) peindreFeuilles(c2);
   if(IMPRIME) peindreZonesJaunes(c2);
   if(ZONE_ACTIF && !IMPRIME) peindreZone(c2);
+  PASSE="";
   if(IMPRIME) return;
   garderCache();
+  peindreApercus();
   peindreSurvol();
+}
+/* la cote en cours, jusqu'au pointeur */
+function apercuCote(){
+  var fin = VISEE ? VISEE.pt : (SURVOL ? SURVOL.pt : null);
+  if(fin) dessinerCote(A_PT, contraindre(A_PT, fin), true);
+  repere(A_PT);
+}
+/* la couche qui suit la souris, par-dessus l'image du plan */
+function peindreApercus(){
+  if(!PLAN || IMPRIME || !apercuSouris()) return;
+  PASSE="apercu";
+  try{
+    c2.setTransform(DPR,0,0,DPR,0,0);
+    if(A_PT) apercuCote();
+    peindreDessin(c2);
+  } finally { PASSE=""; c2.setTransform(DPR,0,0,DPR,0,0); }
 }
 function peindreSymboles(c){
   if(!window.SymbolesElec || !SYMB.length) return;
@@ -2043,13 +2063,24 @@ function repere(pt){
   var p=versEcran(pt[0],pt[1]);
   c2.strokeStyle="#3B82F6"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
 }
+/* le repère d'accrochage, et son nom à côté (comme en DAO) */
+var NOMS_ACCROCHE={1:"Extrémité", 2:"Milieu", 3:"Centre", 5:"Sur le trait", 6:"Intersection", 7:"Perpendiculaire"};
 function accroche(pt, genre){
-  var p=versEcran(pt[0],pt[1]); c2.strokeStyle="#22D3EE"; c2.lineWidth=2; c2.beginPath();
+  var p=versEcran(pt[0],pt[1]); c2.save(); c2.setLineDash([]); c2.strokeStyle=CLAIR ? "#0891B2" : "#22D3EE"; c2.lineWidth=2; c2.beginPath();
   if(genre===2){ c2.moveTo(p[0],p[1]-8); c2.lineTo(p[0]+8,p[1]+6); c2.lineTo(p[0]-8,p[1]+6); c2.closePath(); }
   else if(genre===3){ c2.arc(p[0],p[1],8,0,Math.PI*2); }
   else if(genre===5){ c2.moveTo(p[0]-7,p[1]-7); c2.lineTo(p[0]+7,p[1]+7); c2.moveTo(p[0]-7,p[1]+7); c2.lineTo(p[0]+7,p[1]-7); }
+  else if(genre===6){ c2.rect(p[0]-7,p[1]-7,14,14); c2.moveTo(p[0]-7,p[1]-7); c2.lineTo(p[0]+7,p[1]+7); c2.moveTo(p[0]-7,p[1]+7); c2.lineTo(p[0]+7,p[1]-7); }
+  else if(genre===7){ c2.moveTo(p[0]-8,p[1]-8); c2.lineTo(p[0]-8,p[1]+8); c2.lineTo(p[0]+8,p[1]+8); c2.moveTo(p[0]-8,p[1]); c2.lineTo(p[0],p[1]); c2.lineTo(p[0],p[1]+8); }
   else c2.rect(p[0]-7,p[1]-7,14,14);
   c2.stroke();
+  var nom=NOMS_ACCROCHE[genre];
+  if(nom && MODE==="dessin"){
+    c2.font="600 11px system-ui, sans-serif"; var w=c2.measureText(nom).width;
+    c2.fillStyle=CLAIR ? "rgba(255,255,255,.92)" : "rgba(11,14,18,.85)"; c2.fillRect(p[0]+11, p[1]+9, w+8, 16);
+    c2.fillStyle=CLAIR ? "#0E7490" : "#67E8F9"; c2.textBaseline="middle"; c2.fillText(nom, p[0]+15, p[1]+17);
+  }
+  c2.restore();
 }
 function distance(a, b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
 function formater(dPlan){
@@ -4068,7 +4099,7 @@ function peindreDessin(c){
   if(!PLAN) return;
   var coulMur = CLAIR ? "#2F343B" : "#C9D1D9", coulTrait = CLAIR ? "#111111" : "#E5E9EF", orange="#06B6D4";
   /* la grille d'une page vierge : le mètre, et les 10 cm de près (pas à l'impression) */
-  if(PLAN.vierge && !IMPRIME){
+  if(PLAN.vierge && !IMPRIME && PASSE!=="apercu"){
     [[1000, CLAIR ? "rgba(0,0,0,.10)" : "rgba(255,255,255,.08)"], [100, CLAIR ? "rgba(0,0,0,.045)" : "rgba(255,255,255,.035)"], [10, CLAIR ? "rgba(0,0,0,.025)" : "rgba(255,255,255,.02)"]].forEach(function(g){
       var pas=g[0]; if(pas*V.k<9) return;
       var a=versPlan(0, H), b=versPlan(W, 0);
@@ -4089,7 +4120,8 @@ function peindreDessin(c){
   c.save(); c.lineCap="round"; c.lineJoin="round";
   var aPlat=vueD()==="dessus";
   /* le fond de plan, sous tout le dessin */
-  if(aPlat && cqVu("fond")) peindreFond(c, E);
+  if(aPlat && cqVu("fond") && PASSE!=="apercu") peindreFond(c, E);
+  if(PASSE!=="apercu"){
   /* les murs, pleins (en Face et en Côté : en élévation, avec le mobilier) */
   if(aPlat){
   if(cqVu("murs")) DESSIN.murs.forEach(function(m){
@@ -4139,16 +4171,17 @@ function peindreDessin(c){
     c.fillStyle=(D_SEL && D_SEL.t==="texte" && D_SEL.id===t.id) ? orange : coulEl(t, "noms", coulTrait);
     String(t.s).split("\n").forEach(function(l, i, tout){ c.fillText(l, P[0], P[1]+(i-(tout.length-1)/2)*hp*1.15); });
   });
+  }
   /* les toits et leurs panneaux, par-dessus */
   if(cqVu("toits")) peindreToits(c, E, orange);
   /* l'étude photovoltaïque : panneaux, strings, câbles, onduleurs */
   if(cqVu("pv")){ peindrePv(c, E, orange, coulTrait);
-  if(!IMPRIME) peindrePoigneesPv(c, E); }
+  if(!IMPRIME && PASSE!=="apercu") peindrePoigneesPv(c, E); }
   } else peindreElevation(c, E, fin, coulTrait, orange);
   /* le dessin technique : traits, formes, cotes */
   if(cqVu("geo")) peindreGeo(c, E, coulTrait, orange);
   /* le mur en cours, et sa longueur */
-  if(!IMPRIME && MODE==="dessin" && D_PT && !GEO_EC){
+  if(!IMPRIME && MODE==="dessin" && D_PT && !GEO_EC && PASSE!=="fond"){
     var P0=E(D_PT); c.fillStyle=orange; c.beginPath(); c.arc(P0[0],P0[1],5,0,Math.PI*2); c.fill();
     if((D_SOURIS || SAISIE_T) && (OUTIL_D==="mur" || OUTIL_D==="cloison")){
       var fin2=SAISIE_T ? finSaisieT() : finMur(D_PT, D_SOURIS), ep=(OUTIL_D==="cloison" ? EP_CLOISON : EP_MUR)/DESSIN_MM;
@@ -4164,11 +4197,11 @@ function peindreDessin(c){
       else etiquette(c, (P0[0]+P1[0])/2, (P0[1]+P1[1])/2, formater(lng(dg))+angTxt);
     }
   }
-  if(!IMPRIME && D_SEL && D_SEL.t==="mur"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(longueurMur(ms))+(refValide(ms) ? " ext." : "")); } }
+  if(!IMPRIME && D_SEL && D_SEL.t==="mur" && PASSE!=="apercu"){ var ms=murDe(D_SEL.id); if(ms){ var A=E(ms.a), B=E(ms.b); etiquette(c, (A[0]+B[0])/2, (A[1]+B[1])/2-18, formater(longueurMur(ms))+(refValide(ms) ? " ext." : "")); } }
   /* le repère d'accrochage sous la souris : peindreSurvol, par-dessus */
-  if(!IMPRIME && MODE==="symb" && SYMB_ACC) accroche(SYMB_ACC.pt, SYMB_ACC.genre);
-  if(!IMPRIME) peindreRef(c, E);
-  if(aPlat) peindreEtapeFond(c, E);
+  if(!IMPRIME && MODE==="symb" && SYMB_ACC && PASSE!=="apercu") accroche(SYMB_ACC.pt, SYMB_ACC.genre);
+  if(!IMPRIME && PASSE!=="apercu") peindreRef(c, E);
+  if(aPlat && PASSE!=="fond") peindreEtapeFond(c, E);
   c.restore();
 }
 function etiquette(c, x, y, t){
@@ -4229,13 +4262,17 @@ function chercherD(sx, sy){
   pointsDessin().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:1}; } });
   /* le centre d'un symbole, pour une cote ou un tracé (pas pour un mur) */
   if(vueD()==="dessus" && !/^(mur|cloison|piece|porte|fenetre)$/.test(OUTIL_D||"")) pointsSymboles().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:3}; } });
-  if(vueD()==="dessus") croisementsGuides().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:5}; } });
+  if(vueD()==="dessus") croisementsGuides().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:[q[0],q[1]], acc:true, genre:6}; } });
   if(best) return best;
-  bd=14/V.k;
   var plat=vueD()==="dessus";
+  /* l'intersection de deux traits (faces des murs, formes, réseaux) près du pointeur, comme en DAO */
+  var inter=intersectionProche(p, 16/V.k, plat); if(inter) return inter;
+  bd=14/V.k;
   if(plat) DESSIN.murs.forEach(function(m){ var q=[(m.a[0]+m.b[0])/2, (m.a[1]+m.b[1])/2], d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:q, acc:true, genre:2}; } });
   milieuxGeo().forEach(function(q){ var d=Math.hypot(q[0]-p[0], q[1]-p[1]); if(d<bd){ bd=d; best={pt:q, acc:true, genre:2}; } });
   if(best) return best;
+  /* le pied de la perpendiculaire, depuis le point d'avant du tracé en cours */
+  var perp=perpendiculaireProche(p, 12/V.k, plat); if(perp) return perp;
   if(plat && PLAN && !PLAN.vierge && PLAN.pts && PLAN.pts.length){ var c=chercher(sx, sy); if(c.acc) return c; }
   bd=12/V.k;
   if(plat) DESSIN.murs.forEach(function(m){
@@ -4256,6 +4293,39 @@ function chercherD(sx, sy){
   });
   if(best) return best;
   return {pt:grille10(p), acc:false};
+}
+/* les traits près du pointeur : les faces des murs, les traits des formes, les lignes de construction */
+function traitsProches(p, r, plat){
+  var out=[];
+  function garder(a, b){ if(distSeg(p, a, b).d<r) out.push([a, b]); }
+  if(plat) DESSIN.murs.forEach(function(m){ if(!uVu(m)) return; var L=axes(m).L; [-1, 1].forEach(function(sg){ garder(surMur(m, 0, sg*m.ep/2), surMur(m, L, sg*m.ep/2)); }); });
+  geosAccroche().forEach(function(o){ if(!uVu(o)) return; segmentsG(o).forEach(function(sg){ garder(sg[0], sg[1]); }); });
+  return out.slice(0, 80);
+}
+function intersectionProche(p, r, plat){
+  var l=traitsProches(p, r, plat), best=null, bd=r;
+  for(var i=0;i<l.length;i++) for(var j=i+1;j<l.length;j++){
+    var a=l[i][0], b=l[i][1], c=l[j][0], d=l[j][1], rr=sub(b, a), ss=sub(d, c), den=rr[0]*ss[1]-rr[1]*ss[0];
+    if(Math.abs(den)<1e-9*lng(rr)*lng(ss)) continue;
+    var t=((c[0]-a[0])*ss[1]-(c[1]-a[1])*ss[0])/den, u=((c[0]-a[0])*rr[1]-(c[1]-a[1])*rr[0])/den;
+    if(t<-1e-6 || t>1+1e-6 || u<-1e-6 || u>1+1e-6) continue;
+    var q=[a[0]+rr[0]*t, a[1]+rr[1]*t], dd=Math.hypot(q[0]-p[0], q[1]-p[1]);
+    if(dd<bd){ bd=dd; best={pt:q, acc:true, genre:6}; }
+  }
+  return best;
+}
+function perpendiculaireProche(p, r, plat){
+  var dep = GEO_EC && GEO_EC.pts && GEO_EC.pts.length ? GEO_EC.pts[GEO_EC.pts.length-1] : D_PT;
+  if(!dep) return null;
+  var best=null, bd=r;
+  traitsProches(p, Math.max(r, 40/V.k), plat).forEach(function(sg){
+    var u=sub(sg[1], sg[0]), L2=u[0]*u[0]+u[1]*u[1]; if(L2<1e-12) return;
+    var t=((dep[0]-sg[0][0])*u[0]+(dep[1]-sg[0][1])*u[1])/L2; if(t<0 || t>1) return;
+    var f=[sg[0][0]+u[0]*t, sg[0][1]+u[1]*t], dd=Math.hypot(f[0]-p[0], f[1]-p[1]);
+    if(lng(sub(f, dep))*V.k<6) return;
+    if(dd<bd){ bd=dd; best={pt:f, acc:true, genre:7}; }
+  });
+  return best;
 }
 /* la fin d'un mur : ortho, puis alignée sur un angle voisin (même x ou même y) */
 /* ---------- murs et cloisons tracés par leur face extérieure ----------
@@ -4947,7 +5017,15 @@ function ptsRond(o, n){ n=n||64; var c=o.pts[0], out=[]; for(var i=0;i<n;i++){ v
 function contourG(o){ return o.t==="rond" ? ptsRond(o) : o.t==="ellipse" ? ptsEllipse(o) : o.t==="arc" ? ptsArc(o) : o.t==="spline" ? ptsSpline(o) : o.pts; }
 /* La spline : une courbe lisse qui passe exactement par chacun de ses points (Catmull-Rom
    centripète : pas de boucle ni de dépassement entre deux points serrés), ouverte ou fermée */
+/* la courbe d'une spline se calcule une fois : gardée tant que ses points ne changent pas */
+var SPLINES=new WeakMap();
 function ptsSpline(o, n){
+  var P=o.pts; if(!P) return [];
+  var cle=(n||0)+(o.ferme ? "f" : "o")+P.length+":"+P.map(function(q){ return q[0]+","+q[1]; }).join(";"), mem=SPLINES.get(o);
+  if(mem && mem.cle===cle) return mem.pts;
+  var r=ptsSplineCalc(o, n); SPLINES.set(o, {cle:cle, pts:r}); return r;
+}
+function ptsSplineCalc(o, n){
   var P=o.pts, m=P.length, F=!!o.ferme && m>2, out=[];
   if(m<3) return P.slice();
   function at(i){
@@ -5785,7 +5863,7 @@ function peindreGeo(c, E, coulTrait, orange){
   /* les formes des autres vues, projetées, dessinées comme les autres (leur couleur, leur
      épaisseur, en trait plein) : on dessine « en face » de ce qui existe */
   geos().forEach(function(o){
-    if(vueDe(o)===vue || !uVu(o)) return;
+    if(PASSE==="apercu" || vueDe(o)===vue || !uVu(o)) return;
     var selA=!IMPRIME && D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id;
     c.save(); c.lineCap="round"; c.lineJoin="round";
     c.strokeStyle = selA ? orange : coulGeo(o, coulTrait); c.lineWidth=selA ? Math.max(2, largeurG(o)) : largeurG(o); tirets(o);
@@ -5851,7 +5929,7 @@ function peindreGeo(c, E, coulTrait, orange){
     c.lineWidth=Math.max(1.6, w*1.6); f.supports.forEach(function(l){ chemin(l, false); c.stroke(); });
     c.restore();
   }
-  if(!IMPRIME && MODE==="dessin" && OUTIL_D==="cdc" && RES_EC && D_SOURIS && vue==="dessus"){
+  if(!IMPRIME && MODE==="dessin" && OUTIL_D==="cdc" && RES_EC && D_SOURIS && vue==="dessus" && PASSE!=="fond"){
     var kF=candidatCdc(D_SOURIS.pt);
     c.save(); c.globalAlpha=0.75; dessinerCdc(kF, kF.accroche ? "#22C55E" : "#3B82F6", 1.6, true); c.restore();
   }
@@ -5864,8 +5942,17 @@ function peindreGeo(c, E, coulTrait, orange){
     for(var s=-R; s<=R; s+=sp){ c.moveTo(cx+s*0.7071-R*0.7071, cy+s*0.7071+R*0.7071); c.lineTo(cx+s*0.7071+R*0.7071, cy+s*0.7071-R*0.7071); }
     c.stroke(); c.restore();
   }
+  /* ce qui est hors de l'écran ne se dessine pas (une marge pour les épaisseurs et les textes) */
+  var VA=versPlan(-150, -150), VB=versPlan(W+150, H+150), VX0=Math.min(VA[0], VB[0]), VX1=Math.max(VA[0], VB[0]), VY0=Math.min(VA[1], VB[1]), VY1=Math.max(VA[1], VB[1]);
+  function horsVue(o){
+    if(IMPRIME || !o.pts || !o.pts.length) return false;
+    var x0=Infinity, y0=Infinity, x1=-Infinity, y1=-Infinity; o.pts.forEach(function(q){ if(q[0]<x0) x0=q[0]; if(q[0]>x1) x1=q[0]; if(q[1]<y0) y0=q[1]; if(q[1]>y1) y1=q[1]; });
+    var m=(o.r||0)+Math.max(o.rx||0, o.ry||0)+Math.abs(o.off||0)+(o.h||0)*4+(o.fl||0)+(o.res ? largeurRes(o.res)/DESSIN_MM+hauteurEtiquetteRes()*3 : 0)+(o.carac ? 3000/DESSIN_MM : 0);
+    if(o.t==="spline" || o.t==="arc") m+=Math.max(x1-x0, y1-y0)*0.25;
+    return x1+m<VX0 || x0-m>VX1 || y1+m<VY0 || y0-m>VY1;
+  }
   l.forEach(function(o){
-    if(!uVu(o)) return;
+    if(PASSE==="apercu" || !uVu(o) || horsVue(o)) return;
     var sel=D_SEL && D_SEL.t==="geo" && D_SEL.id===o.id, col=sel ? orange : coulGeo(o, coulTrait), w=largeurG(o);
     c.save(); c.lineCap="round"; c.lineJoin="round"; c.strokeStyle=col; c.lineWidth=w; tirets(o);
     if(o.t==="gtexte"){
@@ -5965,9 +6052,9 @@ function peindreGeo(c, E, coulTrait, orange){
   if(IMPRIME) return;
   /* les poignées de la forme choisie */
   var os=D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null;
-  if(os && vueDe(os)===vue) poigneesG(os).forEach(function(h){ var P=E(h.p); c.save(); c.fillStyle="#FFFFFF"; c.strokeStyle=orange; c.lineWidth=2; c.fillRect(P[0]-5,P[1]-5,10,10); c.strokeRect(P[0]-5,P[1]-5,10,10); c.restore(); });
+  if(os && vueDe(os)===vue && PASSE!=="apercu") poigneesG(os).forEach(function(h){ var P=E(h.p); c.save(); c.fillStyle="#FFFFFF"; c.strokeStyle=orange; c.lineWidth=2; c.fillRect(P[0]-5,P[1]-5,10,10); c.strokeRect(P[0]-5,P[1]-5,10,10); c.restore(); });
   /* la forme en cours, jusqu'au pointeur */
-  if(GEO_EC && MODE==="dessin"){
+  if(GEO_EC && MODE==="dessin" && PASSE!=="fond"){
     var ec=GEO_EC, dern=ec.pts[ec.pts.length-1], diag=(ec.t==="triangle" || ec.t==="rect" || ec.t==="rond" || ec.t==="ellipse" || (ec.t==="arc" && ec.pts.length===2));
     var q=D_SOURIS ? (diag ? D_SOURIS.pt : finGeo(dern, D_SOURIS)) : null;
     c.save(); c.strokeStyle="rgba(59,130,246,.95)"; c.lineWidth=1.6; c.setLineDash([6,4]);
@@ -7292,8 +7379,50 @@ function construire3Dmm(ed){
   }
   if(V3.style==="trait") enTrait3D(sc);
   cotes3D(sc);
+  partager3D(sc);
   sc.updateMatrixWorld(true);     /* pour les rayons de visibilité, avant le premier rendu */
   V3.scene=sc;
+}
+/* Fluidité : les objets de même aspect partagent un seul matériau (des centaines de gaines, de symboles,
+   de traits : quelques matériaux au lieu de milliers), le rendu de chaque image en est allégé.
+   Les cotes (leur couleur change quand on les choisit), les étiquettes et les images gardent le leur. */
+function partager3D(sc){
+  var dejaVus={}, coteEn=function(o){ for(var x=o;x;x=x.parent) if(x.userData && x.userData.cote) return true; return false; };
+  function cle(m){
+    if(m.alphaMap || m.envMap || m.userData.propre) return null;
+    return [m.map ? m.map.uuid : "", m.type, m.color ? m.color.getHex() : "", m.opacity, m.transparent, m.side, m.roughness, m.metalness, m.emissive ? m.emissive.getHex() : "", m.emissiveIntensity,
+      m.depthWrite, m.depthTest, m.colorWrite, m.polygonOffset, m.polygonOffsetFactor, m.polygonOffsetUnits, m.vertexColors, m.blending, m.linewidth, m.wireframe,
+      m.toneMapped, m.flatShading, m.dashSize, m.gapSize, m.scale, m.visible].join("|");
+  }
+  sc.traverse(function(o){
+    /* transparent et vu des deux côtés (les plaques des symboles, les vitrages) : une seule passe, sinon chaque image
+       le dessine deux fois et le recompile */
+    if(o.material && !Array.isArray(o.material) && o.material.transparent && o.material.side===V3.THREE.DoubleSide) o.material.forceSinglePass=true;
+    if(!(o.isMesh || o.isLine) || o.isSprite || !o.material || Array.isArray(o.material) || coteEn(o)) return;
+    var k=cle(o.material); if(k==null) return;
+    if(!dejaVus[k]) dejaVus[k]=o.material;
+    else if(dejaVus[k]!==o.material){ o.material.dispose(); o.material=dejaVus[k]; }
+  });
+  /* les traits (réseaux, formes, arêtes) : un seul dessin par matériau, au lieu d'un par trait ; ils ne se touchent
+     pas en 3D (seuls les volumes et les cotes se choisissent), ils restent donc à leur place, fondus ensemble */
+  var T=V3.THREE; sc.updateMatrixWorld(true);
+  var parMat=new Map(), aRetirer=[];
+  sc.traverse(function(o){
+    if(!o.isLine || !o.visible || o.type==="GridHelper" || !o.material || Array.isArray(o.material) || o.material.vertexColors || coteEn(o) || o.userData.garder) return;
+    var g=o.geometry, pos=g && g.attributes && g.attributes.position; if(!pos || g.index || g.groups && g.groups.length) return;
+    var l=parMat.get(o.material); if(!l){ l=[]; parMat.set(o.material, l); }
+    var v=new T.Vector3(), w=new T.Vector3(), seg=o.isLineSegments;
+    var pas = seg ? 2 : 1, n = o.isLineLoop ? pos.count : pos.count-1;
+    for(var i=0;i<n;i+=pas){ v.fromBufferAttribute(pos, i).applyMatrix4(o.matrixWorld); w.fromBufferAttribute(pos, (i+1)%pos.count).applyMatrix4(o.matrixWorld); l.push(v.x, v.y, v.z, w.x, w.y, w.z); }
+    aRetirer.push(o);
+  });
+  if(aRetirer.length<20) return;
+  aRetirer.forEach(function(o){ if(o.parent) o.parent.remove(o); if(o.geometry) o.geometry.dispose(); });
+  parMat.forEach(function(l, m){
+    if(!l.length) return;
+    var g=new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(l, 3));
+    var ls=new T.LineSegments(g, m); if(m.isLineDashedMaterial) ls.computeLineDistances(); ls.matrixAutoUpdate=false; ls.userData.fondu=true; sc.add(ls);
+  });
 }
 /* Le rendu « Trait », comme un dessin d'architecte et comme le plan : le fond du
    plan (sombre, ou blanc en fond clair), chaque volume dessiné par ses arêtes,
@@ -9960,7 +10089,7 @@ function toitSous(p){
 function peindreToits(c, E, orange){
   if(!TOIT_VU && !IMPRIME) return;
   toits().forEach(function(t){
-    if(!uVu(t)) return;
+    if(PASSE==="apercu" || !uVu(t)) return;
     var sel=D_SEL && D_SEL.t==="toit" && D_SEL.id===t.id, G=pansToit(t), col=sel ? orange : (CLAIR ? "#7C2D12" : "#F59E0B");
     c.save();
     /* les panneaux, vus de dessus */
@@ -9992,7 +10121,7 @@ function peindreToits(c, E, orange){
     c.restore();
   });
   /* l'emprise en cours */
-  if(!IMPRIME && MODE==="dessin" && OUTIL_D==="toit" && D_PT && D_SOURIS){
+  if(!IMPRIME && MODE==="dessin" && OUTIL_D==="toit" && D_PT && D_SOURIS && PASSE!=="fond"){
     var A=E(D_PT), B=E(D_SOURIS.pt); c.save(); c.strokeStyle=orange; c.lineWidth=2; c.setLineDash([10,6]);
     c.strokeRect(Math.min(A[0],B[0]), Math.min(A[1],B[1]), Math.abs(B[0]-A[0]), Math.abs(B[1]-A[1])); c.setLineDash([]);
     etiquette(c, (A[0]+B[0])/2, Math.min(A[1],B[1])-14, cm(Math.abs(D_SOURIS.pt[0]-D_PT[0])*DESSIN_MM)+" × "+cm(Math.abs(D_SOURIS.pt[1]-D_PT[1])*DESSIN_MM)+" cm");
@@ -10964,6 +11093,7 @@ function peindrePv(c, E, orange, coulTrait){
   }
   var strDe={}; P.str.forEach(function(s){ s.pans.forEach(function(id, i){ strDe[id]={s:s, i:i}; }); });
   c.save(); c.lineJoin="round"; c.lineCap="round";
+  if(PASSE!=="apercu"){
   /* les panneaux */
   P.pan.forEach(function(p){
     var q=pvCoins(p).map(E); if(q.length<4) return;
@@ -11103,8 +11233,9 @@ function peindrePv(c, E, orange, coulTrait){
     etiqueter(labO, polO, choisi ? orange : coulTrait, candO.map(function(q){ return {x:q[0], y:q[1], a:0, box:[q[0]-twO/2, q[1]-thO/2, q[0]+twO/2, q[1]+thO/2]}; }), false, 0);
   });
   placerEtiquettes();
+  }
   /* en cours : le champ entre deux coins, la string, le cheminement */
-  if(!IMPRIME && MODE==="dessin"){
+  if(!IMPRIME && MODE==="dessin" && PASSE!=="fond"){
     if(OUTIL_D==="pvchamp" && D_PT && D_SOURIS){
       var G=pvGrilleChamp(D_PT, D_SOURIS.pt), tmp={x:G.x, y:G.y, a:PV_REG.a, o:PV_REG.o, e:PV_REG.e, p:PV_REG.p};
       c.strokeStyle=orange; c.lineWidth=1.4; c.setLineDash([5, 4]);
