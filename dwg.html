@@ -5131,13 +5131,16 @@ var RES_EC=null, RES_ARME=false, RES_TRACE=lire("dwg:resTrace", "courbe");   /* 
 var RES_DERNIER=(function(){ try{ return JSON.parse(lire("dwg:reseaux","{}"))||{}; }catch(e){ return {}; } })();
 /* la largeur d'un réseau tracé à sa vraie taille (mm) : le diamètre d'une gaine, la largeur d'un chemin de câbles (« 54×100 » : 100) */
 function largeurRes(r){ if(!r) return 0; if(typeof r.d==="number") return RES_TYPES[r.t] && RES_TYPES[r.t].double ? r.d : 0; var m=/[×x]\s*(\d+)/.exec(String(r.d||"")); return m && RES_TYPES[r.t] && RES_TYPES[r.t].double ? Number(m[1]) : 0; }
-/* le chemin de câbles : vendu par longueurs de 3 m ; un support tous les sp mètres (1,5 m par défaut), aux deux bouts et à chaque coude ;
+/* le chemin de câbles : vendu par longueurs de 3 m ; un support tous les sp mètres (1,5 m par défaut) et aux deux bouts,
+   jamais dans un angle (un support qui y tomberait est décalé de 25 cm) ;
    une éclisse entre deux longueurs */
 function quantChemin(o){
-  var p=contourG(o), L=longueurRes(o), sp=(o.res.sp||1.5)*1000, pos=[], coudes=0;
+  var p=contourG(o), L=longueurRes(o), sp=(o.res.sp||1.5)*1000, pos=[], ang=[], coudes=0;
   var cum=[0]; for(var i=1;i<p.length;i++) cum.push(cum[i-1]+Math.hypot(p[i][0]-p[i-1][0], p[i][1]-p[i-1][1])*DESSIN_MM);
-  if(o.t==="poly") for(var j=1;j<p.length-1;j++){ var a=Math.atan2(p[j][1]-p[j-1][1], p[j][0]-p[j-1][0]), b=Math.atan2(p[j+1][1]-p[j][1], p[j+1][0]-p[j][0]), d=Math.abs(((b-a)*180/Math.PI+540)%360-180); if(d>20){ coudes++; pos.push(cum[j]); } }
-  var n=Math.max(1, Math.ceil(L/sp)); for(var k=0;k<=n;k++) pos.push(L*k/n);
+  if(o.t==="poly") for(var j=1;j<p.length-1;j++){ var a=Math.atan2(p[j][1]-p[j-1][1], p[j][0]-p[j-1][0]), b=Math.atan2(p[j+1][1]-p[j][1], p[j+1][0]-p[j][0]), d=Math.abs(((b-a)*180/Math.PI+540)%360-180); if(d>20){ coudes++; ang.push(cum[j]); } }
+  var n=Math.max(1, Math.ceil(L/sp)); for(var k=0;k<=n;k++){ var x=L*k/n;
+    ang.forEach(function(c){ if(Math.abs(x-c)<250) x = x<c ? c-250 : c+250; });
+    pos.push(Math.max(0, Math.min(L, x))); }
   pos.sort(function(x, y){ return x-y; }); var u=[]; pos.forEach(function(x){ if(!u.length || x-u[u.length-1]>200) u.push(x); });
   var lg=Math.max(1, Math.ceil(L/3000)), jn=jonctionsChemins()[o.id]||{tes:0, croix:0};
   return {L:L, longueurs:lg, eclisses:lg-1, supports:u.length, coudes:coudes, tes:jn.tes, croix:jn.croix, pos:u, cum:cum, pts:p};
@@ -5233,8 +5236,8 @@ function armerReseau(t){
   var T=RES_TYPES[t]; if(!T) return;
   var d0=RES_DERNIER[t]||{};
   RES_EC={t:t, n:d0.n && T.natures.some(function(n){ return n[0]===d0.n; }) ? d0.n : T.natures[0][0], d:d0.d!=null && (T.d.indexOf(d0.d)>=0 || !T.d.length) ? d0.d : T.dDef};
-  if(t==="chemin"){ RES_EC.sp=d0.sp||1.5; if(!lire("dwg:resTrace", "")) RES_TRACE="droit"; }   /* un chemin de câbles se trace droit, par défaut */
-  RES_ARME=true; choisirOutilR(RES_TRACE==="droit" ? "poly" : "spline"); RES_ARME=false;
+  if(t==="chemin") RES_EC.sp=d0.sp||1.5;
+  RES_ARME=true; choisirOutilR(t==="chemin" || RES_TRACE==="droit" ? "poly" : "spline"); RES_ARME=false;   /* un chemin de câbles : toujours droit */
   majFenRes(); majRuban();
   toast(T.nom+" : touchez chaque point du tracé (ou glissez), puis Terminer. "+(t==="chemin" ? "Nature et taille" : "Nature et diamètre")+" : dans le cadre, en haut à gauche.", 4200);
 }
@@ -5269,7 +5272,7 @@ function majFenRes(){
   rangee("Nature", T.natures, "n");
   rangee(r.t==="frigo" ? "Tubes" : r.t==="chemin" ? "Taille" : "Diamètre", T.d, "d");
   /* le tracé : en courbe, ou droit avec ses angles (Ortho : 90° et 45°) ; un réseau déjà tracé change de l'un à l'autre */
-  (function(){
+  if(r.t!=="chemin") (function(){   /* un chemin de câbles se trace toujours droit, en angles : pas de courbe */
     var l=document.createElement("div"); l.className="fr-l";
     var t=document.createElement("span"); t.textContent="Tracé"; l.appendChild(t);
     var cur = o ? (o.t==="poly" ? "droit" : "courbe") : (GEO_EC && GEO_EC.t==="poly") || (!GEO_EC && OUTIL_D==="poly") ? "droit" : "courbe";
