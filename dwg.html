@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan</title>
-<script src="./symboles-elec.js?v=20261107b"></script>
+<script src="./symboles-elec.js?v=20261108a"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -457,6 +457,9 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fen-res button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
 .fen-res button.nat.on{background:var(--c);border-color:var(--c);color:#fff}
 .fen-res small{color:var(--ink-2,#9AA3B2);font-size:11.5px}
+.fen-resa input[type=text]{width:64px;min-height:30px;padding:3px 8px;border-radius:999px;border:1px solid var(--trait);background:#0B0E12;color:var(--ink);font:inherit;text-align:center}
+.fen-resa label{display:inline-flex;align-items:center;gap:5px}
+.fen-resa input[type=checkbox]{width:18px;height:18px}
 @media (max-width:600px){ .fen-res{left:6px;right:6px;max-width:none;padding:7px 8px;gap:5px;font-size:12px}
   .fen-res .fr-l{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none} .fen-res .fr-l span,.fen-res small{display:none}
   .fen-res button{min-height:28px;padding:2px 9px;flex:0 0 auto} }
@@ -673,6 +676,15 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   </div>
 </div>
 
+<div class="fen-site" id="fenCarac" hidden role="dialog" aria-modal="true" aria-labelledby="fenCaracT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenCaracT">Caractéristiques</b><button class="bt" type="button" id="fkFermer" aria-label="Fermer">✕</button></div>
+    <p class="fs-aide">Ce qui est rempli s'écrit dans l'encadré, à côté du symbole, sur le plan et au PDF. Tout est facultatif.</p>
+    <div class="fo-grille" id="fkChamps"></div>
+    <div class="fo-bas"><button class="bt" type="button" id="fkEffacer">Retirer l'encadré</button><button class="bt or" type="button" id="fkOk">Valider</button></div>
+  </div>
+</div>
+
 <div class="accueil" id="accueil">
   <div class="depot" id="depot">
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M7.5 16.5h9M7.5 16.5v-2M16.5 16.5v-2M9 12.5h6"/></svg>
@@ -722,6 +734,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   <button type="button" class="bt" id="effFin">Terminer</button>
 </div>
 <div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
+<div class="fen-res fen-resa" id="fenResa" hidden role="group" aria-label="La réservation pour le maçon"></div>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer au centre, entre deux extrémités touchées"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v10M21 7v10M3 12h5M16 12h5"/><circle cx="12" cy="12" r="2.6"/></svg>Au centre</button>
@@ -738,6 +751,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   <label class="bs-calque" id="bsCalque" hidden title="Son calque"><span>Calque</span><select id="bsCalqueSel" aria-label="Calque de l'élément choisi"></select></label>
   <button type="button" class="bs-act" id="bsSupPt" hidden title="Retirer ce point du passage du câble (le câble se redresse)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="8" height="8"/><path d="M4 4l16 16"/></svg>Supprimer le point</button>
   <button type="button" class="bs-act" id="bsDefOnd" hidden title="Ses caractéristiques : puissance, MPPT, tensions, courants">Définir</button>
+  <button type="button" class="bs-act" id="bsCarac" hidden title="Modèle, puissances, dimensions, poids… écrits dans un encadré à côté du symbole">Caractéristiques</button>
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
   <button type="button" class="bs-act" id="bsTourne" hidden title="Tourner de 90° (touche R, Maj+R dans l'autre sens)">Tourner 90°</button>
@@ -830,7 +844,8 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> <span class="u-saisie">cm</span></label>
     <label class="champ-h" id="grpHvSym" hidden><input id="symbHv" type="checkbox"> Écrire la hauteur</label>
     <input class="champ-rep" id="symbTs" type="text" autocomplete="off" maxlength="20" placeholder="Texte (LL, LV…)" aria-label="Texte de la prise spécialisée" hidden>
-    <span class="champ-h grp-zones" id="grpZones" hidden><label for="symbZones">Zones</label> <select id="symbZones" aria-label="Nombre de zones du plénum"><option value="1">1 zone</option><option value="2">2 zones</option><option value="3">3 zones</option><option value="4">4 zones</option><option value="5">5 zones</option><option value="6">6 zones</option></select></span>
+    <span class="champ-h grp-zones" id="grpZones" hidden><label for="symbZones" id="labZones">Zones</label> <select id="symbZones" aria-label="Nombre de zones ou de départs"></select></span>
+    <span class="champ-h grp-zones" id="grpEU" hidden><select id="symbEuN" aria-label="Évacuation"><option value="EU">EU</option><option value="EV">EV</option><option value="EP">EP</option></select> <select id="symbEuD" aria-label="Diamètre de l'évacuation"><option>32</option><option>40</option><option>50</option><option>63</option><option>80</option><option>100</option><option>110</option><option>125</option><option>160</option></select> <span>mm</span></span>
     <datalist id="hTypes"><option value="30 cm" label="prise"><option value="70 cm" label="prise au-dessus du chevet"><option value="90 cm" label="interrupteur de tête de lit"><option value="110 cm" label="commande, plan de travail"><option value="130 cm" label="liseuse"><option value="180 cm" label="applique"><option value="200 cm" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
@@ -1880,6 +1895,7 @@ function peindreSymboles(c){
     }
     var colS=coulSymb(o, def);
     SymbolesElec.dessiner(c, o.cle, p[0], p[1], R, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, epMin:1, couleur:colS, clair:CLAIR || IMPRIME});
+    if(o.carac && def.carac && vue==="dessus" && R>2) peindreCarac(c, o, def, p, R);
     var tdS=texteDessusS(o);
     if(tdS && R>3 && SymbolesElec.ecrire) SymbolesElec.ecrire(c, o.cle, p[0], p[1], R, tdS, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, couleur: colS || ((!CLAIR && def.couleur==="#0000FF") ? "#6B8BFF" : undefined)});
     if(o.t && R>3){
@@ -1896,6 +1912,91 @@ function peindreSymboles(c){
     }
   });
 }
+/* l'encadré des caractéristiques d'une unité (gainable, groupe extérieur, PAC…) ou d'un ballon :
+   ce qui est rempli, ligne par ligne, dans un cadre relié au symbole ; il se place à droite,
+   à gauche, au-dessus ou en dessous (au choix dans la fenêtre) */
+var CHAMPS_CARAC={
+  clim:[["modele","Marque et modèle","t","Daikin FBA50A"],["froid","Puissance froid (kW)","n","5,0"],["chaud","Puissance chaud (kW)","n","6,0"],
+        ["dim","Dimensions L × P × H (mm)","t","1000 × 800 × 245"],["poids","Poids (kg)","n","32"],["alim","Alimentation","alim",""],["fluide","Fluide","t","R32"],["note","Remarque","t",""]],
+  ballon:[["modele","Marque et modèle","t","Atlantic 200 L"],["vol","Volume (L)","n","200"],["dim","Dimensions Ø × H (mm)","t","570 × 1550"],
+          ["poids","Poids à vide (kg)","n","55"],["note","Remarque","t",""]]
+};
+function lignesCarac(o, def){
+  var k=o.carac; if(!k) return [];
+  function nb(v){ return String(v).replace(".", ","); }
+  var L=[];
+  if(k.modele) L.push({t:k.modele, b:true});
+  if(def.carac==="ballon"){
+    if(k.vol) L.push({t:nb(k.vol)+" L"});
+  } else {
+    var p=[k.froid ? "Froid "+nb(k.froid)+" kW" : "", k.chaud ? "Chaud "+nb(k.chaud)+" kW" : ""].filter(Boolean).join(" · ");
+    if(p) L.push({t:p});
+  }
+  var dm=[k.dim ? String(k.dim)+" mm" : "", k.poids ? nb(k.poids)+" kg" : ""].filter(Boolean).join(" · ");
+  if(dm) L.push({t:dm});
+  var el=[k.alim==="tri" ? "Tri 400 V" : k.alim==="mono" ? "Mono 230 V" : "", k.fluide||""].filter(Boolean).join(" · ");
+  if(el) L.push({t:el});
+  if(k.note) L.push({t:k.note});
+  return L;
+}
+function peindreCarac(c, o, def, p, R){
+  var L=lignesCarac(o, def); if(!L.length) return;
+  var px=Math.max(8, R*0.62), lh=px*1.3, pad=px*0.55;
+  c.save(); c.setLineDash([]);
+  var w=0; L.forEach(function(l){ c.font=(l.b ? "700 " : "500 ")+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; w=Math.max(w, c.measureText(l.t).width); });
+  var bw=w+2*pad, bh=L.length*lh+pad*1.2, b=SymbolesElec.boite(o.cle), ext=Math.max(Math.abs(b.x0), Math.abs(b.x1), Math.abs(b.y0), Math.abs(b.y1))*R;
+  var pos=(o.carac && o.carac.pos)||"d", gap=ext+R*1.2, x, y;
+  if(pos==="g"){ x=p[0]-gap-bw; y=p[1]-bh/2; } else if(pos==="h"){ x=p[0]-bw/2; y=p[1]-gap-bh; } else if(pos==="b"){ x=p[0]-bw/2; y=p[1]+gap; } else { x=p[0]+gap; y=p[1]-bh/2; }
+  var col=def.couleur||"#FF8000", fond=(IMPRIME || PX_MM || CLAIR) ? "rgba(255,255,255,.94)" : "rgba(18,21,27,.92)";
+  /* le trait de rappel, du symbole au cadre */
+  var cx=Math.max(x, Math.min(x+bw, p[0])), cy=Math.max(y, Math.min(y+bh, p[1]));
+  c.strokeStyle=col; c.lineWidth=Math.max(1, px*0.09); c.beginPath(); c.moveTo(p[0], p[1]); c.lineTo(cx, cy); c.stroke();
+  c.fillStyle=fond; c.fillRect(x, y, bw, bh); c.lineWidth=Math.max(1, px*0.12); c.strokeRect(x, y, bw, bh);
+  c.fillRect(x, y, Math.max(2, px*0.22), bh);
+  c.fillStyle=col; c.fillRect(x, y, Math.max(2, px*0.22), bh);
+  c.textAlign="left"; c.textBaseline="middle";
+  L.forEach(function(l, i){ c.font=(l.b ? "700 " : "500 ")+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.fillStyle=l.b ? col : ((IMPRIME || PX_MM || CLAIR) ? "#1F2937" : "#E5E7EB"); c.fillText(l.t, x+pad*1.2, y+pad*0.6+lh*(i+0.5)); });
+  c.restore();
+}
+var FEN_CARAC=-1;
+function ouvrirFenCarac(){
+  var o=SEL>=0 ? SYMB[SEL] : null, def=defDe(o); if(!def || !def.carac) return;
+  FEN_CARAC=SEL; var z=$("fkChamps"); z.textContent=""; var k=o.carac||{};
+  $("fenCaracT").textContent="Caractéristiques : "+(def.court||def.nom);
+  CHAMPS_CARAC[def.carac].concat([["pos","Place de l'encadré","pos",""]]).forEach(function(f){
+    var l=document.createElement("label"); l.className=(f[0]==="modele" || f[0]==="note") ? "large" : ""; l.appendChild(document.createTextNode(f[1]));
+    var i;
+    if(f[2]==="alim" || f[2]==="pos"){
+      i=document.createElement("select");
+      (f[2]==="alim" ? [["","—"],["mono","Mono 230 V"],["tri","Tri 400 V"]] : [["d","À droite"],["g","À gauche"],["h","Au-dessus"],["b","En dessous"]]).forEach(function(v){ var op=document.createElement("option"); op.value=v[0]; op.textContent=v[1]; i.appendChild(op); });
+      i.value=k[f[0]]||(f[2]==="pos" ? "d" : "");
+    } else {
+      i=document.createElement("input"); i.type="text"; i.autocomplete="off"; if(f[2]==="n") i.inputMode="decimal"; i.placeholder=f[3];
+      i.value=k[f[0]]!=null ? String(k[f[0]]).replace(".", ",") : "";
+    }
+    i.dataset.k=f[0]; l.appendChild(i); z.appendChild(l);
+  });
+  $("fenCarac").hidden=false;
+  setTimeout(function(){ try{ z.querySelector("input").focus(); }catch(e){} }, 50);
+}
+function fermerFenCarac(){ FEN_CARAC=-1; $("fenCarac").hidden=true; majSymb(); demander(); }
+function validerFenCarac(){
+  var o=SYMB[FEN_CARAC]; if(!o){ fermerFenCarac(); return; }
+  var k={};
+  Array.prototype.forEach.call($("fkChamps").querySelectorAll("input,select"), function(i){
+    var v=String(i.value).trim(); if(!v) return;
+    if(i.inputMode==="decimal"){ var n=parseFloat(v.replace(/\s/g, "").replace(",", ".")); if(n>0) k[i.dataset.k]=n; return; }
+    k[i.dataset.k]=v;
+  });
+  garderSymb();
+  if(Object.keys(k).filter(function(x){ return x!=="pos"; }).length) o.carac=k; else delete o.carac;
+  enregistrerSymb(); fermerFenCarac();
+}
+$("fkOk").addEventListener("click", validerFenCarac);
+$("fkFermer").addEventListener("click", fermerFenCarac);
+$("fkEffacer").addEventListener("click", function(){ var o=SYMB[FEN_CARAC]; if(o && o.carac){ garderSymb(); delete o.carac; enregistrerSymb(); } fermerFenCarac(); });
+$("fkChamps").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); validerFenCarac(); } if(e.key==="Escape") fermerFenCarac(); e.stopPropagation(); });
+$("bsCarac").addEventListener("click", ouvrirFenCarac);
 function repere(pt){
   var p=versEcran(pt[0],pt[1]);
   c2.strokeStyle="#3B82F6"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
@@ -2969,13 +3070,23 @@ function texteDessusS(o){
   var t=[];
   if(def.texte!=null){ var ts=String(o.ts!=null ? o.ts : def.texte).trim(); if(ts) t.push(ts); }
   if(o.hv && def.cat==="prise") t.push(SymbolesElec.texteHauteur(hauteurDe(o)));
+  if(def.eu) t.push((o.nat||"EU")+" Ø"+(o.dia||100));
   return t.join("  ");
 }
-/* le plénum motorisé (type Airzone), posé à part contre le soufflage du gainable : 1 à 6 zones,
-   une sortie ronde à registre motorisé par zone, numérotée ; 4 en façade, la 5e et la 6e sur les côtés */
-function estPlenum(o){ return !!o && /^cfo-plenum(-z[1-6])?$/.test(o.cle); }
-function nbZones(o){ if(!estPlenum(o)) return 0; var m=/-z([1-6])$/.exec(o.cle); return m ? Number(m[1]) : 2; }
-function peindreZones(o){ if(document.activeElement!==$("symbZones")) $("symbZones").value=String(nbZones(o)); }
+/* les familles de symboles réglables : le plénum motorisé (type Airzone), de 1 à 6 zones,
+   une sortie ronde à registre par zone (4 en façade, la 5e et la 6e sur les côtés) ;
+   les collecteurs E.F. et E.C., de 2 à 8 départs. La bibliothèque donne fam, famLib et zones. */
+function defDe(o){ return o && window.SymbolesElec ? SymbolesElec.trouver(o.cle) : null; }
+function estFamille(o){ var d=defDe(o); return !!(d && d.fam); }
+function estPlenum(o){ var d=defDe(o); return !!(d && d.fam==="plenum"); }
+function variantes(fam){ return SymbolesElec.liste.filter(function(x){ return x.fam===fam; }).sort(function(a, b){ return a.zones-b.zones; }); }
+function nbZones(o){ var d=defDe(o); return d && d.fam ? d.zones : 0; }
+function peindreZones(o){
+  var d=defDe(o), sel=$("symbZones"), vs=variantes(d.fam), lib=d.famLib||"Zones", mot=lib==="Départs" ? "départ" : "zone";
+  $("labZones").textContent=lib;
+  if(sel.dataset.fam!==d.fam){ sel.textContent=""; vs.forEach(function(v){ var op=document.createElement("option"); op.value=String(v.zones); op.textContent=v.zones+" "+mot+(v.zones>1?"s":""); sel.appendChild(op); }); sel.dataset.fam=d.fam; }
+  if(document.activeElement!==sel) sel.value=String(d.zones);
+}
 /* les points où une gaine s'accroche (pq de la bibliothèque) : le bout de chaque sortie du plénum, son raccord au gainable,
    le soufflage et la reprise du gainable */
 function piquagesSymbole(o){
@@ -3036,7 +3147,8 @@ function majSymb(){
   $("grpHvSym").hidden=!(o && def && def.cat==="prise"); $("symbHv").checked=!!(o && o.hv);
   $("symbTs").hidden=!(o && def && def.texte!=null);
   if(o && def && def.texte!=null && document.activeElement!==$("symbTs")) $("symbTs").value = o.ts!=null ? o.ts : def.texte;
-  $("grpZones").hidden=!estPlenum(o); if(estPlenum(o)) peindreZones(o);
+  $("grpZones").hidden=!estFamille(o); if(estFamille(o)) peindreZones(o);
+  $("grpEU").hidden=!(def && def.eu); if(def && def.eu){ $("symbEuN").value=o.nat||"EU"; $("symbEuD").value=String(o.dia||100); }
   $("grpLSym").hidden=!(o && longueurS(o));
   if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=enUnite(longueurS(o));
   if(o && longueurS(o)) $("symbL").setAttribute("list", bandeauDe(o) ? "lBandeau" : "lTypes");
@@ -3052,6 +3164,10 @@ function majSymb(){
 }
 /* le nom d'une ligne des quantités : pour les réglettes, le détail des longueurs (2 × 120 cm, 1 × 60 cm) */
 function nomQuantite(sy){
+  if(sy.eu){
+    var pe={}; SYMB.forEach(function(o){ if(o.cle===sy.cle){ var k=(o.nat||"EU")+" Ø"+(o.dia||100); pe[k]=(pe[k]||0)+1; } });
+    return "Évacuation : "+Object.keys(pe).sort().map(function(k){ return pe[k]>1 ? pe[k]+" × "+k : k; }).join(", ");
+  }
   if(!sy.long) return sy.nom;
   var par={}; SYMB.forEach(function(o){ if(canonS(o.cle)===sy.cle){ var L=longueurS(o); par[L]=(par[L]||0)+1; } });
   var det=Object.keys(par).sort(function(a, b){ return b-a; }).map(function(L){ return par[L]+" × "+cm(Number(L))+" cm"; }).join(", ");
@@ -3069,6 +3185,12 @@ function peindreQuantites(){
   var li=document.createElement("li"); li.className="total";
   li.innerHTML="<span></span><b></b>"; li.firstChild.textContent = total ? "Total" : "Aucun symbole posé."; li.lastChild.textContent = total ? String(total) : "";
   ul.appendChild(li);
+  reservations().forEach(function(o){
+    var x=texteResa(o), lr=document.createElement("li"), ir=document.createElement("i");
+    ir.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="'+RESA_COUL+'" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" stroke-dasharray="3 2"/><path d="M3 5l18 14M21 5L3 19"/></svg>';
+    var sr=document.createElement("span"); sr.textContent="Réservation "+x.num+" : "+x.l1+" · "+x.l2; var br=document.createElement("b"); br.textContent="1";
+    lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(br); ul.appendChild(lr);
+  });
   reseauxPoses().forEach(function(x){
     var lr=document.createElement("li"), ir=document.createElement("i"); ir.innerHTML=svgRes(x.res, 24);
     var sr=document.createElement("span"); sr.textContent=libelleRes(x.res); var br=document.createElement("b"); br.textContent=metresRes(x.L);
@@ -3412,6 +3534,7 @@ $("bsCoteOk").addEventListener("click", validerCote);
 /* la barre de l'élément choisi : son nom, Supprimer, et la croix pour ne plus le choisir */
 function majBarreSel(){
   try{ majFenRes(); }catch(e){}
+  try{ majFenResa(); }catch(e){}
   try{ majBarreEff(); }catch(e){}
   var b=$("barreSel"); if(!b) return;
   var nom="";
@@ -3443,6 +3566,9 @@ function majBarreSel(){
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
+  var dC = MODE==="symb" && SEL>=0 ? defDe(SYMB[SEL]) : null;
+  $("bsCarac").hidden = !(dC && dC.carac && !RELIER);
+  if(dC && dC.carac) $("bsCarac").classList.toggle("on", !SYMB[SEL].carac);
   var ptPv = MODE==="dessin" && FAM_D==="pv" && !nG ? pvPointChoisi() : null;
   $("bsSupPt").hidden = !ptPv;
   if(!$("bsDefOnd").hidden){ var oD=pvOnd(D_SEL.id); $("bsDefOnd").classList.toggle("on", pvOndAFaire(oD)); }
@@ -4868,6 +4994,7 @@ function texteCote(L){
 }
 function nommerG(o){
   if(o.res && RES_TYPES[o.res.t]) return etiquetteRes(o.res)+" · "+formater(longueurRes(o)/DESSIN_MM);
+  if(o.resa){ var xr=texteResa(o); return "Réservation "+xr.num+" · "+xr.l2; }
   var n=GEO_NOMS[o.t];
   if(o.t==="rect"){ var W=lng(sub(o.pts[1],o.pts[0])), H=lng(sub(o.pts[3],o.pts[0])); return n+" "+cm(W*DESSIN_MM)+" × "+cm(H*DESSIN_MM)+" cm"; }
   if(o.t==="rond") return n+" Ø "+cm(2*o.r*DESSIN_MM)+" cm";
@@ -4894,7 +5021,11 @@ var RES_TYPES={
   telec:{nom:"Liaison télécommande", calque:"RESEAUX-TELECOMMANDE", d:[], dDef:"", tir:true,
     natures:[["telec","Télécommande","#4F46E5"]]},
   cond:{nom:"Évacuation des condensats", calque:"RESEAUX-CONDENSATS", d:[16,20,25,32], dDef:20,
-    natures:[["cond","Condensats","#15803D"]]}
+    natures:[["cond","Condensats","#15803D"]]},
+  eau:{nom:"Tuyau d'eau", calque:"RESEAUX-PLOMBERIE", d:["PER 12","PER 16","PER 20","MC 16","MC 20","MC 26","MC 32","Cu 12","Cu 14","Cu 16","Cu 22"], dDef:"MC 16",
+    natures:[["ef","E.F.","#2563EB"],["ec","E.C.","#DC2626"]]},
+  eu:{nom:"Évacuation", calque:"RESEAUX-EVACUATION", d:[32,40,50,63,80,100,110,125,160], dDef:100,
+    natures:[["eu","EU","#92400E"],["ev","EV","#7C2D12"],["ep","EP","#0E7490"]]}
 };
 var RES_EC=null, RES_ARME=false;
 var RES_DERNIER=(function(){ try{ return JSON.parse(lire("dwg:reseaux","{}"))||{}; }catch(e){ return {}; } })();
@@ -4983,7 +5114,80 @@ function majFenRes(){
   rangee(r.t==="frigo" ? "Tubes" : "Diamètre", T.d, "d");
   var et=document.createElement("small"); et.textContent="Écrit sur le plan : « "+etiquetteRes(r)+" »"; f.appendChild(et);
 }
+/* les réservations pour le maçon : un rectangle tracé sur le plan (rouge, en tirets, avec sa croix),
+   numéroté R1, R2… ; son cadre donne le support (mur, dalle…), l'usage, ses dimensions (ou « à définir
+   sur place ») et, dans un mur, la hauteur du bas */
+var RESA_EC=null, RESA_ARME=false, RESA_COUL="#DB2777";
+var RESA_SUPPORTS=[["mur","Mur"],["cloison","Cloison"],["dalle","Dalle"],["plancher","Plancher"],["toiture","Toiture"]];
+var RESA_USAGES=[["vmc","VMC"],["clim","Clim"],["eu","EU / EV"],["eau","Plomberie"],["elec","Élec"],["autre","Autre"]];
+function armerResa(){
+  if(!PLAN) return;
+  var d0=(function(){ try{ return JSON.parse(lire("dwg:resa","{}"))||{}; }catch(e){ return {}; } })();
+  RESA_EC={sup:d0.sup||"mur", us:d0.us||"vmc", def:true};     /* les cotes : à définir sur place, sauf si on les tape */
+  RESA_ARME=true; choisirOutilR("rect"); RESA_ARME=false;
+  majFenResa(); majRuban();
+  toast("Réservation : touchez un coin, puis le coin opposé (ou tapez L × H). Le cadre, en haut à gauche, donne le support, l'usage et les cotes.", 4500);
+}
+function resaSel(){ if(MODE!=="dessin" || !D_SEL || D_SEL.t!=="geo") return null; var o=geoDe(D_SEL.id); return o && o.resa ? o : null; }
+function reservations(){ return geos().filter(function(o){ return o.resa && (!o.vue || o.vue==="dessus"); }).sort(function(a, b){ return (a.resa.n||0)-(b.resa.n||0); }); }
+function cotesResa(o){
+  var W=lng(sub(o.pts[1],o.pts[0]))*DESSIN_MM, H=lng(sub(o.pts[3],o.pts[0]))*DESSIN_MM;
+  return {l:o.resa.l!=null ? o.resa.l : Math.round(W/10), h:o.resa.h!=null ? o.resa.h : Math.round(H/10)};
+}
+function nomCm(v){ return String(v).replace(".", ","); }
+function texteResa(o){
+  var r=o.resa, sp=(RESA_SUPPORTS.filter(function(x){ return x[0]===r.sup; })[0]||["",""])[1], us=(RESA_USAGES.filter(function(x){ return x[0]===r.us; })[0]||["",""])[1];
+  var cs=cotesResa(o), dim = r.def ? "à définir sur place" : nomCm(cs.l)+" × "+nomCm(cs.h)+" cm";
+  var bas = !r.def && r.z!=null && r.z!=="" && (r.sup==="mur" || r.sup==="cloison") ? "bas à "+nomCm(r.z)+" cm" : "";
+  return {num:"R"+(r.n||"?"), l1:[sp, us].filter(Boolean).join(" · "), l2:[dim, bas].filter(Boolean).join(" · ")};
+}
+function majFenResa(){
+  var f=$("fenResa"); if(!f) return;
+  var o=resaSel(), r = o ? o.resa : (MODE==="dessin" && OUTIL_D==="rect" && RESA_EC ? RESA_EC : null);
+  f.hidden=!r; if(!r) return;
+  var cle=o ? o.id : "ec";
+  if(f.dataset.id===cle && document.activeElement && document.activeElement.type==="text" && f.contains(document.activeElement)) return;
+  f.dataset.id=cle; f.textContent="";
+  var h=document.createElement("b"); h.textContent = o ? "Réservation "+texteResa(o).num+" pour le maçon" : "Réservation : tracez le rectangle"; f.appendChild(h);
+  function changer(cle, v){
+    if(o){ garderD(); o.resa[cle]=v; enregistrerD(); } else RESA_EC[cle]=v;
+    var d0={}; try{ d0=JSON.parse(lire("dwg:resa","{}"))||{}; }catch(e){}
+    if(cle==="sup" || cle==="us"){ d0[cle]=v; garder("dwg:resa", JSON.stringify(d0)); }
+    majFenResa(); majBarreSel(); demander();
+  }
+  function rangee(titre, items, cle){
+    var l=document.createElement("div"); l.className="fr-l";
+    var t=document.createElement("span"); t.textContent=titre; l.appendChild(t);
+    items.forEach(function(it){ var b=document.createElement("button"); b.type="button"; b.textContent=it[1]; if(r[cle]===it[0]) b.classList.add("on");
+      b.addEventListener("click", function(){ changer(cle, it[0]); }); l.appendChild(b); });
+    f.appendChild(l);
+  }
+  rangee("Support", RESA_SUPPORTS, "sup");
+  rangee("Usage", RESA_USAGES, "us");
+  var l=document.createElement("div"); l.className="fr-l";
+  var t=document.createElement("span"); t.textContent="Cotes"; l.appendChild(t);
+  var lab=document.createElement("label"), cb=document.createElement("input"); cb.type="checkbox"; cb.checked=!!r.def;
+  cb.addEventListener("change", function(){ changer("def", cb.checked); }); lab.appendChild(cb); lab.appendChild(document.createTextNode("À définir sur place")); l.appendChild(lab);
+  f.appendChild(l);
+  if(o && !r.def){
+    var cs=cotesResa(o), l2=document.createElement("div"); l2.className="fr-l";
+    var t2=document.createElement("span"); t2.textContent=(r.sup==="mur" || r.sup==="cloison") ? "L × H (cm)" : "L × l (cm)"; l2.appendChild(t2);
+    function champ(cle, val, aria){ var i=document.createElement("input"); i.type="text"; i.inputMode="decimal"; i.autocomplete="off"; i.value=nomCm(val); i.setAttribute("aria-label", aria);
+      i.addEventListener("focus", function(){ garderD(); });
+      i.addEventListener("change", function(){ var n=parseFloat(String(i.value).replace(",", ".")); if(!(n>=0)) { delete o.resa[cle]; } else o.resa[cle]=n; enregistrerD(); majFenResa(); demander(); });
+      i.addEventListener("keydown", function(e){ if(e.key==="Enter") i.blur(); e.stopPropagation(); });
+      return i; }
+    l2.appendChild(champ("l", cs.l, "Largeur en cm")); l2.appendChild(document.createTextNode("×")); l2.appendChild(champ("h", cs.h, (r.sup==="mur" || r.sup==="cloison") ? "Hauteur en cm" : "Longueur en cm"));
+    if(r.sup==="mur" || r.sup==="cloison"){ var tz=document.createElement("span"); tz.textContent="bas à"; tz.style.minWidth="0"; l2.appendChild(tz); l2.appendChild(champ("z", r.z!=null ? r.z : "", "Hauteur du bas en cm")); l2.appendChild(document.createTextNode("cm")); }
+    f.appendChild(l2);
+  }
+  if(o){ var x=texteResa(o), et=document.createElement("small"); et.textContent="Écrit sur le plan : « "+x.num+" · "+x.l1+" · "+x.l2+" »"; f.appendChild(et); }
+}
 function creerGeo(o){
+  if(o.t==="rect" && RESA_EC && OUTIL_D==="rect"){
+    var nMax=0; geos().forEach(function(g){ if(g.resa && g.resa.n>nMax) nMax=g.resa.n; });
+    o.resa={sup:RESA_EC.sup, us:RESA_EC.us, def:!!RESA_EC.def, n:nMax+1}; o.couleur=RESA_COUL; o.tir=true; o.remp="aucun"; o.ep="moyen";
+  }
   if(o.t==="spline" && RES_EC && OUTIL_D==="spline"){ o.res={t:RES_EC.t, n:RES_EC.n, d:RES_EC.d}; o.couleur=coulRes(o.res); o.ep="moyen"; o.tir=!!RES_TYPES[RES_EC.t].tir; o.remp="aucun"; }
   o.id=idD(); o.ep=o.ep||STYLE_G.ep;
   if(vueD()!=="dessus") o.vue=vueD(); o.coul=o.coul||STYLE_G.coul; o.tir=o.tir!=null ? o.tir : STYLE_G.tir;
@@ -4995,7 +5199,9 @@ function creerGeo(o){
   if(o.t==="cote" || o.t==="gtexte") o.h=o.h||(ePap ? (o.t==="cote" ? 2.5 : 3.5)*ePap : tailleDefaut(o.t==="cote" ? 12 : 16));
   if(o.t==="fleche") o.fl=o.fl||(ePap ? 3*ePap : tailleDefaut(12));
   garderD(); DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(o);
-  GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; finOutil(); enregistrerD(); majDessin();
+  GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; finOutil();
+  if(o.resa){ D_SEL={t:"geo", id:o.id}; if(!garderOutil()) RESA_EC=null; }     /* la réservation tracée reste choisie : ses cotes se tapent tout de suite */
+  enregistrerD(); majDessin();
 }
 function rectDe(a, c){ return [a.slice(), [c[0], a[1]], c.slice(), [a[0], c[1]]]; }
 /* la fin d'un segment : sur le point accroché, sinon droite si Ortho */
@@ -5237,6 +5443,17 @@ function peindreGeo(c, E, coulTrait, orange){
       c.save(); c.globalAlpha=0.4; c.lineWidth=Math.max(0.6, w*0.5); c.setLineDash(PX_MM ? [2*PX_MM, 1.2*PX_MM] : [6,4]); chemin(pts, false); c.stroke(); c.restore();
     } else { chemin(pts, ferme); c.stroke(); }
     if(o.res) etiquettesRes(o, pts, col);
+    if(o.resa && o.t==="rect"){
+      /* la croix de la réservation, et son texte au milieu, sur un liseré du fond */
+      c.save(); c.setLineDash([]); c.lineWidth=Math.max(0.8, w*0.7); chemin([pts[0], pts[2]]); c.stroke(); chemin([pts[1], pts[3]]); c.stroke();
+      var xr=texteResa(o), hR=hauteurEtiquetteRes(), pxR=Math.max(7, hR*V.k), ctr=E([(pts[0][0]+pts[2][0])/2, (pts[0][1]+pts[2][1])/2]);
+      var fondR=(IMPRIME || PX_MM || CLAIR) ? "#FFFFFF" : "#16181C";
+      c.textAlign="center"; c.textBaseline="middle"; c.lineJoin="round";
+      [[xr.num, 1.15, -1.25], [xr.l1, 0.85, 0], [xr.l2, 0.85, 1.1]].forEach(function(li){
+        if(!li[0]) return; c.font="700 "+(pxR*li[1]).toFixed(1)+"px Helvetica, Arial, sans-serif";
+        c.lineWidth=Math.max(2, pxR*0.3); c.strokeStyle=fondR; c.strokeText(li[0], ctr[0], ctr[1]+li[2]*pxR); c.fillStyle=col; c.fillText(li[0], ctr[0], ctr[1]+li[2]*pxR); });
+      c.restore();
+    }
     if(o.t==="fleche"){
       c.setLineDash([]); var taille=o.fl*V.k;
       var A=E(o.pts[0]), B=E(o.pts[1]);
@@ -7434,7 +7651,7 @@ function gabarit(){
   var F={x:CART.gauche, y:CART.haut0, w:P.w-CART.gauche-CART.droite, h:P.h-CART.haut0-CART.bas};
   var CW=Math.min(CART.largeur, F.w), Hc=CART.revision+CART.haut;
   var g={P:P, k:k, cadre:F, cart:{x:F.x+F.w-CW, y:F.y+F.h-Hc, w:CW, h:Hc}};
-  var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length+reseauxPoses().length, leg=nl && MEP.legende!==false;
+  var n=compter(), nl=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }).length+reseauxPoses().length+(reservations().length ? 1 : 0), leg=nl && MEP.legende!==false;
   g.zone={x:F.x, y:F.y, w:F.w, h:F.h-Hc};
   /* la légende : un cadre posé sur la feuille, là où on l'a glissé (en haut à droite au départ) */
   if(leg){
@@ -7984,6 +8201,7 @@ function creerPdf(d, logo, soc, imgPersp){
   var n=compter(), lignes=SymbolesElec.liste.filter(function(sy){ return n[sy.cle]; }), lesRes=reseauxPoses();
   var avecCvc=lesRes.length || lignes.some(function(sy){ return sy.groupe==="Ventilation et climatisation" || sy.groupe==="Chauffage et VMC"; });
   lignes=lignes.concat(lesRes);
+  if(reservations().length) lignes.push({resaL:reservations().length});
   if(d.legende && lignes.length && g.leg){
     var L=g.leg, lh=L.lh, cs=L.cs, cw=(L.w-2*L.pad)/L.cols, x0l=L.x+L.pad, y0l=L.y+L.pad, parCol=L.parCol, yT=y0l+L.tete;
     doc.setFillColor(255,255,255); trait(0.35); doc.rect(L.x, L.y, L.w, L.h, "FD");
@@ -7992,6 +8210,18 @@ function creerPdf(d, logo, soc, imgPersp){
     lignes.forEach(function(sy, i){
       var c=Math.floor(i/parCol), r=i%parCol, x=x0l+c*cw, y=yT+r*lh;
       if(r===0){ trait(0.15); doc.line(x+cs, yT, x+cs, yT+parCol*lh); if(c) doc.line(x, yT, x, yT+parCol*lh); }
+      if(sy.resaL){
+        /* les réservations : un rectangle en tirets et sa croix */
+        doc.setDrawColor(219,39,119); doc.setLineWidth(0.3);
+        if(doc.setLineDashPattern) doc.setLineDashPattern([1,0.7], 0);
+        doc.rect(x+3, y+lh*0.2, cs-6, lh*0.6);
+        if(doc.setLineDashPattern) doc.setLineDashPattern([], 0);
+        doc.line(x+3, y+lh*0.2, x+cs-3, y+lh*0.8); doc.line(x+cs-3, y+lh*0.2, x+3, y+lh*0.8);
+        doc.setDrawColor(0,0,0);
+        texte("Réservation pour le maçon ("+sy.resaL+")", x+cs+2, y+lh*0.64, 7.5, {max:cw-cs-4});
+        if(r<parCol-1){ trait(0.1); doc.line(x, y+lh, x+cw, y+lh); }
+        return;
+      }
       if(sy.res){
         /* un réseau : un bout de son trait (double pour une gaine), sa nature, son diamètre et sa longueur */
         var TRl=RES_TYPES[sy.res.t], cl=coulRes(sy.res).replace("#",""), rr=parseInt(cl.slice(0,2),16), gg=parseInt(cl.slice(2,4),16), bl=parseInt(cl.slice(4,6),16);
@@ -8629,12 +8859,17 @@ $("symbTs").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
 $("symbTs").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].ts=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbTs").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("symbZones").addEventListener("change", function(){
-  var o=SEL>=0 ? SYMB[SEL] : null; if(!estPlenum(o)) return;
-  garderSymb(); var n=Math.max(1, Math.min(6, Number(this.value)||2));
-  o.cle = n===2 ? "cfo-plenum" : "cfo-plenum-z"+n;
-  toast("Plénum, "+n+" zone"+(n>1?"s":"")+" : les gaines s'accrochent au bout de chaque sortie.", 3000);
+  var o=SEL>=0 ? SYMB[SEL] : null; if(!estFamille(o)) return;
+  var d=defDe(o), n=Number(this.value)||d.zones, v=variantes(d.fam).filter(function(x){ return x.zones===n; })[0]; if(!v) return;
+  garderSymb(); o.cle=v.cle;
+  toast(d.fam==="plenum" ? "Plénum, "+n+" zone"+(n>1?"s":"")+" : les gaines s'accrochent au bout de chaque sortie."
+    : "Collecteur, "+n+" départ"+(n>1?"s":"")+" : les tuyaux s'accrochent à l'arrivée et à chaque départ.", 3000);
   enregistrerSymb(); majSymb(); demander();
 });
+["symbEuN","symbEuD"].forEach(function(id){ $(id).addEventListener("change", function(){
+  var o=SEL>=0 ? SYMB[SEL] : null, d=defDe(o); if(!d || !d.eu) return;
+  garderSymb(); o.nat=$("symbEuN").value; o.dia=Number($("symbEuD").value)||100; enregistrerSymb(); demander(); majSymb();
+}); });
 $("symbRep").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].t=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbRep").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("segTaille").addEventListener("click", function(e){
@@ -10705,6 +10940,9 @@ var ICO={
   resgaine:'<path d="M3 8h13a5 5 0 0 1 5 5v7"/><path d="M3 14h10a2 2 0 0 1 2 2v4"/>',
   resfrigo:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1"/><path d="M12 2v4M10.5 3.5l3 1M10.5 4.5l3-1"/>',
   restelec:'<path d="M3 17h5M11 17h4M18 17h3" /><rect x="15" y="5" width="6" height="7" rx="1"/><path d="M17 8h2"/>',
+  reseau:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1" stroke="#2563EB"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1" stroke="#DC2626"/>',
+  reseu:'<circle cx="12" cy="12" r="7"/><path d="M7 7l10 10M17 7L7 17"/>',
+  resa:'<rect x="3" y="5" width="18" height="14" stroke-dasharray="3 2"/><path d="M3 5l18 14M21 5L3 19"/>',
   rescond:'<path d="M3 10h12l3 3v7"/><path d="M18 4c-1.5 2-2.5 3.2-2.5 4.3a2.5 2.5 0 0 0 5 0C20.5 7.2 19.5 6 18 4z"/>',
   resfourreau:'<path d="M3 12c4-6 8 6 12 0s4-3 6-2"/><path d="M3 16.5c4-6 8 6 12 0s4-3 6-2"/><text x="3.5" y="7" font-size="5.5" font-family="Arial" font-weight="700" stroke="none" fill="currentColor">Ø</text>',
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
@@ -10767,6 +11005,9 @@ var ACTIONS={
   resfrigo:["Liaison frigo","resfrigo","Les liaisons frigorifiques entre l'unité intérieure et le groupe extérieur"],
   restelec:["Liaison télécom.","restelec","La liaison de la télécommande filaire"],
   rescond:["Condensats","rescond","L'évacuation des condensats"],
+  reseau:["Eau E.F. / E.C.","reseau","Un tuyau d'eau : froide (E.F., en bleu) ou chaude (E.C., en rouge), PER, multicouche ou cuivre, tracé comme une spline"],
+  reseu:["Évacuation","reseu","Une évacuation EU, EV ou EP, Ø32 à Ø160, tracée comme une spline"],
+  resa:["Réservation","resa","Un rectangle de réservation pour le maçon : support, usage, cotes (ou à définir sur place), hauteur du bas"],
   resfourreau:["Fourreau","resfourreau","Un fourreau : ELEC, GAZ, FIBRE, TÉLÉCOM ou EAU, avec son diamètre écrit le long du tracé"],
   relier:["Relier","relier","Relier le symbole choisi : l'interrupteur à ses points lumineux, les prises entre elles"], quantites:["Quantités","quantites","Le nombre de chaque symbole, et la bibliothèque DXF"],
   etudepv:["Étude PV","etudepv","Module, onduleurs, calculs et matériel"],
@@ -10808,6 +11049,8 @@ var ONGLETS=[
   ]},
   {id:"elec", nom:"Électricité", elec:true},
   {id:"cvc", nom:"CVC et réseaux", cvc:true},
+  {id:"plomb", nom:"Plomberie", plomb:true},
+  {id:"resa", nom:"Réservations", resa:true},
   {id:"pv", nom:"Photovoltaïque", g:[
     {nom:"Pose", gros:["o:pvchamp","o:pvpan","o:pvond"]},
     {nom:"Câblage", gros:["o:pvstr","o:pvchemin","o:pvac","o:pvrj"]},
@@ -10891,7 +11134,22 @@ function peindrePanneau(){
     sm.addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; var o=document.querySelector('.grp-molette .seg-molette button[data-m="'+b.dataset.m+'"]'); if(o) o.click(); majReglagesR(); });
     majReglagesR(); pn.scrollLeft=0; majRuban(); return;
   }
-  if(on.cvc){
+  if(on.plomb){
+    [["Production", ["cfo-pac-int","cfo-ballon-ecs","cfo-ballon-tampon","cfo-chauffe-eau"]],
+     ["Distribution", ["cfo-collecteur-ef","cfo-collecteur-ec"]],
+     ["Évacuation", ["cfo-eu"]]].forEach(function(gr){
+      var G=groupeRuban(gr[0]), d=document.createElement("div"); d.className="rb-syms";
+      gr[1].forEach(function(k){ if(SymbolesElec.trouver(k)) d.appendChild(boutonRuban("s:"+k, "rb-sym")); });
+      G.o.appendChild(d); pn.appendChild(G.g);
+    });
+    var Gp=groupeRuban("Tuyaux"); ["a:reseau","a:reseu"].forEach(function(r){ Gp.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gp.g);
+    var Gpo=groupeRuban("Outils"); ["o:main","o:choisir","a:couleur","a:quantites"].forEach(function(r){ Gpo.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gpo.g);
+    var Gpk=groupeRuban("Calques"); Gpk.o.appendChild(colonneCalques()); pn.appendChild(Gpk.g);
+  } else if(on.resa){
+    var Gr0=groupeRuban("Maçon"); Gr0.o.appendChild(boutonRuban("a:resa", "rb-gros")); pn.appendChild(Gr0.g);
+    var Gro=groupeRuban("Outils"); ["o:main","o:choisir","a:supprimer","a:quantites"].forEach(function(r){ Gro.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gro.g);
+    var Grk=groupeRuban("Calques"); Grk.o.appendChild(colonneCalques()); pn.appendChild(Grk.g);
+  } else if(on.cvc){
     [["VMC", ["cfo-caisson-vmc","cfo-vmc","cfo-bouche-80","cfo-bouche-125","cfo-bouche-160","cfo-bouche-applique","cfo-entree-air"]],
      ["Climatisation", ["cfo-clim-murale","cfo-clim-cassette","cfo-clim-gainable","cfo-plenum","cfo-groupe-ext","cfo-bouche-soufflage","cfo-bouche-reprise","cfo-telecommande-clim"]]].forEach(function(gr){
       var G=groupeRuban(gr[0]), d=document.createElement("div"); d.className="rb-syms";
@@ -10907,7 +11165,7 @@ function peindrePanneau(){
     pn.appendChild(Gx.g);
     var Gk=groupeRuban("Calques"); Gk.o.appendChild(colonneCalques()); pn.appendChild(Gk.g);
   } else if(on.elec){
-    if(window.SymbolesElec) SymbolesElec.groupes.filter(function(gr){ return gr!=="Ventilation et climatisation"; }).forEach(function(gr){
+    if(window.SymbolesElec) SymbolesElec.groupes.filter(function(gr){ return gr!=="Ventilation et climatisation" && gr!=="Plomberie et chauffage"; }).forEach(function(gr){
       var G=groupeRuban(gr), d=document.createElement("div"); d.className="rb-syms";
       SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr && !sy.cache; }).forEach(function(sy){ d.appendChild(boutonRuban("s:"+sy.cle, "rb-sym")); });
       G.o.appendChild(d); pn.appendChild(G.g);
@@ -10979,7 +11237,9 @@ function majRuban(){
   majReglagesR();
   /* un autre outil (Échap, un raccourci…) : le réseau s'arrête */
   if(RES_EC && !RES_ARME && !(MODE==="dessin" && OUTIL_D==="spline")) RES_EC=null;
+  if(RESA_EC && !RESA_ARME && !(MODE==="dessin" && OUTIL_D==="rect")) RESA_EC=null;
   try{ majFenRes(); }catch(e){}
+  try{ majFenResa(); }catch(e){}
 }
 /* les outils permis en Face et en Côté : les formes du dessin, le mobilier, Choisir */
 function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o]; }
@@ -10987,6 +11247,7 @@ function outilVueRuban(o){ return o==="choisir" || o==="objet" || !!GEO_OUTILS[o
 function choisirOutilR(o){
   if(!PLAN) return;
   if(!RES_ARME){ RES_EC=null; majFenRes(); }
+  if(!RESA_ARME){ RESA_EC=null; try{ majFenResa(); }catch(e){} }
   if(EFFACE_DWG){ EFFACE_DWG=false; EFF_SEL=null; EFF_SELS=[]; EFF_CADRE=false; EFF_RECT=null; majBarreEff(); }
   LIEN_SEL=null;
   GUIDE=null;
@@ -11056,7 +11317,8 @@ function actionR(k){
     case "fond": if(MODE!=="dessin") basculerMode("dessin"); $("btFondD").click(); break;
     case "relier": basculerRelier(); break;
     case "effdwg": basculerEffaceDwg(); break;
-    case "resgaine": case "resfrigo": case "restelec": case "rescond": case "resfourreau": armerReseau(k.slice(3)); break;
+    case "resgaine": case "resfrigo": case "restelec": case "rescond": case "resfourreau": case "reseau": case "reseu": armerReseau(k.slice(3)); break;
+    case "resa": armerResa(); break;
     case "quantites": peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; break;
     case "etudepv": choisirOutilR("pvchamp"); $("btEtudePv").click(); break;
     case "v3d": $("btVue3d").click(); break;

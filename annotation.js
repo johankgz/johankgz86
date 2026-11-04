@@ -67,7 +67,7 @@ var GOMMES = {petite:8, moyenne:16, grande:32};
   try{
     var moi=document.currentScript && document.currentScript.src;
     var sc=document.createElement("script");
-    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20261107b";
+    sc.src=(moi ? moi.replace(/annotation\.js(\?.*)?$/, "symboles-elec.js") : "./symboles-elec.js")+"?v=20261108a";
     (document.head||document.documentElement).appendChild(sc);
   }catch(e){}
 })();
