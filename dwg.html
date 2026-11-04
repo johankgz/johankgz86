@@ -453,6 +453,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fen-res b{font-size:13.5px}
 .fen-res .fr-l{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
 .fen-res .fr-l span{min-width:62px;color:var(--ink-2,#9AA3B2);font-size:12px}
+.fen-res small.fr-alerte{color:#F87171;font-weight:600}
 .fen-res button{min-height:30px;padding:3px 10px;border-radius:999px;border:1px solid var(--trait);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}
 .fen-res button.nat{border-color:var(--c);color:var(--c)}
 .fen-res button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
@@ -5505,6 +5506,14 @@ function majFenRes(){
     });
     f.appendChild(l2);
   }
+  if(o && r.t==="chemin" && DESSIN.pv && DESSIN.pv.str && DESSIN.pv.str.length){
+    var rp=remplissageCdc(o);
+    if(rp.nb){
+      var q6=document.createElement("small"); q6.className="fr-cmd"+(rp.pct>50 ? " fr-alerte" : "");
+      q6.textContent="Câbles : "+rp.noms.join(", ")+" (string"+(rp.noms.length>1 ? "s" : "")+"), "+rp.nb+" câbles PV de "+String(rp.sec).replace(".", ",")+" mm² · remplissage "+pvNb(rp.pct, rp.pct<10 ? 1 : 0)+" %"+(rp.pct>50 ? " : au-dessus de 50 %, prenez un chemin plus large." : " (limite 50 %).");
+      f.appendChild(q6);
+    }
+  }
   var et=document.createElement("small"); et.textContent=(nomsRes() ? "Écrit sur le plan" : "Dans la légende")+" : « "+etiquetteRes(r)+" »"; f.appendChild(et);
 }
 /* les réservations pour le maçon : un rectangle tracé sur le plan (rouge, en tirets, avec sa croix),
@@ -10302,9 +10311,34 @@ function pvTrace(pts, mode){
   var u=[]; pts.forEach(function(q){ var a=u[u.length-1]; if(!a || Math.hypot(q[0]-a[0], q[1]-a[1])>1e-6) u.push(q); });
   return mode==="courbe" && u.length>2 ? ptsSpline({pts:u}) : u;
 }
+/* plusieurs strings dans un chemin de câbles : chacune son couloir, côte à côte dans la largeur du chemin.
+   Les points du passage posés sur l'axe d'un chemin se décalent ensemble (en onglet aux coudes). */
+function surAxeCdc(q, segs){ for(var i=0;i<segs.length;i++){ if(distSeg(q, segs[i].a, segs[i].b).d*DESSIN_MM<2) return segs[i]; } return null; }
+function stringsDansCdc(segs){ return PVD().str.filter(function(x){ return (x.ch||[]).some(function(q){ return !!surAxeCdc(q, segs); }); }); }
+function pvCouloirCdc(s, av){
+  var segs=reseauCdc(); if(!segs.length) return av;
+  var l=stringsDansCdc(segs), rang=l.indexOf(s); if(rang<0 || l.length<2) return av;
+  var out=[], i=0;
+  while(i<av.length){
+    var sg=surAxeCdc(av[i], segs); if(!sg){ out.push(av[i]); i++; continue; }
+    var j=i, run=[]; while(j<av.length && surAxeCdc(av[j], segs)){ run.push(av[j]); j++; }
+    var h=sg.h, off=-h+(rang+1)*2*h/(l.length+1);
+    out=out.concat(run.length>1 ? decalerRes(run, off) : run); i=j;
+  }
+  return out;
+}
+/* le remplissage d'un chemin de câbles : les câbles PV qui y passent (le + et le − de chaque string), leur section sur celle du chemin */
+var PV_DIAM={1.5:4.5, 2.5:4.9, 4:5.4, 6:6.4, 10:7.7, 16:9.2};
+function remplissageCdc(o){
+  var axes = o.cdc ? formeCdc(o).axes : [contourG(o)], segs=[];
+  axes.forEach(function(l){ for(var i=1;i<l.length;i++) segs.push({a:l[i-1], b:l[i], h:0}); });
+  var l=stringsDansCdc(segs), m=/(\d+)\s*[×x]\s*(\d+)/.exec(String(o.res.d||"")), sec=(DESSIN.pv && DESSIN.pv.sec) || 6;
+  var d=PV_DIAM[sec] || Math.sqrt(sec)*2.6, cable=Math.PI*d*d/4, utile = m ? Number(m[1])*Number(m[2]) : 0, nb=l.length*2;
+  return {noms:l.map(function(x){ return x.nom; }), nb:nb, sec:sec, pct: utile ? nb*cable/utile*100 : 0};
+}
 /* l'arrivée du tronc sur l'entrée de son MPPT, par en dessous, depuis le dernier point du passage (der) */
-function pvFinTronc(o, m, rangE, der, sExclu){
-  var en=pvEntree(o, m, rangE), bo=pvOndBoite(o), droite = der[0]>=(bo[0]+bo[2])/2;
+function pvFinTronc(o, m, rangE, der, sExclu, derCote){
+  var en=pvEntree(o, m, rangE), bo=pvOndBoite(o), droite = (derCote||der)[0]>=(bo[0]+bo[2])/2;
   /* chaque câble a son couloir (20 cm de plus par câble), rangé pour ne pas croiser les autres :
      par la droite, l'entrée la plus à droite prend le couloir le plus près ; par la gauche, l'inverse */
   var autres=PVD().str.filter(function(x){ return x!==sExclu && x.ond===o.id; }).map(function(x){ return pvEntree(o, x.m, pvRangEntree(x))[0]; });
@@ -10327,7 +10361,7 @@ function pvGeo(s){
   if(n>1) g.retour = ret==="direct" ? pvOrtho([B[n-1], B[0]]) : [B[n-1]].concat(pvDecaler(B.slice().reverse(), ecf)).concat([B[0]]);
   /* le tronc arrive par en dessous sur l'entrée de son MPPT */
   if(o){
-    var av=[B[0]].concat(s.ch||[]), fin=pvFinTronc(o, s.m, pvRangEntree(s), av[av.length-1], s);
+    var av0=[B[0]].concat(s.ch||[]), av=pvCouloirCdc(s, av0), fin=pvFinTronc(o, s.m, pvRangEntree(s), av[av.length-1], s, av0[av0.length-1]);   /* le côté se choisit sur le passage, pas sur le couloir */
     var trS=s.trace||"ortho";
     g.tronc = trS==="ortho" ? pvOrtho(av.concat(fin)) : pvTrace(av, trS).concat(pvOrtho([av[av.length-1]].concat(fin)).slice(1));
   }
@@ -10519,7 +10553,7 @@ function reseauCdc(){
 /* le point du chemin de câbles le plus proche (sur son axe), si q est dessus */
 function surCdc(q, segs){
   segs=segs||reseauCdc(); var best=null;
-  segs.forEach(function(sg){ var r=distSeg(q, sg.a, sg.b); if(r.d<sg.h+14/V.k && (!best || r.d<best.d)) best={d:r.d, p:[sg.a[0]+(sg.b[0]-sg.a[0])*r.t, sg.a[1]+(sg.b[1]-sg.a[1])*r.t]}; });
+  segs.forEach(function(sg){ var r=distSeg(q, sg.a, sg.b); if(r.d<sg.h+14/V.k && (!best || r.d<best.d)) best={d:r.d, h:sg.h, p:[sg.a[0]+(sg.b[0]-sg.a[0])*r.t, sg.a[1]+(sg.b[1]-sg.a[1])*r.t]}; });
   return best;
 }
 /* le plus court chemin de A à B le long des chemins de câbles (les points après A, jusqu'à B), ou null s'ils ne se rejoignent pas */
