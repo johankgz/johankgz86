@@ -763,6 +763,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   <label class="bs-calque" id="bsCalque" hidden title="Son calque"><span>Calque</span><select id="bsCalqueSel" aria-label="Calque de l'élément choisi"></select></label>
   <button type="button" class="bs-act" id="bsSupPt" hidden title="Retirer ce point du passage du câble (le câble se redresse)"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="8" height="8"/><path d="M4 4l16 16"/></svg>Supprimer le point</button>
   <button type="button" class="bs-act" id="bsDefOnd" hidden title="Ses caractéristiques : puissance, MPPT, tensions, courants">Définir</button>
+  <button type="button" class="bs-act" id="bsRenvoi" hidden title="Changer le texte de la flèche de renvoi">Texte du renvoi</button>
   <button type="button" class="bs-act" id="bsCarac" hidden title="Modèle, puissances, dimensions, poids… écrits dans un encadré à côté du symbole">Caractéristiques</button>
   <button type="button" class="bs-act" id="bsRelierG" hidden title="Relier les symboles choisis : l'interrupteur à ses spots, les prises entre elles">Relier</button>
   <button type="button" class="bs-act" id="bsAligner" hidden title="Aligner les symboles choisis sur une ligne, à intervalles égaux">Aligner</button>
@@ -2033,6 +2034,7 @@ $("fkFermer").addEventListener("click", fermerFenCarac);
 $("fkEffacer").addEventListener("click", function(){ var o=SYMB[FEN_CARAC]; if(o && o.carac){ garderSymb(); delete o.carac; enregistrerSymb(); } fermerFenCarac(); });
 $("fkChamps").addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); validerFenCarac(); } if(e.key==="Escape") fermerFenCarac(); e.stopPropagation(); });
 $("bsCarac").addEventListener("click", ouvrirFenCarac);
+$("bsRenvoi").addEventListener("click", function(){ var g=D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null; if(g && g.renvoi) texteRenvoi(g); });
 function repere(pt){
   var p=versEcran(pt[0],pt[1]);
   c2.strokeStyle="#3B82F6"; c2.lineWidth=2; c2.beginPath(); c2.arc(p[0],p[1],5,0,Math.PI*2); c2.stroke();
@@ -3603,6 +3605,8 @@ function majBarreSel(){
   var nSg = MODE==="dessin" && nG && vueD()==="dessus" ? GRP.symb.length : 0;
   $("bsRelierG").hidden=$("bsAligner").hidden = nSg<2;
   $("bsDefOnd").hidden = !(MODE==="dessin" && D_SEL && D_SEL.t==="pvo");
+  var gR = MODE==="dessin" && D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null;
+  $("bsRenvoi").hidden = !(gR && gR.renvoi);
   var dC = MODE==="symb" && SEL>=0 ? defDe(SYMB[SEL]) : null;
   $("bsCarac").hidden = !(dC && dC.carac && !RELIER);
   if(dC && dC.carac) $("bsCarac").classList.toggle("on", !SYMB[SEL].carac);
@@ -3920,7 +3924,8 @@ function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).sl
    l'outil se relâche (retour à Choisir, rien de choisi) et le doigt redéplace
    le plan. « Enchaîner », ou Ctrl maintenu, garde l'outil pour en poser plusieurs. */
 var ENCHAINER=false, CTRL_TENU=false, ARME_S=true;
-function garderOutil(){ return ENCHAINER || CTRL_TENU || (OUTIL_D==="spline" && !!RES_EC); }
+function outilRes(){ return OUTIL_D==="spline" || OUTIL_D==="poly"; }
+function garderOutil(){ return ENCHAINER || CTRL_TENU || (outilRes() && !!RES_EC); }
 function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=null; GEO_EC=null; D_SEL=null; return true; }
 function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
 /* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
@@ -5029,7 +5034,26 @@ function texteCote(L){
   if(UNITE==="mm") return String(Math.round(mm));
   return (Math.round(mm)/10).toLocaleString("fr-FR", {maximumFractionDigits:1});
 }
+/* le texte d'une flèche de renvoi, coupé en lignes de 30 lettres environ (« / » ou un retour forcent la ligne) */
+function coupeRenvoi(s){
+  var out=[]; String(s||"").split(/\s*(?:\n|\/)\s*/).forEach(function(par){
+    var cur=""; par.split(/\s+/).forEach(function(m){ if(cur && (cur+" "+m).length>30){ out.push(cur); cur=m; } else cur=cur ? cur+" "+m : m; });
+    if(cur) out.push(cur);
+  });
+  return out;
+}
+var RENVOI_ARME=false, RENVOI_EC=false;
+function armerRenvoi(){
+  if(!PLAN) return;
+  RENVOI_EC=true; RENVOI_ARME=true; choisirOutilR("fleche"); RENVOI_ARME=false; majRuban();
+  toast("Flèche de renvoi : touchez le départ (le bout du réseau), puis l'endroit de la note ; tapez ensuite le texte.", 4500);
+}
+function texteRenvoi(o){
+  var t=window.prompt("Le texte du renvoi (ex. Descente des condensats en partie basse) ; « / » passe à la ligne :", o.renvoi.s||"");
+  if(t==null) return; garderD(); o.renvoi.s=String(t).trim(); enregistrerD(); majDessin(); majBarreSel();
+}
 function nommerG(o){
+  if(o.t==="fleche" && o.renvoi) return "Renvoi"+(o.renvoi.s ? " « "+coupeRenvoi(o.renvoi.s).join(" ").slice(0, 40)+" »" : "");
   if(o.res && RES_TYPES[o.res.t]) return etiquetteRes(o.res)+" · "+formater(longueurRes(o)/DESSIN_MM);
   if(o.resa){ var xr=texteResa(o); return "Réservation "+xr.num+" · "+xr.l2; }
   var n=GEO_NOMS[o.t];
@@ -5064,7 +5088,7 @@ var RES_TYPES={
   eu:{nom:"Évacuation", calque:"RESEAUX-EVACUATION", d:[32,40,50,63,80,100,110,125,160], dDef:100,
     natures:[["eu","EU","#92400E"],["ev","EV","#7C2D12"],["ep","EP","#0E7490"]]}
 };
-var RES_EC=null, RES_ARME=false;
+var RES_EC=null, RES_ARME=false, RES_TRACE=lire("dwg:resTrace", "courbe");   /* courbe : une spline ; droit : une polyligne, avec ses angles */
 var RES_DERNIER=(function(){ try{ return JSON.parse(lire("dwg:reseaux","{}"))||{}; }catch(e){ return {}; } })();
 function natureRes(r){ var T=RES_TYPES[r.t]; return T ? (T.natures.filter(function(n){ return n[0]===r.n; })[0] || T.natures[0]) : null; }
 function coulRes(r){ var n=natureRes(r); return n ? n[2] : "#E11D48"; }
@@ -5115,7 +5139,7 @@ function armerReseau(t){
   var T=RES_TYPES[t]; if(!T) return;
   var d0=RES_DERNIER[t]||{};
   RES_EC={t:t, n:d0.n && T.natures.some(function(n){ return n[0]===d0.n; }) ? d0.n : T.natures[0][0], d:d0.d!=null && (T.d.indexOf(d0.d)>=0 || !T.d.length) ? d0.d : T.dDef};
-  RES_ARME=true; choisirOutilR("spline"); RES_ARME=false;
+  RES_ARME=true; choisirOutilR(RES_TRACE==="droit" ? "poly" : "spline"); RES_ARME=false;
   majFenRes(); majRuban();
   toast(T.nom+" : touchez chaque point du tracé (ou glissez), puis Terminer. Nature et diamètre : dans le cadre, en haut à gauche.", 4200);
 }
@@ -5123,7 +5147,7 @@ function armerReseau(t){
 function resSel(){ if(MODE!=="dessin" || !D_SEL || D_SEL.t!=="geo") return null; var o=geoDe(D_SEL.id); return o && o.res ? o : null; }
 function majFenRes(){
   var f=$("fenRes"); if(!f) return;
-  var o=resSel(), r = o ? o.res : (MODE==="dessin" && OUTIL_D==="spline" && RES_EC ? RES_EC : null);
+  var o=resSel(), r = o ? o.res : (MODE==="dessin" && outilRes() && RES_EC ? RES_EC : null);
   f.hidden=!r; if(!r) return;
   var T=RES_TYPES[r.t]; f.textContent="";
   var h=document.createElement("b"); h.textContent=(o ? T.nom+" · "+formater(longueurRes(o)/DESSIN_MM) : T.nom+" : tracez-le"); f.appendChild(h);
@@ -5149,6 +5173,38 @@ function majFenRes(){
   }
   rangee("Nature", T.natures, "n");
   rangee(r.t==="frigo" ? "Tubes" : "Diamètre", T.d, "d");
+  /* le tracé : en courbe, ou droit avec ses angles (Ortho : 90° et 45°) ; un réseau déjà tracé change de l'un à l'autre */
+  (function(){
+    var l=document.createElement("div"); l.className="fr-l";
+    var t=document.createElement("span"); t.textContent="Tracé"; l.appendChild(t);
+    var cur = o ? (o.t==="poly" ? "droit" : "courbe") : (GEO_EC && GEO_EC.t==="poly") || (!GEO_EC && OUTIL_D==="poly") ? "droit" : "courbe";
+    [["courbe","Courbe"],["droit","Droit, en angles"]].forEach(function(it){
+      var b=document.createElement("button"); b.type="button"; b.textContent=it[1]; if(cur===it[0]) b.classList.add("on");
+      b.addEventListener("click", function(){
+        var nt = it[0]==="droit" ? "poly" : "spline";
+        if(o){ garderD(); o.t=nt; enregistrerD(); }
+        else {
+          RES_TRACE=it[0]; garder("dwg:resTrace", RES_TRACE);
+          if(GEO_EC && GEO_EC.pts && GEO_EC.pts.length){ GEO_EC.t=nt; OUTIL_D=nt; }
+          else { RES_ARME=true; choisirOutilR(nt); RES_ARME=false; }
+        }
+        majFenRes(); majBarreSel(); majDessin(); demander();
+      });
+      l.appendChild(b);
+    });
+    f.appendChild(l);
+  })();
+  /* le renvoi : un rond plein, de la couleur du réseau, au contour noir, au bout où il monte ou descend */
+  if(o){
+    var l2=document.createElement("div"); l2.className="fr-l";
+    var t2=document.createElement("span"); t2.textContent="Renvoi"; l2.appendChild(t2);
+    [["a","Au début"],["b","À la fin"]].forEach(function(it){
+      var b=document.createElement("button"); b.type="button"; b.textContent=it[1]; var k="rv"+it[0]; if(o.res[k]) b.classList.add("on");
+      b.addEventListener("click", function(){ garderD(); if(o.res[k]) delete o.res[k]; else o.res[k]=1; enregistrerD(); majFenRes(); demander(); });
+      l2.appendChild(b);
+    });
+    f.appendChild(l2);
+  }
   var et=document.createElement("small"); et.textContent="Écrit sur le plan : « "+etiquetteRes(r)+" »"; f.appendChild(et);
 }
 /* les réservations pour le maçon : un rectangle tracé sur le plan (rouge, en tirets, avec sa croix),
@@ -5234,7 +5290,7 @@ function creerGeo(o){
     o.resa={sup:RESA_EC.sup, us:RESA_EC.us, def:false, n:nMax+1}; o.couleur=RESA_COUL; o.tir=true; o.remp="aucun"; o.ep="moyen";
     RESA_FOCUS=true;
   }
-  if(o.t==="spline" && RES_EC && OUTIL_D==="spline"){ o.res={t:RES_EC.t, n:RES_EC.n, d:RES_EC.d}; o.couleur=coulRes(o.res); o.ep="moyen"; o.tir=!!RES_TYPES[RES_EC.t].tir; o.remp="aucun"; }
+  if((o.t==="spline" || o.t==="poly") && RES_EC && outilRes()){ o.res={t:RES_EC.t, n:RES_EC.n, d:RES_EC.d}; o.couleur=coulRes(o.res); o.ep="moyen"; o.tir=!!RES_TYPES[RES_EC.t].tir; o.remp="aucun"; }
   o.id=idD(); o.ep=o.ep||STYLE_G.ep;
   if(vueD()!=="dessus") o.vue=vueD(); o.coul=o.coul||STYLE_G.coul; o.tir=o.tir!=null ? o.tir : STYLE_G.tir;
   if(STYLE_G.couleur && !o.couleur) o.couleur=STYLE_G.couleur;
@@ -5244,6 +5300,14 @@ function creerGeo(o){
   var ePap = DESSIN && DESSIN.ech>0 ? DESSIN.ech/DESSIN_MM : 0;
   if(o.t==="cote" || o.t==="gtexte") o.h=o.h||(ePap ? (o.t==="cote" ? 2.5 : 3.5)*ePap : tailleDefaut(o.t==="cote" ? 12 : 16));
   if(o.t==="fleche") o.fl=o.fl||(ePap ? 3*ePap : tailleDefaut(12));
+  if(o.t==="fleche" && RENVOI_EC && OUTIL_D==="fleche"){
+    /* la flèche de renvoi prend la couleur du réseau d'où elle part */
+    o.renvoi={s:""}; o.h=ePap ? 3*ePap : tailleDefaut(14); o.fl=ePap ? 2.4*ePap : o.fl; o.ep="fin"; o.tir=false;
+    var bestR=null, bdR=26/V.k;
+    geos().forEach(function(g){ if(!g.res || g.id===o.id) return; var cg=contourG(g); for(var i=1;i<cg.length;i++){ var dd=distSeg(o.pts[0], cg[i-1], cg[i]).d; if(dd<bdR){ bdR=dd; bestR=g; } } });
+    if(bestR) o.couleur=coulRes(bestR.res);
+    var oR=o; setTimeout(function(){ texteRenvoi(oR); }, 60);
+  }
   garderD(); DESSIN.geo=DESSIN.geo||[]; DESSIN.geo.push(o);
   GEO_EC=null; D_PT=null; D_SEL={t:"geo", id:o.id}; finOutil();
   if(o.resa){ D_SEL={t:"geo", id:o.id}; if(!garderOutil()) RESA_EC=null; }     /* la réservation tracée reste choisie : ses cotes se tapent tout de suite */
@@ -5251,7 +5315,7 @@ function creerGeo(o){
 }
 function rectDe(a, c){ return [a.slice(), [c[0], a[1]], c.slice(), [a[0], c[1]]]; }
 /* la fin d'un segment : sur le point accroché, sinon droite si Ortho */
-function finGeo(a, cible){ if(cible.acc || OUTIL_D==="spline") return cible.pt; return ORTHO_D ? contraindreD(a, cible.pt) : cible.pt; }
+function finGeo(a, cible){ if(cible.acc || OUTIL_D==="spline" || (OUTIL_D==="fleche" && RENVOI_EC)) return cible.pt;     /* la flèche de renvoi part en biais, sans Ortho */ return ORTHO_D ? contraindreD(a, cible.pt) : cible.pt; }
 function memePoint(p, q){ var P=versEcran(p[0],p[1]), Q=versEcran(q[0],q[1]); return Math.hypot(P[0]-Q[0], P[1]-Q[1]) < 14; }
 function toucherGeo(cible, p){
   var t=OUTIL_D, pt=cible.pt;
@@ -5516,6 +5580,11 @@ function peindreGeo(c, E, coulTrait, orange){
     } else { chemin(pts, ferme); c.stroke(); }
     if(trous.length){ c.restore(); ecrireTrous(trous, col); }
     else if(o.res) etiquettesRes(o, pts, col);
+    if(o.res && (o.res.rva || o.res.rvb)) [o.res.rva ? pts[0] : null, o.res.rvb ? pts[pts.length-1] : null].forEach(function(q){
+      if(!q) return; var P=E(q), rr=Math.max(4, hauteurEtiquetteRes()*0.7*V.k);
+      c.save(); c.setLineDash([]); c.fillStyle=col; c.strokeStyle="#000"; c.lineWidth=Math.max(1.2, rr*0.22);
+      c.beginPath(); c.arc(P[0], P[1], rr, 0, Math.PI*2); c.fill(); c.stroke(); c.restore();
+    });
     if(o.resa && o.t==="rect"){
       /* la croix de la réservation, et son texte au milieu, sur un liseré du fond */
       c.save(); c.setLineDash([]); c.lineWidth=Math.max(0.8, w*0.7); chemin([pts[0], pts[2]]); c.stroke(); chemin([pts[1], pts[3]]); c.stroke();
@@ -5527,7 +5596,21 @@ function peindreGeo(c, E, coulTrait, orange){
         c.lineWidth=Math.max(2, pxR*0.3); c.strokeStyle=fondR; c.strokeText(li[0], ctr[0], ctr[1]+li[2]*pxR); c.fillStyle=col; c.fillText(li[0], ctr[0], ctr[1]+li[2]*pxR); });
       c.restore();
     }
-    if(o.t==="fleche"){
+    if(o.t==="fleche" && o.renvoi){
+      c.setLineDash([]); var tR=o.fl*V.k, AR=E(o.pts[0]), BR=E(o.pts[1]);
+      var dR=unite([BR[0]-AR[0], BR[1]-AR[1]]), nR=[-dR[1], dR[0]], LR=tR*1.1, WR=tR*0.42;
+      /* la pointe ouverte : deux traits, et le trait du milieu qui s'y arrête */
+      c.beginPath(); c.moveTo(BR[0]-dR[0]*LR+nR[0]*WR, BR[1]-dR[1]*LR+nR[1]*WR); c.lineTo(BR[0], BR[1]); c.lineTo(BR[0]-dR[0]*LR-nR[0]*WR, BR[1]-dR[1]*LR-nR[1]*WR); c.stroke();
+      if(o.renvoi.s){
+        var pxN=Math.max(7, (o.h||o.fl)*V.k), lignes=coupeRenvoi(o.renvoi.s), gap=pxN*0.5, horiz=Math.abs(dR[0])>=Math.abs(dR[1])*0.6;
+        c.font="600 "+pxN.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.lineJoin="round";
+        c.textAlign = horiz ? (dR[0]>0 ? "left" : "right") : "center"; c.textBaseline="middle";
+        var X0=BR[0]+dR[0]*gap, Y0=BR[1]+dR[1]*gap, hTot=(lignes.length-1)*pxN*1.2;
+        var Ydeb = horiz ? Y0-hTot/2 : (dR[1]>0 ? Y0+pxN*0.6 : Y0-pxN*0.6-hTot);
+        var fondN=(IMPRIME || PX_MM || CLAIR) ? "#FFFFFF" : "#16181C";
+        lignes.forEach(function(li, k){ var y=Ydeb+k*pxN*1.2; c.lineWidth=Math.max(2, pxN*0.25); c.strokeStyle=fondN; c.strokeText(li, X0, y); c.fillStyle=col; c.fillText(li, X0, y); });
+      }
+    } else if(o.t==="fleche"){
       c.setLineDash([]); var taille=o.fl*V.k;
       var A=E(o.pts[0]), B=E(o.pts[1]);
       (function(){ var d=unite([B[0]-A[0], B[1]-A[1]]), n=[-d[1], d[0]], L=taille, W=taille*0.36;
@@ -5598,6 +5681,7 @@ function dxfGeo(g){
       cal=TR.calque; col=aciDe(coulRes(o.res))||1;
       if(TR.double && typeof o.res.d==="number"){ var dR=o.res.d/2/DESSIN_MM; poly(decalerRes(pr, dR), false); poly(decalerRes(pr, -dR), false); }
       else poly(pr, false);
+      [o.res.rva ? pr[0] : null, o.res.rvb ? pr[pr.length-1] : null].forEach(function(q){ if(q) g(0,"CIRCLE", 8,cal, 62,col, 10,q[0],20,q[1],30,0, 40,hR*0.7); });
       var offR=(TR.double && typeof o.res.d==="number" ? o.res.d/2/DESSIN_MM : 0)+hR*0.85;
       placesEtiquette(pr).forEach(function(q){
         var nR=[-Math.sin(q.ang), Math.cos(q.ang)]; if(nR[1]<0) nR=[-nR[0], -nR[1]];
@@ -5627,6 +5711,10 @@ function dxfGeo(g){
       }
     }
     else poly(contourG(o), fermee(o));
+    if(o.t==="fleche" && o.renvoi && o.renvoi.s){
+      var dT=unite(sub(o.pts[1], o.pts[0])), hT=o.h||o.fl;
+      coupeRenvoi(o.renvoi.s).forEach(function(li, k){ texte(li, [o.pts[1][0]+dT[0]*hT*1.5, o.pts[1][1]+dT[1]*hT*1.5-k*hT*1.25], hT, 0); });
+    }
     if(o.t==="fleche"){
       [[o.pts[0], o.pts[1]]].concat(o.double ? [[o.pts[1], o.pts[0]]] : []).forEach(function(ab){
         var d=unite(sub(ab[1], ab[0])), nn=[-d[1], d[0]], L=o.fl, W=o.fl*0.36, B=ab[1];
@@ -11016,6 +11104,7 @@ var ICO={
   reseau:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1" stroke="#2563EB"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1" stroke="#DC2626"/>',
   reseu:'<circle cx="12" cy="12" r="7"/><path d="M7 7l10 10M17 7L7 17"/>',
   resa:'<rect x="3" y="5" width="18" height="14" stroke-dasharray="3 2"/><path d="M3 5l18 14M21 5L3 19"/>',
+  renvoi:'<circle cx="6" cy="5" r="2.6" fill="currentColor"/><path d="M7.5 7.5L17 18"/><path d="M12.5 17.5L17 18l-.4-4.6"/><path d="M15 21h6"/>',
   rescond:'<path d="M3 10h12l3 3v7"/><path d="M18 4c-1.5 2-2.5 3.2-2.5 4.3a2.5 2.5 0 0 0 5 0C20.5 7.2 19.5 6 18 4z"/>',
   resfourreau:'<path d="M3 12c4-6 8 6 12 0s4-3 6-2"/><path d="M3 16.5c4-6 8 6 12 0s4-3 6-2"/><text x="3.5" y="7" font-size="5.5" font-family="Arial" font-weight="700" stroke="none" fill="currentColor">Ø</text>',
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
@@ -11080,6 +11169,7 @@ var ACTIONS={
   rescond:["Condensats","rescond","L'évacuation des condensats"],
   reseau:["Eau E.F. / E.C.","reseau","Un tuyau d'eau : froide (E.F., en bleu) ou chaude (E.C., en rouge), PER, multicouche ou cuivre, tracé comme une spline"],
   reseu:["Évacuation","reseu","Une évacuation EU, EV ou EP, Ø32 à Ø160, tracée comme une spline"],
+  renvoi:["Renvoi","renvoi","Une flèche de renvoi : du bout d'un réseau (ou de n'importe où) vers sa note, « Descente des condensats en partie basse »"],
   resa:["Réservation","resa","Un rectangle de réservation pour le maçon : support, usage, cotes (ou à définir sur place), hauteur du bas"],
   resfourreau:["Fourreau","resfourreau","Un fourreau : ELEC, GAZ, FIBRE, TÉLÉCOM ou EAU, avec son diamètre écrit le long du tracé"],
   relier:["Relier","relier","Relier le symbole choisi : l'interrupteur à ses points lumineux, les prises entre elles"], quantites:["Quantités","quantites","Le nombre de chaque symbole, et la bibliothèque DXF"],
@@ -11115,7 +11205,7 @@ var ONGLETS=[
   ]},
   {id:"dessin", nom:"Dessin", g:[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
-    {nom:"Annotation", gros:["o:cote","o:gtexte"], petits:["o:texte","a:mesurer","a:etalonner"]},
+    {nom:"Annotation", gros:["o:cote","o:gtexte","a:renvoi"], petits:["o:texte","a:mesurer","a:etalonner"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:grouper","a:degrouper","a:couleur"]},
     {nom:"Calques", calque:true}
@@ -11215,7 +11305,7 @@ function peindrePanneau(){
       gr[1].forEach(function(k){ if(SymbolesElec.trouver(k)) d.appendChild(boutonRuban("s:"+k, "rb-sym")); });
       G.o.appendChild(d); pn.appendChild(G.g);
     });
-    var Gp=groupeRuban("Tuyaux"); ["a:reseau","a:reseu","a:resfourreau"].forEach(function(r){ Gp.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gp.g);
+    var Gp=groupeRuban("Tuyaux"); ["a:reseau","a:reseu","a:resfourreau","a:renvoi"].forEach(function(r){ Gp.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gp.g);
     var Gpo=groupeRuban("Outils"); ["o:main","o:choisir","a:couleur","a:quantites"].forEach(function(r){ Gpo.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gpo.g);
     var Gpk=groupeRuban("Calques"); Gpk.o.appendChild(colonneCalques()); pn.appendChild(Gpk.g);
   } else if(on.resa){
@@ -11232,7 +11322,7 @@ function peindrePanneau(){
     var Gr=groupeRuban("Réseaux");
     ["a:resgaine","a:resfrigo","a:restelec","a:rescond"].forEach(function(r){ Gr.o.appendChild(boutonRuban(r, "rb-gros")); });
     pn.appendChild(Gr.g);
-    var Gf=groupeRuban("Fourreaux"); Gf.o.appendChild(boutonRuban("a:resfourreau", "rb-gros")); pn.appendChild(Gf.g);
+    var Gf=groupeRuban("Fourreaux"); Gf.o.appendChild(boutonRuban("a:resfourreau", "rb-gros")); Gf.o.appendChild(boutonRuban("a:renvoi", "rb-gros")); pn.appendChild(Gf.g);
     var Gx=groupeRuban("Outils");
     ["o:main","o:choisir","a:couleur","a:quantites"].forEach(function(r){ Gx.o.appendChild(boutonRuban(r, "rb-gros")); });
     pn.appendChild(Gx.g);
@@ -11281,7 +11371,7 @@ function majRuban(){
     else if(k==="calques") on = !$("calques").hidden;
     else if(k==="quantites") on = !$("quantites").hidden;
     else if(k==="effdwg") on = EFFACE_DWG;
-    else if(/^res/.test(k)) on = MODE==="dessin" && OUTIL_D==="spline" && !!RES_EC && RES_EC.t===k.slice(3);
+    else if(/^res/.test(k)) on = MODE==="dessin" && outilRes() && !!RES_EC && RES_EC.t===k.slice(3);
     else if(k==="relier"){ on = RELIER; var sr=b.querySelector("span"); if(sr) sr.textContent = RELIER ? "Terminer" : "Relier"; }
     else if(k==="clair") on = CLAIR;
     else if(k==="etudepv") on = !$("etudePv").hidden;
@@ -11309,7 +11399,7 @@ function majRuban(){
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
   majReglagesR();
   /* un autre outil (Échap, un raccourci…) : le réseau s'arrête */
-  if(RES_EC && !RES_ARME && !(MODE==="dessin" && OUTIL_D==="spline")) RES_EC=null;
+  if(RES_EC && !RES_ARME && !(MODE==="dessin" && outilRes())) RES_EC=null;
   if(RESA_EC && !RESA_ARME && !(MODE==="dessin" && OUTIL_D==="rect")) RESA_EC=null;
   try{ majFenRes(); }catch(e){}
   try{ majFenResa(); }catch(e){}
@@ -11321,6 +11411,7 @@ function choisirOutilR(o){
   if(!PLAN) return;
   if(!RES_ARME){ RES_EC=null; majFenRes(); }
   if(!RESA_ARME){ RESA_EC=null; try{ majFenResa(); }catch(e){} }
+  if(!RENVOI_ARME) RENVOI_EC=false;
   if(EFFACE_DWG){ EFFACE_DWG=false; EFF_SEL=null; EFF_SELS=[]; EFF_CADRE=false; EFF_RECT=null; majBarreEff(); }
   LIEN_SEL=null;
   GUIDE=null;
@@ -11392,6 +11483,7 @@ function actionR(k){
     case "effdwg": basculerEffaceDwg(); break;
     case "resgaine": case "resfrigo": case "restelec": case "rescond": case "resfourreau": case "reseau": case "reseu": armerReseau(k.slice(3)); break;
     case "resa": armerResa(); break;
+    case "renvoi": armerRenvoi(); break;
     case "quantites": peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; break;
     case "etudepv": choisirOutilR("pvchamp"); $("btEtudePv").click(); break;
     case "v3d": $("btVue3d").click(); break;
