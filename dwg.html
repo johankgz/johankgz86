@@ -5083,10 +5083,10 @@ function decalerRes(pts, d){
   return out;
 }
 /* où écrire l'étiquette : au milieu du tracé, puis tous les 5 m sur un long réseau */
-function placesEtiquette(pts){
+function placesEtiquette(pts, pasW){
   var cum=[0]; for(var i=1;i<pts.length;i++) cum.push(cum[i-1]+Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]));
   var L=cum[cum.length-1]; if(!(L>0)) return [];
-  var pas=5000/DESSIN_MM, n=Math.max(1, Math.floor(L/pas)), out=[];
+  var pas=pasW || 5000/DESSIN_MM, n=Math.max(1, Math.floor(L/pas)), out=[];
   for(var k=0;k<n;k++){
     var s=L*(k+0.5)/n, j=1; while(j<cum.length-1 && cum[j]<s) j++;
     var t=(s-cum[j-1])/((cum[j]-cum[j-1])||1), A=pts[j-1], B=pts[j];
@@ -5427,6 +5427,30 @@ function peindreGeo(c, E, coulTrait, orange){
     c.rotate(a); c.font="600 "+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.fillStyle=col; c.textAlign="center"; c.textBaseline="middle";
     c.fillText(s, 0, 0); c.restore();
   }
+  /* l'étiquette d'un réseau dans son trait : le trait s'interrompt, le texte prend la place (« — E.F. MC 16 — »),
+     et revient tout le long, à peu près tous les 2,5 m (au moins trois fois sa longueur) ; un tracé trop court garde
+     son texte au-dessus */
+  function trousRes(o, pts){
+    var h=hauteurEtiquetteRes(), px=Math.max(7, h*V.k), s=etiquetteRes(o.res); if(!s) return [];
+    c.save(); c.font="700 "+px.toFixed(1)+"px Helvetica, Arial, sans-serif"; var tw=c.measureText(s).width; c.restore();
+    var wW=(tw+px*0.9)/V.k, L=0; for(var i=1;i<pts.length;i++) L+=Math.hypot(pts[i][0]-pts[i-1][0], pts[i][1]-pts[i-1][1]);
+    if(L<wW*1.6) return [];
+    return placesEtiquette(pts, Math.max(2500/DESSIN_MM, wW*3)).map(function(q){
+      var a=-q.ang; if(a>Math.PI/2) a-=Math.PI; if(a<-Math.PI/2) a+=Math.PI;
+      return {P:E(q.p), a:a, hw:(tw+px*0.9)/2, hh:px*0.62, s:s, px:px};
+    });
+  }
+  function trouer(trous){
+    c.save(); c.beginPath(); c.rect(-50, -50, W+100, H+100);
+    trous.forEach(function(t){ var co=Math.cos(t.a), si=Math.sin(t.a);
+      [[-t.hw,-t.hh],[t.hw,-t.hh],[t.hw,t.hh],[-t.hw,t.hh]].forEach(function(k, j){ var x=t.P[0]+k[0]*co-k[1]*si, y=t.P[1]+k[0]*si+k[1]*co; if(j) c.lineTo(x, y); else c.moveTo(x, y); });
+      c.closePath(); });
+    c.clip("evenodd");
+  }
+  function ecrireTrous(trous, col){
+    trous.forEach(function(t){ c.save(); c.translate(t.P[0], t.P[1]); c.rotate(t.a); c.setLineDash([]);
+      c.font="700 "+t.px.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="center"; c.textBaseline="middle"; c.fillStyle=col; c.fillText(t.s, 0, 0); c.restore(); });
+  }
   /* l'étiquette d'un réseau, le long du tracé, sur un liseré du fond pour rester lisible */
   function etiquettesRes(o, pts, col){
     var h=hauteurEtiquetteRes(), px=Math.max(7, h*V.k), s=etiquetteRes(o.res);
@@ -5482,13 +5506,16 @@ function peindreGeo(c, E, coulTrait, orange){
     if(ferme && o.remp==="gris"){ c.fillStyle = PX_MM || CLAIR ? "rgba(0,0,0,.14)" : "rgba(255,255,255,.16)"; chemin(pts, true); c.fill(); }
     if(ferme && o.remp==="hach") hachurer(o, col, w);
     tirets(o); c.strokeStyle=col; c.lineWidth=w;
+    var trous = o.res && RES_TYPES[o.res.t] ? trousRes(o, pts) : [];
+    if(trous.length) trouer(trous);
     if(o.res && RES_TYPES[o.res.t] && RES_TYPES[o.res.t].double && typeof o.res.d==="number"){
       /* la gaine : ses deux bords, à son vrai diamètre, et son axe en léger */
       var dg=o.res.d/2/DESSIN_MM;
       chemin(decalerRes(pts, dg), false); c.stroke(); chemin(decalerRes(pts, -dg), false); c.stroke();
       c.save(); c.globalAlpha=0.4; c.lineWidth=Math.max(0.6, w*0.5); c.setLineDash(PX_MM ? [2*PX_MM, 1.2*PX_MM] : [6,4]); chemin(pts, false); c.stroke(); c.restore();
     } else { chemin(pts, ferme); c.stroke(); }
-    if(o.res) etiquettesRes(o, pts, col);
+    if(trous.length){ c.restore(); ecrireTrous(trous, col); }
+    else if(o.res) etiquettesRes(o, pts, col);
     if(o.resa && o.t==="rect"){
       /* la croix de la réservation, et son texte au milieu, sur un liseré du fond */
       c.save(); c.setLineDash([]); c.lineWidth=Math.max(0.8, w*0.7); chemin([pts[0], pts[2]]); c.stroke(); chemin([pts[1], pts[3]]); c.stroke();
