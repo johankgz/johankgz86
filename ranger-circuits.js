@@ -6,7 +6,8 @@
    caractéristique (calibre, courbe, pôles : « 20 A C », « 32 A 3P+N »).
    Le moteur en déduit l'usage (éclairage, prises, plaques, lave-linge,
    chauffage, borne…), puis range les circuits d'après la NF C 15-100 :
-     - 8 circuits au plus par différentiel 30 mA (réglable) ;
+     - 8 circuits au plus par différentiel 30 mA (réglable), et pas plus
+       que son calibre : 63 A au plus en maison, 40 A en tertiaire (au choix) ;
      - logement : 1 différentiel jusqu'à 35 m², 2 jusqu'à 100 m²,
        3 au-delà, au moins ;
      - type A seulement là où il le faut : plaques de cuisson, lave-linge,
@@ -97,12 +98,12 @@
   /* ---------- les différentiels ---------- */
   function nouvelId(type, raison){ return {type:type, raison:raison||"", circuits:[]}; }
   function charge(id){ return id.circuits.reduce(function(s, c){ return s+c.I; }, 0); }
-  /* un différentiel tient 8 circuits au plus, et 63 A estimés (la somme × 0,8) */
-  var CAP=63/0.8;
-  function tient(d, c, opt){ return d.circuits.length<opt.max && (charge(d)+c.I<=CAP || !d.circuits.length); }
+  /* un différentiel tient 8 circuits au plus, et son calibre au plus (63 A en maison, 40 A en tertiaire, au choix) :
+     la somme des courants × 0,8 */
+  function tient(d, c, opt){ return d.circuits.length<opt.max && (charge(d)+c.I<=opt.cap || !d.circuits.length); }
   /* des circuits d'une même famille, répartis sur assez de différentiels (nombre et charge), le moins chargé d'abord */
   function paquets(cs, type, raison, opt){
-    var tot=cs.reduce(function(s, c){ return s+c.I; }, 0), n=Math.max(1, Math.ceil(cs.length/opt.max), Math.ceil(tot/CAP)), ids=[];
+    var tot=cs.reduce(function(s, c){ return s+c.I; }, 0), n=Math.max(1, Math.ceil(cs.length/opt.max), Math.ceil(tot/opt.cap)), ids=[];
     for(var k=0;k<n;k++) ids.push(nouvelId(type, raison));
     cs.slice().sort(function(a, b){ return b.I-a.I; }).forEach(function(c){ if(!placer(ids, c, opt)){ var d=nouvelId(type, raison); ids.push(d); d.circuits.push(c); } });
     return ids;
@@ -143,7 +144,7 @@
     gen.filter(function(c){ return !typeRequis(c, opt); }).forEach(function(c){
       var ok=false;
       if(c.usage==="ecl" || c.usage==="pc"){
-        for(var t=0;t<ids.length && !ok;t++){ var d=ids[(tour+t)%ids.length]; if(d.circuits.length<opt.max){ d.circuits.push(c); ok=true; tour=(tour+t+1)%ids.length; } }
+        for(var t=0;t<ids.length && !ok;t++){ var d=ids[(tour+t)%ids.length]; if(!d.dedie && tient(d, c, opt)){ d.circuits.push(c); ok=true; tour=(tour+t+1)%ids.length; } }
       } else ok=placer(ids, c, opt);
       if(!ok){ var d2=nouvelId(opt.typeA==="tous" ? "A" : "AC"); ids.push(d2); d2.circuits.push(c); }
     });
@@ -208,7 +209,7 @@
     var gp=[], gg=[];
     for(var k=0;k<nP;k++){ var d=nouvelId(opt.typeA==="tous" ? "A" : "AC", "Petits circuits"); gp.push(d); ids.push(d); }
     for(var j=0;j<nG;j++){ var d2=nouvelId("A", "Gros consommateurs"); gg.push(d2); ids.push(d2); }
-    var tour=0; petits.sort(trierUsage).forEach(function(c){ for(var t=0;t<gp.length;t++){ var d=gp[(tour+t)%gp.length]; if(d.circuits.length<opt.max){ d.circuits.push(c); tour=(tour+t+1)%gp.length; return; } } var dn=nouvelId(opt.typeA==="tous" ? "A" : "AC", "Petits circuits"); ids.push(dn); dn.circuits.push(c); });
+    var tour=0; petits.sort(trierUsage).forEach(function(c){ for(var t=0;t<gp.length;t++){ var d=gp[(tour+t)%gp.length]; if(tient(d, c, opt)){ d.circuits.push(c); tour=(tour+t+1)%gp.length; return; } } var dn=nouvelId(opt.typeA==="tous" ? "A" : "AC", "Petits circuits"); ids.push(dn); dn.circuits.push(c); });
     gros.sort(function(a, b){ return b.I-a.I; }).forEach(function(c){ if(!placer(gg, c, opt)){ var dn=nouvelId("A", "Gros consommateurs"); gg.push(dn); ids.push(dn); dn.circuits.push(c); } });
     return finir({titre:"Gros consommateurs à part", desc:"L'éclairage, les prises et les petits circuits d'un côté ; les plaques, le four, le chauffage, la PAC (20 A et plus) équilibrés sur des type A.", ids:ids.concat(sp.dedies)}, opt);
   }
@@ -226,7 +227,7 @@
         var p=petits[i], autres=actifs.filter(function(d){ return d!==p && !d.dedie && d.type===p.type; });
         var essai=autres.map(function(d){ return {d:d, n:d.circuits.length, I:charge(d)}; }), place=[];
         var ok=p.circuits.every(function(c){
-          var cand=essai.filter(function(x){ return x.n<opt.max && x.I+c.I<=CAP; }).sort(function(a, b){ return a.I-b.I; })[0];
+          var cand=essai.filter(function(x){ return x.n<opt.max && x.I+c.I<=opt.cap; }).sort(function(a, b){ return a.I-b.I; })[0];
           if(!cand) return false; cand.n++; cand.I+=c.I; place.push([cand.d, c]); return true;
         });
         if(ok && place.length){ place.forEach(function(x){ x[0].circuits.push(x[1]); }); p.circuits=[]; encore=true; }
@@ -242,7 +243,7 @@
 
       var I=d.circuits.reduce(function(s, c){ return s+c.I; }, 0)*0.8;
       d.I=Math.round(I*10)/10;
-      d.cal = d.dedie ? 40 : I<=40 ? 40 : I<=63 ? 63 : 80;
+      d.cal = d.dedie || I<=40 || opt.calMax<=40 ? 40 : 63;
       d.poles = opt.reseau==="tri" ? "4P" : "2P";
     });
     /* les différentiels dans un ordre logique : la vie d'abord, la borne à la fin */
@@ -267,7 +268,7 @@
     var nEcl=0; ids.forEach(function(d){ d.circuits.forEach(function(c){ if(c.usage==="ecl") nEcl++; }); });
     if(nEcl>=2 && porteurs<2) notes.push("Tout l'éclairage est sur un seul différentiel : un défaut coupe toute la lumière.");
     if(opt.reseau==="tri"){ var mx=Math.max(ph.L1, ph.L2, ph.L3), mn=Math.min(ph.L1, ph.L2, ph.L3); if(mx>0 && (mx-mn)/mx>0.35) notes.push("Phases déséquilibrées : à reprendre à la main."); }
-    ids.forEach(function(d){ if(d.I>63) notes.push(d.rep+" : "+String(d.I).replace(".", ",")+" A estimés, plus qu'un 63 A : à scinder."); });
+    ids.forEach(function(d){ if(d.I>d.cal) notes.push(d.rep+" : "+String(d.I).replace(".", ",")+" A estimés, plus que son "+d.cal+" A : un seul circuit trop gros, à protéger à part."); });
     var kva=Pf/1000, abo = opt.reseau==="tri" ? [12,15,18,24,30,36].filter(function(x){ return x>=kva; })[0]||36 : [6,9,12].filter(function(x){ return x>=kva; })[0]||12;
     if(opt.reseau!=="tri" && kva>12) notes.push("Plus de 12 kVA en monophasé : le triphasé est à envisager.");
     return {titre:p.titre, desc:p.desc, ids:ids, phases:opt.reseau==="tri" ? ph : null, Ptot:Ptot, kva:Math.round(kva*10)/10, abonnement:abo, notes:notes};
@@ -276,8 +277,11 @@
   /* les options par défaut, et les deux ou trois propositions (sans doublon) */
   function options(o){
     o=o||{};
+    /* le calibre le plus fort des différentiels : 63 A en maison, 40 A en tertiaire, sauf choix contraire */
+    var calMax = Number(o.calMax)===40 || Number(o.calMax)===63 ? Number(o.calMax) : (o.batiment==="tertiaire" ? 40 : 63);
     return {reseau:o.reseau==="tri" ? "tri" : "mono", batiment:o.batiment==="tertiaire" ? "tertiaire" : "logement", surface:Number(o.surface)||0,
-            typeA:o.typeA==="tous" ? "tous" : "requis", max:Math.max(2, Math.min(20, Number(o.max)||8)), pf:o.pf!==false, hc:o.hc!==false};
+            typeA:o.typeA==="tous" ? "tous" : "requis", max:Math.max(2, Math.min(20, Number(o.max)||8)), pf:o.pf!==false, hc:o.hc!==false,
+            calMax:calMax, cap:calMax/0.8};
   }
   function signature(p){ return p.ids.map(function(d){ return d.circuits.map(function(c){ return c.i; }).sort(function(a,b){ return a-b; }).join(","); }).sort().join("|"); }
   function proposer(circuits, o){

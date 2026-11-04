@@ -560,7 +560,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
 <script src="./horsligne.js?v=20261024b" defer></script>
 <script src="./finitions.js?v=20261024b" defer></script>
 <script src="./palette.js?v=20261106c" defer></script>
-<script src="./ranger-circuits.js?v=20261108b"></script>
+<script src="./ranger-circuits.js?v=20261108c"></script>
 </head>
 <body>
 <header>
@@ -688,6 +688,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
       <label>Bâtiment <select id="rgBat"><option value="logement">Logement</option><option value="tertiaire">Tertiaire, ERP</option></select></label>
       <label id="rgSurfL">Surface <input type="text" inputmode="decimal" id="rgSurf" placeholder="120"> m²</label>
       <label>Différentiels <select id="rgTypeA"><option value="requis">Type A là où il le faut, AC ailleurs</option><option value="tous">Type A partout</option></select></label>
+      <label>Différentiels de <select id="rgCal"><option value="63">63 A au plus</option><option value="40">40 A au plus</option></select></label>
       <label>Au plus <input type="text" inputmode="numeric" id="rgMax" value="8"> circuits par différentiel</label>
       <label class="rg-c"><input type="checkbox" id="rgPf" checked> Parafoudre</label>
       <label class="rg-c"><input type="checkbox" id="rgHc" checked> Contacteur jour / nuit du chauffe-eau</label>
@@ -2168,7 +2169,7 @@ function rgEtat(){
 function rgOptions(){
   var o=rgEtat().options;
   o.reseau=$("rgReseau").value; o.batiment=$("rgBat").value; o.surface=$("rgSurf").value.replace(",", ".");
-  o.typeA=$("rgTypeA").value; o.max=Math.max(2, Math.min(20, parseInt($("rgMax").value, 10)||8)); o.pf=$("rgPf").checked; o.hc=$("rgHc").checked;
+  o.typeA=$("rgTypeA").value; o.calMax=Number($("rgCal").value)||63; o.max=Math.max(2, Math.min(20, parseInt($("rgMax").value, 10)||8)); o.pf=$("rgPf").checked; o.hc=$("rgHc").checked;
   $("rgSurfL").hidden=o.batiment==="tertiaire";
   return o;
 }
@@ -2188,7 +2189,7 @@ function rgLigne(c, i){
 }
 function rgPeindre(){
   var e=rgEtat(), o=e.options, tb=$("rgLignes"); tb.textContent="";
-  $("rgReseau").value=o.reseau; $("rgBat").value=o.batiment; $("rgSurf").value=o.surface||""; $("rgTypeA").value=o.typeA; $("rgMax").value=String(o.max||8); $("rgPf").checked=o.pf!==false; $("rgHc").checked=o.hc!==false;
+  $("rgReseau").value=o.reseau; $("rgBat").value=o.batiment; $("rgSurf").value=o.surface||""; $("rgTypeA").value=o.typeA; $("rgCal").value=String(o.calMax || (o.batiment==="tertiaire" ? 40 : 63)); $("rgMax").value=String(o.max||8); $("rgPf").checked=o.pf!==false; $("rgHc").checked=o.hc!==false;
   $("rgSurfL").hidden=o.batiment==="tertiaire";
   if(!e.circuits.length) e.circuits.push({nom:"", puissance:"", carac:""});
   e.circuits.forEach(function(c, i){ tb.appendChild(rgLigne(c, i)); });
@@ -2232,7 +2233,9 @@ $("rgAjouterTexte").addEventListener("click", function(){
   var e=rgEtat(); e.circuits=e.circuits.filter(function(c){ return String(c.nom||"").trim() || c.puissance || c.carac; }).concat(L);
   $("rgTexte").value=""; $("rgCollerZ").hidden=true; rgPeindre(); sauver(); toast(L.length+" circuit"+(L.length>1?"s":"")+" ajouté"+(L.length>1?"s":"")+".");
 });
-["rgReseau","rgBat","rgSurf","rgTypeA","rgMax","rgPf","rgHc"].forEach(function(id){ $(id).addEventListener("change", function(){ rgOptions(); sauver(); }); });
+/* changer de bâtiment remet le calibre conseillé : 63 A en maison, 40 A en tertiaire (on peut le changer ensuite) */
+$("rgBat").addEventListener("change", function(){ $("rgCal").value = $("rgBat").value==="tertiaire" ? "40" : "63"; });
+["rgReseau","rgBat","rgSurf","rgTypeA","rgCal","rgMax","rgPf","rgHc"].forEach(function(id){ $(id).addEventListener("change", function(){ rgOptions(); sauver(); }); });
 function kW(P){ return P>=1000 ? String(Math.round(P/100)/10).replace(".", ",")+" kW" : P+" W"; }
 function rgCarte(p, k){
   var d=document.createElement("div"); d.className="rg-carte";
