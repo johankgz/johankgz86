@@ -5141,6 +5141,7 @@ function quantChemin(o){
   var n=Math.max(1, Math.ceil(L/sp)); for(var k=0;k<=n;k++){ var x=L*k/n;
     ang.forEach(function(c){ if(Math.abs(x-c)<dec) x = x<c ? c-dec : c+dec; });   /* hors de la pièce d'angle */
     pos.push(Math.max(0, Math.min(L, x))); }
+  var jT=jonctionsChemins()[o.id]; if(jT && jT.finsTe){ pos=pos.filter(function(x){ return !((jT.finsTe.a && x<1) || (jT.finsTe.b && x>L-1)); }); }   /* au bout d'un té : pas de support, il est sur le chemin qui le reçoit */
   pos.sort(function(x, y){ return x-y; }); var u=[]; pos.forEach(function(x){ if(!u.length || x-u[u.length-1]>200) u.push(x); });
   var lg=Math.max(1, Math.ceil(L/3000)), jn=jonctionsChemins()[o.id]||{tes:0, croix:0};
   return {L:L, longueurs:lg, eclisses:lg-1, supports:u.length, coudes:coudes, coins:coins, tes:jn.tes, croix:jn.croix, pos:u, cum:cum, pts:p};
@@ -5149,17 +5150,26 @@ function quantChemin(o){
    deux chemins qui se croisent font une croix */
 function jonctionsChemins(){
   var ch=geos().filter(function(o){ return o.res && o.res.t==="chemin" && (!o.vue || o.vue==="dessus"); }), out={};
-  ch.forEach(function(o){ out[o.id]={tes:0, croix:0}; });
+  ch.forEach(function(o){ out[o.id]={tes:0, croix:0, coupes:[], finsTe:{}}; });
   if(ch.length<2) return out;
+  /* le point de B le plus proche de q : le pied, la direction du segment */
+  function pied(q, p){ var m={d:Infinity}; for(var i=1;i<p.length;i++){ var a=p[i-1], b=p[i], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy, t=l2 ? Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/l2)) : 0, f=[a[0]+t*dx, a[1]+t*dy], d=Math.hypot(q[0]-f[0], q[1]-f[1]); if(d<m.d){ var L=Math.sqrt(l2)||1; m={d:d, f:f, u:[dx/L, dy/L]}; } } return m; }
   var P=ch.map(function(o){ return contourG(o); });
   function projSeg(q, a, b){ var dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy, t=l2 ? Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/l2)) : 0; return Math.hypot(q[0]-a[0]-t*dx, q[1]-a[1]-t*dy); }
   function distPoly(q, p){ var m=Infinity; for(var i=1;i<p.length;i++) m=Math.min(m, projSeg(q, p[i-1], p[i])); return m; }
   ch.forEach(function(A, ia){ ch.forEach(function(B, ib){
     if(ia===ib) return; var pa=P[ia], pb=P[ib], tol=(largeurRes(B.res)/2+100)/DESSIN_MM;
-    [pa[0], pa[pa.length-1]].forEach(function(e){
+    [pa[0], pa[pa.length-1]].forEach(function(e, k){
       if(distPoly(e, pb)>tol) return;
       if(Math.hypot(e[0]-pb[0][0], e[1]-pb[0][1])<=tol*1.5 || Math.hypot(e[0]-pb[pb.length-1][0], e[1]-pb[pb.length-1][1])<=tol*1.5) return;   /* bout à bout : une éclisse ou un coude, pas un té */
       out[B.id].tes++;
+      /* le té : le rebord de B s'ouvre sur la largeur de A, du côté où A arrive ; les rebords de A s'arrêtent au bord de B */
+      var hA=largeurRes(A.res)/2/DESSIN_MM, hB=largeurRes(B.res)/2/DESSIN_MM, m=pied(e, pb), nB=[-m.u[1], m.u[0]];
+      var int = k ? pa[pa.length-2] : pa[1], dA=unite(sub(e, int)), cote = (int[0]-m.f[0])*nB[0]+(int[1]-m.f[1])*nB[1] >= 0 ? 1 : -1;
+      var sn=Math.max(0.3, Math.abs(dA[0]*nB[0]+dA[1]*nB[1])), delta=(e[0]-m.f[0])*nB[0]*cote+(e[1]-m.f[1])*nB[1]*cote;
+      out[B.id].coupes.push({cote:cote, X:[m.f[0]+nB[0]*hB*cote, m.f[1]+nB[1]*hB*cote], h:hA/sn});
+      out[A.id].coupes.push({fin:k ? "b" : "a", L:Math.max(0, (hB-delta))/sn});
+      out[A.id].finsTe[k ? "b" : "a"]=1;
     });
     if(ia<ib) for(var i=1;i<pa.length;i++) for(var j=1;j<pb.length;j++){
       var a=pa[i-1], b=pa[i], c=pb[j-1], d=pb[j], r=[b[0]-a[0], b[1]-a[1]], sv=[d[0]-c[0], d[1]-c[1]], den=r[0]*sv[1]-r[1]*sv[0];
@@ -5168,7 +5178,11 @@ function jonctionsChemins(){
       if(t<=0 || t>=1 || u<=0 || u>=1) continue;
       var X=[a[0]+r[0]*t, a[1]+r[1]*t], tolX=(largeurRes(A.res)/2+largeurRes(B.res)/2+100)/DESSIN_MM;
       var pres=[pa[0], pa[pa.length-1], pb[0], pb[pb.length-1]].some(function(e){ return Math.hypot(e[0]-X[0], e[1]-X[1])<=tolX; });
-      if(!pres) out[A.id].croix++;   /* un bout tout près du croisement : c'est un té, déjà compté */
+      if(!pres){ out[A.id].croix++;   /* un bout tout près du croisement : c'est un té, déjà compté */
+        /* la croix : les rebords des deux chemins s'ouvrent au croisement */
+        var uA=unite(r), uB=unite(sv), sinX=Math.max(0.3, Math.abs(uA[0]*uB[1]-uA[1]*uB[0]));
+        out[A.id].coupes.push({cote:0, X:X, h:largeurRes(B.res)/2/DESSIN_MM/sinX}); out[B.id].coupes.push({cote:0, X:X, h:largeurRes(A.res)/2/DESSIN_MM/sinX});
+      }
     }
   }); });
   return out;
@@ -5202,6 +5216,28 @@ function decalerRes(pts, d){
     else n=n1||n2||[0,0];
     out.push([pts[i][0]+n[0]*d*k, pts[i][1]+n[1]*d*k]);
   }
+  return out;
+}
+/* les deux rebords d'un chemin de câbles, ouverts aux tés et aux croix : des morceaux de polyligne */
+function bordsChemin(o, pts){
+  var dg=largeurRes(o.res)/2/DESSIN_MM, jn=jonctionsChemins()[o.id], out=[];
+  [1, -1].forEach(function(cote){
+    var P=decalerRes(pts, dg*cote), cum=[0]; for(var i=1;i<P.length;i++) cum.push(cum[i-1]+Math.hypot(P[i][0]-P[i-1][0], P[i][1]-P[i-1][1]));
+    var Lt=cum[cum.length-1], tr=[];
+    function abs(q){ var m={d:Infinity, s:0}; for(var i=1;i<P.length;i++){ var a=P[i-1], b=P[i], dx=b[0]-a[0], dy=b[1]-a[1], l2=dx*dx+dy*dy, t=l2 ? Math.max(0, Math.min(1, ((q[0]-a[0])*dx+(q[1]-a[1])*dy)/l2)) : 0, d=Math.hypot(q[0]-a[0]-t*dx, q[1]-a[1]-t*dy); if(d<m.d) m={d:d, s:cum[i-1]+t*Math.sqrt(l2)}; } return m.s; }
+    ((jn && jn.coupes) || []).forEach(function(cp){
+      if(cp.fin) tr.push(cp.fin==="a" ? [0, cp.L] : [Lt-cp.L, Lt]);
+      else if(!cp.cote || cp.cote===cote){ var sx=abs(cp.X); tr.push([sx-cp.h, sx+cp.h]); }
+    });
+    tr.sort(function(a, b){ return a[0]-b[0]; });
+    var s0=0, morceaux=[];
+    tr.forEach(function(t){ if(t[0]>s0) morceaux.push([s0, t[0]]); s0=Math.max(s0, t[1]); }); if(s0<Lt) morceaux.push([s0, Lt]);
+    morceaux.forEach(function(mc){
+      if(mc[1]-mc[0]<1e-6) return;
+      function pt(sv){ var i=1; while(i<cum.length-1 && cum[i]<sv) i++; var t=(sv-cum[i-1])/((cum[i]-cum[i-1])||1); return [P[i-1][0]+(P[i][0]-P[i-1][0])*t, P[i-1][1]+(P[i][1]-P[i-1][1])*t]; }
+      var q=[pt(mc[0])]; for(var i=1;i<P.length-1;i++) if(cum[i]>mc[0] && cum[i]<mc[1]) q.push(P[i]); q.push(pt(mc[1])); out.push(q);
+    });
+  });
   return out;
 }
 /* les coudes d'un chemin de câbles : la pièce d'angle, de chaque côté du coin, sur la largeur du chemin (au moins 20 cm) */
@@ -5699,7 +5735,8 @@ function peindreGeo(c, E, coulTrait, orange){
     if(o.res && largeurRes(o.res)){
       /* la gaine (ou le chemin de câbles) : ses deux bords, à sa vraie largeur, et son axe en léger */
       var dg=largeurRes(o.res)/2/DESSIN_MM;
-      chemin(decalerRes(pts, dg), false); c.stroke(); chemin(decalerRes(pts, -dg), false); c.stroke();
+      if(o.res.t==="chemin") bordsChemin(o, pts).forEach(function(bq){ chemin(bq, false); c.stroke(); });   /* ouverts aux tés et aux croix */
+      else { chemin(decalerRes(pts, dg), false); c.stroke(); chemin(decalerRes(pts, -dg), false); c.stroke(); }
       c.save(); c.globalAlpha=0.4; c.lineWidth=Math.max(0.6, w*0.5); c.setLineDash(PX_MM ? [2*PX_MM, 1.2*PX_MM] : [6,4]); chemin(pts, false); c.stroke(); c.restore();
     } else { chemin(pts, ferme); c.stroke(); }
     if(trous.length){ c.restore(); ecrireTrous(trous, col); }
@@ -5819,7 +5856,8 @@ function dxfGeo(g){
     if(o.res && RES_TYPES[o.res.t]){
       var TR=RES_TYPES[o.res.t], pr=contourG(o), hR=hauteurEtiquetteRes();
       cal=TR.calque; col=aciDe(coulRes(o.res))||1;
-      if(largeurRes(o.res)){ var dR=largeurRes(o.res)/2/DESSIN_MM; poly(decalerRes(pr, dR), false); poly(decalerRes(pr, -dR), false); }
+      if(largeurRes(o.res) && o.res.t==="chemin") bordsChemin(o, pr).forEach(function(bq){ poly(bq, false); });
+      else if(largeurRes(o.res)){ var dR=largeurRes(o.res)/2/DESSIN_MM; poly(decalerRes(pr, dR), false); poly(decalerRes(pr, -dR), false); }
       if(o.res.t==="chemin") coudesChemin(o, quantChemin(o)).forEach(function(cd){ poly(cd.poly, true); poly(cd.diag, false); });   /* les coudes : la pièce d'angle et son onglet */
       else poly(pr, false);
       [o.res.rva ? pr[0] : null, o.res.rvb ? pr[pr.length-1] : null].forEach(function(q){ if(q) g(0,"CIRCLE", 8,cal, 62,col, 10,q[0],20,q[1],30,0, 40,hR*0.7); });
