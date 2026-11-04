@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan</title>
-<script src="./symboles-elec.js?v=20261107a"></script>
+<script src="./symboles-elec.js?v=20261107b"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=2">
@@ -830,7 +830,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <label class="champ-h" id="grpHSym" hidden>Hauteur <input id="symbH" type="text" inputmode="decimal" autocomplete="off" list="hTypes" aria-label="Hauteur de pose en cm"> <span class="u-saisie">cm</span></label>
     <label class="champ-h" id="grpHvSym" hidden><input id="symbHv" type="checkbox"> Écrire la hauteur</label>
     <input class="champ-rep" id="symbTs" type="text" autocomplete="off" maxlength="20" placeholder="Texte (LL, LV…)" aria-label="Texte de la prise spécialisée" hidden>
-    <span class="champ-h grp-zones" id="grpZones" hidden><label for="symbZones">Multizone</label> <select id="symbZones" aria-label="Nombre de zones du gainable"><option value="0">non</option><option value="1">1 zone</option><option value="2">2 zones</option><option value="3">3 zones</option><option value="4">4 zones</option><option value="5">5 zones</option><option value="6">6 zones</option></select></span>
+    <span class="champ-h grp-zones" id="grpZones" hidden><label for="symbZones">Zones</label> <select id="symbZones" aria-label="Nombre de zones du plénum"><option value="1">1 zone</option><option value="2">2 zones</option><option value="3">3 zones</option><option value="4">4 zones</option><option value="5">5 zones</option><option value="6">6 zones</option></select></span>
     <datalist id="hTypes"><option value="30 cm" label="prise"><option value="70 cm" label="prise au-dessus du chevet"><option value="90 cm" label="interrupteur de tête de lit"><option value="110 cm" label="commande, plan de travail"><option value="130 cm" label="liseuse"><option value="180 cm" label="applique"><option value="200 cm" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
@@ -2971,19 +2971,17 @@ function texteDessusS(o){
   if(o.hv && def.cat==="prise") t.push(SymbolesElec.texteHauteur(hauteurDe(o)));
   return t.join("  ");
 }
-/* le gainable multizone : 1 à 6 zones, une sortie à registre motorisé par zone, numérotée ; les gaines s'y accrochent */
-function estGainable(o){ return !!o && /^cfo-clim-gainable(-z[1-6])?$/.test(o.cle); }
-function nbZones(o){ var m=/^cfo-clim-gainable-z([1-6])$/.exec(o && o.cle || ""); return m ? Number(m[1]) : 0; }
+/* le plénum motorisé (type Airzone), posé à part contre le soufflage du gainable : 1 à 6 zones,
+   une sortie ronde à registre motorisé par zone, numérotée ; 4 en façade, la 5e et la 6e sur les côtés */
+function estPlenum(o){ return !!o && /^cfo-plenum(-z[1-6])?$/.test(o.cle); }
+function nbZones(o){ if(!estPlenum(o)) return 0; var m=/-z([1-6])$/.exec(o.cle); return m ? Number(m[1]) : 2; }
 function peindreZones(o){ if(document.activeElement!==$("symbZones")) $("symbZones").value=String(nbZones(o)); }
-/* les points où une gaine s'accroche : le bout de chaque sortie du plénum (au-dessus du rond numéroté) et la reprise du filtre */
+/* les points où une gaine s'accroche (pq de la bibliothèque) : le bout de chaque sortie du plénum, son raccord au gainable,
+   le soufflage et la reprise du gainable */
 function piquagesSymbole(o){
-  var def=nbZones(o) && SymbolesElec.trouver(o.cle); if(!def) return [];
-  var a=-(o.rot||0)*Math.PI/180, c=Math.cos(a), si=Math.sin(a), out=[];
-  function mettre(lx, ly){ out.push([o.x+o.r*(lx*c-ly*si), o.y-o.r*(lx*si+ly*c)]); }
-  var x0=Infinity;
-  def.el.forEach(function(e){ if(e.c) mettre(e.c[0], e.c[1]-e.c[2]); if(e.p) e.p.forEach(function(q){ if(q[0]<x0) x0=q[0]; }); });
-  if(isFinite(x0)) mettre(x0, 0);
-  return out;
+  var def=window.SymbolesElec && SymbolesElec.trouver(o.cle); if(!def || !def.pq) return [];
+  var a=-(o.rot||0)*Math.PI/180, c=Math.cos(a), si=Math.sin(a);
+  return def.pq.map(function(q){ return [o.x+o.r*(q[0]*c-q[1]*si), o.y-o.r*(q[0]*si+q[1]*c)]; });
 }
 /* l'orientation choisie avant de poser : 0, 45, 90… (sens des aiguilles = -45, comme Alt+→).
    Gardée d'un symbole à l'autre : sur un plan vu à l'envers, tout se pose à 180°.
@@ -3038,7 +3036,7 @@ function majSymb(){
   $("grpHvSym").hidden=!(o && def && def.cat==="prise"); $("symbHv").checked=!!(o && o.hv);
   $("symbTs").hidden=!(o && def && def.texte!=null);
   if(o && def && def.texte!=null && document.activeElement!==$("symbTs")) $("symbTs").value = o.ts!=null ? o.ts : def.texte;
-  $("grpZones").hidden=!estGainable(o); if(estGainable(o)) peindreZones(o);
+  $("grpZones").hidden=!estPlenum(o); if(estPlenum(o)) peindreZones(o);
   $("grpLSym").hidden=!(o && longueurS(o));
   if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=enUnite(longueurS(o));
   if(o && longueurS(o)) $("symbL").setAttribute("list", bandeauDe(o) ? "lBandeau" : "lTypes");
@@ -8631,10 +8629,10 @@ $("symbTs").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
 $("symbTs").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].ts=this.value.trim(); enregistrerSymb(); demander(); });
 $("symbTs").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("symbZones").addEventListener("change", function(){
-  var o=SEL>=0 ? SYMB[SEL] : null; if(!estGainable(o)) return;
-  garderSymb(); var n=Number(this.value)||0;
-  o.cle = n ? "cfo-clim-gainable-z"+n : "cfo-clim-gainable";
-  if(n) toast("Gainable multizone, "+n+" zone"+(n>1?"s":"")+" : les gaines s'accrochent au bout de chaque sortie.", 3000);
+  var o=SEL>=0 ? SYMB[SEL] : null; if(!estPlenum(o)) return;
+  garderSymb(); var n=Math.max(1, Math.min(6, Number(this.value)||2));
+  o.cle = n===2 ? "cfo-plenum" : "cfo-plenum-z"+n;
+  toast("Plénum, "+n+" zone"+(n>1?"s":"")+" : les gaines s'accrochent au bout de chaque sortie.", 3000);
   enregistrerSymb(); majSymb(); demander();
 });
 $("symbRep").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].t=this.value.trim(); enregistrerSymb(); demander(); });
@@ -10895,7 +10893,7 @@ function peindrePanneau(){
   }
   if(on.cvc){
     [["VMC", ["cfo-caisson-vmc","cfo-vmc","cfo-bouche-80","cfo-bouche-125","cfo-bouche-160","cfo-bouche-applique","cfo-entree-air"]],
-     ["Climatisation", ["cfo-clim-murale","cfo-clim-cassette","cfo-clim-gainable","cfo-groupe-ext","cfo-bouche-soufflage","cfo-bouche-reprise","cfo-telecommande-clim"]]].forEach(function(gr){
+     ["Climatisation", ["cfo-clim-murale","cfo-clim-cassette","cfo-clim-gainable","cfo-plenum","cfo-groupe-ext","cfo-bouche-soufflage","cfo-bouche-reprise","cfo-telecommande-clim"]]].forEach(function(gr){
       var G=groupeRuban(gr[0]), d=document.createElement("div"); d.className="rb-syms";
       gr[1].forEach(function(k){ if(SymbolesElec.trouver(k)) d.appendChild(boutonRuban("s:"+k, "rb-sym")); });
       G.o.appendChild(d); pn.appendChild(G.g);
