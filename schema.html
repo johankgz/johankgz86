@@ -2163,7 +2163,17 @@ function depuisEtiquettes(e){
   var cols=[], barres=[], idCol=null, dernier=null, tete=null, n=0, nId=0;
   function fermerGroupe(){ if(idCol && dernier && dernier!==idCol) barres.push({id:uid(),niveau:"B",de:idCol.id,a:dernier.id}); }
   (e.rangees||[]).forEach(function(r){ (r.cases||[]).forEach(function(k){
-    var t=String(k.texte||"").trim(); if(!t || /^r[ée]serve/i.test(t)) return;
+    var t=String(k.texte||"").trim();
+    /* un répartiteur (distributeur) répartit l'alimentation : pas de circuit */
+    if(k.type==="repartiteur" || /r[ée]partiteur|distributeur/i.test(t)) return;
+    if(k.type!=="id" && (!t || /^r[ée]serve/i.test(t))) return;
+    if(k.type==="id" || /interrupteur\s+diff|\bID\b|diff[ée]rentiel/i.test(t) && !/disjoncteur\s+diff/i.test(t)){
+      /* l'interrupteur différentiel : 2 modules en monophasé (2P), 4 modules en triphasé (4P) */
+      fermerGroupe(); nId++;
+      var tri=(k.modules||2)>=4, typ=k.typeId || (/type\s*F\b|\bF\s*$/i.test(t) ? "F" : /\bA\b\s*$/.test(t)||/type\s*A\b/i.test(t)||/30\s*mA\s*A\b/i.test(t) ? "A" : "AC");
+      idCol=cc({3:s("id","ID"+nId,[(tri?"4P":"2P")+" · "+(k.cal||"63 A"),"30 mA","Type "+typ])});
+      cols.push(idCol); dernier=idCol; return;
+    }
     if(/branchement|agcp/i.test(t)){ tete=cc({2:s("agcp","AGCP",SYMBOLES.agcp.t)}); cols.push(tete); return; }
     if(/parafoudre/i.test(t)){ cols.push(cc({3:s("parafoudre","PF",SYMBOLES.parafoudre.t)})); return; }
     if(/diff/i.test(t)){

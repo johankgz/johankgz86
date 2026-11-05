@@ -271,6 +271,11 @@ button.act:disabled{opacity:.4}
 .vides button i{display:flex;height:30px;border:1.5px solid var(--ink);border-radius:4px;background:#fff}
 .vides button i b{flex:1;border-right:1px dashed #B8C0CC}
 .vides button i b:last-child{border-right:0}
+.speciaux{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}
+.speciaux button{min-height:48px;padding:8px 10px;border:1px solid var(--rule);border-radius:var(--r-field);background:var(--card,#fff);color:var(--ink);
+ font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer;text-align:center;line-height:1.25}
+.speciaux button small{display:block;font-size:11.5px;font-weight:500;color:var(--ink-3)}
+.dlg .choix .chip.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
 .dlg-fond{position:fixed;inset:0;z-index:90;background:rgba(21,23,26,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
  display:flex;align-items:center;justify-content:center;padding:16px}
 .dlg{width:min(440px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--bg,#F1F3F7);color:var(--ink);border-radius:16px;padding:18px 16px 16px;box-shadow:0 24px 60px -20px rgba(0,0,0,.6)}
@@ -779,6 +784,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <h2>Ajouter</h2>
     <p class="hint" style="margin:-8px 0 12px">Touchez une étiquette : son texte vous est demandé, puis elle se pose au bout de la rangée.</p>
     <div class="vides" id="ch_vides"></div>
+    <div class="speciaux" id="ch_speciaux"></div>
   </div>
 </section>
 
@@ -1403,6 +1409,13 @@ function paintForm(){
     b.addEventListener("click", function(){ demanderTexte(n); });
     box.appendChild(b);
   });
+  var sp=$("ch_speciaux"); sp.textContent="";
+  [["Interrupteur différentiel","2 modules mono · 4 modules tri", demanderDifferentiel],
+   ["Répartiteur","pas de circuit au schéma", demanderRepartiteur]].forEach(function(x){
+    var b=document.createElement("button"); b.type="button";
+    b.appendChild(document.createTextNode(x[0])); var sm=document.createElement("small"); sm.textContent=x[1]; b.appendChild(sm);
+    b.addEventListener("click", x[2]); sp.appendChild(b);
+  });
   var dl=$("dl_presets"); dl.textContent="";
   PRESETS.forEach(function(pr){ var o=document.createElement("option"); o.value=pr[0]; dl.appendChild(o); });
   renderRangees(); paintRangeeChips(); renderCases(); renderResume(); refreshHeader();
@@ -1426,6 +1439,56 @@ function fenetre(titre, aide, corps, okTxt, ok, annule){
   bt.appendChild(a); bt.appendChild(o); d.appendChild(bt); fond.appendChild(d);
   document.body.appendChild(fond);
   return {ok:o};
+}
+/* la rangée courante, ou la suivante qui a la place pour n modules */
+function rangeeAvecPlace(n){
+  var r=rangee();
+  if(!r){ demanderRangees(); return null; }
+  if(libres(r) >= n) return r;
+  var j=-1; for(var k=RANGEE+1;k<S.rangees.length;k++){ if(libres(S.rangees[k])>=n){ j=k; break; } }
+  if(j<0){ toast("Il reste "+Math.max(0,libres(r))+" module"+(libres(r)>1?"s":"")+" sur "+r.nom+"."); return null; }
+  RANGEE=j; r=rangee(); paintRangeeChips(); renderCases(); toast(r.nom+" : la rangée précédente est pleine.");
+  return r;
+}
+/* une rangée de puces à choix unique */
+function puces(hote, options, val, fn){
+  var box=document.createElement("div"); box.className="choix";
+  function peindre(){ box.textContent=""; options.forEach(function(o){
+    var b=document.createElement("button"); b.type="button"; b.className="chip"+(o[0]===val?" on":""); b.textContent=o[1];
+    b.addEventListener("click", function(){ val=o[0]; peindre(); fn(val); }); box.appendChild(b); }); }
+  peindre(); hote.appendChild(box); return box;
+}
+function legende(hote, txt){ var p=document.createElement("p"); p.className="legend"; p.style.margin="8px 0 0"; p.textContent=txt; hote.appendChild(p); }
+/* l'interrupteur différentiel : 2 modules en monophasé, 4 en triphasé ; repris au schéma unifilaire en 2P ou 4P */
+function demanderDifferentiel(){
+  var c=document.createElement("div"), v={tri:false, type:"A", cal:"40 A"};
+  legende(c, "Réseau"); puces(c, [[false,"Monophasé · 2 modules"],[true,"Triphasé · 4 modules"]], false, function(x){ v.tri=x; maj(); });
+  legende(c, "Type"); puces(c, [["AC","Type AC"],["A","Type A"],["F","Type F"]], "A", function(x){ v.type=x; maj(); });
+  legende(c, "Calibre"); puces(c, [["25 A","25 A"],["40 A","40 A"],["63 A","63 A"]], "40 A", function(x){ v.cal=x; maj(); });
+  legende(c, "Texte de l'étiquette");
+  var i=document.createElement("input"); i.type="text"; i.setAttribute("data-sans-marque","1"); i.setAttribute("aria-label","Texte de l'étiquette"); c.appendChild(i);
+  var touche=false; i.addEventListener("input", function(){ touche=true; });
+  function maj(){ if(!touche) i.value="Interrupteur différentiel 30 mA "+v.type+(v.tri?" tri":""); }
+  maj();
+  var f=fenetre("Interrupteur différentiel", "Monophasé : 2 modules (2P au schéma). Triphasé : 4 modules (4P).", c, "Ajouter", function(){
+    var n=v.tri?4:2, r=rangeeAvecPlace(n); if(!r) return false;
+    r.cases.push({id:uid(), texte:i.value.trim(), modules:n, type:"id", typeId:v.type, cal:v.cal});
+    save(); renderCases();
+  });
+  i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); f.ok.click(); } });
+}
+/* le répartiteur : une étiquette du tableau, sans circuit au schéma unifilaire */
+function demanderRepartiteur(){
+  var c=document.createElement("div"), n=4;
+  legende(c, "Modules"); puces(c, [[1,"1"],[2,"2"],[3,"3"],[4,"4"]], 4, function(x){ n=x; });
+  legende(c, "Texte de l'étiquette");
+  var i=document.createElement("input"); i.type="text"; i.value="Répartiteur"; i.setAttribute("data-sans-marque","1"); i.setAttribute("aria-label","Texte de l'étiquette"); c.appendChild(i);
+  var f=fenetre("Répartiteur", "Il répartit l'alimentation dans le tableau : il ne fait pas de circuit au schéma unifilaire.", c, "Ajouter", function(){
+    var r=rangeeAvecPlace(n); if(!r) return false;
+    r.cases.push({id:uid(), texte:i.value.trim(), modules:n, type:"repartiteur"});
+    save(); renderCases();
+  });
+  i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); f.ok.click(); } });
 }
 /* une étiquette vide de n modules : son texte est demandé tout de suite */
 function demanderTexte(n){
