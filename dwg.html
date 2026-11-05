@@ -270,6 +270,13 @@ body.clair #scene{background:#FFFFFF}
 body{background:#0B0E12} body.clair{background:#FFFFFF}
 .accueil{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;padding:calc(var(--haut,62px) + 16px) 20px 20px;text-align:center;overflow:auto}
 .accueil[hidden]{display:none}
+/* le Menu, plan ouvert : la page d'ouverture passe par-dessus le plan, pour en ouvrir un autre ou quitter */
+.accueil.dessus{z-index:6;top:var(--haut,62px);padding-top:16px;background:#0F1318;align-items:flex-start}
+.accueil.dessus .depot{margin:auto}
+body.clair .accueil.dessus{background:#F3F5F8}
+.acc-haut{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin:0 0 14px}
+.acc-haut[hidden]{display:none}
+.acc-haut .bt{min-height:40px;padding:8px 16px;font-size:14px}
 .depot{max-width:440px;width:100%;padding:28px 22px;border:2px dashed rgba(255,255,255,.2);border-radius:18px;background:rgba(255,255,255,.03)}
 .depot.survol{border-color:var(--or);background:rgba(59,130,246,.08)}
 .depot svg{width:48px;height:48px;stroke:var(--or);fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
@@ -584,7 +591,8 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 
 <div class="haut ruban" id="ruban">
   <div class="rb-ligne">
-  <a href="./index.html" aria-label="Menu">Menu</a>
+  <a href="./index.html" id="lienMenuPlan" aria-label="Menu" title="Ouvrir un autre plan, ou quitter l'outil Plan">Menu</a>
+  <a href="./index.html" id="lienChantier" hidden title="Revenir au chantier de ce plan">‹ Chantier</a>
   <button class="bt rb-rapide" id="btEnreg" type="button" disabled title="Enregistrer le plan sur le site (Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12.5L20 7.5V20H4z"/><path d="M8 4v5h7V4M7.5 20v-6.5h9V20"/></svg><span class="lib">Enregistrer</span></button>
   <button class="bt rb-rapide" id="btOuvrir" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/></svg><span class="lib">Ouvrir</span></button>
   <button class="bt rb-rapide" id="btAnnulerR" type="button" disabled aria-label="Annuler" title="Annuler (Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4.5 11.5 9 16"/><path d="M4.5 11.5H15a5 5 0 0 1 0 10h-2"/></svg></button>
@@ -727,6 +735,11 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 
 <div class="accueil" id="accueil">
   <div class="depot" id="depot">
+    <div class="acc-haut" id="accHaut" hidden>
+      <button class="bt or" id="accRevenir" type="button" hidden>‹ Revenir au plan</button>
+      <button class="bt" id="accChantier" type="button" hidden>Retour au chantier</button>
+      <button class="bt" id="accQuitter" type="button">Quitter l'outil Plan</button>
+    </div>
     <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M7.5 16.5h9M7.5 16.5v-2M16.5 16.5v-2M9 12.5h6"/></svg>
     <h1>Ouvrir un plan DWG, DXF ou PDF</h1>
     <p>Choisissez un fichier .dwg (AutoCAD R14 à 2018), .dxf, un plan en PDF ou une image, ou glissez-le ici. Un PDF se met à l'échelle sur une longueur connue (Étalonner). Le plan est lu sur cet appareil ; « Enregistrer » le garde sur le site, avec ce que vous y avez dessiné, pour le reprendre plus tard.</p>
@@ -13412,7 +13425,34 @@ function apresOuverture(){
   majNomPlan(); majRuban(); majHaut();
 }
 function salir(){ if(!SALE_PLAN){ SALE_PLAN=true; majNomPlan(); majRuban(); } }
+/* le chantier du plan : celui d'où il vient, ou celui où il est déposé */
+function refChantierPlan(){
+  var q=""; try{ q=new URLSearchParams(location.search).get("ref")||""; }catch(e){}
+  return (DESSIN && DESSIN.chantierDoc && DESSIN.chantierDoc.ref) || (PLAN_SITE && PLAN_SITE.chantier && PLAN_SITE.chantier.ref)
+    || (DOC_ATT && DOC_ATT.ref) || q || "";
+}
+function majLienChantier(){
+  var r=refChantierPlan(), a=$("lienChantier"); if(!a) return;
+  a.hidden=!r; if(r) a.href="./chantier.html?ref="+encodeURIComponent(r)+"#plans";
+}
+function quitterPlan(vers){
+  if(PLAN && SALE_PLAN && !confirm("Le plan a des modifications pas encore enregistrées sur le site. Quitter quand même ?")) return;
+  location.href=vers;
+}
+/* Menu : la page d'ouverture, par-dessus le plan ouvert (revenir, ouvrir un autre plan, quitter) */
+function menuPlan(){
+  var acc=$("accueil"), r=refChantierPlan();
+  acc.classList.toggle("dessus", !!PLAN); acc.hidden=false;
+  $("accHaut").hidden=false; $("accRevenir").hidden=!PLAN; $("accChantier").hidden=!r;
+  try{ peindrePlansSite(); }catch(e){}
+}
+$("lienMenuPlan").addEventListener("click", function(e){ e.preventDefault(); menuPlan(); });
+$("lienChantier").addEventListener("click", function(e){ e.preventDefault(); quitterPlan(this.href); });
+$("accRevenir").addEventListener("click", function(){ $("accueil").hidden=true; $("accueil").classList.remove("dessus"); });
+$("accChantier").addEventListener("click", function(){ var r=refChantierPlan(); if(r) quitterPlan("./chantier.html?ref="+encodeURIComponent(r)+"#plans"); });
+$("accQuitter").addEventListener("click", function(){ var r=refChantierPlan(); quitterPlan(r ? "./chantier.html?ref="+encodeURIComponent(r)+"#plans" : "./index.html"); });
 function majNomPlan(){
+  majLienChantier();
   var t=$("titre"); if(!t || !t.firstChild) return;
   t.firstChild.nodeValue = PLAN ? ((PLAN_SITE ? PLAN_SITE.nom : nomDeBase())+(SALE_PLAN ? " •" : "")) : "Plan";
   t.title = !PLAN ? "" : PLAN_SITE ? (SALE_PLAN ? "Modifié depuis le dernier enregistrement" : "Enregistré sur le site")+(PLAN_SITE.chantier ? " · déposé dans le chantier "+PLAN_SITE.chantier.ref : "") : "Pas encore enregistré sur le site";
