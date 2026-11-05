@@ -124,9 +124,12 @@
     var ti=el("div","dc-t"); var tb=el("b","","Document"); var ts=el("span","","Choisissez un document"); ti.appendChild(tb); ti.appendChild(ts);
     var bM=el("button","dc-b rond","−"); bM.type="button"; bM.setAttribute("aria-label","Dézoomer");
     var bP=el("button","dc-b rond","+"); bP.type="button"; bP.setAttribute("aria-label","Zoomer");
-    var bC=el("button","dc-b","Changer"); bC.type="button";
+    /* « Changer » devient la flèche retour : elle ramène à la liste des documents */
+    var bC=el("button","dc-b rond"); bC.type="button"; bC.setAttribute("aria-label","Revenir à la liste des documents"); bC.title="Revenir à la liste des documents";
+    bC.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>';
     var bX=el("button","dc-b rond","×"); bX.type="button"; bX.setAttribute("aria-label","Fermer le document"); bX.style.fontSize="20px";
-    [bR, ti, bM, bP, bC, bX].forEach(function(x){ t.appendChild(x); });
+    /* plus de − et + : le zoom se fait en pinçant (les boutons restent hors de la barre) */
+    [bR, ti, bC, bX].forEach(function(x){ t.appendChild(x); });
     var c=el("div","dc-corps");
     p.appendChild(t); p.appendChild(c);
     document.body.appendChild(o); document.body.appendChild(p);

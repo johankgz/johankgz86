@@ -671,12 +671,12 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <section id="tab-rapport" hidden>
   <div class="block" id="sec-enregistrer">
     <h2>Enregistrer</h2>
-    <p class="hint" id="pubIntro" style="margin:-8px 0 4px">Le reportage s'enregistre dans le dossier du chantier, et ses photos et croquis aussi (Photos du chantier).</p>
+    <p class="hint" id="pubIntro" style="margin:-8px 0 4px">Les photos et les croquis s'enregistrent dans le dossier du chantier, rubrique Photos : les photos seules, sans PDF.</p>
     <p class="hint" id="pubDossierQui" style="margin:0 0 14px"></p>
-    <button class="act blue" id="btnPublier" style="width:100%">Enregistrer le reportage</button>
+    <button class="act blue" id="btnPublier" style="width:100%">Enregistrer les photos</button>
     <p class="hint" id="pubEtat"></p>
-    <div class="row" style="margin-top:14px"><button class="act ghost" id="btnPdf">Générer le reportage</button></div>
-    <p class="hint" id="pdfInfo"></p>
+    <div class="row" style="margin-top:14px" hidden><button class="act ghost" id="btnPdf">Générer le reportage</button></div>
+    <p class="hint" id="pdfInfo" hidden></p>
   </div>
 </section>
 
@@ -1325,12 +1325,20 @@ function pdfLeger(fini){
   }
   essai();
 }
+/* Plus de PDF « Photo et croquis » : les photos (et les croquis, en images) partent seules,
+   dans la rubrique Photos du chantier, où la galerie les montre toutes. */
 function publierRapport(meta){
   if(!apiPret()) return;
-  if(!refAffaire()){ toast("Indiquez le client ou la référence des travaux : le reportage s'enregistre dans son dossier."); showTab("dossier"); return; }
-  pdfLeger(function(doc, b64){
-    if(!doc){ $("pubEtat").textContent=""; return; }
-    publierRapportPdf(meta, b64);
+  if(!refAffaire()){ toast("Indiquez le client ou la référence des travaux : les photos s'enregistrent dans son dossier."); showTab("dossier"); return; }
+  var el=$("pubEtat");
+  el.textContent="Dépôt des photos…";
+  deposerPhotos(function(ok, n, erreur){
+    if(!ok){ el.textContent="Photos non déposées : "+erreur+" Réessayez quand le réseau revient."; return; }
+    effacerMarques();
+    toast(n+" photo"+(n>1?"s":"")+" enregistrée"+(n>1?"s":"")+".");
+    reinitialiserFormulaire("Photos enregistrées dans le dossier. Formulaire vidé pour de nouvelles photos.");
+    el.textContent=n+" photo"+(n>1?"s":"")+" enregistrée"+(n>1?"s":"")+" dans le dossier.  ·  Formulaire vidé pour de nouvelles photos.";
+    if(window.RetourAccueil) RetourAccueil("Photos enregistrées dans le dossier.");
   });
 }
 function publierRapportPdf(meta, b64){

@@ -1140,6 +1140,22 @@ body.avec-rub main{padding-bottom:calc(84px + env(safe-area-inset-bottom,0px))}
 #docs.rg-sans-lots{display:none}
 @media (max-width:600px){ .rub-galerie .rg-grille{grid-template-columns:repeat(3,1fr);gap:2px} .rub-galerie .rg-ph{border-radius:2px} .rub-galerie.block{padding-left:6px;padding-right:6px} }
 .rub-galerie .rg-aide{margin:0 0 10px}
+/* choisir des photos pour les imprimer : une coche sur chacune, la barre en bas */
+.rg-tete .rg-btns{display:flex;gap:8px;flex-wrap:wrap}
+.rg-lots.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
+.rg-ph{position:relative}
+.rub-galerie.rg-choix .rg-ph::after{content:"";position:absolute;top:6px;right:6px;width:22px;height:22px;border-radius:50%;
+  border:2px solid #fff;background:rgba(0,0,0,.28);box-shadow:0 1px 4px rgba(0,0,0,.4)}
+.rub-galerie.rg-choix .rg-ph.coche::after{background:#3B82F6 url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Cpath d="M6 12.5l4 4 8-9" fill="none" stroke="%23fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/%3E%3C/svg%3E') center/16px no-repeat}
+.rub-galerie.rg-choix .rg-ph.coche img{outline:3px solid #3B82F6;outline-offset:-3px;opacity:.85}
+.rg-barre{position:sticky;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:5;display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;
+  margin:14px 0 0;padding:10px 12px;border-radius:14px;background:#111827;color:#fff;box-shadow:0 12px 30px -10px rgba(0,0,0,.6)}
+.rg-barre b{flex:1 1 auto;font-size:14px}
+body.rg-choisit #rubBas{display:none}
+.rg-barre select{min-height:38px;border-radius:10px;border:0;padding:0 8px;font:inherit;font-size:13.5px}
+.rg-barre button{min-height:38px;padding:0 14px;border-radius:10px;border:0;font:inherit;font-size:13.5px;font-weight:700;cursor:pointer;background:rgba(255,255,255,.14);color:#fff}
+.rg-barre button.imp{background:#3B82F6}
+.rg-barre button:disabled{opacity:.45;cursor:default}
 .rg-lot{margin:0 0 14px}
 .rg-lot h3{margin:0 0 6px;font-size:13.5px;font-weight:700;color:var(--ink-2)}
 .rg-lot h3 small{font-weight:500;color:var(--ink-3);margin-left:6px}
@@ -1327,7 +1343,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 </main>
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261024b"></script>
-<script src="./doc-cote.js?v=20261030a"></script>
+<script src="./doc-cote.js?v=20261105a"></script>
 <script src="./dossier.js?v=20261106d"></script>
 <script src="./transfert.js?v=20261106a"></script>
 <script src="./qr.js?v=20261024b"></script>
@@ -2865,8 +2881,9 @@ function peindreGalerie(){
   var voir = rubCourante()[0]==="photos" && !!CHANTIER && !!(window.Dossier && Dossier.photosDe);
   var lots = voir ? photosDuChantier() : [];
   bloc.hidden = !lots.length;
-  /* l'album à la place de la liste des lots ; « Les lots de photos » la remet */
-  var docs=$("docs"); if(docs) docs.classList.toggle("rg-sans-lots", !!lots.length && !ALBUM_LOTS);
+  /* la rubrique Photos ne montre que la galerie : ni les lots, ni les PDF « Photo et croquis » */
+  var docs=$("docs"); if(docs) docs.classList.toggle("rg-sans-lots", voir);
+  if(voir){ var vd=$("rubVide"); vd.hidden=!!lots.length; if(!lots.length) vd.textContent="Aucune photo pour l'instant."; }
   if(!lots.length) return;
   var cle=lots.map(function(f){ return f.cle+"|"+(f.publie||""); }).join(",");
   if(GALERIE.cle===cle) return;                     /* déjà là */
@@ -2892,10 +2909,40 @@ function peindreGalerie(){
     if(!toutes.length){ var v=document.createElement("p"); v.className="rg-attente"; v.textContent="Aucune photo lisible dans les lots."; hote.appendChild(v); return; }
     var tete=document.createElement("div"); tete.className="rg-tete";
     var nb=document.createElement("b"); nb.textContent=toutes.length+" photo"+(toutes.length>1?"s":""); tete.appendChild(nb);
-    var bl=document.createElement("button"); bl.type="button"; bl.className="rg-lots"; bl.textContent=ALBUM_LOTS ? "Cacher les lots de photos" : "Les lots de photos";
-    bl.title="La liste des lots (les documents du dossier), pour les renommer, les déplacer ou les supprimer";
-    bl.addEventListener("click", function(){ ALBUM_LOTS=!ALBUM_LOTS; bl.textContent=ALBUM_LOTS ? "Cacher les lots de photos" : "Les lots de photos"; if(docs) docs.classList.toggle("rg-sans-lots", !ALBUM_LOTS); });
-    tete.appendChild(bl); hote.appendChild(tete);
+    var btns=document.createElement("span"); btns.className="rg-btns";
+    var bs=document.createElement("button"); bs.type="button"; bs.className="rg-lots"; bs.textContent="Sélectionner";
+    bs.title="Choisir des photos pour les mettre dans un PDF et les imprimer d'un coup";
+    btns.appendChild(bs); tete.appendChild(btns); hote.appendChild(tete);
+    /* le choix des photos à imprimer */
+    var CHOIX=null, barre=null;
+    function majBarre(){
+      if(!barre) return;
+      var n=CHOIX ? CHOIX.size : 0;
+      barre.querySelector("b").textContent = n ? n+" photo"+(n>1?"s":"")+" choisie"+(n>1?"s":"") : "Touchez les photos à imprimer";
+      barre.querySelector(".imp").disabled=!n;
+      barre.querySelector(".tout").textContent = n===toutes.length ? "Aucune" : "Toutes";
+    }
+    function choisir(on){
+      CHOIX = on ? new Set() : null;
+      bloc.classList.toggle("rg-choix", on); bs.classList.toggle("on", on); document.body.classList.toggle("rg-choisit", on); bs.textContent = on ? "Annuler" : "Sélectionner";
+      [].forEach.call(hote.querySelectorAll(".rg-ph.coche"), function(e){ e.classList.remove("coche"); });
+      if(barre){ barre.remove(); barre=null; }
+      if(!on) return;
+      barre=document.createElement("div"); barre.className="rg-barre";
+      barre.innerHTML='<b></b><select aria-label="Photos par page"><option value="1">1 par page</option><option value="2" selected>2 par page</option><option value="4">4 par page</option><option value="6">6 par page</option></select>'
+        +'<button type="button" class="tout">Toutes</button><button type="button" class="imp">Imprimer (PDF)</button>';
+      barre.querySelector(".tout").addEventListener("click", function(){
+        var tout = CHOIX.size!==toutes.length;
+        CHOIX=new Set(); [].forEach.call(hote.querySelectorAll(".rg-ph"), function(e, k){ e.classList.toggle("coche", tout); if(tout) CHOIX.add(k); });
+        majBarre();
+      });
+      barre.querySelector(".imp").addEventListener("click", function(){
+        var choisies=Array.from(CHOIX).sort(function(a,b){ return a-b; }).map(function(k){ return {photo:photos[k], x:toutes[k]}; });
+        imprimerPhotos(choisies, parseInt(barre.querySelector("select").value,10)||2, barre.querySelector(".imp"));
+      });
+      hote.appendChild(barre); majBarre();
+    }
+    bs.addEventListener("click", function(){ choisir(!CHOIX); });
     var urls=[], photos=[], jour=null, grille=null;
     toutes.forEach(function(x, i){
       var url=URL.createObjectURL(x.p.blob); GALERIE.urls.push(url); urls.push(url);
@@ -2910,7 +2957,10 @@ function peindreGalerie(){
       var lib=(x.f.titre||"Photos")+(x.n>1 ? " · "+(x.k+1)+"/"+x.n : "");
       t.title=lib+" — cliquez pour l'ouvrir"; t.setAttribute("aria-label", "Photo "+(i+1)+" : "+lib);
       var im=document.createElement("img"); im.alt=""; im.loading="lazy"; im.decoding="async"; im.src=url; im.draggable=false; t.appendChild(im);
-      t.addEventListener("click", function(){ ouvrirAlbum(i); });
+      t.addEventListener("click", function(){
+        if(CHOIX){ if(CHOIX.has(i)) CHOIX.delete(i); else CHOIX.add(i); t.classList.toggle("coche", CHOIX.has(i)); majBarre(); return; }
+        ouvrirAlbum(i);
+      });
       grille.appendChild(t);
     });
     GALERIE.photos=photos;
@@ -2921,6 +2971,74 @@ function peindreGalerie(){
       });
     }
   });
+}
+/* Les photos choisies dans un PDF A4 (1, 2, 4 ou 6 par page), avec le chantier en tête et la date
+   sous chaque photo, ouvert tout de suite pour l'imprimer. Les photos sont allégées (2000 px au plus)
+   pour que le PDF reste léger. */
+function chargerJsPdf(){
+  if(window.jspdf) return Promise.resolve();
+  return new Promise(function(ok, ko){
+    var sc=document.createElement("script"); sc.src="./vendor/jspdf-2.5.1/jspdf.umd.min.js";
+    sc.onload=function(){ ok(); }; sc.onerror=function(){ ko(); }; document.head.appendChild(sc);
+  });
+}
+function photoAllegee(blob){
+  return new Promise(function(ok, ko){
+    var u=URL.createObjectURL(blob), im=new Image();
+    im.onload=function(){
+      var m=2000, k=Math.min(1, m/Math.max(im.naturalWidth, im.naturalHeight)), w=Math.round(im.naturalWidth*k), h=Math.round(im.naturalHeight*k);
+      var cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      var g=cv.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,w,h); g.drawImage(im, 0, 0, w, h);
+      URL.revokeObjectURL(u); ok({data:cv.toDataURL("image/jpeg", .86), w:w, h:h});
+    };
+    im.onerror=function(){ URL.revokeObjectURL(u); ko(); };
+    im.src=u;
+  });
+}
+function imprimerPhotos(choisies, parPage, bouton){
+  if(!choisies.length) return;
+  /* la fenêtre s'ouvre tout de suite (sinon le navigateur la bloque), le PDF y arrive ensuite */
+  var fen=null; try{ fen=window.open("", "_blank"); if(fen) fen.document.write('<p style="font:16px system-ui;padding:20px">Préparation du PDF…</p>'); }catch(e){ fen=null; }
+  var lib=bouton.textContent; bouton.disabled=true; bouton.textContent="PDF…";
+  function fin(){ bouton.disabled=false; bouton.textContent=lib; }
+  chargerJsPdf().then(function(){
+    var lues=[], i=0;
+    function suite(){
+      if(i>=choisies.length) return Promise.resolve();
+      var c=choisies[i++];
+      bouton.textContent="PDF "+i+"/"+choisies.length;
+      return photoAllegee(c.photo.blob).then(function(r){ lues.push({r:r, x:c.x}); }, function(){}).then(suite);
+    }
+    return suite().then(function(){
+      var doc=new window.jspdf.jsPDF({unit:"mm", format:"a4"}), PW=210, PH=297, M=10, tete=12, legende=5;
+      var cols = parPage>=4 ? 2 : 1, rangs = Math.ceil(parPage/cols);
+      var cw=(PW-2*M-(cols-1)*6)/cols, chH=(PH-2*M-tete-(rangs-1)*6)/rangs;
+      var titre=CHANTIER ? (CHANTIER.client||CHANTIER.ref)+" — "+CHANTIER.ref : "Photos du chantier";
+      lues.forEach(function(l, k){
+        var place=k%parPage;
+        if(k && !place) doc.addPage();
+        if(!place){
+          doc.setFont("helvetica","bold"); doc.setFontSize(11); doc.setTextColor(20,24,30);
+          doc.text(titre, M, M+5);
+          doc.setFont("helvetica","normal"); doc.setFontSize(8.5); doc.setTextColor(110,116,126);
+          doc.text("Photos "+(k+1)+" à "+Math.min(lues.length, k+parPage)+" sur "+lues.length, PW-M, M+5, {align:"right"});
+        }
+        var c=place%cols, r=Math.floor(place/cols), x0=M+c*(cw+6), y0=M+tete+r*(chH+6), hMax=chH-legende;
+        var e=Math.min(cw/l.r.w, hMax/l.r.h), w=l.r.w*e, h=l.r.h*e;
+        try{ doc.addImage(l.r.data, "JPEG", x0+(cw-w)/2, y0+(hMax-h)/2, w, h); }catch(err){}
+        var d=new Date(l.x.f.publie||l.x.f.date||0), quand=isNaN(d) ? "" : d.toLocaleDateString("fr-FR");
+        doc.setFont("helvetica","normal"); doc.setFontSize(8); doc.setTextColor(90,96,106);
+        var sous=[(l.x.f.titre||"").replace(/\s*·\s*partie.*$/,""), quand].filter(Boolean).join(" · ");
+        doc.text(doc.splitTextToSize(sous, cw)[0]||"", x0+cw/2, y0+hMax+3.6, {align:"center"});
+      });
+      var blob=doc.output("blob"), url=URL.createObjectURL(blob);
+      var nom="Photos-"+String(CHANTIER ? CHANTIER.ref : "chantier").replace(/[^\w-]+/g,"_")+".pdf";
+      if(fen && !fen.closed){ fen.location.href=url; }
+      else { var a=document.createElement("a"); a.href=url; a.download=nom; document.body.appendChild(a); a.click(); a.remove(); }
+      setTimeout(function(){ URL.revokeObjectURL(url); }, 120000);
+      fin();
+    });
+  }).catch(function(){ fin(); if(fen) try{ fen.close(); }catch(e){} alert("Le PDF n'a pas pu être préparé (connexion ?). Réessayez."); });
 }
 (function(){
   $("rubBtn").addEventListener("click", function(){ ouvrirTiroir(!document.body.classList.contains("rub-ouvert")); });
