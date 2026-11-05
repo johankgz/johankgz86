@@ -1420,6 +1420,8 @@ function publierRapport(meta){
   .then(function(res){
     if(!res.ok){ el.textContent = res.d.erreur || "Enregistrement refusé."; return; }
     effacerMarques();
+    /* la photo du tableau ouvert part aussi dans la galerie Photos du chantier */
+    try{ photoTableauVersGalerie(meta); }catch(e){}
     el.textContent = res.d.remplace ? "Fiche enregistrée dans le dossier, à la place de la version précédente."
                                     : "Fiche enregistrée dans le dossier, disponible pour son équipe.";
     deposerFiche(res.d.cle, el);
@@ -1429,6 +1431,35 @@ function publierRapport(meta){
     if(window.RetourAccueil) RetourAccueil("Autocontrôle enregistré dans le dossier.");
   })
   .catch(function(){ el.textContent="Pas de réseau. Réessayez une fois connecté."; });
+}
+/* ---------- la photo du tableau, rangée aussi dans la galerie du chantier ----------
+   Un lot de photos (un ZIP d'une seule photo, comme Photo et croquis), propre à cette fiche :
+   la republier remplace sa photo au lieu d'en ajouter une autre. */
+var GZ_CRC=(function(){ var t=new Uint32Array(256); for(var n=0;n<256;n++){ var c=n; for(var k=0;k<8;k++) c = c&1 ? 0xEDB88320^(c>>>1) : c>>>1; t[n]=c>>>0; } return t; })();
+function gzCrc(b){ var c=0xFFFFFFFF; for(var i=0;i<b.length;i++) c=GZ_CRC[(c^b[i])&0xFF]^(c>>>8); return (c^0xFFFFFFFF)>>>0; }
+function gzZip(nom, data){
+  var enc=new TextEncoder(), n=enc.encode(nom), crc=gzCrc(data);
+  function u32(x){ return new Uint8Array([x&255,(x>>>8)&255,(x>>>16)&255,(x>>>24)&255]); }
+  function u16(x){ return new Uint8Array([x&255,(x>>>8)&255]); }
+  var loc=[u32(0x04034b50),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(n.length),u16(0),n,data];
+  var cen=[u32(0x02014b50),u16(20),u16(20),u16(0x0800),u16(0),u16(0),u16(0),u32(crc),u32(data.length),u32(data.length),u16(n.length),u16(0),u16(0),u16(0),u16(0),u32(0),u32(0),n];
+  var fin=[u32(0x06054b50),u16(0),u16(0),u16(1),u16(1),u32(46+n.length),u32(30+n.length+data.length),u16(0)];
+  return new Blob(loc.concat(cen, fin), {type:"application/zip"});
+}
+function photoTableauVersGalerie(meta){
+  var t=S.tableau; if(!t || !t.photo || !apiPret(true)) return;
+  if(!S.idPhotoTableau){ S.idPhotoTableau="autoc"+Date.now().toString(36)+Math.random().toString(36).slice(2,5); }
+  var idLot=S.idPhotoTableau;          /* gardé ici : la fiche est vidée juste après */
+  var bin=atob(String(t.photo).split(",")[1]||""), oct=new Uint8Array(bin.length);
+  for(var i=0;i<bin.length;i++) oct[i]=bin.charCodeAt(i);
+  var client=String(meta.client||meta.chantier||"chantier").normalize("NFD").replace(/[\u0300-\u036f]/g,"").replace(/[^A-Za-z0-9 _-]+/g,"").trim().replace(/\s+/g,"-").slice(0,40)||"chantier";
+  var fr=new FileReader();
+  fr.onload=function(){
+    fetch(apiUrl("publier"), {method:"POST", headers:apiEnTetes(), body:JSON.stringify({pdf:String(fr.result).split(",")[1], type:"photos", origine:"autocontrole",
+      chantier:meta.chantier, client:meta.client, adresse:meta.adresse, date:meta.date, destinataires:[], dossier:true,
+      suiviId:idLot, titre:"Photo du tableau (autocontrôle)"})}).catch(function(){});
+  };
+  fr.readAsDataURL(gzZip(client+"-tableau/01-tableau-ouvert.jpg", oct));
 }
 function deposerFiche(cle, el){
   var donnees;

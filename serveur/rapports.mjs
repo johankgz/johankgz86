@@ -2402,7 +2402,8 @@ async function traiter(req) {
     const note = d.type === "note";
 
     /* l'appli doit être attribuée au compte : refus côté serveur, pas seulement à l'écran */
-    const appliVisee = APPLI_DU_TYPE[d.type] || "";
+    /* la photo du tableau, envoyée par l'autocontrôle dans la galerie : c'est l'appli Autocontrôle qui compte */
+    const appliVisee = (d.type === "photos" && d.origine === "autocontrole") ? "autocontrole" : (APPLI_DU_TYPE[d.type] || "");
     if (appliVisee && !aAcces(personne, appliVisee)) {
       return json({ erreur: "Cette appli ne vous est pas attribuée. Voyez avec votre administrateur." }, 403);
     }
