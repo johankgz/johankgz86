@@ -13,7 +13,7 @@
 (function(){
 "use strict";
 if(window.__navigation) return;
-var EMBLEME='<path d="M60 32 46.5 55.4h-29L4 32 17.5 8.6h29z" fill="#2563EB" stroke="#2563EB" stroke-width="5" stroke-linejoin="round"/> <path d="M4 32 17.5 8.6h29L60 32z" fill="#3B82F6"/> <path d="M4 32 17.5 8.6h29L60 32" fill="none" stroke="#3B82F6" stroke-width="5" stroke-linejoin="round"/> <circle cx="32" cy="32" r="16" fill="#0B1220"/> <path d="M42.9 25.6A11.8 11.8 0 1 0 43.6 36" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round"/> <path d="M38.6 24.4l5.2 1.9 1.1-5.4" fill="none" stroke="#22D3EE" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round"/> <path d="M34.2 21.6 25.8 34.2h5.9l-2.6 9.2 9.6-13.6h-6z" fill="#A3E635"/>';
+var EMBLEME='<g transform="translate(2 2)"><path d="M79.7 20.3 A42 42 0 1 1 42.71 8.64" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round"/><path d="M42.2 3.3 L50.9 7.9 L44.4 14.4 Z" fill="#38BDF8"/><g fill="none" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path transform="translate(31.4 31.4) scale(0.36)" d="M10 38 V10 L38 38 Z M16 32 V24 L24 32 Z"/><path transform="translate(51.2 31.4) scale(0.36)" d="M12 15 H36 A4 4 0 0 1 40 19 V33 A4 4 0 0 1 36 37 H12 A4 4 0 0 1 8 33 V19 A4 4 0 0 1 12 15 Z M18 15 L20 10 H28 L30 15 M30 26 A6 6 0 1 1 18 26 A6 6 0 1 1 30 26 Z"/><path transform="translate(31.4 51.2) scale(0.36)" d="M8 11 H14 V17 H8 Z M19 14 H40 M8 21 H14 V27 H8 Z M19 24 H40 M8 31 H14 V37 H8 Z M19 34 H33"/><path transform="translate(51.2 51.2) scale(0.36)" d="M14 9 H34 A3 3 0 0 1 37 12 V38 A3 3 0 0 1 34 41 H14 A3 3 0 0 1 11 38 V12 A3 3 0 0 1 14 9 Z M19 6 H29 V12 H19 Z M17 27 L22 32 L31 21"/></g></g>';
 window.__navigation=true;
 
 var API="/api/rapports";
@@ -168,8 +168,8 @@ function construire(){
   TIROIR=el("nav", "nv-tiroir"); TIROIR.id="nvTiroir"; TIROIR.hidden=true;
   TIROIR.setAttribute("aria-label", "Menu");
   var tete=el("div", "nv-tete");
-  /* l'emblème du site (logo-embleme.svg) : l'écrou, la flèche du 360°, l'éclair */
-  var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 64 64" aria-hidden="true">'+EMBLEME+'</svg>';
+  /* le symbole du site : la flèche du 360° autour des quatre pictos (relevé, photo, liste, contrôle) */
+  var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 104 104" aria-hidden="true">'+EMBLEME+'</svg>';
   var x=el("button", "nv-x"); x.type="button"; x.setAttribute("aria-label", "Fermer le menu"); x.innerHTML=svg(ICO.x);
   tete.appendChild(logo); tete.appendChild(el("b", "", "Suivi travaux 360")); tete.appendChild(x);
   TIROIR.appendChild(tete);
