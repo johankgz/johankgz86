@@ -5248,7 +5248,7 @@ function majDessin(){
       : T==="ellipse" ? (nb ? "Touchez un coin de l'ellipse, ou tapez L × H." : "Touchez le centre.")
       : T==="arc" ? ["Touchez le début de l'arc.", "Touchez la fin de l'arc.", "Touchez un point de la courbe : il fixe l'arrondi."][nb]
       : T==="triangle" ? ["Touchez le premier sommet.", "Touchez le deuxième sommet.", "Touchez le troisième sommet."][nb]
-      : T==="cote" ? ["Touchez le début de la mesure.", "Touchez la fin de la mesure (ou tapez sa longueur).", "Touchez où placer la ligne de cote."][nb]
+      : T==="cote" ? ["Touchez le début de la mesure.", "Touchez la fin de la mesure (ou tapez sa longueur) : la cote se pose ; sa poignée du milieu la décale."][Math.min(nb, 1)]
       : (T==="poly" || T==="hachure") ? (nb ? "Point suivant (ou tapez une longueur). Le premier point ferme, le dernier termine." : "Touchez le premier point.")
       : T==="spline" ? (nb ? "Point suivant : la courbe passe par chaque point. Le premier point la ferme, le dernier termine." : "Touchez le premier point, ou glissez pour tracer à main levée.")
       : (nb ? "Touchez la fin, ou tapez sa longueur." : "Touchez le début.");
@@ -6447,7 +6447,10 @@ function toucherGeo(cible, p){
     return;
   }
   if(t==="cote"){
-    if(ec.pts.length===1){ if(meme) return; ec.pts.push(q); D_PT=q; majDessin(); return; }
+    /* deux touchers, et la cote est posée : sa ligne se met à côté de la mesure (sa poignée du milieu la décale ensuite) */
+    if(ec.pts.length===1){ if(meme) return;
+      var ePc = DESSIN && DESSIN.ech>0 ? DESSIN.ech/DESSIN_MM : 0, hC=ePc ? 2.5*ePc : tailleDefaut(12);
+      creerGeo({t:"cote", pts:[ec.pts[0], q], off:hC*3}); return; }
     var a=ec.pts[0], b=ec.pts[1], u=unite(sub(b,a)), n=[-u[1], u[0]];
     creerGeo({t:"cote", pts:[a, b], off:(p[0]-a[0])*n[0]+(p[1]-a[1])*n[1]}); return;
   }
@@ -12957,7 +12960,7 @@ function actionR(k){
     case "elevation": ouvrirElevation(); break;
     case "laser": connecterLaser(); break;
     case "photo": armerPhoto(); break;
-    case "chaine": COTE_CHAINE=!COTE_CHAINE; CHAINE_EC=null; if(COTE_CHAINE) choisirOutilR("cote"); majRuban(); toast(COTE_CHAINE ? "Cotes en chaîne : faites la première cote (2 points, puis le décalage), puis touchez les points suivants." : "Cotes en chaîne arrêtées.", 4500); break;
+    case "chaine": COTE_CHAINE=!COTE_CHAINE; CHAINE_EC=null; if(COTE_CHAINE) choisirOutilR("cote"); majRuban(); toast(COTE_CHAINE ? "Cotes en chaîne : touchez le début et la fin de la première cote, puis les points suivants." : "Cotes en chaîne arrêtées.", 4500); break;
     case "cotepiece": if(MODE!=="dessin") basculerMode("dessin"); if(OUTIL_D!=="choisir") choisirOutilR("choisir"); PIECE_COTE=true; majRuban(); toast("Touchez à l'intérieur de la pièce à coter.", 3000); break;
     case "blocs": $("fenBlocs").hidden=!$("fenBlocs").hidden; if($("fenBlocs").hidden) BLOC_EC=null; majFenBlocs(); break;
     case "miroir": miroirSel(false); break;
