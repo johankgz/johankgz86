@@ -136,6 +136,8 @@ button,select{font:inherit}
 .calques li.cq button.oeil svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .calques li.cq.cache{color:var(--ink3)}
 .calques li.cq.cache button.oeil{color:var(--ink3);border-style:dashed}
+.calques li.cq button.oeil.verrou{color:var(--ink3);border-color:transparent}
+.calques li.cq button.oeil.verrou.on{color:#F59E0B;border-color:rgba(245,158,11,.5)}
 .calques li.cq span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .calques li.cq small{color:var(--ink3);font-variant-numeric:tabular-nums}
 .calques li.cq i{flex:0 0 auto;width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.3)}
@@ -566,6 +568,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   <button class="bt rb-rapide" id="btEnreg" type="button" disabled title="Enregistrer le plan sur le site (Ctrl+S)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h12.5L20 7.5V20H4z"/><path d="M8 4v5h7V4M7.5 20v-6.5h9V20"/></svg><span class="lib">Enregistrer</span></button>
   <button class="bt rb-rapide" id="btOuvrir" type="button"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 6.5h6l2 2.2h9v10.3H3.5z"/></svg><span class="lib">Ouvrir</span></button>
   <button class="bt rb-rapide" id="btAnnulerR" type="button" disabled aria-label="Annuler" title="Annuler (Ctrl+Z)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 7 4.5 11.5 9 16"/><path d="M4.5 11.5H15a5 5 0 0 1 0 10h-2"/></svg></button>
+  <button class="bt rb-rapide" id="btRetablirR" type="button" disabled aria-label="Rétablir" title="Rétablir (Ctrl+Y)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 7l4.5 4.5L15 16"/><path d="M19.5 11.5H9a5 5 0 0 0 0 10h2"/></svg></button>
   <div class="titre" id="titre">Plan<small id="sousTitre">Ouvrir un plan ou partir d'une page vierge</small></div>
   <button class="bt rb-rapide" id="btReplier" type="button" aria-expanded="true" aria-controls="rbPanneau" title="Replier ou déplier le ruban"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6"/></svg></button>
   <span class="anciens" hidden>
@@ -2312,6 +2315,7 @@ cv.addEventListener("pointerdown", function(e){
     /* une ligne de construction à poser : le toucher ne prend rien, un glissé déplace le plan */
     if(GUIDE) return;
     /* un élément d'un groupe : tout le groupe se choisit, et se glisse du même geste */
+    if(AJ_MODE || DECAL_EC) return;     /* Ajuster, Prolonger, le côté d'un décalage : le toucher agit, rien ne se prend ni ne glisse */
     if((OUTIL_D==="choisir" || OUTIL_D==="selection") && !REF && vueD()==="dessus" && FAM_D!=="pv"){
       var gi=grpIdSous(p);
       if(gi){ var gg0=grpDuGroupe(gi); if(grpTaille(gg0)){ GRP=gg0; D_SEL=null; SEL=-1; if(LIEN_SEL) LIEN_SEL=null; OUTIL_D="selection"; G.grp=true; G.grpD=[0,0]; G.grpFixe=true; majDessin(); majBarreSel(); demander(); return; } }
@@ -2333,7 +2337,7 @@ cv.addEventListener("pointerdown", function(e){
     if(OUTIL_D==="choisir" && !REF){
       var gsel = D_SEL && D_SEL.t==="geo" ? geoDe(D_SEL.id) : null, hp = gsel && vueDe(gsel)===vueD() ? poigneeSous(gsel, p[0], p[1]) : null;
       if(hp){ G.geoH={id:gsel.id, h:hp}; return; }
-      var pv=versPlan(p[0], p[1]), gs=geoSous(pv), autre=false;
+      var pv=versPlan(p[0], p[1]), gs=geoSous(pv), autre=false; if(gs && verrouille("geo", gs)) gs=null;
       if(!gs && !mobSousV2(pv)){ gs=geoAutreSous(pv); autre=!!gs; }
       if(gs){ G.geo=gs.id; G.base=JSON.parse(JSON.stringify(gs.pts)); G.autre=autre; G.z0=gs.z3||0; return; }
     }
@@ -2343,7 +2347,7 @@ cv.addEventListener("pointerdown", function(e){
       if(cb){ G.pvd = po ? {t:"pvo", id:po.id} : {t:"pvp", id:pn.id}; G.base=[cb.x, cb.y]; return; }
     }
     if((OUTIL_D==="choisir" || OUTIL_D==="objet") && !REF){
-      var pp=versPlan(p[0], p[1]), sm = vueD()==="dessus" ? mobSous(pp) : mobSousV(pp);
+      var pp=versPlan(p[0], p[1]), sm = vueD()==="dessus" ? mobSous(pp) : mobSousV(pp); if(sm && verrouille("mob", sm)) sm=null;
       if(sm){ G.mob=sm.id; G.base=[sm.x, sm.y, sm.z||0]; return; }
     }
     if(traceGlisse(e)){ var c0=chercherD(p[0], p[1]); G.trace={pt:c0.pt, acc:c0.acc, genre:c0.genre, ecran:p}; }
@@ -2718,7 +2722,9 @@ document.addEventListener("keydown", function(e){
   if(mesureChoisie() && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerMesure(); return; }
   if(e.key==="Escape" && LIEN_SEL){ choisirLien(null); }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
+  if(e.key==="Escape" && (AJ_MODE || DECAL_EC)){ AJ_MODE=null; DECAL_EC=null; majRuban(); toast("Terminé.", 1200); return; }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } if(PV_EC){ PV_EC=null; majDessin(); } }
+  if(((e.key==="z"||e.key==="Z") && e.shiftKey || e.key==="y" || e.key==="Y") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); retablirR(); return; }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
   if(MODE==="dessin" && D_SEL && (e.key==="Delete" || e.key==="Backspace") && !/INPUT|SELECT|TEXTAREA/.test((document.activeElement||{}).tagName||"")){ e.preventDefault(); supprimerD(); }
   if(MODE==="symb" && SEL>=0 && document.activeElement!==$("symbRep")){
@@ -2821,7 +2827,7 @@ function symboleSous(p){
   var best=-1, bd=Infinity;
   var vue=vueD();
   SYMB.forEach(function(o, i){
-    if(!symbVu(o)) return;
+    if(!symbVu(o) || verrouille("symb", o)) return;
     var s = vue==="dessus" ? [o.x, o.y] : ptSymbV(o, vue), q=versEcran(s[0], s[1]), d=Math.hypot(q[0]-p[0], q[1]-p[1]), lim=Math.max(20, o.r*V.k*1.5);
     if(longueurS(o)){
       /* une réglette se touche sur toute sa longueur */
@@ -2833,7 +2839,8 @@ function symboleSous(p){
   });
   return best;
 }
-function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); }
+var REDO_D=[], REDO_S=[];
+function garderSymb(){ HISTO_S.push(JSON.stringify(SYMB)); if(HISTO_S.length>80) HISTO_S.shift(); REDO_S=[]; }
 /* ---------- les liaisons : l'interrupteur et ses points lumineux, les prises d'un même circuit ----------
    Une liaison va d'un symbole à un autre (o.lien : les id des symboles reliés), tracée en arc
    tireté comme sur un plan d'électricien. « Relier » : le symbole choisi est le départ, chaque
@@ -3205,7 +3212,17 @@ function poserSymbole(pt){
 }
 function tournerSymb(){ if(SEL<0) return; garderSymb(); SYMB[SEL].rot=((SYMB[SEL].rot||0)+90)%360; if(SYMB[SEL].rpre!=null) SYMB[SEL].rpre=(SYMB[SEL].rpre+90)%360; enregistrerSymb(); majSymb(); demander(); }
 function supprimerSymb(){ if(SEL<0) return; garderSymb(); var parti=SYMB.splice(SEL,1)[0]; if(parti && parti.id) SYMB.forEach(function(o){ delier(o, parti.id); }); SEL=-1; RELIER=false; enregistrerSymb(); majSymb(); demander(); }
-function defaireSymb(){ if(!HISTO_S.length) return; SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function defaireSymb(){ if(!HISTO_S.length) return; REDO_S.push(JSON.stringify(SYMB)); SYMB=JSON.parse(HISTO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+/* Rétablir : refaire ce qu'Annuler vient de défaire (Ctrl+Y, ou Ctrl+Maj+Z) */
+function retablirSymb(){ if(!REDO_S.length){ toast("Rien à rétablir.", 1500); return; } HISTO_S.push(JSON.stringify(SYMB)); SYMB=JSON.parse(REDO_S.pop()); SEL=-1; enregistrerSymb(); majSymb(); demander(); }
+function retablirD(){
+  if(!REDO_D.length){ toast("Rien à rétablir.", 1500); return; }
+  var h=JSON.parse(REDO_D.pop());
+  HISTO_D.push(JSON.stringify(h && h.__groupe ? {__groupe:true, d:DESSIN, s:SYMB} : DESSIN));
+  if(h && h.__groupe){ DESSIN=normD(h.d); SYMB=h.s; enregistrerSymb(); } else DESSIN=normD(h);
+  D_SEL=null; GRP=null; enregistrerD(); majDessin(); majBarreSel(); demander();
+}
+function retablirR(){ if(!PLAN) return; if(MODE==="symb") retablirSymb(); else if(MODE==="dessin") retablirD(); }
 function compter(){
   var n={}; SYMB.forEach(function(o){ n[o.cle]=(n[o.cle]||0)+1; }); return n;
 }
@@ -3968,15 +3985,15 @@ function grpChampsPans(g){
   });
   return out;
 }
-function garderTout(){ HISTO_D.push(JSON.stringify({__groupe:true, d:DESSIN, s:SYMB})); if(HISTO_D.length>100) HISTO_D.shift(); }
+function garderTout(){ HISTO_D.push(JSON.stringify({__groupe:true, d:DESSIN, s:SYMB})); if(HISTO_D.length>100) HISTO_D.shift(); REDO_D=[]; }
 function grpDeRect(a, b){
   var x0=Math.min(a[0],b[0]), x1=Math.max(a[0],b[0]), y0=Math.min(a[1],b[1]), y1=Math.max(a[1],b[1]), g=grpNeuf();
   function dans(q){ return q[0]>=x0 && q[0]<=x1 && q[1]>=y0 && q[1]<=y1; }
-  DESSIN.murs.forEach(function(m){ if(uVu(m) && dans(m.a) && dans(m.b)) g.murs.push(m); });
-  mobs().forEach(function(o){ if(uVu(o) && coinsMob(o).every(dans)) g.mob.push(o); });
-  geosVue().forEach(function(o){ if(!uVu(o)) return; var pts=o.t==="rond" ? [[o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]] : o.pts; if(pts.every(dans)) g.geo.push(o); });
-  DESSIN.textes.forEach(function(t){ if(uVu(t) && dans([t.x, t.y])) g.textes.push(t); });
-  SYMB.forEach(function(o){ if(symbVu(o) && dans([o.x, o.y])) g.symb.push(o); });
+  DESSIN.murs.forEach(function(m){ if(uVu(m) && !verrouille("mur", m) && dans(m.a) && dans(m.b)) g.murs.push(m); });
+  mobs().forEach(function(o){ if(uVu(o) && !verrouille("mob", o) && coinsMob(o).every(dans)) g.mob.push(o); });
+  geosVue().forEach(function(o){ if(!uVu(o) || verrouille("geo", o)) return; var pts=o.t==="rond" ? [[o.pts[0][0]-o.r, o.pts[0][1]-o.r], [o.pts[0][0]+o.r, o.pts[0][1]+o.r]] : o.pts; if(pts.every(dans)) g.geo.push(o); });
+  DESSIN.textes.forEach(function(t){ if(uVu(t) && !verrouille("texte", t) && dans([t.x, t.y])) g.textes.push(t); });
+  SYMB.forEach(function(o){ if(symbVu(o) && !verrouille("symb", o) && dans([o.x, o.y])) g.symb.push(o); });
   if(DESSIN.pv && vueD()==="dessus"){
     DESSIN.pv.pan.forEach(function(x){ var cs=pvCoins(x); if(cs.length && cs.every(dans)) g.pan.push(x); });
     DESSIN.pv.ond.forEach(function(o){ var b=pvOndBoite(o); if(dans([b[0], b[1]]) && dans([b[2], b[3]])) g.ond.push(o); });
@@ -4127,6 +4144,132 @@ function decalageCopie(g){
   if(b && (g.murs.length>1 || grpTaille(g)>3)){ var dx=Math.ceil(((b.x1-b.x0)+500/DESSIN_MM)/pas)*pas; return [dx, 0]; }
   var d=Math.round(tailleDefaut(30)*DESSIN_MM/10)*10/DESSIN_MM; return [d, -d];
 }
+/* la sélection à modifier : le groupe choisi, le symbole choisi, ou l'élément choisi */
+function selGroupe(){
+  if(grpTaille(GRP)) return GRP;
+  if(MODE==="symb" && SEL>=0 && SYMB[SEL]){ var g=grpNeuf(); g.symb.push(SYMB[SEL]); return g; }
+  return grpDeSel();
+}
+/* ---------- Miroir : la sélection retournée, de gauche à droite (ou de haut en bas), sur place ---------- */
+function miroirSel(vertical){
+  var g=selGroupe(); if(!grpTaille(g)){ toast("Choisissez d'abord ce qu'il faut retourner (Choisir, ou un cadre avec Sélection)."); return; }
+  if((g.pan||[]).length || (g.ond||[]).length){ toast("Les panneaux et les onduleurs ne se retournent pas : retirez-les de la sélection."); return; }
+  var b=grpBoite(g); if(!b) return;
+  var cx=(b.x0+b.x1)/2, cy=(b.y0+b.y1)/2;
+  function f(q){ return vertical ? [q[0], 2*cy-q[1]] : [2*cx-q[0], q[1]]; }
+  function ang(a){ return (((vertical ? -(a||0) : 180-(a||0))%360)+360)%360; }
+  garderTout();
+  var mursG={}; g.murs.forEach(function(m){ m.a=f(m.a); m.b=f(m.b); mursG[m.id]=1; });
+  DESSIN.ouv.forEach(function(o){ if(mursG[o.mur]) o.sens=-(o.sens||1); });
+  g.geo.forEach(function(o){ o.pts=o.pts.map(f); if(o.t==="ellipse") o.rot=ang(o.rot); if(o.t==="cote" && o.off) o.off=-o.off; });
+  g.mob.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=ang(o.rot); });
+  g.textes.forEach(function(t){ var q=f([t.x, t.y]); t.x=q[0]; t.y=q[1]; });
+  g.symb.forEach(function(o){ var q=f([o.x, o.y]); o.x=q[0]; o.y=q[1]; o.rot=ang(o.rot); });
+  enregistrerD(); enregistrerSymb(); if(MODE==="symb") majSymb(); majDessin(); majBarreSel(); demander();
+  toast("Retourné "+(vertical ? "de haut en bas" : "de gauche à droite")+". « Annuler » le remet.", 2500);
+}
+/* ---------- Copie en série : N copies, à un écart régulier (ex. une prise tous les 1,20 m) ---------- */
+function serieSel(){
+  var g=selGroupe(); if(!grpTaille(g)){ toast("Choisissez d'abord ce qu'il faut copier."); return; }
+  var nb=parseInt(window.prompt("Copie en série : combien de copies ?", "3"), 10); if(!(nb>0)) return; nb=Math.min(nb, 200);
+  var b=grpBoite(g), def = b ? Math.round(((b.x1-b.x0)*DESSIN_MM+500)/10) : 100;
+  var t=window.prompt("Écart entre deux copies, en cm : horizontal ; vertical (vers la gauche ou vers le bas : en négatif)", def+" ; 0"); if(t==null) return;
+  var m=String(t).replace(/,/g, ".").split(/[;\s]+/).filter(Boolean).map(Number); var dx=(m[0]||0)*10/DESSIN_MM, dy=(m[1]||0)*10/DESSIN_MM;
+  if(!dx && !dy){ toast("Donnez un écart."); return; }
+  garderTout();
+  var txt=grpCopier(g), der=null;
+  for(var i=1;i<=nb;i++) der=grpColler(txt, [dx*i, dy*i]);
+  enregistrerD(); enregistrerSymb(); GRP=null; D_SEL=null; if(MODE==="symb"){ SEL=-1; majSymb(); } majDessin(); majBarreSel(); demander();
+  toast(nb+" copie"+(nb>1?"s":"")+", tous les "+[m[0]||0, m[1]||0].filter(function(v){ return v; }).map(function(v){ return String(v).replace(".", ",")+" cm"; }).join(" et ")+". « Annuler » les retire.", 3500);
+  void der;
+}
+/* ---------- Décaler : une copie parallèle, à une distance donnée, du côté touché ---------- */
+var DECAL_EC=null;
+function decalerSel(){
+  var o=objetSel(), t=D_SEL && D_SEL.t;
+  if(!o || !(t==="mur" || (t==="geo" && /^(trait|poly|spline|rect|rond|triangle|hachure)$/.test(o.t)))){ toast("Choisissez un trait, une polyligne, un rectangle, un rond ou un mur, puis Décaler."); return; }
+  var v=window.prompt("Décaler de combien (en cm) ?", DECAL_EC && DECAL_EC.cm ? String(DECAL_EC.cm) : "50"); if(v==null) return;
+  var cm=Number(String(v).replace(",", ".")); if(!(cm>0)){ toast("Donnez une distance."); return; }
+  DECAL_EC={t:t, id:o.id, cm:cm}; toast("Décaler de "+String(cm).replace(".", ",")+" cm : touchez le côté où poser la copie.", 4000);
+}
+function aireSignee(P){ var a=0; for(var i=0;i<P.length;i++){ var p=P[i], q=P[(i+1)%P.length]; a+=p[0]*q[1]-q[0]*p[1]; } return a/2; }
+function finirDecaler(p){
+  var ec=DECAL_EC; DECAL_EC=null; var d=ec.cm*10/DESSIN_MM;
+  if(ec.t==="mur"){
+    var m=murDe(ec.id); if(!m) return; var x=axes(m), cote=((p[0]-m.a[0])*x.n[0]+(p[1]-m.a[1])*x.n[1])>=0 ? 1 : -1;
+    garderD(); var n=JSON.parse(JSON.stringify(m)); n.id=idD(); n.a=[m.a[0]+x.n[0]*d*cote, m.a[1]+x.n[1]*d*cote]; n.b=[m.b[0]+x.n[0]*d*cote, m.b[1]+x.n[1]*d*cote]; delete n.grp;
+    DESSIN.murs.push(n); D_SEL={t:"mur", id:n.id}; enregistrerD(); majDessin(); majBarreSel(); return;
+  }
+  var o=geoDe(ec.id); if(!o) return;
+  var c=JSON.parse(JSON.stringify(o)); c.id=idD(); delete c.grp;
+  if(o.t==="rond"){ var dc=Math.hypot(p[0]-o.pts[0][0], p[1]-o.pts[0][1]); c.r=Math.max(1/DESSIN_MM, o.r+(dc>o.r ? d : -d)); }
+  else if(fermee(o) || o.t==="rect" || o.t==="triangle"){
+    var P=o.pts, s=aireSignee(P)>0 ? 1 : -1, dedans=dansPoly(p, P), k=(dedans ? -1 : 1)*s*-1;
+    var ext=decalerRes([P[P.length-1]].concat(P, [P[0]]), d*k); c.pts=ext.slice(1, P.length+1);
+  } else {
+    var pts=contourG(o), best=null, bd=Infinity;
+    for(var i=1;i<pts.length;i++){ var r=distSeg(p, pts[i-1], pts[i]); if(r.d<bd){ bd=r.d; best=i; } }
+    var a=pts[best-1], b=pts[best], cr=(b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0]), sg=cr>=0 ? 1 : -1;
+    c.pts=decalerRes(o.pts, d*sg); if(o.t==="spline") c.t="spline";
+  }
+  garderD(); DESSIN.geo.push(c); D_SEL={t:"geo", id:c.id}; enregistrerD(); majDessin(); majBarreSel();
+  toast("Décalé de "+String(ec.cm).replace(".", ",")+" cm.", 2000);
+}
+/* ---------- Ajuster et Prolonger : un trait coupé ou allongé jusqu'aux traits qui le croisent ---------- */
+var AJ_MODE=null;        /* "ajuster" | "prolonger" : chaque toucher agit, jusqu'à Échap */
+function armerAjuster(m){ AJ_MODE = AJ_MODE===m ? null : m; DECAL_EC=null; if(MODE!=="dessin") basculerMode("dessin"); if(AJ_MODE && OUTIL_D!=="choisir"){ var am=AJ_MODE; choisirOutilR("choisir"); AJ_MODE=am; } D_SEL=null; GRP=null;
+  toast(AJ_MODE==="ajuster" ? "Ajuster : touchez le morceau de trait à couper entre deux croisements (Échap pour finir)." : AJ_MODE==="prolonger" ? "Prolonger : touchez un trait ou un mur près du bout à allonger jusqu'au trait suivant (Échap pour finir)." : "Ajuster / Prolonger terminé.", 4000); majRuban(); }
+/* les traits qui coupent : les faces et les axes des murs, les traits des formes (sauf o) */
+function traitsCoupants(sauf){
+  var out=[];
+  DESSIN.murs.forEach(function(m){ if(m===sauf || !uVu(m)) return; var L=axes(m).L; [-1, 0, 1].forEach(function(sg){ out.push([surMur(m, 0, sg*m.ep/2), surMur(m, L, sg*m.ep/2)]); }); });
+  geosVue().forEach(function(o){ if(o===sauf || !uVu(o)) return; segmentsG(o).forEach(function(sg){ out.push(sg); }); });
+  return out;
+}
+function croiser(a, b, c, d){ var r=sub(b, a), q=sub(d, c), den=r[0]*q[1]-r[1]*q[0]; if(Math.abs(den)<1e-12) return null;
+  var t=((c[0]-a[0])*q[1]-(c[1]-a[1])*q[0])/den, u=((c[0]-a[0])*r[1]-(c[1]-a[1])*r[0])/den; return {t:t, u:u}; }
+function toucherAjuster(p){
+  var tol=12/V.k;
+  if(AJ_MODE==="prolonger"){
+    /* le bout le plus proche d'un trait (ou d'une polyligne ouverte), ou d'un mur */
+    var best=null, bd=Infinity;
+    geosVue().forEach(function(o){ if(!uVu(o) || !/^(trait|poly)$/.test(o.t) || fermee(o) || o.pts.length<2) return;
+      [[0, 1], [o.pts.length-1, o.pts.length-2]].forEach(function(e){ var d=Math.hypot(o.pts[e[0]][0]-p[0], o.pts[e[0]][1]-p[1]); if(d<bd && d<Math.max(tol*3, lng(sub(o.pts[e[0]], o.pts[e[1]]))*0.5)){ bd=d; best={o:o, i:e[0], j:e[1]}; } }); });
+    DESSIN.murs.forEach(function(m){ if(!uVu(m)) return; [["a","b"],["b","a"]].forEach(function(e){ var d=Math.hypot(m[e[0]][0]-p[0], m[e[0]][1]-p[1]); if(d<bd && d<Math.max(tol*3, axes(m).L*0.5)){ bd=d; best={m:m, k:e[0], l:e[1]}; } }); });
+    if(!best){ toast("Touchez près du bout d'un trait ou d'un mur."); return; }
+    var A = best.m ? best.m[best.l] : best.o.pts[best.j], B = best.m ? best.m[best.k] : best.o.pts[best.i], u=unite(sub(B, A)), loin=[B[0]+u[0]*1e6, B[1]+u[1]*1e6];
+    var tmin=Infinity, P=null;
+    traitsCoupants(best.m || best.o).forEach(function(sg){ var x=croiser(B, loin, sg[0], sg[1]); if(x && x.t>1e-9 && x.u>=-1e-6 && x.u<=1+1e-6 && x.t<tmin){ tmin=x.t; P=[B[0]+(loin[0]-B[0])*x.t, B[1]+(loin[1]-B[1])*x.t]; } });
+    if(!P){ toast("Aucun trait à rejoindre dans cette direction."); return; }
+    if(best.m){ garderD(); best.m[best.k]=P; } else { garderD(); best.o.pts[best.i]=P; }
+    enregistrerD(); majDessin(); toast("Prolongé de "+formater(lng(sub(P, B)))+".", 1800); return;
+  }
+  /* Ajuster : le morceau touché, entre les deux croisements qui l'encadrent, s'enlève */
+  var go=null, gi=-1, gd=tol;
+  geosVue().forEach(function(o){ if(!uVu(o) || !/^(trait|poly)$/.test(o.t)) return; var P=o.pts, n=fermee(o) ? P.length : P.length-1;
+    for(var i=0;i<n;i++){ var r=distSeg(p, P[i], P[(i+1)%P.length]); if(r.d<gd){ gd=r.d; go=o; gi=i; } } });
+  if(!go){ toast("Touchez le morceau d'un trait ou d'une polyligne à couper (les murs ne s'ajustent pas)."); return; }
+  var P=go.pts, a=P[gi], b=P[(gi+1)%P.length], ts=[];
+  traitsCoupants(go).forEach(function(sg){ var x=croiser(a, b, sg[0], sg[1]); if(x && x.t>1e-6 && x.t<1-1e-6 && x.u>=-1e-6 && x.u<=1+1e-6) ts.push(x.t); });
+  var r0=distSeg(p, a, b).t, t0=0, t1=1; ts.forEach(function(t){ if(t<r0 && t>t0) t0=t; if(t>r0 && t<t1) t1=t; });
+  if(t0===0 && t1===1 && !ts.length){ toast("Ce morceau ne croise aucun trait : rien à couper (Supprimer l'enlève)."); return; }
+  var Q0=[a[0]+(b[0]-a[0])*t0, a[1]+(b[1]-a[1])*t0], Q1=[a[0]+(b[0]-a[0])*t1, a[1]+(b[1]-a[1])*t1];
+  garderD();
+  var morceaux;
+  if(fermee(go)){
+    /* un contour fermé, coupé : il devient une polyligne ouverte, du croisement d'après au croisement d'avant */
+    var tour=P.slice(gi+1).concat(P.slice(0, gi+1)); if(t1<1) tour.unshift(Q1); if(t0>0) tour.push(Q0); morceaux=[tour];
+  } else {
+    var avant=P.slice(0, gi+1), apres=P.slice(gi+1);
+    if(t0>0) avant.push(Q0);
+    if(t1<1) apres.unshift(Q1);
+    morceaux=[avant, apres];
+  }
+  morceaux=morceaux.filter(function(l){ return l.length>=2; });
+  DESSIN.geo=geos().filter(function(x){ return x!==go; });
+  morceaux.forEach(function(l){ var n=JSON.parse(JSON.stringify(go)); n.id=idD(); n.pts=l; n.t = l.length>2 ? "poly" : (go.t==="trait" ? "trait" : "poly"); delete n.ferme; DESSIN.geo.push(n); });
+  enregistrerD(); majDessin(); toast("Coupé entre les deux croisements.", 1800);
+}
 function dupliquerSel(){
   var g = grpTaille(GRP) ? GRP : grpDeSel(); if(!grpTaille(g)) return;
   garderTout();
@@ -4217,7 +4360,7 @@ function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=nul
 function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
 /* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
 var PIECE=(function(){ var v=String(lire("dwg:piece","400x300x250")).split("x").map(Number); return {l:v[0]>0?v[0]:400, p:v[1]>0?v[1]:300, h:v[2]>0?v[2]:250}; })();
-function garderD(){ HISTO_D.push(JSON.stringify(DESSIN)); if(HISTO_D.length>100) HISTO_D.shift(); }
+function garderD(){ HISTO_D.push(JSON.stringify(DESSIN)); if(HISTO_D.length>100) HISTO_D.shift(); REDO_D=[]; }
 function enregistrerD(){
   marquerCalqueU();
   if(!DESSIN_CLE) return;
@@ -4623,8 +4766,10 @@ function contraindreD(a, b){
 var NOMS_ANGLE={"90":"Ortho 90°", "45":"Ortho 45°", "libre":"Angle libre"};
 /* ---------- les gestes du dessin ---------- */
 function toucherD(sx, sy, force){
-  if(OUTIL_D==="main" && !force) return;
+  if(OUTIL_D==="main" && !force && !DECAL_EC && !AJ_MODE) return;
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
+  if(DECAL_EC){ finirDecaler(p); return; }
+  if(AJ_MODE){ toucherAjuster(p); return; }
   if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(FOND_ETAPE){ if(vueD()!=="dessus"){ toast("Le fond de plan se règle en vue de dessus."); return; } toucherFond(cible, p); return; }
   if(PV_OUTILS[OUTIL_D]){ if(vueD()!=="dessus"){ toast("L'étude photovoltaïque se fait en vue de dessus."); return; } toucherPv(cible, p); return; }
@@ -4686,12 +4831,12 @@ function objetSous(p){
   var best=null, bd=18/V.k;
   if(vueD()==="dessus" && FAM_D==="pv"){ var pv0=pvSous(p); if(pv0) return pv0; }
   if(vueD()!=="dessus"){ var g0=geoSous(p); if(g0) return {t:"geo", id:g0.id}; var m0=mobSousV(p); if(m0) return {t:"mob", id:m0.id}; var ga=geoAutreSous(p); return ga ? {t:"geo", id:ga.id} : null; }
-  if(cqVu("noms")) DESSIN.textes.forEach(function(t){ if(!uVu(t)) return; var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
-  if(cqVu("ouv")) DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m || !uVu(o)) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
+  if(cqVu("noms")) DESSIN.textes.forEach(function(t){ if(!uVu(t) || verrouille("texte", t)) return; var d=Math.hypot(t.x-p[0], t.y-p[1]) - t.h; if(d<bd){ bd=d; best={t:"texte", id:t.id}; } });
+  if(cqVu("ouv")) DESSIN.ouv.forEach(function(o){ var m=murDe(o.mur); if(!m || !uVu(o) || verrouille("ouv", o)) return; var q=surMur(m, o.t*axes(m).L, 0), d=Math.hypot(q[0]-p[0], q[1]-p[1]) - o.l/2; if(d<bd){ bd=d; best={t:"ouv", id:o.id}; } });
   if(best) return best;
-  var gs=cqVu("geo") && (geoSous(p) || geoAutreSous(p)); if(gs) return {t:"geo", id:gs.id};
-  var mb=cqVu("mob") && mobSous(p); if(mb) return {t:"mob", id:mb.id};
-  if(cqVu("murs")) DESSIN.murs.forEach(function(m){ if(!uVu(m)) return; var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
+  var gs=cqVu("geo") && (geoSous(p) || geoAutreSous(p)); if(gs && !verrouille("geo", gs)) return {t:"geo", id:gs.id};
+  var mb=cqVu("mob") && mobSous(p); if(mb && !verrouille("mob", mb)) return {t:"mob", id:mb.id};
+  if(cqVu("murs")) DESSIN.murs.forEach(function(m){ if(!uVu(m) || verrouille("mur", m)) return; var d=distSeg(p, m.a, m.b).d - m.ep/2; if(d<bd){ bd=d; best={t:"mur", id:m.id}; } });
   if(!best && cqVu("pv")){ var pv1=pvSous(p); if(pv1) best=pv1; }
   if(!best && cqVu("toits")){ var tt=toitSous(p); if(tt) best={t:"toit", id:tt.id}; }
   if(!best && cqVu("guides")){ var gs2=guideSous(p); if(gs2) best={t:"guide", id:gs2.id}; }
@@ -4718,6 +4863,7 @@ function supprimerD(){
 }
 function defaireD(){ if(GEO_EC && GEO_EC.pts.length>1){ GEO_EC.pts.pop(); D_PT=GEO_EC.pts[GEO_EC.pts.length-1]; majDessin(); return; } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); return; } if(!HISTO_D.length) return;
   var h=JSON.parse(HISTO_D.pop());
+  REDO_D.push(JSON.stringify(h && h.__groupe ? {__groupe:true, d:DESSIN, s:SYMB} : DESSIN));     /* pour Rétablir */
   /* une action sur un groupe garde aussi les symboles : Annuler les remet ensemble */
   if(h && h.__groupe){ DESSIN=normD(h.d); SYMB=h.s; enregistrerSymb(); } else DESSIN=normD(h);
   D_SEL=null; GRP=null; EFF_SEL=null; EFF_SELS=[]; enregistrerD(); majDessin(); majBarreSel(); demander(); }
@@ -11764,8 +11910,21 @@ var DEPUIS_CHOISIR=false, RB_ONGLET=lire("dwg:onglet", "debut");
 /* ---------- les calques du plan ---------- */
 var CQ_MASQUES={};
 function cleCalques(){ return DESSIN_CLE ? DESSIN_CLE.replace(/^dwg:dessin:/, "dwg:calques:") : ""; }
-function chargerCalques(){ CQ_MASQUES={}; try{ var x=JSON.parse(localStorage.getItem(cleCalques())||"{}"); if(x && typeof x==="object") CQ_MASQUES=x; }catch(e){} }
-function garderCalques(){ var k=cleCalques(); if(k) garder(k, JSON.stringify(CQ_MASQUES)); }
+/* un calque verrouillé reste visible, mais ses éléments ne se choisissent ni ne se déplacent (le fond DWG, les murs…) */
+var CQ_VERROUS={};
+function cleVerrous(){ var k=cleCalques(); return k ? k.replace(/^dwg:calques:/, "dwg:verrous:") : ""; }
+function chargerCalques(){ CQ_MASQUES={}; CQ_VERROUS={}; try{ var x=JSON.parse(localStorage.getItem(cleCalques())||"{}"); if(x && typeof x==="object") CQ_MASQUES=x; }catch(e){}
+  try{ var v=JSON.parse(localStorage.getItem(cleVerrous())||"{}"); if(v && typeof v==="object") CQ_VERROUS=v; }catch(e){} }
+function garderCalques(){ var k=cleCalques(); if(k) garder(k, JSON.stringify(CQ_MASQUES)); var kv=cleVerrous(); if(kv) garder(kv, JSON.stringify(CQ_VERROUS)); }
+function cqVerrou(k){ return !!CQ_VERROUS[k]; }
+function verrouille(t, o){
+  if(!o) return false;
+  if(o.cq && CQ_VERROUS["u:"+o.cq]) return true;
+  if(t==="symb"){ var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return !!(d && CQ_VERROUS["sy:"+d.groupe]); }
+  return !!CQ_VERROUS[({mur:"murs", ouv:"ouv", mob:"mob", texte:"noms", geo:"geo"})[t]];
+}
+function poserVerrou(k, on){ if(on) CQ_VERROUS[k]=true; else delete CQ_VERROUS[k]; garderCalques(); if(on){ D_SEL=null; GRP=null; SEL=-1; } remplirCalques(); majBarreSel(); demander();
+  toast(on ? "Calque verrouillé : il reste visible, mais ne se choisit plus." : "Calque déverrouillé.", 2200); }
 function cqVu(k){ return !CQ_MASQUES[k]; }
 function symbVu(o){ if(!uVu(o)) return false; var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return !d || cqVu("sy:"+d.groupe); }
 /* ---------- les calques à soi : « Fenêtres pièce 1 », « Dessin pièce 2 »…
@@ -11872,6 +12031,15 @@ function nbCalque(k){
 }
 var OEIL='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>';
 var OEIL_X='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 3l18 18M10.6 5.6A11 11 0 0 1 12 5.5c6.5 0 10 6.5 10 6.5a17 17 0 0 1-3.2 3.9M6.6 6.6A17 17 0 0 0 2 12s3.5 6.5 10 6.5a10 10 0 0 0 4.4-1"/></svg>';
+var CADENAS='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+var CADENAS_O='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>';
+function ajouterVerrou(ul, k, nom){
+  var li=ul.lastChild; if(!li) return; var on=cqVerrou(k);
+  var b=document.createElement("button"); b.type="button"; b.className="oeil verrou"+(on ? " on" : ""); b.innerHTML=on ? CADENAS : CADENAS_O;
+  b.setAttribute("aria-label", (on ? "Déverrouiller " : "Verrouiller ")+nom); b.setAttribute("aria-pressed", on ? "true" : "false"); b.title = on ? "Verrouillé : visible, mais ne se choisit pas" : "Verrouiller (visible, ne se choisit plus)";
+  b.addEventListener("click", function(){ poserVerrou(k, !on); });
+  li.insertBefore(b, li.children[1]||null); if(on) li.classList.add("verrouille");
+}
 function ligneCalque(ul, nom, couleur, n, vu, fn, fnCouleur){
   var li=document.createElement("li"); li.className="cq"+(vu ? "" : " cache");
   var b=document.createElement("button"); b.type="button"; b.className="oeil"; b.innerHTML=vu ? OEIL : OEIL_X;
@@ -11890,7 +12058,7 @@ remplirCalques=function(){
   titreCalques(ul, "Mes calques");
   var cur=cqCourant();
   calquesU().forEach(function(c){
-    ligneCalque(ul, c.nom, c.couleur || "transparent", nbCalqueU(c.id), cqVu("u:"+c.id), function(v){ poserCalque("u:"+c.id, v); }, function(b){ ouvrirPalette(b, {calqueU:c.id, nom:c.nom}); });
+    ligneCalque(ul, c.nom, c.couleur || "transparent", nbCalqueU(c.id), cqVu("u:"+c.id), function(v){ poserCalque("u:"+c.id, v); }, function(b){ ouvrirPalette(b, {calqueU:c.id, nom:c.nom}); }); ajouterVerrou(ul, "u:"+c.id, c.nom);
     var li=ul.lastChild; li.classList.add("cq-u"); if(c.id===cur) li.classList.add("courant");
     var bc=document.createElement("button"); bc.type="button"; bc.className="cq-act cq-cour"; bc.innerHTML = c.id===cur ? '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4" fill="currentColor"/></svg>' : '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="8"/></svg>';
     bc.setAttribute("aria-label", (c.id===cur ? "Calque courant : " : "Rendre courant : ")+c.nom);
@@ -11911,12 +12079,12 @@ remplirCalques=function(){
   titreCalques(ul, "Plan");
   var CC=DESSIN.couleurs||{};
   CQ_DESSIN.forEach(function(c){ if(c[0]==="fond" && !PLAN.vierge) return; ligneCalque(ul, c[1], CC[c[0]]||c[2], nbCalque(c[0]), cqVu(c[0]), function(v){ poserCalque(c[0], v); },
-    /^(murs|ouv|mob|noms|geo)$/.test(c[0]) ? function(b){ ouvrirPalette(b, {calque:c[0], nom:c[1]}); } : null); });
+    /^(murs|ouv|mob|noms|geo)$/.test(c[0]) ? function(b){ ouvrirPalette(b, {calque:c[0], nom:c[1]}); } : null); if(/^(murs|ouv|mob|noms|geo)$/.test(c[0])) ajouterVerrou(ul, c[0], c[1]); });
   if(window.SymbolesElec){
     titreCalques(ul, "Électricité");
     SymbolesElec.groupes.forEach(function(gr){
       var d=SymbolesElec.liste.filter(function(sy){ return sy.groupe===gr; })[0];
-      ligneCalque(ul, gr, CC["sy:"+gr]||(d && d.couleur)||"#FF0000", nbCalque("sy:"+gr), cqVu("sy:"+gr), function(v){ poserCalque("sy:"+gr, v); }, function(b){ ouvrirPalette(b, {calque:"sy:"+gr, nom:gr}); });
+      ligneCalque(ul, gr, CC["sy:"+gr]||(d && d.couleur)||"#FF0000", nbCalque("sy:"+gr), cqVu("sy:"+gr), function(v){ poserCalque("sy:"+gr, v); }, function(b){ ouvrirPalette(b, {calque:"sy:"+gr, nom:gr}); }); ajouterVerrou(ul, "sy:"+gr, gr);
     });
     ligneCalque(ul, "Liaisons", "#22D3EE", nbCalque("liens"), cqVu("liens"), function(v){ poserCalque("liens", v); });
   }
@@ -11956,6 +12124,12 @@ var ICO={
   rescond:'<path d="M3 10h12l3 3v7"/><path d="M18 4c-1.5 2-2.5 3.2-2.5 4.3a2.5 2.5 0 0 0 5 0C20.5 7.2 19.5 6 18 4z"/>',
   resfourreau:'<path d="M3 12c4-6 8 6 12 0s4-3 6-2"/><path d="M3 16.5c4-6 8 6 12 0s4-3 6-2"/><text x="3.5" y="7" font-size="5.5" font-family="Arial" font-weight="700" stroke="none" fill="currentColor">Ø</text>',
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
+  serie:'<path d="M3 9h5v6H3zM10 9h5v6h-5zM17 9h4v6h-4z"/>',
+  miroir:'<path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 6L4 12l5 6zM15 6l5 6-5 6z"/>',
+  miroirv:'<path d="M3 12h18" stroke-dasharray="2 2"/><path d="M6 9l6-5 6 5zM6 15l6 5 6-5z"/>',
+  decaler:'<path d="M4 17L17 4"/><path d="M8 21L21 8" stroke-dasharray="3 2"/>',
+  ajuster:'<path d="M3 12h7M14 12h7"/><path d="M12 4v16"/><path d="M9 9l6 6M15 9l-6 6" stroke-width="1.2"/>',
+  prolonger:'<path d="M3 12h12" /><path d="M15 12h4" stroke-dasharray="2 2"/><path d="M20 5v14"/>',
   grouper:'<rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="3 2"/><rect x="6.5" y="6.5" width="5" height="5"/><circle cx="15" cy="15" r="2.8"/>',
   degrouper:'<rect x="3" y="3" width="7" height="7"/><circle cx="16.5" cy="16.5" r="3.5"/><path d="M14 4l6 6M20 4l-6 6"/>',
   tourner:'<path d="M20 12a8 8 0 1 1-2.3-5.7"/><path d="M20 4v5h-5"/>',
@@ -12002,6 +12176,12 @@ function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden
 /* ce que dit chaque bouton : [libellé, icône, aide] */
 var ACTIONS={
   dupliquer:["Dupliquer","dupliquer","Une copie de l'élément choisi (Ctrl+D)"],
+  serie:["Copie en série","serie","Plusieurs copies de la sélection, à un écart régulier (une prise tous les 1,20 m)"],
+  miroir:["Miroir ↔","miroir","Retourner la sélection de gauche à droite, sur place"],
+  miroirv:["Miroir ↕","miroirv","Retourner la sélection de haut en bas, sur place"],
+  decaler:["Décaler","decaler","Une copie parallèle du trait, de la polyligne, du rectangle, du rond ou du mur choisi, à la distance donnée, du côté touché"],
+  ajuster:["Ajuster","ajuster","Couper un trait entre les deux traits qui le croisent"],
+  prolonger:["Prolonger","prolonger","Allonger un trait ou un mur jusqu'au trait suivant"],
   grouper:["Grouper","grouper","Grouper les éléments choisis (outil Sélection) : ils se choisissent et se déplacent ensemble (Ctrl+G)"],
   degrouper:["Dégrouper","degrouper","Défaire le groupe choisi : chaque élément redevient seul (Ctrl+Maj+G)"], tourner:["Tourner 90°","tourner","Tourner l'élément choisi (touche R)"],
   supprimer:["Supprimer","supprimer","Supprimer l'élément choisi (Suppr)"], depuis:["Depuis un point","depuis","Placer à une distance exacte d'un point"],
@@ -12053,7 +12233,7 @@ var ONGLETS=[
     {nom:"Murs", gros:["o:mur","o:cloison","o:piece"]},
     {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
-    {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur"]},
+    {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur"]},
     {nom:"Plan importé", gros:["a:effdwg"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Calques", calque:true}
@@ -12062,7 +12242,7 @@ var ONGLETS=[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
     {nom:"Annotation", gros:["o:cote","o:gtexte","a:renvoi"], petits:["o:texte","a:mesurer","a:etalonner"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
-    {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:tourner","a:supprimer","a:grouper","a:degrouper","a:couleur"]},
+    {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:couleur"]},
     {nom:"Calques", calque:true}
   ]},
   {id:"elec", nom:"Électricité", elec:true},
@@ -12241,6 +12421,7 @@ function majRuban(){
     else if(k==="faceext") on = FACE_EXT;
     else if(k==="nomsres") on = nomsRes();
     else if(k==="circvu") on = !!(DESSIN && DESSIN.circVu!==false);
+    else if(k==="ajuster" || k==="prolonger") on = AJ_MODE===k;
     if(PLAN){
       if(k==="fond") off = !PLAN.vierge;
       else if(k==="effdwg") off = !!PLAN.vierge || !PLAN.parEnt;
@@ -12253,7 +12434,7 @@ function majRuban(){
     b.classList.toggle("on", !!on); b.disabled=!!off;
     if(b.className!=="rb-sym") b.setAttribute("aria-pressed", on ? "true" : "false");
   });
-  $("btEnreg").disabled=!PLAN; $("btAnnulerR").disabled=!PLAN;
+  $("btEnreg").disabled=!PLAN; $("btAnnulerR").disabled=!PLAN; $("btRetablirR").disabled=!PLAN;
   if(GUIDE && MODE==="dessin"){ $("dsInfo").textContent="Ligne de construction"; $("dsDetail").textContent = GUIDE.mode==="2" ? (GUIDE.a ? "Touchez le second point." : "Touchez un premier point.") : "Touchez le point par où passe la ligne "+(GUIDE.mode==="h" ? "horizontale." : "verticale.")+" Échap ou un autre outil l'arrête."; }
   majReticule();
   $("btEnreg").classList.toggle("or", !!PLAN && SALE_PLAN);
@@ -12325,6 +12506,12 @@ function annulerR(){ if(!PLAN) return; if(MODE==="symb") defaireSymb(); else if(
 function actionR(k){
   switch(k){
     case "dupliquer": dupliquerR(); break;
+    case "serie": serieSel(); break;
+    case "miroir": miroirSel(false); break;
+    case "miroirv": miroirSel(true); break;
+    case "decaler": if(MODE!=="dessin") basculerMode("dessin"); decalerSel(); break;
+    case "ajuster": armerAjuster("ajuster"); break;
+    case "prolonger": armerAjuster("prolonger"); break;
     case "grouper": if(MODE!=="dessin") basculerMode("dessin"); grouperSel(); break;
     case "degrouper": if(MODE!=="dessin") basculerMode("dessin"); if(grpTaille(GRP)) degrouperSel(); else toast("Touchez un élément du groupe, puis Dégrouper.", 2500); break;
     case "tourner": tournerR(); break;
@@ -12393,6 +12580,7 @@ $("rbOnglets").addEventListener("click", function(e){
 });
 $("btReplier").addEventListener("click", function(){ replier(!$("ruban").classList.contains("replie")); });
 $("btAnnulerR").addEventListener("click", annulerR);
+$("btRetablirR").addEventListener("click", retablirR);
 $("btEnreg").addEventListener("click", function(){ enregistrerPlanSite(); });   /* sans l'événement : il passerait pour les options */
 document.addEventListener("keydown", function(e){
   if((e.key==="s" || e.key==="S") && (e.ctrlKey || e.metaKey)){ e.preventDefault(); if(PLAN) enregistrerPlanSite(); }
