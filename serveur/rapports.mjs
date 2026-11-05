@@ -4567,6 +4567,41 @@ async function traiter(req) {
     return json({ ok: true, fait: t.fait });
   }
 
+  /* Une ligne « CLIENT — RÉF » dans la liste « Facturation » (créée au besoin) de chaque chargé
+     d'affaires de l'équipe ; à défaut, de celui qui a mis le chantier à 100 %. Pas de doublon :
+     une ligne encore ouverte pour cette référence suffit. */
+  async function aFacturerDansTodo(c, ref) {
+    let comptes = [];
+    try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
+    const roleDe = (nom) => { const u = (comptes || []).find((x) => x && (x.nom === nom || memeNom(x.nom || "", nom))); return u ? u.role : ""; };
+    let qui = (c.equipe || []).filter((nom) => /^(bureau|admin)$/.test(roleDe(nom)));
+    if (!qui.length) qui = [personne.nom];
+    const texte = String(c.client || ref).trim() + " — " + ref;
+    const faits = [];
+    for (const nom of qui) {
+      const cle = cleNotes(nom);
+      await sousVerrou(personne.societe + ":" + cle, async () => {
+        let listes;
+        try { listes = await lireNotes(cle); } catch { return; }
+        const maintenant = new Date().toISOString();
+        let L = listes.find((l) => l && (!l.auteur || l.auteur === nom) && /^\s*facturations?\s*$/i.test(String(l.titre || "")));
+        if (!L) {
+          L = { id: "fact" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), titre: "Facturation", items: [],
+            epingle: false, couleur: "vert", pour: "", partage: [], quand: "", photos: [], cree: maintenant, maj: maintenant, auteur: nom };
+          listes.unshift(L);
+        }
+        L.items = Array.isArray(L.items) ? L.items : [];
+        const refN = String(ref).toUpperCase().replace(/\s+/g, "");
+        if (L.items.some((it) => it && !it.fait && String(it.texte || "").toUpperCase().replace(/\s+/g, "").indexOf(refN) >= 0)) return;
+        L.items.push({ id: "i" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6), texte, fait: false, maj: maintenant, facturer: ref });
+        L.maj = maintenant;
+        await store.setJSON(cle, listes);
+        faits.push(nom);
+      });
+    }
+    return faits;
+  }
+
   /* ---------- l'avancement du chantier ----------
      Seul un chargé d'affaires de l'équipe du dossier le règle : c'est lui
      qui suit l'affaire, pas le technicien ni un collègue d'un autre
@@ -4583,12 +4618,17 @@ async function traiter(req) {
     }
     const n = Math.round(Number(d.valeur));
     if (!isFinite(n) || n < 0 || n > 100) return json({ erreur: "Avancement entre 0 et 100 %." }, 400);
+    const avant = avancementDe(c);
     c.avancement = n;
     c.avancementPar = personne.nom;
     c.avancementLe = new Date().toISOString();
     idx.chantiers[ref] = c;
     await store.setJSON(INDEX, idx);
-    return json({ ok: true, ref, avancement: n });
+    /* le chantier arrive à 100 % : il est à facturer, son nom va dans la liste « Facturation »
+       de la to-do list de ses chargés d'affaires */
+    let facturation = [];
+    if (n >= 100 && avant < 100) { try { facturation = await aFacturerDansTodo(c, ref); } catch { facturation = []; } }
+    return json({ ok: true, ref, avancement: n, facturation });
   }
 
   /* ---------- les commandes à faire du chantier ----------

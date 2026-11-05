@@ -1811,7 +1811,7 @@ function motEnvoiSaisie(d){
   }
 }
 function boutonSaisie(f, repeindre){
-  if(!MOI || (MOI.role!=="bureau" && MOI.role!=="admin")) return null;
+  if(!MOI || (MOI.role!=="bureau" && MOI.role!=="admin" && MOI.role!=="conducteur")) return null;   /* chargé d'affaires ou conducteur de travaux */
   if(f.type !== "commande") return null;
   var b=document.createElement("button");
   b.type="button"; b.className="ok-saisie"+(f.saisie ? " on" : "");
