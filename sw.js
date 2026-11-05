@@ -26,6 +26,8 @@ var FICHIERS = ["/annotation.js", "/reduire.js", "/encours.js", "/cartouche.js",
 /* les bibliothèques sont servies par le site lui-même (vendor/), plus par des CDN */
 var BIBLIOTHEQUES = [];
 FICHIERS.push("/vendor/jspdf-2.5.1/jspdf.umd.min.js", "/vendor/pdfjs-3.11.174/pdf.min.js", "/vendor/pdfjs-3.11.174/pdf.worker.min.js");
+/* l'outil Plan hors connexion : la 3D et l'export Excel */
+FICHIERS.push("/vendor/three-0.160.0/three.module.min.js", "/vendor/jszip-3.10.1/jszip.min.js");
 var HOTES_CDN = /^(cdnjs\.cloudflare\.com|cdn\.jsdelivr\.net|unpkg\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)$/;
 /* lectures du site qu'on garde (pas les appels de service) */
 var SANS_CACHE = /^(ping|tic|push-cle|push-etat|push-journal|push-actif)$/;

@@ -469,7 +469,8 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fp-boite{background:var(--barre,#141920);border:1px solid rgba(255,255,255,.12);border-radius:14px;max-width:min(920px,100%);max-height:100%;display:flex;flex-direction:column;overflow:hidden}
 .fp-boite header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;gap:10px}
 .fp-boite img{display:block;max-width:100%;max-height:70vh;object-fit:contain;background:#000}
-.fp-pied{display:flex;gap:8px;padding:10px 12px} .fp-pied input{flex:1;min-width:0;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);font:inherit}
+.fp-pied{display:flex;gap:8px;padding:10px 12px}
+.fe-boite{width:min(1200px,100%)} .fe-boite canvas{display:block;width:100%;height:auto;background:#FFFFFF} .fe-act{display:flex;gap:6px} .fe-note{display:block;padding:8px 12px;color:var(--ink3)} .fp-pied input{flex:1;min-width:0;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);font:inherit}
 .fen-res button{min-height:30px;padding:3px 10px;border-radius:999px;border:1px solid var(--trait);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}
 .fen-res button.nat{border-color:var(--c);color:var(--c)}
 .fen-res button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
@@ -768,6 +769,11 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 <div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
 <div class="fen-res fen-blocs" id="fenBlocs" hidden role="group" aria-label="Mes blocs"></div>
 <div class="fen-res" id="fenNiveaux" hidden role="group" aria-label="Les niveaux du plan"></div>
+<div class="fen-photo" id="fenElev" hidden role="dialog" aria-label="Élévation du mur">
+  <div class="fp-boite fe-boite"><header><b id="evTitre">Élévation du mur</b><span class="fe-act"><button class="bt" id="evFace" type="button">Autre face</button><button class="bt" id="evImage" type="button">Image</button><button class="bt" id="evFermer" type="button" aria-label="Fermer">✕</button></span></header>
+  <canvas id="evCanvas" width="1200" height="560"></canvas>
+  <small class="fe-note" id="evNote"></small></div>
+</div>
 <div class="fen-res" id="fenPvc" hidden role="group" aria-label="Le câble : son tracé"></div>
 <div class="fen-res fen-resa" id="fenResa" hidden role="group" aria-label="La réservation pour le maçon"></div>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
@@ -4284,6 +4290,69 @@ function coterPiece(p){
   var surf=(x1-x0)*(y1-y0)*DESSIN_MM*DESSIN_MM/1e6;
   nouv({t:"gtexte", pts:[[(x0+x1)/2, (y0+y1)/2-ht*1.8]], s:"S = "+surf.toLocaleString("fr-FR", {minimumFractionDigits:2, maximumFractionDigits:2})+" m²", h:ht*0.8});
   enregistrerD(); majDessin(); toast("Pièce cotée : "+formater(x1-x0)+" × "+formater(y1-y0)+", "+surf.toLocaleString("fr-FR", {maximumFractionDigits:2})+" m².", 4000);
+}
+/* ---------- l'élévation d'un mur : ses ouvertures et ce qui y est posé, à hauteur, avec les cotes ---------- */
+var ELEV={id:null, cote:1};
+function ouvrirElevation(){
+  var m = D_SEL && D_SEL.t==="mur" ? murDe(D_SEL.id) : null;
+  if(!m){ toast("Choisissez d'abord un mur (Choisir, puis touchez le mur), puis Élévation."); return; }
+  if(ELEV.id!==m.id){ ELEV={id:m.id, cote:0}; }
+  $("fenElev").hidden=false; dessinerElevMur();
+}
+function dessinerElevMur(){
+  var m=murDe(ELEV.id); if(!m) return;
+  var x=axes(m), Lw=x.L*DESSIN_MM, hsp=hspD(), cv2=$("evCanvas"), g=cv2.getContext("2d"), Wc=cv2.width, Hc=cv2.height, mg=70;
+  /* ce qui est contre le mur, de chaque côté : on montre la face qui en a le plus, ou celle choisie */
+  var pres={"1":[], "-1":[]};
+  SYMB.forEach(function(o){ if(o.vue && o.vue!=="dessus") return; var dx=o.x-m.a[0], dy=o.y-m.a[1], sA=(dx*x.u[0]+dy*x.u[1])*DESSIN_MM, dn=(dx*x.n[0]+dy*x.n[1])*DESSIN_MM;
+    if(sA<-200 || sA>Lw+200 || Math.abs(dn)>m.ep*DESSIN_MM/2+450) return; pres[dn>=0 ? "1" : "-1"].push({o:o, s:sA}); });
+  if(!ELEV.cote) ELEV.cote = pres["-1"].length>pres["1"].length ? -1 : 1;
+  var L=pres[String(ELEV.cote)];
+  /* vue depuis la pièce : de la face +n, le mur se lit de b vers a (la gauche est à gauche) */
+  var inv = ELEV.cote>0;
+  function X(s){ var t = inv ? Lw-s : s; return mg+t*k; }
+  var k=Math.min((Wc-2*mg)/Lw, (Hc-2*mg)/hsp);
+  function Y(z){ return Hc-mg-z*k; }
+  g.setTransform(1,0,0,1,0,0); g.fillStyle="#FFFFFF"; g.fillRect(0,0,Wc,Hc);
+  g.strokeStyle="#111"; g.lineWidth=2; g.strokeRect(X(inv ? Lw : 0), Y(hsp), Lw*k, hsp*k);
+  g.setLineDash([6,4]); g.strokeStyle="#94A3B8"; g.lineWidth=1; g.beginPath(); g.moveTo(mg-30, Y(0)); g.lineTo(Wc-mg+30, Y(0)); g.stroke(); g.setLineDash([]);
+  g.font="600 12px Helvetica, Arial, sans-serif"; g.fillStyle="#475569"; g.textAlign="left"; g.fillText("Sol", mg-30, Y(0)+16); g.fillText("Plafond "+cm(hsp)+" cm", mg, Y(hsp)-8);
+  /* les ouvertures */
+  DESSIN.ouv.forEach(function(o){ if(o.mur!==m.id) return; var c0=o.t*Lw, w=o.l*DESSIN_MM, z0=allegeOuv(o), z1=hautOuv(o), xa=X(c0-w/2), xb=X(c0+w/2);
+    g.fillStyle="#E0F2FE"; g.strokeStyle="#0369A1"; g.lineWidth=1.5; g.fillRect(Math.min(xa,xb), Y(z1), Math.abs(xb-xa), (z1-z0)*k); g.strokeRect(Math.min(xa,xb), Y(z1), Math.abs(xb-xa), (z1-z0)*k);
+    g.fillStyle="#0369A1"; g.textAlign="center"; g.fillText((o.type==="fenetre" ? "Fenêtre" : o.type==="pf" ? "Porte-fenêtre" : "Porte")+" "+cm(w)+" × "+cm(z1-z0), (xa+xb)/2, Y(z1)-6);
+    if(z0>0) g.fillText("allège "+cm(z0), (xa+xb)/2, Y(z0)+14); });
+  /* les symboles, à leur hauteur, avec la hauteur écrite et la distance depuis l'angle */
+  L.sort(function(a, b){ return (inv ? b.s-a.s : a.s-b.s); });
+  var R=Math.max(9, 130*k);
+  L.forEach(function(it){ var o=it.o, h=hauteurDe(o), px=X(it.s), py=Y(h), def=defDe(o);
+    if(window.SymbolesElec && def) SymbolesElec.dessiner(g, o.cle, px, py, R*0.9, {rot:0, epMin:1.2, clair:true});
+    g.strokeStyle="#CBD5E1"; g.lineWidth=1; g.setLineDash([3,3]); g.beginPath(); g.moveTo(px, py+R); g.lineTo(px, Y(0)); g.stroke(); g.setLineDash([]);
+    g.fillStyle="#B91C1C"; g.textAlign="left"; g.font="700 12px Helvetica, Arial, sans-serif"; g.fillText("h "+(h/1000).toFixed(2).replace(".", ","), px+R+3, py-2);
+    if(o.circ || o.t){ g.fillStyle="#7C3AED"; g.font="600 11px Helvetica, Arial, sans-serif"; g.fillText([o.circ, o.t].filter(Boolean).join(" · "), px+R+3, py+12); } });
+  /* les cotes en chaîne, sous le sol : d'un angle à l'autre, en passant par chaque symbole */
+  var arr=[0].concat(L.map(function(it){ return inv ? Lw-it.s : it.s; }).filter(function(v){ return v>0 && v<Lw; })).concat([Lw]).sort(function(a, b){ return a-b; }), yc=Y(0)+38;
+  g.strokeStyle="#111"; g.fillStyle="#111"; g.lineWidth=1; g.font="600 11px Helvetica, Arial, sans-serif"; g.textAlign="center";
+  for(var i=1;i<arr.length;i++){ var a=mg+arr[i-1]*k, b=mg+arr[i]*k; if(b-a<2) continue; g.beginPath(); g.moveTo(a, yc); g.lineTo(b, yc); g.moveTo(a, yc-6); g.lineTo(a, yc+6); g.moveTo(b, yc-6); g.lineTo(b, yc+6); g.stroke(); if(b-a>22) g.fillText(cm(arr[i]-arr[i-1]), (a+b)/2, yc-5); }
+  g.fillText("Longueur "+cm(Lw)+" cm", Wc/2, yc+22);
+  $("evTitre").textContent="Élévation du mur · face "+(ELEV.cote>0 ? "A" : "B")+" · "+L.length+" élément"+(L.length>1?"s":"");
+  $("evNote").textContent="Vue depuis la pièce. Les hauteurs sont celles de pose (axe du symbole) ; les cotes partent de l'angle de gauche. « Autre face » montre l'autre côté du mur.";
+}
+/* ---------- le mètre laser Bluetooth (Leica DISTO et compatibles) : la mesure va dans la longueur du tracé en cours ---------- */
+var LASER=null, DISTO_SERVICE="3ab10100-f831-4395-b29d-570977d5bf94", DISTO_MESURE="3ab10101-f831-4395-b29d-570977d5bf94";
+function connecterLaser(){
+  if(!navigator.bluetooth){ toast("Ce navigateur ne parle pas au Bluetooth (sur iPhone : le navigateur Bluefy le permet). Sinon, tapez la mesure avec Tab pendant le tracé.", 6500); return; }
+  navigator.bluetooth.requestDevice({filters:[{services:[DISTO_SERVICE]}], optionalServices:[DISTO_SERVICE]}).then(function(dev){
+    toast("Connexion à "+(dev.name||"l'appareil")+"…", 2000);
+    dev.addEventListener("gattserverdisconnected", function(){ LASER=null; majRuban(); toast("Mètre laser déconnecté.", 2500); });
+    return dev.gatt.connect().then(function(sv){ return sv.getPrimaryService(DISTO_SERVICE); }).then(function(se){ return se.getCharacteristic(DISTO_MESURE); })
+      .then(function(ch){ return ch.startNotifications().then(function(){ ch.addEventListener("characteristicvaluechanged", function(e){ var v=e.target.value; if(v && v.byteLength>=4) recevoirMesure(v.getFloat32(0, true)); }); LASER={dev:dev, ch:ch}; majRuban(); toast("Mètre laser prêt : mesurez, la longueur va dans le tracé en cours.", 4000); }); });
+  }).catch(function(e){ if(e && e.name!=="NotFoundError") toast("Le mètre laser n'a pas pu se connecter.", 3500); });
+}
+function recevoirMesure(m){
+  if(!(m>0)) return; var mm=Math.round(m*1000);
+  if(MODE==="dessin" && D_PT){ ouvrirSaisieT(); $("stL").value=enUnite(mm); validerSaisieT(); toast("Mesure : "+formater(mm/DESSIN_MM)+", posée.", 2000); return; }
+  toast("Mesure : "+formater(mm/DESSIN_MM)+". Commencez un mur ou un trait : la prochaine mesure fixera sa longueur.", 4000);
 }
 /* ---------- les niveaux : RDC, R+1, combles… dans un même plan ----------
    Le niveau en cours est le dessin de toujours (ses clés habituelles) ; les autres sont gardés à part (clé@id).
@@ -10183,6 +10252,10 @@ $("qtFermer").addEventListener("click", function(){ $("quantites").hidden=true; 
 $("btDxf").addEventListener("click", function(){ exporterDxf(); });
 $("btXlsx").addEventListener("click", function(){ exporterXlsx(); });
 $("rpFermer").addEventListener("click", function(){ $("reperes").hidden=true; });
+$("evFermer").addEventListener("click", function(){ $("fenElev").hidden=true; });
+$("fenElev").addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
+$("evFace").addEventListener("click", function(){ ELEV.cote=-(ELEV.cote||1); dessinerElevMur(); });
+$("evImage").addEventListener("click", function(){ $("evCanvas").toBlob(function(b){ if(b) telecharger(b, "Élévation "+nomDeBase()+".png"); }, "image/png"); });
 $("rpCherche").addEventListener("input", peindreReperes);
 $("rpCherche").addEventListener("keydown", function(e){ if(e.key==="Enter"){ var b=$("listeReperes").querySelector("button"); if(b) b.click(); } });
 $("photoFichier").addEventListener("change", function(){
@@ -12469,6 +12542,8 @@ var ICO={
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
   serie:'<path d="M3 9h5v6H3zM10 9h5v6h-5zM17 9h4v6h-4z"/>',
   reperes:'<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L20 20"/>',
+  elevation:'<path d="M3 20h18"/><path d="M5 20V6h14v14"/><path d="M8 9h3v5H8zM14 12h2" stroke-width="1.3"/>',
+  laser:'<path d="M4 9h10v6H4z"/><path d="M14 12h7" stroke-dasharray="2 1.5"/><circle cx="7" cy="12" r="1"/>',
   niveaux:'<path d="M3 9l9-5 9 5-9 5z"/><path d="M3 14l9 5 9-5" stroke-width="1.4"/>',
   photo:'<path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   chaine:'<path d="M3 14h18"/><path d="M3 10v8M9 10v8M15 10v8M21 10v8" stroke-width="1.2"/>',
@@ -12525,6 +12600,8 @@ function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden
 /* ce que dit chaque bouton : [libellé, icône, aide] */
 var ACTIONS={
   dupliquer:["Dupliquer","dupliquer","Une copie de l'élément choisi (Ctrl+D)"],
+  elevation:["Élévation du mur","elevation","Le mur choisi vu de face : ses ouvertures, les symboles à leur hauteur de pose, les cotes depuis l'angle"],
+  laser:["Mètre laser","laser","Relier un mètre laser Bluetooth (Leica DISTO) : chaque mesure fixe la longueur du mur ou du trait en cours"],
   niveaux:["Niveaux","niveaux","Les niveaux du plan (RDC, R+1, combles…) : changer, en ajouter, voir celui du dessous en transparence"],
   reperes:["Repères","reperes","La liste des repères du plan (circuits, réservations, strings, pièces, photos…) et la recherche (Ctrl+F)"],
   photo:["Photo","photo","Accrocher une photo prise sur place à l'endroit touché du plan (P1, P2…)"],
@@ -12614,12 +12691,14 @@ var ONGLETS=[
     {nom:"Nouveau", gros:["a:vierge"]},
     {nom:"Fond de plan", gros:["a:fond"], note:"Sous une page vierge : un PDF ou une photo du plan, mis à l'échelle."},
     {nom:"Feuilles", gros:["a:feuille"], note:"Un cadre A4 à A0 à l'échelle, pour voir la place qu'il prend."},
+    {nom:"Mesure", gros:["a:laser"], note:"Un mètre laser Bluetooth (Leica DISTO) : la mesure va dans le tracé."},
     {nom:"Photos", gros:["a:photo"], note:"Une photo prise sur place, accrochée à l'endroit du plan, reprise au PDF."},
     {nom:"Mes blocs", gros:["a:blocs"], note:"Une sélection gardée (un tableau et ses départs…), à reposer sur d'autres plans."}
   ]},
   {id:"vues", nom:"Vues", g:[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
     {nom:"Niveaux", gros:["a:niveaux"]},
+    {nom:"Mur", gros:["a:elevation"]},
     {nom:"Affichage", gros:["a:entiere","a:clair","a:reticule","a:calques","a:reperes"]}
   ]},
   {id:"reglages", nom:"Réglages", reglages:true},
@@ -12783,6 +12862,7 @@ function majRuban(){
     else if(k==="chaine") on = COTE_CHAINE;
     else if(k==="reperes") on = !$("reperes").hidden;
     else if(k==="niveaux") on = !$("fenNiveaux").hidden;
+    else if(k==="laser") on = !!LASER;
     else if(k==="photo") on = !!(PHOTO_EC && PHOTO_EC.arme);
     else if(k==="cotepiece") on = PIECE_COTE;
     else if(k==="blocs") on = !$("fenBlocs").hidden;
@@ -12874,6 +12954,8 @@ function actionR(k){
     case "serie": serieSel(); break;
     case "reperes": if($("reperes").hidden) ouvrirReperes(); else $("reperes").hidden=true; break;
     case "niveaux": $("fenNiveaux").hidden=!$("fenNiveaux").hidden; majFenNiveaux(); majRuban(); break;
+    case "elevation": ouvrirElevation(); break;
+    case "laser": connecterLaser(); break;
     case "photo": armerPhoto(); break;
     case "chaine": COTE_CHAINE=!COTE_CHAINE; CHAINE_EC=null; if(COTE_CHAINE) choisirOutilR("cote"); majRuban(); toast(COTE_CHAINE ? "Cotes en chaîne : faites la première cote (2 points, puis le décalage), puis touchez les points suivants." : "Cotes en chaîne arrêtées.", 4500); break;
     case "cotepiece": if(MODE!=="dessin") basculerMode("dessin"); if(OUTIL_D!=="choisir") choisirOutilR("choisir"); PIECE_COTE=true; majRuban(); toast("Touchez à l'intérieur de la pièce à coter.", 3000); break;
@@ -13777,7 +13859,7 @@ if(petitEcran()) replier(false);
 window.addEventListener("resize", majHaut);
 
 /* pour les essais */
-window.__dwg={pvEntree:function(o, m, e){ return pvEntree(o, m, e); }, pvPass:function(){ return PV_EC && PV_EC.t==="pass" && D_SOURIS ? {q:D_SOURIS.pt, pp:pvPointsPass(PV_EC, D_SOURIS.pt)} : null; }, piquages:function(o){ return piquagesSymbole(o); }, peindre:function(){ peindre(); }, pvEtiquettes:function(){ return PV_ETIQ; }, pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
+window.__dwg={mesureLaser:function(m){ recevoirMesure(m); }, pvEntree:function(o, m, e){ return pvEntree(o, m, e); }, pvPass:function(){ return PV_EC && PV_EC.t==="pass" && D_SOURIS ? {q:D_SOURIS.pt, pp:pvPointsPass(PV_EC, D_SOURIS.pt)} : null; }, piquages:function(o){ return piquagesSymbole(o); }, peindre:function(){ peindre(); }, pvEtiquettes:function(){ return PV_ETIQ; }, pv:function(){ return PVD(); }, pvEtude:pvEtude, pvGeo:pvGeo, pvCentre:pvCentre, pvEc:function(){ return PV_EC; }, toits:toits, pansToit:pansToit, panneauxToit:panneauxToit, resumeToit:resumeToit, fond:function(){ return {f:fondD(), img:!!FOND_IMG, etape:FOND_ETAPE}; }, importerFond:importerFond, dessinEnMm:dessinEnMm, projectionG:projectionG, contourG:contourG, dessin:function(){ return DESSIN; }, v3:function(){ return V3; }, zonePlafond:zonePlafond, chercherD:chercherD, enchainer:function(v){ ENCHAINER=!!v; majEnchainer(); }, outil:function(){ return OUTIL_D; }, sel:function(){ return SEL; }, toucherD:toucherD, outilD:function(o){ OUTIL_D=o; D_PT=null; majDessin(); }, selD:function(){ return D_SEL; },
   mep:MEP, echelleMep:function(){ var e=echelleMep(); return {n:e.n, fit:e.fit, deborde:e.deborde}; }, symboles:function(){ return SYMB; }, mode:function(){ return MODE; }, dxf:function(){ return SymbolesElec.dxf(posesSymboles(), {extra:dxfBandeaux()}); },
   deduireEchelle:deduireEchelle, echelle:function(){ return {mm:DESSIN_MM, source:ECHELLE_SRC}; }, plan:function(){ return PLAN; }, cotes:function(){ return COTES; }, vue:function(){ return V; }, versEcran:versEcran, formater:formater, dxfDessin:dxfDessin, rendrePlan:function(dpi){ return rendrePlan(echelleMep(), dpi||150); }, cadrage:cadrage, cadrageVue:cadrageVue, grp:function(){ return GRP; }};
 window.__dwg.effaces=function(){ return Array.from(EFF); };
