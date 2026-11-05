@@ -883,7 +883,7 @@ function polesDuTableau(col, n, tri){
   if(n!==4 || !col.table) return;
   var t=col.table;
   if(t.protection) t.protection = tri ? t.protection.replace(/\b1P\s*\+\s*N\b/i, "3P+N") : t.protection.replace(/\b3P\s*\+\s*N\b/i, "1P+N");
-  if(t.cable && !col.fils) t.cable = tri ? t.cable.replace(/^3G/i, "5G") : t.cable.replace(/^5G/i, "3G");
+  ["cable","section"].forEach(function(k){ if(t[k] && !col.fils) t[k] = tri ? t[k].replace(/^3G/i, "5G") : t[k].replace(/^5G/i, "3G"); });
 }
 function reseauDe(S){
   if(S.reseau==="mono" || S.reseau==="tri") return S.reseau;
@@ -1549,6 +1549,13 @@ function sectionPour(calibre){
   /* 10 A : 1,5² ; 16 et 20 A : 2,5² */
   return a<=10 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : a<=80 ? "25²" : a<=100 ? "35²" : a<=125 ? "50²" : "";
 }
+/* les types de câble proposés ; R2V par défaut */
+var TYPES_CABLE=["R2V","AR2V","FRN1X6G3","RNF"], TYPE_CABLE_DEFAUT="R2V";
+/* un tableau écrit à l'ancienne (« 3G2,5 » dans Câble, « 2,5² » dans Section) : Câble prend le type, Section les conducteurs */
+function normTable(t){
+  if(t && t.cable && /^\s*\d+\s*G\s*\d/i.test(t.cable)){ t.section=t.cable.replace(/\s*mm²?\s*$/i,"").trim(); t.cable=TYPE_CABLE_DEFAUT; }
+  return t;
+}
 function cablePour(section, fils){
   if(!section) return "";
   return (fils>=4 ? "5G" : fils===3 ? "4G" : "3G")+section.replace("²","");
@@ -1557,18 +1564,32 @@ function cablePour(section, fils){
    et quand le disjoncteur change (calibre, pôles, conducteurs), la protection, la section et le câble
    sont reproposés pour lui, même écrits à la main : on les reprend ensuite si la longueur l'exige */
 function cleProt(t){ return String(t||"").replace(/\s+/g,"").toUpperCase(); }
-function remplirTable(col){
-  var c=col.cases[4]; if(!c || ["disj","disjdiff","fus"].indexOf(c.sym)<0) return;
-  col.auto=col.auto||{};
-  var calibre=(c.t||[]).filter(function(s){ return /\d+\s*A\b/.test(s); })[0]||"";
-  var poles=(c.t||[]).filter(function(s){ return /P\b|P\+N/i.test(s); })[0]||"";
+/* la protection de la colonne : son disjoncteur (ou disjoncteur différentiel), son calibre, ses pôles, ses conducteurs */
+function protDe(col){
+  var c=col.cases[4];
+  if(!c && col.cases[3] && col.cases[3].sym==="disjdiff") c=col.cases[3];     /* un disjoncteur différentiel seul sur sa colonne */
+  if(!c || ["disj","disjdiff","fus"].indexOf(c.sym)<0) return null;
+  /* le calibre (« 20 A », pas « 30 mA ») et les pôles, où qu'ils soient écrits (« 1P+N · 20 A » sur une ligne) */
+  var txt=(c.t||[]).join(" · ");
+  var calibre=((txt.match(/(^|[^\w,.])(\d+(?:[,.]\d+)?)\s*A\b/)||[])[2]||"");
+  if(calibre) calibre+=" A";
+  var poles=((txt.match(/\b(1P\s*\+\s*N|3P\s*\+\s*N|[1234]P)(?![\w+])/i)||[])[1]||"").replace(/\s+/g,"").toUpperCase();
   /* les conducteurs : ceux imposés, sinon ceux des pôles du disjoncteur lui-même (1P+N : 3G, 3P+N : 5G), sinon ceux de la colonne */
-  var pp=cleProt(poles), fP = /3P\+N|4P/.test(pp) ? 4 : /3P/.test(pp) ? 3 : /1P\+N|2P/.test(pp) ? 2 : 0;
-  var sec=sectionPour(calibre), fils=col.fils || fP || filsDe(col);
-  var auto={repere:c.rep||"", protection:[calibre,poles].filter(Boolean).join(" · "), section:sec, cable:cablePour(sec, fils)};
-  var cle=[cleProt(calibre), cleProt(poles), fils].join("|");
-  /* le disjoncteur a-t-il changé ? (un schéma d'avant : on compare à la protection écrite dans le tableau) */
-  var change = col.cleProt!==undefined ? col.cleProt!==cle : cleProt((col.table||{}).protection)!==cleProt(auto.protection);
+  var fP = /3P\+N|4P/.test(poles) ? 4 : /3P/.test(poles) ? 3 : /1P\+N|2P/.test(poles) ? 2 : 0;
+  var fils=col.fils || fP || filsDe(col);
+  return {c:c, calibre:calibre, poles:poles, fils:fils, cle:[cleProt(calibre), poles, fils].join("|")};
+}
+/* à l'ouverture d'un schéma : on note le disjoncteur de chaque colonne, pour voir ensuite s'il change */
+function noterProtections(){
+  (S.colonnes||[]).forEach(function(col){ if(col.cleProt===undefined){ var p=protDe(col); if(p) col.cleProt=p.cle; } });
+}
+function remplirTable(col){
+  var P=protDe(col); if(!P) return;
+  var c=P.c, calibre=P.calibre, poles=P.poles, fils=P.fils;
+  col.auto=col.auto||{};
+  var sec=sectionPour(calibre);
+  var auto={repere:c.rep||"", protection:[calibre,poles].filter(Boolean).join(" · "), section:cablePour(sec, fils), cable:col.typeCable||TYPE_CABLE_DEFAUT};
+  var cle=P.cle, change = col.cleProt!==undefined && col.cleProt!==cle;
   col.cleProt=cle;
   col.table=col.table||{};
   for(var k in auto){
@@ -1582,6 +1603,7 @@ function remplirTable(col){
 var NS="http://www.w3.org/2000/svg";
 function peindre(){
   if(!S.liens){ deduireAmonts(); sauver(); }
+  noterProtections();
   var nF=nbFolios(S);
   if(F>=nF) F=nF-1;
   var r=dessinerFolio(S, F);
@@ -1819,6 +1841,11 @@ function ouvrirPanneau(){
     ct.querySelector("input,textarea").dataset.table=l.id;
     tb.appendChild(ct);
   });
+  var tcl=el("label","champ-p"); tcl.appendChild(el("span",null,"Type de câble"));
+  var tcs=el("select"), tcv=col.typeCable||TYPE_CABLE_DEFAUT;
+  TYPES_CABLE.concat(TYPES_CABLE.indexOf(tcv)<0 ? [tcv] : []).forEach(function(o){ var op=el("option",null,o+(o===TYPE_CABLE_DEFAUT?" (par défaut)":"")); op.value=o; if(o===tcv) op.selected=true; tcs.appendChild(op); });
+  tcs.addEventListener("change", function(){ var v=tcs.value; changer(function(){ col.typeCable=v; col.table=col.table||{}; col.table.cable=v; col.auto=col.auto||{}; col.auto.cable=true; }); majChampsTable(col); });
+  tcl.appendChild(tcs); tb.appendChild(tcl);
   var fl=el("label","champ-p"); fl.appendChild(el("span",null,"Nombre de conducteurs (traits sur le schéma)"));
   var sel=el("select");
   [["0","Automatique ("+filsDe({cases:col.cases})+")"],["2","2"],["3","3"],["4","4"],["5","5"]].forEach(function(o){
@@ -2060,7 +2087,7 @@ function remplacer(nouveau, message){
   changer(function(){ S.colonnes=nouveau.colonnes; auMoinsNeuf(S); S.barres=nouveau.barres; if(nouveau.lignes) S.lignes=nouveau.lignes; delete S.reseau; delete S.liens; });
   F=0; fermerFenetres(); fermerPanneau(); toast(message); return true;
 }
-function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=table||{}; for(var k in c.table) c.auto[k]=false; return c; }
+function cc(cases, table){ var c=colonneVide(); c.cases=cases||{}; c.table=normTable(table||{}); for(var k in c.table) c.auto[k]=false; return c; }
 function s(sym, rep, t){ return {sym:sym, rep:rep||"", t:(t||SYMBOLES[sym].t).slice()}; }
 function circuit(rep, cal, poles, desig, section, cable){
   return cc({4:s("disj",rep,[poles,cal,""])}, {repere:rep, designation:desig, protection:cal+" · "+poles, cable:cable, section:section});
@@ -2151,7 +2178,7 @@ function depuisEtiquettes(e){
     var cal=CALIBRES.filter(function(x){ return x[0].test(t); })[0], rep="D"+n;
     if(dernier===idCol && idCol && !idCol.cases[4]){ /* le premier circuit partage la colonne de son différentiel */
       idCol.cases[4]=s("disj",rep,["1P+N",cal[1],""]);
-      idCol.table={repere:rep, designation:t, protection:cal[1]+" · 1P+N", cable:cal[3], section:cal[2]};
+      idCol.table=normTable({repere:rep, designation:t, protection:cal[1]+" · 1P+N", cable:cal[3], section:cal[2]});
       return;
     }
     var c=circuit(rep, cal[1], "1P+N", t, cal[2], cal[3]); cols.push(c); dernier=c;
