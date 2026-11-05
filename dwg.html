@@ -3361,8 +3361,45 @@ function circuitsPlan(){
       : ty==="pac" ? (kw ? Math.round(kw*1000/3)+" W" : "3000 W") : ty==="baes" ? n*10+" W" : ty==="spe" ? (/Plaques/.test(nom) ? "7200 W" : /Four/.test(nom) ? "3500 W" : "2500 W") : "";
     var cal = ty==="spe" && /Plaques/.test(nom) ? "32 A" : ty==="pc" && n>8 ? "20 A" : CAL_CIRC[ty]||"16 A";
     var alerte = (ty==="ecl" && n>8) ? n+" points lumineux : 8 au plus par circuit" : (ty==="pc" && n>12) ? n+" prises : 12 au plus (20 A en 2,5 mm²)" : (ty==="pc" && n>8) ? n+" prises : plus de 8, passez en 20 A, 2,5 mm²" : "";
-    return {rep:c.rep, nom:nom, puissance:P, carac:cal, n:n, type:ty, alerte:alerte, sy:c.sy};
+    var cab=cableCircuit(c.sy, ty, cal, P, n);
+    if(cab && cab.alerte) alerte = alerte ? alerte+" · "+cab.alerte : cab.alerte;
+    return {rep:c.rep, nom:nom, puissance:P, carac:cal, n:n, type:ty, alerte:alerte, sy:c.sy, cable:cab};
   }).sort(function(a, b){ var na=parseInt(a.rep.replace(/\D+/g, ""), 10)||0, nb=parseInt(b.rep.replace(/\D+/g, ""), 10)||0; return na-nb || a.rep.localeCompare(b.rep); });
+}
+/* le câble d'un circuit, depuis le tableau (le symbole TGBT) : sa longueur estimée (de point en point, au plus court,
+   par le plafond, montées et descentes comprises, 10 % de marge), sa section d'après le calibre, et sa chute de tension */
+var SECTION_CAL={2:1.5, 10:1.5, 16:2.5, 20:2.5, 25:4, 32:6, 40:10};
+function cableCircuit(sy, ty, cal, P, n){
+  var tab=SYMB.filter(function(o){ return o.cle==="cfo-tgbt" && (!o.vue || o.vue==="dessus"); })[0]; if(!tab) return null;
+  var pts=sy.filter(function(o){ var d=defDe(o); return d && typeCircuit(d, o)!=="cmd" || true; }), hsp=hspD(), k=DESSIN_MM/1000;
+  var reste=pts.slice(), cur=[tab.x, tab.y], L=Math.max(0, hsp-hauteurDe(tab))/1000, der=null;
+  while(reste.length){ var bi=0, bd=Infinity; reste.forEach(function(o, i){ var d=Math.abs(o.x-cur[0])+Math.abs(o.y-cur[1]); if(d<bd){ bd=d; bi=i; } });
+    var o=reste.splice(bi, 1)[0]; L+=bd*k+2*Math.max(0, hsp-hauteurDe(o))/1000; cur=[o.x, o.y]; der=o; }
+  if(der) L-=Math.max(0, hsp-hauteurDe(der))/1000;
+  L=Math.round(L*1.1*10)/10;
+  var In=parseInt(cal, 10)||16, S=SECTION_CAL[In]||2.5; if(ty==="pc" && In===16 && n<=8) S=1.5; if(ty==="ecl") S=1.5;
+  var W=parseFloat(String(P||"").replace(/\s/g, "").replace(",", "."))||0, I = W ? W/230 : (ty==="pc" ? 2000/230 : In*0.5);
+  var du=2*0.0225*L*I/(S*230)*100, lim = ty==="ecl" || ty==="baes" ? 3 : 5;
+  return {L:L, S:S, nom:"3G"+String(S).replace(".", ",")+" mm²", du:Math.round(du*100)/100, alerte: du>lim ? "chute de tension "+String(Math.round(du*10)/10).replace(".", ",")+" % ("+lim+" % au plus) : section plus forte" : ""};
+}
+/* les bouches de VMC : leur débit d'après la pièce (cuisine, salle de bains, WC…) */
+function bouchesVmc(){
+  var L=[];
+  SYMB.forEach(function(o){ var m=/^cfo-bouche-(80|125|160|applique)$/.exec(o.cle||""); if(!m || (o.vue && o.vue!=="dessus")) return;
+    var pc=pieceDe([o.x, o.y]), pn=String(pc).toLowerCase(), base, pointe=null;
+    if(/cuisine|kitchenette/.test(pn)){ base=45; pointe=135; } else if(/bain|douche|sdb|salle d.eau|sde/.test(pn)) base=30; else if(/wc|toilette|cabinet/.test(pn)) base=15; else if(/buanderie|cellier|lingerie/.test(pn)) base=15;
+    else base = m[1]==="80" ? 15 : m[1]==="160" ? 45 : 30;
+    L.push({o:o, piece:pc||"(pièce ?)", d:m[1]==="applique" ? "applique" : "Ø"+m[1], base:base, pointe:pointe});
+  });
+  return L;
+}
+/* les liaisons frigorifiques : la charge de fluide à ajouter au-delà de la longueur préchargée */
+var FRIGO_GM={"1/4 - 3/8":20, "1/4 - 1/2":30, "3/8 - 5/8":40, "1/2 - 3/4":60}, FRIGO_PRE=7.5;
+function liaisonsFrigo(){
+  return geos().filter(function(o){ return o.res && o.res.t==="frigo" && (!o.vue || o.vue==="dessus"); }).map(function(o){
+    var L=longueurRes(o)/1000, gm=FRIGO_GM[o.res.d]||20, plus=Math.max(0, L-FRIGO_PRE)*gm;
+    return {o:o, d:o.res.d, L:Math.round(L*10)/10, gm:gm, charge:Math.round(plus)};
+  });
 }
 /* donner un circuit à ce qui n'en a pas : une série reliée = un circuit ; sinon, par pièce et par usage (8 points au plus) ;
    une prise spécialisée, un chauffe-eau, une PAC : chacun le sien */
@@ -3458,9 +3495,13 @@ function feuillesQuantites(){
     F.push({nom:"Réservations", lignes:Lz, larg:[10,30,24,10]}); }
   /* les circuits */
   var LC=circuitsPlan();
-  if(LC.length){ var Lk=[["Circuit","Désignation","Points","Calibre","Puissance","Alerte"]];
-    LC.forEach(function(c){ Lk.push([c.rep, c.nom, c.n||"", c.carac, c.puissance, c.alerte]); });
-    F.push({nom:"Circuits", lignes:Lk, larg:[9,32,8,9,12,46]}); }
+  if(LC.length){ var Lk=[["Circuit","Désignation","Points","Calibre","Puissance","Câble","Longueur (m)","Chute de tension (%)","Alerte"]];
+    LC.forEach(function(c){ Lk.push([c.rep, c.nom, c.n||"", c.carac, c.puissance, c.cable ? c.cable.nom : "", c.cable ? c.cable.L : "", c.cable ? c.cable.du : "", c.alerte]); });
+    F.push({nom:"Circuits", lignes:Lk, larg:[9,32,8,9,12,14,13,18,50]}); }
+  var BV=bouchesVmc();
+  if(BV.length){ var Lv=[["Pièce","Bouche","Débit (m³/h)","En pointe (m³/h)"]], tb=0; BV.forEach(function(x){ tb+=x.base; Lv.push([x.piece, x.d, x.base, x.pointe||""]); }); var lt2=["","Total",tb,""]; lt2.total=true; Lv.push(lt2); F.push({nom:"VMC", lignes:Lv, larg:[24,12,14,16]}); }
+  var LF=liaisonsFrigo();
+  if(LF.length){ var Lf=[["Liaison","Longueur (m)","Précharge (m)","g/m","Charge à ajouter (g)"]]; LF.forEach(function(x){ Lf.push([x.d, x.L, FRIGO_PRE, x.gm, x.charge]); }); F.push({nom:"Clim", lignes:Lf, larg:[14,13,13,8,20]}); }
   /* la première feuille : le plan */
   var soc=(function(){ try{ var x=JSON.parse(localStorage.getItem("outils:session")||"null"); return x ? (x.societeNom || (x.societe && x.societe.nom) || x.societe || "") : ""; }catch(e){ return ""; } })();
   F.unshift({nom:"Plan", lignes:[["Plan", nomDeBase()], ["Date", new Date().toLocaleDateString("fr-FR")], ["Entreprise", typeof soc==="string" ? soc : ""], ["Feuilles", F.map(function(f){ return f.nom; }).join(", ")]], larg:[14,60]});
@@ -3511,13 +3552,29 @@ function peindreQuantites(){
     var sr=document.createElement("span"); sr.className="q-det"; sr.textContent=x.pvL.t;
     lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(document.createElement("b")); ul.appendChild(lr);
   });
+  /* la VMC : le débit de chaque bouche, et le total */
+  var BV=bouchesVmc();
+  if(BV.length){
+    var tb=0, tp=0; BV.forEach(function(x){ tb+=x.base; tp+=x.pointe||x.base; });
+    var lv=document.createElement("li"); lv.className="total"; lv.innerHTML="<span></span><b></b>"; lv.firstChild.textContent="VMC : extraction"; lv.lastChild.textContent=tb+" m³/h"; ul.appendChild(lv);
+    BV.forEach(function(x){ var li=document.createElement("li"), i=document.createElement("i"); i.innerHTML=SymbolesElec.svg(x.o.cle, 24); var sp=document.createElement("span"); sp.className="q-det"; sp.textContent=x.piece+" · bouche "+x.d; var bb=document.createElement("b"); bb.textContent=x.base+(x.pointe ? " / "+x.pointe : "")+" m³/h"; li.appendChild(i); li.appendChild(sp); li.appendChild(bb); ul.appendChild(li); });
+    if(tp!==tb){ var lp=document.createElement("li"); lp.innerHTML="<i></i><span class='q-det'></span><b></b>"; lp.children[1].textContent="En pointe (cuisine)"; lp.children[2].textContent=tp+" m³/h"; ul.appendChild(lp); }
+  }
+  /* la clim : la charge complémentaire de chaque liaison frigorifique */
+  var LF=liaisonsFrigo();
+  if(LF.length){
+    var lf=document.createElement("li"); lf.className="total"; lf.innerHTML="<span></span><b></b>"; lf.firstChild.textContent="Clim : charge à ajouter"; var tc=0; LF.forEach(function(x){ tc+=x.charge; }); lf.lastChild.textContent=tc+" g"; ul.appendChild(lf);
+    LF.forEach(function(x){ var li=document.createElement("li"), i=document.createElement("i"); i.innerHTML=svgRes(x.o.res, 24); var sp=document.createElement("span"); sp.className="q-det"; sp.textContent="Liaison "+x.d+" · "+String(x.L).replace(".", ",")+" m";
+      var sm=document.createElement("small"); sm.textContent = x.charge ? "au-delà de "+String(FRIGO_PRE).replace(".", ",")+" m préchargés, "+x.gm+" g/m" : "dans la précharge ("+String(FRIGO_PRE).replace(".", ",")+" m)"; sp.appendChild(sm);
+      var bb=document.createElement("b"); bb.textContent=x.charge ? "+"+x.charge+" g" : "0 g"; li.appendChild(i); li.appendChild(sp); li.appendChild(bb); ul.appendChild(li); });
+  }
   /* les circuits : leurs points, et l'alerte au-delà du nombre permis */
   var LC=circuitsPlan();
   if(LC.length){
     var lt=document.createElement("li"); lt.className="total"; lt.innerHTML="<span></span><b></b>"; lt.firstChild.textContent="Circuits"; lt.lastChild.textContent=String(LC.length); ul.appendChild(lt);
     LC.forEach(function(c){
       var lr=document.createElement("li"), ir=document.createElement("i"); ir.textContent=c.rep; ir.className="q-circ";
-      var sr=document.createElement("span"); sr.className="q-det"; sr.textContent=c.nom+" · "+c.carac;
+      var sr=document.createElement("span"); sr.className="q-det"; sr.textContent=c.nom+" · "+c.carac+(c.cable ? " · ≈ "+String(c.cable.L).replace(".", ",")+" m de "+c.cable.nom+", ΔU "+String(c.cable.du).replace(".", ",")+" %" : "");
       if(c.alerte){ var sm=document.createElement("small"); sm.className="q-alerte"; sm.textContent=c.alerte; sr.appendChild(sm); }
       var br=document.createElement("b"); br.textContent=c.n ? String(c.n) : ""; lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(br); ul.appendChild(lr);
     });
@@ -11045,6 +11102,17 @@ function pvCalc(s, g){
   return r;
 }
 function pvAl(l, niv, txt){ l.push({niv:niv, txt:txt}); }
+/* la production estimée : la puissance × le productible du lieu × l'orientation et l'inclinaison (par rapport au plein sud à 30°) */
+var PV_FACT={inc:[0,30,60,90], az:[0,45,90,135,180], t:[[.88,1.00,.91,.70],[.88,.96,.86,.65],[.88,.84,.70,.55],[.88,.72,.54,.38],[.88,.62,.40,.25]]};
+function pvFacteur(az, inc){
+  var a=Math.min(180, Math.abs(((az%360)+540)%360-180)), i=Math.max(0, Math.min(90, inc));
+  function idx(l, v){ for(var k=0;k<l.length-1;k++) if(v<=l[k+1]) return [k, (v-l[k])/(l[k+1]-l[k])]; return [l.length-2, 1]; }
+  var A=idx(PV_FACT.az, a), I=idx(PV_FACT.inc, i), T=PV_FACT.t;
+  function v(r, c){ return T[r][c]; }
+  var f0=v(A[0], I[0])*(1-I[1])+v(A[0], I[0]+1)*I[1], f1=v(A[0]+1, I[0])*(1-I[1])+v(A[0]+1, I[0]+1)*I[1];
+  return f0*(1-A[1])+f1*A[1];
+}
+function pvProduction(P, wc){ var prod=P.prod>0 ? P.prod : 1150, az=P.az!=null ? P.az : 0, inc=P.incl!=null ? P.incl : 30, f=pvFacteur(az, inc); return {kwh:Math.round(wc/1000*prod*f/10)*10, f:f, prod:prod, az:az, inc:inc}; }
 function pvEtude(){
   var P=PVD(), m=P.mod, E={str:[], ond:[], n:P.pan.length, wc:P.pan.length*m.wc, err:0, av:0, libres:0};
   P.str.forEach(function(s){ var g=pvGeo(s); E.str.push({s:s, g:g, c:pvCalc(s, g)}); });
@@ -11865,7 +11933,10 @@ function peindreEtude(complet){
     var gc=document.createElement("div"); gc.className="ep-grille";
     gc.appendChild(pvChamp2("Température mini (°C)", P.tmin, "", {pv:"cond", k:"tmin"})); gc.appendChild(pvChamp2("Température cellule maxi (°C)", P.tmax, "", {pv:"cond", k:"tmax"}));
     gc.appendChild(pvChamp2("Section du câble DC (mm²)", P.sec, "", {pv:"cond", k:"sec"}));
-    gc.appendChild(pvChamp2("Écart entre le + et le − (cm)", P.ecf/10, "", {pv:"cond", k:"ecf"})); par.appendChild(gc);
+    gc.appendChild(pvChamp2("Écart entre le + et le − (cm)", P.ecf/10, "", {pv:"cond", k:"ecf"}));
+    gc.appendChild(pvChamp2("Productible du lieu (kWh/kWc/an)", P.prod>0 ? P.prod : 1150, "", {pv:"cond", k:"prod"}));
+    gc.appendChild(pvChamp2("Orientation (° depuis le sud : est −90, ouest +90)", P.az!=null ? P.az : 0, "", {pv:"cond", k:"az"}));
+    gc.appendChild(pvChamp2("Inclinaison des panneaux (°)", P.incl!=null ? P.incl : 30, "", {pv:"cond", k:"incl"})); par.appendChild(gc);
     P.ond.forEach(function(o){
       var hh=document.createElement("h3"); hh.textContent="Onduleur "+o.nom; par.appendChild(hh);
       var go=document.createElement("div"); go.className="ep-grille"; PV_CHAMPS_OND.forEach(function(f){ go.appendChild(pvChamp2(f[1], o[f[0]], f[2], {pv:"ond", id:o.id, k:f[0]})); }); par.appendChild(go);
@@ -11875,6 +11946,7 @@ function peindreEtude(complet){
   function el(tag, cls, txt){ var e=document.createElement(tag); if(cls) e.className=cls; if(txt!=null) e.textContent=txt; return e; }
   var r=el("div", "ep-resume");
   r.appendChild(el("b", null, Ep.n+" panneau"+(Ep.n>1 ? "x" : "")+" · "+pvNb(Ep.wc/1000, 2)+" kWc"));
+  if(Ep.wc){ var Pr=pvProduction(P, Ep.wc); r.appendChild(el("span", null, "Production estimée : "+pvNb(Pr.kwh, 0)+" kWh/an ("+pvNb(Pr.prod, 0)+" kWh/kWc × "+pvNb(Pr.f*100, 0)+" % pour "+pvNb(Pr.az, 0)+"° et "+pvNb(Pr.inc, 0)+"°)")); }
   r.appendChild(el("span", null, Ep.str.length+" string"+(Ep.str.length>1 ? "s" : "")+" · "+P.ond.length+" onduleur"+(P.ond.length>1 ? "s" : "")+(Ep.libres ? " · "+Ep.libres+" panneau"+(Ep.libres>1 ? "x" : "")+" non câblé"+(Ep.libres>1 ? "s" : "") : "")));
   r.appendChild(el("span", Ep.err ? "ep-al err" : Ep.av ? "ep-al av" : "ep-ok", Ep.err ? Ep.err+" erreur"+(Ep.err>1 ? "s" : "")+(Ep.av ? ", "+Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : "") : Ep.av ? Ep.av+" avertissement"+(Ep.av>1 ? "s" : "") : (Ep.str.length ? "Étude cohérente" : "Posez les panneaux, l'onduleur, puis les strings.")));
   res.appendChild(r);
@@ -12044,6 +12116,7 @@ function pdfEtudePv(doc, g){
   doc.setDrawColor(0,0,0); doc.setLineWidth(0.35); doc.rect(C.x, C.y, C.w, C.h);
   t("ÉTUDE PHOTOVOLTAÏQUE", x0, y, 13, {b:true}); y+=6;
   ligne(Ep.n+" panneaux · "+pvNb(Ep.wc/1000, 2)+" kWc · "+Ep.str.length+" strings · "+P.ond.length+" onduleur"+(P.ond.length>1 ? "s" : "")+(Ep.libres ? " · "+Ep.libres+" panneaux non câblés" : "")+" · "+(Ep.err ? Ep.err+" erreur(s)" : "aucune erreur")+(Ep.av ? ", "+Ep.av+" avertissement(s)" : ""), 9, {b:true});
+  if(Ep.wc){ var PrP=pvProduction(P, Ep.wc); ligne("Production estimée : "+pvNb(PrP.kwh, 0)+" kWh/an (productible "+pvNb(PrP.prod, 0)+" kWh/kWc/an × "+pvNb(PrP.f*100, 0)+" % pour une orientation de "+pvNb(PrP.az, 0)+"° depuis le sud et une inclinaison de "+pvNb(PrP.inc, 0)+"°)", 8.5, {b:true}); }
   y+=1.5;
   var m=P.mod;
   ligne("Module : "+m.nom+" · "+m.wc+" Wc · Voc "+pvNb(m.voc)+" V · Vmp "+pvNb(m.vmp)+" V · Isc "+pvNb(m.isc)+" A · Imp "+pvNb(m.imp)+" A · coef. Voc "+pvNb(m.cv, 2)+" %/°C · coef. Pmax "+pvNb(m.cp, 2)+" %/°C · "+m.l+" × "+m.h+" mm", 8);
