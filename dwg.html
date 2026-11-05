@@ -1008,7 +1008,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 <aside class="calques" id="quantites" hidden aria-label="Quantités">
   <header><b>CFO · quantités</b><button class="bt" id="qtFermer" type="button" aria-label="Fermer">✕</button></header>
   <ul id="listeQuantites"></ul>
-  <footer class="qt-pied"><button class="bt" id="btBiblio" type="button">Bibliothèque DXF des symboles</button></footer>
+  <footer class="qt-pied"><button class="bt or" id="btXlsx" type="button">Exporter en Excel</button> <button class="bt" id="btBiblio" type="button">Bibliothèque DXF des symboles</button></footer>
 </aside>
 <aside class="calques etude-pv" id="etudePv" hidden aria-label="Étude photovoltaïque">
   <header><b>Étude photovoltaïque</b><button class="bt" id="epFermer" type="button" aria-label="Fermer">✕</button></header>
@@ -3343,6 +3343,93 @@ function numeroterCircuits(){
   unites.sort(function(u, v){ return ORDRE.indexOf(u.ty)-ORDRE.indexOf(v.ty) || u.y-v.y || u.x-v.x; });
   var faits=0; unites.forEach(function(u){ var c=nouveau(); u.l.forEach(function(o){ o.circ=c; faits++; }); });
   return faits;
+}
+/* ---------- l'export Excel des quantités : un classeur, une feuille par famille ---------- */
+var JSZIP_URL="./vendor/jszip-3.10.1/jszip.min.js";
+function chargerJSZip(){ return window.JSZip ? Promise.resolve(window.JSZip) : new Promise(function(ok, ko){ var sc=document.createElement("script"); sc.src=JSZIP_URL; sc.onload=function(){ ok(window.JSZip); }; sc.onerror=function(){ ko(new Error("jszip")); }; document.head.appendChild(sc); }); }
+function xmlEsc(v){ return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g, ""); }
+function colXlsx(i){ var s=""; i++; while(i>0){ var m=(i-1)%26; s=String.fromCharCode(65+m)+s; i=Math.floor((i-1)/26); } return s; }
+function feuilleXlsx(lignes, larg){
+  var x='<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetViews><sheetView workbookViewId="0"><pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>';
+  if(larg) x+='<cols>'+larg.map(function(w, i){ return '<col min="'+(i+1)+'" max="'+(i+1)+'" width="'+w+'" customWidth="1"/>'; }).join("")+'</cols>';
+  x+='<sheetData>';
+  lignes.forEach(function(l, r){
+    x+='<row r="'+(r+1)+'">';
+    l.forEach(function(v, c){ var ref=colXlsx(c)+(r+1), st = r===0 ? ' s="1"' : (l.total ? ' s="2"' : '');
+      if(v===null || v===undefined || v==="") return;
+      if(typeof v==="number" && isFinite(v)) x+='<c r="'+ref+'"'+st+'><v>'+(Math.round(v*1000)/1000)+'</v></c>';
+      else x+='<c r="'+ref+'" t="inlineStr"'+st+'><is><t xml:space="preserve">'+xmlEsc(v)+'</t></is></c>'; });
+    x+='</row>';
+  });
+  return x+'</sheetData></worksheet>';
+}
+function classeurXlsx(feuilles){
+  return chargerJSZip().then(function(JSZip){
+    var z=new JSZip();
+    z.file("[Content_Types].xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>'
+      +feuilles.map(function(f, i){ return '<Override PartName="/xl/worksheets/sheet'+(i+1)+'.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>'; }).join("")+'</Types>');
+    z.file("_rels/.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>');
+    z.file("xl/workbook.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>'
+      +feuilles.map(function(f, i){ return '<sheet name="'+xmlEsc(f.nom.slice(0, 31))+'" sheetId="'+(i+1)+'" r:id="rId'+(i+1)+'"/>'; }).join("")+'</sheets></workbook>');
+    z.file("xl/_rels/workbook.xml.rels", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+      +feuilles.map(function(f, i){ return '<Relationship Id="rId'+(i+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet'+(i+1)+'.xml"/>'; }).join("")
+      +'<Relationship Id="rId'+(feuilles.length+1)+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>');
+    z.file("xl/styles.xml", '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><b/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE5E9EF"/><bgColor indexed="64"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="3"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"/><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1"/><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"/></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>');
+    feuilles.forEach(function(f, i){ z.file("xl/worksheets/sheet"+(i+1)+".xml", feuilleXlsx(f.lignes, f.larg)); });
+    return z.generateAsync({type:"blob", mimeType:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  });
+}
+function m1(mm){ return Math.round(mm/100)/10; }
+function feuillesQuantites(){
+  var F=[], n=compter();
+  /* les symboles */
+  var Ls=[["Famille","Désignation","Quantité","Circuits"]];
+  SymbolesElec.liste.forEach(function(sy){ if(!n[sy.cle]) return;
+    var cs={}; SYMB.forEach(function(o){ if(o.cle===sy.cle && o.circ) cs[o.circ]=1; });
+    Ls.push([sy.groupe, nomQuantite(sy), n[sy.cle], Object.keys(cs).sort(function(a, b){ return (parseInt(a.replace(/\D+/g, ""), 10)||0)-(parseInt(b.replace(/\D+/g, ""), 10)||0); }).join(", ")]); });
+  if(Ls.length>1){ var tot=0; Ls.slice(1).forEach(function(l){ tot+=l[2]; }); var lt=["","Total",tot,""]; lt.total=true; Ls.push(lt); F.push({nom:"Symboles", lignes:Ls, larg:[26,52,10,24]}); }
+  /* les réseaux (et les chemins de câbles) */
+  var Lr=[["Réseau","Nature","Diamètre / taille","Longueur (m)"]], Lc=[["Nature","Taille","Longueur (m)","Longueurs de 3 m","Supports","Éclisses","Coudes","Tés","Croix"]];
+  reseauxPoses().forEach(function(x){
+    var T=RES_TYPES[x.res.t]||{}, na=natureRes(x.res);
+    if(x.res.t==="chemin" && x.ch) Lc.push([na ? na[1] : "", texteDiam(x.res.d), m1(x.L), x.ch.longueurs, x.ch.supports, x.ch.eclisses, x.ch.coudes, x.ch.tes, x.ch.croix]);
+    else Lr.push([T.nom||x.res.t, na ? na[1] : "", texteDiam(x.res.d), m1(x.L)]);
+  });
+  if(Lr.length>1) F.push({nom:"Réseaux", lignes:Lr, larg:[26,26,18,14]});
+  if(Lc.length>1) F.push({nom:"Chemins de câbles", lignes:Lc, larg:[22,12,14,16,10,10,9,7,7]});
+  /* le photovoltaïque : les strings, l'AC, le RJ45 */
+  var P=DESSIN.pv;
+  if(P && P.str && (P.str.length || (P.ond||[]).length)){
+    var Lp=[["Câble","Onduleur","MPPT","Panneaux","Section","Longueur + (m)","Longueur − (m)"]];
+    P.str.forEach(function(st){ if(!st.ond) return; var g=pvGeo(st), o=pvOnd(st.ond); Lp.push(["String "+st.nom, o ? o.nom : "", st.m||1, st.pans.length, "2 × "+P.sec+" mm²", Math.round(g.lp*10)/10, Math.round(g.lm*10)/10]); });
+    (P.ond||[]).forEach(function(o){
+      if(pvLiaison(o, "ac")){ var a=pvAc(o); Lp.push(["AC "+o.nom, o.nom, "", "", a.cable+" · disj. "+a.In+" A", Math.round(a.L*10)/10, ""]); }
+      if(pvLiaison(o, "rj")){ var rj=pvRj(o); Lp.push(["RJ45 "+o.nom, o.nom, "", "", "Cat 6", Math.round(rj.L*10)/10, ""]); }
+    });
+    if(Lp.length>1) F.push({nom:"Câbles PV", lignes:Lp, larg:[16,12,7,10,34,14,14]});
+  }
+  /* les réservations pour le maçon */
+  var R=reservations();
+  if(R.length){ var Lz=[["Repère","Support, usage","Dimensions","Bas (cm)"]];
+    R.forEach(function(o){ var t=texteResa(o), cs=cotesResa(o); Lz.push([t.num, t.l1, o.resa.def ? "à définir sur place" : nomCm(cs.l)+" × "+nomCm(cs.h)+" cm", o.resa.z!=null && o.resa.z!=="" ? Number(o.resa.z) : ""]); });
+    F.push({nom:"Réservations", lignes:Lz, larg:[10,30,24,10]}); }
+  /* les circuits */
+  var LC=circuitsPlan();
+  if(LC.length){ var Lk=[["Circuit","Désignation","Points","Calibre","Puissance","Alerte"]];
+    LC.forEach(function(c){ Lk.push([c.rep, c.nom, c.n||"", c.carac, c.puissance, c.alerte]); });
+    F.push({nom:"Circuits", lignes:Lk, larg:[9,32,8,9,12,46]}); }
+  /* la première feuille : le plan */
+  var soc=(function(){ try{ var x=JSON.parse(localStorage.getItem("outils:session")||"null"); return x ? (x.societeNom || (x.societe && x.societe.nom) || x.societe || "") : ""; }catch(e){ return ""; } })();
+  F.unshift({nom:"Plan", lignes:[["Plan", nomDeBase()], ["Date", new Date().toLocaleDateString("fr-FR")], ["Entreprise", typeof soc==="string" ? soc : ""], ["Feuilles", F.map(function(f){ return f.nom; }).join(", ")]], larg:[14,60]});
+  return F;
+}
+function exporterXlsx(){
+  if(!window.SymbolesElec){ toast("La bibliothèque n'est pas chargée."); return; }
+  var F=feuillesQuantites();
+  if(F.length<2){ toast("Rien à exporter : le plan n'a ni symbole, ni réseau, ni réservation."); return; }
+  toast("Le tableau Excel se prépare…", 1500);
+  classeurXlsx(F).then(function(b){ telecharger(b, "Quantités "+nomDeBase()+".xlsx"); toast("Quantités exportées : "+(F.length-1)+" feuille"+(F.length>2?"s":"")+" ("+F.slice(1).map(function(f){ return f.nom; }).join(", ")+").", 4500); })
+    .catch(function(){ toast("L'export Excel n'a pas pu se faire (connexion ?)."); });
 }
 /* la liste envoyée au schéma unifilaire (Ranger mes circuits › Depuis le plan) */
 function envoyerAuSchema(){
@@ -9650,6 +9737,7 @@ $("segTaille").addEventListener("click", function(e){
 $("btQuantites").addEventListener("click", function(){ peindreQuantites(); $("quantites").hidden=!$("quantites").hidden; });
 $("qtFermer").addEventListener("click", function(){ $("quantites").hidden=true; });
 $("btDxf").addEventListener("click", function(){ exporterDxf(); });
+$("btXlsx").addEventListener("click", function(){ exporterXlsx(); });
 $("btBiblio").addEventListener("click", function(){
   telecharger(new Blob([SymbolesElec.dxf([], {tous:true})], {type:"application/dxf"}), "Symboles-CFO.dxf");
   toast("Bibliothèque enregistrée : les "+SymbolesElec.liste.length+" blocs de la légende CFO, au rayon 1 (insérez-les à l'échelle 125 en mm).", 6000);
@@ -11859,6 +11947,7 @@ var ICO={
   reseau:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1" stroke="#2563EB"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1" stroke="#DC2626"/>',
   reseu:'<circle cx="12" cy="12" r="7"/><path d="M7 7l10 10M17 7L7 17"/>',
   resa:'<rect x="3" y="5" width="18" height="14" stroke-dasharray="3 2"/><path d="M3 5l18 14M21 5L3 19"/>',
+  xlsx:'<path d="M5 3h10l4 4v14H5z"/><path d="M8 11l6 7M14 11l-6 7"/>',
   numcirc:'<path d="M4 6h3M4 12h3M4 18h3"/><path d="M10 6h10M10 12h10M10 18h10" stroke-width="1.2"/>',
   circvu:'<path d="M3 7h9l4 5-4 5H3z"/><circle cx="18.5" cy="12" r="2.5"/>',
   versschema:'<path d="M3 5h8v14H3z"/><path d="M14 12h7M18 8l3 4-3 4"/>',
@@ -11930,6 +12019,7 @@ var ACTIONS={
   reseau:["Eau E.F. / E.C.","reseau","Un tuyau d'eau : froide (E.F., en bleu) ou chaude (E.C., en rouge), PER, multicouche ou cuivre, tracé comme une spline"],
   reseu:["Évacuation","reseu","Une évacuation EU, EV ou EP, Ø32 à Ø160, tracée comme une spline"],
   renvoi:["Renvoi","renvoi","Une flèche de renvoi : du bout d'un réseau (ou de n'importe où) vers sa note, « Descente des condensats en partie basse »"],
+  xlsx:["Quantités Excel","xlsx","Les quantités du plan en tableau Excel : symboles, réseaux, chemins de câbles, câbles PV, réservations, circuits"],
   numcirc:["Numéroter","numcirc","Donner un circuit (C1, C2…) aux symboles qui n'en ont pas : une série reliée est un circuit ; sinon par pièce et par usage, 8 points au plus"],
   circvu:["Repères","circvu","Écrire le circuit (C3) à côté de chaque symbole"],
   versschema:["Vers le schéma","versschema","Envoyer les circuits du plan au schéma unifilaire (Ranger mes circuits › Depuis le plan)"],
@@ -11997,7 +12087,7 @@ var ONGLETS=[
   {id:"reglages", nom:"Réglages", reglages:true},
   {id:"exporter", nom:"Exporter", g:[
     {nom:"Plan", gros:["a:enreg","a:enregch","a:cloud"]},
-    {nom:"Exporter", gros:["a:pdf","a:dxf","a:image"]}
+    {nom:"Exporter", gros:["a:pdf","a:dxf","a:image","a:xlsx"]}
   ]}
 ];
 /* les actions possibles sans plan ouvert */
@@ -12271,6 +12361,7 @@ function actionR(k){
     case "numcirc": if(DESSIN){ garderSymb(); var nf=numeroterCircuits(); enregistrerSymb(); majSymb(); demander(); var lcN=circuitsPlan(); toast(nf ? nf+" symbole"+(nf>1?"s":"")+" numéroté"+(nf>1?"s":"")+" : "+lcN.length+" circuit"+(lcN.length>1?"s":"")+" sur le plan (Quantités pour la liste)." : "Tous les symboles ont déjà leur circuit.", 4500); } break;
     case "circvu": if(DESSIN){ garderD(); DESSIN.circVu = DESSIN.circVu===false; enregistrerD(); majDessin(); majRuban(); toast(DESSIN.circVu!==false ? "Les circuits s'écrivent à côté des symboles." : "Les circuits ne s'écrivent plus sur le plan.", 2500); } break;
     case "versschema": envoyerAuSchema(); break;
+    case "xlsx": exporterXlsx(); break;
     case "nomsres": if(DESSIN){ garderD(); DESSIN.nomsRes=!DESSIN.nomsRes; enregistrerD(); majDessin(); toast(DESSIN.nomsRes ? "Les noms des réseaux et des câbles s'écrivent sur le plan." : "Les noms des réseaux et des câbles ne sont plus que dans la légende (Quantités, PDF).", 3500); } break;
     case "faceext": FACE_EXT=!FACE_EXT; garder("dwg:faceExt", FACE_EXT ? "1" : "0"); toast(FACE_EXT ? "Murs tracés par la face extérieure : l'épaisseur part vers l'intérieur." : "Murs tracés par leur milieu (l'axe).", 3000); majRuban(); demander(); break;
     case "inverser": inverserFace(); break;
