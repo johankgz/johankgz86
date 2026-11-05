@@ -350,7 +350,9 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 #listeQuantites li i svg{width:24px;height:24px}
 #listeQuantites li span{flex:1;min-width:0}
 #listeQuantites li b{font-variant-numeric:tabular-nums}
-#listeQuantites li span.q-det{white-space:normal;overflow:visible} #listeQuantites li span.q-det small{display:block;color:var(--ink3);font-size:12px;line-height:1.3}
+#listeQuantites li span.q-det{white-space:normal;overflow:visible}
+#listeQuantites li i.q-circ{font:700 12px/28px system-ui, sans-serif;color:#111;font-style:normal;text-align:center}
+#listeQuantites li span.q-det small.q-alerte{color:#F87171;font-weight:600} #listeQuantites li span.q-det small{display:block;color:var(--ink3);font-size:12px;line-height:1.3}
 #listeQuantites li.total{border-top:1px solid var(--trait);font-weight:700;margin-top:4px}
 .etude-pv{width:min(440px,94vw)}
 .ep-corps{overflow:auto;flex:1;padding:8px 12px 14px;font-size:13px;line-height:1.4}
@@ -864,6 +866,8 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
     <span class="champ-h grp-zones" id="grpEU" hidden><select id="symbEuN" aria-label="Évacuation"><option value="EU">EU</option><option value="EV">EV</option><option value="EP">EP</option></select> <select id="symbEuD" aria-label="Diamètre de l'évacuation"><option>32</option><option>40</option><option>50</option><option>63</option><option>80</option><option>100</option><option>110</option><option>125</option><option>160</option></select> <span>mm</span></span>
     <datalist id="hTypes"><option value="30 cm" label="prise"><option value="70 cm" label="prise au-dessus du chevet"><option value="90 cm" label="interrupteur de tête de lit"><option value="110 cm" label="commande, plan de travail"><option value="130 cm" label="liseuse"><option value="180 cm" label="applique"><option value="200 cm" label="au-dessus du miroir"></datalist>
     <input class="champ-rep" id="symbRep" type="text" autocomplete="off" maxlength="12" placeholder="Repère (PC4)" aria-label="Repère du symbole" disabled>
+    <input class="champ-rep" id="symbCirc" type="text" autocomplete="off" maxlength="8" placeholder="Circuit (C3)" aria-label="Circuit du symbole et de sa série reliée" list="lCircuits" disabled>
+    <datalist id="lCircuits"></datalist>
     <button class="bt" id="btSuppSymb" type="button" disabled>Supprimer</button>
     <button class="bt" id="btDefaireS" type="button" disabled>Annuler</button>
     <span class="groupe"><span class="lab">Taille</span>
@@ -1935,6 +1939,13 @@ function peindreSymboles(c){
     if(o.carac && def.carac && vue==="dessus" && R>2) peindreCarac(c, o, def, p, R);
     var tdS=texteDessusS(o);
     if(tdS && R>3 && SymbolesElec.ecrire) SymbolesElec.ecrire(c, o.cle, p[0], p[1], R, tdS, {rot: vue==="dessus" ? -(o.rot||0)*Math.PI/180 : 0, halo:halo, couleur: colS || ((!CLAIR && def.couleur==="#0000FF") ? "#6B8BFF" : undefined)});
+    if(o.circ && DESSIN.circVu!==false && R>2.5 && vue==="dessus"){
+      /* le repère du circuit, petit, en haut à gauche du symbole */
+      var bC=SymbolesElec.boite(o.cle), fC=Math.max(8, Math.min(18, R*0.62));
+      c.save(); c.font="700 "+fC.toFixed(0)+"px Helvetica, Arial, sans-serif"; c.textAlign="right"; c.textBaseline="bottom";
+      c.lineWidth=Math.max(2, fC*0.25); c.strokeStyle=CLAIR || IMPRIME ? "#FFFFFF" : "#0B0E12"; c.lineJoin="round";
+      c.strokeText(o.circ, p[0]+bC.x0*R-1, p[1]+bC.y0*R+fC*0.3); c.fillStyle=colS || (CLAIR || IMPRIME ? "#7C3AED" : "#C4B5FD"); c.fillText(o.circ, p[0]+bC.x0*R-1, p[1]+bC.y0*R+fC*0.3); c.restore();
+    }
     if(o.t && R>3){
       var b=SymbolesElec.boite(o.cle);
       c.save(); c.font="600 "+Math.max(10, Math.min(28, R*0.9)).toFixed(0)+"px Helvetica, Arial, sans-serif";
@@ -3228,6 +3239,11 @@ function majSymb(){
   if(o && longueurS(o) && document.activeElement!==$("symbL")) $("symbL").value=enUnite(longueurS(o));
   if(o && longueurS(o)) $("symbL").setAttribute("list", bandeauDe(o) ? "lBandeau" : "lTypes");
   if(document.activeElement!==$("symbRep")) $("symbRep").value = o ? (o.t||"") : "";
+  /* le circuit du symbole (et de sa série reliée) : la liste des circuits déjà donnés, pour choisir */
+  var tyC = o && def ? typeCircuit(def, o) : null;
+  $("symbCirc").disabled=!o || !tyC; $("symbCirc").hidden = !!o && !tyC;
+  if(document.activeElement!==$("symbCirc")){ $("symbCirc").value = o ? (o.circ||"") : "";
+    var dl=$("lCircuits"); dl.textContent=""; circuitsPlan().forEach(function(c){ var op=document.createElement("option"); op.value=c.rep; op.label=c.nom; dl.appendChild(op); }); }
   $("btAccrS").classList.toggle("on", ACCR_D); $("btAccrS").setAttribute("aria-pressed", ACCR_D?"true":"false");
   $("btDefaireS").disabled=!HISTO_S.length; $("btDxf").disabled=!SYMB.length && dessinVide();
   Array.prototype.forEach.call($("segTaille").children, function(b){ b.classList.toggle("on", Number(b.dataset.t)===TAILLE); });
@@ -3248,6 +3264,92 @@ function nomQuantite(sy){
   var det=Object.keys(par).sort(function(a, b){ return b-a; }).map(function(L){ return par[L]+" × "+cm(Number(L))+" cm"; }).join(", ");
   var tot=0; Object.keys(par).forEach(function(L){ tot+=Number(L)*par[L]; });
   return sy.nom+(det ? " : "+det : "")+(sy.bandeau && tot ? " · "+String(Math.round(tot/100)/10).replace(".", ",")+" m au total" : "");
+}
+/* ---------- les circuits du plan, pour le schéma unifilaire ----------
+   Chaque symbole alimenté a son circuit (o.circ = "C3") ; une série reliée (l'interrupteur et ses points lumineux,
+   des prises entre elles) est un même circuit. « Numéroter » donne un circuit à ce qui n'en a pas ; « Vers le schéma »
+   envoie la liste (nom, puissance, calibre) au rangement des circuits sous les différentiels. */
+var NOM_SPE={LL:"Lave-linge", LV:"Lave-vaisselle", SL:"Sèche-linge", F:"Four", FOUR:"Four", MO:"Micro-ondes", CONG:"Congélateur", FRIGO:"Réfrigérateur", PC:"Plaques de cuisson", PLAQUE:"Plaques de cuisson", CE:"Chauffe-eau", VMC:"VMC", HOTTE:"Hotte", BOX:"Box internet", SPA:"Spa"};
+function typeCircuit(def, o){
+  var g=def.groupe, k=def.cle;
+  if(g==="Éclairage") return "ecl";
+  if(g==="Commandes") return k==="cfo-volet" ? "volet" : k==="cfo-ventilation" ? "vmc" : "cmd";
+  if(k==="cfo-prise-spe" || k==="cfo-alimentation" || k==="cfo-alim") return "spe";
+  if(k==="cfo-prise-32a") return "plaque";
+  if(k==="cfo-prise-ve") return "ve";
+  if(g==="Prises") return "pc";
+  if(k==="cfo-chauffe-eau" || k==="cfo-ballon-ecs") return "ecs";
+  if(k==="cfo-vmc" || k==="cfo-caisson-vmc") return "vmc";
+  if(/^cfo-(clim|pac|groupe-ext|clim-murale|clim-cassette|clim-gainable|pac-ecs|pac-int)$/.test(k)) return "pac";
+  if(g==="Sécurité") return "baes";
+  return null;
+}
+/* la série reliée d'un symbole (les liens dans les deux sens) */
+function serieDe(o){
+  var vu={}, file=[o], out=[];
+  while(file.length){ var x=file.pop(); if(!x || vu[x.id||SYMB.indexOf(x)]) continue; vu[x.id||SYMB.indexOf(x)]=1; out.push(x);
+    (x.lien||[]).forEach(function(id){ file.push(symbParId(id)); });
+    SYMB.forEach(function(y){ if((y.lien||[]).indexOf(x.id)>=0) file.push(y); }); }
+  return out;
+}
+/* la pièce d'un point : le nom de pièce le plus proche (à moins de 6 m) */
+function pieceDe(pt){
+  var best=null, bd=6000/DESSIN_MM;
+  (DESSIN.textes||[]).forEach(function(t){ var d=Math.hypot(t.x-pt[0], t.y-pt[1]); if(d<bd){ bd=d; best=t.s; } });
+  return best ? String(best).split("\n")[0] : "";
+}
+var LIBS_CIRC={ecl:"Éclairage", pc:"Prises", volet:"Volets roulants", vmc:"VMC", plaque:"Plaques de cuisson", ve:"Borne de recharge", ecs:"Chauffe-eau", pac:"PAC, climatisation", baes:"Éclairage de sécurité"};
+var CAL_CIRC={ecl:"10 A", pc:"16 A", volet:"16 A", vmc:"2 A", plaque:"32 A", ve:"32 A", ecs:"20 A", pac:"20 A", baes:"10 A", spe:"20 A"};
+function nomSpe(o){ var t=String(o.ts!=null ? o.ts : "").trim().toUpperCase(); return NOM_SPE[t] || (t ? "Prise spécialisée "+t : "Prise spécialisée"); }
+/* les circuits du plan : leurs symboles, leur nom, leur puissance et leur calibre */
+function circuitsPlan(){
+  var par={};
+  SYMB.forEach(function(o){
+    if(!o.circ || (o.vue && o.vue!=="dessus")) return; var d=defDe(o); if(!d) return; var ty=typeCircuit(d, o); if(!ty) return;
+    var c=par[o.circ]=par[o.circ]||{rep:o.circ, sy:[], types:{}, pts:[]}; c.sy.push(o); c.pts.push([o.x, o.y]); if(ty!=="cmd") c.types[ty]=(c.types[ty]||0)+1;
+  });
+  return Object.keys(par).map(function(k){
+    var c=par[k], tys=Object.keys(c.types), ty = tys.length ? tys.sort(function(a, b){ return c.types[b]-c.types[a]; })[0] : "ecl";
+    var cx=0, cy=0; c.pts.forEach(function(q){ cx+=q[0]; cy+=q[1]; }); var piece=pieceDe([cx/c.pts.length, cy/c.pts.length]);
+    var n=c.types[ty]||0, spe=c.sy.filter(function(o){ var d=defDe(o); return d && typeCircuit(d, o)==="spe"; })[0];
+    var nom = ty==="spe" && spe ? nomSpe(spe) : LIBS_CIRC[ty]+(piece && (ty==="ecl" || ty==="pc" || ty==="volet") ? " "+piece : "");
+    var pac=c.sy.filter(function(o){ return o.carac && (o.carac.chaud || o.carac.froid); })[0], kw = pac ? Math.max(Number(String(pac.carac.chaud||0).replace(",", "."))||0, Number(String(pac.carac.froid||0).replace(",", "."))||0) : 0;
+    var P = ty==="ecl" ? n*60+" W" : ty==="volet" ? n*200+" W" : ty==="vmc" ? "60 W" : ty==="plaque" ? "7200 W" : ty==="ve" ? "7400 W" : ty==="ecs" ? "3000 W"
+      : ty==="pac" ? (kw ? Math.round(kw*1000/3)+" W" : "3000 W") : ty==="baes" ? n*10+" W" : ty==="spe" ? (/Plaques/.test(nom) ? "7200 W" : /Four/.test(nom) ? "3500 W" : "2500 W") : "";
+    var cal = ty==="spe" && /Plaques/.test(nom) ? "32 A" : ty==="pc" && n>8 ? "20 A" : CAL_CIRC[ty]||"16 A";
+    var alerte = (ty==="ecl" && n>8) ? n+" points lumineux : 8 au plus par circuit" : (ty==="pc" && n>12) ? n+" prises : 12 au plus (20 A en 2,5 mm²)" : (ty==="pc" && n>8) ? n+" prises : plus de 8, passez en 20 A, 2,5 mm²" : "";
+    return {rep:c.rep, nom:nom, puissance:P, carac:cal, n:n, type:ty, alerte:alerte, sy:c.sy};
+  }).sort(function(a, b){ var na=parseInt(a.rep.replace(/\D+/g, ""), 10)||0, nb=parseInt(b.rep.replace(/\D+/g, ""), 10)||0; return na-nb || a.rep.localeCompare(b.rep); });
+}
+/* donner un circuit à ce qui n'en a pas : une série reliée = un circuit ; sinon, par pièce et par usage (8 points au plus) ;
+   une prise spécialisée, un chauffe-eau, une PAC : chacun le sien */
+function numeroterCircuits(){
+  var pris={}, n=0; SYMB.forEach(function(o){ if(o.circ){ pris[o.circ]=1; var k=parseInt(String(o.circ).replace(/\D+/g, ""), 10); if(k>n) n=k; } });
+  function nouveau(){ do{ n++; } while(pris["C"+n]); pris["C"+n]=1; return "C"+n; }
+  var a=SYMB.filter(function(o){ var d=defDe(o); return !o.circ && d && typeCircuit(d, o) && (!o.vue || o.vue==="dessus"); });
+  var ORDRE=["ecl","pc","volet","spe","plaque","ecs","pac","vmc","ve","baes","cmd"], unites=[], fait={};
+  function typeDe(l){ var c={}; l.forEach(function(o){ var t=typeCircuit(defDe(o), o); if(t!=="cmd") c[t]=(c[t]||0)+1; }); var k=Object.keys(c); return k.length ? k.sort(function(x, y){ return c[y]-c[x]; })[0] : "cmd"; }
+  /* 1. les séries reliées : un circuit chacune */
+  a.forEach(function(o){ if(fait[SYMB.indexOf(o)] || !((o.lien||[]).length || SYMB.some(function(y){ return (y.lien||[]).indexOf(o.id)>=0; }))) return;
+    var se=serieDe(o).filter(function(x){ var d=defDe(x); return !x.circ && d && typeCircuit(d, x); }); if(!se.length) return;
+    se.forEach(function(x){ fait[SYMB.indexOf(x)]=1; }); unites.push({l:se, ty:typeDe(se), y:-o.y, x:o.x}); });
+  /* 2. le reste : par pièce et par usage, 8 points au plus ; un appareil spécialisé a le sien */
+  var grp={};
+  a.forEach(function(o){ if(fait[SYMB.indexOf(o)]) return; var ty=typeCircuit(defDe(o), o); if(ty==="cmd") return;
+    if(ty==="spe" || ty==="plaque" || ty==="ecs" || ty==="pac" || ty==="ve"){ unites.push({l:[o], ty:ty, y:-o.y, x:o.x}); return; }
+    var k=ty+"|"+pieceDe([o.x, o.y]); (grp[k]=grp[k]||[]).push(o); });
+  Object.keys(grp).forEach(function(k){ var l=grp[k], ty=k.split("|")[0]; for(var i=0;i<l.length;i+=8) unites.push({l:l.slice(i, i+8), ty:ty, y:-l[i].y, x:l[i].x}); });
+  /* l'éclairage d'abord, puis les prises, puis les circuits spécialisés ; de haut en bas et de gauche à droite */
+  unites.sort(function(u, v){ return ORDRE.indexOf(u.ty)-ORDRE.indexOf(v.ty) || u.y-v.y || u.x-v.x; });
+  var faits=0; unites.forEach(function(u){ var c=nouveau(); u.l.forEach(function(o){ o.circ=c; faits++; }); });
+  return faits;
+}
+/* la liste envoyée au schéma unifilaire (Ranger mes circuits › Depuis le plan) */
+function envoyerAuSchema(){
+  var L=circuitsPlan(); if(!L.length){ toast("Aucun circuit sur le plan : donnez un circuit aux symboles (ou « Numéroter »)."); return; }
+  var envoi={plan:nomDeBase(), date:Date.now(), circuits:L.map(function(c){ return {nom:c.rep+" "+c.nom, puissance:c.puissance, carac:c.carac}; })};
+  try{ localStorage.setItem("schema:depuis-plan", JSON.stringify(envoi)); }catch(e){ toast("Impossible d'envoyer la liste sur cet appareil."); return; }
+  toast(L.length+" circuit"+(L.length>1?"s":"")+" envoyé"+(L.length>1?"s":"")+" au schéma : ouvrez le schéma unifilaire, « Ranger mes circuits », puis « Depuis le plan ».", 7000);
 }
 function peindreQuantites(){
   var ul=$("listeQuantites"); ul.textContent=""; var n=compter(), total=0;
@@ -3279,6 +3381,17 @@ function peindreQuantites(){
     var sr=document.createElement("span"); sr.className="q-det"; sr.textContent=x.pvL.t;
     lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(document.createElement("b")); ul.appendChild(lr);
   });
+  /* les circuits : leurs points, et l'alerte au-delà du nombre permis */
+  var LC=circuitsPlan();
+  if(LC.length){
+    var lt=document.createElement("li"); lt.className="total"; lt.innerHTML="<span></span><b></b>"; lt.firstChild.textContent="Circuits"; lt.lastChild.textContent=String(LC.length); ul.appendChild(lt);
+    LC.forEach(function(c){
+      var lr=document.createElement("li"), ir=document.createElement("i"); ir.textContent=c.rep; ir.className="q-circ";
+      var sr=document.createElement("span"); sr.className="q-det"; sr.textContent=c.nom+" · "+c.carac;
+      if(c.alerte){ var sm=document.createElement("small"); sm.className="q-alerte"; sm.textContent=c.alerte; sr.appendChild(sm); }
+      var br=document.createElement("b"); br.textContent=c.n ? String(c.n) : ""; lr.appendChild(ir); lr.appendChild(sr); lr.appendChild(br); ul.appendChild(lr);
+    });
+  }
 }
 function remplirPalette(){
   var pal=$("palette"); if(!window.SymbolesElec || pal.firstChild) return;
@@ -9500,6 +9613,15 @@ $("btAccrS").addEventListener("click", function(){ ACCR_D=!ACCR_D; garder("dwg:a
 $("btSuppSymb").addEventListener("click", supprimerSymb);
 $("btDefaireS").addEventListener("click", defaireSymb);
 $("symbRep").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbCirc").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
+$("symbCirc").addEventListener("change", function(){
+  if(SEL<0 || !SYMB[SEL]) return;
+  var v=String(this.value||"").trim().toUpperCase().replace(/^(\d+)$/, "C$1"), serie=serieDe(SYMB[SEL]);
+  serie.forEach(function(o){ var d=defDe(o); if(d && typeCircuit(d, o)) { if(v) o.circ=v; else delete o.circ; } });
+  enregistrerSymb(); majSymb(); demander();
+  if(v) toast("Circuit "+v+(serie.length>1 ? " : "+serie.length+" symboles (la série reliée)" : "")+".", 2200);
+});
+$("symbCirc").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
 $("symbHv").addEventListener("change", function(){ if(SEL<0) return; garderSymb(); SYMB[SEL].hv=this.checked; enregistrerSymb(); demander(); });
 $("symbTs").addEventListener("focus", function(){ if(SEL>=0) garderSymb(); });
 $("symbTs").addEventListener("input", function(){ if(SEL<0) return; SYMB[SEL].ts=this.value.trim(); enregistrerSymb(); demander(); });
@@ -11737,6 +11859,9 @@ var ICO={
   reseau:'<path d="M3 9c4-4 8 4 12 0s5-2 6-1" stroke="#2563EB"/><path d="M3 15c4-4 8 4 12 0s5-2 6-1" stroke="#DC2626"/>',
   reseu:'<circle cx="12" cy="12" r="7"/><path d="M7 7l10 10M17 7L7 17"/>',
   resa:'<rect x="3" y="5" width="18" height="14" stroke-dasharray="3 2"/><path d="M3 5l18 14M21 5L3 19"/>',
+  numcirc:'<path d="M4 6h3M4 12h3M4 18h3"/><path d="M10 6h10M10 12h10M10 18h10" stroke-width="1.2"/>',
+  circvu:'<path d="M3 7h9l4 5-4 5H3z"/><circle cx="18.5" cy="12" r="2.5"/>',
+  versschema:'<path d="M3 5h8v14H3z"/><path d="M14 12h7M18 8l3 4-3 4"/>',
   reschemin:'<path d="M3 9h18M3 15h18"/><path d="M6 9v6M10 9v6M14 9v6M18 9v6" stroke-width="1"/><path d="M5 6v12M19 6v12" stroke-width="2.4"/>',
   renvoi:'<circle cx="6" cy="5" r="2.6" fill="currentColor"/><path d="M7.5 7.5L17 18"/><path d="M12.5 17.5L17 18l-.4-4.6"/><path d="M15 21h6"/>',
   rescond:'<path d="M3 10h12l3 3v7"/><path d="M18 4c-1.5 2-2.5 3.2-2.5 4.3a2.5 2.5 0 0 0 5 0C20.5 7.2 19.5 6 18 4z"/>',
@@ -11805,6 +11930,9 @@ var ACTIONS={
   reseau:["Eau E.F. / E.C.","reseau","Un tuyau d'eau : froide (E.F., en bleu) ou chaude (E.C., en rouge), PER, multicouche ou cuivre, tracé comme une spline"],
   reseu:["Évacuation","reseu","Une évacuation EU, EV ou EP, Ø32 à Ø160, tracée comme une spline"],
   renvoi:["Renvoi","renvoi","Une flèche de renvoi : du bout d'un réseau (ou de n'importe où) vers sa note, « Descente des condensats en partie basse »"],
+  numcirc:["Numéroter","numcirc","Donner un circuit (C1, C2…) aux symboles qui n'en ont pas : une série reliée est un circuit ; sinon par pièce et par usage, 8 points au plus"],
+  circvu:["Repères","circvu","Écrire le circuit (C3) à côté de chaque symbole"],
+  versschema:["Vers le schéma","versschema","Envoyer les circuits du plan au schéma unifilaire (Ranger mes circuits › Depuis le plan)"],
   reschemin:["Chemin de câbles","reschemin","Un chemin de câbles (Niedax, type Cablofil : fil, tôle ou échelle), 54 × 100 par exemple, tracé à sa largeur : longueurs de 3 m, supports et éclisses comptés"],
   resa:["Réservation","resa","Un rectangle de réservation pour le maçon : support, usage, cotes (ou à définir sur place), hauteur du bas"],
   resfourreau:["Fourreau","resfourreau","Un fourreau : ELEC, GAZ, FIBRE, TÉLÉCOM ou EAU, avec son diamètre écrit le long du tracé"],
@@ -11975,6 +12103,7 @@ function peindrePanneau(){
     var Go=groupeRuban("Outils");
     ["o:main","o:choisir","a:couleur","a:relier","a:quantites"].forEach(function(r){ Go.o.appendChild(boutonRuban(r, "rb-gros")); });
     pn.appendChild(Go.g);
+    var Gci=groupeRuban("Circuits"); ["a:numcirc","a:circvu","a:versschema"].forEach(function(r){ Gci.o.appendChild(boutonRuban(r, "rb-gros")); }); pn.appendChild(Gci.g);
     var Gc=groupeRuban("Calques"); Gc.o.appendChild(colonneCalques()); pn.appendChild(Gc.g);
   } else on.g.forEach(function(gr){
     var G=groupeRuban(gr.nom);
@@ -12021,6 +12150,7 @@ function majRuban(){
     else if(k==="ortho") on = ORTHO_D;
     else if(k==="faceext") on = FACE_EXT;
     else if(k==="nomsres") on = nomsRes();
+    else if(k==="circvu") on = !!(DESSIN && DESSIN.circVu!==false);
     if(PLAN){
       if(k==="fond") off = !PLAN.vierge;
       else if(k==="effdwg") off = !!PLAN.vierge || !PLAN.parEnt;
@@ -12138,6 +12268,9 @@ function actionR(k){
     case "enchainer": $("btEnchainerD").click(); majRuban(); break;
     case "accroche": basculerAccroche(); break;
     case "ortho": $("btOrthoD").click(); majReglagesR(); majRuban(); break;
+    case "numcirc": if(DESSIN){ garderSymb(); var nf=numeroterCircuits(); enregistrerSymb(); majSymb(); demander(); var lcN=circuitsPlan(); toast(nf ? nf+" symbole"+(nf>1?"s":"")+" numéroté"+(nf>1?"s":"")+" : "+lcN.length+" circuit"+(lcN.length>1?"s":"")+" sur le plan (Quantités pour la liste)." : "Tous les symboles ont déjà leur circuit.", 4500); } break;
+    case "circvu": if(DESSIN){ garderD(); DESSIN.circVu = DESSIN.circVu===false; enregistrerD(); majDessin(); majRuban(); toast(DESSIN.circVu!==false ? "Les circuits s'écrivent à côté des symboles." : "Les circuits ne s'écrivent plus sur le plan.", 2500); } break;
+    case "versschema": envoyerAuSchema(); break;
     case "nomsres": if(DESSIN){ garderD(); DESSIN.nomsRes=!DESSIN.nomsRes; enregistrerD(); majDessin(); toast(DESSIN.nomsRes ? "Les noms des réseaux et des câbles s'écrivent sur le plan." : "Les noms des réseaux et des câbles ne sont plus que dans la légende (Quantités, PDF).", 3500); } break;
     case "faceext": FACE_EXT=!FACE_EXT; garder("dwg:faceExt", FACE_EXT ? "1" : "0"); toast(FACE_EXT ? "Murs tracés par la face extérieure : l'épaisseur part vers l'intérieur." : "Murs tracés par leur milieu (l'axe).", 3000); majRuban(); demander(); break;
     case "inverser": inverserFace(); break;

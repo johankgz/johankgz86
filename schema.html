@@ -697,6 +697,7 @@ body.panneau-ouvert .toast{bottom:calc(58vh + 10px)}
     <div class="rg-ajout">
       <button type="button" class="act petit" id="rgPlus">+ Un circuit</button>
       <button type="button" class="act petit" id="rgColler">Coller une liste</button>
+      <button type="button" class="act petit" id="rgPlan" hidden>Depuis le plan</button>
       <button type="button" class="act petit" id="rgVider">Tout effacer</button>
       <span class="hint" id="rgNb"></span>
     </div>
@@ -2196,8 +2197,11 @@ function rgPeindre(){
   rgCompter();
 }
 function rgCompter(){ var n=rgEtat().circuits.filter(function(c){ return String(c.nom||"").trim(); }).length; $("rgNb").textContent=n+" circuit"+(n>1?"s":""); }
+/* les circuits envoyés par le module Plan (« Vers le schéma ») */
+function circuitsDuPlan(){ try{ var x=JSON.parse(localStorage.getItem("schema:depuis-plan")||"null"); return x && x.circuits && x.circuits.length ? x : null; }catch(e){ return null; } }
 function ouvrirRanger(){
   if(!window.RangerCircuits){ toast("Le rangement n'est pas chargé : vérifiez la connexion."); return; }
+  var dp=circuitsDuPlan(); $("rgPlan").hidden=!dp; if(dp) $("rgPlan").textContent="Depuis le plan ("+dp.circuits.length+")";
   $("rgListe").hidden=false; $("rgProps").hidden=true; $("rgCollerZ").hidden=true;
   rgPeindre(); ouvrirFenetre("fRanger");
   setTimeout(function(){ var f=$("rgLignes").querySelector('input[data-k="nom"]'); if(f && !f.value) f.focus(); }, 60);
@@ -2228,6 +2232,14 @@ $("rgPlus").addEventListener("click", function(){
 });
 $("rgVider").addEventListener("click", function(){ if(!window.confirm("Effacer toute la liste des circuits ?")) return; rgEtat().circuits=[]; rgPeindre(); sauver(); });
 $("rgColler").addEventListener("click", function(){ $("rgCollerZ").hidden=!$("rgCollerZ").hidden; if(!$("rgCollerZ").hidden) $("rgTexte").focus(); });
+$("rgPlan").addEventListener("click", function(){
+  var dp=circuitsDuPlan(); if(!dp){ toast("Aucun circuit envoyé par le plan."); return; }
+  var e=rgEtat(), noms={}; e.circuits.forEach(function(c){ noms[String(c.nom||"").trim().toLowerCase()]=1; });
+  var L=dp.circuits.filter(function(c){ return !noms[String(c.nom||"").trim().toLowerCase()]; }).map(function(c){ return {nom:c.nom, puissance:c.puissance||"", carac:c.carac||""}; });
+  e.circuits=e.circuits.filter(function(c){ return String(c.nom||"").trim() || c.puissance || c.carac; }).concat(L);
+  rgPeindre(); sauver();
+  toast(L.length ? L.length+" circuit"+(L.length>1?"s":"")+" du plan « "+dp.plan+" » ajouté"+(L.length>1?"s":"")+"." : "Les circuits du plan sont déjà dans la liste.");
+});
 $("rgAjouterTexte").addEventListener("click", function(){
   var L=window.RangerCircuits.lireListe($("rgTexte").value); if(!L.length){ toast("Rien à ajouter."); return; }
   var e=rgEtat(); e.circuits=e.circuits.filter(function(c){ return String(c.nom||"").trim() || c.puissance || c.carac; }).concat(L);
