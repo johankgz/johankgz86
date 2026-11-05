@@ -258,12 +258,28 @@ button.act:disabled{opacity:.4}
 
 .menu-link{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);background:rgba(118,125,139,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none;margin-right:10px}
 
-.bande-collante{position:sticky;top:calc(150px + env(safe-area-inset-top,0px));z-index:9;
+.bande-collante{position:static;z-index:9;
  background:rgba(241,243,247,.94);-webkit-backdrop-filter:saturate(180%) blur(16px);
  backdrop-filter:saturate(180%) blur(16px);padding:10px 0 12px;margin:-6px 0 14px;
  border-bottom:1px solid rgba(28,30,34,.08)}
 .bande-collante .chips{max-height:74px;overflow-x:auto;flex-wrap:nowrap;padding-bottom:2px}
 .eti-case{touch-action:none;user-select:none}
+/* les étiquettes vides : 1, 2, 3 ou 4 modules, à la largeur de leur bande */
+.vides{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;align-items:end}
+.vides button{display:flex;flex-direction:column;align-items:stretch;gap:6px;padding:10px 8px;border:1px solid var(--rule);border-radius:var(--r-field);
+ background:var(--card,#fff);color:var(--ink);font-family:inherit;font-size:13.5px;font-weight:700;cursor:pointer}
+.vides button i{display:flex;height:30px;border:1.5px solid var(--ink);border-radius:4px;background:#fff}
+.vides button i b{flex:1;border-right:1px dashed #B8C0CC}
+.vides button i b:last-child{border-right:0}
+.dlg-fond{position:fixed;inset:0;z-index:90;background:rgba(21,23,26,.55);-webkit-backdrop-filter:blur(6px);backdrop-filter:blur(6px);
+ display:flex;align-items:center;justify-content:center;padding:16px}
+.dlg{width:min(440px,100%);max-height:calc(100vh - 32px);overflow:auto;background:var(--bg,#F1F3F7);color:var(--ink);border-radius:16px;padding:18px 16px 16px;box-shadow:0 24px 60px -20px rgba(0,0,0,.6)}
+.dlg h2{margin:0 0 4px;font-size:18px}
+.dlg .hint{margin:0 0 12px}
+.dlg input{width:100%;min-height:46px;padding:10px 12px;border:0;border-radius:var(--r-field);background:var(--field);font-size:16px;font-family:inherit;color:var(--ink)}
+.dlg .boutons{display:flex;gap:10px;margin-top:14px}
+.dlg .boutons .act{flex:1}
+.dlg .choix{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px}
 .eti-case.saisie{outline:2px solid var(--accent);outline-offset:-2px;opacity:.85}
 
 
@@ -761,13 +777,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>Ajouter</h2>
-    <p class="legend">Repères courants</p>
-    <div class="chips" id="ch_presets"></div>
-    <div class="grid2">
-      <label class="f"><span>Texte libre</span><input type="text" id="e_texte" placeholder="Prises chambre 1"></label>
-      <label class="f"><span>Modules occupés</span><input type="number" id="e_modules" inputmode="numeric" min="1" max="8" value="1"></label>
-    </div>
-    <button class="act blue" id="btnAjouter" style="width:100%">Ajouter au tableau</button>
+    <p class="hint" style="margin:-8px 0 12px">Touchez une étiquette : son texte vous est demandé, puis elle se pose au bout de la rangée.</p>
+    <div class="vides" id="ch_vides"></div>
   </div>
 </section>
 
@@ -1026,7 +1037,7 @@ function blank(){
     chantier:{client:"", ref:"", tableau:""},
     date:aujourdhui(),
     hauteur:30, module:17.5,
-    rangees:[{id:uid(), nom:"Rangée 1", modules:18, cases:[]}],
+    rangees:[],                      /* demandées au début : nombre de rangées et de modules */
     destinataires:[], dest:"", qr:null
   };
 }
@@ -1240,9 +1251,10 @@ function prochainNumero(base){
   });
   return max+1;
 }
-function ajouterCase(texte, modules){
-  var r=rangee();
-  if(!texte.trim()){ toast("Indiquez le texte de l'étiquette."); return; }
+function ajouterCase(texte, modules, videPermis){
+  var r=rangee(); if(!r) return;
+  texte=String(texte||"");
+  if(!texte.trim() && !videPermis){ toast("Indiquez le texte de l'étiquette."); return; }
   var m=Math.max(1, Math.min(8, parseInt(modules,10)||1));
   if(libres(r) < m){
     toast("Il reste "+Math.max(0,libres(r))+" module(s) sur cette rangée.");
@@ -1382,20 +1394,91 @@ function paintForm(){
   chips("ch_module", [17.5,18],
     function(o){ return S.module===o; },
     function(o){ S.module=o; save(); renderResume(); });
-  var box=$("ch_presets"); box.textContent="";
-  PRESETS.forEach(function(pr){
-    var lab=document.createElement("label"); lab.className="chip";
-    lab.textContent = pr[2] ? pr[0]+" 1, 2, 3…" : pr[0];
-    lab.addEventListener("click", function(e){
-      e.preventDefault();
-      ajouterCase(pr[2] ? pr[0]+" "+prochainNumero(pr[0]) : pr[0], pr[1]);
-      if(pr[2]) paintForm0();
-    });
-    box.appendChild(lab);
+  var box=$("ch_vides"); box.textContent="";
+  [1,2,3,4].forEach(function(n){
+    var b=document.createElement("button"); b.type="button";
+    var i=document.createElement("i"); for(var k=0;k<n;k++) i.appendChild(document.createElement("b"));
+    i.style.width=(n*25)+"%"; i.style.alignSelf="center";
+    b.appendChild(i); b.appendChild(document.createTextNode(n+" module"+(n>1?"s":"")));
+    b.addEventListener("click", function(){ demanderTexte(n); });
+    box.appendChild(b);
   });
   var dl=$("dl_presets"); dl.textContent="";
   PRESETS.forEach(function(pr){ var o=document.createElement("option"); o.value=pr[0]; dl.appendChild(o); });
   renderRangees(); paintRangeeChips(); renderCases(); renderResume(); refreshHeader();
+  if(!S.rangees.length) setTimeout(demanderRangees, 50);      /* une fiche neuve : combien de rangées, de combien de modules ? */
+}
+/* ---------- les petites fenêtres : le texte d'une étiquette, les rangées du tableau ---------- */
+function fenetre(titre, aide, corps, okTxt, ok, annule){
+  var fond=document.createElement("div"); fond.className="dlg-fond";
+  var d=document.createElement("div"); d.className="dlg"; d.setAttribute("role","dialog"); d.setAttribute("aria-modal","true"); d.setAttribute("aria-label",titre);
+  var h=document.createElement("h2"); h.textContent=titre; d.appendChild(h);
+  if(aide){ var p=document.createElement("p"); p.className="hint"; p.textContent=aide; d.appendChild(p); }
+  d.appendChild(corps);
+  var bt=document.createElement("div"); bt.className="boutons";
+  var a=document.createElement("button"); a.type="button"; a.className="act ghost"; a.textContent="Annuler";
+  var o=document.createElement("button"); o.type="button"; o.className="act blue"; o.textContent=okTxt;
+  function fermer(){ if(fond.parentNode) fond.parentNode.removeChild(fond); document.removeEventListener("keydown", clavier); }
+  function clavier(e){ if(e.key==="Escape"){ fermer(); if(annule) annule(); } }
+  a.addEventListener("click", function(){ fermer(); if(annule) annule(); });
+  o.addEventListener("click", function(){ if(ok()!==false) fermer(); });
+  document.addEventListener("keydown", clavier);
+  bt.appendChild(a); bt.appendChild(o); d.appendChild(bt); fond.appendChild(d);
+  document.body.appendChild(fond);
+  return {ok:o};
+}
+/* une étiquette vide de n modules : son texte est demandé tout de suite */
+function demanderTexte(n){
+  var r=rangee();
+  if(!r){ demanderRangees(); return; }
+  if(libres(r) < n){
+    /* la rangée est pleine : on passe à la suivante qui a la place */
+    var j=-1; for(var k=RANGEE+1;k<S.rangees.length;k++){ if(libres(S.rangees[k])>=n){ j=k; break; } }
+    if(j<0){ toast("Il reste "+Math.max(0,libres(r))+" module"+(libres(r)>1?"s":"")+" sur "+r.nom+"."); return; }
+    RANGEE=j; r=rangee(); paintRangeeChips(); renderCases(); toast(r.nom+" : la rangée précédente est pleine.");
+  }
+  var c=document.createElement("div");
+  var i=document.createElement("input"); i.type="text"; i.id="dlgTexte"; i.setAttribute("list","dl_presets"); i.setAttribute("data-sans-marque","1");
+  i.placeholder="Prises chambre 1"; i.autocomplete="off"; i.setAttribute("aria-label","Texte de l'étiquette");
+  c.appendChild(i);
+  var f=fenetre("Étiquette de "+n+" module"+(n>1?"s":""), r.nom+" : "+libres(r)+" module"+(libres(r)>1?"s":"")+" libre"+(libres(r)>1?"s":"")+". Laissez vide pour une étiquette à écrire à la main.", c, "Ajouter",
+    function(){ ajouterCase(i.value, n, true); });
+  i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); f.ok.click(); } });
+  setTimeout(function(){ i.focus(); }, 30);
+}
+/* au début : le nombre de rangées et de modules, et les rangées se créent */
+function demanderRangees(){
+  if(document.querySelector(".dlg-fond")) return;
+  var c=document.createElement("div");
+  function champ(lib, val, id){
+    var l=document.createElement("label"); l.className="f"; l.style.margin="0 0 10px";
+    var sp=document.createElement("span"); sp.textContent=lib; l.appendChild(sp);
+    var i=document.createElement("input"); i.type="number"; i.inputMode="numeric"; i.min="1"; i.id=id; i.value=val; i.setAttribute("data-sans-marque","1");
+    l.appendChild(i); c.appendChild(l); return i;
+  }
+  var nR=champ("Nombre de rangées", 4, "dlgRangees");
+  var nM=champ("Modules par rangée", 13, "dlgModules");
+  var ch=document.createElement("div"); ch.className="choix";
+  [13,18,24].forEach(function(v){
+    var b=document.createElement("button"); b.type="button"; b.className="chip"; b.textContent=v+" modules";
+    b.addEventListener("click", function(){ nM.value=v; });
+    ch.appendChild(b);
+  });
+  c.appendChild(ch);
+  var f=fenetre("Votre tableau", "Combien de rangées, et combien de modules sur chacune ? Les rangées se créent toutes seules ; vous les changez ensuite dans « Rangées ».", c, "Créer les rangées",
+    function(){
+      var r=parseInt(nR.value,10), m=parseInt(nM.value,10);
+      if(!(r>=1) || !(m>=1)){ toast("Indiquez le nombre de rangées et de modules."); return false; }
+      r=Math.min(12, r); m=Math.min(72, m);
+      S.rangees=[]; for(var k=0;k<r;k++) S.rangees.push({id:uid(), nom:"Rangée "+(k+1), modules:m, cases:[]});
+      RANGEE=0; save(); renderRangees(); paintRangeeChips(); renderCases(); renderResume();
+      toast(r+" rangée"+(r>1?"s":"")+" de "+m+" modules créée"+(r>1?"s":"")+".");
+    },
+    function(){
+      if(!S.rangees.length){ S.rangees.push({id:uid(), nom:"Rangée 1", modules:18, cases:[]}); RANGEE=0; save(); renderRangees(); paintRangeeChips(); renderCases(); }
+    });
+  [nR, nM].forEach(function(i){ i.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); f.ok.click(); } }); });
+  setTimeout(function(){ nR.focus(); nR.select(); }, 30);
 }
 function refreshHeader(){
   var r=[];
@@ -1915,13 +1998,6 @@ function bindAll(){
     toast("Rangée de "+m+" modules ajoutée.");
   });
   $("r_modules").addEventListener("keydown", function(e){ if(e.key==="Enter") $("btnRangee").click(); });
-  $("btnAjouter").addEventListener("click", function(){
-    ajouterCase($("e_texte").value, $("e_modules").value);
-    $("e_texte").value=""; $("e_modules").value="1";
-  });
-  $("e_texte").addEventListener("keydown", function(e){
-    if(e.key==="Enter"){ $("btnAjouter").click(); }
-  });
   $("btnTravauxSite").addEventListener("click", function(){ ouvrirDepuisSite("dossier", "Dossiers du site"); });
   $("btnPdf").addEventListener("click", function(){
     if(!totalCases()){ toast("Ajoutez au moins une étiquette."); showTab("etiquettes"); return; }
