@@ -880,6 +880,8 @@ function voit(personne, fichier, chantier) {
   /* un rapport appartient à son auteur, à ses destinataires,
      et à l'équipe du chantier constituée lors de la publication du relevé */
   if (!personne) return false;
+  /* les anciens PDF « Photo et croquis » sont retirés des dossiers : seules les photos restent */
+  if (fichier && (fichier.type === "photos" || fichier.type === "reportage") && /\.pdf$/i.test(String(fichier.cle || ""))) return false;
   if (fichier && fichier.prive) {
     /* réservé : les chargés d'affaires (et l'administrateur) attribués au dossier ; un chargé d'affaires
        retiré du dossier ne le voit plus, même s'il l'a déposé */
@@ -4574,8 +4576,8 @@ async function traiter(req) {
     let comptes = [];
     try { comptes = await lireComptes(personne.societe); } catch { comptes = []; }
     const roleDe = (nom) => { const u = (comptes || []).find((x) => x && (x.nom === nom || memeNom(x.nom || "", nom))); return u ? u.role : ""; };
-    let qui = (c.equipe || []).filter((nom) => /^(bureau|admin)$/.test(roleDe(nom)));
-    if (!qui.length) qui = [personne.nom];
+    /* le chargé d'affaires du chantier seulement */
+    const qui = (c.equipe || []).filter((nom) => /^(bureau|admin)$/.test(roleDe(nom)));
     const texte = String(c.client || ref).trim() + " — " + ref;
     const faits = [];
     for (const nom of qui) {
