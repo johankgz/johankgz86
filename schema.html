@@ -1547,23 +1547,34 @@ function sectionPour(calibre){
   var a=parseInt(String(calibre).replace(/[^\d]/g,""),10);
   if(!a) return "";
   /* 10 A : 1,5² ; 16 et 20 A : 2,5² */
-  return a<=10 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : "";
+  return a<=10 ? "1,5²" : a<=20 ? "2,5²" : a<=25 ? "4²" : a<=32 ? "6²" : a<=40 ? "10²" : a<=63 ? "16²" : a<=80 ? "25²" : a<=100 ? "35²" : a<=125 ? "50²" : "";
 }
 function cablePour(section, fils){
   if(!section) return "";
   return (fils>=4 ? "5G" : fils===3 ? "4G" : "3G")+section.replace("²","");
 }
-/* le tableau du bas suit le symbole de protection, tant qu'on n'y a pas écrit soi-même */
+/* le tableau du bas suit le symbole de protection, tant qu'on n'y a pas écrit soi-même ;
+   et quand le disjoncteur change (calibre, pôles, conducteurs), la protection, la section et le câble
+   sont reproposés pour lui, même écrits à la main : on les reprend ensuite si la longueur l'exige */
+function cleProt(t){ return String(t||"").replace(/\s+/g,"").toUpperCase(); }
 function remplirTable(col){
   var c=col.cases[4]; if(!c || ["disj","disjdiff","fus"].indexOf(c.sym)<0) return;
   col.auto=col.auto||{};
   var calibre=(c.t||[]).filter(function(s){ return /\d+\s*A\b/.test(s); })[0]||"";
   var poles=(c.t||[]).filter(function(s){ return /P\b|P\+N/i.test(s); })[0]||"";
-  var sec=sectionPour(calibre), fils=filsDe(col);
+  /* les conducteurs : ceux imposés, sinon ceux des pôles du disjoncteur lui-même (1P+N : 3G, 3P+N : 5G), sinon ceux de la colonne */
+  var pp=cleProt(poles), fP = /3P\+N|4P/.test(pp) ? 4 : /3P/.test(pp) ? 3 : /1P\+N|2P/.test(pp) ? 2 : 0;
+  var sec=sectionPour(calibre), fils=col.fils || fP || filsDe(col);
   var auto={repere:c.rep||"", protection:[calibre,poles].filter(Boolean).join(" · "), section:sec, cable:cablePour(sec, fils)};
+  var cle=[cleProt(calibre), cleProt(poles), fils].join("|");
+  /* le disjoncteur a-t-il changé ? (un schéma d'avant : on compare à la protection écrite dans le tableau) */
+  var change = col.cleProt!==undefined ? col.cleProt!==cle : cleProt((col.table||{}).protection)!==cleProt(auto.protection);
+  col.cleProt=cle;
+  col.table=col.table||{};
   for(var k in auto){
     if(!S.lignes.some(function(l){ return l.id===k; })) continue;
-    if(col.auto[k]!==false){ col.table[k]=auto[k]; col.auto[k]=true; }
+    var suit = col.auto[k]!==false || (change && calibre && auto[k] && (k==="protection" || k==="section" || k==="cable"));
+    if(suit){ col.table[k]=auto[k]; col.auto[k]=true; }
   }
 }
 
@@ -1779,9 +1790,9 @@ function ouvrirPanneau(){
           ouvrirPanneau();
         }));
       }
-      tx.appendChild(champ("Repère", c.rep||"", function(v){ c.rep=v; remplirTable(col); }));
+      tx.appendChild(champ("Repère", c.rep||"", function(v){ c.rep=v; remplirTable(col); majChampsTable(col); }));
       for(var q=0;q<3;q++) (function(q){
-        tx.appendChild(champ("Ligne "+(q+1), (c.t||[])[q]||"", function(v){ c.t=c.t||["","",""]; c.t[q]=v; remplirTable(col); }));
+        tx.appendChild(champ("Ligne "+(q+1), (c.t||[])[q]||"", function(v){ c.t=c.t||["","",""]; c.t[q]=v; remplirTable(col); majChampsTable(col); }));
       })(q);
       var bts2=el("div","boutons-sym");
       var dep=el("button","act petit","Déplacer"); dep.type="button";
@@ -1804,7 +1815,9 @@ function ouvrirPanneau(){
   var tb=el("div","section-p");
   tb.appendChild(el("h3",null,"Tableau du bas"));
   S.lignes.forEach(function(l){
-    tb.appendChild(champ(l.nom, (col.table||{})[l.id]||"", function(v){ col.table[l.id]=v; col.auto=col.auto||{}; col.auto[l.id]=false; }, l.id==="designation"));
+    var ct=champ(l.nom, (col.table||{})[l.id]||"", function(v){ col.table[l.id]=v; col.auto=col.auto||{}; col.auto[l.id]=false; }, l.id==="designation");
+    ct.querySelector("input,textarea").dataset.table=l.id;
+    tb.appendChild(ct);
   });
   var fl=el("label","champ-p"); fl.appendChild(el("span",null,"Nombre de conducteurs (traits sur le schéma)"));
   var sel=el("select");
@@ -1901,6 +1914,12 @@ function ouvrirPanneau(){
 }
 function fermerPanneau(){ $("panneau").hidden=true; document.body.classList.remove("panneau-ouvert"); SEL=null; peindre(); }
 $("fermerPanneau").addEventListener("click", fermerPanneau);
+/* les cases « Tableau du bas » du panneau suivent ce que le disjoncteur vient d'y écrire */
+function majChampsTable(col){
+  Array.prototype.forEach.call(document.querySelectorAll("[data-table]"), function(i){
+    if(document.activeElement!==i) i.value=(col.table||{})[i.dataset.table]||"";
+  });
+}
 function champ(nom, val, fn, long){
   var l=el("label","champ-p"); l.appendChild(el("span",null,nom));
   var i=el(long?"textarea":"input"); if(!long) i.type="text"; i.value=val; if(long) i.rows=2;
