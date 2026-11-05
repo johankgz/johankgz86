@@ -193,6 +193,8 @@
         pastille(PW-M, PH-8.3, "Page "+i+" / "+n, C.BLEU_C, C.BLEU, {droite:true, taille:7});
         doc.setFontSize(6.2); ink(C.GRIS2); texte(false);
         doc.text("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés", PW/2, PH-4.6, {align:"center"});
+        /* le symbole Suivi Travaux 360°, juste avant la mention */
+        if(window.Signature && window.Signature.logo){ try{ var tl=doc.getTextWidth("Suivi travaux 360  —  © 2026 Johan Klughertz. Tous droits réservés"); doc.addImage(window.Signature.logo, "PNG", PW/2-tl/2-3.6, PH-4.6-2.3, 2.8, 2.8); }catch(e){} }
       }
       ink(C.ENCRE);
     }

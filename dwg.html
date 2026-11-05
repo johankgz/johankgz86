@@ -6,7 +6,7 @@
 (function(){ try{ var s=JSON.parse(localStorage.getItem("outils:session")||"null"); if(!s || !s.jeton || s.role==="admin" || s.proprietaire) return;
   var a=s.applis; if(Array.isArray(a) && a.length && a.indexOf("plan")<0){ try{ sessionStorage.setItem("acces:refuse","plan"); }catch(e){} location.replace("./index.html"); } }catch(e){} })();</script>
 <script src="./theme.js?v=20261024f"></script>
-<script src="./commun.js?v=20261103a" defer></script>
+<script src="./commun.js?v=20261107a" defer></script>
 <script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -9112,7 +9112,7 @@ function cartoucheIso(doc, g, S){
   function cell(x, y, w, h, lab, val, o){
     o=o||{}; doc.setLineWidth(0.35); doc.setDrawColor(0,0,0); doc.rect(x, y, w, h);
     if(lab) txt(lab.toUpperCase(), x+1.2, y+3.0, 6.2, {c:[35,40,48]});   /* l'intitulé : lisible à l'écran comme imprimé */
-    if(val!=null && val!==""){ var t=o.t||8; txt(une(val, t, w-2.4), o.a==="center" ? x+w/2 : x+1.4, y+h-(o.bas||2.2), t, {b:o.b, a:o.a, c:o.c}); }
+    if(val!=null && val!==""){ var t=o.t||8; txt(une(val, t, (o.tw||w)-2.4), o.a==="center" ? x+w/2 : x+1.4, y+h-(o.bas||2.2), t, {b:o.b, a:o.a, c:o.c}); }
   }
   doc.setFillColor(255,255,255); doc.rect(x0, y0, W, C.h, "F");
   /* le tableau des indices */
@@ -9142,7 +9142,14 @@ function cartoucheIso(doc, g, S){
   y+=10;
   /* dessiné | date | vérifié | fichier */
   var c=[60*f, 34*f, 86*f], vc=[S.dess, S.date, S.fichier], lc=["Dessiné par","Date","Fichier"]; xx=x0;
-  c.forEach(function(w, i){ cell(xx, y, w, 10, lc[i], vc[i], {t:8, a: i===1 ? "center" : "left"}); xx+=w; });
+  /* la case Fichier porte, à droite, le logo Suivi Travaux 360° (le logiciel qui a fait le plan) */
+  var LL=window.Signature && window.Signature.logoLong, lh=6.2, lw=LL ? lh*LL.w/LL.h : 0;
+  c.forEach(function(w, i){
+    var dernier = i===c.length-1 && LL && w > lw+20;
+    cell(xx, y, w, 10, lc[i], vc[i], {t:8, a: i===1 ? "center" : "left", tw: dernier ? w-lw-3 : null});
+    if(dernier){ try{ doc.addImage(LL.data, "PNG", xx+w-lw-1.8, y+(10-lh)/2, lw, lh); }catch(e){} }
+    xx+=w;
+  });
   if(S.mail) txt(une(S.mail, 6, 60*f-3), x0+1.4, y+5.6, 6, {c:[30,34,40]});
   /* le cadre du cartouche, plus épais */
   doc.setLineWidth(0.7); doc.rect(x0, y0, W, C.h);
