@@ -151,6 +151,18 @@ button.act.rec{background:var(--accent-soft);color:var(--accent)}
 .compte span.oui{background:var(--ok-soft);color:#3F5222}
 .compte span.non{background:var(--danger-soft);color:var(--danger)}
 
+/* ---------- maison ou bâtiment ---------- */
+.modeles{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.modeles button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;min-height:58px;padding:10px 14px;border:1px solid var(--rule);
+ border-radius:var(--r-field);background:var(--field);color:var(--ink);font-family:inherit;font-size:15px;font-weight:700;text-align:left;cursor:pointer}
+.modeles button small{font-size:12px;font-weight:500;color:var(--ink-3)}
+.modeles button.on{border:2px solid var(--accent);padding:9px 13px;background:var(--accent-soft)}
+.verif-groupe{margin:16px 0 0;padding:8px 10px;border-radius:var(--r-field);background:var(--field);font-size:12.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--ink-2)}
+.verif-groupe:first-child{margin-top:4px}
+.verif-lot{margin:22px 0 2px;font-size:16px;font-weight:700}
+.verif-lot:first-child{margin-top:4px}
+.verif .obs{flex-basis:100%;width:100%;min-height:38px;margin-top:8px;padding:8px 10px;font-size:14.5px}
+
 /* ---------- notice ---------- */
 .notice{display:grid;gap:10px}
 .notice .n{display:flex;gap:12px;align-items:flex-start;border-bottom:1px solid var(--rule);padding-bottom:10px}
@@ -203,6 +215,7 @@ button.act.rec{background:var(--accent-soft);color:var(--accent)}
   .verif{display:flex;align-items:center;gap:14px}
   .verif .txt{flex:1;min-width:0}
   .verif .bas{margin-top:0;flex:0 0 auto}
+  .verif.av-obs{flex-wrap:wrap}
   .notice{grid-template-columns:1fr 1fr;gap:10px 26px}
 }
 @media (hover:hover){ button.act:hover{filter:brightness(.97)} nav#nav button:hover{color:var(--ink)} }
@@ -631,6 +644,16 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 
   <div class="block">
+    <h2>Fiche</h2>
+    <div class="modeles" id="ch_modele" role="radiogroup" aria-label="Maison ou bâtiment"></div>
+    <div id="blocLots" hidden>
+      <h2 style="margin-top:14px">Fiches à remplir</h2>
+      <div class="chips" id="ch_lots"></div>
+      <p class="hint" style="margin:8px 0 0">Bâtiment tertiaire : la fiche Courants forts, la fiche Courants faibles, ou les deux. Chaque ligne en S, NS ou SO, avec son observation.</p>
+    </div>
+  </div>
+
+  <div class="block" id="blocTravaux">
     <h2>Type de travaux</h2>
     <div class="chips" id="ch_travaux"></div>
     <h2 style="margin-top:6px">Type de bâtiments</h2>
@@ -651,7 +674,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   <div class="block">
     <h2>Vérification à effectuer</h2>
     <div class="compte" id="compte"></div>
-    <p class="hint" style="margin:0 0 6px">OUI, NON ou SO pour chaque ligne. SO : sans observation. Le repère A1 à B4 ouvre la notice.</p>
+    <p class="hint" style="margin:0 0 6px" id="verifsAide">OUI, NON ou SO pour chaque ligne. SO : sans observation. Le repère A1 à B4 ouvre la notice.</p>
     <div id="verifs"></div>
   </div>
 
@@ -663,7 +686,16 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2>Techniciens</h2>
-    <label class="f" style="margin:0"><span>Qui a fait l'autocontrôle</span><input type="text" id="m_techniciens" placeholder="Kévin, Brian"></label>
+    <label class="f" style="margin:0"><span id="techLib">Qui a fait l'autocontrôle</span><input type="text" id="m_techniciens" placeholder="Kévin, Brian"></label>
+  </div>
+
+  <div class="block" id="blocVerifAffaire" hidden>
+    <h2>Vérification par le responsable de l'affaire</h2>
+    <div class="grid2">
+      <label class="f"><span>Nom</span><input type="text" id="m_verifNom" placeholder="Le chargé d'affaires"></label>
+      <label class="f"><span>Date</span><input type="date" id="m_verifDate"></label>
+    </div>
+    <p class="hint" style="margin:0">Le visa se signe sur la fiche imprimée.</p>
   </div>
 </section>
 
@@ -901,6 +933,83 @@ var CONTROLES=[
   ["c17", "Nettoyage complet du chantier",                                                       ""],
   ["c18", "Rebouchage + Finition",                                                               ""]
 ];
+/* ---------- les fiches bâtiment (tertiaire) : Courants forts et Courants faibles, ligne par ligne ---------- */
+var MODELES=[["maison","Maison","logement, appartement"],["batiment","Bâtiment","tertiaire : CFO, CFA"]];
+var LOTS=[
+  {id:"cfo", titre:"Courants Forts", court:"Courants forts (CFO)", groupes:[
+    ["POINTS D'AUTOCONTRÔLES", [
+      ["fo1","identification des tableaux, circuits, commandes déportées"],
+      ["fo2","réglages et/ou calibres des disjoncteurs"],
+      ["fo3","serrages des borniers et connexions"],
+      ["fo4","obturations coupe-feu des traversées des parois et dalles"],
+      ["fo5","suspensions des luminaires à un élément stable de la construction"]]],
+    ["RÉSEAU DE PROTECTION", [
+      ["fo6","mesure(s) prise(s) de terre – valeur relevée :","terre"],
+      ["fo7","continuité des circuits de protection en tout point"],
+      ["fo8","liaison(s) équipotentielle(s) principale(s) (eau, gaz…)"],
+      ["fo9","liaison(s) équipotentielle(s) locale(s) (salle d'eau, piscine)"],
+      ["fo10","fonctionnement des dispositifs différentiels"]]],
+    ["COMMANDES DÉPORTÉES", [
+      ["fo11","coupure(s) électricité (générale, locale, photovoltaïque…)"],
+      ["fo12","coupure(s) ventilation"],
+      ["fo13","coupure(s) enseigne(s) lumineuse(s)"]]],
+    ["ÉCLAIRAGE DE SÉCURITÉ", [
+      ["fo14","signalétique éclairée par les blocs d'éclairage de sécurité"],
+      ["fo15","fonctionnement BAES"],
+      ["fo16","mise au repos BAES"],
+      ["fo17","asservissements BAES/BAEH au SSI (locaux à sommeil)"]]],
+    ["GROUPE ÉLECTROGÈNE", [
+      ["fo18","fonctionnement du groupe électrogène"],
+      ["fo19","fonctionnement de l'inverseur de source"]]],
+    ["POSTE HTA", [
+      ["fo20","verrouillages + consignes de manœuvres apposées"],
+      ["fo21","présence EPI (gants, perche, tabouret, VAT, BAPI…)"],
+      ["fo22","fonctionnement DGPT / DCMR transformateur(s) HT/BT"],
+      ["fo23","signalisation de défaut"]]]
+  ]},
+  {id:"cfa", titre:"Courants Faibles", court:"Courants faibles (CFA)", groupes:[
+    ["PRÉ-CÂBLAGE INFORMATIQUE", [
+      ["fa1","Réalisation du recettage informatique"],
+      ["fa2","Réalisation du recettage fibre optique"]]],
+    ["CONTRÔLE D'ACCÈS", [
+      ["fa3","Constat visuel du système contrôle d'accès"],
+      ["fa4","Vérifications des réglages"],
+      ["fa5","Essais du système contrôle d'accès"]]],
+    ["INTERPHONIE", [
+      ["fa6","Constat visuel du système interphonie"],
+      ["fa7","Vérifications des réglages"],
+      ["fa8","Essais du système interphonie"]]],
+    ["INTRUSION", [
+      ["fa9","Constat visuel du système intrusion"],
+      ["fa10","Vérifications des réglages"],
+      ["fa11","Essais du système intrusion"]]],
+    ["INCENDIE", [
+      ["fa12","Constat visuel du système incendie"],
+      ["fa13","Vérifications des réglages"],
+      ["fa14","Essais du système incendie"]]],
+    ["VIDÉO SURVEILLANCE", [
+      ["fa15","Constat visuel du système de vidéo surveillance"],
+      ["fa16","Vérifications des réglages"],
+      ["fa17","Essai du stockeur"]]],
+    ["TÉLÉVISION", [
+      ["fa18","Réalisation du recettage télévision"]]]
+  ]}
+];
+function estBatiment(){ return !!(S && S.modele==="batiment"); }
+function lotsChoisis(){
+  var l=(S && S.lots) || {};
+  var r=LOTS.filter(function(x){ return l[x.id]; });
+  return r.length ? r : LOTS;                     /* aucune cochée : les deux */
+}
+/* les lignes à renseigner, selon la fiche : [id, libellé, repère notice, particularité] */
+function controlesActifs(){
+  if(!estBatiment()) return CONTROLES;
+  var out=[];
+  lotsChoisis().forEach(function(lot){ lot.groupes.forEach(function(g){ g[1].forEach(function(l){ out.push([l[0], l[1], "", l[2]||""]); }); }); });
+  return out;
+}
+function libRep(r){ return estBatiment() ? {oui:"S", non:"NS", so:"SO"}[r] : {oui:"OUI", non:"NON", so:"SO"}[r]; }
+
 var NOTICE=[
   ["A1","La prise de terre doit être mesurée avec un tellurométre ou par impédance de boucle. Sa valeur doit être indiquée dans cette case. Celle-ci doit être inférieure ou égale à 50 Ω."],
   ["A2","Essais de fonctionnement de toute l'installation lors de la mise sous tension."],
@@ -920,9 +1029,12 @@ var S=null, P=null;
 function blank(){
   return {
     chantier:{client:"", ref:"", adresse:""},
-    meta:{date:aujourdhui(), travaux:"", batiment:"", techniciens:(SESSION&&SESSION.nom)||""},
+    meta:{date:aujourdhui(), travaux:"", batiment:"", techniciens:(SESSION&&SESSION.nom)||"", verifNom:"", verifDate:""},
+    modele:(function(){ try{ return localStorage.getItem("autocontrole:modele")==="batiment" ? "batiment" : "maison"; }catch(e){ return "maison"; } })(),   /* la dernière fiche choisie */
+    lots:{cfo:true, cfa:true},
     terre:"",
     reponses:{},
+    obsLigne:{},
     observations:"",
     tableau:null,
     destinataires:[]
@@ -967,7 +1079,7 @@ function ligneChantier(){
 }
 function compteReponses(){
   var c={oui:0, non:0, so:0, vide:0};
-  CONTROLES.forEach(function(l){
+  controlesActifs().forEach(function(l){
     var r=S.reponses[l[0]];
     if(r==="oui") c.oui++; else if(r==="non") c.non++; else if(r==="so") c.so++; else c.vide++;
   });
@@ -979,7 +1091,7 @@ function etapeResume(){
 }
 function etapeVerifs(){
   var c=compteReponses();
-  if(c.non) return c.non + " point" + (c.non>1?"s":"") + " en NON";
+  if(c.non) return c.non + " point" + (c.non>1?"s":"") + (estBatiment() ? " non satisfaisant"+(c.non>1?"s":"") : " en NON");
   if(c.vide) return c.vide + " ligne" + (c.vide>1?"s":"") + " à renseigner";
   return "Tout conforme";
 }
@@ -1011,6 +1123,7 @@ function ouvrirNotice(code){
 }
 function renderVerifs(){
   var host=$("verifs"); host.textContent="";
+  if(estBatiment()){ renderVerifsBatiment(host); return; }
   CONTROLES.forEach(function(l){
     var id=l[0], libelle=l[1], code=l[2], special=l[3];
     var d=document.createElement("div");
@@ -1057,17 +1170,64 @@ function renderVerifs(){
   });
   majCompte();
 }
+/* la fiche bâtiment : chaque fiche (CFO, CFA), ses rubriques, chaque ligne en S, NS ou SO, avec son observation */
+function renderVerifsBatiment(host){
+  var lots=lotsChoisis();
+  lots.forEach(function(lot){
+    if(lots.length>1){ var t=document.createElement("h3"); t.className="verif-lot"; t.textContent=lot.court; host.appendChild(t); }
+    lot.groupes.forEach(function(g){
+      var gh=document.createElement("div"); gh.className="verif-groupe"; gh.textContent=g[0]; host.appendChild(gh);
+      g[1].forEach(function(l){
+        var id=l[0], d=document.createElement("div");
+        d.className="verif av-obs" + (S.reponses[id]==="non" ? " non" : "");
+        var txt=document.createElement("div"); txt.className="txt";
+        txt.appendChild(document.createTextNode(l[1]));
+        if(l[2]==="terre"){
+          var val=document.createElement("input");
+          val.type="text"; val.inputMode="decimal"; val.placeholder="—"; val.value=S.terre||"";
+          val.setAttribute("aria-label","Valeur de la prise de terre en ohms");
+          val.addEventListener("input", function(){ S.terre=val.value; save(); });
+          txt.appendChild(val);
+          var u=document.createElement("span"); u.className="ohm"; u.textContent="Ω"; txt.appendChild(u);
+        }
+        var bas=document.createElement("div"); bas.className="bas";
+        var rp=document.createElement("div"); rp.className="rep";
+        [["oui","S","Satisfaisant"],["non","NS","Non satisfaisant"],["so","SO","Sans objet"]].forEach(function(r){
+          var b=document.createElement("button"); b.type="button";
+          b.dataset.rep=r[0]; b.textContent=r[1]; b.title=r[2];
+          b.className = S.reponses[id]===r[0] ? "on" : "";
+          b.setAttribute("aria-pressed", S.reponses[id]===r[0] ? "true" : "false");
+          b.setAttribute("aria-label", r[2]+" : "+l[1]);
+          b.addEventListener("click", function(){
+            S.reponses[id] = (S.reponses[id]===r[0]) ? "" : r[0];
+            save(); renderVerifs(); majCompte();
+          });
+          rp.appendChild(b);
+        });
+        bas.appendChild(rp);
+        var o=document.createElement("input"); o.type="text"; o.className="obs";
+        o.placeholder="Observation éventuelle"; o.value=(S.obsLigne&&S.obsLigne[id])||"";
+        o.setAttribute("aria-label","Observation : "+l[1]);
+        o.addEventListener("input", function(){ if(!S.obsLigne) S.obsLigne={}; S.obsLigne[id]=o.value; save(); });
+        d.appendChild(txt); d.appendChild(bas); d.appendChild(o);
+        host.appendChild(d);
+      });
+    });
+  });
+  majCompte();
+}
 function majCompte(){
   var host=$("compte"); if(!host) return;
   host.textContent="";
   var c=compteReponses();
-  [["oui","OUI "+c.oui],["non","NON "+c.non],["","SO "+c.so],["","à faire "+c.vide]].forEach(function(x){
+  [["oui",libRep("oui")+" "+c.oui],["non",libRep("non")+" "+c.non],["","SO "+c.so],["","à faire "+c.vide]].forEach(function(x){
     var s=document.createElement("span"); if(x[0]) s.className=x[0];
     s.textContent=x[1]; host.appendChild(s);
   });
 }
 function renderNotice(){
   var host=$("notice"); host.textContent="";
+  if(estBatiment()){ var p=document.createElement("p"); p.className="hint"; p.style.margin="0"; p.textContent="Les fiches bâtiment (Courants forts, Courants faibles) n'ont pas de notice : rien à reporter ici. La notice A1 à B4 est celle de la fiche Maison."; host.appendChild(p); return; }
   NOTICE.forEach(function(n){
     var d=document.createElement("div"); d.className="n";
     var b=document.createElement("b"); b.textContent=n[0];
@@ -1151,7 +1311,8 @@ function stepNav(name){
 
 /* ---------- champs ---------- */
 var FIELDS=[["c_client","chantier.client"],["c_ref","chantier.ref"],["c_adresse","chantier.adresse"],
-  ["m_date","meta.date"],["m_techniciens","meta.techniciens"],["t_observations","observations"]];
+  ["m_date","meta.date"],["m_techniciens","meta.techniciens"],["t_observations","observations"],
+  ["m_verifNom","meta.verifNom"],["m_verifDate","meta.verifDate"]];
 function getPath(p){ var a=p.split("."); return a.length===1?S[a[0]]:S[a[0]][a[1]]; }
 function setPath(p,v){ var a=p.split("."); if(a.length===1) S[a[0]]=v; else S[a[0]][a[1]]=v; }
 function chips(host, opts, get, set){
@@ -1171,15 +1332,37 @@ function paintForm(){
     function(o){ S.meta.travaux=(S.meta.travaux===o)?"":o; save(); });
   chips("ch_batiment", BATIMENTS, function(o){ return S.meta.batiment===o; },
     function(o){ S.meta.batiment=(S.meta.batiment===o)?"":o; save(); });
+  peindreModele();
   renderVerifs(); renderNotice(); refreshHeader(); tpPeindre();
   /* une lecture lancée avant un rechargement : on reprend son suivi */
   var A=tpAnalyse(); if(A && A.etat==="en-cours") tpSuivre();
   else if(S.tableau && S.tableau.photo && (!A || A.etat==="attente") && navigator.onLine!==false) tpLancer();
 }
+/* Maison ou Bâtiment : ce choix décide des lignes, des libellés et de la fiche imprimée */
+function peindreModele(){
+  var h=$("ch_modele"); h.textContent="";
+  MODELES.forEach(function(m){
+    var b=document.createElement("button"); b.type="button"; b.setAttribute("role","radio");
+    var on=(S.modele||"maison")===m[0]; b.className=on?"on":""; b.setAttribute("aria-checked", on?"true":"false");
+    b.appendChild(document.createTextNode(m[1])); var sm=document.createElement("small"); sm.textContent=m[2]; b.appendChild(sm);
+    b.addEventListener("click", function(){ if(S.modele===m[0]) return; S.modele=m[0]; try{ localStorage.setItem("autocontrole:modele", m[0]); }catch(e){} save(); peindreModele(); renderVerifs(); renderNotice(); tpPeindre(); refreshHeader(); });
+    h.appendChild(b);
+  });
+  var bat=estBatiment();
+  $("blocLots").hidden=!bat; $("blocTravaux").hidden=bat; $("blocVerifAffaire").hidden=!bat;
+  if(!S.lots) S.lots={cfo:true, cfa:true};
+  chips("ch_lots", LOTS.map(function(x){ return x.court; }), function(o){ var x=LOTS.filter(function(z){ return z.court===o; })[0]; return !!S.lots[x.id]; },
+    function(o){ var x=LOTS.filter(function(z){ return z.court===o; })[0]; S.lots[x.id]=!S.lots[x.id];
+      if(!S.lots.cfo && !S.lots.cfa) S.lots[x.id]=true;          /* au moins une fiche */
+      save(); renderVerifs(); refreshHeader(); });
+  $("verifsAide").textContent = bat ? "S, NS ou SO pour chaque ligne : S satisfaisant, NS non satisfaisant, SO sans objet. Une observation par ligne si besoin."
+    : "OUI, NON ou SO pour chaque ligne. SO : sans observation. Le repère A1 à B4 ouvre la notice.";
+  $("techLib").textContent = bat ? "Responsable du contrôle" : "Qui a fait l'autocontrôle";
+}
 function refreshHeader(){
-  var r=[], c=compteReponses();
+  var r=[], c=compteReponses(), n=controlesActifs().length;
   if(refAffaire()) r.push(refAffaire());
-  r.push((CONTROLES.length-c.vide) + "/" + CONTROLES.length);
+  r.push((n-c.vide) + "/" + n);
   $("hdrRef").textContent=r.join("  ");
 }
 
@@ -1450,8 +1633,8 @@ function tpPeindre(){
   var hote=$("tpPhoto"), bt=$("tpBoutons"), an=$("tpAnalyse"); if(!hote) return;
   hote.textContent=""; bt.textContent=""; an.textContent="";
   var t=S.tableau, a=tpAnalyse();
-  $("tpBadge").textContent = t && t.photo ? "photo prise" : "obligatoire";
-  $("tpBadge").className = "oblig" + (t && t.photo ? " ok" : "");
+  $("tpBadge").textContent = t && t.photo ? "photo prise" : (estBatiment() ? "facultative" : "obligatoire");
+  $("tpBadge").className = "oblig" + (t && t.photo || estBatiment() ? " ok" : "");
   function bouton(txt, cls, fn){ var b=tpEl("button","act"+(cls?" "+cls:""),txt); b.type="button"; b.addEventListener("click", fn); bt.appendChild(b); return b; }
   if(!t || !t.photo){
     var v=tpEl("div","tp-vide");
@@ -1629,6 +1812,115 @@ function buildPdf(){
       doc.line(x+1.5, yy-0.5, x+3, yy-2.9);
       doc.setLineWidth(0.35);
     }
+  }
+
+  /* ---------- la fiche bâtiment : une page par fiche (CFO, CFA), comme le papier ---------- */
+  if(estBatiment()){
+    var lotsB=lotsChoisis();
+    lotsB.forEach(function(lot, i){ if(i) doc.addPage(); pageLot(lot, i+1, lotsB.length); });
+    if(S.tableau && S.tableau.photo) pageTableau();
+    return doc;
+  }
+  function pageLot(lot, num, tot){
+    var y=M, LIB=104, CASE=8, xS=M+LIB, xObs=xS+3*CASE, LOBS=PW-M-xObs, GRIS=[217,217,217];
+    var p0=doc.internal.getNumberOfPages();
+    /* au bout, chaque page de la fiche reçoit son pied : « Indice 0 », « Page 1/1 » (comme le papier) */
+    function numeroter(){
+      var p1=doc.internal.getNumberOfPages();
+      for(var pg=p0; pg<=p1; pg++){
+        doc.setPage(pg); doc.setFont("helvetica","normal"); doc.setFontSize(8); setText(INK);
+        doc.text("Indice 0", M, PH-9);
+        doc.setFont("helvetica","italic"); doc.text("Page "+(pg-p0+1)+"/"+(p1-p0+1), PW-M, PH-9, {align:"right"});
+      }
+      doc.setPage(p1);
+    }
+    function cadreLigne(h, fond){
+      setTrait(TRAIT); doc.setLineWidth(0.25);
+      if(fond){ setFill(GRIS); doc.rect(M, y, CW, h, "F"); }
+      doc.rect(M, y, LIB, h); for(var k=0;k<3;k++) doc.rect(xS+k*CASE, y, CASE, h); doc.rect(xObs, y, LOBS, h);
+    }
+    function suite(h){ if(y+h > PH-14){ doc.addPage(); y=M; } }
+    /* en-tête : le logo de la société, le titre */
+    var Lg=(P&&P.logo)||null;
+    if(Lg){ var lh=12, lw=lh*(Lg.w/Lg.h); if(lw>46){ lw=46; lh=lw*(Lg.h/Lg.w); } try{ doc.addImage(Lg.data,"JPEG", M, y, lw, lh); }catch(e){} }
+    else{ doc.setFont("helvetica","bold"); doc.setFontSize(13); setText(INK); doc.text(((P&&P.societe)||"").trim(), M, y+7); }
+    y += 15;
+    doc.setFont("helvetica","bolditalic"); doc.setFontSize(13.5); setText(INK);
+    doc.text("Autocontrôle des installations électriques", PW/2, y, {align:"center"});
+    doc.text(lot.titre, PW/2, y+6, {align:"center"});
+    y += 10;
+    /* le chantier */
+    [["Nom du projet :", (S.chantier.client||"").trim()], ["Adresse du site :", adresseTravaux()], ["Numéro d'affaire :", (S.chantier.ref||"").trim()]].forEach(function(r){
+      setTrait(INK); doc.setLineWidth(0.35); doc.rect(M, y, CW, 6.6);
+      doc.setFont("helvetica","normal"); doc.setFontSize(8.5); setText(INK);
+      doc.text(r[0], M+1.5, y+4.5); var lx=M+1.5+doc.getTextWidth(r[0]); doc.setLineWidth(0.2); doc.line(M+1.5, y+5.1, lx, y+5.1);
+      doc.setFont("helvetica","bold"); doc.text(doc.splitTextToSize(r[1]||"", CW-(lx-M)-6)[0]||"", lx+3, y+4.5);
+      y += 6.6;
+    });
+    y += 5;
+    /* le tableau */
+    setTrait(TRAIT); doc.setLineWidth(0.25); setFill(GRIS); doc.rect(M, y, CW, 5.4, "FD");
+    doc.setFont("helvetica","bold"); doc.setFontSize(7.6); setText(INK);
+    doc.text("PORTER UNE CROIX DANS LES COLONNES S, NS et SO POUR INDIQUER LES VÉRIFICATIONS RÉALISÉES :", M+1.5, y+3.8);
+    y += 5.4;
+    lot.groupes.forEach(function(g, gi){
+      suite(5.4*2);
+      cadreLigne(5.4, true);
+      doc.setFont("helvetica","bold"); doc.setFontSize(7.8); setText(INK);
+      doc.text(g[0]+(gi ? " :" : ""), M+1.5, y+3.8);
+      ["S","NS","SO"].forEach(function(t,k){ doc.text(t, xS+k*CASE+CASE/2, y+3.8, {align:"center"}); });
+      if(!gi) doc.text("Observations éventuelles", xObs+LOBS/2, y+3.8, {align:"center"});
+      y += 5.4;
+      g[1].forEach(function(l){
+        var lib=l[1];
+        if(l[2]==="terre") lib = "mesure(s) prise(s) de terre – valeur relevée : " + ((S.terre||"").trim() ? (S.terre||"").trim() : "_____") + " Ohms";
+        var obs=((S.obsLigne&&S.obsLigne[l[0]])||"").trim();
+        doc.setFont("helvetica","normal");
+        var lL=couperRiche(lib, LIB-3, 7.4), lO=obs ? couperRiche(obs, LOBS-3, 7) : [];
+        var h=Math.max(5.3, Math.max(lL.length, lO.length)*3.1+2.2);
+        suite(h); cadreLigne(h, false);
+        setText(INK);
+        lL.forEach(function(t,k){ ecrireRiche(t, M+1.5, y+3.7+k*3.1, 7.4); });
+        lO.forEach(function(t,k){ ecrireRiche(t, xObs+1.5, y+3.7+k*3.1, 7); });
+        var col={oui:0, non:1, so:2}[S.reponses[l[0]]];
+        for(var k=0;k<3;k++){
+          var cx=xS+k*CASE+CASE/2-1.3, cy=y+h/2-1.3;
+          setTrait(INK); doc.setLineWidth(0.2); doc.rect(cx, cy, 2.6, 2.6);
+          if(col===k){ doc.setLineWidth(0.45); doc.line(cx-0.3, cy-0.3, cx+2.9, cy+2.9); doc.line(cx+2.9, cy-0.3, cx-0.3, cy+2.9); }
+        }
+        y += h;
+      });
+    });
+    doc.setFont("helvetica","normal"); doc.setFontSize(5.8); setText(INK);
+    doc.text("* S (pour Satisfaisant) ou NS (pour Non Satisfaisant) ou SO (pour Sans Objet)", M, y+3);
+    y += 7;
+    /* les observations générales */
+    var og=(S.observations||"").trim();
+    if(og){
+      var lg=couperRiche(og, CW-4, 8);
+      suite(lg.length*3.8+7);
+      doc.setFont("helvetica","bold"); doc.setFontSize(8.5); doc.text("Observations :", M, y+3.5);
+      doc.setFont("helvetica","normal");
+      lg.forEach(function(t,k){ ecrireRiche(t, M+2, y+7.5+k*3.8, 8); });
+      y += lg.length*3.8+9;
+    }
+    /* les signatures, au bas de la page */
+    var hS=6+7+7+10;
+    if(y+hS+2 > PH-14){ doc.addPage(); y=M; }
+    var yS=Math.max(y+2, PH-14-hS), lB=86;
+    [[M, "Responsable du contrôle", (S.meta.techniciens||"").trim(), S.meta.date],
+     [PW-M-lB, "Vérification du contrôle par le responsable de l'affaire", (S.meta.verifNom||"").trim(), S.meta.verifDate]].forEach(function(c){
+      var x=c[0], yy=yS;
+      setTrait(INK); doc.setLineWidth(0.3);
+      doc.rect(x, yy, lB, 6); doc.setFont("helvetica","normal"); doc.setFontSize(7.8); setText(INK);
+      doc.text(c[1], x+lB/2, yy+4.1, {align:"center"}); yy += 6;
+      [["Nom :", c[2], 7], ["Date :", c[3] ? frDate(c[3]) : "", 7], ["Visa :", "", 10]].forEach(function(r){
+        doc.rect(x, yy, lB, r[2]); doc.setFont("helvetica","normal"); doc.text(r[0], x+1.5, yy+4.6);
+        if(r[1]){ doc.setFont("helvetica","bold"); doc.text(doc.splitTextToSize(r[1], lB-16)[0], x+13, yy+4.6); }
+        yy += r[2];
+      });
+    });
+    numeroter();
   }
 
   /* ---------- en-tête ---------- */
@@ -1971,7 +2263,7 @@ function nomFichier(t){
     .replace(/[^A-Za-z0-9 _-]+/g,"").trim().replace(/\s+/g,"-").slice(0,48) || "fiche";
 }
 function pdfName(){
-  return "Autocontrole-" + nomFichier(refAffaire()||"chantier") + "-" + dateFiche() + ".pdf";
+  return "Autocontrole-" + (estBatiment() ? lotsChoisis().map(function(x){ return x.id.toUpperCase(); }).join("-")+"-" : "") + nomFichier(refAffaire()||"chantier") + "-" + dateFiche() + ".pdf";
 }
 function dl(blob, name){
   /* dans l'appli installée, un PDF s'ouvre avec sa barre OK au lieu de remplacer la page */
@@ -2006,14 +2298,14 @@ function bindAll(){
   $("btnPublier").addEventListener("click", function(){
     if(!refAffaire()){ toast("Indiquez le client ou la référence des travaux."); showTab("chantier"); return; }
     var c=compteReponses();
-    if(c.vide===CONTROLES.length){ toast("Renseignez les vérifications."); showTab("controles"); return; }
-    /* la photo du tableau ouvert est obligatoire ; sa lecture, si elle est en route, est attendue */
-    if(!S.tableau || !S.tableau.photo){
+    if(c.vide===controlesActifs().length){ toast("Renseignez les vérifications."); showTab("controles"); return; }
+    /* la photo du tableau ouvert est obligatoire (maison) ; sa lecture, si elle est en route, est attendue */
+    if((!S.tableau || !S.tableau.photo) && !estBatiment()){
       toast("Prenez la photo du tableau ouvert : la fiche ne s'enregistre pas sans elle.");
       showTab("controles"); setTimeout(function(){ $("blocTableau").scrollIntoView({behavior:"smooth", block:"start"}); }, 250); return;
     }
     var A=tpAnalyse();
-    if(!A || /^(envoi|en-cours)$/.test(A.etat) || (A.etat==="attente" && navigator.onLine!==false)){
+    if(S.tableau && S.tableau.photo && (!A || /^(envoi|en-cours)$/.test(A.etat) || (A.etat==="attente" && navigator.onLine!==false))){
       TP_PUBLIER_APRES=true;
       $("pubEtat").textContent="Analyse du tableau en cours : la fiche s'enregistrera dès qu'elle sera terminée…";
       if(!A || A.etat==="attente") tpLancer();
@@ -2026,7 +2318,7 @@ function bindAll(){
       type: APP_TYPE, date: dateFiche(),
       visite: "",
       etape: etapeResume(),
-      titre: "Fiche autocontrôle et mise en service"
+      titre: estBatiment() ? "Autocontrôle bâtiment — "+lotsChoisis().map(function(x){ return x.id.toUpperCase(); }).join(" + ") : "Fiche autocontrôle et mise en service"
     });
   });
   $("btnNew").addEventListener("click", function(){
@@ -2037,7 +2329,9 @@ function bindAll(){
 /* remise à zéro : appelée par « Nouvelle fiche », et automatiquement
    après une publication dans le dossier (voir publierRapport). */
 function reinitialiserFormulaire(msg){
+  var garde = S ? {modele:S.modele, lots:S.lots} : null;      /* la fiche suivante reste Maison ou Bâtiment, comme celle-ci */
   S=blank();
+  if(garde && garde.modele){ S.modele=garde.modele; if(garde.lots) S.lots=JSON.parse(JSON.stringify(garde.lots)); }
   save(); paintForm(); showTab("chantier");
   toast(msg);
 }
@@ -2615,7 +2909,7 @@ function ecrireFiche(){
 function majDateDuJour(){
   var auj=aujourdhui();
   try{
-    var rien=compteReponses().vide===CONTROLES.length;
+    var rien=compteReponses().vide===controlesActifs().length;
     if(S.meta.date && S.meta.date < auj && rien){ S.meta.date = auj; save(); }
   }catch(e){}
 }
@@ -2629,6 +2923,9 @@ function start(){
     S = sBrut ? Object.assign(blank(), sBrut) : blank();
     if(!S.meta) S.meta={date:aujourdhui(), travaux:"", batiment:"", techniciens:""};
     if(!S.reponses || typeof S.reponses !== "object") S.reponses={};
+    if(!S.obsLigne || typeof S.obsLigne !== "object") S.obsLigne={};
+    if(!S.lots) S.lots={cfo:true, cfa:true};
+    if(S.modele!=="batiment") S.modele="maison";
     if(!S.meta.techniciens) S.meta.techniciens=(SESSION&&SESSION.nom)||"";
     majDateDuJour();
     paintForm(); showTab("chantier");
