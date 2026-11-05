@@ -470,6 +470,13 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fp-boite header{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;gap:10px}
 .fp-boite img{display:block;max-width:100%;max-height:70vh;object-fit:contain;background:#000}
 .fp-pied{display:flex;gap:8px;padding:10px 12px}
+.fm-boite{width:min(560px,100%)} .fm-corps{display:flex;flex-direction:column;gap:12px;padding:4px 14px 14px;overflow:auto}
+.fm-liste{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px}
+.fm-liste button{display:flex;flex-direction:column;align-items:flex-start;gap:2px;padding:10px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.04);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.fm-liste button b{font-size:15px} .fm-liste button small{color:var(--ink3)} .fm-liste button.on{border-color:#3B82F6;background:rgba(59,130,246,.16)}
+.fm-autre{display:flex;flex-wrap:wrap;gap:8px 14px;color:var(--ink2,#AEB7BF);font-size:13px} .fm-autre input{width:76px;padding:7px 9px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);font:inherit}
+.fm-pose{display:flex;align-items:center;gap:6px} .fm-pose span{margin-right:6px} .fm-pose button{padding:7px 14px;border-radius:999px;border:1px solid rgba(255,255,255,.18);background:transparent;color:var(--ink);font:inherit;cursor:pointer} .fm-pose button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
+#fmNote{color:var(--ink3)} #fmOk{align-self:flex-end}
 .fe-boite{width:min(1200px,100%)} .fe-boite canvas{display:block;width:100%;height:auto;background:#FFFFFF} .fe-act{display:flex;gap:6px} .fe-note{display:block;padding:8px 12px;color:var(--ink3)} .fp-pied input{flex:1;min-width:0;padding:9px 11px;border-radius:9px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06);color:var(--ink);font:inherit}
 .fen-res button{min-height:30px;padding:3px 10px;border-radius:999px;border:1px solid var(--trait);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}
 .fen-res button.nat{border-color:var(--c);color:var(--c)}
@@ -769,6 +776,16 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 <div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
 <div class="fen-res fen-blocs" id="fenBlocs" hidden role="group" aria-label="Mes blocs"></div>
 <div class="fen-res" id="fenNiveaux" hidden role="group" aria-label="Les niveaux du plan"></div>
+<div class="fen-photo" id="fenModule" hidden role="dialog" aria-label="Le panneau à poser">
+  <div class="fp-boite fm-boite"><header><b>Quel panneau ?</b><button class="bt" id="fmFermer" type="button" aria-label="Fermer">✕</button></header>
+  <div class="fm-corps">
+    <div class="fm-liste" id="fmListe" role="radiogroup" aria-label="Taille du panneau"></div>
+    <div class="fm-autre"><label>Puissance <input id="fmWc" type="text" inputmode="decimal" aria-label="Puissance en Wc"> Wc</label><label>Largeur <input id="fmL" type="text" inputmode="decimal" aria-label="Largeur en mm"> mm</label><label>Hauteur <input id="fmH" type="text" inputmode="decimal" aria-label="Hauteur en mm"> mm</label></div>
+    <div class="fr-l fm-pose"><span>Pose</span><button type="button" data-o="portrait">Portrait</button><button type="button" data-o="paysage">Paysage</button></div>
+    <small id="fmNote"></small>
+    <button class="bt or" id="fmOk" type="button">Poser les panneaux</button>
+  </div></div>
+</div>
 <div class="fen-photo" id="fenElev" hidden role="dialog" aria-label="Élévation du mur">
   <div class="fp-boite fe-boite"><header><b id="evTitre">Élévation du mur</b><span class="fe-act"><button class="bt" id="evFace" type="button">Autre face</button><button class="bt" id="evImage" type="button">Image</button><button class="bt" id="evFermer" type="button" aria-label="Fermer">✕</button></span></header>
   <canvas id="evCanvas" width="1200" height="560"></canvas>
@@ -4290,6 +4307,31 @@ function coterPiece(p){
   var surf=(x1-x0)*(y1-y0)*DESSIN_MM*DESSIN_MM/1e6;
   nouv({t:"gtexte", pts:[[(x0+x1)/2, (y0+y1)/2-ht*1.8]], s:"S = "+surf.toLocaleString("fr-FR", {minimumFractionDigits:2, maximumFractionDigits:2})+" m²", h:ht*0.8});
   enregistrerD(); majDessin(); toast("Pièce cotée : "+formater(x1-x0)+" × "+formater(y1-y0)+", "+surf.toLocaleString("fr-FR", {maximumFractionDigits:2})+" m².", 4000);
+}
+/* ---------- le panneau à poser : sa taille demandée avant le champ ou le panneau, tout s'y adapte ---------- */
+var PV_MODELES=[{wc:375, l:1038, h:1755, lib:"60 cellules"}, {wc:425, l:1134, h:1722, lib:"108 demi-cellules"}, {wc:450, l:1134, h:1762, lib:"108 demi-cellules"}, {wc:500, l:1134, h:1961, lib:"120 demi-cellules"}, {wc:550, l:1134, h:2278, lib:"144 demi-cellules"}];
+var FM_SUITE=null, FM_VU=false;   /* la taille du panneau a été demandée (une fois par ouverture de la page, au moins) */
+function demanderModule(suite){
+  FM_SUITE=suite; var m=PVD().mod, L=$("fmListe"); L.textContent="";
+  PV_MODELES.forEach(function(x){ var b=document.createElement("button"); b.type="button"; b.setAttribute("role", "radio");
+    var on = Number(m.l)===x.l && Number(m.h)===x.h; b.classList.toggle("on", on); b.setAttribute("aria-checked", on ? "true" : "false");
+    b.innerHTML="<b></b><span></span><small></small>"; b.children[0].textContent=x.wc+" Wc"; b.children[1].textContent=x.l+" × "+x.h+" mm"; b.children[2].textContent=x.lib;
+    b.addEventListener("click", function(){ $("fmWc").value=String(x.wc); $("fmL").value=String(x.l); $("fmH").value=String(x.h); Array.prototype.forEach.call(L.children, function(z){ z.classList.toggle("on", z===b); z.setAttribute("aria-checked", z===b ? "true" : "false"); }); noteModule(); });
+    L.appendChild(b); });
+  $("fmWc").value=String(m.wc); $("fmL").value=String(m.l); $("fmH").value=String(m.h);
+  Array.prototype.forEach.call(document.querySelectorAll("#fenModule .fm-pose button"), function(b){ b.classList.toggle("on", b.dataset.o===PV_REG.o); });
+  noteModule(); $("fenModule").hidden=false;
+}
+function noteModule(){
+  var n=PVD().pan.length, m=PVD().mod, l=Number($("fmL").value), h=Number($("fmH").value);
+  $("fmNote").textContent=(n && (l!==Number(m.l) || h!==Number(m.h)) ? "Les "+n+" panneaux déjà posés prennent cette taille. " : "")+"Les caractéristiques électriques (Voc, Isc…) se règlent dans Étude PV.";
+}
+function validerModule(){
+  var wc=Number(String($("fmWc").value).replace(",", ".")), l=Number(String($("fmL").value).replace(",", ".")), h=Number(String($("fmH").value).replace(",", "."));
+  if(!(wc>50 && wc<1500) || !(l>300 && l<3000) || !(h>300 && h<3500)){ toast("Donnez la puissance (Wc) et la taille du panneau (largeur et hauteur en mm)."); return; }
+  var m=PVD().mod; if(Number(m.wc)!==wc || Number(m.l)!==l || Number(m.h)!==h){ garderD(); m.wc=wc; m.l=Math.round(l); m.h=Math.round(h); m.nom="Module "+wc+" Wc"; enregistrerD(); }
+  FM_VU=true; $("fenModule").hidden=true; var f=FM_SUITE; FM_SUITE=null; majDessin(); if(f) f();
+  toast("Panneau "+wc+" Wc, "+Math.round(l)+" × "+Math.round(h)+" mm, en "+PV_REG.o+".", 2500);
 }
 /* ---------- l'élévation d'un mur : ses ouvertures et ce qui y est posé, à hauteur, avec les cotes ---------- */
 var ELEV={id:null, cote:1};
@@ -10256,6 +10298,10 @@ $("btDxf").addEventListener("click", function(){ exporterDxf(); });
 $("btXlsx").addEventListener("click", function(){ exporterXlsx(); });
 $("rpFermer").addEventListener("click", function(){ $("reperes").hidden=true; });
 $("evFermer").addEventListener("click", function(){ $("fenElev").hidden=true; });
+$("fmFermer").addEventListener("click", function(){ $("fenModule").hidden=true; FM_SUITE=null; });
+$("fmOk").addEventListener("click", validerModule);
+["fmWc","fmL","fmH"].forEach(function(id){ $(id).addEventListener("input", function(){ Array.prototype.forEach.call($("fmListe").children, function(z){ z.classList.remove("on"); }); noteModule(); }); $(id).addEventListener("keydown", function(e){ if(e.key==="Enter") validerModule(); }); });
+Array.prototype.forEach.call(document.querySelectorAll("#fenModule .fm-pose button"), function(b){ b.addEventListener("click", function(){ PV_REG.o=b.dataset.o; garderPvReg(); Array.prototype.forEach.call(document.querySelectorAll("#fenModule .fm-pose button"), function(z){ z.classList.toggle("on", z===b); }); }); });
 $("fenElev").addEventListener("click", function(e){ if(e.target===this) this.hidden=true; });
 $("evFace").addEventListener("click", function(){ ELEV.cote=-(ELEV.cote||1); dessinerElevMur(); });
 $("evImage").addEventListener("click", function(){ $("evCanvas").toBlob(function(b){ if(b) telecharger(b, "Élévation "+nomDeBase()+".png"); }, "image/png"); });
@@ -11681,6 +11727,7 @@ function pvFinir(){
   majDessin();
 }
 function toucherPv(cible, p){
+  if(!FM_VU && (OUTIL_D==="pvpan" || (OUTIL_D==="pvchamp" && !D_PT))){ demanderModule(null); return; }   /* outil déjà armé (onglet rouvert) : la taille d'abord */
   if(OUTIL_D==="pvpan"){ pvPoserPan(p); return; }
   if(OUTIL_D==="pvchamp"){
     if(!D_PT){ D_PT=cible.pt; D_SEL=null; majDessin(); return; }
@@ -13018,6 +13065,7 @@ function actionR(k){
 $("rbPanneau").addEventListener("click", function(e){
   var b=e.target.closest("button[data-r]"); if(!b || b.disabled) return;
   var r=b.dataset.r, t=r.slice(0,2), k=r.slice(2);
+  if(t==="o:" && (k==="pvchamp" || k==="pvpan") && PLAN){ demanderModule(function(){ choisirOutilR(k); majRuban(); if(petitEcran()) replier(true); }); return; }   /* d'abord, la taille du panneau */
   if(t==="o:") choisirOutilR(k);
   else if(t==="s:") choisirSymboleR(k);
   else if(t==="v:"){ if(PLAN) choisirVue(k); }
