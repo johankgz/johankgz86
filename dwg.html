@@ -767,6 +767,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 </div>
 <div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
 <div class="fen-res fen-blocs" id="fenBlocs" hidden role="group" aria-label="Mes blocs"></div>
+<div class="fen-res" id="fenNiveaux" hidden role="group" aria-label="Les niveaux du plan"></div>
 <div class="fen-res" id="fenPvc" hidden role="group" aria-label="Le câble : son tracé"></div>
 <div class="fen-res fen-resa" id="fenResa" hidden role="group" aria-label="La réservation pour le maçon"></div>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
@@ -1122,7 +1123,7 @@ var SOURCES={"pdf-echelle":"d'après l'échelle écrite sur le PDF", "vierge":"p
 function majTitre(){
   if(!PLAN) return;
   if(PLAN.pdf){ var n=echellePdfDe(DESSIN_MM), nr=DESSIN_MM/PT_MM; $("sousTitre").textContent=PLAN.nom+" · "+(n ? "au 1/"+n : "≈ 1/"+(nr>=10 ? Math.round(nr) : nr.toLocaleString("fr-FR",{maximumFractionDigits:2})))+" ("+(SOURCES[ECHELLE_SRC]||"")+")"; return; }
-  $("sousTitre").textContent=PLAN.nom+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")"+(DESSIN && DESSIN.ech>0 ? " · travail au 1/"+DESSIN.ech : "");
+  $("sousTitre").textContent=PLAN.nom+(nomNiveau() ? " · "+nomNiveau() : "")+" · 1 unité = "+nomUnite(DESSIN_MM)+" ("+(SOURCES[ECHELLE_SRC]||"")+")"+(DESSIN && DESSIN.ech>0 ? " · travail au 1/"+DESSIN.ech : "");
 }
 function charge(t){ $("chargementTxt").textContent=t; $("chargement").hidden=!t; }
 function lire(k, d){ try{ var v=localStorage.getItem(k); return v==null ? d : v; }catch(e){ return d; } }
@@ -4284,6 +4285,84 @@ function coterPiece(p){
   nouv({t:"gtexte", pts:[[(x0+x1)/2, (y0+y1)/2-ht*1.8]], s:"S = "+surf.toLocaleString("fr-FR", {minimumFractionDigits:2, maximumFractionDigits:2})+" m²", h:ht*0.8});
   enregistrerD(); majDessin(); toast("Pièce cotée : "+formater(x1-x0)+" × "+formater(y1-y0)+", "+surf.toLocaleString("fr-FR", {maximumFractionDigits:2})+" m².", 4000);
 }
+/* ---------- les niveaux : RDC, R+1, combles… dans un même plan ----------
+   Le niveau en cours est le dessin de toujours (ses clés habituelles) ; les autres sont gardés à part (clé@id).
+   Changer de niveau range l'un et sort l'autre ; le niveau du dessous peut se voir en transparence. */
+function cleNiv(c){ c=c||DESSIN_CLE; return c ? c.replace(/^dwg:dessin:/, "dwg:niveaux:") : ""; }
+function nivLu(){ try{ var x=JSON.parse(localStorage.getItem(cleNiv())||"null"); return x && x.liste && x.liste.length ? x : null; }catch(e){ return null; } }
+function nivGarde(N){ try{ localStorage.setItem(cleNiv(), JSON.stringify(N)); }catch(e){} }
+function nomNiveau(){ var N=nivLu(); if(!N) return ""; var c=N.liste.filter(function(l){ return l.id===N.courant; })[0]; return c ? c.nom : ""; }
+function nivDonnees(id){ var d=null, sy=[]; try{ d=JSON.parse(localStorage.getItem(DESSIN_CLE+"@"+id)||"null"); sy=JSON.parse(localStorage.getItem(SYMB_CLE+"@"+id)||"[]"); }catch(e){} return {d:d, s:sy||[]}; }
+var NIV_DESSOUS={cle:"", d:null};
+function changerNiveau(id, copierMurs){
+  var N=nivLu(); if(!N || N.courant===id) return;
+  try{ localStorage.setItem(DESSIN_CLE+"@"+N.courant, JSON.stringify(DESSIN)); localStorage.setItem(SYMB_CLE+"@"+N.courant, JSON.stringify(SYMB)); }catch(e){ toast("Mémoire de l'appareil pleine : le niveau n'a pas pu être rangé."); return; }
+  var x=nivDonnees(id), d=x.d || {murs:[], ouv:[], textes:[]};
+  /* les réglages du plan suivent d'un niveau à l'autre */
+  ["ech","hsp","couleurs","calquesU","nomsRes","circVu"].forEach(function(k){ if(DESSIN[k]!==undefined && d[k]===undefined) d[k]=JSON.parse(JSON.stringify(DESSIN[k])); });
+  if(copierMurs){ d.murs=JSON.parse(JSON.stringify(DESSIN.murs)); d.ouv=[]; }
+  DESSIN=normD(d); SYMB=x.s; HISTO_D=[]; HISTO_S=[]; REDO_D=[]; REDO_S=[]; D_SEL=null; GRP=null; SEL=-1; D_PT=null; GEO_EC=null;
+  N.courant=id; nivGarde(N); NIV_DESSOUS={cle:"", d:null};
+  enregistrerD(); enregistrerSymb(); majTitre(); majDessin(); if(MODE==="symb") majSymb(); majFenNiveaux(); demander();
+  toast("Niveau « "+nomNiveau()+" ».", 1800);
+}
+function ajouterNiveau(){
+  var N=nivLu() || {courant:"n0", liste:[{id:"n0", nom:"RDC"}], fantome:true};
+  var defs=["RDC","R+1","R+2","R+3","Combles","Sous-sol"], def=defs.filter(function(x){ return !N.liste.some(function(l){ return l.nom===x; }); })[0] || "Niveau "+(N.liste.length+1);
+  var nom=window.prompt("Nom du nouveau niveau :", def); if(nom==null || !String(nom).trim()) return;
+  var id="n"+Date.now().toString(36); N.liste.push({id:id, nom:String(nom).trim()}); nivGarde(N);
+  var copier=DESSIN.murs.length && window.confirm("Reprendre les murs du niveau « "+(N.liste.filter(function(l){ return l.id===N.courant; })[0]||{}).nom+" » (même emprise) ?");
+  changerNiveau(id, copier);
+}
+function renommerNiveau(){ var N=nivLu(); if(!N) return; var c=N.liste.filter(function(l){ return l.id===N.courant; })[0]; var nom=window.prompt("Nom du niveau :", c.nom); if(nom==null || !String(nom).trim()) return; c.nom=String(nom).trim(); nivGarde(N); majTitre(); majFenNiveaux(); }
+function supprimerNiveau(){
+  var N=nivLu(); if(!N || N.liste.length<2){ toast("Il faut au moins un niveau."); return; }
+  var c=N.liste.filter(function(l){ return l.id===N.courant; })[0]; if(!window.confirm("Supprimer le niveau « "+c.nom+" » et tout ce qu'il contient ?")) return;
+  var i=N.liste.indexOf(c), autre=N.liste[i>0 ? i-1 : 1];
+  var x=nivDonnees(autre.id); N.liste.splice(i, 1); N.courant=autre.id; nivGarde(N);
+  try{ localStorage.removeItem(DESSIN_CLE+"@"+autre.id); localStorage.removeItem(SYMB_CLE+"@"+autre.id); localStorage.removeItem(DESSIN_CLE+"@"+c.id); localStorage.removeItem(SYMB_CLE+"@"+c.id); }catch(e){}
+  DESSIN=normD(x.d || {murs:[], ouv:[], textes:[]}); SYMB=x.s; HISTO_D=[]; HISTO_S=[]; D_SEL=null; GRP=null; SEL=-1;
+  enregistrerD(); enregistrerSymb(); majTitre(); majDessin(); majFenNiveaux(); toast("Niveau supprimé.");
+}
+/* le niveau du dessous, en transparence : ses murs, ses ouvertures et ses symboles, légers */
+function niveauDessous(){
+  var N=nivLu(); if(!N || N.fantome===false) return null; var i=N.liste.map(function(l){ return l.id; }).indexOf(N.courant); if(i<=0) return null;
+  var id=N.liste[i-1].id, k=DESSIN_CLE+"@"+id, brut=null; try{ brut=localStorage.getItem(k); }catch(e){}
+  if(!brut) return null; if(NIV_DESSOUS.cle===k+brut.length) return NIV_DESSOUS.d;
+  var d=null; try{ d=JSON.parse(brut); }catch(e){} NIV_DESSOUS={cle:k+brut.length, d:d, nom:N.liste[i-1].nom}; return d;
+}
+function peindreNiveauDessous(c, E){
+  var d=niveauDessous(); if(!d || !d.murs) return;
+  c.save(); c.globalAlpha=0.22; c.fillStyle=CLAIR || IMPRIME ? "#64748B" : "#94A3B8";
+  d.murs.forEach(function(m){ var x=axes(m), e=m.ep/2, q=[[m.a[0]+x.n[0]*e, m.a[1]+x.n[1]*e], [m.b[0]+x.n[0]*e, m.b[1]+x.n[1]*e], [m.b[0]-x.n[0]*e, m.b[1]-x.n[1]*e], [m.a[0]-x.n[0]*e, m.a[1]-x.n[1]*e]].map(E);
+    c.beginPath(); c.moveTo(q[0][0], q[0][1]); for(var j=1;j<4;j++) c.lineTo(q[j][0], q[j][1]); c.closePath(); c.fill(); });
+  c.restore();
+}
+function majFenNiveaux(){
+  var f=$("fenNiveaux"); if(!f || f.hidden) return; f.textContent="";
+  var N=nivLu(), h=document.createElement("b"); h.textContent="Niveaux du plan"; f.appendChild(h);
+  var l=document.createElement("div"); l.className="fr-l";
+  (N ? N.liste : [{id:"n0", nom:"RDC"}]).forEach(function(n){ var b=document.createElement("button"); b.type="button"; b.textContent=n.nom; if(!N || n.id===N.courant) b.classList.add("on"); b.addEventListener("click", function(){ changerNiveau(n.id); }); l.appendChild(b); });
+  f.appendChild(l);
+  var l2=document.createElement("div"); l2.className="fr-l";
+  [["＋ Niveau", ajouterNiveau], ["Renommer", renommerNiveau], ["Supprimer", supprimerNiveau]].forEach(function(x){ var b=document.createElement("button"); b.type="button"; b.textContent=x[0]; if(!N && x[0]!=="＋ Niveau") b.disabled=true; b.addEventListener("click", x[1]); l2.appendChild(b); });
+  f.appendChild(l2);
+  if(N){ var l3=document.createElement("label"); l3.className="fr-l"; var cb=document.createElement("input"); cb.type="checkbox"; cb.checked=N.fantome!==false; cb.addEventListener("change", function(){ var M=nivLu(); M.fantome=cb.checked; nivGarde(M); demander(); }); l3.appendChild(cb); l3.appendChild(document.createTextNode(" Voir le niveau du dessous en transparence")); f.appendChild(l3); }
+  var sm=document.createElement("small"); sm.textContent="Chaque niveau a son dessin, ses symboles et ses quantités ; le PDF porte le nom du niveau."; f.appendChild(sm);
+  var bf=document.createElement("button"); bf.type="button"; bf.className="bt"; bf.textContent="Fermer"; bf.addEventListener("click", function(){ f.hidden=true; majRuban(); }); f.appendChild(bf);
+}
+/* enregistré sur le site ou le Cloud : les autres niveaux partent avec le plan */
+function niveauxPourEnvoi(){
+  var N=nivLu(); if(!N) return null; var data={};
+  N.liste.forEach(function(n){ if(n.id===N.courant) return; var x=nivDonnees(n.id); data[n.id]={dessin:x.d, symb:x.s}; });
+  return {meta:N, data:data};
+}
+function ecrireNiveaux(cleD, cleS, nv){
+  var k=cleNiv(cleD);
+  if(!nv || !nv.meta){ try{ localStorage.removeItem(k); }catch(e){} return; }
+  localStorage.setItem(k, JSON.stringify(nv.meta));
+  Object.keys(nv.data||{}).forEach(function(id){ localStorage.setItem(cleD+"@"+id, JSON.stringify(nv.data[id].dessin||{})); localStorage.setItem(cleS+"@"+id, JSON.stringify(nv.data[id].symb||[])); });
+}
 /* ---------- les photos sur le plan : prises sur place, accrochées à l'endroit (P1, P2…), reprises au PDF ---------- */
 var PHOTO_EC=null, PHOTO_VUE=null;
 function photos(){ return (DESSIN && DESSIN.photos) || []; }
@@ -4662,6 +4741,7 @@ function peindreDessin(c){
   var aPlat=vueD()==="dessus";
   /* le fond de plan, sous tout le dessin */
   if(aPlat && cqVu("fond") && PASSE!=="apercu") peindreFond(c, E);
+  if(aPlat && PASSE!=="apercu") peindreNiveauDessous(c, E);
   if(PASSE!=="apercu"){
   /* les murs, pleins (en Face et en Côté : en élévation, avec le mobilier) */
   if(aPlat){
@@ -9455,7 +9535,7 @@ function creerPdf(d, logo, soc, imgPersp){
     cadreIso(doc, g);
     cartoucheIso(doc, g, {
       societe:socNom, coord:[soc && soc.adresse, soc && soc.tel].filter(Boolean).join(" · "), logo:Cartouche.choisirLogo(socNom, soc && soc.logo),
-      objet:d.objet||"PLAN ÉLECTRIQUE", niveau:objet2 || d.niveau || "", affaire:String(d.client||"").toUpperCase(), ref:d.ref||"",
+      objet:d.objet||"PLAN ÉLECTRIQUE", niveau:objet2 || d.niveau || nomNiveau() || "", affaire:String(d.client||"").toUpperCase(), ref:d.ref||"",
       echelle: lesCases ? textePlancheEchelles(lesCases) : "1/"+e.n, format:nomFormat()+" "+(MEP.orient==="l" ? "paysage" : "portrait"),
       indice:d.indice||"A", folio:folio+"/"+total, dess:d.dess||"", mail:d.mail||"", date:frDateCourte(d.date), fichier:nomDeBase(),
       modif:ZONES_JAUNES && ZONES_JAUNES.length ? "Plan modifié : "+ZONES_JAUNES.length+" endroit"+(ZONES_JAUNES.length>1?"s":"")+" encadré"+(ZONES_JAUNES.length>1?"s":"")+" en jaune"
@@ -12389,6 +12469,7 @@ var ICO={
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
   serie:'<path d="M3 9h5v6H3zM10 9h5v6h-5zM17 9h4v6h-4z"/>',
   reperes:'<circle cx="10" cy="10" r="6"/><path d="M14.5 14.5L20 20"/>',
+  niveaux:'<path d="M3 9l9-5 9 5-9 5z"/><path d="M3 14l9 5 9-5" stroke-width="1.4"/>',
   photo:'<path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.5"/>',
   chaine:'<path d="M3 14h18"/><path d="M3 10v8M9 10v8M15 10v8M21 10v8" stroke-width="1.2"/>',
   cotepiece:'<path d="M4 6h16v13H4z"/><path d="M7 9h10M7 9v7" stroke-width="1.2"/>',
@@ -12444,6 +12525,7 @@ function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden
 /* ce que dit chaque bouton : [libellé, icône, aide] */
 var ACTIONS={
   dupliquer:["Dupliquer","dupliquer","Une copie de l'élément choisi (Ctrl+D)"],
+  niveaux:["Niveaux","niveaux","Les niveaux du plan (RDC, R+1, combles…) : changer, en ajouter, voir celui du dessous en transparence"],
   reperes:["Repères","reperes","La liste des repères du plan (circuits, réservations, strings, pièces, photos…) et la recherche (Ctrl+F)"],
   photo:["Photo","photo","Accrocher une photo prise sur place à l'endroit touché du plan (P1, P2…)"],
   chaine:["Cotes en chaîne","chaine","Coter à la suite : chaque toucher ajoute une cote, dans l'alignement de la précédente"],
@@ -12537,6 +12619,7 @@ var ONGLETS=[
   ]},
   {id:"vues", nom:"Vues", g:[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
+    {nom:"Niveaux", gros:["a:niveaux"]},
     {nom:"Affichage", gros:["a:entiere","a:clair","a:reticule","a:calques","a:reperes"]}
   ]},
   {id:"reglages", nom:"Réglages", reglages:true},
@@ -12699,6 +12782,7 @@ function majRuban(){
     else if(k==="ajuster" || k==="prolonger") on = AJ_MODE===k;
     else if(k==="chaine") on = COTE_CHAINE;
     else if(k==="reperes") on = !$("reperes").hidden;
+    else if(k==="niveaux") on = !$("fenNiveaux").hidden;
     else if(k==="photo") on = !!(PHOTO_EC && PHOTO_EC.arme);
     else if(k==="cotepiece") on = PIECE_COTE;
     else if(k==="blocs") on = !$("fenBlocs").hidden;
@@ -12789,6 +12873,7 @@ function actionR(k){
     case "dupliquer": dupliquerR(); break;
     case "serie": serieSel(); break;
     case "reperes": if($("reperes").hidden) ouvrirReperes(); else $("reperes").hidden=true; break;
+    case "niveaux": $("fenNiveaux").hidden=!$("fenNiveaux").hidden; majFenNiveaux(); majRuban(); break;
     case "photo": armerPhoto(); break;
     case "chaine": COTE_CHAINE=!COTE_CHAINE; CHAINE_EC=null; if(COTE_CHAINE) choisirOutilR("cote"); majRuban(); toast(COTE_CHAINE ? "Cotes en chaîne : faites la première cote (2 points, puis le décalage), puis touchez les points suivants." : "Cotes en chaîne arrêtées.", 4500); break;
     case "cotepiece": if(MODE!=="dessin") basculerMode("dessin"); if(OUTIL_D!=="choisir") choisirOutilR("choisir"); PIECE_COTE=true; majRuban(); toast("Touchez à l'intérieur de la pièce à coter.", 3000); break;
@@ -13430,7 +13515,7 @@ function instantanePlan(){
     var d=JSON.parse(JSON.stringify(DESSIN)); delete d.cloud;
     return JSON.stringify({format:"plan-tle", version:1, enregistre:new Date().toISOString(),
       plan:{type:vierge ? "vierge" : "fichier", nom:nomCloud(), source: vierge ? null : {nom:FICHIER_SRC.name, taille:FICHIER_SRC.size, cle:cleNomFichier(), page:PLAN.page||0}},
-      contenu:{dessin:d, symb:SYMB, echelle:{mm:DESSIN_MM, src:ECHELLE_SRC}, calques:CQ_MASQUES, mep:mep, fond:r[0]||null, fondPdf:r[0] ? r[1] : null},
+      contenu:{dessin:d, symb:SYMB, echelle:{mm:DESSIN_MM, src:ECHELLE_SRC}, calques:CQ_MASQUES, mep:mep, fond:r[0]||null, fondPdf:r[0] ? r[1] : null, niveaux:niveauxPourEnvoi()},
       fichier:r[2]||null});
   });
 }
@@ -13485,7 +13570,7 @@ function ouvrirPlanCloud(id){
         try{
           localStorage.setItem("dwg:vierges", JSON.stringify(l));
           localStorage.setItem("dwg:dessin:vierge:"+vid, JSON.stringify(dessin));
-          localStorage.setItem("dwg:symboles:vierge:"+vid, JSON.stringify(c.symb||[]));
+          localStorage.setItem("dwg:symboles:vierge:"+vid, JSON.stringify(c.symb||[])); ecrireNiveaux("dwg:dessin:vierge:"+vid, "dwg:symboles:vierge:"+vid, c.niveaux);
           localStorage.setItem("dwg:calques:vierge:"+vid, JSON.stringify(c.calques||{}));
           if(c.mep) localStorage.setItem("dwg:mep:"+nom, JSON.stringify(c.mep));
         }catch(e){ throw new Error("Mémoire de l'appareil pleine."); }
@@ -13499,7 +13584,7 @@ function ouvrirPlanCloud(id){
       var cleB=(s.cle || s.nom)+":"+fic.size;
       try{
         localStorage.setItem("dwg:dessin:"+cleB, JSON.stringify(dessin));
-        localStorage.setItem("dwg:symboles:"+cleB, JSON.stringify(c.symb||[]));
+        localStorage.setItem("dwg:symboles:"+cleB, JSON.stringify(c.symb||[])); ecrireNiveaux("dwg:dessin:"+cleB, "dwg:symboles:"+cleB, c.niveaux);
         localStorage.setItem("dwg:calques:"+cleB, JSON.stringify(c.calques||{}));
         if(c.echelle && c.echelle.src==="etalon" && c.echelle.mm>0) localStorage.setItem("dwg:echelle:"+cleB, String(c.echelle.mm));
         if(c.mep) localStorage.setItem("dwg:mep:"+(s.cle || s.nom), JSON.stringify(c.mep));
@@ -13611,7 +13696,7 @@ function ouvrirPlanSite(id, a){
       try{
         localStorage.setItem("dwg:vierges", JSON.stringify(l));
         localStorage.setItem("dwg:dessin:vierge:"+p.id, JSON.stringify(c.dessin||{}));
-        localStorage.setItem("dwg:symboles:vierge:"+p.id, JSON.stringify(c.symb||[]));
+        localStorage.setItem("dwg:symboles:vierge:"+p.id, JSON.stringify(c.symb||[])); ecrireNiveaux("dwg:dessin:vierge:"+p.id, "dwg:symboles:vierge:"+p.id, c.niveaux);
         localStorage.setItem("dwg:calques:vierge:"+p.id, JSON.stringify(c.calques||{}));
         if(c.mep) localStorage.setItem("dwg:mep:"+p.nom, JSON.stringify(c.mep));
       }catch(e){ throw new Error("Mémoire de l'appareil pleine."); }
@@ -13636,7 +13721,7 @@ function ouvrirPlanSite(id, a){
         var cleB=(s.cle || s.nom)+":"+fic.size;
         try{
           localStorage.setItem("dwg:dessin:"+cleB, JSON.stringify(c.dessin||{}));
-          localStorage.setItem("dwg:symboles:"+cleB, JSON.stringify(c.symb||[]));
+          localStorage.setItem("dwg:symboles:"+cleB, JSON.stringify(c.symb||[])); ecrireNiveaux("dwg:dessin:"+cleB, "dwg:symboles:"+cleB, c.niveaux);
           localStorage.setItem("dwg:calques:"+cleB, JSON.stringify(c.calques||{}));
           if(c.echelle && c.echelle.src==="etalon" && c.echelle.mm>0) localStorage.setItem("dwg:echelle:"+cleB, String(c.echelle.mm));
           if(c.mep) localStorage.setItem("dwg:mep:"+(s.cle || s.nom), JSON.stringify(c.mep));
