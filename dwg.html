@@ -458,6 +458,8 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
 .fen-res .fr-l{display:flex;flex-wrap:wrap;align-items:center;gap:5px}
 .fen-res .fr-l span{min-width:62px;color:var(--ink-2,#9AA3B2);font-size:12px}
 .fen-res small.fr-alerte{color:#F87171;font-weight:600}
+.fen-blocs .bloc-l{flex-wrap:nowrap}.fen-blocs .bloc-l button:first-child{flex:1;text-align:left}.fen-blocs .bloc-l small{white-space:nowrap}
+.fen-blocs > .bt{align-self:flex-start}
 .fen-res button{min-height:30px;padding:3px 10px;border-radius:999px;border:1px solid var(--trait);background:transparent;color:inherit;font:inherit;font-weight:600;cursor:pointer}
 .fen-res button.nat{border-color:var(--c);color:var(--c)}
 .fen-res button.on{background:#3B82F6;border-color:#3B82F6;color:#fff}
@@ -753,6 +755,7 @@ body{background:#0B0E12} body.clair{background:#FFFFFF}
   <button type="button" class="bt" id="effFin">Terminer</button>
 </div>
 <div class="fen-res" id="fenRes" hidden role="group" aria-label="Le réseau : nature et diamètre"></div>
+<div class="fen-res fen-blocs" id="fenBlocs" hidden role="group" aria-label="Mes blocs"></div>
 <div class="fen-res" id="fenPvc" hidden role="group" aria-label="Le câble : son tracé"></div>
 <div class="fen-res fen-resa" id="fenResa" hidden role="group" aria-label="La réservation pour le maçon"></div>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
@@ -2315,7 +2318,7 @@ cv.addEventListener("pointerdown", function(e){
     /* une ligne de construction à poser : le toucher ne prend rien, un glissé déplace le plan */
     if(GUIDE) return;
     /* un élément d'un groupe : tout le groupe se choisit, et se glisse du même geste */
-    if(AJ_MODE || DECAL_EC) return;     /* Ajuster, Prolonger, le côté d'un décalage : le toucher agit, rien ne se prend ni ne glisse */
+    if(AJ_MODE || DECAL_EC || PIECE_COTE || BLOC_EC) return;     /* Ajuster, Prolonger, les cotes d'une pièce, un bloc à poser, le côté d'un décalage : le toucher agit, rien ne se prend ni ne glisse */
     if((OUTIL_D==="choisir" || OUTIL_D==="selection") && !REF && vueD()==="dessus" && FAM_D!=="pv"){
       var gi=grpIdSous(p);
       if(gi){ var gg0=grpDuGroupe(gi); if(grpTaille(gg0)){ GRP=gg0; D_SEL=null; SEL=-1; if(LIEN_SEL) LIEN_SEL=null; OUTIL_D="selection"; G.grp=true; G.grpD=[0,0]; G.grpFixe=true; majDessin(); majBarreSel(); demander(); return; } }
@@ -2722,7 +2725,7 @@ document.addEventListener("keydown", function(e){
   if(mesureChoisie() && !champ && (e.key==="Delete" || e.key==="Backspace")){ e.preventDefault(); supprimerMesure(); return; }
   if(e.key==="Escape" && LIEN_SEL){ choisirLien(null); }
   if(e.key==="Escape" && grpTaille(GRP)){ GRP=null; majDessin(); majBarreSel(); demander(); }
-  if(e.key==="Escape" && (AJ_MODE || DECAL_EC)){ AJ_MODE=null; DECAL_EC=null; majRuban(); toast("Terminé.", 1200); return; }
+  if(e.key==="Escape" && (AJ_MODE || DECAL_EC || PIECE_COTE || BLOC_EC || CHAINE_EC)){ AJ_MODE=null; DECAL_EC=null; PIECE_COTE=false; BLOC_EC=null; CHAINE_EC=null; majFenBlocs(); majRuban(); toast("Terminé.", 1200); return; }
   if(e.key==="Escape"){ if(A_PT){ A_PT=null; majBas(); demander(); } if(D_PT || GEO_EC){ D_PT=null; GEO_EC=null; majDessin(); } if(REF) fermerRef(); if(FOND_ETAPE){ FOND_ETAPE=null; FOND_PTS=[]; majDessin(); } if(PV_EC){ PV_EC=null; majDessin(); } }
   if(((e.key==="z"||e.key==="Z") && e.shiftKey || e.key==="y" || e.key==="Y") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); retablirR(); return; }
   if((e.key==="z"||e.key==="Z") && (e.ctrlKey||e.metaKey)){ e.preventDefault(); if(MODE==="symb") defaireSymb(); else if(MODE==="dessin") defaireD(); else defaire(); }
@@ -4184,7 +4187,57 @@ function serieSel(){
   void der;
 }
 /* ---------- Décaler : une copie parallèle, à une distance donnée, du côté touché ---------- */
-var DECAL_EC=null;
+var DECAL_EC=null, PIECE_COTE=false, BLOC_EC=null;
+/* les cotes d'une pièce : touchez dedans ; la largeur, la longueur (entre les faces des murs) et la surface */
+function coterPiece(p){
+  PIECE_COTE=false; majRuban();
+  var faces=[]; DESSIN.murs.forEach(function(m){ if(!uVu(m)) return; var L=axes(m).L; [-1, 1].forEach(function(sg){ faces.push([surMur(m, 0, sg*m.ep/2), surMur(m, L, sg*m.ep/2)]); }); });
+  function rayon(dx, dy){ var loin=[p[0]+dx*1e6, p[1]+dy*1e6], tm=Infinity; faces.forEach(function(f){ var x=croiser(p, loin, f[0], f[1]); if(x && x.t>1e-9 && x.u>=-1e-6 && x.u<=1+1e-6 && x.t<tm) tm=x.t; }); return tm<Infinity ? tm*1e6 : null; }
+  var g=rayon(-1, 0), d=rayon(1, 0), b=rayon(0, -1), h=rayon(0, 1);
+  if(g==null || d==null || b==null || h==null){ toast("Touchez à l'intérieur d'une pièce fermée par des murs."); return; }
+  var x0=p[0]-g, x1=p[0]+d, y0=p[1]-b, y1=p[1]+h, ePap = DESSIN && DESSIN.ech>0 ? DESSIN.ech/DESSIN_MM : 0, hc=ePap ? 2.5*ePap : tailleDefaut(12), ht=ePap ? 3.5*ePap : tailleDefaut(16), marge=Math.min(400/DESSIN_MM, (y1-y0)/4, (x1-x0)/4);
+  function nouv(o){ o.id=idD(); o.ep=STYLE_G.ep; o.coul=STYLE_G.coul; o.tir=false; o.remp="aucun"; if(cqCourant && cqCourant()) o.cq=cqCourant(); DESSIN.geo.push(o); return o; }
+  garderD(); DESSIN.geo=DESSIN.geo||[];
+  nouv({t:"cote", pts:[[x0, y1], [x1, y1]], off:-marge, h:hc});
+  nouv({t:"cote", pts:[[x0, y0], [x0, y1]], off:-marge, h:hc});
+  var surf=(x1-x0)*(y1-y0)*DESSIN_MM*DESSIN_MM/1e6;
+  nouv({t:"gtexte", pts:[[(x0+x1)/2, (y0+y1)/2-ht*1.8]], s:"S = "+surf.toLocaleString("fr-FR", {minimumFractionDigits:2, maximumFractionDigits:2})+" m²", h:ht*0.8});
+  enregistrerD(); majDessin(); toast("Pièce cotée : "+formater(x1-x0)+" × "+formater(y1-y0)+", "+surf.toLocaleString("fr-FR", {maximumFractionDigits:2})+" m².", 4000);
+}
+/* ---------- Mes blocs : une sélection gardée (un tableau et ses départs, un ensemble PAC + ballon), à reposer partout ---------- */
+function blocsLus(){ try{ var l=JSON.parse(localStorage.getItem("dwg:blocs")||"[]"); return Array.isArray(l) ? l : []; }catch(e){ return []; } }
+function blocsGardes(l){ try{ localStorage.setItem("dwg:blocs", JSON.stringify(l)); return true; }catch(e){ toast("Le bloc est trop gros pour cet appareil."); return false; } }
+function enregistrerBloc(){
+  var g=selGroupe(); if(!grpTaille(g)){ toast("Choisissez d'abord ce qui fera le bloc (Sélection : un cadre autour)."); return; }
+  if((g.pan||[]).length || (g.ond||[]).length){ toast("Les panneaux et les onduleurs ne vont pas dans un bloc."); return; }
+  var nom=window.prompt("Nom du bloc :", "Mon bloc "+(blocsLus().length+1)); if(nom==null || !String(nom).trim()) return;
+  var b=grpBoite(g), l=blocsLus();
+  l.push({nom:String(nom).trim(), txt:grpCopier(g), cx:(b.x0+b.x1)/2, cy:(b.y0+b.y1)/2, n:grpTaille(g), date:Date.now()});
+  if(blocsGardes(l)){ majFenBlocs(); toast("Bloc « "+String(nom).trim()+" » enregistré ("+grpTaille(g)+" éléments). Insérer › Mes blocs pour le poser.", 4000); }
+}
+function poserBloc(p){
+  var bl=BLOC_EC; if(!bl) return; var c=JSON.parse(bl.txt), k=(c.mm||DESSIN_MM)/DESSIN_MM;
+  garderTout(); var n=grpColler(bl.txt, [p[0]-bl.cx*k, p[1]-bl.cy*k]);
+  enregistrerD(); enregistrerSymb(); GRP=n; OUTIL_D="selection"; majDessin(); majBarreSel(); demander();
+  toast("« "+bl.nom+" » posé. Touchez ailleurs pour en poser un autre, Échap pour finir.", 3000);
+}
+function majFenBlocs(){
+  var f=$("fenBlocs"); if(!f || f.hidden) return; f.textContent="";
+  var h=document.createElement("b"); h.textContent="Mes blocs"; f.appendChild(h);
+  var be=document.createElement("button"); be.type="button"; be.className="bt"; be.textContent="Enregistrer la sélection en bloc"; be.addEventListener("click", enregistrerBloc); f.appendChild(be);
+  var l=blocsLus();
+  if(!l.length){ var sm=document.createElement("small"); sm.textContent="Aucun bloc : choisissez des éléments (Sélection, un cadre autour), puis « Enregistrer la sélection en bloc »."; f.appendChild(sm); }
+  l.forEach(function(bl, i){
+    var d=document.createElement("div"); d.className="fr-l bloc-l";
+    var bp=document.createElement("button"); bp.type="button"; bp.textContent=bl.nom; bp.title="Poser « "+bl.nom+" » : touchez le plan"; if(BLOC_EC && BLOC_EC.date===bl.date) bp.classList.add("on");
+    bp.addEventListener("click", function(){ BLOC_EC = BLOC_EC && BLOC_EC.date===bl.date ? null : bl; if(MODE!=="dessin") basculerMode("dessin"); if(BLOC_EC && OUTIL_D!=="choisir"){ var be0=BLOC_EC; choisirOutilR("choisir"); BLOC_EC=be0; } majFenBlocs(); if(BLOC_EC) toast("Touchez le plan pour poser « "+bl.nom+" » (son centre va où vous touchez).", 3500); });
+    var sn=document.createElement("small"); sn.textContent=bl.n+" élément"+(bl.n>1?"s":"");
+    var bs=document.createElement("button"); bs.type="button"; bs.textContent="✕"; bs.title="Supprimer ce bloc"; bs.setAttribute("aria-label", "Supprimer le bloc "+bl.nom);
+    bs.addEventListener("click", function(){ if(!window.confirm("Supprimer le bloc « "+bl.nom+" » ?")) return; var l2=blocsLus(); l2.splice(i, 1); blocsGardes(l2); if(BLOC_EC && BLOC_EC.date===bl.date) BLOC_EC=null; majFenBlocs(); });
+    d.appendChild(bp); d.appendChild(sn); d.appendChild(bs); f.appendChild(d);
+  });
+  var bf=document.createElement("button"); bf.type="button"; bf.className="bt"; bf.textContent="Fermer"; bf.addEventListener("click", function(){ f.hidden=true; BLOC_EC=null; }); f.appendChild(bf);
+}
 function decalerSel(){
   var o=objetSel(), t=D_SEL && D_SEL.t;
   if(!o || !(t==="mur" || (t==="geo" && /^(trait|poly|spline|rect|rond|triangle|hachure)$/.test(o.t)))){ toast("Choisissez un trait, une polyligne, un rectangle, un rond ou un mur, puis Décaler."); return; }
@@ -4355,7 +4408,7 @@ var ENCHAINER=false, CTRL_TENU=false, ARME_S=true;
 function nomsRes(){ return !!(DESSIN && DESSIN.nomsRes); }
 function outilRes(){ return OUTIL_D==="spline" || OUTIL_D==="poly"; }
 function outilResC(){ return outilRes() || OUTIL_D==="cdc"; }     /* un réseau, ou le chemin de câbles en pièces */
-function garderOutil(){ return ENCHAINER || CTRL_TENU || (outilResC() && !!RES_EC); }
+function garderOutil(){ return ENCHAINER || CTRL_TENU || (outilResC() && !!RES_EC) || (OUTIL_D==="cote" && COTE_CHAINE); }
 function finOutil(){ if(garderOutil()) return false; OUTIL_D="choisir"; D_PT=null; GEO_EC=null; D_SEL=null; return true; }
 function majEnchainer(){ ["btEnchainerD","btEnchainerS"].forEach(function(id){ var b=$(id); if(b){ b.classList.toggle("on", ENCHAINER); b.setAttribute("aria-pressed", ENCHAINER?"true":"false"); } }); }
 /* la pièce posée d'un coup : largeur × longueur × hauteur, en cm */
@@ -4766,9 +4819,11 @@ function contraindreD(a, b){
 var NOMS_ANGLE={"90":"Ortho 90°", "45":"Ortho 45°", "libre":"Angle libre"};
 /* ---------- les gestes du dessin ---------- */
 function toucherD(sx, sy, force){
-  if(OUTIL_D==="main" && !force && !DECAL_EC && !AJ_MODE) return;
+  if(OUTIL_D==="main" && !force && !DECAL_EC && !AJ_MODE && !PIECE_COTE && !BLOC_EC) return;
   var cible=force || chercherD(sx, sy), p=force ? force.pt : versPlan(sx, sy);
   if(DECAL_EC){ finirDecaler(p); return; }
+  if(PIECE_COTE){ coterPiece(p); return; }
+  if(BLOC_EC){ poserBloc(p); return; }
   if(AJ_MODE){ toucherAjuster(p); return; }
   if(REF && REF.etape==="point"){ poserRef(cible.pt); return; }
   if(FOND_ETAPE){ if(vueD()!=="dessus"){ toast("Le fond de plan se règle en vue de dessus."); return; } toucherFond(cible, p); return; }
@@ -6033,6 +6088,10 @@ function creerGeo(o){
   var ePap = DESSIN && DESSIN.ech>0 ? DESSIN.ech/DESSIN_MM : 0;
   if(o.t==="cote" || o.t==="gtexte") o.h=o.h||(ePap ? (o.t==="cote" ? 2.5 : 3.5)*ePap : tailleDefaut(o.t==="cote" ? 12 : 16));
   if(o.t==="fleche") o.fl=o.fl||(ePap ? 3*ePap : tailleDefaut(12));
+  if(o.t==="cote" && COTE_CHAINE && OUTIL_D==="cote" && !CHAINE_EC){ var uC=unite(sub(o.pts[1], o.pts[0]));
+    /* avec Ortho, la chaîne part droite (horizontale ou verticale) même si le premier point a un peu glissé */
+    if(ORTHO_D && Math.abs(uC[0])>0.94) uC=[uC[0]>0 ? 1 : -1, 0]; else if(ORTHO_D && Math.abs(uC[1])>0.94) uC=[0, uC[1]>0 ? 1 : -1];
+    CHAINE_EC={b:o.pts[1].slice(), u:uC, off:o.off||0}; }
   if(o.t==="fleche" && RENVOI_EC && OUTIL_D==="fleche"){
     /* la flèche de renvoi prend la couleur du réseau d'où elle part */
     o.renvoi={s:""}; o.h=ePap ? 3*ePap : tailleDefaut(14); o.fl=ePap ? 2.4*ePap : o.fl; o.ep="fin"; o.tir=false;
@@ -6050,8 +6109,16 @@ function rectDe(a, c){ return [a.slice(), [c[0], a[1]], c.slice(), [a[0], c[1]]]
 /* la fin d'un segment : sur le point accroché, sinon droite si Ortho */
 function finGeo(a, cible){ if(cible.acc || OUTIL_D==="spline" || (OUTIL_D==="fleche" && RENVOI_EC)) return cible.pt;     /* la flèche de renvoi part en biais, sans Ortho */ return ORTHO_D ? contraindreD(a, cible.pt) : cible.pt; }
 function memePoint(p, q){ var P=versEcran(p[0],p[1]), Q=versEcran(q[0],q[1]); return Math.hypot(P[0]-Q[0], P[1]-Q[1]) < 14; }
+var COTE_CHAINE=false, CHAINE_EC=null;      /* Cotes en chaîne : chaque toucher ajoute une cote, dans l'alignement de la précédente */
 function toucherGeo(cible, p){
   var t=OUTIL_D, pt=cible.pt;
+  if(t==="cote" && COTE_CHAINE && CHAINE_EC && !GEO_EC){
+    var ch=CHAINE_EC, sc=(pt[0]-ch.b[0])*ch.u[0]+(pt[1]-ch.b[1])*ch.u[1];
+    if(Math.abs(sc)*V.k<6) return;
+    var nb=[ch.b[0]+ch.u[0]*sc, ch.b[1]+ch.u[1]*sc], a0=ch.b;
+    CHAINE_EC=null; creerGeo({t:"cote", pts:[a0, nb], off: sc>=0 ? ch.off : -ch.off});
+    CHAINE_EC={b:nb, u:ch.u, off:ch.off}; return;
+  }
   /* outil Cote : toucher le texte d'une cote la choisit (la corbeille de la barre la supprime) */
   if(t==="cote" && !GEO_EC){ var cT=coteTexteSous(p); if(cT){ D_SEL={t:"geo", id:cT.id}; majDessin(); majBarreSel(); demander(); return; } }
   if(t==="gtexte"){
@@ -12125,6 +12192,9 @@ var ICO={
   resfourreau:'<path d="M3 12c4-6 8 6 12 0s4-3 6-2"/><path d="M3 16.5c4-6 8 6 12 0s4-3 6-2"/><text x="3.5" y="7" font-size="5.5" font-family="Arial" font-weight="700" stroke="none" fill="currentColor">Ø</text>',
   dupliquer:'<path d="M8 8h12v12H8z"/><path d="M4 16V4h12"/>',
   serie:'<path d="M3 9h5v6H3zM10 9h5v6h-5zM17 9h4v6h-4z"/>',
+  chaine:'<path d="M3 14h18"/><path d="M3 10v8M9 10v8M15 10v8M21 10v8" stroke-width="1.2"/>',
+  cotepiece:'<path d="M4 6h16v13H4z"/><path d="M7 9h10M7 9v7" stroke-width="1.2"/>',
+  blocs:'<path d="M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4z"/><path d="M16.5 13v7M13 16.5h7"/>',
   miroir:'<path d="M12 3v18" stroke-dasharray="2 2"/><path d="M9 6L4 12l5 6zM15 6l5 6-5 6z"/>',
   miroirv:'<path d="M3 12h18" stroke-dasharray="2 2"/><path d="M6 9l6-5 6 5zM6 15l6 5 6-5z"/>',
   decaler:'<path d="M4 17L17 4"/><path d="M8 21L21 8" stroke-dasharray="3 2"/>',
@@ -12176,6 +12246,9 @@ function icoTrait(k){ return '<svg viewBox="0 0 24 24" class="trait" aria-hidden
 /* ce que dit chaque bouton : [libellé, icône, aide] */
 var ACTIONS={
   dupliquer:["Dupliquer","dupliquer","Une copie de l'élément choisi (Ctrl+D)"],
+  chaine:["Cotes en chaîne","chaine","Coter à la suite : chaque toucher ajoute une cote, dans l'alignement de la précédente"],
+  cotepiece:["Coter la pièce","cotepiece","Touchez dans une pièce : sa largeur, sa longueur et sa surface, entre les faces des murs"],
+  blocs:["Mes blocs","blocs","Garder une sélection comme bloc, et la reposer où on veut"],
   serie:["Copie en série","serie","Plusieurs copies de la sélection, à un écart régulier (une prise tous les 1,20 m)"],
   miroir:["Miroir ↔","miroir","Retourner la sélection de gauche à droite, sur place"],
   miroirv:["Miroir ↕","miroirv","Retourner la sélection de haut en bas, sur place"],
@@ -12240,7 +12313,7 @@ var ONGLETS=[
   ]},
   {id:"dessin", nom:"Dessin", g:[
     {nom:"Dessin", gros:["o:trait","o:poly","o:rond","o:arc"], petits:["o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche"]},
-    {nom:"Annotation", gros:["o:cote","o:gtexte","a:renvoi"], petits:["o:texte","a:mesurer","a:etalonner"]},
+    {nom:"Annotation", gros:["o:cote","o:gtexte","a:renvoi"], petits:["o:texte","a:mesurer","a:etalonner","a:chaine","a:cotepiece"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
     {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:couleur"]},
     {nom:"Calques", calque:true}
@@ -12258,7 +12331,8 @@ var ONGLETS=[
     {nom:"Ouvrir un plan", gros:["a:fichier","a:chantier","a:plans"]},
     {nom:"Nouveau", gros:["a:vierge"]},
     {nom:"Fond de plan", gros:["a:fond"], note:"Sous une page vierge : un PDF ou une photo du plan, mis à l'échelle."},
-    {nom:"Feuilles", gros:["a:feuille"], note:"Un cadre A4 à A0 à l'échelle, pour voir la place qu'il prend."}
+    {nom:"Feuilles", gros:["a:feuille"], note:"Un cadre A4 à A0 à l'échelle, pour voir la place qu'il prend."},
+    {nom:"Mes blocs", gros:["a:blocs"], note:"Une sélection gardée (un tableau et ses départs…), à reposer sur d'autres plans."}
   ]},
   {id:"vues", nom:"Vues", g:[
     {nom:"Vue", gros:["v:dessus","v:face","v:cote","a:v3d"]},
@@ -12422,6 +12496,9 @@ function majRuban(){
     else if(k==="nomsres") on = nomsRes();
     else if(k==="circvu") on = !!(DESSIN && DESSIN.circVu!==false);
     else if(k==="ajuster" || k==="prolonger") on = AJ_MODE===k;
+    else if(k==="chaine") on = COTE_CHAINE;
+    else if(k==="cotepiece") on = PIECE_COTE;
+    else if(k==="blocs") on = !$("fenBlocs").hidden;
     if(PLAN){
       if(k==="fond") off = !PLAN.vierge;
       else if(k==="effdwg") off = !!PLAN.vierge || !PLAN.parEnt;
@@ -12453,6 +12530,7 @@ function choisirOutilR(o){
   if(!RES_ARME){ RES_EC=null; majFenRes(); }
   if(!RESA_ARME){ RESA_EC=null; try{ majFenResa(); }catch(e){} }
   if(!RENVOI_ARME) RENVOI_EC=false;
+  if(o!=="cote") CHAINE_EC=null;
   if(EFFACE_DWG){ EFFACE_DWG=false; EFF_SEL=null; EFF_SELS=[]; EFF_CADRE=false; EFF_RECT=null; majBarreEff(); }
   LIEN_SEL=null;
   GUIDE=null;
@@ -12507,6 +12585,9 @@ function actionR(k){
   switch(k){
     case "dupliquer": dupliquerR(); break;
     case "serie": serieSel(); break;
+    case "chaine": COTE_CHAINE=!COTE_CHAINE; CHAINE_EC=null; if(COTE_CHAINE) choisirOutilR("cote"); majRuban(); toast(COTE_CHAINE ? "Cotes en chaîne : faites la première cote (2 points, puis le décalage), puis touchez les points suivants." : "Cotes en chaîne arrêtées.", 4500); break;
+    case "cotepiece": if(MODE!=="dessin") basculerMode("dessin"); if(OUTIL_D!=="choisir") choisirOutilR("choisir"); PIECE_COTE=true; majRuban(); toast("Touchez à l'intérieur de la pièce à coter.", 3000); break;
+    case "blocs": $("fenBlocs").hidden=!$("fenBlocs").hidden; if($("fenBlocs").hidden) BLOC_EC=null; majFenBlocs(); break;
     case "miroir": miroirSel(false); break;
     case "miroirv": miroirSel(true); break;
     case "decaler": if(MODE!=="dessin") basculerMode("dessin"); decalerSel(); break;
