@@ -394,6 +394,29 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .haut button{background:rgba(255,255,255,.08);color:var(--sur-fond-2)}
 .haut button:hover{background:rgba(255,255,255,.14);color:var(--sur-fond)}
 .grille{border-top-color:var(--trait-fond)}
+/* les deux onglets du fondateur : Compte (toutes les sociétés) et Société (celle ouverte) */
+.onglets{display:flex;gap:6px;max-width:560px;margin:12px auto 0;padding:0 14px}
+.onglets[hidden]{display:none}
+.onglets button{flex:1;min-height:44px;border-radius:var(--r-field);border:1px solid var(--rule);background:var(--card);color:var(--ink-2);font:inherit;font-weight:700;font-size:15px;cursor:pointer}
+.onglets button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.ong[hidden]{display:none}
+#ongSociete.vide > .block:not(#blocAucuneSoc){display:none}
+.soc-carte{border:1px solid var(--rule);border-radius:12px;padding:14px;margin:0 0 12px;background:var(--card)}
+.soc-carte.ici{border-color:var(--accent);box-shadow:0 0 0 1px var(--accent) inset}
+.soc-carte .s-haut{display:flex;align-items:flex-start;gap:10px}
+.soc-carte .s-nom{flex:1;min-width:0}
+.soc-carte .s-nom b{display:block;font-size:16px}
+.soc-carte .s-nom span{display:block;font-size:12.5px;color:var(--ink-3);margin-top:2px}
+.soc-carte .pastille{flex:none;font-size:11px;font-weight:700;padding:3px 8px;border-radius:999px;background:var(--accent-soft);color:var(--accent)}
+.soc-carte .pastille.off{background:#FDECEC;color:#B3261E}
+.soc-carte details{margin:10px 0 0}
+.soc-carte summary{cursor:pointer;font-size:14px;font-weight:700;color:var(--ink-2);padding:6px 0}
+.soc-carte .s-gens{margin:4px 0 0;padding:0;list-style:none}
+.soc-carte .s-gens li{display:flex;flex-wrap:wrap;gap:4px 10px;padding:8px 0;border-top:1px solid var(--rule);font-size:13.5px}
+.soc-carte .s-gens li b{min-width:0}
+.soc-carte .s-gens li span{color:var(--ink-3);font-size:12.5px}
+.soc-carte .s-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
+.soc-carte .s-act .entrer{flex:1 1 100%}
 </style>
 <script src="./clavier.js?v=20261110a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
@@ -408,9 +431,111 @@ h2.sec,.sec{color:var(--sur-fond-2)}
   </div>
 </header>
 
+<nav class="onglets" id="onglets" hidden aria-label="Compte et société">
+  <button type="button" data-o="compte">Compte</button>
+  <button type="button" data-o="societe">Société</button>
+</nav>
+
 <main>
+<section class="ong" id="ongCompte" hidden>
+  <div class="block" id="blocFondateur">
+    <h2>Compte fondateur</h2>
+    <p class="hint" id="fd_etat" style="margin:0 0 6px"></p>
+    <p class="hint" style="margin:0">Vous n'appartenez à aucune société : vous vous connectez avec le code société <b>360</b>, et vous entrez dans chacune comme son administrateur. Le site rouvre la dernière société à la connexion suivante.</p>
+  </div>
+  <div class="block" id="blocSocietes">
+    <h2>Les sociétés</h2>
+    <p class="hint" style="margin:-4px 0 12px">Les fiches en cours sur cet appareil (relevé, suivi…) restent sur l'appareil, quelle que soit la société : publiez-les avant de passer à une autre société.</p>
+    <div id="listeSocietes"></div>
+    <p class="err" id="errFondateur" role="status"></p>
+  </div>
+  <div class="block" id="blocNouvelle">
+    <h2>Créer une société</h2>
+    <div class="grid2">
+      <label class="f"><span>Nom</span><input type="text" id="s_nom" placeholder="Électricité Dupont"></label>
+      <label class="f"><span>Code de connexion</span><input type="text" id="s_code" autocapitalize="none" spellcheck="false" placeholder="dupont"></label>
+      <label class="f"><span>Métier</span><input type="text" id="s_metier" placeholder="Électricité"></label>
+      <label class="f"><span>Ville</span><input type="text" id="s_ville" placeholder="Nantes (44)"></label>
+      <label class="f"><span>Administrateur</span><input type="text" id="s_adminNom" placeholder="M. Dupont"></label>
+      <label class="f"><span>Son identifiant</span><input type="text" id="s_adminId" autocapitalize="none" spellcheck="false" placeholder="admin"></label>
+      <label class="f"><span>Son e-mail</span><input type="email" id="s_adminMail" autocapitalize="none" spellcheck="false"></label>
+    </div>
+    <button class="act blue" id="btnSociete" style="width:100%">Créer la société</button>
+    <p class="err" id="errSoc"></p>
+    <div id="socCreee"></div>
+    <p class="hint">La société démarre vide, avec son seul compte administrateur. Vous pouvez y entrer tout de suite pour régler son en-tête et créer ses équipes, ou laisser son administrateur le faire.</p>
+  </div>
+  <div class="block" id="blocSite">
+    <h2>Tout le site</h2>
+    <p class="hint">Un fichier ZIP avec toutes les sociétés, pour tout restaurer si besoin.</p>
+    <button class="act ghost" id="btnSauvegardeTout" type="button" style="width:100%">Tout le site (toutes les sociétés, ZIP)</button>
+    <p class="err" id="errSite" role="status"></p>
+  </div>
+</section>
+
+<section class="ong" id="ongSociete">
+  <div class="block" id="blocAucuneSoc" hidden>
+    <h2>Aucune société ouverte</h2>
+    <p class="hint">Entrez dans une société depuis l'onglet <b>Compte</b> : ses utilisateurs, son en-tête, ses infos, le lien du client et ses téléchargements s'afficheront ici.</p>
+  </div>
+  <div class="block" id="blocComptes">
+    <h2 id="titreListe">Les utilisateurs de la société</h2>
+    <div id="liste"></div>
+    <p class="hint">Vous ne voyez aucun mot de passe : le site n'en garde qu'une empreinte,
+      et personne ne peut remonter jusqu'au mot de passe lui-même. « Réinitialiser » donne un
+      code provisoire à transmettre ; la personne choisit ensuite le sien en se connectant.
+      La date affichée est celle de son choix — une remise à zéro se voit donc.</p>
+    <div class="row" style="margin-top:10px">
+      <button class="act ghost" id="btnResetTous">Réinitialiser toute l'équipe (sauf moi)</button>
+    </div>
+    <div id="provisoires"></div>
+  </div>
+
+  <div class="block" id="blocAjout">
+    <h2 id="titreForm">Ajouter un compte</h2>
+    <div class="grid2">
+      <label class="f"><span>Prénom affiché</span><input type="text" id="f_nom" placeholder="Kévin"></label>
+      <label class="f"><span>Identifiant</span><input type="text" id="f_id" autocapitalize="none" spellcheck="false" placeholder="kevin"></label>
+    </div>
+    <p class="hint" style="margin:-4px 0 14px">Pas de mot de passe à inventer : à la création,
+      le site rend un code provisoire, que vous transmettez. Modifier un compte ne touche jamais
+      à son mot de passe.</p>
+    <label class="f"><span>E-mail (affiché sur les documents)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
+    <label class="f"><span>Téléphone</span><input type="tel" id="f_tel" autocomplete="off"></label>
+
+    <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
+    <div class="choix-vue" id="choixVue">
+      <button type="button" class="opt on" data-role="technicien">
+        <b>Vue technicien</b>
+        <span>Ses chantiers en arrivant, et la page de chaque chantier. Pas de parcours d'affaire, pas de relevé technique. Il publie vers le bureau.</span>
+      </button>
+      <button type="button" class="opt" data-role="bureau">
+        <b>Vue bureau</b>
+        <span>Ouvrir une affaire, le parcours d'une affaire, tous les chantiers et leurs documents. Il reprend, corrige et archive.</span>
+      </button>
+      <button type="button" class="opt" data-role="conducteur">
+        <b>Vue conducteur de travaux</b>
+        <span>Comme le bureau : ses chantiers, le parcours d'une affaire, reprendre, corriger, archiver. Sans la facturation du mois, sans les comptes, sans les documents réservés aux chargés d'affaires.</span>
+      </button>
+      <button type="button" class="opt" data-role="admin">
+        <b>Vue bureau + comptes</b>
+        <span>La vue bureau, plus cette page : créer, modifier et retirer les comptes de la société.</span>
+      </button>
+    </div>
+    <input type="hidden" id="f_role" value="technicien">
+    <p class="legend">Applis accessibles</p>
+    <div class="applis" id="f_applis"></div>
+    <div class="row" style="margin:0 0 6px;gap:8px"><button type="button" class="act ghost" id="btnToutCocher">Tout cocher</button><button type="button" class="act ghost" id="btnRienCocher">Tout décocher</button></div>
+    <p class="hint" style="margin:0 0 14px">Rien de coché : <b>aucune appli ni aucun outil</b>. Le compte ne voit que ce qui est coché, et le site refuse le reste même en tapant l'adresse. L'administrateur garde tout.</p>
+    <div class="row">
+      <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
+      <button class="act" id="btnVider">Vider</button>
+    </div>
+    <p class="err" id="err"></p>
+  </div>
+
   <div class="block" id="blocSociete" hidden>
-    <h2>Société</h2>
+    <h2>Infos, en-tête et lien du client</h2>
     <div id="infoSociete"></div>
     <button type="button" class="act ghost" id="btnInfosSoc" style="margin-top:10px">Modifier le nom, le métier, la ville</button>
     <div id="formInfosSoc" hidden style="margin-top:12px">
@@ -471,7 +596,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <h2>Tout télécharger</h2>
     <p class="hint">Un fichier ZIP avec tout ce que la société a sur le site : les chantiers et leurs documents (PDF, photos), les fiches des applis, les références, la fiche société, les comptes (sans les mots de passe) et les liens clients. À garder en lieu sûr (ordinateur, disque externe), par exemple une fois par semaine : il contient les données de vos clients.</p>
     <button class="p" id="btnSauvegarde" type="button">Tout télécharger de la société (ZIP)</button>
-    <button class="act ghost" id="btnSauvegardeTout" type="button" hidden style="width:100%;margin-top:10px">Tout le site (toutes les sociétés, pour tout restaurer)</button>
     <p class="err" id="errSauvegarde" role="status"></p>
   </div>
 
@@ -483,82 +607,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <div id="listeIncidents" style="margin-top:10px"></div>
   </div>
 
-  <div class="block">
-    <h2 id="titreListe">Comptes de la société</h2>
-    <div id="liste"></div>
-    <p class="hint">Vous ne voyez aucun mot de passe : le site n'en garde qu'une empreinte,
-      et personne ne peut remonter jusqu'au mot de passe lui-même. « Réinitialiser » donne un
-      code provisoire à transmettre ; la personne choisit ensuite le sien en se connectant.
-      La date affichée est celle de son choix — une remise à zéro se voit donc.</p>
-    <div class="row" style="margin-top:10px">
-      <button class="act ghost" id="btnResetTous">Réinitialiser toute l'équipe (sauf moi)</button>
-    </div>
-    <div id="provisoires"></div>
-  </div>
-
-  <div class="block">
-    <h2 id="titreForm">Ajouter un compte</h2>
-    <div class="grid2">
-      <label class="f"><span>Prénom affiché</span><input type="text" id="f_nom" placeholder="Kévin"></label>
-      <label class="f"><span>Identifiant</span><input type="text" id="f_id" autocapitalize="none" spellcheck="false" placeholder="kevin"></label>
-    </div>
-    <p class="hint" style="margin:-4px 0 14px">Pas de mot de passe à inventer : à la création,
-      le site rend un code provisoire, que vous transmettez. Modifier un compte ne touche jamais
-      à son mot de passe.</p>
-    <label class="f"><span>E-mail (affiché sur les documents)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
-    <label class="f"><span>Téléphone</span><input type="tel" id="f_tel" autocomplete="off"></label>
-
-    <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
-    <div class="choix-vue" id="choixVue">
-      <button type="button" class="opt on" data-role="technicien">
-        <b>Vue technicien</b>
-        <span>Ses chantiers en arrivant, et la page de chaque chantier. Pas de parcours d'affaire, pas de relevé technique. Il publie vers le bureau.</span>
-      </button>
-      <button type="button" class="opt" data-role="bureau">
-        <b>Vue bureau</b>
-        <span>Ouvrir une affaire, le parcours d'une affaire, tous les chantiers et leurs documents. Il reprend, corrige et archive.</span>
-      </button>
-      <button type="button" class="opt" data-role="conducteur">
-        <b>Vue conducteur de travaux</b>
-        <span>Comme le bureau : ses chantiers, le parcours d'une affaire, reprendre, corriger, archiver. Sans la facturation du mois, sans les comptes, sans les documents réservés aux chargés d'affaires.</span>
-      </button>
-      <button type="button" class="opt" data-role="admin">
-        <b>Vue bureau + comptes</b>
-        <span>La vue bureau, plus cette page : créer, modifier et retirer les comptes de la société.</span>
-      </button>
-    </div>
-    <input type="hidden" id="f_role" value="technicien">
-    <p class="legend">Applis accessibles</p>
-    <div class="applis" id="f_applis"></div>
-    <div class="row" style="margin:0 0 6px;gap:8px"><button type="button" class="act ghost" id="btnToutCocher">Tout cocher</button><button type="button" class="act ghost" id="btnRienCocher">Tout décocher</button></div>
-    <p class="hint" style="margin:0 0 14px">Rien de coché : <b>aucune appli ni aucun outil</b>. Le compte ne voit que ce qui est coché, et le site refuse le reste même en tapant l'adresse. L'administrateur garde tout.</p>
-    <div class="row">
-      <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
-      <button class="act" id="btnVider">Vider</button>
-    </div>
-    <p class="err" id="err"></p>
-  </div>
-
-  <div class="block" id="blocSocietes" hidden>
-    <h2>Sociétés du site</h2>
-    <div id="listeSocietes"></div>
-  </div>
-
-  <div class="block" id="blocNouvelle" hidden>
-    <h2>Créer une société</h2>
-    <div class="grid2">
-      <label class="f"><span>Nom</span><input type="text" id="s_nom" placeholder="Électricité Dupont"></label>
-      <label class="f"><span>Code de connexion</span><input type="text" id="s_code" autocapitalize="none" spellcheck="false" placeholder="dupont"></label>
-      <label class="f"><span>Métier</span><input type="text" id="s_metier" placeholder="Électricité"></label>
-      <label class="f"><span>Ville</span><input type="text" id="s_ville" placeholder="Nantes (44)"></label>
-      <label class="f"><span>Administrateur</span><input type="text" id="s_adminNom" placeholder="M. Dupont"></label>
-      <label class="f"><span>Son identifiant</span><input type="text" id="s_adminId" autocapitalize="none" spellcheck="false" placeholder="admin"></label>
-      <label class="f"><span>Son e-mail</span><input type="email" id="s_adminMail" autocapitalize="none" spellcheck="false"></label>
-    </div>
-    <button class="act blue" id="btnSociete" style="width:100%">Créer la société</button>
-    <p class="err" id="errSoc"></p>
-    <p class="hint">La société démarre vide, avec son seul compte administrateur. C'est lui qui crée ensuite ses équipes.</p>
-  </div>
+</section>
 </main>
 
 <script>
@@ -656,7 +705,8 @@ function resumerIncidents(){
   }).catch(function(){});
 }
 function sauvegarder(tout, code, bouton){
-  var e=$("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
+  var e=(tout || code) ? $("errSite") : $("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
+  if(code && $("errFondateur")) e=$("errFondateur");
   e.className="err"; e.textContent="Préparation du fichier…"; b1.disabled=b2.disabled=true;
   if(bouton){ bouton.disabled=true; bouton.textContent="Préparation…"; setTimeout(function(){ bouton.disabled=false; bouton.textContent="Tout télécharger"; }, 4000); }
   fetch(api("export-ticket"), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify(code ? {code:code} : {tout:!!tout})})
@@ -678,23 +728,27 @@ function charger(){
   fetch(api("moi-societe"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
-      MOI=d;
+      MOI=d; FONDATEUR=!!d.fondateur;
       if(!d.admin){ document.body.innerHTML='<main><div class="block"><h2>Accès réservé</h2>'
         +'<p class="hint">Cette page est réservée à l\'administrateur de la société.</p>'
         +'<p><a class="menu-link" href="./index.html">Retour au menu</a></p></div></main>'; return; }
+      $("titre").textContent = FONDATEUR ? "Compte et société" : "Société";
+      if(FONDATEUR){
+        $("onglets").hidden=false;
+        $("fd_etat").textContent = d.societe==="360" ? "Aucune société ouverte pour l'instant : choisissez-en une ci-dessous."
+          : "Société ouverte : "+(d.nom||d.societe)+" (code "+d.societe+").";
+        chargerSocietesFondateur();
+      }
+      var onglet = /onglet=compte/.test(location.search) ? "compte" : "societe";
+      /* le compte fondateur seul (code 360) : pas encore de société ouverte */
+      if(d.societe==="360"){ $("ongSociete").classList.add("vide"); $("blocAucuneSoc").hidden=false; choisirOnglet("compte"); return; }
+      choisirOnglet(FONDATEUR ? onglet : "societe");
       $("blocSociete").hidden=false;
       peindreInfosSoc(d);
       $("btnInfosSoc").hidden=!!d.demo;
       $("blocSauvegarde").hidden=!!d.demo;
       $("blocIncidents").hidden=!!d.demo;
       if(!d.demo) resumerIncidents();
-      $("btnSauvegardeTout").hidden=!d.proprietaire;
-      if(d.proprietaire){
-        $("titre").textContent="Comptes et sociétés";
-        $("blocSocietes").hidden=false;
-        $("blocNouvelle").hidden=false;
-        chargerSocietes();
-      }
       chargerComptes();
       chargerFiche(d.nom||d.societe);
     })
@@ -731,7 +785,7 @@ function peindreInfosSoc(d){
         MOI.nom=res.d.nom; MOI.metier=res.d.metier; MOI.ville=res.d.ville;
         try{ S.societeNom=res.d.nom; localStorage.setItem("outils:session", JSON.stringify(S)); }catch(e){}
         peindreInfosSoc(MOI); fermer();
-        if(MOI.proprietaire) chargerSocietes();
+        if(FONDATEUR) chargerSocietesFondateur();
       })
       .catch(function(){ $("is_err").textContent="Pas de réseau : réessayez une fois connecté."; });
   });
@@ -978,7 +1032,7 @@ function peindre(comptes){
     var s2=document.createElement("span"); s2.className="c-id";
     s2.textContent=[c.identifiant, c.email].filter(Boolean).join("  ·  ");
     var m=document.createElement("span"); m.className="mdp";
-    m.textContent=etatMdp(c);
+    m.textContent = c.fondateur ? "Fondateur : se connecte avec le code société 360" : etatMdp(c);
     t.appendChild(b); t.appendChild(s2); t.appendChild(m);
     var acc=document.createElement("span"); acc.className="acces";
     var quoi=listeApplis(c.applis);
@@ -1066,6 +1120,7 @@ function peindre(comptes){
     var haut=document.createElement("div"); haut.className="c-haut";
     haut.appendChild(t); haut.appendChild(sup);
     var act=document.createElement("div"); act.className="c-act";
+    if(c.fondateur){ raz.hidden=true; sup.hidden=true; rl.textContent="Fondateur"; }
     [mod, raz, knx, knxOff, knxDl].forEach(function(x){ act.appendChild(x); });
     r.appendChild(haut); r.appendChild(act);
     host.appendChild(r);
@@ -1115,42 +1170,90 @@ function choisirVue(role){
   choisirVue("technicien");
 })();
 
-function chargerSocietes(){
-  fetch(api("societes"), {headers:{"x-auth":S.jeton}})
+/* ---------- le fondateur : les deux onglets, toutes les sociétés ---------- */
+var FONDATEUR=false;
+function choisirOnglet(o){
+  $("ongCompte").hidden = o!=="compte";
+  $("ongSociete").hidden = o!=="societe";
+  Array.prototype.forEach.call($("onglets").querySelectorAll("button"), function(b){
+    var on=b.getAttribute("data-o")===o; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+  });
+}
+Array.prototype.forEach.call(document.querySelectorAll("#onglets button"), function(b){
+  b.addEventListener("click", function(){ choisirOnglet(b.getAttribute("data-o")); window.scrollTo({top:0}); });
+});
+var NOMS_ROLES={admin:"Administrateur", bureau:"Bureau", conducteur:"Conducteur de travaux", technicien:"Technicien"};
+function etatCompte(c){
+  if(c.fondateur) return "se connecte avec le code société 360";
+  if(c.sansMotDePasse) return "sans mot de passe";
+  if(c.aChanger) return "code provisoire, pas encore changé";
+  return c.mdpMaj ? "mot de passe choisi le "+jourCourt(c.mdpMaj) : "mot de passe personnel";
+}
+/* entrer dans une société : une nouvelle session, comme son administrateur */
+function entrerSociete(code, bouton){
+  var e=$("errFondateur");
+  if(bouton){ bouton.disabled=true; bouton.textContent="Ouverture…"; }
+  fetch(api("fondateur-entrer"), {method:"POST", headers:tetes(), body:JSON.stringify({code:code})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok || !res.d.jeton){ e.textContent=res.d.erreur||"Entrée refusée."; if(bouton){ bouton.disabled=false; bouton.textContent="Entrer dans la société"; } return; }
+      var n={jeton:res.d.jeton, nom:res.d.nom, role:res.d.role, societe:res.d.societe, societeNom:res.d.societeNom||"",
+             metier:res.d.metier||"", ville:res.d.ville||"", proprietaire:true, fondateur:true, demo:false};
+      try{ localStorage.setItem("outils:session", JSON.stringify(n)); localStorage.setItem("fondateur:societe", code); }catch(x){}
+      location.href="./index.html";
+    })
+    .catch(function(){ e.textContent="Pas de réseau."; if(bouton){ bouton.disabled=false; bouton.textContent="Entrer dans la société"; } });
+}
+function chargerSocietesFondateur(){
+  fetch(api("fondateur-societes"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
     .then(function(d){
       var host=$("listeSocietes"); host.textContent="";
-      (d.societes||[]).forEach(function(x){
-        /* comme les comptes : le nom en entier en haut, son état en pastille, les boutons dessous */
-        var r=document.createElement("div"); r.className="ligne compte";
-        var t=document.createElement("div"); t.className="c-infos";
-        var b=document.createElement("b"); b.textContent=x.nom;
-        t.appendChild(b);
-        if(x.demo || x.actif===false){
-          var pa=document.createElement("span"); pa.className="role"+(x.actif===false ? "" : " technicien");
-          pa.textContent=[x.demo ? "Démonstration" : "", x.actif===false ? "Suspendue" : ""].filter(Boolean).join(" · ");
-          t.appendChild(pa);
-        }
-        var s2=document.createElement("span"); s2.className="c-id";
-        s2.textContent=["code "+x.code, x.metier||"", x.ville||""].filter(Boolean).join("  ·  ");
-        t.appendChild(s2);
-        var bt=document.createElement("button");
-        bt.className="act"+(x.actif===false?" ghost":" danger");
-        bt.textContent = x.actif===false ? "Réactiver" : "Suspendre";
-        bt.addEventListener("click", function(){
-          fetch(api("societe-etat")+"&code="+encodeURIComponent(x.code)+"&actif="+(x.actif===false?"oui":"non"),
-            {headers:{"x-auth":S.jeton}})
-            .then(function(){ chargerSocietes(); }).catch(function(){});
+      var L=(d.societes||[]).slice().sort(function(a,b){ return (b.code===d.ici)-(a.code===d.ici) || String(a.nom).localeCompare(String(b.nom)); });
+      if(!L.length){ var v=document.createElement("p"); v.className="hint"; v.textContent="Aucune société."; host.appendChild(v); return; }
+      L.forEach(function(x){
+        var ici = x.code===d.ici;
+        var c=document.createElement("div"); c.className="soc-carte"+(ici ? " ici" : "");
+        var h=document.createElement("div"); h.className="s-haut";
+        var n=document.createElement("div"); n.className="s-nom";
+        var b=document.createElement("b"); b.textContent=x.nom; n.appendChild(b);
+        var gens=(x.comptes||[]);
+        var sp=document.createElement("span");
+        sp.textContent=["code "+x.code, x.metier, x.ville, gens.length+" utilisateur"+(gens.length>1?"s":"")].filter(Boolean).join("  ·  ");
+        n.appendChild(sp); h.appendChild(n);
+        if(ici || !x.actif){ var p=document.createElement("span"); p.className="pastille"+(x.actif ? "" : " off"); p.textContent = !x.actif ? "Suspendue" : "Ouverte ici"; h.appendChild(p); }
+        c.appendChild(h);
+        /* ses utilisateurs */
+        var dt=document.createElement("details");
+        var sm=document.createElement("summary"); sm.textContent="Utilisateurs ("+gens.length+")"; dt.appendChild(sm);
+        var ul=document.createElement("ul"); ul.className="s-gens";
+        gens.slice().sort(function(a,b){ return (a.role==="admin"?0:1)-(b.role==="admin"?0:1) || String(a.nom).localeCompare(String(b.nom)); }).forEach(function(g){
+          var li=document.createElement("li");
+          var bn=document.createElement("b"); bn.textContent=g.nom||g.identifiant; li.appendChild(bn);
+          var s1=document.createElement("span"); s1.textContent=[g.identifiant, g.fondateur ? "Fondateur" : (NOMS_ROLES[g.role]||g.role), etatCompte(g)].filter(Boolean).join("  ·  ");
+          li.appendChild(s1); ul.appendChild(li);
         });
-        var dl=document.createElement("button"); dl.className="act ghost"; dl.type="button";
-        dl.textContent="Tout télécharger"; dl.title="Toutes les données de "+x.nom+", en un fichier ZIP";
+        dt.appendChild(ul); c.appendChild(dt);
+        /* la gestion */
+        var act=document.createElement("div"); act.className="s-act";
+        var en=document.createElement("button"); en.type="button"; en.className="act blue entrer";
+        en.textContent = ici ? "Ouvrir son accueil" : "Entrer dans la société";
+        en.addEventListener("click", function(){ if(ici){ location.href="./index.html"; return; } entrerSociete(x.code, en); });
+        var dl=document.createElement("button"); dl.type="button"; dl.className="act ghost"; dl.textContent="Tout télécharger";
+        dl.title="Toutes les données de "+x.nom+", en un fichier ZIP";
         dl.addEventListener("click", function(){ sauvegarder(false, x.code, dl); });
-        var haut=document.createElement("div"); haut.className="c-haut"; haut.appendChild(t);
-        var act=document.createElement("div"); act.className="c-act"; act.appendChild(dl); act.appendChild(bt);
-        r.appendChild(haut); r.appendChild(act);
-        host.appendChild(r);
+        var et=document.createElement("button"); et.type="button"; et.className="act"+(x.actif ? " danger" : " ghost");
+        et.textContent = x.actif ? "Suspendre" : "Réactiver";
+        et.addEventListener("click", function(){
+          if(x.actif && !window.confirm("Suspendre "+x.nom+" ?\n\nPlus personne de cette société ne pourra se connecter tant que vous ne la réactivez pas.")) return;
+          fetch(api("societe-etat")+"&code="+encodeURIComponent(x.code)+"&actif="+(x.actif ? "non" : "oui"), {headers:{"x-auth":S.jeton}})
+            .then(function(){ chargerSocietesFondateur(); }).catch(function(){});
+        });
+        act.appendChild(en); act.appendChild(dl); act.appendChild(et);
+        c.appendChild(act);
+        host.appendChild(c);
       });
-    }).catch(function(){});
+    }).catch(function(){ $("errFondateur").textContent="Sociétés indisponibles."; });
 }
 $("btnSociete").addEventListener("click", function(){
   var corps={nom:$("s_nom").value.trim(), code:$("s_code").value.trim().toLowerCase(),
@@ -1160,16 +1263,22 @@ $("btnSociete").addEventListener("click", function(){
   if(!corps.nom || !corps.code){
     $("errSoc").textContent="Le nom et le code de la société sont nécessaires."; return;
   }
-  $("errSoc").textContent="Création…";
+  $("errSoc").textContent="Création…"; $("socCreee").textContent="";
   fetch(api("societe-creer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok,d:d}; }); })
     .then(function(res){
       if(!res.ok){ $("errSoc").textContent=res.d.erreur||"Création refusée."; return; }
-      $("errSoc").textContent="Société créée. Connexion : code "+res.d.code+", identifiant "+res.d.identifiant
-        +", code provisoire "+res.d.provisoire+". Il en choisira un autre en arrivant.";
+      $("errSoc").textContent="";
+      var box=$("socCreee");
+      var p=document.createElement("p"); p.className="hint"; p.style.cssText="margin:8px 0;color:var(--ink)";
+      p.textContent="Société créée. Son administrateur se connecte avec : code société « "+res.d.code+" », identifiant « "+res.d.identifiant
+        +" », code provisoire « "+res.d.provisoire+" » (il en choisira un autre en arrivant). Ce code ne sera plus affiché.";
+      var en=document.createElement("button"); en.type="button"; en.className="act blue"; en.style.width="100%"; en.textContent="Entrer dans la société";
+      en.addEventListener("click", function(){ entrerSociete(res.d.code, en); });
+      box.appendChild(p); box.appendChild(en);
       ["s_nom","s_code","s_metier","s_ville","s_adminNom","s_adminId","s_adminMail"]
         .forEach(function(i){ $(i).value=""; });
-      chargerSocietes();
+      chargerSocietesFondateur();
     })
     .catch(function(){ $("errSoc").textContent="Pas de réseau."; });
 });

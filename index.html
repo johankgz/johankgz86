@@ -2702,8 +2702,8 @@ function menu(s){
   var mgc=$("mgComptes");
   if(mgc){
     mgc.hidden=!(s.role==="admin" || s.proprietaire);
-    $("mgComptesLib").textContent = s.proprietaire ? "Comptes et sociétés" : "Comptes de la société";
-    mgc.title = s.proprietaire ? "Sociétés, comptes, tout télécharger, journal des publications" : "Comptes de vos équipes, tout télécharger, journal des publications";
+    $("mgComptesLib").textContent = s.fondateur ? "Compte et société" : "La société";
+    mgc.title = s.fondateur ? "Compte fondateur : toutes les sociétés ; la société ouverte : utilisateurs, en-tête, lien du client, tout télécharger" : "Utilisateurs, en-tête, lien du client, tout télécharger, journal des publications";
   }
 
   $("initiale").textContent = initialeDe(s.nom);
@@ -4541,6 +4541,27 @@ function peindreBref(ch){
   });
 }
 
+/* ---------- le fondateur (code 360) ----------
+   Il n'appartient à aucune société : connecté, il entre dans la dernière
+   société ouverte ; sinon (ou si elle n'existe plus) il la choisit sur la
+   page Compte. Rend true quand il s'en charge. */
+function fondateurApres(s){
+  if(!s || !s.jeton || s.societe!=="360") return false;
+  var der=""; try{ der=localStorage.getItem("fondateur:societe")||""; }catch(e){}
+  function compte(){ location.replace("./equipe.html?onglet=compte"); }
+  if(!der){ compte(); return true; }
+  fetch(apiUrl("fondateur-entrer"), {method:"POST", headers:{"Content-Type":"application/json", "x-auth":s.jeton}, body:JSON.stringify({code:der})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok || !res.d.jeton){ try{ localStorage.removeItem("fondateur:societe"); }catch(e){} compte(); return; }
+      var n={jeton:res.d.jeton, nom:res.d.nom, role:res.d.role, societe:res.d.societe, societeNom:res.d.societeNom||"",
+             metier:res.d.metier||"", ville:res.d.ville||"", proprietaire:true, fondateur:true, demo:false};
+      poserSession(n); menu(n); majIdentite(n);
+    })
+    .catch(function(){ compte(); });
+  return true;
+}
+
 /* ---------- connexion ---------- */
 function connecter(societe, identifiant, motdepasse){
   var soc=(societe || $("soc").value || "").trim().toLowerCase();
@@ -4561,13 +4582,14 @@ function connecter(societe, identifiant, motdepasse){
       var s={jeton:res.d.jeton, nom:res.d.nom, role:res.d.role,
              societe:res.d.societe||soc, societeNom:res.d.societeNom||"",
              metier:res.d.metier||"", ville:res.d.ville||"",
-             proprietaire:!!res.d.proprietaire, demo:!!res.d.demo};
+             proprietaire:!!res.d.proprietaire, fondateur:!!res.d.fondateur, demo:!!res.d.demo};
       try{ localStorage.setItem("outils:societe", soc); }catch(e){}
       $("err").textContent="";
       /* mot de passe provisoire : on n'entre pas encore. La session
          attend dans un coin le temps qu'il en choisisse un. */
       if(res.d.aChanger){ relacher(); attendreMotDePasse(s, p); return; }
       poserSession(s);
+      if(fondateurApres(s)){ go.classList.remove("charge"); go.classList.add("ok"); go.textContent="Bienvenue"; return; }
       /* la coche, le temps d'un battement, puis l'accueil */
       go.classList.remove("charge"); go.classList.add("ok"); go.textContent="Bienvenue";
       var calme = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -4627,7 +4649,9 @@ $("m_valider").addEventListener("click", function(){
     function(jeton){
       var s=ENATTENTE.session; s.jeton=jeton; ENATTENTE=null;
       $("blocMdpNeuf").hidden=true;
-      poserSession(s); menu(s); majIdentite(s);
+      poserSession(s);
+      if(fondateurApres(s)) return;
+      menu(s); majIdentite(s);
     });
 });
 $("m_neuf2").addEventListener("keydown", function(e){ if(e.key==="Enter") $("m_valider").click(); });
@@ -4746,8 +4770,10 @@ initRepli("repliAttente", "enAttente", "enAttente");
 
 var s=session();
 if(s && s.jeton){
-  menu(s);
-  majIdentite(s);
+  if(!fondateurApres(s)){
+    menu(s);
+    majIdentite(s);
+  }
 } else {
   $("vueConnexion").hidden=false;
   bandeauPublic();

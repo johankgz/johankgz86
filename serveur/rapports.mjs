@@ -189,6 +189,56 @@ function ligneSociete(s) {
   return { code: s.code, nom: s.nom, metier: s.metier, ville: s.ville,
     cree: new Date().toISOString(), actif: true, demo: s.code === "demo" };
 }
+/* ---------- le compte du fondateur : à part de toute société ----------
+   Le fondateur du site (Johan) n'appartient à aucune société : il se connecte
+   avec le code « 360 », voit toutes les sociétés, et entre dans chacune comme
+   son administrateur. Son compte vit dans comptes-360.json ; la première fois,
+   il est repris de son compte de la société de départ (même mot de passe),
+   qui reste dans l'équipe de cette société (chantiers, discussions,
+   notifications), marqué « fondateur » : il ne s'y connecte plus directement. */
+const FONDATEUR = "360";
+const idDe = (c) => String((c && c.identifiant) || "").trim().toLowerCase();
+let FONDATEUR_PRET = null;
+function assurerFondateur() {
+  if (FONDATEUR_PRET) return FONDATEUR_PRET;
+  FONDATEUR_PRET = (async () => {
+    const a = magasinAnnuaire();
+    let f = null;
+    try { f = await a.get("comptes-" + FONDATEUR + ".json", { type: "json" }); } catch { f = null; }
+    if (Array.isArray(f) && f.length) return;
+    const pid = PROPRIETAIRE.identifiant.trim().toLowerCase();
+    let dep = null;
+    try { dep = await a.get("comptes-" + SOCIETE_DEPART.code + ".json", { type: "json" }); } catch { dep = null; }
+    const i = Array.isArray(dep) ? dep.findIndex((c) => idDe(c) === pid) : -1;
+    const base = i >= 0 ? dep[i] : { identifiant: pid, nom: PROPRIETAIRE.nom, email: PROPRIETAIRE.email };
+    const compte = { ...base, identifiant: pid, role: "admin", fondateur: true };
+    delete compte.applis;
+    await a.setJSON("comptes-" + FONDATEUR + ".json", [compte]);
+    if (i >= 0) { dep[i] = { ...dep[i], fondateur: true }; await a.setJSON("comptes-" + SOCIETE_DEPART.code + ".json", dep); }
+  })().catch((e) => { FONDATEUR_PRET = null; throw e; });
+  return FONDATEUR_PRET;
+}
+async function lireFondateurs() {
+  await assurerFondateur();
+  let f = null;
+  try { f = await magasinAnnuaire().get("comptes-" + FONDATEUR + ".json", { type: "json" }); } catch { f = null; }
+  return Array.isArray(f) ? f : [];
+}
+/* le compte du fondateur, et la clé qui signe ses jetons (le secours tant qu'il n'a pas de mot de passe) */
+function signatureFondateur(fu) {
+  return sansMotDePasse(fu) ? { motdepasse: PROPRIETAIRE.motdepasse } : fu;
+}
+/* le fondateur, dans une société (ou dans son compte, code 360) : son administrateur */
+function personneFondateur(fu, code, membre) {
+  const sansMdp = sansMotDePasse(fu);
+  return { nom: (membre && membre.nom) || fu.nom || PROPRIETAIRE.nom, role: "admin",
+    email: fu.email || (membre && membre.email) || "", societe: code, proprietaire: true, fondateur: true,
+    applis: [], identifiant: idDe(fu),
+    aChanger: sansMdp || !!fu.aChanger || (!fu.empreinte && !!fu.motdepasse), cgu: (fu.cgu && fu.cgu.version) || "" };
+}
+/* le compte où la personne garde son mot de passe, ses coordonnées, ses conditions acceptées */
+function codeDuCompte(personne) { return personne && personne.fondateur ? FONDATEUR : personne.societe; }
+
 async function lireSocietes() {
   const a = magasinAnnuaire();
   let liste = null;
@@ -715,13 +765,24 @@ function secoursProprietaire(comptes, id, mdp) {
 /* vérification d'un couple identifiant / mot de passe, à la connexion */
 async function verifier(code, id, mdp) {
   await lireSocietes();
+  await assurerFondateur();
+  if (code === FONDATEUR) {
+    const fs = await lireFondateurs();
+    const fu = fs.find((c) => idDe(c) === id);
+    if (fu && motDePasseJuste(fu, mdp)) return { personne: personneFondateur(fu, FONDATEUR, null), compte: fu };
+    /* le secours du propriétaire : tant que le compte du fondateur n'a pas de mot de passe */
+    if (secoursProprietaire(fs, id, mdp)) {
+      const base = fu || { identifiant: id, nom: PROPRIETAIRE.nom, email: PROPRIETAIRE.email };
+      return { personne: personneFondateur(base, FONDATEUR, null), compte: { motdepasse: PROPRIETAIRE.motdepasse } };
+    }
+    return null;
+  }
   const comptes = await lireComptes(code);
   const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
+  /* le fondateur ne se connecte plus dans une société : il y entre depuis son compte */
+  if (u && u.fondateur) return { refus: "Ce compte est celui du fondateur : connectez-vous avec le code société " + FONDATEUR + "." };
   if (u && motDePasseJuste(u, mdp)) {
     return { personne: personneDuCompte(code, u), compte: u };
-  }
-  if (secoursProprietaire(comptes, id, mdp)) {
-    return { personne: personneDuProprietaire(code), compte: { motdepasse: PROPRIETAIRE.motdepasse } };
   }
   return null;
 }
@@ -743,15 +804,21 @@ async function identifier(auth) {
   if (!ouverte || Date.now() - ouverte > DUREE_SESSION) return "perimee";
 
   await lireSocietes();
+  await assurerFondateur();
+  if (code === FONDATEUR) {
+    const fu = (await lireFondateurs()).find((c) => idDe(c) === id)
+      || (id === PROPRIETAIRE.identifiant.trim().toLowerCase() ? { identifiant: id, nom: PROPRIETAIRE.nom, email: PROPRIETAIRE.email } : null);
+    if (fu && signer(code, id, ouverte, signatureFondateur(fu)) === signature) return personneFondateur(fu, FONDATEUR, null);
+    return null;
+  }
   const comptes = await lireComptes(code);
   const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
-  if (u && signer(code, id, ouverte, u) === signature) return personneDuCompte(code, u);
-  /* le propriétaire de secours : son jeton est signé avec le mot de
-     passe du code, et seulement tant que ce secours reste ouvert. */
-  if (id === PROPRIETAIRE.identifiant.trim().toLowerCase()
-      && (!u || sansMotDePasse(u))
-      && signer(code, id, ouverte, { motdepasse: PROPRIETAIRE.motdepasse }) === signature) {
-    return personneDuProprietaire(code);
+  if (u && !u.fondateur && signer(code, id, ouverte, u) === signature) return personneDuCompte(code, u);
+  /* le fondateur, entré dans cette société depuis son compte : son jeton est signé avec son propre compte */
+  const fu = (await lireFondateurs()).find((c) => idDe(c) === id);
+  if (fu && signer(code, id, ouverte, signatureFondateur(fu)) === signature) {
+    const soc = (await lireSocietes()).find((x) => x.code === code);
+    if (soc && !soc.demo) return personneFondateur(fu, code, u && u.fondateur ? u : null);
   }
   return null;
 }
@@ -1400,14 +1467,15 @@ async function traiter(req) {
       return json({ erreur: "Trop d'essais de connexion. Par sécurité, réessayez dans " + attente + " minute" + (attente > 1 ? "s" : "") + "." }, 429);
     }
     const v = await verifier(code, id, mdp);
+    if (v && v.refus) return json({ erreur: v.refus }, 401);
     if (!v) { noterEchec(cles); return json({ erreur: "Identifiant ou mot de passe incorrect." }, 401); }
     ESSAIS_CONNEXION.delete(cles[0]);
     const p = v.personne;
     const liste = await lireSocietes();
-    const soc = liste.find((x) => x.code === code) || {};
+    const soc = code === FONDATEUR ? { nom: "Compte fondateur" } : (liste.find((x) => x.code === code) || {});
     return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: applisEffectives(p),
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
-      proprietaire: !!p.proprietaire, demo: !!soc.demo, aChanger: !!p.aChanger,
+      proprietaire: !!p.proprietaire, fondateur: !!p.fondateur, demo: !!soc.demo, aChanger: !!p.aChanger,
       cguVersion: CGU_VERSION, cguAJour: p.cgu === CGU_VERSION });
   }
 
@@ -1714,11 +1782,12 @@ async function traiter(req) {
     const neuf = String(d.nouveau || "");
     if (neuf.length < 8) return json({ erreur: "Huit caractères au minimum." }, 400);
     if (neuf === ancien) return json({ erreur: "Le nouveau mot de passe doit changer de l'ancien." }, 400);
-    const comptes = await lireComptes(personne.societe);
+    const cc = codeDuCompte(personne);
+    const comptes = cc === FONDATEUR ? await lireFondateurs() : await lireComptes(cc);
     const i = comptes.findIndex((c) =>
       String(c.identifiant).trim().toLowerCase() === personne.identifiant);
     if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
-    const parSecours = sansMotDePasse(comptes[i])
+    const parSecours = cc === FONDATEUR && sansMotDePasse(comptes[i])
       && secoursProprietaire(comptes, personne.identifiant, ancien);
     if (!motDePasseJuste(comptes[i], ancien) && !parSecours) {
       return json({ erreur: "Mot de passe actuel incorrect." }, 403);
@@ -1726,7 +1795,7 @@ async function traiter(req) {
     comptes[i] = { ...comptes[i], empreinte: empreinteDe(neuf),
       aChanger: false, mdpMaj: new Date().toISOString() };
     delete comptes[i].motdepasse;
-    await ecrireComptes(personne.societe, comptes);
+    await ecrireComptes(cc, comptes);
     /* le jeton est signé avec l'empreinte : il faut le refaire, et ceux
        ouverts ailleurs cessent de valoir. */
     return json({ ok: true, jeton: jetonPour(personne.societe, personne.identifiant, comptes[i]) });
@@ -1930,7 +1999,7 @@ async function traiter(req) {
   if (action === "push-actif") { await noterActif(store, personne.nom, url.searchParams.get("ap") || ""); return json({ ok: true }); }
   if (action === "moi") {
     return json({ nom: personne.nom, role: personne.role, applis: applisEffectives(personne),
-      proprietaire: !!personne.proprietaire, aChanger: !!personne.aChanger,
+      proprietaire: !!personne.proprietaire, fondateur: !!personne.fondateur, aChanger: !!personne.aChanger,
       metier: "", ville: "", societe: personne.societe,
       cguVersion: CGU_VERSION, cguAJour: personne.cgu === CGU_VERSION });
   }
@@ -1945,11 +2014,12 @@ async function traiter(req) {
     if (d.accepte !== true || d.version !== CGU_VERSION) {
       return json({ erreur: "Cochez la case pour accepter les conditions en vigueur.", cguVersion: CGU_VERSION }, 400);
     }
-    const comptes = await lireComptes(personne.societe);
+    const cc = codeDuCompte(personne);
+    const comptes = cc === FONDATEUR ? await lireFondateurs() : await lireComptes(cc);
     const i = comptes.findIndex((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant);
     if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
     comptes[i] = { ...comptes[i], cgu: { version: CGU_VERSION, le: new Date().toISOString() } };
-    await ecrireComptes(personne.societe, comptes);
+    await ecrireComptes(cc, comptes);
     return json({ ok: true, cguVersion: CGU_VERSION });
   }
 
@@ -1963,7 +2033,7 @@ async function traiter(req) {
 
   /* ---------- mon compte : chacun ses coordonnées ---------- */
   if (action === "mon-compte") {
-    const comptes = await lireComptes(personne.societe);
+    const comptes = personne.fondateur ? await lireFondateurs() : await lireComptes(personne.societe);
     const c = comptes.find((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant) || {};
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === personne.societe) || {};
@@ -1991,7 +2061,8 @@ async function traiter(req) {
     if (soc.demo || personne.societe === SOCIETE_DEMO.code) {
       return json({ erreur: "Démonstration : les coordonnées ne sont pas enregistrées." }, 403);
     }
-    const comptes = await lireComptes(personne.societe);
+    const cc = codeDuCompte(personne);
+    const comptes = cc === FONDATEUR ? await lireFondateurs() : await lireComptes(cc);
     const i = comptes.findIndex((x) => String(x.identifiant).trim().toLowerCase() === personne.identifiant);
     if (i < 0) return json({ erreur: "Compte introuvable." }, 404);
     /* la fonction et l'adresse postale (carte de visite) : seulement si elles sont envoyées */
@@ -2001,7 +2072,7 @@ async function traiter(req) {
     if ("carteInverse" in d) plus.carteInverse = d.carteInverse === true;
     if ("nomFamille" in d) plus.nomFamille = String(d.nomFamille || "").replace(/\s+/g, " ").trim().slice(0, 60);
     comptes[i] = { ...comptes[i], email, tel, ...plus };
-    await ecrireComptes(personne.societe, comptes);
+    await ecrireComptes(cc, comptes);
     return json({ ok: true, email, tel, fonction: comptes[i].fonction || "", adresse: comptes[i].adresse || "", carteInverse: !!comptes[i].carteInverse,
       nomFamille: comptes[i].nomFamille || "" });
   }
@@ -2027,9 +2098,49 @@ async function traiter(req) {
   if (action === "moi-societe") {
     const liste = await lireSocietes();
     const soc = liste.find((x) => x.code === personne.societe) || {};
-    return json({ societe: soc.code || personne.societe, nom: soc.nom || "",
+    return json({ societe: soc.code || personne.societe, nom: soc.nom || (personne.societe === FONDATEUR ? "Compte fondateur" : ""),
       metier: soc.metier || "", ville: soc.ville || "", demo: !!soc.demo,
-      role: personne.role, admin, proprietaire: !!personne.proprietaire });
+      role: personne.role, admin, proprietaire: !!personne.proprietaire, fondateur: !!personne.fondateur });
+  }
+
+  /* ---------- le fondateur : toutes les sociétés, et entrer dans l'une d'elles ---------- */
+  if (action === "fondateur-societes") {
+    if (!personne.fondateur) return json({ erreur: "Réservé au fondateur." }, 403);
+    const liste = await lireSocietes();
+    const out = [];
+    for (const x of liste) {
+      if (x.demo) continue;
+      let comptes = [];
+      try { comptes = await lireComptes(x.code); } catch { comptes = []; }
+      out.push({ code: x.code, nom: x.nom || x.code, metier: x.metier || "", ville: x.ville || "", cree: x.cree || "",
+        actif: x.actif !== false,
+        comptes: comptes.filter((c) => c && c.identifiant).map((c) => ({ nom: c.nom || "", identifiant: idDe(c), role: c.role || "",
+          email: c.email || "", fondateur: !!c.fondateur, sansMotDePasse: sansMotDePasse(c), aChanger: !!c.aChanger,
+          mdpMaj: c.mdpMaj || "" })) });
+    }
+    return json({ societes: out, ici: personne.societe });
+  }
+  if (action === "fondateur-entrer") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!personne.fondateur) return json({ erreur: "Réservé au fondateur." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const code = String(d.code || "").trim().toLowerCase();
+    const fu = (await lireFondateurs()).find((c) => idDe(c) === personne.identifiant)
+      || { identifiant: personne.identifiant, nom: PROPRIETAIRE.nom, email: PROPRIETAIRE.email };
+    let soc, membre = null;
+    if (code === FONDATEUR) soc = { code, nom: "Compte fondateur", metier: "", ville: "" };
+    else {
+      soc = (await lireSocietes()).find((x) => x.code === code);
+      if (!soc || soc.demo) return json({ erreur: "Société introuvable." }, 404);
+      const cs = await lireComptes(code);
+      membre = cs.find((c) => idDe(c) === personne.identifiant && c.fondateur) || null;
+    }
+    const p = personneFondateur(fu, code, membre);
+    return json({ jeton: jetonPour(code, personne.identifiant, signatureFondateur(fu)), nom: p.nom, role: p.role,
+      applis: applisEffectives(p), societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
+      proprietaire: true, fondateur: true, demo: false, aChanger: !!p.aChanger,
+      cguVersion: CGU_VERSION, cguAJour: p.cgu === CGU_VERSION });
   }
 
   /* ---------- comptes de la société (réservé à l'administrateur) ---------- */
@@ -2046,7 +2157,7 @@ async function traiter(req) {
              : (c.motdepasse ? "ancien" : "aucun"),
       mdpMaj: c.mdpMaj || "",
       knx: c.knx ? (c.knx.cree || "oui") : "",
-      knxExport: !!c.knxExport,
+      knxExport: !!c.knxExport, fondateur: !!c.fondateur,
       applis: applisValides(c.applis) })) });
   }
 
@@ -2367,6 +2478,7 @@ async function traiter(req) {
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const code = slug(String(d.code || d.nom || "")).toLowerCase();
     if (!code) return json({ erreur: "Donnez un code de société." }, 400);
+    if (code === FONDATEUR) return json({ erreur: "Ce code est celui du compte fondateur : choisissez-en un autre." }, 400);
     const liste = await lireSocietes();
     if (liste.some((x) => x.code === code)) return json({ erreur: "Ce code existe déjà." }, 400);
     liste.push({ code, nom: String(d.nom || code), metier: String(d.metier || ""),
