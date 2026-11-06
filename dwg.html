@@ -2152,12 +2152,7 @@ function accroche(pt, genre){
   else if(genre===7){ c2.moveTo(p[0]-8,p[1]-8); c2.lineTo(p[0]-8,p[1]+8); c2.lineTo(p[0]+8,p[1]+8); c2.moveTo(p[0]-8,p[1]); c2.lineTo(p[0],p[1]); c2.lineTo(p[0],p[1]+8); }
   else c2.rect(p[0]-7,p[1]-7,14,14);
   c2.stroke();
-  var nom=NOMS_ACCROCHE[genre];
-  if(nom && MODE==="dessin"){
-    c2.font="600 11px system-ui, sans-serif"; var w=c2.measureText(nom).width;
-    c2.fillStyle=CLAIR ? "rgba(255,255,255,.92)" : "rgba(11,14,18,.85)"; c2.fillRect(p[0]+11, p[1]+9, w+8, 16);
-    c2.fillStyle=CLAIR ? "#0E7490" : "#67E8F9"; c2.textBaseline="middle"; c2.fillText(nom, p[0]+15, p[1]+17);
-  }
+  /* le repère seul : plus le nom de l'accroche (Extrémité, Milieu…) écrit à côté */
   c2.restore();
 }
 function distance(a, b){ return Math.hypot(b[0]-a[0], b[1]-a[1]); }
@@ -10167,6 +10162,9 @@ var SITE_DOCS=null;
 var DOC_ATT=null;
 function ouvrirDuSite(cle, nom, titre){
   DOC_ATT={cle:cle, ref:String(cle||"").split("/")[0], titre:String(titre||"").trim() || String(nom||"").replace(/\.[^.]+$/, ""), f:null};
+  /* un « Plan modifié » repris : le réenregistrer remplace le même document (même titre, même date) */
+  var mPM=/^plan modifi/i.test(DOC_ATT.titre) && /-(\d{4}-\d{2}-\d{2})\.[a-z0-9]+$/i.exec(String(cle||""));
+  if(mPM) DOC_ATT.datePM=mPM[1];
   var ses=sessionPlan();
   if(!ses){ toast("Connectez-vous au site pour ouvrir un document d'un chantier."); return; }
   $("fenSite").hidden=true;
@@ -13421,7 +13419,7 @@ function apresOuverture(){
   if(typeof fermerFeuille==="function" && FEUILLE_ED>=0) fermerFeuille();
   /* ouvert depuis un document du chantier : le plan s'en souvient (gardé avec son dessin) */
   if(DOC_ATT && PLAN && !PLAN.vierge && DOC_ATT.f && DOC_ATT.f===FICHIER_SRC && DESSIN){
-    DESSIN.chantierDoc={cle:DOC_ATT.cle, ref:DOC_ATT.ref, titre:DOC_ATT.titre};
+    DESSIN.chantierDoc={cle:DOC_ATT.cle, ref:DOC_ATT.ref, titre:DOC_ATT.titre, datePM:DOC_ATT.datePM||""};
     try{ localStorage.setItem(DESSIN_CLE, JSON.stringify(DESSIN)); }catch(e){}
   }
   DOC_ATT=null;
@@ -13603,7 +13601,9 @@ function deposerPlanModifie(){
   return pdfPourChantier({ref:dc.ref, client:""}).then(function(res){ ZONES_JAUNES=null; return blobEnBase64(res.blob); }, function(e){ ZONES_JAUNES=null; throw e; })
     .then(function(b64){
       var ses=sessionPlan()||{};
-      var corps={pdf:b64, ext:"pdf", chantier:dc.ref, client:"", adresse:"", type:"technique", date:jourLocal(),
+      /* la date du premier dépôt reste : réenregistrer remplace ce plan modifié au lieu d'en faire une autre version */
+      if(!dc.datePM){ dc.datePM=jourLocal(); try{ localStorage.setItem(DESSIN_CLE, JSON.stringify(DESSIN)); }catch(e){} }
+      var corps={pdf:b64, ext:"pdf", chantier:dc.ref, client:"", adresse:"", type:"technique", date:dc.datePM,
         titre:titrePlanModifie(dc), visite:"Plan modifié", etape:"Modifié dans l'outil Plan · "+zs.length+" endroit"+(zs.length>1?"s":"")+" encadré"+(zs.length>1?"s":"")+" en jaune",
         auteur:ses.nom||"", destinataires:[], dossier:true};
       return appelSite("publier", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify(corps)});
