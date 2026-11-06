@@ -85,6 +85,7 @@ var STYLE=
 +"font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.35;text-align:left;animation:nvEntree .22s ease both}"
 +"@keyframes nvEntree{from{transform:translateX(-104%)}to{transform:none}}"
 +".nv-tete{display:flex;align-items:center;gap:10px;padding:0 2px 10px 4px}"
++".nv-maison{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;color:inherit;text-decoration:none}"
 +".nv-logo{width:38px;height:38px;border-radius:11px;background:#2B323A;display:flex;align-items:center;justify-content:center;flex:0 0 auto}"
 +".nv-logo svg{width:21px;height:21px;fill:none;stroke:#3B82F6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
 +".nv-logo svg.embleme{width:28px;height:28px;fill:initial;stroke:none}.nv-logo{background:#0B1220}"
@@ -171,7 +172,10 @@ function construire(){
   /* le symbole du site : la flèche du 360° autour des quatre pictos (relevé, photo, liste, contrôle) */
   var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 104 104" aria-hidden="true">'+EMBLEME+'</svg>';
   var x=el("button", "nv-x"); x.type="button"; x.setAttribute("aria-label", "Fermer le menu"); x.innerHTML=svg(ICO.x);
-  tete.appendChild(logo); tete.appendChild(el("b", "", "Suivi travaux 360")); tete.appendChild(x);
+  /* le symbole et le nom : l'accueil (et, déjà à l'accueil, la page rechargée) */
+  var maison=el("a", "nv-maison"); maison.href="./index.html"; maison.title="Accueil"; maison.setAttribute("aria-label", "Accueil");
+  maison.appendChild(logo); maison.appendChild(el("b", "", "Suivi travaux 360"));
+  tete.appendChild(maison); tete.appendChild(x);
   TIROIR.appendChild(tete);
 
   /* ----- le menu ----- */
