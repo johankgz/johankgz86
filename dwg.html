@@ -144,7 +144,7 @@ button,select{font:inherit}
 .calques li.cq small{color:var(--ink3);font-variant-numeric:tabular-nums}
 .calques li.cq i{flex:0 0 auto;width:14px;height:14px;border-radius:3px;border:1px solid rgba(255,255,255,.3)}
 .fe-champ{display:flex;flex-direction:column;gap:6px;font-size:13px;font-weight:600;color:var(--ink2);margin:4px 0 2px}
-.fe-champ input,#feCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
+.fe-champ input,#feCherche,#frtCherche{min-height:40px;padding:8px 12px;border-radius:10px;border:1px solid rgba(255,255,255,.22);background:#0B0E12;color:var(--ink);font-size:15px}
 .fe-case{display:flex;gap:10px;align-items:flex-start;font-size:13.5px;line-height:1.4;margin:6px 0 8px;cursor:pointer}
 .fe-case input{width:20px;height:20px;flex:0 0 auto;margin-top:1px}
 .saisie-trace{position:fixed;z-index:9;display:flex;align-items:center;gap:4px;padding:4px 6px;border-radius:10px;background:#0B1220;border:2px solid #3B82F6;box-shadow:0 8px 24px -8px rgba(0,0,0,.8);color:#BFDBFE;font:600 13px system-ui,sans-serif;transform:translate(-50%,-100%)}
@@ -245,6 +245,9 @@ select.rb-cq{width:130px;max-width:130px;min-height:30px;border-radius:8px;backg
 .plans-site li{display:flex;gap:6px}
 .plans-site li .bt:first-child{flex:1;min-width:0;justify-content:flex-start;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .plans-site small{color:var(--ink3);font-weight:500}
+.plans-site li .bt-ratt{flex:0 0 auto;font-size:12.5px;color:var(--cy);white-space:nowrap}
+#frtCherche{display:block;width:100%;box-sizing:border-box;margin:0 0 10px}
+@media (max-width:600px){ .plans-site li .bt-ratt{padding-left:10px;padding-right:10px;font-size:12px} .plans-site li .bt:last-child{padding-left:12px;padding-right:12px} }
 @media (max-width:520px){ .bt .lib{display:none} .bt{padding:6px 10px} }
 /* sur un téléphone, Calques, Fond et Image passent dans « ⋯ » : la barre tient sur l'écran */
 #btPlus{display:none}
@@ -705,6 +708,17 @@ body.clair .accueil.dessus{background:#F3F5F8}
     </div>
     <p class="fo-err" id="feErr" hidden></p>
     <div class="fo-bas"><button class="bt" type="button" id="feAnnuler">Annuler</button><button class="bt or" type="submit" id="feOk">Enregistrer</button></div>
+  </div>
+</form>
+
+<form class="fen-site" id="fenRatt" hidden role="dialog" aria-modal="true" aria-labelledby="fenRattT">
+  <div class="fs-boite">
+    <div class="fs-tete"><b id="fenRattT">Rattacher à un chantier</b><button class="bt" type="button" id="frtFermer" aria-label="Fermer">✕</button></div>
+    <p class="fs-aide" id="frtAide"></p>
+    <input type="search" id="frtCherche" placeholder="Chercher un chantier, une référence…" autocomplete="off" aria-label="Chercher un chantier">
+    <div class="fs-liste fe-liste" id="frtListe" role="listbox" aria-label="Chantiers"></div>
+    <p class="fo-err" id="frtErr" hidden></p>
+    <div class="fo-bas"><button class="bt" type="button" id="frtAnnuler">Annuler</button><button class="bt or" type="submit" id="frtOk">Rattacher</button></div>
   </div>
 </form>
 
@@ -13534,6 +13548,61 @@ $("fenEnreg").addEventListener("submit", function(e){
   var fmt=(document.querySelector('input[name="feFormat"]:checked')||{}).value==="pdf" ? "pdf" : "plan";
   enregistrerPlanSite({nom:nom, chantier: vers ? {ref:FE.ch.ref, client:FE.ch.client, format:fmt} : null, retirerChantier: !vers});
 });
+/* ---------- rattacher un plan de Mes plans à un chantier, sans le rouvrir ni le réenregistrer ----------
+   Le plan tel qu'il est enregistré part dans le dossier du chantier (côté réservé chargés
+   d'affaires), « à reprendre » ; ses enregistrements suivants l'y mettent à jour. */
+var RATT={p:null, ch:null};
+function ouvrirRatt(p){
+  RATT={p:p, ch:null};
+  $("fenRattT").textContent="Rattacher « "+p.nom+" » à un chantier";
+  $("frtAide").innerHTML="";
+  var t=document.createTextNode("Le plan, tel qu'il est enregistré, part dans le dossier du chantier, côté ");
+  var bb=document.createElement("b"); bb.textContent="Réservé chargés d'affaires";
+  $("frtAide").appendChild(t); $("frtAide").appendChild(bb);
+  $("frtAide").appendChild(document.createTextNode(", à reprendre. Chaque enregistrement suivant l'y met à jour."
+    +(p.chantier && p.chantier.ref ? " Il est déjà dans le chantier "+p.chantier.ref+(p.chantier.client ? " ("+p.chantier.client+")" : "")+"." : "")));
+  $("frtErr").hidden=true; $("frtCherche").value="";
+  $("fenRatt").hidden=false;
+  if(FE.liste) peindreChantiersRatt();
+  else {
+    $("frtListe").innerHTML='<p class="fs-vide">Chargement…</p>';
+    appelSite("liste").then(function(d){
+      FE.liste=(d.chantiers||[]).filter(function(c){ return c.ref && !/-a-poursuivre|^brouillon/i.test(c.ref); })
+        .map(function(c){ return {ref:c.ref, client:c.client||"", maj:c.maj||""}; })
+        .sort(function(a,b){ return String(b.maj).localeCompare(String(a.maj)); });
+      peindreChantiersRatt();
+    }).catch(function(){ $("frtListe").innerHTML='<p class="fs-vide">Liste indisponible : pas de réseau.</p>'; });
+  }
+  setTimeout(function(){ try{ $("frtCherche").focus(); }catch(e){} }, 50);
+}
+function peindreChantiersRatt(){
+  var ul=$("frtListe"), q=sansAccent($("frtCherche").value); ul.textContent="";
+  var l=(FE.liste||[]).filter(function(c){ return !q || sansAccent(c.ref+" "+c.client).indexOf(q)>=0; }).slice(0, 60);
+  if(!l.length){ ul.innerHTML='<p class="fs-vide">Aucun chantier trouvé.</p>'; return; }
+  l.forEach(function(c){
+    var b=document.createElement("button"); b.type="button"; b.setAttribute("role","option");
+    var on = RATT.ch && RATT.ch.ref===c.ref; b.className=on ? "on" : ""; b.setAttribute("aria-selected", on ? "true" : "false");
+    var sp=document.createElement("span"); sp.textContent=c.ref; b.appendChild(sp); b.appendChild(document.createTextNode(c.client||""));
+    b.addEventListener("click", function(){ RATT.ch={ref:c.ref, client:c.client}; $("frtErr").hidden=true; peindreChantiersRatt(); });
+    ul.appendChild(b);
+  });
+}
+$("frtCherche").addEventListener("input", peindreChantiersRatt);
+["frtFermer","frtAnnuler"].forEach(function(id){ $(id).addEventListener("click", function(){ $("fenRatt").hidden=true; }); });
+$("fenRatt").addEventListener("submit", function(e){
+  e.preventDefault();
+  var p=RATT.p; if(!p) return;
+  if(!RATT.ch){ $("frtErr").textContent="Choisissez le chantier."; $("frtErr").hidden=false; return; }
+  var ch=RATT.ch; $("frtOk").disabled=true;
+  appelSite("plan-chantier", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({id:p.id, nom:p.nom, ref:ch.ref, format:"plan"})})
+    .then(function(r){
+      $("frtOk").disabled=false; $("fenRatt").hidden=true;
+      if(PLAN_SITE && PLAN_SITE.id===p.id && !PLAN_SITE.u) PLAN_SITE.chantier={ref:r.ref, client:r.client, format:"plan"};
+      toast("« "+p.nom+" » "+(r.versions>1 ? "mis à jour dans le" : "rattaché au")+" chantier "+r.ref+(r.client ? " ("+r.client+")" : "")+", côté réservé chargés d'affaires.", 5500);
+      peindrePlansSite();
+    })
+    .catch(function(err){ $("frtOk").disabled=false; $("frtErr").textContent="Rattachement impossible : "+String((err && err.message)||err); $("frtErr").hidden=false; });
+});
 /* le PDF du plan, pour le chantier : la mise en page retenue, l'affaire et la référence du chantier */
 /* ---------- le plan modifié, déposé dans le chantier ----------
    Un plan ouvert depuis les documents d'un chantier (bouton « Modifier ») : à chaque
@@ -13943,7 +14012,17 @@ function peindrePlansSite(){
         b.addEventListener("click", function(){ ouvrirPlanSite(p.id); });
         var x=document.createElement("button"); x.type="button"; x.className="bt"; x.textContent="✕"; x.setAttribute("aria-label", "Supprimer "+p.nom);
         x.addEventListener("click", function(){ supprimerPlanSite(p, ul); });
-        li.appendChild(b); li.appendChild(x); ul.appendChild(li);
+        li.appendChild(b);
+        /* le chargé d'affaires : le rattacher à un chantier tel qu'il est, sans le rouvrir */
+        if(estCA()){
+          var rc=document.createElement("button"); rc.type="button"; rc.className="bt bt-ratt";
+          rc.textContent = p.chantier && p.chantier.ref ? "→ "+p.chantier.ref : "Chantier";
+          rc.title = p.chantier && p.chantier.ref ? "Rattaché au chantier "+p.chantier.ref+(p.chantier.client ? " ("+p.chantier.client+")" : "")+" : le rattacher à un autre" : "Rattacher « "+p.nom+" » à un chantier";
+          rc.setAttribute("aria-label", rc.title);
+          rc.addEventListener("click", function(){ ouvrirRatt(p); });
+          li.appendChild(rc);
+        }
+        li.appendChild(x); ul.appendChild(li);
       });
       $(c[0]).hidden=!l.length;
     });
