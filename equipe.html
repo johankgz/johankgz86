@@ -278,9 +278,9 @@ textarea:focus-visible,[tabindex]:focus-visible{
   transition:background .16s ease,border-color .16s ease,color .16s ease;
 }
 /* les natures de travaux de la société : des pastilles à cocher */
-#nt_liste{display:flex;flex-wrap:wrap;gap:8px}
-#nt_liste label{position:relative;display:inline-flex;align-items:center;min-height:38px;padding:0 14px;cursor:pointer;font-size:14px;margin:0}
-#nt_liste input{position:absolute;opacity:0;width:0;height:0;min-height:0;margin:0;padding:0}
+#nt_liste,#so_liste{display:flex;flex-wrap:wrap;gap:8px}
+#nt_liste label,#so_liste label{position:relative;display:inline-flex;align-items:center;min-height:38px;padding:0 14px;cursor:pointer;font-size:14px;margin:0}
+#nt_liste input,#so_liste input{position:absolute;opacity:0;width:0;height:0;min-height:0;margin:0;padding:0}
 .chip.on,.chips label.on{
   background:var(--accent-soft);border-color:rgba(37,99,235,.4);
   color:var(--accent-fonce);font-weight:600;
@@ -504,6 +504,8 @@ h2.sec,.sec{color:var(--sur-fond-2)}
     <label class="f"><span>E-mail (affiché sur les documents)</span><input type="email" id="f_mail" autocapitalize="none" spellcheck="false"></label>
     <label class="f"><span>Téléphone</span><input type="tel" id="f_tel" autocomplete="off"></label>
 
+    <p class="hint" id="reglesAdmin" hidden style="margin:0 0 14px;padding:10px 12px;border-radius:var(--r-field);background:var(--field)">La vue, les outils et les métiers de chaque compte sont réglés par le fondateur du site. Un nouveau compte n'ouvre rien tant qu'il ne les a pas réglés.</p>
+    <div id="reglesFondateur">
     <p class="legend">Quelle vue ce compte ouvre-t-il&nbsp;?</p>
     <div class="choix-vue" id="choixVue">
       <button type="button" class="opt on" data-role="technicien">
@@ -524,10 +526,14 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       </button>
     </div>
     <input type="hidden" id="f_role" value="technicien">
-    <p class="legend">Applis accessibles</p>
+    <p class="legend">Outils accessibles</p>
     <div class="applis" id="f_applis"></div>
     <div class="row" style="margin:0 0 6px;gap:8px"><button type="button" class="act ghost" id="btnToutCocher">Tout cocher</button><button type="button" class="act ghost" id="btnRienCocher">Tout décocher</button></div>
-    <p class="hint" style="margin:0 0 14px">Rien de coché : <b>aucune appli ni aucun outil</b>. Le compte ne voit que ce qui est coché, et le site refuse le reste même en tapant l'adresse. L'administrateur garde tout.</p>
+    <p class="hint" style="margin:0 0 14px">Seuls les outils de la société sont proposés. Rien de coché : <b>aucun outil</b>. Le compte ne voit que ce qui est coché, et le site refuse le reste même en tapant l'adresse.</p>
+    <p class="legend">Métiers</p>
+    <div class="applis" id="f_metiers"></div>
+    <p class="hint" style="margin:0 0 14px">Ses corps d'état, parmi les métiers de la société.</p>
+    </div>
     <div class="row">
       <button class="act blue" id="btnEnr" style="flex:1">Enregistrer</button>
       <button class="act" id="btnVider">Vider</button>
@@ -566,10 +572,15 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <p class="hint" style="margin-top:-4px">Obligatoire si vous travaillez pour des particuliers (art. L.612-1 du Code de la consommation). Il s'affiche sur les pages envoyées à vos clients (lien client, QR code, rendez-vous).</p>
       <div class="row"><button class="act" id="fs_enr">Enregistrer l'en-tête</button><span class="hint" id="fs_etat" style="margin:0"></span></div>
 
-      <p class="legend" style="margin-top:20px">Nature des travaux réalisés</p>
-      <p class="hint" style="margin:-4px 0 8px">Cochez ce que fait votre entreprise : le relevé ne proposera que ces natures de travaux. Rien de coché : toute la liste.</p>
+      <p class="legend" style="margin-top:20px">Outils de la société</p>
+      <p class="hint" id="so_aide" style="margin:-4px 0 8px">Réglés par le fondateur : les outils que la société peut utiliser. Ses comptes ne peuvent avoir que ceux-là.</p>
+      <div class="chips" id="so_liste" style="margin-bottom:8px"></div>
+      <div class="row" id="so_ligne"><button class="act" id="so_enr">Enregistrer les outils</button><span class="hint" id="so_etat" style="margin:0"></span></div>
+
+      <p class="legend" style="margin-top:20px">Métiers de la société (natures des travaux)</p>
+      <p class="hint" id="nt_aide" style="margin:-4px 0 8px">Réglés par le fondateur : le relevé ne propose que ces natures de travaux, et les comptes prennent leurs métiers dedans. Rien de coché : toute la liste.</p>
       <div class="chips" id="nt_liste" style="margin-bottom:8px"></div>
-      <div class="row"><button class="act" id="nt_enr">Enregistrer les natures</button><span class="hint" id="nt_etat" style="margin:0"></span></div>
+      <div class="row" id="nt_ligne"><button class="act" id="nt_enr">Enregistrer les métiers</button><span class="hint" id="nt_etat" style="margin:0"></span></div>
 
       <p class="legend" style="margin-top:20px">Lien du client</p>
       <label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 6px;cursor:pointer;font-size:15px"><input type="checkbox" id="rc_lien" style="width:20px;height:20px;min-height:0;margin:2px 0 0;flex:none;padding:0">
@@ -657,11 +668,11 @@ function listeApplis(ids){
   var propres=(ids||[]).filter(function(a){ return nomAppli(a)!==a; });
   return propres.length ? propres.map(nomAppli).join(", ") : "";
 }
-$("btnToutCocher") && $("btnToutCocher").addEventListener("click", function(){ APPLIS_CHOISIES=APPLIS.map(function(a){ return a[0]; }); peindreApplis(); });
+$("btnToutCocher") && $("btnToutCocher").addEventListener("click", function(){ APPLIS_CHOISIES=APPLIS.map(function(a){ return a[0]; }).filter(function(id){ return !OUTILS_SOC || OUTILS_SOC.indexOf(id)>=0; }); peindreApplis(); });
 $("btnRienCocher") && $("btnRienCocher").addEventListener("click", function(){ APPLIS_CHOISIES=[]; peindreApplis(); });
 function peindreApplis(){
   var host=$("f_applis"); host.textContent="";
-  APPLIS.forEach(function(a){
+  APPLIS.filter(function(a){ return !OUTILS_SOC || OUTILS_SOC.indexOf(a[0])>=0 || APPLIS_CHOISIES.indexOf(a[0])>=0; }).forEach(function(a){
     var b=document.createElement("button"); b.type="button";
     b.textContent=a[1];
     b.className = APPLIS_CHOISIES.indexOf(a[0])>=0 ? "on" : "";
@@ -744,6 +755,10 @@ function charger(){
       /* le compte fondateur seul (code 360) : pas encore de société ouverte */
       if(d.societe==="360"){ $("ongSociete").classList.add("vide"); $("blocAucuneSoc").hidden=false; choisirOnglet("compte"); return; }
       choisirOnglet(FONDATEUR ? onglet : "societe");
+      $("reglesFondateur").hidden=!FONDATEUR; $("reglesAdmin").hidden=FONDATEUR;
+      $("so_ligne").style.display = FONDATEUR ? "" : "none"; $("nt_ligne").style.display = FONDATEUR ? "" : "none";
+      $("is_metier").disabled=!FONDATEUR; if(!FONDATEUR) $("is_metier").title="Réglé par le fondateur";
+      chargerOutilsSoc();
       $("blocSociete").hidden=false;
       peindreInfosSoc(d);
       $("btnInfosSoc").hidden=!!d.demo;
@@ -837,6 +852,7 @@ function peindreNatures(){
   NT.toutes.forEach(function(n){
     var lab=document.createElement("label"); lab.className="chip"+(NT.natures.indexOf(n)>=0?" on":"");
     var i=document.createElement("input"); i.type="checkbox"; i.checked=NT.natures.indexOf(n)>=0; i.value=n;
+    if(!FONDATEUR){ i.disabled=true; lab.style.cursor="default"; if(!i.checked) lab.style.opacity=".45"; }
     i.addEventListener("change", function(){
       if(i.checked){ if(NT.natures.indexOf(n)<0) NT.natures.push(n); } else NT.natures=NT.natures.filter(function(x){ return x!==n; });
       lab.classList.toggle("on", i.checked); $("nt_etat").textContent="";
@@ -846,7 +862,55 @@ function peindreNatures(){
 }
 function chargerNatures(){
   fetch(api("natures-societe"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); })
-    .then(function(d){ NT.toutes=d.toutes||[]; NT.natures=d.natures||[]; peindreNatures(); }).catch(function(){});
+    .then(function(d){ NT.toutes=d.toutes||[]; NT.natures=d.natures||[]; peindreNatures(); peindreMetiers(); }).catch(function(){});
+}
+/* ---------- les outils de la société : réglés par le fondateur ---------- */
+var OUTILS_SOC=null;
+function peindreOutilsSoc(){
+  var h=$("so_liste"); h.textContent="";
+  APPLIS.forEach(function(a){
+    var on=(OUTILS_SOC||[]).indexOf(a[0])>=0;
+    var lab=document.createElement("label"); lab.className="chip"+(on?" on":"");
+    var i=document.createElement("input"); i.type="checkbox"; i.checked=on;
+    if(!FONDATEUR){ i.disabled=true; lab.style.cursor="default"; if(!on) lab.style.opacity=".45"; }
+    i.addEventListener("change", function(){
+      var k=OUTILS_SOC.indexOf(a[0]);
+      if(i.checked && k<0) OUTILS_SOC.push(a[0]); if(!i.checked && k>=0) OUTILS_SOC.splice(k,1);
+      lab.classList.toggle("on", i.checked); $("so_etat").textContent="";
+    });
+    lab.appendChild(i); lab.appendChild(document.createTextNode(a[1])); h.appendChild(lab);
+  });
+}
+function chargerOutilsSoc(){
+  fetch(api("societe-outils"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); })
+    .then(function(d){ OUTILS_SOC=(d.outils||[]).slice(); peindreOutilsSoc(); peindreApplis(); }).catch(function(){});
+}
+$("so_enr").addEventListener("click", function(){
+  fetch(api("societe-outils-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify({outils:OUTILS_SOC||[]})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(r){
+      if(!r.ok){ $("so_etat").textContent=r.d.erreur||"Refusé."; return; }
+      OUTILS_SOC=r.d.outils.slice(); peindreApplis(); chargerComptes();
+      $("so_etat").textContent=r.d.outils.length+" outil"+(r.d.outils.length>1?"s":"")+" pour la société.";
+    })
+    .catch(function(){ $("so_etat").textContent="Pas de réseau."; });
+});
+/* ---------- les métiers d'un compte : parmi ceux de la société ---------- */
+var METIERS_CHOISIS=[];
+function peindreMetiers(){
+  var host=$("f_metiers"); if(!host) return; host.textContent="";
+  var L=(NT.natures && NT.natures.length) ? NT.natures : (NT.toutes||[]);
+  METIERS_CHOISIS.forEach(function(m){ if(L.indexOf(m)<0) L=L.concat([m]); });
+  L.forEach(function(m){
+    var b=document.createElement("button"); b.type="button"; b.textContent=m;
+    b.className = METIERS_CHOISIS.indexOf(m)>=0 ? "on" : "";
+    b.addEventListener("click", function(){
+      var k=METIERS_CHOISIS.indexOf(m);
+      if(k>=0) METIERS_CHOISIS.splice(k,1); else METIERS_CHOISIS.push(m);
+      peindreMetiers();
+    });
+    host.appendChild(b);
+  });
 }
 $("nt_enr").addEventListener("click", function(){
   fetch(api("natures-societe-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify({natures:NT.natures})})
@@ -1037,9 +1101,11 @@ function peindre(comptes){
     t.appendChild(b); t.appendChild(s2); t.appendChild(m);
     var acc=document.createElement("span"); acc.className="acces";
     var quoi=listeApplis(c.applis);
-    acc.textContent = c.role==="admin" ? "Toutes les applis" : (quoi || "Aucune appli : à cocher");
-    if(c.role!=="admin" && !quoi) acc.classList.add("aucune");
+    acc.textContent = c.aRegler ? "À régler par le fondateur : n'ouvre rien pour l'instant"
+      : (c.role==="admin" && !c.outilsRegles) ? "Tous les outils de la société" : (quoi || "Aucun outil");
+    if(c.aRegler || (!(c.role==="admin" && !c.outilsRegles) && !quoi)) acc.classList.add("aucune");
     t.appendChild(acc);
+    if(c.metiers && c.metiers.length){ var me=document.createElement("span"); me.className="acces"; me.textContent="Métiers : "+c.metiers.join(", "); t.appendChild(me); }
     var rl=document.createElement("span"); rl.className="role "+c.role;
     rl.textContent = c.role==="admin" ? "Vue bureau + comptes"
                    : c.role==="bureau" ? "Vue bureau" : c.role==="conducteur" ? "Vue conducteur de travaux" : "Vue technicien";
@@ -1047,7 +1113,8 @@ function peindre(comptes){
     mod.addEventListener("click", function(){
       $("f_nom").value=c.nom; $("f_id").value=c.identifiant;
       choisirVue(c.role); $("f_mail").value=c.email||""; $("f_tel").value=c.tel||"";
-      APPLIS_CHOISIES=(c.applis||[]).slice(); peindreApplis();
+      APPLIS_CHOISIES=(c.role==="admin" && !c.outilsRegles) ? (OUTILS_SOC||[]).slice() : (c.applis||[]).slice(); peindreApplis();
+      METIERS_CHOISIS=(c.metiers||[]).slice(); peindreMetiers();
       $("titreForm").textContent="Modifier "+c.nom;
       window.scrollTo({top:document.body.scrollHeight, behavior:"smooth"});
     });
@@ -1122,6 +1189,8 @@ function peindre(comptes){
     haut.appendChild(t); haut.appendChild(sup);
     var act=document.createElement("div"); act.className="c-act";
     if(c.fondateur){ raz.hidden=true; sup.hidden=true; rl.textContent="Fondateur"; }
+    /* l'outil KNX (un code par personne) : réglé par le fondateur, comme les autres outils */
+    if(!FONDATEUR){ knx.hidden=true; knxOff.hidden=true; knxDl.hidden=true; }
     [mod, raz, knx, knxOff, knxDl].forEach(function(x){ act.appendChild(x); });
     r.appendChild(haut); r.appendChild(act);
     host.appendChild(r);
@@ -1130,7 +1199,7 @@ function peindre(comptes){
 $("btnEnr").addEventListener("click", function(){
   var corps={nom:$("f_nom").value.trim(), identifiant:$("f_id").value.trim().toLowerCase(),
              role:$("f_role").value, email:$("f_mail").value.trim(), tel:$("f_tel").value.trim(),
-             applis:APPLIS_CHOISIES.slice()};
+             applis:APPLIS_CHOISIES.slice(), metiers:METIERS_CHOISIS.slice()};
   if(!corps.nom || !corps.identifiant){ $("err").textContent="Prénom et identifiant sont nécessaires."; return; }
   $("err").textContent="Enregistrement…";
   fetch(api("compte-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify(corps)})
@@ -1140,7 +1209,7 @@ $("btnEnr").addEventListener("click", function(){
       $("err").textContent=""; $("titreForm").textContent="Ajouter un compte";
       if(res.d.provisoire) montrerProvisoires([{nom:corps.nom, provisoire:res.d.provisoire}]);
       ["f_nom","f_id","f_mail","f_tel"].forEach(function(i){ $(i).value=""; });
-      APPLIS_CHOISIES=[]; peindreApplis();
+      APPLIS_CHOISIES=[]; peindreApplis(); METIERS_CHOISIS=[]; peindreMetiers();
       chargerComptes();
     })
     .catch(function(){ $("err").textContent="Pas de réseau."; });
@@ -1148,7 +1217,7 @@ $("btnEnr").addEventListener("click", function(){
 $("btnVider").addEventListener("click", function(){
   ["f_nom","f_id","f_mail","f_tel"].forEach(function(i){ $(i).value=""; });
   choisirVue("technicien");
-  APPLIS_CHOISIES=[]; peindreApplis();
+  APPLIS_CHOISIES=[]; peindreApplis(); METIERS_CHOISIS=[]; peindreMetiers();
   $("titreForm").textContent="Ajouter un compte"; $("err").textContent="";
 });
 
@@ -1253,6 +1322,9 @@ function chargerSocietesFondateur(){
         sp.textContent=["code "+x.code, x.metier, x.ville, gens.length+" utilisateur"+(gens.length>1?"s":"")].filter(Boolean).join("  ·  ");
         n.appendChild(sp); h.appendChild(n);
         if(ici || !x.actif){ var p=document.createElement("span"); p.className="pastille"+(x.actif ? "" : " off"); p.textContent = !x.actif ? "Suspendue" : "Ouverte ici"; h.appendChild(p); }
+        /* les comptes créés par son administrateur, qui attendent leur vue, leurs outils et leurs métiers */
+        var nr=gens.filter(function(g){ return g.aRegler; }).length;
+        if(nr){ var pr=document.createElement("span"); pr.className="pastille off"; pr.textContent=nr+" à régler"; pr.title="Comptes créés par l'administrateur : à vous de régler leur vue, leurs outils et leurs métiers (entrez dans la société, onglet Société)"; h.appendChild(pr); }
         c.appendChild(h);
         /* ses utilisateurs */
         var dt=document.createElement("details");
@@ -1261,7 +1333,7 @@ function chargerSocietesFondateur(){
         gens.slice().sort(function(a,b){ return (a.role==="admin"?0:1)-(b.role==="admin"?0:1) || String(a.nom).localeCompare(String(b.nom)); }).forEach(function(g){
           var li=document.createElement("li");
           var bn=document.createElement("b"); bn.textContent=g.nom||g.identifiant; li.appendChild(bn);
-          var s1=document.createElement("span"); s1.textContent=[g.identifiant, g.fondateur ? "Fondateur" : (NOMS_ROLES[g.role]||g.role), etatCompte(g)].filter(Boolean).join("  ·  ");
+          var s1=document.createElement("span"); s1.textContent=[g.identifiant, g.fondateur ? "Fondateur" : (NOMS_ROLES[g.role]||g.role), (g.metiers||[]).join(", "), etatCompte(g), g.aRegler ? "à régler" : ""].filter(Boolean).join("  ·  ");
           li.appendChild(s1); ul.appendChild(li);
         });
         dt.appendChild(ul); c.appendChild(dt);
@@ -1321,6 +1393,6 @@ peindreApplis();
 charger();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261110b" defer></script>
+<script src="./navigation.js?v=20261110c" defer></script>
 </body>
 </html>

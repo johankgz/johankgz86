@@ -517,11 +517,24 @@ function estBureau(p) { return !!p && (p.role === "bureau" || p.role === "admin"
 function estChargeAffaires(p) { return !!p && (p.role === "bureau" || p.role === "admin"); }
 /* Rien de coché : aucune appli, aucun outil (l'administrateur et le propriétaire gardent tout).
    Les pages lisent une liste : vide, elle ne vaudrait « tout » ; on leur envoie « aucune ». */
+/* Les outils d'une personne : le fondateur les règle, société par société (les outils
+   autorisés pour la société) et personne par personne (dans ceux de sa société).
+   L'administrateur d'une société a tous ceux de sa société, tant que le fondateur ne
+   lui en a pas réglé d'autres. Le fondateur a tout. */
+function outilsSociete(p) { return p && Array.isArray(p.outilsSoc) ? p.outilsSoc : APPLIS.slice(); }
 function applisEffectives(p) {
   if (!p) return [];
-  if (p.role === "admin" || p.proprietaire) return applisValides(p.applis);
-  const l = applisValides(p.applis);
+  if (p.fondateur) return APPLIS.slice();
+  const soc = outilsSociete(p);
+  if (p.role === "admin" && !p.outilsRegles) return soc;
+  const l = applisValides(p.applis).filter((a) => soc.indexOf(a) >= 0);
   return l.length ? l : ["aucune"];
+}
+/* un administrateur qui n'a pas tout : les pages ne lui ouvrent que ses outils */
+function outilsLimites(p) {
+  if (!p || p.fondateur || p.role !== "admin") return false;
+  const e = applisEffectives(p);
+  return !APPLIS.every((a) => e.indexOf(a) >= 0);
 }
 const APPLI_DU_TYPE = {
   releve: "releve", suivi: "suivi", commande: "commande", reception: "reception",
@@ -536,8 +549,8 @@ function applisValides(liste) {
 }
 function aAcces(personne, appli) {
   if (!personne) return false;
-  if (personne.role === "admin" || personne.proprietaire) return true;
-  return applisValides(personne.applis).indexOf(appli) >= 0;
+  if (personne.fondateur) return true;
+  return applisEffectives(personne).indexOf(appli) >= 0;
 }
 
 /* =====================================================================
@@ -741,7 +754,7 @@ function positionValide(lat, lon) {
 /* le compte propriétaire, tel qu'il est écrit dans le code, ne sert plus
    qu'au tout premier accès ou au sauvetage : dès qu'un mot de passe est
    posé sur son compte, c'est l'annuaire qui décide, et lui seul. */
-function personneDuCompte(code, u) {
+function personneDuCompte(code, u, soc) {
   const proprio = code === SOCIETE_DEPART.code
     && String(u.identifiant).trim().toLowerCase() === PROPRIETAIRE.identifiant.trim().toLowerCase();
   /* Un compte encore sur un mot de passe en clair doit en choisir un :
@@ -752,6 +765,8 @@ function personneDuCompte(code, u) {
     : (!!u.aChanger || (!u.empreinte && !!u.motdepasse));
   return { nom: u.nom, role: proprio ? "admin" : u.role, email: u.email || "",
     societe: code, proprietaire: proprio, applis: applisValides(u.applis),
+    outilsSoc: soc && Array.isArray(soc.outils) ? applisValides(soc.outils) : null,
+    outilsRegles: !!u.outilsRegles, metiers: metiersValides(u.metiers),
     identifiant: String(u.identifiant).trim().toLowerCase(),
     aChanger, cgu: (u.cgu && u.cgu.version) || "" };
 }
@@ -793,7 +808,7 @@ async function verifier(code, id, mdp) {
   const socV = (await lireSocietes()).find((x) => x.code === code);
   if (u && motDePasseJuste(u, mdp) && socV && socV.actif === false) return { refus: "Cette société est suspendue : la connexion est fermée." };
   if (u && motDePasseJuste(u, mdp)) {
-    return { personne: personneDuCompte(code, u), compte: u };
+    return { personne: personneDuCompte(code, u, socV), compte: u };
   }
   return null;
 }
@@ -827,7 +842,7 @@ async function identifier(auth) {
   if (u && !u.fondateur && signer(code, id, ouverte, u) === signature) {
     const soc = (await lireSocietes()).find((x) => x.code === code);
     if (soc && soc.actif === false) return null;              /* société suspendue */
-    return personneDuCompte(code, u);
+    return personneDuCompte(code, u, soc);
   }
   /* le fondateur, entré dans cette société depuis son compte : son jeton est signé avec son propre compte */
   const fu = (await lireFondateurs()).find((c) => idDe(c) === id);
@@ -1087,6 +1102,11 @@ const NATURES_TRAVAUX = ["Électricité", "Courants faibles", "Photovoltaïque",
 /* un ancien nom de nature, repris sous le nouveau */
 const NATURES_ANCIENNES = { "Plâtrerie": "Plâtrerie / plaquiste" };
 const natureActuelle = (n) => NATURES_ANCIENNES[n] || n;
+/* les métiers d'une personne (électricité, plomberie…) : pris dans la même liste */
+function metiersValides(l) {
+  if (!Array.isArray(l)) return [];
+  return Array.from(new Set(l.map((n) => natureActuelle(String(n))).filter((n) => NATURES_TRAVAUX.includes(n))));
+}
 const NATURES_DEPART = { tle: ["Électricité", "Photovoltaïque", "Borne de recharge", "Climatisation"] };
 async function lienClientActif(st) {
   let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
@@ -1488,7 +1508,7 @@ async function traiter(req) {
     const p = v.personne;
     const liste = await lireSocietes();
     const soc = code === FONDATEUR ? { nom: "Compte fondateur" } : (liste.find((x) => x.code === code) || {});
-    return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: applisEffectives(p),
+    return json({ jeton: jetonPour(code, id, v.compte), nom: p.nom, role: p.role, applis: applisEffectives(p), limite: outilsLimites(p),
       societe: code, societeNom: soc.nom || "", metier: soc.metier || "", ville: soc.ville || "",
       proprietaire: !!p.proprietaire, fondateur: !!p.fondateur, demo: !!soc.demo, aChanger: !!p.aChanger,
       cguVersion: CGU_VERSION, cguAJour: p.cgu === CGU_VERSION });
@@ -2013,7 +2033,7 @@ async function traiter(req) {
   /* une page ouverte : la personne se sert du site (une notification en retard ailleurs n'a plus à sonner) */
   if (action === "push-actif") { await noterActif(store, personne.nom, url.searchParams.get("ap") || ""); return json({ ok: true }); }
   if (action === "moi") {
-    return json({ nom: personne.nom, role: personne.role, applis: applisEffectives(personne),
+    return json({ nom: personne.nom, role: personne.role, applis: applisEffectives(personne), limite: outilsLimites(personne),
       proprietaire: !!personne.proprietaire, fondateur: !!personne.fondateur, aChanger: !!personne.aChanger,
       metier: "", ville: "", societe: personne.societe,
       cguVersion: CGU_VERSION, cguAJour: personne.cgu === CGU_VERSION });
@@ -2129,9 +2149,10 @@ async function traiter(req) {
       try { comptes = await lireComptes(x.code); } catch { comptes = []; }
       out.push({ code: x.code, nom: x.nom || x.code, metier: x.metier || "", ville: x.ville || "", cree: x.cree || "",
         actif: x.actif !== false,
+        outils: Array.isArray(x.outils) ? applisValides(x.outils) : APPLIS.slice(),
         comptes: comptes.filter((c) => c && c.identifiant).map((c) => ({ nom: c.nom || "", identifiant: idDe(c), role: c.role || "",
           email: c.email || "", fondateur: !!c.fondateur, sansMotDePasse: sansMotDePasse(c), aChanger: !!c.aChanger,
-          mdpMaj: c.mdpMaj || "" })) });
+          mdpMaj: c.mdpMaj || "", aRegler: !!c.aRegler, metiers: metiersValides(c.metiers) })) });
     }
     return json({ societes: out, ici: personne.societe });
   }
@@ -2162,6 +2183,7 @@ async function traiter(req) {
   if (action === "comptes") {
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
     const comptes = await lireComptes(personne.societe);
+    const soT = (await lireSocietes()).find((x) => x.code === personne.societe) || {};
     /* aucun mot de passe ne sort d'ici, seulement son état :
        « personnel » quand la personne l'a choisi elle-même,
        « provisoire » quand elle doit encore le faire,
@@ -2173,7 +2195,10 @@ async function traiter(req) {
       mdpMaj: c.mdpMaj || "",
       knx: c.knx ? (c.knx.cree || "oui") : "",
       knxExport: !!c.knxExport, fondateur: !!c.fondateur,
-      applis: applisValides(c.applis) })) });
+      metiers: metiersValides(c.metiers), aRegler: !!c.aRegler, outilsRegles: !!c.outilsRegles,
+      applis: applisValides(c.applis) })),
+      outilsSociete: Array.isArray(soT.outils) ? applisValides(soT.outils) : APPLIS.slice(),
+      toutes: APPLIS, metiers: NATURES_TRAVAUX, fondateur: !!personne.fondateur });
   }
 
   if (action === "compte-enregistrer") {
@@ -2186,19 +2211,24 @@ async function traiter(req) {
     const role = ROLES.indexOf(d.role) >= 0 ? d.role : "technicien";
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
-    const applis = applisValides(d.applis);
+    /* la vue, les outils et les métiers de chacun : le fondateur seul les règle ;
+       l'administrateur de la société crée, renomme, réinitialise et retire */
+    const fond = !!personne.fondateur;
+    const regle = fond ? { role, applis: applisValides(d.applis), metiers: metiersValides(d.metiers), outilsRegles: true } : null;
     /* Modifier un compte ne touche jamais à son mot de passe : pour le
        reste à zéro, il y a « compte-reinitialiser », qui rend un code
        provisoire sans jamais montrer l'ancien. */
     if (i >= 0) {
-      comptes[i] = { ...comptes[i], nom, role, email: String(d.email || "").trim(), applis };
+      comptes[i] = { ...comptes[i], nom, email: String(d.email || "").trim(), ...(regle && !comptes[i].fondateur ? regle : {}) };
+      if (regle) delete comptes[i].aRegler;
       if (d.tel !== undefined) comptes[i].tel = String(d.tel || "").trim().slice(0, 40);
       await ecrireComptes(personne.societe, comptes);
       return json({ ok: true, comptes: comptes.length });
     }
     const code = codeProvisoire();
-    comptes.push({ identifiant: id, empreinte: empreinteDe(code), aChanger: true, nom, role,
-      email: String(d.email || "").trim(), tel: String(d.tel || "").trim().slice(0, 40), applis });
+    comptes.push({ identifiant: id, empreinte: empreinteDe(code), aChanger: true, nom,
+      email: String(d.email || "").trim(), tel: String(d.tel || "").trim().slice(0, 40),
+      ...(regle || { role: "technicien", applis: [], metiers: [], aRegler: true }) });
     await ecrireComptes(personne.societe, comptes);
     /* le code provisoire n'est montré qu'ici, une fois */
     return json({ ok: true, comptes: comptes.length, provisoire: code });
@@ -2242,7 +2272,7 @@ async function traiter(req) {
   /* l'outil KNX : l'administrateur tire au sort le code d'une personne,
      montré une seule fois, ou le retire */
   if (action === "knx-code" || action === "knx-retirer") {
-    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    if (!personne.fondateur) return json({ erreur: "Les outils de chacun sont réglés par le fondateur." }, 403);
     const id = String(url.searchParams.get("identifiant") || "").trim().toLowerCase();
     const comptes = await lireComptes(personne.societe);
     const i = comptes.findIndex((c) => String(c.identifiant).toLowerCase() === id);
@@ -2260,7 +2290,7 @@ async function traiter(req) {
   }
   /* le téléchargement du chiffrage KNX : l'administrateur l'ouvre ou le ferme, personne par personne */
   if (action === "knx-export-droit") {
-    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    if (!personne.fondateur) return json({ erreur: "Les outils de chacun sont réglés par le fondateur." }, 403);
     let d = {};
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const id = String(d.identifiant || "").trim().toLowerCase();
@@ -2462,7 +2492,7 @@ async function traiter(req) {
     const i = liste.findIndex((x) => x.code === personne.societe);
     if (i < 0) return json({ erreur: "Société inconnue." }, 404);
     if (liste[i].demo) return json({ erreur: "Démonstration : rien n'est enregistré." }, 403);
-    liste[i] = { ...liste[i], nom, metier: txt(d.metier, 80), ville: txt(d.ville, 80) };
+    liste[i] = { ...liste[i], nom, metier: personne.fondateur ? txt(d.metier, 80) : (liste[i].metier || ""), ville: txt(d.ville, 80) };
     await magasinAnnuaire().setJSON("societes.json", liste);
     return json({ ok: true, nom: liste[i].nom, metier: liste[i].metier, ville: liste[i].ville });
   }
@@ -2521,6 +2551,25 @@ async function traiter(req) {
     liste[i].actif = actif;
     await magasinAnnuaire().setJSON("societes.json", liste);
     return json({ ok: true });
+  }
+
+  /* ---------- les outils autorisés pour une société : le fondateur ---------- */
+  if (action === "societe-outils") {
+    const so = (await lireSocietes()).find((x) => x.code === personne.societe) || {};
+    return json({ outils: Array.isArray(so.outils) ? applisValides(so.outils) : APPLIS.slice(), toutes: APPLIS, fondateur: !!personne.fondateur });
+  }
+  if (action === "societe-outils-enregistrer") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!personne.fondateur) return json({ erreur: "Les outils de la société sont réglés par le fondateur." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const code = String(d.code || personne.societe).trim().toLowerCase();
+    const liste = await lireSocietes();
+    const i = liste.findIndex((x) => x.code === code);
+    if (i < 0) return json({ erreur: "Société inconnue." }, 404);
+    liste[i] = { ...liste[i], outils: applisValides(d.outils) };
+    await magasinAnnuaire().setJSON("societes.json", liste);
+    return json({ ok: true, outils: liste[i].outils });
   }
 
   /* ---------- supprimer une société : le fondateur seul, en tapant son code ----------
@@ -4218,7 +4267,7 @@ async function traiter(req) {
   }
   if (action === "natures-societe-enregistrer") {
     if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
-    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    if (!personne.fondateur) return json({ erreur: "Les métiers de la société sont réglés par le fondateur." }, 403);
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const natures = (Array.isArray(d.natures) ? d.natures : []).map(natureActuelle).filter((n) => NATURES_TRAVAUX.includes(n));
     await store.setJSON(NATURES_SOCIETE, { natures, maj: new Date().toISOString(), par: personne.nom });

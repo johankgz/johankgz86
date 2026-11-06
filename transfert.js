@@ -113,7 +113,7 @@ function trouver(ref){ return (LISTE||[]).filter(function(c){ return c.ref===ref
 function accesImport(){
   var s=session();
   if(!s) return false;
-  if(s.role==="admin" || s.proprietaire) return true;
+  if(s.proprietaire || (s.role==="admin" && !s.limite)) return true;
   var a=s.applis;
   if(!Array.isArray(a) || !a.length) return true;
   return a.indexOf("technique")>=0;

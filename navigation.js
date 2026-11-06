@@ -64,7 +64,7 @@ function favoris(s){
 function accesAppli(s, id){
   if(!id) return true;
   if(!s) return false;
-  if(s.role==="admin" || s.proprietaire) return true;
+  if(s.proprietaire || (s.role==="admin" && !s.limite)) return true;
   var a=s.applis;
   if(!Array.isArray(a) || !a.length) return true;
   return a.indexOf(id)>=0;
