@@ -239,10 +239,17 @@ function personneFondateur(fu, code, membre) {
 /* le compte où la personne garde son mot de passe, ses coordonnées, ses conditions acceptées */
 function codeDuCompte(personne) { return personne && personne.fondateur ? FONDATEUR : personne.societe; }
 
+/* les sociétés supprimées par le fondateur : la réparation ne les recrée pas */
+async function societesSupprimees() {
+  let l = null;
+  try { l = await magasinAnnuaire().get("societes-supprimees.json", { type: "json" }); } catch { l = null; }
+  return Array.isArray(l) ? l : [];
+}
 async function lireSocietes() {
   const a = magasinAnnuaire();
   let liste = null;
   try { liste = await a.get("societes.json", { type: "json" }); } catch { liste = null; }
+  const supprimees = await societesSupprimees();
 
   /* réparation : la société de départ et la démonstration existent toujours */
   if (Array.isArray(liste) && liste.length) {
@@ -256,6 +263,7 @@ async function lireSocietes() {
       corrige = true;
     }
     for (const s of [SOCIETE_DEPART, SOCIETE_DEMO]) {
+      if (supprimees.indexOf(s.code) >= 0) continue;
       if (!liste.some((x) => x.code === s.code)) { liste.push(ligneSociete(s)); corrige = true; }
     }
     if (corrige) { try { await a.setJSON("societes.json", liste); } catch { /* on continue */ } }
@@ -280,9 +288,10 @@ async function lireComptes(code) {
   try { liste = await a.get("comptes-" + code + ".json", { type: "json" }); } catch { liste = null; }
   if (Array.isArray(liste) && liste.length) return await droitsRemisAZero(a, code, liste);
 
-  /* réparation : on réinstalle les comptes de départ plutôt que de bloquer tout le monde */
+  /* réparation : on réinstalle les comptes de départ plutôt que de bloquer tout le monde
+     (sauf pour une société que le fondateur a supprimée) */
   const modele = [SOCIETE_DEPART, SOCIETE_DEMO].find((s) => s.code === code);
-  if (modele) {
+  if (modele && (await societesSupprimees()).indexOf(code) < 0) {
     try { await a.setJSON("comptes-" + code + ".json", modele.utilisateurs); } catch { /* on continue */ }
     return modele.utilisateurs;
   }
@@ -2490,6 +2499,8 @@ async function traiter(req) {
     liste.push({ code, nom: String(d.nom || code), metier: String(d.metier || ""),
       ville: String(d.ville || ""), cree: new Date().toISOString(), actif: true, demo: false });
     await magasinAnnuaire().setJSON("societes.json", liste);
+    const sup = await societesSupprimees();
+    if (sup.indexOf(code) >= 0) await magasinAnnuaire().setJSON("societes-supprimees.json", sup.filter((x) => x !== code));
     const idAdmin = String(d.adminIdentifiant || "admin").trim().toLowerCase();
     const mdpAdmin = String(d.adminMotdepasse || "").trim() || codeProvisoire();
     await ecrireComptes(code, [{ identifiant: idAdmin, empreinte: empreinteDe(mdpAdmin),
@@ -2507,7 +2518,6 @@ async function traiter(req) {
     const liste = await lireSocietes();
     const i = liste.findIndex((x) => x.code === code);
     if (i < 0) return json({ erreur: "Société inconnue." }, 404);
-    if (!actif && code === SOCIETE_DEPART.code) return json({ erreur: "La société de départ ne se suspend pas." }, 400);
     liste[i].actif = actif;
     await magasinAnnuaire().setJSON("societes.json", liste);
     return json({ ok: true });
@@ -2523,7 +2533,7 @@ async function traiter(req) {
     let d;
     try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
     const code = String(d.code || "").trim().toLowerCase();
-    if (code === SOCIETE_DEPART.code || code === SOCIETE_DEMO.code || code === FONDATEUR) {
+    if (code === SOCIETE_DEMO.code || code === FONDATEUR) {
       return json({ erreur: "Cette société ne se supprime pas." }, 400);
     }
     if (String(d.confirmation || "").trim().toLowerCase() !== code) return json({ erreur: "Tapez le code de la société pour confirmer." }, 400);
@@ -2532,6 +2542,8 @@ async function traiter(req) {
     const soc = liste.find((x) => x.code === code);
     if (!soc) return json({ erreur: "Société introuvable." }, 404);
     await a.setJSON("societes.json", liste.filter((x) => x.code !== code));
+    const sup = await societesSupprimees();
+    if (sup.indexOf(code) < 0) { sup.push(code); await a.setJSON("societes-supprimees.json", sup); }
     for (const k of ["comptes-" + code + ".json", "droits-v2-" + code + ".json", "fiches/" + code + ".json", "rdv-societe/" + code + ".json"]) {
       try { await a.delete(k); } catch { /* déjà parti */ }
     }
@@ -2545,14 +2557,19 @@ async function traiter(req) {
         if (x && x.societe === code) { try { await a.delete(b.key); } catch { /* suivant */ } }
       }
     }
-    /* son magasin : tout ce qu'elle a mis sur le site */
+    /* son magasin : tout ce qu'elle a mis sur le site — en arrière-plan (des milliers de
+       photos pour une société ancienne). Celui de la société de départ porte aussi les
+       demandes d'accès au site : elles restent. */
     const st = magasinSociete(code);
-    let n = 0;
-    try {
-      const l = await st.list();
-      for (const b of l.blobs || []) { try { await st.delete(b.key); n++; } catch { /* suivant */ } }
-    } catch { /* rien à effacer */ }
-    return json({ ok: true, code, fichiers: n });
+    (async () => {
+      let l = { blobs: [] };
+      try { l = await st.list(); } catch { return; }
+      for (const b of l.blobs || []) {
+        if (code === SOCIETE_DEPART.code && b.key.startsWith("demandes/")) continue;
+        try { await st.delete(b.key); } catch { /* suivant */ }
+      }
+    })().catch(() => {});
+    return json({ ok: true, code });
   }
 
   if (action === "publier") {
