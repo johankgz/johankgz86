@@ -80,6 +80,31 @@ button,select{font:inherit}
 .bt[disabled]{opacity:.4;cursor:default}
 .bt[hidden],.seg[hidden]{display:none}
 .titre{flex:1 1 auto;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* les plans enregistrés, en blocs carrés */
+.plans-site ul.tuiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(168px,1fr));gap:10px;max-height:none;overflow:visible;flex-direction:initial}
+.plans-site ul.tuiles li.tuile{display:flex;flex-direction:column;min-height:190px;padding:0;gap:0;border:1px solid var(--trait);border-radius:14px;background:rgba(127,127,127,.07);overflow:hidden}
+.plans-site ul.tuiles li.tuile:hover{border-color:var(--or)}
+.plans-site ul.tuiles .t-ouvrir{flex:1 1 auto;min-height:130px;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:12px 12px 6px;border:0;background:transparent;color:var(--ink);text-align:left;cursor:pointer;font:inherit;overflow:hidden}
+.plans-site .t-tete{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--ink3)}
+.plans-site .t-tete svg,.plans-site .t-ch svg{width:15px;height:15px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.plans-site .t-nom{font-size:14.5px;font-weight:700;line-height:1.25;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.plans-site .t-ch{display:inline-flex;align-items:center;gap:5px;max-width:100%;padding:3px 8px;border-radius:999px;background:rgba(34,211,238,.12);color:var(--cy);font-size:12px;font-weight:600}
+.plans-site .t-ch.ratt{background:rgba(59,130,246,.18);color:var(--ink)}
+.plans-site .t-ch span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.plans-site .t-date{margin-top:auto;font-size:11.5px;color:var(--ink3)}
+.plans-site .t-act{display:flex;align-items:center;gap:6px;padding:6px 8px 8px;border-top:1px solid var(--trait)}
+.plans-site ul.tuiles .t-act .bt{flex:0 0 auto;min-height:32px;padding:4px 10px;font-size:12.5px;white-space:nowrap}
+.plans-site ul.tuiles .t-ouvrir{width:100%;min-width:0}
+.plans-site .t-ch{box-sizing:border-box;overflow:hidden}
+.plans-site ul.tuiles .t-act .bt-supp{margin-left:auto}
+.plans-site .t-act .bt-copie svg{width:16px;height:16px}
+@media (max-width:600px){
+  .plans-site ul.tuiles{grid-template-columns:1fr 1fr;gap:8px}
+  .plans-site ul.tuiles li.tuile{min-height:180px;border-bottom:1px solid var(--trait);padding-bottom:0}
+  .plans-site ul.tuiles .t-act{gap:4px;padding:6px}
+  .plans-site ul.tuiles .t-act .bt{padding:4px 8px}
+  .plans-site ul.tuiles .t-act .bt-copie{margin-left:0}
+}
 /* l'élément choisi : ses propriétés dans une fenêtre (clic droit › Propriétés), plus dans les barres du bas */
 body.a-sel:not(.props) #barreSel,body.a-sel:not(.props) #basDessin,body.a-sel:not(.props) #basSymb,body.a-sel:not(.props) #bas{display:none!important}
 .fen-props{position:fixed;right:max(12px, env(safe-area-inset-right,0px));top:calc(var(--haut,62px) + 12px);z-index:21;width:min(460px,calc(100vw - 24px));max-height:calc(100% - var(--haut,62px) - 24px);overflow:auto;
@@ -8182,10 +8207,12 @@ function peindreVierges(){
 function peindreViergesDans(ul){
   ul.textContent="";
   listeVierges().sort(function(a,b){ return String(b.maj).localeCompare(String(a.maj)); }).slice(0,12).forEach(function(v){
-    var li=document.createElement("li"), b=document.createElement("button"); b.type="button"; b.className="bt";
-    b.textContent=v.nom+" · "+new Date(v.maj).toLocaleDateString("fr-FR");
+    var li=document.createElement("li"), b=document.createElement("button"); b.type="button"; b.className="t-ouvrir"; li.className="tuile"; ul.classList.add("tuiles");
+    b.innerHTML='<span class="t-tete"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M8 16.5h8M8 16.5v-2.5M16 16.5v-2.5"/></svg>Sur cet appareil</span>';
+    var nmV=document.createElement("b"); nmV.className="t-nom"; nmV.textContent=v.nom; b.appendChild(nmV);
+    var smV=document.createElement("small"); smV.className="t-date"; smV.textContent=new Date(v.maj).toLocaleDateString("fr-FR"); b.appendChild(smV);
     b.addEventListener("click", function(){ if(!$("fenMenu").hidden) fermerMenu(); ouvrirVierge(v.id); });
-    var x=document.createElement("button"); x.type="button"; x.className="bt"; x.textContent="✕"; x.setAttribute("aria-label","Supprimer "+v.nom);
+    var x=document.createElement("button"); x.type="button"; x.className="bt bt-supp"; x.textContent="✕"; x.setAttribute("aria-label","Supprimer "+v.nom); x.title="Supprimer de cet appareil";
     x.addEventListener("click", function(){
       if(!window.confirm("Supprimer le plan « "+v.nom+" » ? Il est effacé de cet appareil.")) return;
       fondEffacer(v.id); fondEffacer(clePdfFond(v.id));
@@ -8193,7 +8220,8 @@ function peindreViergesDans(ul){
         localStorage.setItem("dwg:vierges", JSON.stringify(listeVierges().filter(function(z){ return z.id!==v.id; }))); }catch(e){}
       peindreVierges();
     });
-    li.appendChild(b); li.appendChild(x); ul.appendChild(li);
+    var actV=document.createElement("div"); actV.className="t-act"; actV.appendChild(x);
+    li.appendChild(b); li.appendChild(actV); ul.appendChild(li);
   });
 }
 /* un nouveau plan : son nom, son échelle de travail et l'unité des longueurs tapées, choisis une fois */
@@ -14105,7 +14133,7 @@ function peindreMenu(){
   }
   var connecte=!!sessionPlan(), ca=estCA();
   if(MN_PAGE==="recents"){
-    titre("Plans récents", "Vos plans enregistrés sur le site, à reprendre sur tous vos appareils : touchez un plan pour l'ouvrir. Copier, rattacher à un chantier ou supprimer, à droite.");
+    titre("Plans récents", "Vos plans enregistrés sur le site, à reprendre sur tous vos appareils : touchez un plan pour l'ouvrir. Copier, rattacher à un chantier ou supprimer : en bas de chaque bloc. Le chantier lié s'affiche sur le bloc.");
     var d1=document.createElement("div"); d1.className="plans-site"; d1.id="mnPlans"; d1.innerHTML='<ul id="mnPlansListe"></ul>'; P.appendChild(d1);
     if(!connecte){ var v=document.createElement("p"); v.className="mn-vide"; v.textContent="Connectez-vous au site pour retrouver vos plans enregistrés."; P.appendChild(v); }
     var h=document.createElement("h3"); h.textContent="Dessinés sur cet appareil"; P.appendChild(h);
@@ -14829,38 +14857,70 @@ function supprimerPlanSite(p, ul){
 }
 function dateCourte(iso){ try{ var d=new Date(iso); return d.toLocaleDateString("fr-FR", {day:"numeric", month:"short"})+" "+d.toLocaleTimeString("fr-FR", {hour:"2-digit", minute:"2-digit"}); }catch(e){ return ""; } }
 /* la liste des plans enregistrés, à l'accueil et dans la fenêtre Ouvrir */
+/* les chantiers, pour écrire le client à côté de la référence (chargés une fois) */
+var CH_NOMS=null, CH_NOMS_ATT=null;
+function nomsChantiers(){
+  if(CH_NOMS) return Promise.resolve(CH_NOMS);
+  if(CH_NOMS_ATT) return CH_NOMS_ATT;
+  CH_NOMS_ATT=appelSite("liste").then(function(d){ CH_NOMS={}; (d.chantiers||[]).forEach(function(c){ if(c.ref) CH_NOMS[c.ref]=c.client||""; }); return CH_NOMS; }).catch(function(){ CH_NOMS_ATT=null; return {}; });
+  return CH_NOMS_ATT;
+}
+var ICO_TUILE={
+  vierge:'<path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M8 16.5h8M8 16.5v-2.5M16 16.5v-2.5"/>',
+  fichier:'<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/>',
+  copie:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
+  maison:'<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>'
+};
+/* la liste des plans enregistrés, en blocs carrés : son nom, le chantier lié, sa date ; copier, rattacher, supprimer */
 function peindrePlansSite(){
   var cibles=[["accPlans","accPlansListe"],["fsPlans","fsPlansListe"]];
   if($("mnPlansListe")) cibles.push(["mnPlans","mnPlansListe"]);
   if(!sessionPlan()){ cibles.forEach(function(c){ $(c[0]).hidden=true; }); return; }
-  appelSite("plans-liste").then(function(d){
+  Promise.all([appelSite("plans-liste"), nomsChantiers()]).then(function(r){
+    var d=r[0], noms=r[1]||{};
     var l=(d.plans||[]).slice(0, 40);
     cibles.forEach(function(c){
-      var ul=$(c[1]); ul.textContent="";
+      var ul=$(c[1]); ul.textContent=""; ul.classList.add("tuiles");
       l.forEach(function(p){
-        var li=document.createElement("li"), b=document.createElement("button"); b.type="button"; b.className="bt";
-        b.textContent=p.nom; var sm=document.createElement("small"); sm.textContent="  "+(p.type==="vierge" ? "dessiné" : ((p.source && p.source.ext)||"").toUpperCase())+" · "+dateCourte(p.maj)+" · "+(p.auteur||"");
-        b.appendChild(sm); b.title="Rouvrir « "+p.nom+" »";
+        var li=document.createElement("li"); li.className="tuile";
+        var b=document.createElement("button"); b.type="button"; b.className="t-ouvrir"; b.title="Ouvrir « "+p.nom+" »";
+        var genre = p.type==="vierge" ? "Dessiné" : ((p.source && p.source.ext)||"Fichier").toUpperCase();
+        var tete=document.createElement("span"); tete.className="t-tete";
+        tete.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+(p.type==="vierge" ? ICO_TUILE.vierge : ICO_TUILE.fichier)+'</svg>';
+        tete.appendChild(document.createTextNode(genre)); b.appendChild(tete);
+        var nm=document.createElement("b"); nm.className="t-nom"; nm.textContent=p.nom; b.appendChild(nm);
+        /* le chantier : celui où il est rattaché, sinon celui d'où il vient */
+        var ch = p.chantier && p.chantier.ref ? {ref:p.chantier.ref, client:p.chantier.client||noms[p.chantier.ref]||"", ratt:true} : p.origine && p.origine.ref ? {ref:p.origine.ref, client:noms[p.origine.ref]||"", ratt:false} : null;
+        if(ch){
+          var cs=document.createElement("span"); cs.className="t-ch"+(ch.ratt ? " ratt" : "");
+          cs.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICO_TUILE.maison+'</svg>';
+          var ct=document.createElement("span"); ct.textContent=ch.ref+(ch.client ? " · "+ch.client : ""); cs.appendChild(ct);
+          cs.title=(ch.ratt ? "Rattaché au chantier " : "Vient du chantier ")+ch.ref+(ch.client ? " ("+ch.client+")" : "");
+          b.appendChild(cs);
+        }
+        var sm=document.createElement("small"); sm.className="t-date"; sm.textContent=dateCourte(p.maj)+(p.auteur ? " · "+p.auteur : ""); b.appendChild(sm);
         b.addEventListener("click", function(){ if(!$("fenMenu").hidden) fermerMenu(); ouvrirPlanSite(p.id); });
-        var x=document.createElement("button"); x.type="button"; x.className="bt"; x.textContent="✕"; x.setAttribute("aria-label", "Supprimer "+p.nom);
-        x.addEventListener("click", function(){ supprimerPlanSite(p, ul); });
         li.appendChild(b);
+        var act=document.createElement("div"); act.className="t-act";
         /* copier un plan déjà fait, pour en repartir */
         var cp=document.createElement("button"); cp.type="button"; cp.className="bt bt-copie";
-        cp.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/></svg>';
+        cp.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICO_TUILE.copie+'</svg>';
         cp.title="Copier « "+p.nom+" » pour en faire un autre plan"; cp.setAttribute("aria-label", cp.title);
         cp.addEventListener("click", function(){ copierPlanSite(p); });
-        li.appendChild(cp);
+        act.appendChild(cp);
         /* le chargé d'affaires : le rattacher à un chantier tel qu'il est, sans le rouvrir */
         if(estCA()){
           var rc=document.createElement("button"); rc.type="button"; rc.className="bt bt-ratt";
-          rc.textContent = p.chantier && p.chantier.ref ? "→ "+p.chantier.ref : "Chantier";
-          rc.title = p.chantier && p.chantier.ref ? "Rattaché au chantier "+p.chantier.ref+(p.chantier.client ? " ("+p.chantier.client+")" : "")+" : le rattacher à un autre" : "Rattacher « "+p.nom+" » à un chantier";
+          rc.textContent = p.chantier && p.chantier.ref ? "Changer" : "Chantier";
+          rc.title = p.chantier && p.chantier.ref ? "Rattaché au chantier "+p.chantier.ref+" : le rattacher à un autre" : "Rattacher « "+p.nom+" » à un chantier";
           rc.setAttribute("aria-label", rc.title);
           rc.addEventListener("click", function(){ ouvrirRatt(p); });
-          li.appendChild(rc);
+          act.appendChild(rc);
         }
-        li.appendChild(x); ul.appendChild(li);
+        var x=document.createElement("button"); x.type="button"; x.className="bt bt-supp"; x.textContent="✕"; x.setAttribute("aria-label", "Supprimer "+p.nom); x.title="Supprimer ce plan";
+        x.addEventListener("click", function(){ supprimerPlanSite(p, ul); });
+        act.appendChild(x);
+        li.appendChild(act); ul.appendChild(li);
       });
       $(c[0]).hidden=!l.length;
     });

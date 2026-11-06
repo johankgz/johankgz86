@@ -61,7 +61,22 @@ export async function mesplans(action, o) {
 
   /* ---------- la liste ---------- */
   if (action === "plans-liste") {
-    const x = await lireIndex(store, u);
+    let x = await lireIndex(store, u);
+    /* le chantier d'où vient un plan (ouvert depuis ses documents) : lu une fois dans son contenu, puis gardé dans l'index */
+    if (x.plans.some((p) => !p.origineLue)) {
+      x = await modifier(async (y) => {
+        for (const p of y.plans) {
+          if (p.origineLue) continue;
+          let ref = "";
+          try { const c = await store.get(BASE + "c/" + p.id + ".json", { type: "json" }); ref = (c && c.dessin && c.dessin.chantierDoc && c.dessin.chantierDoc.ref) || ""; } catch { ref = ""; }
+          if (!ref && p.source && /^[^/]{3,60}\//.test(String(p.source.cle || ""))) ref = String(p.source.cle).split("/")[0];
+          if (ref) p.origine = { ref: court(ref, 60) };
+          p.origineLue = true;
+        }
+        await ecrire(y);
+        return y;
+      });
+    }
     return json({ plans: x.plans.slice().sort((a, b) => String(b.maj).localeCompare(String(a.maj))) });
   }
 
@@ -124,6 +139,9 @@ export async function mesplans(action, o) {
       let e = x.plans.find((p) => p.id === id);
       if (!e) { if (o.proprio) return json({ erreur: "Plan introuvable." }, 404); e = { id, cree: quand, creePar: personne.nom }; x.plans.unshift(e); }
       Object.assign(e, { nom: court(d.nom, 120) || "Plan", type, maj: quand, auteur: personne.nom, taille: texte.length });
+      const refDoc = d.dessin && d.dessin.chantierDoc && d.dessin.chantierDoc.ref;
+      if (refDoc) e.origine = { ref: court(refDoc, 60) };
+      e.origineLue = true;
       if (source) {
         /* un autre fichier qu'avant : l'ancien ne vaut plus */
         if (e.source && (e.source.taille !== source.taille || e.source.nom !== source.nom)) { e.fichier = false; try { await store.delete(BASE + "f/" + id); } catch { /* déjà parti */ } }
@@ -176,6 +194,8 @@ export async function mesplans(action, o) {
       const copie = { id, nom: court(d.nom, 120) || court(e.nom + " (copie)", 120), type: e.type, maj: quand, auteur: personne.nom,
         cree: quand, creePar: personne.nom, taille: e.taille || 0 };
       if (e.source) copie.source = Object.assign({}, e.source);
+      if (e.origine) copie.origine = Object.assign({}, e.origine);
+      copie.origineLue = true;
       await store.setJSON(BASE + "c/" + id + ".json", c);
       if (e.type === "fichier" && e.fichier) {
         let b = null;
