@@ -910,6 +910,46 @@ a.act[hidden]{display:none}
 .sv-note-encre{display:flex;flex-direction:column;align-items:flex-start;gap:8px;margin:10px 0}
 .sv-note-encre[hidden]{display:none}
 .sv-note-encre img.sty-encre{max-height:260px}
+/* les contrôles du métier : un métier par rubrique, chaque contrôle en OK, NON ou SO */
+.mt-aide{margin:-8px 0 12px!important;font-size:13px}
+#mt_meteo[hidden],#sec-metiers[hidden]{display:none}
+#mt_meteo .chips{margin-bottom:12px}
+#mt_meteo .chip{font-family:inherit;cursor:pointer}
+.mt-metier{border-top:1px solid var(--rule)}
+.mt-metier:first-child{border-top:0}
+.mt-metier > summary{display:flex;align-items:center;gap:10px;min-height:48px;padding:6px 0;cursor:pointer;list-style:none;
+  font-size:15px;font-weight:700;color:var(--ink)}
+.mt-metier > summary::-webkit-details-marker{display:none}
+.mt-metier > summary::after{content:"";flex:0 0 auto;width:8px;height:8px;margin:0 4px 3px 0;border-right:2px solid var(--ink-3);
+  border-bottom:2px solid var(--ink-3);transform:rotate(45deg);transition:transform .18s ease}
+.mt-metier[open] > summary::after{transform:rotate(-135deg);margin-bottom:-3px}
+.mt-metier > summary .mt-t{flex:1 1 auto;min-width:0}
+.mt-compte{flex:0 0 auto;font-size:12.5px;font-weight:600;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.mt-compte b{color:var(--danger);font-weight:700}
+.mt-liste{padding-bottom:8px}
+.mt-ligne{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;padding:10px 0;border-top:1px solid var(--rule)}
+.mt-ligne.non{background:rgba(160,58,51,.05);margin:0 -10px;padding-left:10px;padding-right:10px}
+.mt-lib{flex:1 1 100%;min-width:0;font-size:15px;line-height:1.35}
+.mt-ctr{display:flex;align-items:center;gap:6px;flex:1 1 auto}
+.mt-rep{display:flex;gap:6px;flex:1 1 auto}
+.mt-rep button{flex:1 1 0;min-width:56px;min-height:44px;padding:8px 10px;border:1px solid var(--champ-bord);border-radius:var(--r-field);
+  background:#fff;color:var(--ink-2);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;box-shadow:none}
+.mt-rep button.on[data-rep="oui"]{background:var(--ok);border-color:var(--ok);color:#fff}
+.mt-rep button.on[data-rep="non"]{background:var(--danger);border-color:var(--danger);color:#fff}
+.mt-rep button.on[data-rep="so"]{background:var(--ink-2);border-color:var(--ink-2);color:#fff}
+.mt-nbtn{flex:0 0 auto;width:44px;height:44px;min-height:44px;padding:0;border:1px solid var(--champ-bord);border-radius:var(--r-field);
+  background:#fff;color:var(--ink-3);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;box-shadow:none}
+.mt-nbtn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.mt-nbtn.plein{color:var(--accent);border-color:rgba(37,99,235,.4);background:var(--accent-soft)}
+.mt-ligne input.mt-note{flex:1 1 100%;width:100%;min-height:42px;padding:8px 10px;font-size:15px}
+.mt-ligne input.mt-note[hidden]{display:none}
+@media (min-width:620px){
+  .mt-lib{flex:1 1 220px}
+  .mt-ctr{flex:0 0 auto}
+  .mt-rep{flex:0 0 auto}
+  .mt-rep button{flex:0 0 auto;min-width:62px}
+}
+@media (prefers-reduced-motion:reduce){ .mt-metier > summary::after{transition:none} }
 </style>
 <link rel="stylesheet" href="./sobre.css?v=20261022a">
 <script src="./clavier.js?v=20261022a" defer></script>
@@ -993,6 +1033,17 @@ a.act[hidden]{display:none}
       <button type="button" class="act blue" id="ts_ajout">Ajouter</button>
     </div>
     <p class="hint" id="ts_bilan"></p>
+  </div>
+
+  <!-- les contrôles du métier : seulement les métiers que fait la société (Équipe › nature des travaux) -->
+  <div class="block" id="sec-metiers" hidden>
+    <h2>Contrôles du métier</h2>
+    <p class="hint mt-aide">OK, NON ou SO pour chaque contrôle. SO : sans objet. Une note si besoin.</p>
+    <div id="mt_meteo" hidden>
+      <p class="legend">Météo</p>
+      <div class="chips" id="ch_meteo" role="group" aria-label="Météo"></div>
+    </div>
+    <div id="mt_corps"></div>
   </div>
 
   <div class="block" id="sec-photos">
@@ -1334,6 +1385,7 @@ function blank(){
     visite:{date:aujourdhui(),heure:maintenant(),type:"",objet:"",note:""},
     meta:{ca:"",caTel:"",caMail:"",societe:""},
     ts:[], reste:[], photos:[], plans:[], points:[], destinataires:[],
+    metiers:metiersVides(),
     dest:""
   };
 }
@@ -1341,7 +1393,7 @@ function blank(){
    chantier, le reste repart à neuf */
 function migrerFiche(v){
   if(!v) return blank();
-  if(v.version === 2) return Object.assign(blank(), v);
+  if(v.version === 2){ var f=Object.assign(blank(), v); f.metiers=metiersNormaux(v.metiers); return f; }
   var n = blank();
   ["client","affaire","meta","lien"].forEach(function(k){ if(v[k]) n[k] = Object.assign(n[k], v[k]); });
   return n;
@@ -1365,7 +1417,9 @@ function sigSuivi(x){
   var leger=function(l){ return (l||[]).map(function(o){
     var c={}; for(var k in o){ if(k==="data"||k==="photos"||k==="image"||k==="fond") c[k]=Array.isArray(o[k]) ? o[k].map(function(ph){ return String((ph&&ph.data)||ph||"").length+":"+((ph&&ph.legende)||""); }) : String(o[k]||"").length; else c[k]=o[k]; }
     return c; }); };
-  var t=JSON.stringify({c:x.client, a:x.affaire, v:x.visite, ts:x.ts, pts:leger(x.points), pl:leger(x.plans), ph:leger(x.photos), ca:x.meta && x.meta.ca});
+  /* les contrôles du métier n'entrent dans l'empreinte que remplis : une fiche d'avant garde la sienne */
+  var t=JSON.stringify({c:x.client, a:x.affaire, v:x.visite, ts:x.ts, pts:leger(x.points), pl:leger(x.plans), ph:leger(x.photos), ca:x.meta && x.meta.ca,
+    mt:metiersRemplis(x) ? x.metiers : undefined});
   var hsh=5381; for(var i=0;i<t.length;i++) hsh=((hsh<<5)+hsh+t.charCodeAt(i))|0;
   return t.length+"-"+(hsh>>>0).toString(36);
 }
@@ -1374,7 +1428,7 @@ function sigSuivi(x){
    elle dit si le technicien a encore touché à la fiche depuis qu'il l'a publiée */
 function sigLeger(x, sansPhotos){
   if(!x) return "";
-  var y={client:x.client, affaire:x.affaire, visite:x.visite, points:x.points, plans:x.plans,
+  var y={client:x.client, affaire:x.affaire, visite:x.visite, points:x.points, plans:x.plans, metiers:x.metiers,
     photos: sansPhotos ? [] : x.photos,
     ts:(x.ts||[]).map(function(it){ return {id:it.id, texte:it.texte, qui:it.qui}; })};
   return sigSuivi(y);
@@ -1763,7 +1817,7 @@ function ajouterPhotos(files, cible, apres){
    à la partie correspondante */
 var TABS=[["suivi","Suivi"]];
 var PARTIES={visite:"sec-visite", note:"sec-note", client:"sec-client", ts:"sec-ts", photos:"sec-photos", plan:"sec-plans", plans:"sec-plans",
-  points:"sec-points", reste:"sec-reste", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
+  points:"sec-points", reste:"sec-reste", metiers:"sec-metiers", controles:"sec-metiers", rapport:"sec-enregistrer", enregistrer:"sec-enregistrer"};
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -1889,6 +1943,7 @@ function paintForm(){
   paintLien();
   paintAppel();
   renderTs(); renderReste(); renderPhotos(); renderPlans(); renderPoints();
+  try{ renderMetiers(); }catch(e){}
   peindreNoteEncre();
   paintPieces();
   renderDest();
@@ -2021,6 +2076,7 @@ function renderResume(){
       + (S.visite.noteEncre ? ((S.visite.note||"").trim() ? " + " : "")+"écriture au stylet" : "") || "aucune"],
     [(S.plans||[]).length+" plan"+((S.plans||[]).length>1?"s":""), (S.plans||[]).length ? modif+" modifié"+(modif>1?"s":"")+" · "+((S.plans||[]).length-modif)+" sans modification" : "aucun plan"],
     resumeReperes(),
+    resumeMetiers(),
     [pts.length+" tâche"+(pts.length>1?"s":"")+" à effectuer", rappelsActifs().length ? rappelsActifs().length+" rappel"+(rappelsActifs().length>1?"s":"")+" pour "+(S.meta.ca||"vous") : "aucun rappel"]
   ];
   lignes=lignes.filter(Boolean);
@@ -2061,6 +2117,214 @@ function openSketch(p, index, after, options){
   }).catch(function(){ toast("Image illisible."); });
 }
 
+
+/* ---------- les contrôles du métier ----------
+   Menuiserie, maçonnerie, couverture, finitions : les points à vérifier
+   sur place, chacun en OK, NON ou SO (sans objet), avec une note si
+   besoin. Seuls paraissent les métiers que fait la société (Équipe ›
+   nature des travaux ; liste vide = tous), et ceux déjà remplis sur la
+   fiche. L'électricité, la plomberie, la clim et le photovoltaïque ont
+   déjà leurs outils : rien ici pour eux.
+   S.metiers = {meteo:"", menuiserie:{<id>:{r:"oui"|"non"|"so"|"", note:""}}, …} */
+var METIERS=[
+  {id:"menuiserie", titre:"Menuiserie", natures:["Menuiserie"], points:[
+    ["poses","Ouvertures posées"],
+    ["reglees","Calées et réglées (ouverture, fermeture)"],
+    ["calfeutrement","Calfeutrement et étanchéité à l'air (mousse, joints)"],
+    ["habillages","Habillages et finitions posés"],
+    ["volets","Volets et motorisations testés"],
+    ["nettoyage","Protection et nettoyage"]]},
+  {id:"maconnerie", titre:"Maçonnerie / gros œuvre", natures:["Maçonnerie","Terrassement / VRD","Démolition"], points:[
+    ["implantation","Implantation vérifiée"],
+    ["fouilles","Fouilles conformes"],
+    ["ferraillage","Ferraillage contrôlé avant coulage (photo)"],
+    ["coulage","Coulage réalisé (date)"],
+    ["decoffrage","Décoffrage"],
+    ["sechage","Temps de séchage respecté"],
+    ["gravats","Évacuation des gravats"]]},
+  {id:"toiture", titre:"Couverture / charpente", natures:["Couverture","Charpente","Zinguerie"], points:[
+    ["pans","Pan(s) traité(s)"],
+    ["bachage","Bâchage en cas d'intempéries"],
+    ["singuliers","Points singuliers (cheminée, fenêtre de toit, noues)"],
+    ["faitage","Faîtage et rives"],
+    ["gouttieres","Gouttières et descentes"],
+    ["securite","Sécurité (échafaudage, ligne de vie) en place"],
+    ["abords","Nettoyage des abords"]]},
+  {id:"finitions", titre:"Finitions", natures:["Plâtrerie","Isolation","Peinture","Carrelage","Revêtements de sol"], points:[
+    ["supports","Supports préparés"],
+    ["bandes","Bandes et enduits"],
+    ["impression","Impression / sous-couche"],
+    ["finition","Couches de finition"],
+    ["joints","Joints (carrelage) et silicones"],
+    ["protection","Protection des sols et nettoyage"]]}
+];
+var METEOS=["Sec","Pluie","Vent fort","Gel","Canicule"];
+var MT_REP=[["oui","OK","Conforme"],["non","NON","Non conforme"],["so","SO","Sans objet"]];
+var MT_MOT={oui:"OK", non:"NON", so:"SO"};
+var MT_OUVERT={};                     /* les rubriques repliées à la main restent repliées */
+var MT_NOTE_SVG='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20l4-1 11-11-3-3L5 16z"/><path d="m14 6 3 3"/></svg>';
+function metiersVides(){ var m={meteo:""}; METIERS.forEach(function(t){ m[t.id]={}; }); return m; }
+/* une fiche d'avant n'a pas de contrôles ; une fiche abîmée est remise d'aplomb */
+function metiersNormaux(m){
+  var n=metiersVides();
+  if(!m || typeof m!=="object" || Array.isArray(m)) return n;
+  n.meteo = typeof m.meteo==="string" ? m.meteo : "";
+  METIERS.forEach(function(t){
+    var src=m[t.id]; if(!src || typeof src!=="object" || Array.isArray(src)) return;
+    Object.keys(src).forEach(function(k){
+      var v=src[k]; if(!v || typeof v!=="object") return;
+      var r=(v.r==="oui"||v.r==="non"||v.r==="so") ? v.r : "", note=typeof v.note==="string" ? v.note : "";
+      if(r || note) n[t.id][k]={r:r, note:note};
+    });
+  });
+  return n;
+}
+/* les contrôles de la fiche ouverte, toujours d'aplomb (une fiche reprise peut ne pas les avoir) */
+function metiersDe(s){
+  if(!s) return metiersVides();
+  var m=s.metiers;
+  var ok=m && typeof m==="object" && typeof m.meteo==="string"
+    && METIERS.every(function(t){ return m[t.id] && typeof m[t.id]==="object" && !Array.isArray(m[t.id]); });
+  if(!ok) s.metiers=metiersNormaux(m);
+  return s.metiers;
+}
+function mtRempli(v){ return !!(v && typeof v==="object" && (v.r || String(v.note||"").trim())); }
+function metierRempli(m, t){
+  var b=m && m[t.id]; if(!b || typeof b!=="object") return false;
+  return Object.keys(b).some(function(k){ return mtRempli(b[k]); });
+}
+/* sans rien changer à la fiche : y a-t-il un contrôle ou une météo de noté ? */
+function metiersRemplis(s){
+  var m=s && s.metiers; if(!m || typeof m!=="object") return false;
+  if(String(m.meteo||"").trim()) return true;
+  return METIERS.some(function(t){ return metierRempli(m, t); });
+}
+/* ce que fait la société : la liste gardée sur l'appareil (la même que le relevé), relue au site */
+var NATURES_SOC=(function(){ try{ var v=JSON.parse(localStorage.getItem("releve:natures")||"null"); return Array.isArray(v) ? v : null; }catch(e){ return null; } })();
+function metierFait(t){
+  var l=NATURES_SOC; if(!l || !l.length) return true;
+  return t.natures.some(function(n){ return l.indexOf(n)>=0; });
+}
+function metiersVisibles(){
+  var m=metiersDe(S);
+  return METIERS.filter(function(t){ return metierFait(t) || metierRempli(m, t); });
+}
+function chargerNaturesSuivi(){
+  try{ if(!baseSite() || !jetonSession()) return; }catch(e){ return; }
+  fetch(apiUrl("natures-societe"), {headers:{"x-auth":jetonSession()}})
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d || !Array.isArray(d.natures)) return;
+      var v=d.natures.filter(function(n){ return typeof n==="string"; });
+      if(NATURES_SOC && JSON.stringify(v)===JSON.stringify(NATURES_SOC)) return;
+      NATURES_SOC=v; try{ localStorage.setItem("releve:natures", JSON.stringify(v)); }catch(e){}
+      if(S){ try{ renderMetiers(); }catch(e){} }
+    }).catch(function(){});
+}
+setTimeout(chargerNaturesSuivi, 300);
+function compteMetier(m, t){
+  var b=m[t.id]||{}, c={vus:0, non:0};
+  t.points.forEach(function(p){ var v=b[p[0]]; if(v && v.r){ c.vus++; if(v.r==="non") c.non++; } });
+  return c;
+}
+function renderMetiers(){
+  var sec=$("sec-metiers"), host=$("mt_corps"), boxM=$("mt_meteo");
+  if(!sec || !host || !S) return;
+  var m=metiersDe(S), vis=metiersVisibles();
+  var avecMeteo=vis.some(function(t){ return t.id==="maconnerie" || t.id==="toiture"; }) || !!m.meteo;
+  sec.hidden = !vis.length && !avecMeteo;
+  if(boxM) boxM.hidden = !avecMeteo;
+  var ch=$("ch_meteo");
+  if(ch){
+    ch.textContent="";
+    if(avecMeteo) METEOS.forEach(function(o){
+      var b=document.createElement("button"); b.type="button"; b.className="chip"+(m.meteo===o ? " on" : "");
+      b.textContent=o; b.setAttribute("aria-pressed", m.meteo===o ? "true" : "false");
+      b.addEventListener("click", function(){ m.meteo = m.meteo===o ? "" : o; save(); renderMetiers(); renderResume(); });
+      ch.appendChild(b);
+    });
+  }
+  host.textContent="";
+  vis.forEach(function(t){ host.appendChild(blocMetier(t, m)); });
+}
+function blocMetier(t, m){
+  var d=document.createElement("details"); d.className="mt-metier"; d.dataset.metier=t.id;
+  d.open = MT_OUVERT[t.id]!==false;
+  d.addEventListener("toggle", function(){ MT_OUVERT[t.id]=d.open; });
+  var s=document.createElement("summary");
+  var ti=document.createElement("span"); ti.className="mt-t"; ti.textContent=t.titre;
+  var cp=document.createElement("span"); cp.className="mt-compte";
+  s.appendChild(ti); s.appendChild(cp); d.appendChild(s);
+  function majCompte(){
+    var c=compteMetier(m, t);
+    cp.textContent=c.vus+" / "+t.points.length;
+    if(c.non){ var b=document.createElement("b"); b.textContent="  ·  "+c.non+" NON"; cp.appendChild(b); }
+  }
+  var l=document.createElement("div"); l.className="mt-liste";
+  t.points.forEach(function(p){ l.appendChild(ligneMetier(t, p, m, majCompte)); });
+  d.appendChild(l);
+  majCompte();
+  return d;
+}
+function ligneMetier(t, p, m, majCompte){
+  var id=p[0], lib=p[1];
+  function bloc(){ if(!m[t.id] || typeof m[t.id]!=="object") m[t.id]={}; return m[t.id]; }
+  function lire(){ var v=bloc()[id]; return (v && typeof v==="object") ? v : {r:"", note:""}; }
+  function ecrire(v){ if(v.r || String(v.note||"")) bloc()[id]={r:v.r||"", note:v.note||""}; else delete bloc()[id]; }
+  var row=document.createElement("div"); row.className="mt-ligne";
+  var tx=document.createElement("div"); tx.className="mt-lib"; tx.textContent=lib;
+  var ctr=document.createElement("div"); ctr.className="mt-ctr";
+  var rp=document.createElement("div"); rp.className="mt-rep"; rp.setAttribute("role","group"); rp.setAttribute("aria-label", lib);
+  var nb=document.createElement("button"); nb.type="button"; nb.className="mt-nbtn"; nb.innerHTML=MT_NOTE_SVG;
+  var note=document.createElement("input"); note.type="text"; note.className="mt-note"; note.id="mt_"+t.id+"_"+id;
+  note.placeholder="Note (facultatif)"; note.maxLength=200; note.setAttribute("enterkeyhint","done");
+  note.setAttribute("aria-label","Note : "+lib);
+  var ouverte=false;
+  function peindre(){
+    var v=lire();
+    row.classList.toggle("non", v.r==="non");
+    Array.prototype.forEach.call(rp.children, function(b){
+      var on=v.r===b.dataset.rep; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    var voir = ouverte || !!String(v.note||"").trim() || v.r==="non";
+    note.hidden=!voir;
+    nb.classList.toggle("plein", !!String(v.note||"").trim());
+    nb.setAttribute("aria-expanded", voir ? "true" : "false");
+    nb.setAttribute("aria-label", (voir ? "Note : " : "Ajouter une note : ")+lib); nb.title = voir ? "Note" : "Ajouter une note";
+  }
+  MT_REP.forEach(function(r){
+    var b=document.createElement("button"); b.type="button"; b.dataset.rep=r[0]; b.textContent=r[1]; b.title=r[2];
+    b.setAttribute("aria-label", r[2]+" : "+lib);
+    b.addEventListener("click", function(){
+      var v=lire(); v.r = v.r===r[0] ? "" : r[0]; ecrire(v);
+      save(); peindre(); majCompte(); renderResume();
+    });
+    rp.appendChild(b);
+  });
+  nb.addEventListener("click", function(){
+    var v=lire();
+    ouverte = note.hidden; if(!ouverte && String(v.note||"").trim()) ouverte=true;
+    peindre();
+    if(!note.hidden) note.focus();
+  });
+  note.value=lire().note||"";
+  note.addEventListener("input", function(){ var v=lire(); v.note=note.value; ecrire(v); save(); majCompte(); });
+  note.addEventListener("change", function(){ peindre(); renderResume(); });
+  note.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); note.blur(); } });
+  ctr.appendChild(rp); ctr.appendChild(nb);
+  row.appendChild(tx); row.appendChild(ctr); row.appendChild(note);
+  peindre();
+  return row;
+}
+function resumeMetiers(){
+  if(!S || !metiersRemplis(S)) return null;
+  var m=metiersDe(S), vus=0, non=0;
+  METIERS.forEach(function(t){ var c=compteMetier(m, t); vus+=c.vus; non+=c.non; });
+  var d=[vus+" contrôle"+(vus>1?"s":"")+" noté"+(vus>1?"s":"")];
+  if(non) d.push(non+" NON");
+  if(m.meteo) d.push(m.meteo);
+  return ["Contrôles du métier", d.join(" · ")];
+}
 
 /* ---------- rapport PDF ---------- */
 var M=14, PW=210, PH=297, CW=PW-2*M;
@@ -2170,6 +2434,47 @@ function buildPdf(){
         droite:[it.qui || "—", it.qui ? C.BLEU_C : C.FOND, it.qui ? C.BLEU : C.GRIS2]});
     });
     petiteNote("Case cochée : demande chiffrée ou validée. Les demandes pas encore chiffrées sont reprises au suivi suivant.");
+  }
+
+  /* ---------- les contrôles du métier : seulement ce qui est noté ---------- */
+  if(metiersRemplis(S)){
+    var mt=metiersDe(S);
+    section("Contrôles du métier", 40);
+    if(mt.meteo){
+      need(9);
+      K.texte(true); doc.setFontSize(7.4); K.ink(C.GRIS2); doc.text("MÉTÉO", M+1, y+0.6);
+      K.pastille(M+15, y+1, mt.meteo, C.BLEU_C, C.BLEU, {taille:7.6, h:5.6, pad:7});
+      K.ink(C.ENCRE); y+=8;
+    }
+    var MT_PAL={oui:[C.OK_C, C.OK], non:[C.ROUGE_C, C.ROUGE], so:[C.FOND, C.GRIS]};
+    METIERS.forEach(function(t){
+      var b=mt[t.id]||{};
+      var faits=t.points.filter(function(p){ return mtRempli(b[p[0]]); });
+      if(!faits.length) return;
+      var c=compteMetier(mt, t);
+      need(22);
+      K.titre(true); doc.setFontSize(11); K.ink(C.ENCRE); doc.text(t.titre, M+1, y+1.4);
+      K.texte(false); doc.setFontSize(7.6); K.ink(C.GRIS2);
+      doc.text(c.vus+" / "+t.points.length+" contrôle"+(t.points.length>1?"s":"")+(c.non ? "  ·  "+c.non+" NON" : ""), PW-M, y+1.4, {align:"right"});
+      K.ink(C.ENCRE); y+=5.2;
+      faits.forEach(function(p, k){
+        var v=b[p[0]], largT=K.CW-30;
+        K.texte(false); doc.setFontSize(10);
+        var lignes=doc.splitTextToSize(p[1], largT);
+        var nt=String(v.note||"").trim(), ln=nt ? (doc.setFontSize(8.6), doc.splitTextToSize(nt, largT)) : [];
+        var h=Math.max(lignes.length*4.8+ln.length*3.9+(ln.length ? 1 : 0), 4.8)+5.2;
+        need(h+1);
+        if(k%2===0){ K.fill(C.FOND); doc.roundedRect(M, y, K.CW, h, 2, 2, "F"); }
+        var yb=y+5.6;
+        K.texte(false); doc.setFontSize(10); K.ink(C.ENCRE); doc.text(lignes, M+4, yb);
+        if(ln.length){ doc.setFontSize(8.6); K.ink(C.GRIS); doc.text(ln, M+4, yb+lignes.length*4.8); K.ink(C.ENCRE); }
+        var pal=MT_PAL[v.r] || [C.FOND, C.GRIS2];
+        K.pastille(PW-M-3, yb+0.3, v.r ? MT_MOT[v.r] : "Note", pal[0], pal[1], {droite:true, taille:7.4, pad:7});
+        y+=h+1.6;
+      });
+      y+=2;
+    });
+    petiteNote("OK : conforme. NON : non conforme, voir la note. SO : sans objet. Les contrôles non notés ne figurent pas.");
   }
 
   /* ---------- le reste à faire ---------- */
@@ -3934,7 +4239,7 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
 
 var CLE_FICHE = "suivi:courant";
 function ficheVierge(){ var s=blank(); s.meta.societe=(P&&P.societe)||""; return s; }
-function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!(String(v.objet||"").trim() || String(v.note||"").trim() || String(v.type||"").trim() || (s.ts||[]).length || (s.reste||[]).length || (s.photos||[]).length || (s.plans||[]).length || (s.points||[]).length); }
+function ficheRemplie(s){ if(!s) return false; var v=s.visite||{}; return !!(String(v.objet||"").trim() || String(v.note||"").trim() || String(v.type||"").trim() || (s.ts||[]).length || (s.reste||[]).length || (s.photos||[]).length || (s.plans||[]).length || (s.points||[]).length || metiersRemplis(s)); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
 function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }

@@ -182,6 +182,27 @@ h2 .sv-switch{margin-left:auto}
 .art-nom span{display:block;font-size:12px;color:var(--ink-3)}
 #resume input.art-qte{width:64px;min-height:42px;text-align:center;font-size:16px;font-weight:700;padding:8px 4px;border:0;
   border-radius:var(--r-field);background:var(--accent-soft);color:var(--accent);box-shadow:none;flex:0 0 auto}
+/* le matériel par métier : une rubrique par métier de la société, des pastilles à toucher */
+.pm-groupe{border-top:1px solid var(--rule)}
+.pm-groupe:first-child{border-top:0}
+.pm-tete{display:flex;align-items:center;gap:10px;width:100%;min-height:48px;padding:10px 0;border:0;background:none;
+  font:inherit;font-size:15px;font-weight:650;color:var(--ink);text-align:left;cursor:pointer;box-shadow:none}
+.pm-tete span.t{flex:1;min-width:0}
+.pm-tete svg{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:transform .18s ease}
+.pm-tete[aria-expanded="true"] svg{transform:rotate(180deg)}
+.pm-chips{margin:2px 0 12px}
+.pm-chips .chip,.loc-ligne .chip{font-family:inherit;font-size:14px;min-height:40px;padding:8px 13px;text-align:left}
+.pm-chips .chip small{margin-left:6px;font-size:12px;font-weight:500;opacity:.72}
+/* la location de matériel : une carte par location */
+.loc-ligne{border:1px solid var(--rule);border-radius:var(--r-field);padding:12px;margin-bottom:12px}
+.loc-ligne .chips{margin-bottom:10px}
+.loc-tete{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.loc-tete b{flex:1;min-width:0;font-size:14.5px;overflow-wrap:anywhere}
+.loc-dates{display:grid;grid-template-columns:1fr 1fr;gap:0 10px}
+.loc-dates input{min-width:0}
+.loc-ligne label.f{margin-bottom:10px}
+.loc-ligne label.f:last-child{margin-bottom:0}
+.loc-ligne button.act.danger{min-height:38px;padding:7px 12px;font-size:13.5px}
 .thumbs{display:grid;grid-template-columns:repeat(auto-fill,minmax(106px,1fr));gap:10px;margin-top:12px}
 .thumb{position:relative;border-radius:var(--r-field);overflow:hidden;background:#15171A;box-shadow:var(--shadow)}
 .thumb img{display:block;width:100%;height:106px;object-fit:cover}
@@ -812,6 +833,17 @@ html.theme-sombre .note .n-libre:focus{background:rgba(10,14,20,.5)!important}
     </div>
     <div class="row"><button class="act ghost" id="btnDivers">Ajouter à la commande</button></div>
   </div>
+  <div class="block" id="sec-rapides" hidden>
+    <h2>Matériel par métier</h2>
+    <p class="hint" style="margin:-8px 0 12px">Touchez un article : il s'ajoute à la commande. La quantité s'ajuste dans « Articles saisis ».</p>
+    <div id="rapides"></div>
+  </div>
+  <div class="block" id="sec-locations">
+    <h2>Location de matériel<span class="sv-nb" id="locNb"></span></h2>
+    <p class="hint" style="margin:-8px 0 12px">Nacelle, échafaudage, mini-pelle… avec les dates de location.</p>
+    <div id="locations"></div>
+    <div class="row" style="margin-top:12px"><button class="act ghost" id="btnLocation">Ajouter une location</button></div>
+  </div>
 </section>
 
 <section id="tab-envoi" hidden>
@@ -1183,6 +1215,7 @@ function blank(){
     date:aujourdhui(),
     metier:"Électricité",
     lignes:[],           /* {cat, nom, unite, qte} */
+    locations:[],        /* {id, materiel, autre, du, au, note} */
     taches:[],           /* {texte, fait, prio, quand, qui} */
     etatChantier:"", resteObjet:"", resteNote:"",
     photos:[], notes:"",
@@ -1326,6 +1359,167 @@ function stepper(txt, fn){
   return b;
 }
 
+/* ---------- le matériel par métier ----------
+   Des raccourcis pour les métiers que la société réalise (Équipe › nature
+   des travaux). Un article touché devient une ligne ordinaire de la
+   commande ({cat, nom, unite, qte}) : il paraît dans « Articles saisis »
+   et dans le PDF comme les autres. */
+var METIERS_RAPIDES=[
+  {cle:"menuiserie", titre:"Menuiserie", natures:["Menuiserie"], articles:[
+    ["Fenêtre","u"],["Porte-fenêtre","u"],["Porte d'entrée","u"],["Porte intérieure","u"],["Volet roulant","u"],
+    ["Mousse expansive","u"],["Mastic / silicone","u"],["Visserie et cales","lot"],["Tapées / habillages","ml"]]},
+  {cle:"maconnerie", titre:"Maçonnerie", natures:["Maçonnerie","Terrassement / VRD","Démolition"], articles:[
+    ["Béton C25/30","m³"],["Parpaings 20×20×50","u"],["Briques","u"],["Aciers HA","kg"],["Treillis soudé","panneau"],
+    ["Sable","t"],["Gravier","t"],["Ciment","sac"],["Mortier / enduit","sac"],["Coffrage","m²"]]},
+  {cle:"toiture", titre:"Couverture / charpente", natures:["Couverture","Charpente","Zinguerie"], articles:[
+    ["Tuiles","u"],["Faîtières","u"],["Ardoises","m²"],["Bac acier","m²"],["Liteaux","ml"],["Chevrons","ml"],
+    ["Écran sous toiture","m²"],["Gouttière zinc","ml"],["Descente EP","ml"],["Crochets / fixations","lot"]]},
+  {cle:"finitions", titre:"Finitions", natures:["Plâtrerie","Isolation","Peinture","Carrelage","Revêtements de sol"], articles:[
+    ["Plaques de plâtre BA13","u"],["Rails et montants","ml"],["Bandes et enduit","lot"],["Isolant","m²"],["Peinture","L"],
+    ["Sous-couche","L"],["Carrelage","m²"],["Colle carrelage","sac"],["Joints","kg"],["Revêtement de sol","m²"]]}
+];
+/* les natures de la société : d'abord celles gardées sur l'appareil (hors ligne), puis le site */
+var NATURES_SOC=(function(){ try{ var v=JSON.parse(localStorage.getItem("releve:natures")||"null"); return Array.isArray(v) ? v : null; }catch(e){ return null; } })();
+function metiersRapides(){
+  var n=(NATURES_SOC && NATURES_SOC.length) ? NATURES_SOC : null;   /* rien de choisi : toutes les natures */
+  return METIERS_RAPIDES.filter(function(m){ return !n || m.natures.some(function(x){ return n.indexOf(x)>=0; }); });
+}
+function chargerNaturesSociete(){
+  if(!baseSite() || !jetonSession()) return;
+  fetch(apiUrl("natures-societe"), {headers:{"x-auth":jetonSession()}}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      var v=Array.isArray(d.natures) ? d.natures : [];
+      if(JSON.stringify(v)===JSON.stringify(NATURES_SOC||[])) return;
+      NATURES_SOC=v; try{ localStorage.setItem("releve:natures", JSON.stringify(v)); }catch(e){}
+      renderRapides();
+    }).catch(function(){});
+}
+var RAPIDES_OUVERTS={};
+function renderRapides(){
+  var bloc=$("sec-rapides"), host=$("rapides"); if(!bloc || !host || !S) return;
+  var liste=metiersRapides();
+  bloc.hidden=!liste.length;
+  host.textContent="";
+  liste.forEach(function(m){
+    var choisis=m.articles.filter(function(a){ return qteDe(m.titre, a[0])>0; }).length;
+    var ouvert=(m.cle in RAPIDES_OUVERTS) ? RAPIDES_OUVERTS[m.cle] : (liste.length===1 || choisis>0);
+    var g=document.createElement("div"); g.className="pm-groupe";
+    var tete=document.createElement("button"); tete.type="button"; tete.className="pm-tete";
+    tete.setAttribute("aria-expanded", ouvert ? "true" : "false");
+    var t=document.createElement("span"); t.className="t"; t.textContent=m.titre;
+    var nb=document.createElement("span"); nb.className="sv-nb"; nb.textContent=choisis ? choisis+" article"+(choisis>1 ? "s" : "") : "";
+    tete.appendChild(t); tete.appendChild(nb);
+    tete.insertAdjacentHTML("beforeend", '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>');
+    var corps=document.createElement("div"); corps.className="chips pm-chips"; corps.hidden=!ouvert;
+    tete.addEventListener("click", function(){
+      RAPIDES_OUVERTS[m.cle]=corps.hidden;
+      corps.hidden=!corps.hidden;
+      tete.setAttribute("aria-expanded", corps.hidden ? "false" : "true");
+    });
+    m.articles.forEach(function(a){
+      var q=qteDe(m.titre, a[0]);
+      var b=document.createElement("button"); b.type="button"; b.className="chip"+(q>0 ? " on" : "");
+      b.textContent=a[0];
+      var u=document.createElement("small"); u.textContent=q>0 ? String(q).replace(".",",")+" "+a[1] : a[1];
+      b.appendChild(u);
+      b.setAttribute("aria-label", "Ajouter : "+a[0]+(q>0 ? " (déjà "+String(q).replace(".",",")+" "+a[1]+")" : ""));
+      b.addEventListener("click", function(){
+        ajuster(m.titre, a[0], a[1], 1);
+        renderRapides();
+        toast(a[0]+" : "+String(qteDe(m.titre, a[0])).replace(".",",")+" "+a[1]+" dans la commande.");
+      });
+      corps.appendChild(b);
+    });
+    g.appendChild(tete); g.appendChild(corps);
+    host.appendChild(g);
+  });
+}
+
+/* ---------- la location de matériel ----------
+   S.locations = [{id, materiel, autre, du, au, note}] ; « autre » précise
+   le matériel quand on a choisi « Autre ». */
+var LOC_CHOIX=["Nacelle","Échafaudage","Mini-pelle","Bétonnière","Toupie / pompe à béton","Benne à gravats","Monte-matériaux","Autre"];
+function locations(){ if(!Array.isArray(S.locations)) S.locations=[]; return S.locations; }
+function nomLocation(l){
+  if(l.materiel==="Autre") return String(l.autre||"").trim() || "Autre matériel";
+  return l.materiel || "";
+}
+function locationsUtiles(){
+  return locations().filter(function(l){ return l && (nomLocation(l) || l.du || l.au || String(l.note||"").trim()); });
+}
+function periodeLocation(l){
+  if(l.du && l.au) return l.du===l.au ? "le "+frDate(l.du) : "du "+frDate(l.du)+" au "+frDate(l.au);
+  if(l.du) return "à partir du "+frDate(l.du);
+  if(l.au) return "jusqu'au "+frDate(l.au);
+  return "";
+}
+function champLoc(libelle, type, valeur, poser){
+  var lab=document.createElement("label"); lab.className="f";
+  var sp=document.createElement("span"); sp.textContent=libelle;
+  var i=document.createElement("input"); i.type=type; i.value=valeur||"";
+  i.setAttribute("data-sans-marque", "");   /* une ligne qui bouge : pas de surlignage « modifié » */
+  i.addEventListener("input", function(){ poser(i.value); save(); });
+  lab.appendChild(sp); lab.appendChild(i);
+  return lab;
+}
+function renderLocations(){
+  var host=$("locations"); if(!host || !S) return;
+  host.textContent="";
+  var liste=locations(), nb=$("locNb");
+  if(nb) nb.textContent=liste.length ? liste.length+" location"+(liste.length>1 ? "s" : "") : "";
+  if(!liste.length){ var v=document.createElement("p"); v.className="hint"; v.style.margin="0"; v.textContent="Aucune location pour l'instant."; host.appendChild(v); return; }
+  liste.forEach(function(l, k){
+    var c=document.createElement("div"); c.className="loc-ligne";
+    var tete=document.createElement("div"); tete.className="loc-tete";
+    var titre=document.createElement("b"); titre.textContent=nomLocation(l) || "Location "+(k+1);
+    var suppr=document.createElement("button"); suppr.type="button"; suppr.className="act danger"; suppr.textContent="Retirer";
+    suppr.setAttribute("aria-label", "Retirer la location "+(nomLocation(l) || (k+1)));
+    suppr.addEventListener("click", function(){
+      var i=locations().indexOf(l); if(i>=0) locations().splice(i, 1);
+      save(); renderLocations();
+    });
+    tete.appendChild(titre); tete.appendChild(suppr);
+    c.appendChild(tete);
+    var ch=document.createElement("div"); ch.className="chips";
+    LOC_CHOIX.forEach(function(o){
+      var b=document.createElement("button"); b.type="button"; b.className="chip"+(l.materiel===o ? " on" : "");
+      b.textContent=o; b.setAttribute("aria-pressed", l.materiel===o ? "true" : "false");
+      b.addEventListener("click", function(){
+        l.materiel=(l.materiel===o) ? "" : o;
+        save(); renderLocations();
+        if(l.materiel==="Autre"){ var a=host.querySelectorAll(".loc-ligne")[locations().indexOf(l)]; var i=a && a.querySelector("input.loc-autre"); if(i) i.focus(); }
+      });
+      ch.appendChild(b);
+    });
+    c.appendChild(ch);
+    if(l.materiel==="Autre"){
+      var autre=champLoc("Matériel", "text", l.autre, function(v){ l.autre=v; titre.textContent=nomLocation(l); });
+      autre.querySelector("input").className="loc-autre";
+      autre.querySelector("input").placeholder="Groupe électrogène, chariot télescopique…";
+      c.appendChild(autre);
+    }
+    var dates=document.createElement("div"); dates.className="loc-dates";
+    var au=champLoc("Au", "date", l.au, function(v){ l.au=v; });
+    var du=champLoc("Du", "date", l.du, function(v){
+      l.du=v; var ia=au.querySelector("input"); ia.min=v||"";
+      if(v && (!l.au || l.au<v)){ l.au=v; ia.value=v; }
+    });
+    if(l.du) au.querySelector("input").min=l.du;
+    dates.appendChild(du); dates.appendChild(au);
+    c.appendChild(dates);
+    c.appendChild(champLoc("Note", "text", l.note, function(v){ l.note=v; }));
+    host.appendChild(c);
+  });
+}
+function ajouterLocation(){
+  locations().push({id:uid(), materiel:"", autre:"", du:"", au:"", note:""});
+  save(); renderLocations();
+  var cartes=$("locations").querySelectorAll(".loc-ligne");
+  var der=cartes[cartes.length-1];
+  if(der && der.scrollIntoView) der.scrollIntoView({block:"nearest", behavior:"smooth"});
+}
+
 /* ---------- reste à faire ---------- */
 function tachesRestantes(){
   return S.taches.filter(function(t){ return !t.fait; });
@@ -1396,7 +1590,7 @@ function showTab(name){
 }
 /* ce que chaque partie remet à jour quand on y arrive (en touchant son onglet, ou en défilant jusqu'à elle) */
 function entreeOnglet(name){
-  if(name==="commande") renderCatalogue();
+  if(name==="commande"){ renderCatalogue(); renderRapides(); }   /* pas les locations : on y tape peut-être */
   if(name==="envoi") renderResume();
 }
 function boutonHaut(sec){
@@ -1451,7 +1645,8 @@ function paintForm(){
   if(false) chips("ch_etat", ETATS_CHANTIER,
     function(o){ return S.etatChantier===o; },
     function(o){ S.etatChantier=(S.etatChantier===o)?"":o; save(); renderResume(); refreshHeader(); });
-  renderCatalogue(); renderDest(); renderResume(); refreshHeader();
+  if(!Array.isArray(S.locations)) S.locations=[];   /* une fiche d'avant la location */
+  renderCatalogue(); renderRapides(); renderLocations(); renderDest(); renderResume(); refreshHeader();
 }
 var ETATS_CHANTIER=["Pas commencé","En cours","Presque fini","Terminé","À l'arrêt"];
 function chips(host, opts, get, set){
@@ -1473,7 +1668,7 @@ function auCatalogue(l){ var a=(CATALOGUE[S.metier]||{})[l.cat]; return !!(a && 
 function changerQte(l, q){
   l.qte=Math.max(0, q||0);
   if(!(l.qte>0) && !auCatalogue(l)){ var i=S.lignes.indexOf(l); if(i>=0) S.lignes.splice(i, 1); }
-  save(); renderCatalogue(); renderResume();
+  save(); renderCatalogue(); renderRapides(); renderResume();
 }
 /* les articles saisis, à la place du récapitulatif : tout ce que la commande contient (catalogue,
    « Article », schéma), dans l'ordre où on l'a saisi, avec − et + pour ajuster */
@@ -1955,6 +2150,31 @@ function buildPdf(){
     });
   }
 
+  /* ---------- la location de matériel ---------- */
+  var locs=locationsUtiles();
+  if(locs.length){
+    need(34);
+    y=K.section(y+2, lignes.length ? 2 : 1, "Location de matériel");
+    var xP=PW-M-4;
+    y=K.enteteTableau(y, [["Matériel", M+4], ["Période", xP, "right"]]);
+    locs.forEach(function(l, k){
+      K.texte(true); doc.setFontSize(9.8);
+      var nom=doc.splitTextToSize(nomLocation(l) || "Matériel à préciser", CW-70).slice(0,2);
+      K.texte(false); doc.setFontSize(8.6);
+      var note=String(l.note||"").trim() ? doc.splitTextToSize(String(l.note).trim(), CW-70).slice(0,3) : [];
+      var h=nom.length*4.4+note.length*3.9+4.2;
+      need(h+1);
+      if(k%2===0){ K.fill(C.FOND); doc.roundedRect(M, y-4.3, CW, h, 1.6, 1.6, "F"); }
+      K.texte(true); doc.setFontSize(9.8); K.ink(C.ENCRE); doc.text(nom, M+4, y);
+      if(note.length){ K.texte(false); doc.setFontSize(8.6); K.ink(C.GRIS); doc.text(note, M+4, y+nom.length*4.4); }
+      var per=periodeLocation(l);
+      K.pastille(xP, y+0.2, per || "dates à fixer", per ? C.CYAN : C.FOND, per ? C.BLANC : C.GRIS, {droite:true, taille:8.2, h:5.8, pad:7});
+      y+=h;
+    });
+    K.ink(C.ENCRE);
+    y+=4;
+  }
+
   K.pieds();
   return doc;
 }
@@ -1995,6 +2215,8 @@ function mailBody(){
   L.push("");
   L.push(lignes.length+" article(s) à commander, "+tachesRestantes().length+" tâche(s) restante(s)."
     + (S.etatChantier ? " Chantier : "+S.etatChantier.toLowerCase()+"." : ""));
+  var locs=locationsUtiles();
+  if(locs.length) L.push(locs.length+" location(s) de matériel : "+locs.map(function(l){ return [nomLocation(l), periodeLocation(l)].filter(Boolean).join(" "); }).join(" ; ")+".");
   if((S.notes||"").trim()){ L.push(""); L.push(S.notes.trim()); }
   L.push(""); L.push("Le détail est en pièce jointe.");
   L.push(""); L.push(S.auteur||"");
@@ -2056,6 +2278,8 @@ function bindAll(){
     save(); renderCatalogue(); renderResume();
     toast(nom+" ajouté.");
   });
+
+  $("btnLocation").addEventListener("click", ajouterLocation);
 
   $("btnTravauxSite").addEventListener("click", function(){ ouvrirDepuisSite("dossier", "Dossiers du site"); });
 
@@ -2405,7 +2629,7 @@ var DERNIERE_SAISIE=0, DERNIERE_BULLE=0;
 
 var CLE_FICHE = "commande:courante";
 function ficheVierge(){ var s=blank(); s.auteur=(SESSION&&SESSION.nom)||""; return s; }
-function ficheRemplie(s){ if(!s) return false; return !!((s.lignes||[]).length || (s.taches||[]).length || (s.photos||[]).length || String(s.notes||"").trim()); }
+function ficheRemplie(s){ if(!s) return false; return !!((s.lignes||[]).length || (s.taches||[]).length || (s.photos||[]).length || (s.locations||[]).length || String(s.notes||"").trim()); }
 function refFiche(){ try{ return String(refAffaire()||"").trim(); }catch(e){ return ""; } }
 function refNette(r){ return String(r||"").toUpperCase().replace(/\s+/g,""); }
 function memeRef(a, b){ return !!refNette(a) && refNette(a) === refNette(b); }
@@ -2774,7 +2998,7 @@ function start(){
     if(window.Sobre) Sobre.ficheSociete(P).then(function(ch){ if(ch) try{ window.storage.set("releve:prefs", JSON.stringify(P)); }catch(e){} });
     S = sBrut ? Object.assign(blank(), sBrut) : blank();
     if(!S.auteur) S.auteur=(SESSION&&SESSION.nom)||"";
-    paintForm(); showTab("travaux"); chargerEquipe();
+    paintForm(); showTab("travaux"); chargerEquipe(); chargerNaturesSociete();
   }
   function fini(){ if(--pending===0) go(); }
   try{
