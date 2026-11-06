@@ -1347,7 +1347,7 @@ body.rub-un #docs .sous-dossier.rub-vise > .ds-tete{display:none!important}
 <div class="toast" id="toast" hidden></div>
 <script src="./visionneuse.js?v=20261106a"></script>
 <script src="./doc-cote.js?v=20261106a"></script>
-<script src="./dossier.js?v=20261106e"></script>
+<script src="./dossier.js?v=20261110a"></script>
 <script src="./transfert.js?v=20261106a"></script>
 <script src="./qr.js?v=20261024b"></script>
 <script src="./encours.js?v=20261026a"></script>
@@ -2865,6 +2865,15 @@ function photosDuChantier(){
     return photo && /\.(zip|jpe?g|png|webp)$/i.test(f.cle||"");
   }).sort(function(a, b){ return String(b.publie||b.date||"").localeCompare(String(a.publie||a.date||"")); });
 }
+/* une photo ouverte dans l'album : son lot est noté comme lu (une fois), et la notification
+   « nouveau document » de la cloche s'en va */
+var LOTS_VUS={};
+function lotVu(f){
+  var moi=(SESSION && SESSION.nom) || "";
+  if(!f || !f.cle || LOTS_VUS[f.cle] || f.auteur===moi || (f.lectures||{})[moi]) return;
+  LOTS_VUS[f.cle]=1;
+  if(window.Dossier && Dossier.marquerLu) Dossier.marquerLu(f);
+}
 /* Un seul album pour toutes les photos du chantier, comme la photothèque d'un téléphone :
    les plus récentes en haut, rangées sous la date où elles ont été ajoutées. Un clic ouvre
    la photo en grand ; les flèches (ou le clavier) passent aux autres, Partager et
@@ -2949,7 +2958,7 @@ function peindreGalerie(){
     var urls=[], photos=[], jour=null, grille=null;
     toutes.forEach(function(x, i){
       var url=URL.createObjectURL(x.p.blob); GALERIE.urls.push(url); urls.push(url);
-      photos.push({nom:x.p.nom, blob:x.p.blob, octets:null, type:x.p.blob.type||"image/jpeg"});
+      photos.push({nom:x.p.nom, blob:x.p.blob, octets:null, type:x.p.blob.type||"image/jpeg", vue:function(){ lotVu(x.f); }});
       var j=jourAlbum(x.f.publie||x.f.date);
       if(j!==jour){
         jour=j;

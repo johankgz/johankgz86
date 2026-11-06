@@ -1087,6 +1087,8 @@ function pleinEcran(f, photos, urls, depart, quandFerme, retour){
     titre.appendChild(lib);
     Array.prototype.forEach.call(pts.children, function(p, i){ p.className = i===k ? "on" : ""; });
     vue.setAttribute("aria-label", "Photo "+(k+1)+" sur "+n);
+    /* la photo vue : celui qui l'a ouverte (l'album du chantier) la note comme lue */
+    try{ if(photos[k] && typeof photos[k].vue==="function") photos[k].vue(); }catch(e){}
     flG.hidden = k<=0; flD.hidden = k>=n-1;
   }
   function poser(x, anime, duree){
@@ -2644,6 +2646,8 @@ function photosDe(f){
 window.Dossier={
   quandLisible:quandLisible, frDate:frDate,
   photosDe:photosDe, equipe:equipeDans,
+  /* noter un document comme ouvert (la notification s'en va) */
+  marquerLu:function(f){ if(f && f.cle && S && S.jeton) marquerLu(f); },
   /* la visionneuse plein écran (flèches, zoom, Partager, Enregistrer) : pour l'album du chantier */
   pleinEcran:function(f, photos, urls, depart, quandFerme){ pleinEcran(f, photos, urls, depart, quandFerme, false); }, nomAvecChantier:function(ref, nom){ return nomAvecChantier(ref, nom); },
   configurer:function(o){ CFG=o||{}; S=CFG.session||S; },
