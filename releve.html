@@ -1336,6 +1336,12 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 </section>
 
 <!-- 4. LOGISTIQUE -->
+<!-- les parties des autres corps d'état (releve-metiers.js) : remplies au chargement -->
+<section id="tab-menuiserie" hidden></section>
+<section id="tab-maconnerie" hidden></section>
+<section id="tab-toiture" hidden></section>
+<section id="tab-finitions" hidden></section>
+
 <section id="tab-logistique" hidden>
   <div class="block">
     <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11.5 12 5l8 6.5M6.5 10v9h11v-9M12 12.2a1.6 1.6 0 1 0 0-.1"/></svg>Occupation</h2>
@@ -1552,6 +1558,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261107a"></script>
 <script src="./sobre.js?v=20261029a"></script>
 <script src="./une-page.js?v=20261002a"></script>
+<script src="./releve-metiers.js?v=20261106a"></script>
 <script src="./courbe-charge.js?v=20261024b"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261105a"></script>
@@ -2203,7 +2210,7 @@ function chargerNaturesSociete(){
       var v=Array.isArray(d.natures) ? d.natures : [];
       if(JSON.stringify(v)===JSON.stringify(NATURES_SOC||[])) return;
       NATURES_SOC=v; try{ localStorage.setItem("releve:natures", JSON.stringify(v)); }catch(e){}
-      peindreNatures(); try{ renderRooms(); }catch(e){}
+      peindreNatures(); try{ renderRooms(); }catch(e){} try{ majOngletsMetiers(); }catch(e){}
     }).catch(function(){});
 }
 setTimeout(chargerNaturesSociete, 300);
@@ -2224,6 +2231,8 @@ function paintForm(){
     });
   });
   peindreNatures();
+  if(window.MetiersReleve) try{ MetiersReleve.peindre(S, {save:save, compress:compress, toast:toast}); }catch(e){}
+  try{ majOngletsMetiers(); }catch(e){}
   document.querySelectorAll("[data-multi]").forEach(function(box){
     var v = readAssign(box.getAttribute("data-multi")) || [];
     box.querySelectorAll("input").forEach(function(i){
@@ -2358,8 +2367,37 @@ function chargerFicheSociete(){
 /* la courbe de charge (onglet Conso) est mise de côté pour l'instant : son code reste, il suffit de passer
    COURBE_CHARGE à true pour la rouvrir (les essais automatiques la rallument avec window.COURBE_CHARGE) */
 var COURBE_CHARGE = window.COURBE_CHARGE === true;
-var TABS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],["logistique","Logistique"],["conclusion","Conclusion"]]
-  .filter(function(t){ return t[0]!=="charge" || COURBE_CHARGE; });
+var TABS_TOUS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],
+  ["menuiserie","Menuis."],["maconnerie","Maçon."],["toiture","Toiture"],["finitions","Finitions"],["logistique","Logistique"],["conclusion","Conclusion"]];
+/* au départ, les parties de toujours ; les métiers de la société s'y ajoutent ou s'en retirent dès que la fiche est là */
+var TABS=TABS_TOUS.filter(function(t){ return (t[0]!=="charge" || COURBE_CHARGE) && ["menuiserie","maconnerie","toiture","finitions"].indexOf(t[0])<0; });
+/* Les parties du relevé selon ce que fait la société (Équipe › Nature des travaux réalisés) :
+   IRVE, Clim, PV, et les autres corps d'état ; une partie déjà remplie sur la fiche reste. */
+function tabsSelonMetiers(){
+  var nat=(typeof NATURES_SOC!=="undefined" && NATURES_SOC) || [], tout=!nat.length;
+  function fait(n){ return tout || nat.indexOf(n)>=0; }
+  var autres=(window.MetiersReleve && S) ? MetiersReleve.visibles(S, nat).map(function(m){ return m.id; }) : [];
+  var irveOn=!!(S && S.pv && S.pv.irve && (S.pv.irve.actif===true || S.pv.irve.actif==="oui"));
+  var climOn=!!(S && S.clim && S.clim.actif==="oui"), pvOn=!!(S && S.pv && S.pv.actif==="oui");
+  return TABS_TOUS.filter(function(t){
+    var k=t[0];
+    if(k==="charge") return COURBE_CHARGE;
+    if(k==="irve") return fait("Borne de recharge") || fait("Électricité") || irveOn;
+    if(k==="clim") return fait("Climatisation") || climOn;
+    if(k==="pv") return fait("Photovoltaïque") || pvOn;
+    if(["menuiserie","maconnerie","toiture","finitions"].indexOf(k)>=0) return autres.indexOf(k)>=0;
+    return true;
+  });
+}
+function majOngletsMetiers(){
+  var n=tabsSelonMetiers();
+  if(JSON.stringify(n)===JSON.stringify(TABS)) return;
+  TABS=n; buildNav();
+  if(window.UnePage && UnePage.changer) UnePage.changer(TABS);
+  ["menuiserie","maconnerie","toiture","finitions","irve","clim","pv"].forEach(function(k){
+    var sec=document.getElementById("tab-"+k); if(sec && !TABS.some(function(t){ return t[0]===k; })) sec.hidden=true;
+  });
+}
 var ICONES_ONGLET={
   client:'<path d="M4 6.5h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-10a1 1 0 0 1 1-1z"/><circle cx="8.5" cy="11.5" r="2.1"/><path d="M5.3 16c.5-1.5 1.7-2.3 3.2-2.3s2.7.8 3.2 2.3M14.5 10.5h4M14.5 13.5h3"/>',
   travaux:'<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5a.5.5 0 0 0 .5.5h12a.5.5 0 0 0 .5-.5V10"/><path d="M10 20v-5.5h4V20"/>',
@@ -2368,6 +2406,10 @@ var ICONES_ONGLET={
   charge:'<path d="M3.5 3.5v17h17"/><path d="M6 15.5c1.6 0 2-6 3.6-6s1.8 4.5 3.3 4.5 1.9-8 3.5-8 1.6 5 3.1 5"/>',
   clim:'<path d="M12 2.5v19M3.8 7.2l16.4 9.6M3.8 16.8l16.4-9.6"/><path d="M9.5 3.8 12 6.2l2.5-2.4M9.5 20.2 12 17.8l2.5 2.4M3.6 10.4l3.3-.9-.9-3.3M20.4 13.6l-3.3.9.9 3.3M3.6 13.6l3.3.9-.9 3.3M20.4 10.4l-3.3-.9.9-3.3"/>',
   pv:'<circle cx="17.5" cy="6.5" r="2.6"/><path d="M17.5 1.9v1M17.5 11.1v1M12.9 6.5h1M21.1 6.5h1M14.2 3.2l.7.7M20.1 9.1l.7.7M20.8 3.2l-.7.7M14.9 9.1l-.7.7"/><path d="M3 20.5 5.2 12h8.6l2.2 8.5z"/><path d="M2.6 17.5h14.2M9.5 12v8.5"/>',
+  menuiserie:'<path d="M5 3.5h14v17H5z"/><path d="M12 3.5v17M5 12h14"/><path d="M9.5 10v4M14.5 10v4"/>',
+  maconnerie:'<path d="M3 6.5h18v4H3zM3 13.5h18v4H3z"/><path d="M9 6.5v4M15 10.5v3M7 13.5v4M13 13.5v4M19 13.5v4"/>',
+  toiture:'<path d="M2.5 12 12 4l9.5 8"/><path d="M5 10v9.5h14V10"/><path d="M16 6V3.5h2.5v4.6"/>',
+  finitions:'<path d="M4 4.5h12v5H4z"/><path d="M16 7h3v5h-8v3"/><path d="M10 15h2v6h-2z"/>',
   logistique:'<path d="M2.5 7.5h11.5v9H2.5z"/><path d="M14 10.5h3.7l3.3 3.2v2.8H14z"/><circle cx="6.3" cy="18.3" r="1.8"/><circle cx="17.4" cy="18.3" r="1.8"/>',
   conclusion:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.8 14.2l2 2 4.2-4.4"/>',
   visite:'<path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/>',
@@ -6632,6 +6674,12 @@ function buildPdf(){
     texte(false); doc.setFontSize(6.8); setText(GRIS2); need(6);
     doc.text("Données reprises du relevé de visite"+(VISITE ? " du "+VISITE : "")+".", M, y+1); y+=6;
   }
+
+  /* =====================================================================
+     6 bis. les autres corps d'état : menuiseries, maçonnerie, toiture, finitions
+     ===================================================================== */
+  if(window.MetiersReleve) MetiersReleve.pdf(S, {chapitre:chapitre, grille:grille, blocTexte:blocTexte,
+    photo:function(img){ need(66); photoDans(img, M, y, CW*0.55, 60); y+=66; }});
 
   /* =====================================================================
      7. relevé photographique
