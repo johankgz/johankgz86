@@ -85,7 +85,11 @@
     var peutPartager = !!(fichier && navigator.canShare && navigator.canShare({files:[fichier]}));
     part.textContent = opts.action ? opts.action.texte : peutPartager ? "Partager" : "Enregistrer";
     if(opts.action){ part.className="vis-action"; part.style.color="#fff"; part.style.background="#0A6CFF"; part.style.borderRadius="999px"; part.style.minHeight="36px"; }
-    barre.appendChild(ok); barre.appendChild(titre); barre.appendChild(part);
+    var imp=style(document.createElement("button"), "flex:0 0 auto;min-height:40px;padding:0 10px;border:0;background:none;"
+      +"color:#0A6CFF;font:600 15px/1 inherit;cursor:pointer");
+    imp.type="button"; imp.className="vis-imprimer"; imp.textContent="Imprimer";
+    imp.addEventListener("click", function(){ imprimer(blob, nom); });
+    barre.appendChild(ok); barre.appendChild(titre); if(!opts.action) barre.appendChild(imp); barre.appendChild(part);
     var corps=style(document.createElement("div"), "flex:1;overflow:auto;-webkit-overflow-scrolling:touch;padding:12px 10px calc(env(safe-area-inset-bottom,0px) + 16px);"
       +"display:flex;flex-direction:column;align-items:center;gap:12px;touch-action:pan-x pan-y pinch-zoom");
     corps.className="vis-pages";
@@ -155,5 +159,30 @@
     if(installee()) pdf(blob, nom); else telecharger(blob, nom);
   }
 
-  window.Visionneuse = {installee:installee, pdf:pdf, fichier:fichierPdf, fermer:function(){ fermer(false); }, pdfjs:chargerPdfJs};
+  /* imprimer un PDF ou une image, sans le télécharger :
+     - iPhone, iPad : la feuille de partage, qui propose « Imprimer » (l'impression d'un cadre y est capricieuse) ;
+     - ailleurs : le document dans un cadre invisible, et la fenêtre d'impression du navigateur ;
+       si le navigateur refuse, le document s'ouvre dans un onglet, à imprimer de là. */
+  function imprimer(blob, nom){
+    nom = nom || "document.pdf";
+    var ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1);
+    if(ios){
+      try{ var f=new File([blob], nom, {type:blob.type||"application/pdf"});
+        if(navigator.canShare && navigator.canShare({files:[f]})){ navigator.share({files:[f], title:nom}).catch(function(){}); return; } }catch(e){}
+    }
+    var url=URL.createObjectURL(blob), image=/^image\//.test(blob.type||"") || /\.(jpe?g|png|webp)$/i.test(nom);
+    var ifr=document.createElement("iframe"); ifr.setAttribute("aria-hidden", "true"); ifr.className="impression-cadre";
+    ifr.style.cssText="position:fixed;right:0;bottom:0;width:1px;height:1px;border:0;opacity:0;pointer-events:none";
+    function secours(){ var w=window.open(url, "_blank"); if(!w) location.href=url; }
+    ifr.onload=function(){
+      setTimeout(function(){
+        try{ ifr.contentWindow.focus(); ifr.contentWindow.print(); }catch(e){ secours(); }
+      }, image ? 150 : 400);
+    };
+    if(image) ifr.srcdoc='<!doctype html><html><head><style>@page{margin:8mm}html,body{margin:0}img{display:block;max-width:100%;max-height:100vh;margin:auto}</style></head><body><img src="'+url+'"></body></html>';
+    else ifr.src=url;
+    document.body.appendChild(ifr);
+    setTimeout(function(){ try{ ifr.remove(); }catch(e){} try{ URL.revokeObjectURL(url); }catch(e){} }, 180000);
+  }
+  window.Visionneuse = {installee:installee, pdf:pdf, fichier:fichierPdf, fermer:function(){ fermer(false); }, pdfjs:chargerPdfJs, imprimer:imprimer};
 })();

@@ -2418,6 +2418,24 @@ function carteDossier(c, i, opts){
       ouvrirDocument(f, bPartage);
     });
     droite.appendChild(bPartage);
+    /* imprimer directement depuis le site : un PDF (plan, rapport) ou une image */
+    if(!zip && !planM && !dwg && /\.(pdf|jpe?g|png|webp)$/i.test(f.cle||"")){
+      var bImp=document.createElement("button"); bImp.type="button"; bImp.className="part imp";
+      bImp.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round"><path d="M7 9V3.5h10V9"/><path d="M7 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6.5H7z"/></svg>';
+      bImp.title="Imprimer"; bImp.setAttribute("aria-label","Imprimer "+(f.titre||"ce document"));
+      bImp.style.cssText="padding:0;width:32px;min-width:32px;justify-content:center";
+      bImp.addEventListener("click", function(e){
+        e.preventDefault(); e.stopPropagation();
+        bImp.disabled=true;
+        telecharger(f).then(function(blob){
+          bImp.disabled=false; marquerLu(f);
+          var nom=nomAvecChantier(refDeCle(f.cle), nomFichier(f));
+          if(window.Visionneuse && Visionneuse.imprimer) Visionneuse.imprimer(blob, nom);
+          else { var u=URL.createObjectURL(blob); var w=window.open(u, "_blank"); if(!w) enregistrer(blob, nom); }
+        }).catch(function(){ bImp.disabled=false; alert("Document indisponible. Vérifiez la connexion."); });
+      });
+      droite.appendChild(bImp);
+    }
     /* le document part dans la discussion du chantier (plan, notice, note, photo…) */
     var bDis=document.createElement("button"); bDis.type="button"; bDis.className="part dis";
     bDis.innerHTML=icone("discu");

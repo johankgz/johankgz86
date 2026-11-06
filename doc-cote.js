@@ -128,12 +128,20 @@
     var bC=el("button","dc-b rond"); bC.type="button"; bC.setAttribute("aria-label","Revenir à la liste des documents"); bC.title="Revenir à la liste des documents";
     bC.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round"><path d="M19 12H5"/><path d="M11 6l-6 6 6 6"/></svg>';
     var bX=el("button","dc-b rond","×"); bX.type="button"; bX.setAttribute("aria-label","Fermer le document"); bX.style.fontSize="20px";
+    /* imprimer le document ouvert (plan, PDF, image), directement depuis le site */
+    var bI=el("button","dc-b rond"); bI.type="button"; bI.setAttribute("aria-label","Imprimer le document"); bI.title="Imprimer"; bI.disabled=true;
+    bI.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round"><path d="M7 9V3.5h10V9"/><path d="M7 18H5a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><path d="M7 14h10v6.5H7z"/></svg>';
+    bI.addEventListener("click", function(){
+      if(!ETAT.blob) return;
+      if(window.Visionneuse && Visionneuse.imprimer) Visionneuse.imprimer(ETAT.blob, ETAT.nom);
+      else { var u=URL.createObjectURL(ETAT.blob); window.open(u, "_blank"); }
+    });
     /* plus de − et + : le zoom se fait en pinçant (les boutons restent hors de la barre) */
-    [bR, ti, bC, bX].forEach(function(x){ t.appendChild(x); });
+    [bR, ti, bI, bC, bX].forEach(function(x){ t.appendChild(x); });
     var c=el("div","dc-corps");
     p.appendChild(t); p.appendChild(c);
     document.body.appendChild(o); document.body.appendChild(p);
-    EL={onglet:o, pan:p, tete:t, corps:c, titre:tb, sous:ts, zm:bM, zp:bP, retour:bR, chg:bC};
+    EL={onglet:o, pan:p, tete:t, corps:c, titre:tb, sous:ts, zm:bM, zp:bP, retour:bR, chg:bC, imp:bI};
 
     o.addEventListener("click", function(){ if(o.__glisse) return; montrer(); });
     bR.addEventListener("click", cacher);
@@ -478,6 +486,8 @@
       .then(function(r){ if(!r.ok) throw new Error("fichier"); return r.blob(); })
       .then(function(blob){
         if(id!==ETAT.chargeId) return;
+        ETAT.blob=blob; ETAT.nom=(String(d.titre||"document").replace(/[\/\\:*?"<>|]+/g, " ").trim()||"document")+(/pdf/.test(blob.type) || /\.pdf$/i.test(d.cle||"") ? ".pdf" : "");
+        if(EL.imp) EL.imp.disabled=false;
         if(d.cloud ? (d.pdf || /pdf/.test(blob.type)) : /\.pdf$/i.test(d.cle)) return pdf(blob, pages, etat, id);
         var url=URL.createObjectURL(blob), im=new Image(); im.alt=d.titre; im.src=url;
         pages.removeChild(etat); pages.appendChild(im); appliquerZoom();
