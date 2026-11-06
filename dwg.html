@@ -80,6 +80,37 @@ button,select{font:inherit}
 .bt[disabled]{opacity:.4;cursor:default}
 .bt[hidden],.seg[hidden]{display:none}
 .titre{flex:1 1 auto;min-width:0;font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* l'élément choisi : ses propriétés dans une fenêtre (clic droit › Propriétés), plus dans les barres du bas */
+body.a-sel:not(.props) #barreSel,body.a-sel:not(.props) #basDessin,body.a-sel:not(.props) #basSymb,body.a-sel:not(.props) #bas{display:none!important}
+.fen-props{position:fixed;right:max(12px, env(safe-area-inset-right,0px));top:calc(var(--haut,62px) + 12px);z-index:21;width:min(460px,calc(100vw - 24px));max-height:calc(100% - var(--haut,62px) - 24px);overflow:auto;
+  display:flex;flex-direction:column;gap:10px;padding:12px;border-radius:16px;background:var(--barre);border:1px solid var(--trait);box-shadow:0 20px 44px -16px rgba(0,0,0,.75)}
+.fen-props[hidden]{display:none}
+.fprops-tete{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fprops-tete b{font-size:15px}
+.fprops-corps{display:flex;flex-direction:column;gap:10px}
+.fprops-corps .barre-sel,.fprops-corps .bas{position:static!important;transform:none!important;left:auto!important;right:auto!important;bottom:auto!important;top:auto!important;width:auto!important;max-width:none!important;
+  flex-wrap:wrap!important;overflow:visible!important;box-shadow:none!important;border:0!important;border-radius:0!important;background:transparent!important;padding:0!important;margin:0!important}
+.fprops-corps .bas *{flex-wrap:wrap}
+.fprops-corps .reglages,.fprops-corps .barre-sel{flex-wrap:wrap!important;overflow:visible!important}
+.fprops-corps .barre-sel #barreSelNom{flex:1 1 100%;font-weight:700}
+.menu-ctx{position:fixed;z-index:42;min-width:210px;padding:6px;border-radius:12px;background:var(--barre);border:1px solid var(--trait);box-shadow:0 18px 40px -14px rgba(0,0,0,.8);display:flex;flex-direction:column}
+.menu-ctx[hidden]{display:none}
+.menu-ctx button{display:flex;align-items:center;gap:10px;min-height:38px;padding:6px 12px;border:0;border-radius:8px;background:transparent;color:var(--ink);font-size:14px;text-align:left;cursor:pointer}
+.menu-ctx button:hover,.menu-ctx button:focus-visible{background:var(--or);color:#fff;outline:0}
+.menu-ctx button.danger{color:#F87171}
+.menu-ctx button.danger:hover{background:#DC2626;color:#fff}
+.menu-ctx .mc-titre{padding:6px 12px 4px;font-size:12px;color:var(--ink3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:280px}
+.menu-ctx .mc-sep{height:1px;background:var(--trait);margin:4px 6px}
+.menu-ctx kbd{margin-left:auto;font:600 11px ui-monospace,Menlo,Consolas,monospace;color:var(--ink3)}
+.menu-ctx button:hover kbd{color:#fff}
+.pastille-props{position:fixed;left:50%;bottom:calc(14px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:8;display:inline-flex;align-items:center;gap:8px;max-width:calc(100vw - 24px);min-height:42px;padding:0 16px;
+  border-radius:999px;border:1px solid var(--trait);background:var(--barre);color:var(--ink);font:inherit;font-size:14px;font-weight:600;cursor:pointer;box-shadow:0 10px 26px -10px rgba(0,0,0,.7)}
+.pastille-props[hidden]{display:none}
+.pastille-props svg{width:18px;height:18px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round}
+.pastille-props span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:600px){
+  .fen-props{left:8px;right:8px;top:auto;bottom:calc(8px + env(safe-area-inset-bottom,0px));width:auto;max-height:62%}
+}
 /* le menu de l'outil : Récents, Nouveau, Ouvrir, Importer, Enregistrer, Exporter, Préférences, Quitter */
 .fen-menu{position:fixed;inset:0;z-index:35;background:rgba(5,8,12,.6);display:flex;align-items:stretch;justify-content:flex-start}
 .fen-menu[hidden]{display:none}
@@ -1170,6 +1201,12 @@ body.clair .accueil.dessus{background:#F3F5F8}
 </div>
 <div class="fen-res" id="fenPvc" hidden role="group" aria-label="Le câble : son tracé"></div>
 <div class="fen-res fen-resa" id="fenResa" hidden role="group" aria-label="La réservation pour le maçon"></div>
+<div class="fen-props" id="fenProps" hidden role="dialog" aria-labelledby="fpropsT">
+  <div class="fprops-tete"><b id="fpropsT">Propriétés</b><button class="bt" type="button" id="fpropsFermer" aria-label="Fermer les propriétés">✕</button></div>
+  <div class="fprops-corps" id="fpropsCorps"></div>
+</div>
+<div class="menu-ctx" id="menuCtx" hidden role="menu" aria-label="Élément choisi"></div>
+<button type="button" class="pastille-props" id="pastilleProps" hidden title="Propriétés de l'élément choisi (clic droit sur l'objet)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg><span id="pastillePropsNom">Propriétés</span></button>
 <div class="barre-sel" id="barreSel" hidden role="toolbar" aria-label="Élément choisi">
   <span id="barreSelNom"></span>
   <button type="button" class="bs-dist" id="bsDist" title="Le placer au centre, entre deux extrémités touchées"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7v10M21 7v10M3 12h5M16 12h5"/><circle cx="12" cy="12" r="2.6"/></svg>Au centre</button>
@@ -4439,6 +4476,7 @@ function majBarreSel(){
   }
   /* juste au-dessus du panneau du bas, sous le pouce */
   if(nom){ $("barreSelNom").textContent=nom; b.style.bottom=(basH()+10)+"px"; }
+  majSelProps(nom);
 }
 /* la corbeille de la barre : l'élément choisi (ou la sélection) est supprimé ; Annuler le remet */
 $("bsFermer").addEventListener("click", function(){
@@ -14135,6 +14173,112 @@ function peindreMenu(){
     return;
   }
 }
+/* ---------- les propriétés de l'élément choisi : clic droit (appui long au doigt) › Propriétés ----------
+   Les réglages de l'élément (longueur, épaisseur, cote, couleur, calque…) ne sont plus dans les barres
+   du bas : ils s'ouvrent dans la fenêtre Propriétés, qui reprend ces mêmes barres. */
+var PROPS={ouvert:false, places:[]};
+function aSelection(){
+  if(REF || RELIER || D_PT) return false;
+  try{ if(mesureChoisie()) return false; }catch(e){}
+  return (MODE==="dessin" && (!!D_SEL || !!grpTaille(GRP))) || (MODE==="symb" && !ARME_S && SEL>=0 && !!SYMB[SEL]) || !!lienSelValide();
+}
+function basActif(){ return MODE==="dessin" ? $("basDessin") : MODE==="symb" ? $("basSymb") : $("bas"); }
+function majSelProps(nom){
+  var sel=aSelection();
+  document.body.classList.toggle("a-sel", sel);
+  if(!sel){ if(PROPS.ouvert) fermerProps(); $("pastilleProps").hidden=true; return; }
+  $("pastillePropsNom").textContent=(nom || "Élément")+" · Propriétés";
+  $("pastilleProps").hidden=PROPS.ouvert;
+  if(PROPS.ouvert) $("fpropsT").textContent="Propriétés · "+(nom || "Élément");
+}
+function ouvrirProps(){
+  if(!aSelection()) return;
+  fermerMenuCtx();
+  if(!PROPS.ouvert){
+    PROPS.ouvert=true; PROPS.places=[];
+    [$("barreSel"), basActif()].forEach(function(el){
+      if(!el) return; var m=document.createComment("place"); el.parentNode.insertBefore(m, el); PROPS.places.push([el, m]); $("fpropsCorps").appendChild(el);
+    });
+    document.body.classList.add("props"); $("fenProps").hidden=false;
+  }
+  majBarreSel(); try{ majBasVide(); majHauteurBas(); }catch(e){}
+}
+function fermerProps(){
+  if(!PROPS.ouvert) return;
+  PROPS.ouvert=false;
+  PROPS.places.forEach(function(x){ if(x[1].parentNode){ x[1].parentNode.insertBefore(x[0], x[1]); x[1].remove(); } });
+  PROPS.places=[]; document.body.classList.remove("props"); $("fenProps").hidden=true;
+  majBarreSel();
+}
+$("fpropsFermer").addEventListener("click", fermerProps);
+$("pastilleProps").addEventListener("click", ouvrirProps);
+/* le menu du clic droit sur un objet */
+function fermerMenuCtx(){ $("menuCtx").hidden=true; }
+function choisirSous(sx, sy){
+  var p=versPlan(sx, sy);
+  var i = vueD()==="dessus" || MODE==="symb" ? symboleSous([sx, sy]) : -1;     /* les symboles se cherchent à l'écran */
+  if(i>=0){ if(MODE!=="symb") basculerMode("symb"); ARME_S=false; SEL=i; majSymb(); majBarreSel(); majRuban(); return true; }
+  var o=objetSous(p);
+  if(o){
+    if(MODE!=="dessin") basculerMode("dessin");
+    if(OUTIL_D!=="choisir" && OUTIL_D!=="selection"){ OUTIL_D="choisir"; garder("dwg:outil", OUTIL_D); D_PT=null; }
+    D_SEL=o; GRP=null; majDessin(); majBarreSel(); majRuban(); return true;
+  }
+  return aSelection();
+}
+function ouvrirMenuCtx(cx, cy){
+  var m=$("menuCtx"); m.textContent="";
+  var nom=$("barreSelNom").textContent || "Élément";
+  var t=document.createElement("div"); t.className="mc-titre"; t.textContent=nom; m.appendChild(t);
+  function ligne(lib, fn, o){ o=o||{}; var b=document.createElement("button"); b.type="button"; b.setAttribute("role","menuitem"); if(o.danger) b.className="danger"; b.textContent=lib;
+    if(o.k){ var k=document.createElement("kbd"); k.textContent=o.k; b.appendChild(k); }
+    b.addEventListener("click", function(){ fermerMenuCtx(); fn(); }); m.appendChild(b); }
+  function sep(){ var d=document.createElement("div"); d.className="mc-sep"; m.appendChild(d); }
+  ligne("Propriétés…", ouvrirProps, {k:"Entrée"});
+  sep();
+  if(!$("bsDup").hidden || (MODE==="symb" && SEL>=0)) ligne("Dupliquer", function(){ lancerR("a:dupliquer"); }, {k:"Ctrl+D"});
+  if(!$("bsCote").hidden) ligne("Coter", function(){ $("bsCote").click(); ouvrirProps(); });
+  ligne("Tourner de 90°", function(){ lancerR("a:tourner"); }, {k:RACC.tourner||""});
+  ligne("Miroir", function(){ lancerR("a:miroir"); });
+  if(!$("bsGrouper").hidden) ligne("Grouper", function(){ $("bsGrouper").click(); }, {k:"Ctrl+G"});
+  if(!$("bsDegrouper").hidden) ligne("Dégrouper", function(){ $("bsDegrouper").click(); });
+  sep();
+  ligne("Supprimer", function(){ $("bsFermer").click(); }, {danger:true, k:"Suppr"});
+  m.hidden=false;
+  var w=m.offsetWidth, h=m.offsetHeight;
+  m.style.left=Math.max(8, Math.min(cx, window.innerWidth-w-8))+"px";
+  m.style.top=Math.max(8, Math.min(cy, window.innerHeight-h-8))+"px";
+  var b0=m.querySelector("button"); if(b0) try{ b0.focus(); }catch(e){}
+}
+cv.addEventListener("contextmenu", function(e){
+  if(!PLAN) return;
+  var r=cv.getBoundingClientRect(), sx=e.clientX-r.left, sy=e.clientY-r.top;
+  if(choisirSous(sx, sy)) ouvrirMenuCtx(e.clientX, e.clientY); else fermerMenuCtx();
+});
+/* au doigt : un appui long (sans bouger) sur un objet, quand on ne trace pas */
+var APPUI_LONG=null;
+cv.addEventListener("pointerdown", function(e){
+  clearTimeout(APPUI_LONG && APPUI_LONG.t); APPUI_LONG=null;
+  if(!PLAN || e.pointerType==="mouse" || !e.isPrimary) return;
+  var libre = MODE==="symb" ? !ARME_S : (OUTIL_D==="choisir" || OUTIL_D==="main" || OUTIL_D==="selection");
+  if(!libre || D_PT) return;
+  var x=e.clientX, y=e.clientY;
+  APPUI_LONG={x:x, y:y, t:setTimeout(function(){
+    if(!APPUI_LONG) return; APPUI_LONG=null;
+    var r=cv.getBoundingClientRect();
+    if(choisirSous(x-r.left, y-r.top)){ try{ if(navigator.vibrate) navigator.vibrate(12); }catch(er){} ouvrirMenuCtx(x, y); }
+  }, 600)};
+});
+cv.addEventListener("pointermove", function(e){ if(APPUI_LONG && Math.hypot(e.clientX-APPUI_LONG.x, e.clientY-APPUI_LONG.y)>10){ clearTimeout(APPUI_LONG.t); APPUI_LONG=null; } });
+["pointerup","pointercancel"].forEach(function(ev){ cv.addEventListener(ev, function(){ if(APPUI_LONG){ clearTimeout(APPUI_LONG.t); APPUI_LONG=null; } }); });
+document.addEventListener("pointerdown", function(e){ if(!$("menuCtx").hidden && !e.target.closest("#menuCtx")) fermerMenuCtx(); }, true);
+document.addEventListener("keydown", function(e){
+  if(!$("menuCtx").hidden && e.key==="Escape"){ e.preventDefault(); e.stopPropagation(); fermerMenuCtx(); return; }
+  if(e.key==="Enter" && !e.ctrlKey && !e.metaKey && aSelection() && !PROPS.ouvert && $("menuCtx").hidden){
+    var a=document.activeElement; if(a && (a.tagName==="INPUT" || a.tagName==="TEXTAREA" || a.tagName==="SELECT" || a.tagName==="BUTTON")) return;
+    e.preventDefault(); ouvrirProps();
+  }
+}, true);
 $("mnFermer").addEventListener("click", fermerMenu);
 $("fenMenu").addEventListener("click", function(e){ if(e.target===this) fermerMenu(); });
 document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("fenMenu").hidden){ e.preventDefault(); e.stopPropagation(); fermerMenu(); } }, true);
