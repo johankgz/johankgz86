@@ -1,7 +1,7 @@
 /* =====================================================================
    releve-metiers.js — les parties du relevé propres à chaque corps d'état
    ---------------------------------------------------------------------
-   Menuiseries, maçonnerie / gros œuvre, couverture / charpente, finitions.
+   Menuiseries, maçonnerie / gros œuvre, couverture / charpente, plaquiste / isolation, peinture, carrelage / sols.
    Chaque partie est un onglet du relevé, qui n'apparaît que si la société
    réalise ce métier (Équipe › Nature des travaux réalisés ; rien de coché :
    tout), ou si la fiche en contient déjà. Les données vont dans S.metiers,
@@ -66,15 +66,46 @@
         {k:"nom", t:"txt", l:"Pan"}, {k:"rampant", t:"nb", l:"Rampant", u:"m"}, {k:"largeur", t:"nb", l:"Largeur", u:"m"}
       ], calcul:function(it){ var a=nombre(it.rampant), b=nombre(it.largeur); return a && b ? dec(a*b, 2)+" m²" : ""; },
       total:function(l){ var s=0; l.forEach(function(it){ var a=nombre(it.rampant), b=nombre(it.largeur); if(a && b) s+=a*b; }); return s ? "Surface totale : "+dec(s, 2)+" m²" : ""; }}},
-    {id:"finitions", onglet:"Finitions", titre:"Finitions", natures:["Plâtrerie","Isolation","Peinture","Carrelage","Revêtements de sol"],
-      chapeau:"Pièce par pièce : surfaces, état du support et finition souhaitée.",
+    {id:"plaquiste", onglet:"Plaquiste", titre:"Plaquiste / isolation", natures:["Plâtrerie / plaquiste","Plâtrerie","Isolation"],
+      chapeau:"Pièce par pièce : cloisons, doublages, plafonds, type de plaque et isolant.",
       liste:{cle:"pieces", nom:"Pièce", ajout:"Ajouter une pièce", reprendre:true, champs:[
         {k:"piece", t:"txt", l:"Pièce", pieces:true},
-        {k:"murs", t:"nb", l:"Murs", u:"m²"}, {k:"plafond", t:"nb", l:"Plafond", u:"m²"}, {k:"sol", t:"nb", l:"Sol", u:"m²"},
-        {k:"support", t:"un", l:"Support", o:["Bon","À reprendre","Humide","Fissuré"]},
-        {k:"finition", t:"plus", l:"Finition", o:["Peinture","Toile de verre","Papier peint","Plâtre / BA13","Isolation","Carrelage","Parquet","Sol souple"]},
-        {k:"ref", t:"txt", l:"Référence (teinte, format)"}, {k:"note", t:"txt", l:"Note"}
-      ]},
+        {k:"cloisons", t:"nb", l:"Cloisons", u:"ml"}, {k:"hauteur", t:"nb", l:"Hauteur", u:"m"},
+        {k:"doublage", t:"nb", l:"Doublages", u:"m²"}, {k:"plafond", t:"nb", l:"Plafond", u:"m²"},
+        {k:"ouvrages", t:"plus", l:"Ouvrages", o:["Cloison","Doublage","Plafond","Faux plafond","Coffrage / soffite","Gaine technique"]},
+        {k:"plaque", t:"plus", l:"Type de plaque", o:["BA13 standard","Hydrofuge (H1)","Phonique","Coupe-feu","Haute dureté"]},
+        {k:"isolant", t:"un", l:"Isolant", o:["Aucun","Laine de verre","Laine de roche","Polystyrène","Polyuréthane","Fibre de bois"]},
+        {k:"epIsolant", t:"nb", l:"Épaisseur isolant", u:"mm"},
+        {k:"trappes", t:"nb", l:"Trappes de visite", u:""},
+        {k:"note", t:"txt", l:"Note"}
+      ], calcul:function(it){ var c=nombre(it.cloisons), h=nombre(it.hauteur); return c && h ? "cloisons "+dec(c*h, 2)+" m²" : ""; }},
+      champs:[{k:"note", t:"zone", l:"Observations"}]},
+    {id:"peintre", onglet:"Peinture", titre:"Peinture", natures:["Peinture"],
+      chapeau:"Pièce par pièce : surfaces à peindre, état du support, préparation et finition.",
+      liste:{cle:"pieces", nom:"Pièce", ajout:"Ajouter une pièce", reprendre:true, champs:[
+        {k:"piece", t:"txt", l:"Pièce", pieces:true},
+        {k:"murs", t:"nb", l:"Murs", u:"m²"}, {k:"plafond", t:"nb", l:"Plafond", u:"m²"},
+        {k:"boiseries", t:"nb", l:"Boiseries / portes", u:"u"}, {k:"couches", t:"nb", l:"Couches de finition", u:""},
+        {k:"support", t:"un", l:"Support", o:["Plaque neuve","Ancienne peinture","Papier peint à retirer","Enduit","Bois","Humide / taché"]},
+        {k:"prepa", t:"plus", l:"Préparation", o:["Lessivage","Rebouchage","Ponçage","Enduit de lissage","Décollage papier","Traitement anti-tache"]},
+        {k:"aspect", t:"un", l:"Aspect", o:["Mat","Velours","Satin","Brillant"]},
+        {k:"teinte", t:"txt", l:"Teinte (référence)"}, {k:"note", t:"txt", l:"Note"}
+      ], calcul:function(it){ var s=nombre(it.murs)+nombre(it.plafond); return s ? dec(s, 2)+" m² à peindre" : ""; },
+      total:function(l){ var s=0; l.forEach(function(it){ s+=nombre(it.murs)+nombre(it.plafond); }); return s ? "Surface totale à peindre : "+dec(s, 2)+" m²" : ""; }},
+      champs:[{k:"note", t:"zone", l:"Observations"}]},
+    {id:"sols", onglet:"Sols", titre:"Carrelage / sols", natures:["Carrelage","Revêtements de sol"],
+      chapeau:"Pièce par pièce : surfaces, support, revêtement et pose.",
+      liste:{cle:"pieces", nom:"Pièce", ajout:"Ajouter une pièce", reprendre:true, champs:[
+        {k:"piece", t:"txt", l:"Pièce", pieces:true},
+        {k:"sol", t:"nb", l:"Sol", u:"m²"}, {k:"murs", t:"nb", l:"Faïence murale", u:"m²"},
+        {k:"plinthes", t:"nb", l:"Plinthes", u:"ml"},
+        {k:"support", t:"un", l:"Support", o:["Dalle béton","Chape","Ancien carrelage","Plancher bois","À ragréer","Humide"]},
+        {k:"revetement", t:"un", l:"Revêtement", o:["Carrelage","Faïence","Parquet","Stratifié","Sol souple / PVC","Moquette"]},
+        {k:"format", t:"txt", l:"Format / référence"},
+        {k:"pose", t:"un", l:"Pose", o:["Droite","Décalée","Diagonale","Chevron","Flottante","Collée"]},
+        {k:"etancheite", t:"un", l:"Étanchéité (pièce humide)", o:["Oui","Non","Sans objet"]},
+        {k:"note", t:"txt", l:"Note"}
+      ], calcul:function(it){ var s=nombre(it.sol)+nombre(it.murs); return s ? dec(s*1.1, 2)+" m² à commander (10 % de chute)" : ""; }},
       champs:[{k:"note", t:"zone", l:"Observations"}]}
   ];
 

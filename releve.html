@@ -1340,7 +1340,9 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <section id="tab-menuiserie" hidden></section>
 <section id="tab-maconnerie" hidden></section>
 <section id="tab-toiture" hidden></section>
-<section id="tab-finitions" hidden></section>
+<section id="tab-plaquiste" hidden></section>
+<section id="tab-peintre" hidden></section>
+<section id="tab-sols" hidden></section>
 
 <section id="tab-logistique" hidden>
   <div class="block">
@@ -1558,7 +1560,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 <script src="./annotation.js?v=20261107a"></script>
 <script src="./sobre.js?v=20261029a"></script>
 <script src="./une-page.js?v=20261002a"></script>
-<script src="./releve-metiers.js?v=20261106a"></script>
+<script src="./releve-metiers.js?v=20261106b"></script>
 <script src="./courbe-charge.js?v=20261024b"></script>
 <script src="./visionneuse.js?v=20261024b"></script>
 <script src="./doc-cote.js?v=20261105a"></script>
@@ -2184,8 +2186,8 @@ function toggleAccepte(){
 }
 /* ---------- la nature des travaux : ce que réalise la société (Équipe), sinon toute la liste ---------- */
 var NATURES_TOUTES=["Électricité","Courants faibles","Photovoltaïque","Borne de recharge","Plomberie","Chauffage","Climatisation","Ventilation",
-  "Couverture","Charpente","Zinguerie","Maçonnerie","Menuiserie","Plâtrerie","Isolation","Peinture","Carrelage","Revêtements de sol","Serrurerie","Terrassement / VRD","Démolition"];
-var NATURES_SOC=(function(){ try{ var v=JSON.parse(localStorage.getItem("releve:natures")||"null"); return Array.isArray(v) ? v : null; }catch(e){ return null; } })();
+  "Couverture","Charpente","Zinguerie","Maçonnerie","Menuiserie","Plâtrerie / plaquiste","Isolation","Peinture","Carrelage","Revêtements de sol","Serrurerie","Terrassement / VRD","Démolition"];
+var NATURES_SOC=(function(){ try{ var v=JSON.parse(localStorage.getItem("releve:natures")||"null"); return Array.isArray(v) ? v.map(function(n){ return n==="Plâtrerie" ? "Plâtrerie / plaquiste" : n; }) : null; }catch(e){ return null; } })();
 function naturesProposees(deja){
   var base=(NATURES_SOC && NATURES_SOC.length) ? NATURES_SOC : NATURES_TOUTES;
   /* une nature déjà cochée sur la fiche reste visible, même hors de la liste */
@@ -2368,9 +2370,9 @@ function chargerFicheSociete(){
    COURBE_CHARGE à true pour la rouvrir (les essais automatiques la rallument avec window.COURBE_CHARGE) */
 var COURBE_CHARGE = window.COURBE_CHARGE === true;
 var TABS_TOUS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["charge","Conso"],["irve","IRVE"],["clim","Clim"],["pv","PV"],
-  ["menuiserie","Menuis."],["maconnerie","Maçon."],["toiture","Toiture"],["finitions","Finitions"],["logistique","Logistique"],["conclusion","Conclusion"]];
+  ["menuiserie","Menuis."],["maconnerie","Maçon."],["toiture","Toiture"],["plaquiste","Plaquiste"],["peintre","Peinture"],["sols","Sols"],["logistique","Logistique"],["conclusion","Conclusion"]];
 /* au départ, les parties de toujours ; les métiers de la société s'y ajoutent ou s'en retirent dès que la fiche est là */
-var TABS=TABS_TOUS.filter(function(t){ return (t[0]!=="charge" || COURBE_CHARGE) && ["menuiserie","maconnerie","toiture","finitions"].indexOf(t[0])<0; });
+var TABS=TABS_TOUS.filter(function(t){ return (t[0]!=="charge" || COURBE_CHARGE) && ["menuiserie","maconnerie","toiture","plaquiste","peintre","sols"].indexOf(t[0])<0; });
 /* Les parties du relevé selon ce que fait la société (Équipe › Nature des travaux réalisés) :
    IRVE, Clim, PV, et les autres corps d'état ; une partie déjà remplie sur la fiche reste. */
 function tabsSelonMetiers(){
@@ -2385,7 +2387,7 @@ function tabsSelonMetiers(){
     if(k==="irve") return fait("Borne de recharge") || fait("Électricité") || irveOn;
     if(k==="clim") return fait("Climatisation") || climOn;
     if(k==="pv") return fait("Photovoltaïque") || pvOn;
-    if(["menuiserie","maconnerie","toiture","finitions"].indexOf(k)>=0) return autres.indexOf(k)>=0;
+    if(["menuiserie","maconnerie","toiture","plaquiste","peintre","sols"].indexOf(k)>=0) return autres.indexOf(k)>=0;
     return true;
   });
 }
@@ -2394,7 +2396,7 @@ function majOngletsMetiers(){
   if(JSON.stringify(n)===JSON.stringify(TABS)) return;
   TABS=n; buildNav();
   if(window.UnePage && UnePage.changer) UnePage.changer(TABS);
-  ["menuiserie","maconnerie","toiture","finitions","irve","clim","pv"].forEach(function(k){
+  ["menuiserie","maconnerie","toiture","plaquiste","peintre","sols","irve","clim","pv"].forEach(function(k){
     var sec=document.getElementById("tab-"+k); if(sec && !TABS.some(function(t){ return t[0]===k; })) sec.hidden=true;
   });
 }
@@ -2409,7 +2411,9 @@ var ICONES_ONGLET={
   menuiserie:'<path d="M5 3.5h14v17H5z"/><path d="M12 3.5v17M5 12h14"/><path d="M9.5 10v4M14.5 10v4"/>',
   maconnerie:'<path d="M3 6.5h18v4H3zM3 13.5h18v4H3z"/><path d="M9 6.5v4M15 10.5v3M7 13.5v4M13 13.5v4M19 13.5v4"/>',
   toiture:'<path d="M2.5 12 12 4l9.5 8"/><path d="M5 10v9.5h14V10"/><path d="M16 6V3.5h2.5v4.6"/>',
-  finitions:'<path d="M4 4.5h12v5H4z"/><path d="M16 7h3v5h-8v3"/><path d="M10 15h2v6h-2z"/>',
+  plaquiste:'<path d="M4 3.5h7v17H4zM13 3.5h7v17h-7z"/><path d="M7.5 3.5v17M16.5 3.5v17" stroke-dasharray="2 2"/>',
+  peintre:'<path d="M4 4.5h12v5H4z"/><path d="M16 7h3v5h-8v3"/><path d="M10 15h2v6h-2z"/>',
+  sols:'<path d="M3.5 3.5h17v17h-17z"/><path d="M3.5 12h17M12 3.5v17"/>',
   logistique:'<path d="M2.5 7.5h11.5v9H2.5z"/><path d="M14 10.5h3.7l3.3 3.2v2.8H14z"/><circle cx="6.3" cy="18.3" r="1.8"/><circle cx="17.4" cy="18.3" r="1.8"/>',
   conclusion:'<path d="M5.5 3.5h8l5 5v12H5.5z"/><path d="M13.5 3.5v5h5"/><path d="M8.8 14.2l2 2 4.2-4.4"/>',
   visite:'<path d="M9 3.6 3.5 5.8v14.6L9 18.2l6 2.2 5.5-2.2V3.6L15 5.8z"/><path d="M9 3.6v14.6M15 5.8v14.6"/>',

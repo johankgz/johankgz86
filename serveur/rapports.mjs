@@ -999,9 +999,12 @@ const REGLAGES_CLIENTS = "reglages-clients.json";
 /* la nature des travaux : la liste complète, et ce que la société réalise (natures-societe.json) */
 const NATURES_SOCIETE = "natures-societe.json";
 const NATURES_TRAVAUX = ["Électricité", "Courants faibles", "Photovoltaïque", "Borne de recharge", "Plomberie", "Chauffage",
-  "Climatisation", "Ventilation", "Couverture", "Charpente", "Zinguerie", "Maçonnerie", "Menuiserie", "Plâtrerie",
+  "Climatisation", "Ventilation", "Couverture", "Charpente", "Zinguerie", "Maçonnerie", "Menuiserie", "Plâtrerie / plaquiste",
   "Isolation", "Peinture", "Carrelage", "Revêtements de sol", "Serrurerie", "Terrassement / VRD", "Démolition"];
 /* le réglage de départ d'une société, tant que son administrateur n'a rien enregistré dans Équipe */
+/* un ancien nom de nature, repris sous le nouveau */
+const NATURES_ANCIENNES = { "Plâtrerie": "Plâtrerie / plaquiste" };
+const natureActuelle = (n) => NATURES_ANCIENNES[n] || n;
 const NATURES_DEPART = { tle: ["Électricité", "Photovoltaïque", "Borne de recharge", "Climatisation"] };
 async function lienClientActif(st) {
   let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
@@ -4024,7 +4027,7 @@ async function traiter(req) {
      Rien de coché : toute la liste. */
   if (action === "natures-societe") {
     let r = null; try { r = await store.get(NATURES_SOCIETE, { type: "json" }); } catch { r = null; }
-    const choisies = r && Array.isArray(r.natures) ? r.natures.filter((n) => NATURES_TRAVAUX.includes(n))
+    const choisies = r && Array.isArray(r.natures) ? r.natures.map(natureActuelle).filter((n) => NATURES_TRAVAUX.includes(n))
       : (NATURES_DEPART[String(personne.societe || "").toLowerCase()] || []);
     return json({ toutes: NATURES_TRAVAUX, natures: choisies, reglee: choisies.length > 0 });
   }
@@ -4032,7 +4035,7 @@ async function traiter(req) {
     if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
     if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
     let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
-    const natures = (Array.isArray(d.natures) ? d.natures : []).filter((n) => NATURES_TRAVAUX.includes(n));
+    const natures = (Array.isArray(d.natures) ? d.natures : []).map(natureActuelle).filter((n) => NATURES_TRAVAUX.includes(n));
     await store.setJSON(NATURES_SOCIETE, { natures, maj: new Date().toISOString(), par: personne.nom });
     return json({ ok: true, natures });
   }
