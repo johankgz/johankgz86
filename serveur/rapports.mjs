@@ -1001,6 +1001,8 @@ const NATURES_SOCIETE = "natures-societe.json";
 const NATURES_TRAVAUX = ["Électricité", "Courants faibles", "Photovoltaïque", "Borne de recharge", "Plomberie", "Chauffage",
   "Climatisation", "Ventilation", "Couverture", "Charpente", "Zinguerie", "Maçonnerie", "Menuiserie", "Plâtrerie",
   "Isolation", "Peinture", "Carrelage", "Revêtements de sol", "Serrurerie", "Terrassement / VRD", "Démolition"];
+/* le réglage de départ d'une société, tant que son administrateur n'a rien enregistré dans Équipe */
+const NATURES_DEPART = { tle: ["Électricité", "Photovoltaïque", "Borne de recharge", "Climatisation"] };
 async function lienClientActif(st) {
   let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
   return !!(r && r.lienClient);
@@ -4022,7 +4024,8 @@ async function traiter(req) {
      Rien de coché : toute la liste. */
   if (action === "natures-societe") {
     let r = null; try { r = await store.get(NATURES_SOCIETE, { type: "json" }); } catch { r = null; }
-    const choisies = r && Array.isArray(r.natures) ? r.natures.filter((n) => NATURES_TRAVAUX.includes(n)) : [];
+    const choisies = r && Array.isArray(r.natures) ? r.natures.filter((n) => NATURES_TRAVAUX.includes(n))
+      : (NATURES_DEPART[String(personne.societe || "").toLowerCase()] || []);
     return json({ toutes: NATURES_TRAVAUX, natures: choisies, reglee: choisies.length > 0 });
   }
   if (action === "natures-societe-enregistrer") {
