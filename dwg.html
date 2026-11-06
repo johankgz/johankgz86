@@ -13,7 +13,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="theme-color" content="#0B1220">
 <title>Plan</title>
-<script src="./symboles-elec.js?v=20261109e"></script>
+<script src="./symboles-elec.js?v=20261110a"></script>
 <script src="./visionneuse.js?v=20261106a"></script>
 <script src="./cartouche.js?v=20261001a"></script>
 <link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml">
@@ -1580,7 +1580,7 @@ function tracerReglette(c, def, x, y, R, rot, sx, halo){
    la dernière longueur choisie sert aux suivants */
 var LONG_BAND=Number(lire("dwg:bandeau","1000"))||1000;
 function bandeauDe(o){ var d=window.SymbolesElec && SymbolesElec.trouver(o.cle); return d && d.bandeau ? d.bandeau : null; }
-function longueurDefaut(cle){ var d=window.SymbolesElec && SymbolesElec.trouver(cle); return d && d.bandeau ? LONG_BAND : LONG_REG; }
+function longueurDefaut(cle){ var d=window.SymbolesElec && SymbolesElec.trouver(cle); return d && d.bandeau ? LONG_BAND : d && d.longPropre ? d.long : LONG_REG; }   /* les réglettes étanches 1,20 / 1,50 m gardent la leur */
 function tracerBandeau(c, o, p, vue, sel){
   var B=bandeauDe(o), def=SymbolesElec.trouver(o.cle), s=V.k/DESSIN_MM, dessus=vue==="dessus";
   var Lr=longueurS(o), L=dessus ? Lr : longueurVueS(o, vue)*DESSIN_MM, Lp=L*s, k=L/Lr;
@@ -8953,7 +8953,8 @@ $("symbL").addEventListener("change", function(){
     enregistrerSymb(); majSymb(); demander(); return;
   }
   if(!(cm>=10 && cm<=1000)){ majSymb(); return; }
-  SYMB[SEL].long=Math.round(cm*10); LONG_REG=SYMB[SEL].long; garder("dwg:reglette", String(LONG_REG));
+  SYMB[SEL].long=Math.round(cm*10);
+  var dL=SymbolesElec.trouver(SYMB[SEL].cle); if(!(dL && dL.longPropre)){ LONG_REG=SYMB[SEL].long; garder("dwg:reglette", String(LONG_REG)); }
   enregistrerSymb(); majSymb(); demander();
 });
 $("symbL").addEventListener("keydown", function(e){ if(e.key==="Enter") this.blur(); });
