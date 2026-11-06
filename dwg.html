@@ -1399,6 +1399,9 @@ body.clair .accueil.dessus{background:#F3F5F8}
     <button type="button" data-o="porte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M2 20h4M18 20h4" stroke-width="4" stroke="#2F343B"/><path d="M6 20V6"/><path d="M6 6a14 14 0 0 1 12 14"/></svg></i>Porte</button>
     <button type="button" data-o="pf"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M1 20h2M21 20h2" stroke-width="4" stroke="#2F343B"/><path d="M3 20v-9M21 20v-9M3 11a9 9 0 0 1 9 9M21 11a9 9 0 0 0-9 9"/></svg></i>Porte-fenêtre</button>
     <button type="button" data-o="fenetre"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.2"><path d="M1 12h4M19 12h4" stroke-width="6" stroke="#2F343B"/><path d="M5 9h14M5 15h14M5 11.3h14M5 12.7h14M5 9v6M19 9v6"/></svg></i>Fenêtre</button>
+    <button type="button" data-o="coul"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.3"><path d="M1 12h3M20 12h3" stroke-width="6" stroke="#2F343B"/><path d="M4 9h16M4 15h16M4 9v6M20 9v6M4 11h9M11 13h9M12 10.2l2 .8-2 .8"/></svg></i>Fenêtre coulissante</button>
+    <button type="button" data-o="fen2"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.3"><path d="M1 8h3M20 8h3" stroke-width="5" stroke="#2F343B"/><path d="M4 6h16M4 10h16M12 6v4M4 10a8 8 0 0 0 8 8M20 10a8 8 0 0 1-8 8M4 10v8M20 10v8"/></svg></i>Double fenêtre</button>
+    <button type="button" data-o="galandage"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.5"><path d="M1 12h7M16 12h7" stroke-width="7" stroke="#2F343B"/><path d="M8 12h14" stroke-width="1.8"/><path d="M16 12h6" stroke-dasharray="2 1.5" stroke="#E5E9EF" stroke-width="1.6"/></svg></i>Porte à galandage</button>
     <button type="button" data-o="texte"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.8"><path d="M5 6h14M12 6v13"/></svg></i>Nom de pièce</button>
     <button type="button" data-o="toit"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.7" stroke-linejoin="round"><path d="M2 12 12 4l10 8"/><path d="M5 10v10h14V10"/><path d="M8.5 13h7l1 3.5h-9z" fill="#1E3A8A" stroke="#1E3A8A" stroke-width="1"/></svg></i>Toit</button>
     <button type="button" data-o="objet"><i><svg viewBox="0 0 24 24" fill="none" stroke="#111" stroke-width="1.6"><path d="M3 19V8M3 15h18v4M21 15v-3a2 2 0 0 0-2-2h-8v5"/><rect x="5" y="10.5" width="4" height="3" rx="1"/></svg></i>Mobilier</button>
@@ -4840,7 +4843,7 @@ function dessinerElevMur(){
   /* les ouvertures */
   DESSIN.ouv.forEach(function(o){ if(o.mur!==m.id) return; var c0=o.t*Lw, w=o.l*DESSIN_MM, z0=allegeOuv(o), z1=hautOuv(o), xa=X(c0-w/2), xb=X(c0+w/2);
     g.fillStyle="#E0F2FE"; g.strokeStyle="#0369A1"; g.lineWidth=1.5; g.fillRect(Math.min(xa,xb), Y(z1), Math.abs(xb-xa), (z1-z0)*k); g.strokeRect(Math.min(xa,xb), Y(z1), Math.abs(xb-xa), (z1-z0)*k);
-    g.fillStyle="#0369A1"; g.textAlign="center"; g.fillText((o.type==="fenetre" ? "Fenêtre" : o.type==="pf" ? "Porte-fenêtre" : "Porte")+" "+cm(w)+" × "+cm(z1-z0), (xa+xb)/2, Y(z1)-6);
+    g.fillStyle="#0369A1"; g.textAlign="center"; g.fillText((NOMS_OUTILS[o.type]||"Porte")+" "+cm(w)+" × "+cm(z1-z0), (xa+xb)/2, Y(z1)-6);
     if(z0>0) g.fillText("allège "+cm(z0), (xa+xb)/2, Y(z0)+14); });
   /* les symboles, à leur hauteur, avec la hauteur écrite et la distance depuis l'angle */
   L.sort(function(a, b){ return (inv ? b.s-a.s : a.s-b.s); });
@@ -5210,12 +5213,15 @@ var EP_MUR=Number(lire("dwg:epMur","200"))||200, EP_CLOISON=70;
 /* la hauteur des prochains murs et cloisons (mm) ; 0 : jusqu'au plafond */
 var H_MUR=Number(lire("dwg:hMur","0"))||0, H_CLOISON=Number(lire("dwg:hCloison","0"))||0;
 /* les hauteurs d'une ouverture : passage (porte), allège et haut (fenêtre), en mm */
-var OUV_H={porte:2040, pf:2150, fenetre:2150}, OUV_ALLEGE={fenetre:900};
+var OUV_H={porte:2040, pf:2150, fenetre:2150, coul:2150, fen2:2150, galandage:2040}, OUV_ALLEGE={fenetre:900, coul:900, fen2:900};
+/* les familles d'ouvertures : les fenêtres (une allège), les portes (un passage) */
+var OUV_FEN={fenetre:1, coul:1, fen2:1}, OUV_PORTE={porte:1, galandage:1}, OUV_TYPES={porte:1, pf:1, fenetre:1, coul:1, fen2:1, galandage:1};
 function hautOuv(o){ return o.h || OUV_H[o.type] || 2040; }
-function allegeOuv(o){ return o.type==="fenetre" ? (o.allege!=null ? o.allege : OUV_ALLEGE.fenetre) : 0; }
-var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400]};
-var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200};
-var NOMS_OUTILS={cdc:"Chemin de câbles", mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", pvac:"Câble AC", pvrj:"Liaison RJ45", choisir:"Choisir", selection:"Sélection",
+function allegeOuv(o){ return OUV_FEN[o.type] ? (o.allege!=null ? o.allege : (OUV_ALLEGE[o.type]||900)) : 0; }
+var LARGEURS={porte:[630,730,830,930], pf:[1400,1800,2150,2400], fenetre:[600,800,1000,1200,1400,1800,2400], coul:[1000,1200,1400,1600,1800,2400,3000], fen2:[800,1000,1200,1400,1600], galandage:[630,730,830,930]};
+var LARG={porte:Number(lire("dwg:lporte","830"))||830, pf:Number(lire("dwg:lpf","1800"))||1800, fenetre:Number(lire("dwg:lfenetre","1200"))||1200,
+  coul:Number(lire("dwg:lcoul","1600"))||1600, fen2:Number(lire("dwg:lfen2","1200"))||1200, galandage:Number(lire("dwg:lgalandage","830"))||830};
+var NOMS_OUTILS={cdc:"Chemin de câbles", mur:"Mur", cloison:"Cloison", piece:"Pièce", porte:"Porte", pf:"Porte-fenêtre", fenetre:"Fenêtre", coul:"Fenêtre coulissante", fen2:"Double fenêtre", galandage:"Porte à galandage", texte:"Nom de pièce", objet:"Mobilier", toit:"Toit", pvpan:"Panneau", pvchamp:"Champ de panneaux", pvond:"Onduleur", pvstr:"String", pvchemin:"Cheminement", pvac:"Câble AC", pvrj:"Liaison RJ45", choisir:"Choisir", selection:"Sélection",
   trait:"Trait", poly:"Polyligne", spline:"Spline", rect:"Rectangle", rond:"Rond", ellipse:"Ellipse", arc:"Arc", triangle:"Triangle", fleche:"Flèche", hachure:"Hachure", cote:"Cote", gtexte:"Texte"};
 function idD(){ return "d"+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
 /* Plus de tracé en chaîne : un mur, une forme, un meuble ou un symbole posé,
@@ -5373,6 +5379,37 @@ function peindreDessin(c){
         arc(Hh, demi, b0, b0+dd, fin, col);
       });
       ligne(surMur(m,g0,-e*0.18), surMur(m,g1,-e*0.18), fin, col);   /* le seuil */
+    } else if(o.type==="coul"){
+      /* deux vantaux sur deux rails, qui se recouvrent au milieu */
+      ligne(surMur(m,g0,-e), surMur(m,g1,-e), fin, col); ligne(surMur(m,g0,e), surMur(m,g1,e), fin, col);
+      var rec=Math.min(o.l*0.06, 60/DESSIN_MM);
+      ligne(surMur(m,g0,-e*0.25), surMur(m,cc+rec,-e*0.25), moyen, col); ligne(surMur(m,cc-rec,e*0.25), surMur(m,g1,e*0.25), moyen, col);
+      /* la flèche du coulissement */
+      var fl=Math.min(o.l*0.18, 250/DESSIN_MM), fa=surMur(m,cc-fl,-e*0.25), fb=surMur(m,cc+fl*0.2,-e*0.25);
+      var fh=Math.min(e*0.5, 50/DESSIN_MM); ligne(surMur(m,cc+fl*0.2-fh,-e*0.25-fh*0.6), fb, fin, col); ligne(surMur(m,cc+fl*0.2-fh,-e*0.25+fh*0.6), fb, fin, col); void fa;
+    } else if(o.type==="fen2"){
+      /* la fenêtre et ses deux vantaux qui s'ouvrent vers l'intérieur */
+      ligne(surMur(m,g0,-e), surMur(m,g1,-e), fin, col); ligne(surMur(m,g0,e), surMur(m,g1,e), fin, col);
+      ligne(surMur(m,g0,-e*0.18), surMur(m,g1,-e*0.18), fin, col); ligne(surMur(m,g0,e*0.18), surMur(m,g1,e*0.18), fin, col);
+      var dv=o.l/2;
+      [[g0, 1], [g1, -1]].forEach(function(v){
+        var Hv=surMur(m,v[0],s*e), bv=[Hv[0]+x.n[0]*s*dv, Hv[1]+x.n[1]*s*dv], Mv=surMur(m,cc,s*e);
+        ligne(Hv, bv, fin, col);
+        var c0=Math.atan2(bv[1]-Hv[1], bv[0]-Hv[0]), c1=Math.atan2(Mv[1]-Hv[1], Mv[0]-Hv[0]), dc=c1-c0;
+        while(dc>Math.PI) dc-=2*Math.PI; while(dc<-Math.PI) dc+=2*Math.PI;
+        arc(Hv, dv, c0, c0+dc, fin, col);
+      });
+    } else if(o.type==="galandage"){
+      /* le vantail, dans l'ouverture et rentré dans le mur (la poche, en tirets) */
+      var pk=(o.main||1)>0 ? 1 : -1, ga=pk>0 ? g0 : g1, gp=pk>0 ? g1+o.l : g0-o.l;
+      ligne(surMur(m,ga,0), surMur(m, pk>0 ? g1 : g0, 0), moyen, col);
+      /* la poche, dans l'épaisseur du mur : un vide clair, et le vantail rentré en tirets */
+      var fondC = CLAIR || IMPRIME ? "#FFFFFF" : "#0B0E12", q1=surMur(m, pk>0 ? g1 : g0, -e*0.45), q2=surMur(m,gp,-e*0.45), q3=surMur(m,gp,e*0.45), q4=surMur(m, pk>0 ? g1 : g0, e*0.45);
+      var Q=[q1,q2,q3,q4].map(E); c.save(); c.fillStyle=fondC; c.beginPath(); c.moveTo(Q[0][0],Q[0][1]); for(var iq=1;iq<4;iq++) c.lineTo(Q[iq][0],Q[iq][1]); c.closePath(); c.fill(); c.restore();
+      c.save(); c.setLineDash([Math.max(3, 60/DESSIN_MM*V.k), Math.max(2, 40/DESSIN_MM*V.k)]);
+      ligne(surMur(m, pk>0 ? g1 : g0, 0), surMur(m,gp,0), moyen, col);
+      c.restore();
+      ligne(q1, q2, fin, col); ligne(q4, q3, fin, col); ligne(q2, q3, fin, col);
     }
   });
   /* le mobilier et les formes */
@@ -5678,7 +5715,7 @@ function toucherD(sx, sy, force){
     toast("Pièce de "+PIECE.l+" × "+PIECE.p+" cm, "+PIECE.h+" cm de haut : ajoutez portes et fenêtres, ou « Nom de pièce ».", 4000);
     return;
   }
-  if(OUTIL_D==="porte" || OUTIL_D==="pf" || OUTIL_D==="fenetre"){
+  if(OUV_TYPES[OUTIL_D]){
     var best=null, bd=Infinity;
     DESSIN.murs.forEach(function(m){ var r=distSeg(p, m.a, m.b), lim=m.ep/2+22/V.k; if(r.d<lim && r.d<bd){ bd=r.d; best={m:m, t:r.t}; } });
     if(!best){ toast("Touchez un mur pour y poser la "+NOMS_OUTILS[OUTIL_D].toLowerCase()+"."); return; }
@@ -5782,7 +5819,7 @@ function majDessin(){
   else if(OUTIL_D==="toit") det = D_PT ? "Touchez le coin opposé de l'emprise (le débord s'ajoute autour)." : "Touchez un coin de l'emprise du toit puis le coin opposé, ou « Sur les murs ». Réglez le type, la pente et les panneaux.";
   else det="Touchez un mur, du côté où elle s'ouvre.";
   if(o && t==="mur") det=(o.ep*DESSIN_MM<=90 ? "Cloison" : "Mur")+" de "+formater(longueurMur(o))+(refValide(o) ? " (face extérieure)" : "")+", épaisseur "+Math.round(o.ep*DESSIN_MM/10)+" cm, "+(o.h ? "hauteur "+cm(o.h)+" cm." : "jusqu'au plafond.");
-  if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm, hauteur "+cm(hautOuv(o))+" cm"+(o.type==="fenetre" ? ", allège "+cm(allegeOuv(o))+" cm." : ".");
+  if(o && t==="ouv") det=NOMS_OUTILS[o.type]+" de "+Math.round(o.l*DESSIN_MM/10)+" cm, hauteur "+cm(hautOuv(o))+" cm"+(OUV_FEN[o.type] ? ", allège "+cm(allegeOuv(o))+" cm." : ".");
   if(o && t==="texte") det="« "+o.s+" »";
   if(o && t==="geo") det=nommerG(o)+". Glissez pour déplacer, tirez les poignées pour modifier.";
   if(o && t==="toit") det=resumeToit(o)+".";
@@ -5816,9 +5853,9 @@ function majDessin(){
   var hPour = t==="mur" || t==="ouv" || ((OUTIL_D==="mur" || OUTIL_D==="cloison") && !o);
   $("grpHautD").hidden = !hPour;
   if(hPour){
-    var fen = t==="ouv" && o.type==="fenetre", hv;
+    var fen = t==="ouv" && !!OUV_FEN[o.type], hv;
     $("labAllD").hidden = $("dsAllege").hidden = !fen;
-    $("labHautD").textContent = t==="ouv" ? (o.type==="porte" ? "Passage" : "Hauteur") : "Hauteur";
+    $("labHautD").textContent = t==="ouv" ? (OUV_PORTE[o.type] ? "Passage" : "Hauteur") : "Hauteur";
     if(t==="mur") hv = o.h ? enUnite(o.h) : "";
     else if(t==="ouv") hv = enUnite(hautOuv(o));
     else { var hd=OUTIL_D==="cloison" ? H_CLOISON : H_MUR; hv = hd ? enUnite(hd) : ""; }
@@ -5828,8 +5865,8 @@ function majDessin(){
   }
   if(t==="mur" && document.activeElement!==$("dsLong")) $("dsLong").value=enUnite(longueurMur(o)*DESSIN_MM);
   if(t==="mur" && document.activeElement!==$("dsAngle")) $("dsAngle").value=String(angleMur(o)).replace(".",",");
-  $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre");
-  $("btMain").hidden = !(t==="ouv" && o.type==="porte");
+  $("btInverser").hidden = !(t==="ouv" && o.type!=="fenetre" && o.type!=="coul" && o.type!=="galandage");
+  $("btMain").hidden = !(t==="ouv" && (o.type==="porte" || o.type==="galandage"));
   $("btRenommer").hidden = t!=="texte" && t!=="mob" && !(t==="geo" && o.t==="gtexte");
   majGeoPanneau(o, t);
   $("grpChoixMob").hidden = OUTIL_D!=="objet";
@@ -6196,7 +6233,7 @@ function peindreElevation(c, E, fin, coulTrait, orange){
         var x=axes(m), cc=o.t*x.L, ro=plageV(vue, [surMur(m, cc-o.l/2, 0), surMur(m, cc+o.l/2, 0)]); if(ro[1]-ro[0]<1e-6) return;
         var z0=allegeOuv(o)/DESSIN_MM, z1=Math.min(h, hautOuv(o)/DESSIN_MM);
         c.fillStyle=fond; rect(ro[0], ro[1], z0, z1); c.fill(); c.strokeStyle=gris; c.stroke();
-        if(o.type==="fenetre" || o.type==="pf"){ var mi=(ro[0]+ro[1])/2, a=E([mi, z0]), b=E([mi, z1]); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); }
+        if(o.type==="fenetre" || o.type==="pf" || o.type==="fen2" || o.type==="coul"){ var mi=(ro[0]+ro[1])/2, a=E([mi, z0]), b=E([mi, z1]); c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke(); }
       });
     });
   }
@@ -7454,13 +7491,21 @@ var MOB=[
   {cle:"cylindre", nom:"Cylindre", court:"Cylindre", groupe:"Formes", l:600, p:600, h:1000, genre:"cyl", libre:1},
   {cle:"caisson", nom:"Caisson, soffite au plafond", court:"Caisson", groupe:"Formes", l:1200, p:400, h:300, genre:"pave", plafond:1},
   {cle:"estrade", nom:"Marche, estrade", court:"Estrade", groupe:"Formes", l:1200, p:800, h:180, genre:"pave"},
+  /* les escaliers (la flèche monte), et quelques marches */
+  {cle:"escdroit", nom:"Escalier droit", court:"Escalier droit", groupe:"Escaliers", l:900, p:3600, h:2700, genre:"escalier", libre:1},
+  {cle:"escquart", nom:"Escalier quart tournant (d'angle)", court:"Escalier d'angle", groupe:"Escaliers", l:2000, p:2900, h:2700, genre:"escquart", libre:1},
+  {cle:"esccolima", nom:"Escalier en colimaçon Ø 160", court:"Colimaçon", groupe:"Escaliers", l:1600, p:1600, h:2700, genre:"colima", libre:1},
+  {cle:"marches3", nom:"3 marches", court:"3 marches", groupe:"Escaliers", l:1000, p:840, h:510, genre:"marches", n:3},
+  /* l'isolation : un doublage contre le mur, dessiné comme sur un plan d'archi */
+  {cle:"isolant10", nom:"Isolation, doublage 10 cm", court:"Isolation 10", groupe:"Isolation", l:3000, p:100, h:2500, genre:"isolant"},
+  {cle:"isolant20", nom:"Isolation, doublage 20 cm", court:"Isolation 20", groupe:"Isolation", l:3000, p:200, h:2500, genre:"isolant"},
   /* le jardin : posés là où l'on touche ; leur largeur est celle du houppier */
   {cle:"arbre", nom:"Arbre (feuillu)", court:"Arbre", groupe:"Jardin", l:4000, p:4000, h:6000, genre:"arbre", libre:1},
   {cle:"conifere", nom:"Conifère (sapin, cyprès)", court:"Conifère", groupe:"Jardin", l:2500, p:2500, h:7000, genre:"conifere", libre:1},
   {cle:"arbuste", nom:"Arbuste, massif", court:"Arbuste", groupe:"Jardin", l:1200, p:1200, h:1500, genre:"arbuste", libre:1},
   {cle:"haie", nom:"Haie taillée", court:"Haie", groupe:"Jardin", l:3000, p:800, h:1600, genre:"haie", libre:1}
 ];
-var MOB_ROND={cyl:1, arbre:1, conifere:1, arbuste:1};      /* sans contour rectangulaire au plan */
+var MOB_ROND={cyl:1, arbre:1, conifere:1, arbuste:1, colima:1};      /* sans contour rectangulaire au plan */
 var CHOIX_MOB=lire("dwg:mob","lit140"), VOLS=lire("dwg:volumes","1")!=="0";
 function defMob(cle){ for(var i=0;i<MOB.length;i++) if(MOB[i].cle===cle) return MOB[i]; for(var j=0;j<MOB.length;j++) if(MOB[j].cle==="pave") return MOB[j]; return MOB[0]; }
 function mobs(){ return (DESSIN && DESSIN.mob) || []; }
@@ -7613,6 +7658,57 @@ function traceMob(o){
     for(var kb=nh*6;kb>=0;kb--){ var xb=-L2+o.l*kb/(nh*6); ph.push([xb, -P2+dh*(1-Math.abs(Math.sin(kb/6*Math.PI)))]); }
     T.push({t:"p", pts:ph}); return T;
   }
+  /* une flèche de montée : une ligne, un rond au départ, une pointe à l'arrivée */
+  function fleche(pts){
+    for(var f=1;f<pts.length;f++) l(pts[f-1], pts[f]);
+    var a=pts[pts.length-2], b=pts[pts.length-1], an=Math.atan2(b[1]-a[1], b[0]-a[0]), lf=Math.min(180*q, Math.max(o.l, o.p)*0.08);
+    l(b, [b[0]-Math.cos(an-0.45)*lf, b[1]-Math.sin(an-0.45)*lf]); l(b, [b[0]-Math.cos(an+0.45)*lf, b[1]-Math.sin(an+0.45)*lf]);
+    var rd=Math.min(45*q, lf*0.4); e(pts[0][0], pts[0][1], rd, rd);
+  }
+  function nbMarches(){ return Math.max(2, Math.round((o.h||2700)/175)); }
+  if(d.genre==="escalier"){
+    /* l'escalier droit : une marche tous les giron, la montée de -p/2 vers +p/2 */
+    r(-L2,-P2,L2,P2);
+    var nm=nbMarches(), gi=o.p/nm;
+    for(var im=1;im<nm;im++) l([-L2,-P2+im*gi],[L2,-P2+im*gi]);
+    fleche([[0,-P2+gi*0.5],[0,P2-gi*0.4]]);
+    return T;
+  }
+  if(d.genre==="marches"){
+    r(-L2,-P2,L2,P2);
+    var nk=d.n||3, gk=o.p/nk;
+    for(var ik=1;ik<nk;ik++) l([-L2,-P2+ik*gk],[L2,-P2+ik*gk]);
+    fleche([[0,-P2+gk*0.5],[0,P2-gk*0.4]]);
+    return T;
+  }
+  if(d.genre==="escquart"){
+    /* le quart tournant : une volée qui monte, trois marches balancées dans l'angle, une volée vers la droite */
+    var w=Math.min(o.l*0.6, o.p*0.6, Math.max(700*q, Math.min(o.l, o.p)*0.45));
+    T.push({t:"p", pts:[[-L2,-P2],[-L2+w,-P2],[-L2+w,P2-w],[L2,P2-w],[L2,P2],[-L2,P2]]});
+    var nq=nbMarches(), lv1=o.p-w, lv2=o.l-w, tot=lv1+lv2, n1=Math.max(1, Math.round((nq-3)*lv1/tot)), n2=Math.max(1, (nq-3)-n1);
+    for(var i1=1;i1<=n1;i1++){ var y1=-P2+i1*lv1/(n1+0); if(y1<P2-w-1e-6) l([-L2,y1],[-L2+w,y1]); }
+    var C=[-L2+w, P2-w];
+    [[-L2, P2-w],[-L2, P2],[-L2+w, P2]].forEach(function(pt){ l(C, pt); });
+    for(var i2=1;i2<=n2;i2++){ var x2=-L2+w+i2*lv2/(n2+0); if(x2<L2-1e-6) l([x2,P2-w],[x2,P2]); }
+    fleche([[-L2+w/2,-P2+Math.min(lv1/(n1+1), 250*q)*0.5],[-L2+w/2,P2-w/2],[L2-Math.min(lv2/(n2+1), 250*q)*0.4,P2-w/2]]);
+    return T;
+  }
+  if(d.genre==="colima"){
+    /* le colimaçon : le fût au centre, les marches rayonnantes, la montée en arc */
+    e(0,0,L2,P2); var rf=Math.min(L2,P2)*0.1; e(0,0,rf,rf);
+    var nc=Math.max(10, Math.min(16, nbMarches())), ouv=Math.PI*2*0.9, a0=-Math.PI/2;
+    for(var ic=0;ic<=nc;ic++){ var ac=a0+ouv*ic/nc; l([Math.cos(ac)*rf, Math.sin(ac)*rf],[Math.cos(ac)*L2, Math.sin(ac)*P2]); }
+    var rm=0.62, arcP=[]; for(var ia=0;ia<=24;ia++){ var aa=a0+ouv*(0.04+0.9*ia/24); arcP.push([Math.cos(aa)*L2*rm, Math.sin(aa)*P2*rm]); }
+    fleche(arcP);
+    return T;
+  }
+  if(d.genre==="isolant"){
+    /* l'isolant : le contour, et la ligne en zigzag de l'isolant souple */
+    r(-L2,-P2,L2,P2);
+    var pz=Math.max(o.p, 40*q), nz=Math.max(2, Math.round(o.l/pz)), dz=o.l/nz, y0z=-P2*0.85, y1z=P2*0.85;
+    for(var iz=0;iz<nz;iz++){ var xa=-L2+iz*dz; l([xa, iz%2 ? y1z : y0z],[xa+dz, iz%2 ? y0z : y1z]); }
+    return T;
+  }
   r(-L2,-P2,L2,P2,{tir:haut});
   if(d.genre==="lit"){
     var tete=Math.min(60*q, o.p*0.05); l([-L2,P2-tete],[L2,P2-tete]);
@@ -7686,7 +7782,7 @@ function peindreMobilier(c, E, fin, coulTrait, orange){
     c.save(); c.lineWidth=fin; c.strokeStyle=col;
     /* le fond, à peine teinté, pour lire le meuble sur le plan */
     var k=coinsMob(o).map(E);
-    if(!MOB_ROND[d.genre] && d.genre!=="haie" && d.genre!=="angle" && d.genre!=="panier"){ c.fillStyle=CLAIR ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.beginPath(); c.moveTo(k[0][0],k[0][1]); for(var i=1;i<4;i++) c.lineTo(k[i][0],k[i][1]); c.closePath(); c.fill(); }
+    if(!MOB_ROND[d.genre] && d.genre!=="haie" && d.genre!=="angle" && d.genre!=="panier" && d.genre!=="escquart"){ c.fillStyle=CLAIR ? "rgba(0,0,0,.035)" : "rgba(255,255,255,.05)"; c.beginPath(); c.moveTo(k[0][0],k[0][1]); for(var i=1;i<4;i++) c.lineTo(k[i][0],k[i][1]); c.closePath(); c.fill(); }
     traceMob(o).forEach(function(t){
       c.setLineDash(t.tir ? [Math.max(3, 60*q*V.k), Math.max(2, 40*q*V.k)] : []);
       c.beginPath();
@@ -7880,6 +7976,23 @@ function piecesMob(o){
       b(-L2,L2,-P2,P2,0,h,0x6E9E52,{sphere:1});
       break;
     case "haie": b(-L2,L2,-P2,P2,0,h,0x4F7F43); break;
+    case "escalier": case "marches":
+      /* les marches, chacune à sa hauteur ; un escalier a ses marches en planches, les marches sont pleines */
+      var nmE = d.genre==="marches" ? (d.n||3) : Math.max(2, Math.round(h/175)), giE=p/nmE, rhE=h/nmE;
+      for(i=0;i<nmE;i++) b(-L2,L2, -P2+i*giE,-P2+(i+1)*giE, d.genre==="marches" ? 0 : Math.max(0,(i+1)*rhE-45), (i+1)*rhE, BOIS);
+      break;
+    case "escquart":
+      var wq=Math.min(l*0.6, p*0.6, Math.max(700, Math.min(l, p)*0.45)), nq=Math.max(4, Math.round(h/175)), rq=h/nq, lv1=p-wq, lv2=l-wq, n1=Math.max(1, Math.round((nq-3)*lv1/(lv1+lv2))), n2=Math.max(1, nq-3-n1);
+      for(i=0;i<n1;i++) b(-L2,-L2+wq, -P2+i*lv1/n1,-P2+(i+1)*lv1/n1, Math.max(0,(i+1)*rq-45), (i+1)*rq, BOIS);
+      b(-L2,-L2+wq, P2-wq,P2, Math.max(0,(n1+2)*rq-60), (n1+2)*rq, BOIS2);      /* l'angle (marches balancées), en un palier */
+      for(i=0;i<n2;i++) b(-L2+wq+i*lv2/n2,-L2+wq+(i+1)*lv2/n2, P2-wq,P2, Math.max(0,(n1+3+i+1)*rq-45), (n1+3+i+1)*rq, BOIS);
+      break;
+    case "colima":
+      /* le fût, et le volume de l'escalier */
+      b(-L2*0.08,L2*0.08,-P2*0.08,P2*0.08,0,h,0x6B7280,{cyl:1});
+      b(-L2,L2,-P2,P2,0,h,BOIS,{cyl:1, opa:0.35});
+      break;
+    case "isolant": b(-L2,L2,-P2,P2,0,h,0xF2C94C); break;
     default: b(-L2,L2,-P2,P2,0,h,FORME);
   }
   return P;
@@ -8201,8 +8314,17 @@ function dxfDessin(){
     ligneD(surMur(m,g0,-e), surMur(m,g0,e), "OUVERTURES"); ligneD(surMur(m,g1,-e), surMur(m,g1,e), "OUVERTURES");
     if(o.type==="fenetre"){
       [-e, e, -e*0.18, e*0.18].forEach(function(off){ ligneD(surMur(m,g0,off), surMur(m,g1,off), "OUVERTURES"); });
+    } else if(o.type==="coul"){
+      var recD=Math.min(o.l*0.06, 60/DESSIN_MM);
+      [-e, e].forEach(function(off){ ligneD(surMur(m,g0,off), surMur(m,g1,off), "OUVERTURES"); });
+      ligneD(surMur(m,g0,-e*0.25), surMur(m,cc+recD,-e*0.25), "OUVERTURES"); ligneD(surMur(m,cc-recD,e*0.25), surMur(m,g1,e*0.25), "OUVERTURES");
+    } else if(o.type==="galandage"){
+      var pkD=(o.main||1)>0 ? 1 : -1, gaD=pkD>0 ? g0 : g1, gbD=pkD>0 ? g1 : g0, gpD=pkD>0 ? g1+o.l : g0-o.l;
+      ligneD(surMur(m,gaD,0), surMur(m,gbD,0), "OUVERTURES");
+      [0, -e*0.45, e*0.45].forEach(function(off){ ligneD(surMur(m,gbD,off), surMur(m,gpD,off), "OUVERTURES"); });
     } else {
-      var feuilles = o.type==="pf" ? [[g0, cc, o.l/2], [g1, cc, o.l/2]] : [[(o.main||1)>0 ? g0 : g1, (o.main||1)>0 ? g1 : g0, o.l]];
+      if(o.type==="fen2") [-e, e, -e*0.18, e*0.18].forEach(function(off){ ligneD(surMur(m,g0,off), surMur(m,g1,off), "OUVERTURES"); });
+      var feuilles = (o.type==="pf" || o.type==="fen2") ? [[g0, cc, o.l/2], [g1, cc, o.l/2]] : [[(o.main||1)>0 ? g0 : g1, (o.main||1)>0 ? g1 : g0, o.l]];
       feuilles.forEach(function(f){
         var Hh=surMur(m,f[0],s*e), bt=[Hh[0]+x.n[0]*s*f[2], Hh[1]+x.n[1]*s*f[2]], O=surMur(m,f[1],s*e);
         ligneD(Hh, bt, "OUVERTURES");
@@ -8579,7 +8701,7 @@ function construire3Dmm(ed){
       var o=g[2], al=Math.min(allegeOuv(o), hm), haut=Math.max(al, Math.min(hm, hautOuv(o)));
       bloc(m, g[0], g[1], haut, hm, matMur);                                    /* le linteau */
       if(al) bloc(m, g[0], g[1], 0, al, matMur);                                /* l'allège */
-      if(o.type!=="porte") bloc(m, g[0]+20, g[1]-20, al, haut, matVitre, 12);   /* le vitrage */
+      if(!OUV_PORTE[o.type]) bloc(m, g[0]+20, g[1]-20, al, haut, matVitre, 12);   /* le vitrage */
       /* les montants de menuiserie */
       bloc(m, g[0], g[0]+45, al, haut, matCadre, Math.min(m.ep, 70)); bloc(m, g[1]-45, g[1], al, haut, matCadre, Math.min(m.ep, 70));
       if(o.type==="porte"){
@@ -13340,8 +13462,9 @@ var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
   {id:"debut", nom:"Construction", g:[
     {nom:"Murs", gros:["o:mur","o:cloison","o:piece"]},
-    {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"]},
+    {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"], petits:["o:coul","o:fen2","o:galandage"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
+    {nom:"Escaliers et isolation", petits:["m:escdroit","m:escquart","m:esccolima","m:marches3","m:isolant10","m:isolant20"]},
     {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur"]},
     {nom:"Plan importé", gros:["a:effdwg"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
@@ -13392,10 +13515,28 @@ function libelle(r){
   if(t==="o:"){ var b=boutonOutil(k); return b ? b.textContent.trim() : k; }
   if(t==="v:") return VUES_R[k];
   if(t==="s:"){ var sy=SymbolesElec.trouver(k); return sy ? sy.nom : k; }
+  if(t==="m:") return defMob(k).court;
   return (ACTIONS[k]||[k])[0];
+}
+/* les escaliers, les marches et l'isolation, posés d'un bouton du ruban (comme du mobilier) */
+var ICO_MOBR={
+  escdroit:'<path d="M8 3h8v18H8z"/><path d="M8 7h8M8 11h8M8 15h8M12 18.5V5M10.5 6.5 12 5l1.5 1.5"/>',
+  escquart:'<path d="M4 21V9h11v12"/><path d="M4 3h16v6H4"/><path d="M4 15h11M4 18h11M15 3v6M18 3v6M9.5 19V6h8"/>',
+  esccolima:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v7.4M18.4 5.6 13.1 10.9M21 12h-7.4M18.4 18.4l-5.3-5.3M12 21v-7.4"/>',
+  marches3:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M4 14h16M12 16.5V7.5M10.6 8.9 12 7.5l1.4 1.4"/>',
+  isolant10:'<path d="M3 9h18v6H3z"/><path d="M3 15l3-6 3 6 3-6 3 6 3-6 3 6"/>',
+  isolant20:'<path d="M3 7h18v10H3z"/><path d="M3 17l3-10 3 10 3-10 3 10 3-10 3 10"/>'
+};
+function choisirMobR(k){
+  if(!PLAN) return;
+  choisirOutilR("objet");
+  CHOIX_MOB=k; garder("dwg:mob", k); var sm=$("selMob"); if(sm) sm.value=k;
+  majDessin(); majRuban();
+  var d=defMob(k); toast(d.nom+" : touchez le plan"+(d.libre ? "" : " (contre un mur)")+" pour le poser ; ses dimensions se changent dans ses propriétés.", 3200);
 }
 function icone(r){
   var t=r.slice(0,2), k=r.slice(2);
+  if(t==="m:") return '<svg viewBox="0 0 24 24" class="trait" aria-hidden="true">'+(ICO_MOBR[k]||"")+'</svg>';
   if(t==="o:"){ var b=boutonOutil(k), i=b && b.querySelector("i"); return i ? i.innerHTML : ""; }
   if(t==="v:") return icoTrait(k);
   if(t==="s:") return SymbolesElec.svg(k, 22);
@@ -13407,6 +13548,7 @@ function aide0(r){
   if(t==="o:"){ var b=boutonOutil(k); return (b && b.title) || libelle(r); }
   if(t==="v:") return "Vue de "+VUES_R[k].toLowerCase();
   if(t==="s:"){ var sy=SymbolesElec.trouver(k); return sy ? sy.nom : k; }
+  if(t==="m:") return defMob(k).nom;
   return (ACTIONS[k]||[])[2] || libelle(r);
 }
 function boutonRuban(r, genre){
@@ -13518,6 +13660,7 @@ function majRuban(){
     var r=b.dataset.r, t=r.slice(0,2), k=r.slice(2), on=false, off=!PLAN && !SANS_PLAN[r];
     if(t==="o:") on = k==="choisir" ? choisirOn : (MODE==="dessin" && OUTIL_D===k);
     else if(t==="s:") on = MODE==="symb" && ARME_S && CHOIX===k;
+    else if(t==="m:") on = MODE==="dessin" && OUTIL_D==="objet" && CHOIX_MOB===k;
     else if(t==="v:") on = !!PLAN && VUE_D===k;
     else if(k==="mesurer") on = !!PLAN && MODE==="cote";
     else if(k==="calques") on = !$("calques").hidden;
@@ -13695,6 +13838,7 @@ $("rbPanneau").addEventListener("click", function(e){
   if(t==="o:" && (k==="pvchamp" || k==="pvpan") && PLAN){ demanderModule(function(){ choisirOutilR(k); majRuban(); if(petitEcran()) replier(true); }); return; }   /* d'abord, la taille du panneau */
   if(t==="o:") choisirOutilR(k);
   else if(t==="s:") choisirSymboleR(k);
+  else if(t==="m:") choisirMobR(k);
   else if(t==="v:"){ if(PLAN) choisirVue(k); }
   else actionR(k);
   majRuban();
@@ -13712,9 +13856,9 @@ $("rbOnglets").addEventListener("click", function(e){
 $("btReplier").addEventListener("click", function(){ replier(!$("ruban").classList.contains("replie")); });
 /* ---------- la barre de commande : on tape l'outil (renvoi, mesurer, rect…), Entrée le lance ----------
    Les noms du ruban, et les abréviations d'un logiciel de DAO (L, PL, REC, C, A, COT, DIST, CO, RO…). */
-var CMD_LISTE=["o:mur","o:cloison","o:piece","o:porte","o:pf","o:fenetre","o:objet","o:toit","o:texte","o:main","o:choisir","o:selection","a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur","a:effdwg","a:guideh","a:guidev","a:guide2","a:guidesEff","o:trait","o:poly","o:rond","o:arc","o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche","o:cote","o:gtexte","a:renvoi","a:mesurer","a:etalonner","a:chaine","a:cotepiece","o:pvchamp","o:pvpan","o:pvond","o:pvstr","o:pvac","o:pvrj","a:etudepv","a:fond","a:feuille","a:laser","a:photo","a:blocs","v:dessus","v:face","v:cote","a:v3d","a:niveaux","a:elevation","a:entiere","a:clair","a:reticule","a:calques","a:reperes","a:enreg","a:enregch","a:cloud","a:pdf","a:dxf","a:image","a:xlsx","a:raccourcis","a:enchainer","a:accroche","a:ortho","a:faceext","a:inverser","a:reseau","a:reseu","a:resfourreau","a:quantites","a:resa","a:reschemin","a:resgaine","a:resfrigo","a:restelec","a:rescond","a:relier","a:numcirc","a:versschema"];
+var CMD_LISTE=["m:escdroit","m:escquart","m:esccolima","m:marches3","m:isolant10","m:isolant20","o:coul","o:fen2","o:galandage","o:mur","o:cloison","o:piece","o:porte","o:pf","o:fenetre","o:objet","o:toit","o:texte","o:main","o:choisir","o:selection","a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur","a:effdwg","a:guideh","a:guidev","a:guide2","a:guidesEff","o:trait","o:poly","o:rond","o:arc","o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche","o:cote","o:gtexte","a:renvoi","a:mesurer","a:etalonner","a:chaine","a:cotepiece","o:pvchamp","o:pvpan","o:pvond","o:pvstr","o:pvac","o:pvrj","a:etudepv","a:fond","a:feuille","a:laser","a:photo","a:blocs","v:dessus","v:face","v:cote","a:v3d","a:niveaux","a:elevation","a:entiere","a:clair","a:reticule","a:calques","a:reperes","a:enreg","a:enregch","a:cloud","a:pdf","a:dxf","a:image","a:xlsx","a:raccourcis","a:enchainer","a:accroche","a:ortho","a:faceext","a:inverser","a:reseau","a:reseu","a:resfourreau","a:quantites","a:resa","a:reschemin","a:resgaine","a:resfrigo","a:restelec","a:rescond","a:relier","a:numcirc","a:versschema"];
 var CMD_ALIAS={"l":"o:trait","ligne":"o:trait","line":"o:trait","pl":"o:poly","polyligne":"o:poly","pline":"o:poly","c":"o:rond","cercle":"o:rond","circle":"o:rond","a":"o:arc","rec":"o:rect","rectang":"o:rect","rectangle":"o:rect","el":"o:ellipse","spl":"o:spline","h":"o:hachure","hachures":"o:hachure","cot":"o:cote","cotation":"o:cote","dim":"o:cote","dist":"a:mesurer","di":"a:mesurer","mesure":"a:mesurer","t":"o:gtexte","mt":"o:gtexte","mtexte":"o:gtexte","texte":"o:gtexte","fleche":"a:renvoi","leader":"a:renvoi","mleader":"a:renvoi","co":"a:dupliquer","cp":"a:dupliquer","copie":"a:dupliquer","copier":"a:dupliquer","ro":"a:tourner","rotation":"a:tourner","mi":"a:miroir","dec":"a:decaler","offset":"a:decaler","aj":"a:ajuster","trim":"a:ajuster","ex":"a:prolonger","extend":"a:prolonger","eff":"a:supprimer","effacer":"a:supprimer","e":"a:supprimer","erase":"a:supprimer","g":"a:grouper","group":"a:grouper","z":"a:entiere","zoom":"a:entiere","m":"o:main","pan":"o:main","calque":"a:calques","ca":"a:calques","la":"a:calques","qt":"a:quantites","3d":"a:v3d","enr":"a:enreg","save":"a:enreg","imprimer":"a:pdf","traceur":"a:pdf","plot":"a:pdf"};
-function cmdDispo(r){ var t=r.slice(0,2); if(t==="o:") return !!boutonOutil(r.slice(2)); if(t==="a:") return !!ACTIONS[r.slice(2)]; if(t==="v:") return !!VUES_R[r.slice(2)]; if(t==="s:") return !!(window.SymbolesElec && SymbolesElec.trouver(r.slice(2))); return false; }
+function cmdDispo(r){ var t=r.slice(0,2); if(t==="m:") return !!ICO_MOBR[r.slice(2)]; if(t==="o:") return !!boutonOutil(r.slice(2)); if(t==="a:") return !!ACTIONS[r.slice(2)]; if(t==="v:") return !!VUES_R[r.slice(2)]; if(t==="s:") return !!(window.SymbolesElec && SymbolesElec.trouver(r.slice(2))); return false; }
 function cmdAlias(r){ var l=[]; for(var k in CMD_ALIAS) if(CMD_ALIAS[k]===r && k.length<=4) l.push(k.toUpperCase()); return l.slice(0, 2).join(" "); }
 function cmdChercher(q){
   q=sansAccent(String(q||"").trim()); if(!q) return [];
