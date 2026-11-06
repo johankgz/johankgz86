@@ -996,6 +996,11 @@ const JETON_LIEN = /^[A-Za-z0-9_-]{16,40}$/;
 const QR_CONTACT = "qr-contact.json";
 /* le lien du client (sa page à lui, par dossier) : coupé tant que l'administrateur ne l'ouvre pas */
 const REGLAGES_CLIENTS = "reglages-clients.json";
+/* la nature des travaux : la liste complète, et ce que la société réalise (natures-societe.json) */
+const NATURES_SOCIETE = "natures-societe.json";
+const NATURES_TRAVAUX = ["Électricité", "Courants faibles", "Photovoltaïque", "Borne de recharge", "Plomberie", "Chauffage",
+  "Climatisation", "Ventilation", "Couverture", "Charpente", "Zinguerie", "Maçonnerie", "Menuiserie", "Plâtrerie",
+  "Isolation", "Peinture", "Carrelage", "Revêtements de sol", "Serrurerie", "Terrassement / VRD", "Démolition"];
 async function lienClientActif(st) {
   let r = null; try { r = await st.get(REGLAGES_CLIENTS, { type: "json" }); } catch { r = null; }
   return !!(r && r.lienClient);
@@ -4011,6 +4016,22 @@ async function traiter(req) {
     Object.assign(r, { maj: maintenant, par: personne.nom });
     await store.setJSON(chemin, r);
     return json({ ok: true, total: r.lignes.length });
+  }
+  /* ---------- la nature des travaux que réalise la société ----------
+     L'administrateur coche, dans Équipe, ce que fait l'entreprise ; le relevé ne propose que ça.
+     Rien de coché : toute la liste. */
+  if (action === "natures-societe") {
+    let r = null; try { r = await store.get(NATURES_SOCIETE, { type: "json" }); } catch { r = null; }
+    const choisies = r && Array.isArray(r.natures) ? r.natures.filter((n) => NATURES_TRAVAUX.includes(n)) : [];
+    return json({ toutes: NATURES_TRAVAUX, natures: choisies, reglee: choisies.length > 0 });
+  }
+  if (action === "natures-societe-enregistrer") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!admin) return json({ erreur: "Réservé à l'administrateur." }, 403);
+    let d; try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const natures = (Array.isArray(d.natures) ? d.natures : []).filter((n) => NATURES_TRAVAUX.includes(n));
+    await store.setJSON(NATURES_SOCIETE, { natures, maj: new Date().toISOString(), par: personne.nom });
+    return json({ ok: true, natures });
   }
   /* ---------- réglages des pages clients (administrateur) ---------- */
   if (action === "reglages-clients") return json({ lienClient: await lienClientActif(store) });

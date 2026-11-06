@@ -277,6 +277,10 @@ textarea:focus-visible,[tabindex]:focus-visible{
   background:#fff;color:var(--ink-2);font-weight:500;
   transition:background .16s ease,border-color .16s ease,color .16s ease;
 }
+/* les natures de travaux de la société : des pastilles à cocher */
+#nt_liste{display:flex;flex-wrap:wrap;gap:8px}
+#nt_liste label{position:relative;display:inline-flex;align-items:center;min-height:38px;padding:0 14px;cursor:pointer;font-size:14px;margin:0}
+#nt_liste input{position:absolute;opacity:0;width:0;height:0;min-height:0;margin:0;padding:0}
 .chip.on,.chips label.on{
   background:var(--accent-soft);border-color:rgba(37,99,235,.4);
   color:var(--accent-fonce);font-weight:600;
@@ -435,6 +439,11 @@ h2.sec,.sec{color:var(--sur-fond-2)}
       <label class="f"><span>Médiateur de la consommation</span><input type="text" id="fs_mediateur" placeholder="Nom du médiateur et son site, par ex. Médiateur XYZ — www.exemple.fr"></label>
       <p class="hint" style="margin-top:-4px">Obligatoire si vous travaillez pour des particuliers (art. L.612-1 du Code de la consommation). Il s'affiche sur les pages envoyées à vos clients (lien client, QR code, rendez-vous).</p>
       <div class="row"><button class="act" id="fs_enr">Enregistrer l'en-tête</button><span class="hint" id="fs_etat" style="margin:0"></span></div>
+
+      <p class="legend" style="margin-top:20px">Nature des travaux réalisés</p>
+      <p class="hint" style="margin:-4px 0 8px">Cochez ce que fait votre entreprise : le relevé ne proposera que ces natures de travaux. Rien de coché : toute la liste.</p>
+      <div class="chips" id="nt_liste" style="margin-bottom:8px"></div>
+      <div class="row"><button class="act" id="nt_enr">Enregistrer les natures</button><span class="hint" id="nt_etat" style="margin:0"></span></div>
 
       <p class="legend" style="margin-top:20px">Lien du client</p>
       <label style="display:flex;gap:10px;align-items:flex-start;margin:0 0 6px;cursor:pointer;font-size:15px"><input type="checkbox" id="rc_lien" style="width:20px;height:20px;min-height:0;margin:2px 0 0;flex:none;padding:0">
@@ -747,6 +756,7 @@ function chargerFiche(nomSoc){
       $("ficheSoc").hidden=false;
       chargerQrContact();
       chargerReglagesClients();
+      chargerNatures();
     })
     .catch(function(){});
 }
@@ -765,6 +775,33 @@ function chargerQrContact(neuf){
     })
     .catch(function(){ $("qrc_etat").textContent="Pas de réseau."; });
 }
+/* la nature des travaux de la société : des cases, enregistrées par l'administrateur */
+var NT={toutes:[], natures:[]};
+function peindreNatures(){
+  var h=$("nt_liste"); h.textContent="";
+  NT.toutes.forEach(function(n){
+    var lab=document.createElement("label"); lab.className="chip"+(NT.natures.indexOf(n)>=0?" on":"");
+    var i=document.createElement("input"); i.type="checkbox"; i.checked=NT.natures.indexOf(n)>=0; i.value=n;
+    i.addEventListener("change", function(){
+      if(i.checked){ if(NT.natures.indexOf(n)<0) NT.natures.push(n); } else NT.natures=NT.natures.filter(function(x){ return x!==n; });
+      lab.classList.toggle("on", i.checked); $("nt_etat").textContent="";
+    });
+    lab.appendChild(i); lab.appendChild(document.createTextNode(n)); h.appendChild(lab);
+  });
+}
+function chargerNatures(){
+  fetch(api("natures-societe"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); })
+    .then(function(d){ NT.toutes=d.toutes||[]; NT.natures=d.natures||[]; peindreNatures(); }).catch(function(){});
+}
+$("nt_enr").addEventListener("click", function(){
+  fetch(api("natures-societe-enregistrer"), {method:"POST", headers:tetes(), body:JSON.stringify({natures:NT.natures})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(r){
+      if(!r.ok){ $("nt_etat").textContent=r.d.erreur||"Refusé."; return; }
+      $("nt_etat").textContent = r.d.natures.length ? r.d.natures.length+" nature"+(r.d.natures.length>1?"s":"")+" enregistrée"+(r.d.natures.length>1?"s":"")+" : le relevé ne propose plus qu'elles." : "Aucune cochée : le relevé propose toute la liste.";
+    })
+    .catch(function(){ $("nt_etat").textContent="Pas de réseau."; });
+});
 /* le lien du client : coupé de base, l'administrateur l'ouvre ici */
 function chargerReglagesClients(){
   fetch(api("reglages-clients"), {headers:{"x-auth":S.jeton}}).then(function(r){ return r.json(); })

@@ -616,6 +616,8 @@ textarea:focus-visible,[tabindex]:focus-visible{
   background:var(--accent-soft);border-color:rgba(37,99,235,.4);
   color:var(--accent-fonce);font-weight:600;
 }
+/* une case cochée à choix multiple : même teinte claire (le fond bleu foncé rendait le texte illisible) */
+.chips label.on.multi,.chip.on.multi{background:var(--accent-soft)}
 .tag,.f .tag{
   border-radius:var(--r-pill);
   font-size:11px;font-weight:700;letter-spacing:.05em;
@@ -883,12 +885,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
   <div class="block">
     <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M13 2.5 5 13.5h6l-1 8 8-11h-6z"/></svg>Nature des travaux</h2>
-    <div class="chips" data-multi="natures">
-      <label class="chip"><input type="checkbox" value="Électricité">Électricité</label>
-      <label class="chip"><input type="checkbox" value="Plomberie">Plomberie</label>
-      <label class="chip"><input type="checkbox" value="Climatisation">Climatisation</label>
-      <label class="chip"><input type="checkbox" value="Photovoltaïque">Photovoltaïque</label>
-    </div>
+    <div class="chips" data-multi="natures"></div>
   </div>
 
   <div class="block">
@@ -2178,6 +2175,38 @@ function toggleAccepte(){
         ? "Visite à programmer : le relevé sert de fiche de prise de contact."
         : "Devis accepté : le rapport part au technicien pour préparation des travaux. En attente : il sert au chiffrage.");
 }
+/* ---------- la nature des travaux : ce que réalise la société (Équipe), sinon toute la liste ---------- */
+var NATURES_TOUTES=["Électricité","Courants faibles","Photovoltaïque","Borne de recharge","Plomberie","Chauffage","Climatisation","Ventilation",
+  "Couverture","Charpente","Zinguerie","Maçonnerie","Menuiserie","Plâtrerie","Isolation","Peinture","Carrelage","Revêtements de sol","Serrurerie","Terrassement / VRD","Démolition"];
+var NATURES_SOC=(function(){ try{ var v=JSON.parse(localStorage.getItem("releve:natures")||"null"); return Array.isArray(v) ? v : null; }catch(e){ return null; } })();
+function naturesProposees(deja){
+  var base=(NATURES_SOC && NATURES_SOC.length) ? NATURES_SOC : NATURES_TOUTES;
+  /* une nature déjà cochée sur la fiche reste visible, même hors de la liste */
+  (deja||[]).forEach(function(n){ if(base.indexOf(n)<0) base=base.concat([n]); });
+  return base;
+}
+function peindreNatures(){
+  var box=document.querySelector('[data-multi="natures"]'); if(!box || !S || !S.chantier) return;
+  var ch=S.chantier.natures||[];
+  box.textContent="";
+  naturesProposees(ch).forEach(function(n){
+    var lab=document.createElement("label"); lab.className="chip multi"+(ch.indexOf(n)>=0?" on":"");
+    var i=document.createElement("input"); i.type="checkbox"; i.value=n; i.checked=ch.indexOf(n)>=0;
+    lab.appendChild(i); lab.appendChild(document.createTextNode(n)); box.appendChild(lab);
+  });
+}
+function chargerNaturesSociete(){
+  if(!baseSite() || !jetonSession()) return;
+  fetch(apiUrl("natures-societe"), {headers:{"x-auth":jetonSession()}}).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if(!d) return;
+      var v=Array.isArray(d.natures) ? d.natures : [];
+      if(JSON.stringify(v)===JSON.stringify(NATURES_SOC||[])) return;
+      NATURES_SOC=v; try{ localStorage.setItem("releve:natures", JSON.stringify(v)); }catch(e){}
+      peindreNatures(); try{ renderRooms(); }catch(e){}
+    }).catch(function(){});
+}
+setTimeout(chargerNaturesSociete, 300);
 function paintForm(){
   if(!peindreIrve) initBascules(); else rafraichirBascules();
   paintConseil();
@@ -2194,6 +2223,7 @@ function paintForm(){
       i.checked = (i.value===v); i.parentNode.classList.toggle("on", i.checked);
     });
   });
+  peindreNatures();
   document.querySelectorAll("[data-multi]").forEach(function(box){
     var v = readAssign(box.getAttribute("data-multi")) || [];
     box.querySelectorAll("input").forEach(function(i){
@@ -5210,7 +5240,7 @@ function renderRooms(){
     var body=document.createElement("div"); body.className="body";
 
     var lot=document.createElement("div"); lot.className="chips";
-    ["Électricité","Plomberie","Climatisation","Photovoltaïque"].forEach(function(n){
+    naturesProposees(p.natures).forEach(function(n){
       var lab=document.createElement("label"); lab.className="chip multi"+(p.natures.indexOf(n)>=0?" on":"");
       var inp=document.createElement("input"); inp.type="checkbox"; inp.checked=p.natures.indexOf(n)>=0;
       inp.addEventListener("change", function(){
