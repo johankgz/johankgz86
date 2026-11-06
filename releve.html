@@ -1951,8 +1951,10 @@ function assign(key,val){
     if(key==="exposition") azimutDepuisExposition();
   }
   else if(key==="typeBien"||key==="natures"||key==="construction"||key==="alim"){
+    var avant = key==="natures" ? (S.chantier.natures||[]).slice() : null;
     S.chantier[key]=val;
     if(key==="alim") propagerAlimentation();
+    if(key==="natures") naturesVersParties(avant, val||[]);
   }
   else S.logistique[key]=val;
 }
@@ -2362,18 +2364,19 @@ var TABS_TOUS=[["client","Client"],["travaux","Travaux"],["pieces","Pièces"],["
   ["menuiserie","Menuis."],["maconnerie","Maçon."],["toiture","Toiture"],["plaquiste","Plaquiste"],["peintre","Peinture"],["sols","Sols"],["logistique","Logistique"],["conclusion","Conclusion"]];
 /* au départ, les parties de toujours ; les métiers de la société s'y ajoutent ou s'en retirent dès que la fiche est là */
 var TABS=TABS_TOUS.filter(function(t){ return (t[0]!=="charge" || COURBE_CHARGE) && ["menuiserie","maconnerie","toiture","plaquiste","peintre","sols"].indexOf(t[0])<0; });
-/* Les parties du relevé selon ce que fait la société (Équipe › Nature des travaux réalisés) :
-   IRVE, Clim, PV, et les autres corps d'état ; une partie déjà remplie sur la fiche reste. */
+/* Les parties du relevé selon la nature des travaux cochée en haut de la fiche (Travaux) :
+   Borne de recharge → IRVE, Climatisation → Clim, Photovoltaïque → PV, et les autres corps
+   d'état (menuiserie, maçonnerie…) ; une partie déjà activée ou remplie sur la fiche reste. */
 function tabsSelonMetiers(){
-  var nat=(typeof NATURES_SOC!=="undefined" && NATURES_SOC) || [], tout=!nat.length;
-  function fait(n){ return tout || nat.indexOf(n)>=0; }
-  var autres=(window.MetiersReleve && S) ? MetiersReleve.visibles(S, nat).map(function(m){ return m.id; }) : [];
+  var nat=(S && S.chantier && Array.isArray(S.chantier.natures)) ? S.chantier.natures : [];
+  function fait(n){ return nat.indexOf(n)>=0; }
+  var autres=(window.MetiersReleve && S) ? MetiersReleve.visibles(S, nat.length ? nat : ["—"]).map(function(m){ return m.id; }) : [];
   var irveOn=!!(S && S.pv && S.pv.irve && (S.pv.irve.actif===true || S.pv.irve.actif==="oui"));
   var climOn=!!(S && S.clim && S.clim.actif==="oui"), pvOn=!!(S && S.pv && S.pv.actif==="oui");
   return TABS_TOUS.filter(function(t){
     var k=t[0];
     if(k==="charge") return COURBE_CHARGE;
-    if(k==="irve") return fait("Borne de recharge") || fait("Électricité") || irveOn;
+    if(k==="irve") return fait("Borne de recharge") || irveOn;
     if(k==="clim") return fait("Climatisation") || climOn;
     if(k==="pv") return fait("Photovoltaïque") || pvOn;
     if(["menuiserie","maconnerie","toiture","plaquiste","peintre","sols"].indexOf(k)>=0) return autres.indexOf(k)>=0;
@@ -4893,6 +4896,36 @@ function openSketch(p, index){
   }).catch(function(){ toast("Image illisible."); });
 }
 
+/* ---------- la nature des travaux ouvre ses parties ----------
+   Cocher « Borne de recharge », « Climatisation » ou « Photovoltaïque » active la partie
+   (IRVE, Clim, PV) et l'affiche plus bas ; décocher la referme (ce qui y est saisi reste,
+   et revient si on recoche). Les autres corps d'état suivent leur nature. */
+var NATURE_PARTIE={"Borne de recharge":"irve", "Climatisation":"clim", "Photovoltaïque":"pv"};
+function naturesVersParties(avant, apres){
+  Object.keys(NATURE_PARTIE).forEach(function(n){
+    var a=avant.indexOf(n)>=0, b=apres.indexOf(n)>=0;
+    if(a===b) return;
+    var v = b ? "oui" : "non", k=NATURE_PARTIE[n];
+    if(k==="irve") S.pv.irve.actif=v;
+    else if(k==="clim") CL().actif=v;
+    else if(k==="pv") S.pv.actif=v;
+  });
+  try{ rafraichirBascules(); }catch(e){}
+  try{ if(typeof paintIrve==="function") paintIrve(); }catch(e){}
+  try{ if(typeof paintClim==="function") paintClim(); }catch(e){}
+  try{ majOngletsMetiers(); }catch(e){}
+}
+
+/* et l'inverse : activer la partie à la main coche sa nature en haut */
+function natureSelonPartie(n, on){
+  var L=S.chantier.natures||(S.chantier.natures=[]), k=L.indexOf(n);
+  if(on && k<0) L.push(n); else if(!on && k>=0) L.splice(k,1); else return;
+  try{ peindreNatures(); }catch(e){}
+  var box=document.querySelector('[data-multi="natures"]');
+  if(box) box.querySelectorAll("input").forEach(function(i){ i.checked=L.indexOf(i.value)>=0; i.parentNode.classList.toggle("on", i.checked); });
+  setTimeout(function(){ try{ majOngletsMetiers(); }catch(e){} }, 0);
+}
+
 /* ---------- parties activables : IRVE et photovoltaïque ---------- */
 function bascule(idBouton, idCorps, lire, ecrire){
   var b=$(idBouton), c=$(idCorps);
@@ -4931,13 +4964,13 @@ function initBascules(){
     function(v){ CK().actif = v; });
   peindreIrve = bascule("swIrve", "irveCorps",
     function(){ return S.pv.irve.actif === "oui"; },
-    function(v){ S.pv.irve.actif = v; });
+    function(v){ S.pv.irve.actif = v; natureSelonPartie("Borne de recharge", v==="oui"); });
   peindreClim = bascule("swClim", "climCorps",
     function(){ return CL().actif === "oui"; },
-    function(v){ CL().actif = v; });
+    function(v){ CL().actif = v; natureSelonPartie("Climatisation", v==="oui"); });
   peindrePv = bascule("swPv", "pvCorps",
     function(){ return S.pv.actif === "oui"; },
-    function(v){ S.pv.actif = v; });
+    function(v){ S.pv.actif = v; natureSelonPartie("Photovoltaïque", v==="oui"); });
 }
 function rafraichirBascules(){ if(peindreJoints) peindreJoints(); if(peindreIrve) peindreIrve(); if(peindrePv) peindrePv(); if(peindreClim) peindreClim(); if(peindreCharge) peindreCharge(); }
 
