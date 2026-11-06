@@ -197,8 +197,12 @@ export const APPLIS_FICHE = {
   etiquettes: ["des étiquettes", "./etiquettes.html"], photos: ["un reportage photo", "./photos.html"],
   carnet: ["un carnet", "./carnet.html"], technique: ["des documents techniques", "./technique.html"], note: ["une note", "./note.html"]
 };
+const FICHES_RESTENT_SUR_L_APPAREIL = true;
 /* les fiches d'un index qui attendent d'être publiées, laissées sur un téléphone ou une tablette */
 export function fichesOubliees(x, maintenant = Date.now()) {
+  /* les fiches restent sur l'appareil où on les a commencées (encours.js) : plus de
+     rappel « pas encore publié » sur l'ordinateur, qui ne peut plus les ouvrir */
+  if (FICHES_RESTENT_SUR_L_APPAREIL) return [];
   const l = [];
   Object.keys((x && x.fiches) || {}).forEach((k) => {
     const e = x.fiches[k], m = /^([a-z]+):courante?(?:@(.+))?$/.exec(k);
