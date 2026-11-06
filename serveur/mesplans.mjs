@@ -166,6 +166,27 @@ export async function mesplans(action, o) {
       e.nom = nom; await ecrire(x);
       return json({ ok: true, plan: e });
     }
+    /* copier un plan déjà fait, pour en repartir : le dessin, les symboles, le fond et le fichier importé ;
+       la copie n'est rattachée à aucun chantier */
+    if (action === "plan-dupliquer") {
+      let c = null;
+      try { c = await store.get(BASE + "c/" + e.id + ".json", { type: "json" }); } catch { c = null; }
+      if (!c) return json({ erreur: "Le contenu de ce plan est introuvable." }, 404);
+      const id = nouvelId(), quand = new Date().toISOString();
+      const copie = { id, nom: court(d.nom, 120) || court(e.nom + " (copie)", 120), type: e.type, maj: quand, auteur: personne.nom,
+        cree: quand, creePar: personne.nom, taille: e.taille || 0 };
+      if (e.source) copie.source = Object.assign({}, e.source);
+      await store.setJSON(BASE + "c/" + id + ".json", c);
+      if (e.type === "fichier" && e.fichier) {
+        let b = null;
+        try { b = await store.get(BASE + "f/" + e.id, { type: "arrayBuffer" }); } catch { b = null; }
+        if (b) { await store.set(BASE + "f/" + id, Buffer.from(b), { metadata: { type: "application/octet-stream" } }); copie.fichier = true; }
+        else copie.fichier = false;
+      }
+      x.plans.unshift(copie);
+      await ecrire(x);
+      return json({ ok: true, plan: copie });
+    }
     if (action === "plan-supprimer") {
       try { await store.delete(BASE + "c/" + e.id + ".json"); } catch { /* déjà parti */ }
       try { await store.delete(BASE + "f/" + e.id); } catch { /* déjà parti */ }

@@ -1850,6 +1850,13 @@ async function traiter(req) {
       }
       const cle = c.ref + "/plan-" + id + "." + format;
       const memePlan = (f) => f.plan && f.plan.id === id && f.plan.u === u;
+      /* un plan n'est rattaché qu'à un chantier : déposé ailleurs, il quitte le précédent */
+      for (const cA of Object.values(idx.chantiers)) {
+        if (cA === c || !Array.isArray(cA.fichiers) || !cA.fichiers.some(memePlan)) continue;
+        for (const f of cA.fichiers) if (memePlan(f)) { try { await store.delete(f.cle); } catch { /* déjà parti */ } }
+        cA.fichiers = cA.fichiers.filter((f) => !memePlan(f));
+        cA.maj = new Date().toISOString();
+      }
       const ancien = c.fichiers.find((f) => f.cle === cle) || c.fichiers.find(memePlan);
       /* l'autre forme du même plan, déposée avant : remplacée */
       for (const f of c.fichiers) if (memePlan(f) && f.cle !== cle) { try { await store.delete(f.cle); } catch { /* déjà parti */ } }
