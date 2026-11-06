@@ -39,7 +39,9 @@ function style(){
   s.textContent=
     ".rf-fond{position:fixed;inset:0;z-index:2147483000;background:#000;color:#fff;display:flex;flex-direction:column;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;touch-action:none;-webkit-user-select:none;user-select:none}"
     +".rf-fond button{-webkit-tap-highlight-color:transparent;font-family:inherit}"
-    +".rf-fond video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;transform-origin:50% 50%;transition:transform .2s}"
+    +".rf-fond video,.rf-gel{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;background:#000;transform-origin:50% 50%}"
+    +".rf-fond video{opacity:0}.rf-fond video.pret{opacity:1;transition:transform .2s}"
+    +".rf-gel{z-index:1;opacity:0;pointer-events:none;transition:opacity .2s}.rf-gel.vu{opacity:1;transition:none}"
     +".rf-haut{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:calc(10px + env(safe-area-inset-top,0px)) max(12px, env(safe-area-inset-right,0px)) 10px max(12px, env(safe-area-inset-left,0px));background:linear-gradient(rgba(0,0,0,.55),rgba(0,0,0,0))}"
     +".rf-x,.rf-fl{width:46px;height:46px;border-radius:50%;border:0;background:rgba(255,255,255,.18);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);padding:0}"
     +".rf-x svg{width:22px;height:22px;stroke:#fff;stroke-width:2.6;fill:none;stroke-linecap:round}"
@@ -108,6 +110,8 @@ function ouvrir(champ){
 
   var fond=el("div","rf-fond"); fond.setAttribute("role","dialog"); fond.setAttribute("aria-label","Appareil photo, en rafale");
   var video=el("video"); video.setAttribute("playsinline",""); video.muted=true; video.autoplay=true; fond.appendChild(video);
+  /* pendant un changement d'objectif : la dernière image, figée en plein écran */
+  var gel=el("canvas","rf-gel"); fond.appendChild(gel);
   var flash=el("div","rf-flash"); fond.appendChild(flash);
   var haut=el("div","rf-haut");
   var x=bouton("rf-x","Terminer : garder les photos prises",'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>');
@@ -144,12 +148,31 @@ function ouvrir(champ){
     else v.facingMode={ideal:face};
     return {audio:false, video:v};
   }
+  function figer(){
+    if(!video.videoWidth || !video.classList.contains("pret")) return;
+    try{ gel.width=video.videoWidth; gel.height=video.videoHeight; gel.getContext("2d").drawImage(video, 0, 0); gel.style.transform=video.style.transform; gel.classList.add("vu"); }catch(e){}
+  }
+  /* la vidéo ne se montre qu'une fois la nouvelle caméra prête : pas d'image
+     réduite au milieu de l'écran pendant le changement (iPhone) */
+  var nPret=0;
+  function quandPret(){
+    var n=++nPret, t0=Date.now();
+    (function t(){
+      if(n!==nPret || fini) return;
+      if(!(video.videoWidth && video.readyState>=2) && Date.now()-t0<4000){ setTimeout(t, 40); return; }
+      requestAnimationFrame(function(){ requestAnimationFrame(function(){ setTimeout(function(){
+        if(n!==nPret || fini) return;
+        video.classList.add("pret"); gel.classList.remove("vu");
+      }, 120); }); });
+    })();
+  }
   function demarrer(){
+    figer(); video.classList.remove("pret"); nPret++;
     arreterFlux();
     return navigator.mediaDevices.getUserMedia(contraintes()).then(function(s){
       if(fini){ s.getTracks().forEach(function(t){ t.stop(); }); return; }
       flux=s; piste=s.getVideoTracks()[0]||null; video.srcObject=s; var p=video.play(); if(p && p.catch) p.catch(function(){});
-      return chercherCameras().then(function(){ appliquerZoom(); majFlash(); if(modeFlash==="lampe") lampe(true); majZoom(); });
+      return chercherCameras().then(function(){ zoomCap=false; appliquerZoom(); majFlash(); if(modeFlash==="lampe") lampe(true); majZoom(); quandPret(); });
     });
   }
   /* les autres caméras arrière : le nom n'est connu qu'une fois la caméra autorisée */
@@ -167,12 +190,17 @@ function ouvrir(champ){
     }).catch(function(){});
   }
   /* 2 sans téléobjectif : le zoom de la caméra s'il existe, sinon un recadrage au centre */
+  var zoomCap=false;
   function appliquerZoom(){
     numerique=1; video.style.transform="";
-    if(objectif!=="2" || CAMS.tele || face!=="environment") return;
     var z=capacites().zoom;
+    if(objectif!=="2" || CAMS.tele || face!=="environment"){
+      if(zoomCap && z && piste.applyConstraints) piste.applyConstraints({advanced:[{zoom:z.min||1}]}).catch(function(){});
+      zoomCap=false; return;
+    }
     if(z && z.max>=2 && piste.applyConstraints){
-      piste.applyConstraints({advanced:[{zoom:Math.max(z.min||1, 2)}]}).catch(function(){ numerique=2; video.style.transform="scale(2)"; });
+      zoomCap=true;
+      piste.applyConstraints({advanced:[{zoom:Math.max(z.min||1, 2)}]}).catch(function(){ zoomCap=false; numerique=2; video.style.transform="scale(2)"; });
     } else { numerique=2; video.style.transform="scale(2)"; }
   }
   function majZoom(){
@@ -181,7 +209,14 @@ function ouvrir(champ){
     var L=[]; if(CAMS.ultra) L.push("0.5"); L.push("1"); L.push("2");
     L.forEach(function(k){
       var b=bouton(k===objectif ? "on" : "", "Objectif "+k.replace(".",",")); b.textContent = k===objectif ? k.replace(".",",")+"×" : k.replace(".",",");
-      b.addEventListener("click", function(){ if(k===objectif || occupe) return; objectif=k; dire(k.replace(".",",")+"×"); demarrer().catch(function(){ objectif="1"; demarrer().catch(echec); }); });
+      b.addEventListener("click", function(){
+        if(k===objectif || occupe) return;
+        /* entre 1 et 2 sur la même caméra : on zoome sans couper l'image */
+        var memeCamera = !CAMS.tele && k!=="0.5" && objectif!=="0.5";
+        objectif=k; dire(k.replace(".",",")+"×");
+        if(memeCamera){ appliquerZoom(); majZoom(); return; }
+        demarrer().catch(function(){ objectif="1"; demarrer().catch(echec); });
+      });
       zoom.appendChild(b);
     });
     zoom.hidden=false;
