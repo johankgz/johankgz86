@@ -107,6 +107,8 @@ function echelleCfo(nom){
   var s=window.SymbolesElec.trouver(nom), b=window.SymbolesElec.boite(nom);
   /* des prises en ligne : chacune garde la taille d'une prise */
   if(s && /^cfo-prise-x\d/.test(s.cle)) return 1;
+  /* la borne de recharge (IRVE) : un peu plus grosse qu'une prise, pour se voir sur la photo */
+  if(s && s.cle==="cfo-prise-ve") return 1.4;
   return b ? Math.min(1.4, 2/Math.max(b.x1-b.x0, b.y1-b.y0, 0.1)) : 1;
 }
 function dessinerSymbole(c, nom, x, y, r, couleur, halo){
@@ -1013,7 +1015,7 @@ function surAppui(e){
       }
       o=trouver(p, function(x){ return x.t==="pastille" || x.t==="symbole"; });
       if(!o){
-        var nv={t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : 22)*A.u, c:PREFS.couleur, rot:0, label:""};
+        var nv={t:"symbole", nom:PREFS.symbole, x:p[0], y:p[1], r:(legendeCfo(PREFS.symbole) ? 30*echelleCfo(PREFS.symbole) : PREFS.symbole==="borne" ? 30 : 22)*A.u, c:PREFS.couleur, rot:0, label:""};
         var dsy=legendeCfo(PREFS.symbole);
         if(dsy && dsy.texte!=null) nv.ts=String(PREFS.texteSpe||dsy.texte);
         if(dsy && dsy.cat==="prise" && PREFS.hEcrite) nv.hv=String(PREFS.hPrise||"1,10");
