@@ -58,6 +58,9 @@ def to_markdown(result: dict) -> str:
     return "\n".join(lines) + "\n"
 
 
+MAX_PIXELS = 14_000_000   # environ 4 500 × 3 100 points par image annotée
+
+
 def render_annotated(page: pymupdf.Page, result: dict, out_dir: str, zoom: float = 4.0,
                      margin: float = 40.0) -> dict:
     """Une image PNG par niveau, symboles entourés et numérotés."""
@@ -67,10 +70,7 @@ def render_annotated(page: pymupdf.Page, result: dict, out_dir: str, zoom: float
     colors = label_colors([e["label"] for e in result["legend"]])
     floors = result["floors"] or [""]
     outputs = {}
-    try:
-        font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", int(7 * zoom))
-    except Exception:  # pragma: no cover - police de secours
-        font = ImageFont.load_default()
+    zoom0 = zoom
     for fl in floors:
         items = [it for it in result["items"] if it["floor"] == fl]
         unrec = [u for u in result["unrecognized"] if u["floor"] == fl]
@@ -80,6 +80,13 @@ def render_annotated(page: pymupdf.Page, result: dict, out_dir: str, zoom: float
         xs = [p[0] for p in pts]
         ys = [p[1] for p in pts]
         clip = pymupdf.Rect(min(xs) - margin, min(ys) - margin, max(xs) + margin, max(ys) + margin) & page.rect
+        # un grand plan (A1, A0) : l'image est plafonnée à MAX_PIXELS, sinon elle pèse des centaines
+        # de Mo en mémoire et se dessine pendant des minutes (le serveur partagé n'y résiste pas)
+        zoom = min(zoom0, (MAX_PIXELS / max(1.0, clip.width * clip.height)) ** 0.5)
+        try:
+            font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", max(8, int(7 * zoom)))
+        except Exception:  # pragma: no cover - police de secours
+            font = ImageFont.load_default()
         pix = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip, alpha=False)
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         draw = ImageDraw.Draw(img)

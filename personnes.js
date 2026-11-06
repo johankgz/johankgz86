@@ -25,32 +25,32 @@
   css.textContent =
     ".cp{width:100%}" +
     ".cp .cp-champ{display:block;width:100%!important;min-height:46px!important;margin:0!important;padding:0 14px 0 40px!important;box-sizing:border-box;" +
-      "border:1px solid var(--rule,#E2DCCE)!important;border-radius:12px!important;background:var(--card,#fff) url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C8475' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E\") no-repeat 12px 50%/18px 18px!important;" +
-      "color:var(--ink,#22201C);font:inherit;font-size:16px!important;-webkit-appearance:none;appearance:none}" +
-    ".cp .cp-champ:focus{outline:none;border-color:var(--accent,#B4621A)!important;box-shadow:0 0 0 3px rgba(180,98,26,.16)}" +
-    ".cp .cp-res{display:flex;flex-direction:column;margin-top:6px;border-radius:12px;overflow:hidden;background:var(--card,#fff);border:1px solid var(--rule,#E2DCCE)}" +
+      "border:1px solid var(--rule,#CFD5E1)!important;border-radius:12px!important;background:var(--card,#fff) url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238C8475' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E\") no-repeat 12px 50%/18px 18px!important;" +
+      "color:var(--ink,#1C1E22);font:inherit;font-size:16px!important;-webkit-appearance:none;appearance:none}" +
+    ".cp .cp-champ:focus{outline:none;border-color:var(--accent,#2563EB)!important;box-shadow:0 0 0 3px rgba(37,99,235,.16)}" +
+    ".cp .cp-res{display:flex;flex-direction:column;margin-top:6px;border-radius:12px;overflow:hidden;background:var(--card,#fff);border:1px solid var(--rule,#CFD5E1)}" +
     ".cp .cp-res:empty{display:none}" +
     ".cp .cp-res > button.cp-item{display:flex!important;align-items:center;gap:10px;width:100%!important;min-height:52px!important;margin:0!important;padding:6px 12px!important;" +
-      "border:0!important;border-top:1px solid var(--rule,#E2DCCE)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;" +
-      "color:var(--ink,#22201C)!important;font:inherit;text-align:left;cursor:pointer}" +
+      "border:0!important;border-top:1px solid var(--rule,#CFD5E1)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;" +
+      "color:var(--ink,#1C1E22)!important;font:inherit;text-align:left;cursor:pointer}" +
     ".cp .cp-res > button.cp-item:first-child{border-top:0!important}" +
-    ".cp .cp-res > button.cp-item:active,.cp .cp-res > button.cp-item:focus-visible{background:var(--field,#EFEBE1)!important;outline:none}" +
+    ".cp .cp-res > button.cp-item:active,.cp .cp-res > button.cp-item:focus-visible{background:var(--field,#E2E6EE)!important;outline:none}" +
     ".cp .cp-av{flex:0 0 auto;width:34px;height:34px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff}" +
     ".cp .cp-n{flex:1;min-width:0;display:flex;flex-direction:column;line-height:1.25}" +
     ".cp .cp-n b{font-size:15.5px;font-weight:600;overflow-wrap:anywhere}" +
-    ".cp .cp-n small{font-size:12.5px;color:var(--ink-3,#8C8475)}" +
-    ".cp .cp-plus{flex:0 0 auto;font-size:13.5px;font-weight:700;color:var(--accent,#B4621A)}" +
-    ".cp .cp-rien{margin:0;padding:12px 14px;font-size:14px;color:var(--ink-3,#8C8475)}" +
-    ".cp .cp-aide{margin:6px 2px 0;font-size:12.5px;color:var(--ink-3,#8C8475)}" +
+    ".cp .cp-n small{font-size:12.5px;color:var(--ink-3,#767D8B)}" +
+    ".cp .cp-plus{flex:0 0 auto;font-size:13.5px;font-weight:700;color:var(--accent,#2563EB)}" +
+    ".cp .cp-rien{margin:0;padding:12px 14px;font-size:14px;color:var(--ink-3,#767D8B)}" +
+    ".cp .cp-aide{margin:6px 2px 0;font-size:12.5px;color:var(--ink-3,#767D8B)}" +
     ".cp-pil{display:inline-flex;align-items:center;gap:6px;max-width:100%;min-height:40px;padding:4px 4px 4px 12px;box-sizing:border-box;" +
-      "border-radius:10px;background:var(--accent-soft,#FBEDE0);color:var(--accent,#B4621A);font-size:14.5px;font-weight:600;line-height:1.2}" +
+      "border-radius:10px;background:var(--accent-soft,#EAF1FF);color:var(--accent,#2563EB);font-size:14.5px;font-weight:600;line-height:1.2}" +
     ".cp-pil .cp-pn{min-width:0;overflow-wrap:anywhere}" +
     ".cp-pil .cp-tag{padding:0 8px 0 2px;font-size:11.5px;font-weight:500;opacity:.7}" +
     ".cp-pil > button.cp-x{flex:0 0 auto;display:inline-flex!important;align-items:center!important;justify-content:center!important;" +
       "width:32px!important;height:32px!important;min-width:32px!important;min-height:32px!important;max-width:32px;margin:0!important;padding:0!important;" +
-      "border:0!important;border-radius:50%!important;background:rgba(180,98,26,.14)!important;box-shadow:none!important;color:inherit!important;" +
+      "border:0!important;border-radius:50%!important;background:rgba(37,99,235,.14)!important;box-shadow:none!important;color:inherit!important;" +
       "font:inherit;font-size:19px!important;font-weight:500;line-height:1!important;cursor:pointer}" +
-    ".cp-pil > button.cp-x:active{background:rgba(180,98,26,.28)!important}";
+    ".cp-pil > button.cp-x:active{background:rgba(37,99,235,.28)!important}";
   (document.head || document.documentElement).appendChild(css);
 
   var ROLES = {admin:"Administrateur", bureau:"Bureau", technicien:"Technicien"};
@@ -136,7 +136,8 @@
     var n = document.createElement("span"); n.className = "cp-pn"; n.textContent = nom; p.appendChild(n);
     if(o.etiquette){
       var t = document.createElement("span"); t.className = "cp-tag"; t.textContent = o.etiquette; p.appendChild(t);
-    } else if(retirer){
+    }
+    if(retirer){
       var x = document.createElement("button"); x.type = "button"; x.className = "cp-x";
       /* un dessin plutôt que le caractère « × » : la police le posait trop bas dans le rond */
       x.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" style="display:block;fill:none;stroke:currentColor;stroke-width:2.6;stroke-linecap:round"><path d="M6 6l12 12M18 6 6 18"/></svg>';

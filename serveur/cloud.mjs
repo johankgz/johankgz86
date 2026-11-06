@@ -246,6 +246,19 @@ export async function cloud(action, o) {
     if (lu.length > MAX_FICHIER) return json({ erreur: "Fichier trop lourd : 25 Mo au plus." }, 413);
     const ext = extDe(nom);
     const mime = EXT_TYPE[ext] || "application/octet-stream";
+    /* remplacer le contenu d'un fichier déjà là (un plan réenregistré depuis l'outil Plan) : même nom, même place */
+    const remplacer = url.searchParams.get("remplacer") || "";
+    if (remplacer) {
+      if (!idValide(remplacer)) return json({ erreur: "Fichier introuvable." }, 404);
+      return modifier(async (x) => {
+        const m = parId(x), e = m.get(remplacer);
+        if (!e || e.type !== "fichier" || enCorbeille(e, m) || !acces(e, m)) return json({ erreur: "Fichier introuvable." }, 404);
+        await store.set("cloud/f/" + e.id, lu, { metadata: { type: e.mime || mime } });
+        if (e.mini) { try { await store.delete("cloud/m/" + e.id); } catch { /* déjà parti */ } delete e.mini; }
+        e.taille = lu.length; e.maj = new Date().toISOString(); e.par = moi;
+        return json({ ok: true, element: vue(e, parId(x)), remplace: true });
+      });
+    }
     return modifier(async (x) => {
       const m = parId(x), c = dossierCible(x, m, parent);
       if (!c.ok) return c.err;

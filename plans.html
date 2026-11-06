@@ -2,36 +2,43 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
-<script src="./theme.js?v=20261007a"></script>
-<script src="./commun.js?v=20261007a" defer></script>
+<script>/* l'outil est attribué compte par compte : sans droit, retour à l'accueil */
+(function(){ try{ var s=JSON.parse(localStorage.getItem("outils:session")||"null"); if(!s || !s.jeton || s.proprietaire || (s.role==="admin" && !s.limite)) return;
+  var a=s.applis; if(Array.isArray(a) && a.length && a.indexOf("analyse")<0){ try{ sessionStorage.setItem("acces:refuse","analyse"); }catch(e){} location.replace("./index.html"); } }catch(e){} })();</script>
+<script src="./theme.js?v=20261024f"></script>
+<script src="./commun.js?v=20261107a" defer></script>
+<script src="./reduire.js?v=20261026a" defer></script>
 <script src="./dates.js?v=20261001a"></script>
 <script src="./reseau.js?v=20261010a"></script>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
 <script src="./fond.js?v=20260929a"></script>
-<meta name="theme-color" content="#F4F1EA">
-<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png">
-<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png">
-<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png">
-<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png">
-<link rel="apple-touch-icon-precomposed" href="/icone-180.png">
-<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png">
+<script src="./symboles-elec.js?v=20261110d"></script>
+<meta name="theme-color" content="#0B1220">
+<link rel="apple-touch-icon" sizes="180x180" href="/icone-180.png?v=3">
+<link rel="apple-touch-icon" sizes="167x167" href="/icone-167.png?v=3">
+<link rel="apple-touch-icon" sizes="152x152" href="/icone-152.png?v=3">
+<link rel="apple-touch-icon" sizes="120x120" href="/icone-120.png?v=3">
+<link rel="apple-touch-icon-precomposed" href="/icone-180.png?v=3">
+<link rel="icon" href="/favicon.svg?v=3" type="image/svg+xml">
+<link rel="icon" href="/favicon.ico?v=3" sizes="any">
+<link rel="icon" type="image/png" sizes="192x192" href="/icone-192.png?v=3">
 <link rel="manifest" href="/manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Travaux 360">
-<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>Analyse de plan — Suivi travaux 360</title>
 
 <style>
-:root{--bg:#F4F1EA;--card:#fff;--ink:#22201C;--ink-2:#6E675C;--ink-3:#8C8475;--rule:#E2DCCE;
- --accent:#B4621A;--accent-soft:#FBEDE0;--shadow:0 1px 0 rgba(34,32,28,.05)}
+:root{--bg:#EAEDF4;--card:#fff;--ink:#1C1E22;--ink-2:#5D626D;--ink-3:#767D8B;--rule:#CFD5E1;
+ --accent:#2563EB;--accent-soft:#EAF1FF;--shadow:0 1px 0 rgba(28,30,34,.05)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
 body{margin:0;background:var(--bg);color:var(--ink);font-size:16px;line-height:1.5;letter-spacing:-.01em;
  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Helvetica,Arial,sans-serif;
  padding-bottom:calc(40px + env(safe-area-inset-bottom,0px))}
 header{position:sticky;top:0;z-index:10;background:rgba(241,243,247,.86);backdrop-filter:saturate(180%) blur(20px);
- -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(34,32,28,.07);
+ -webkit-backdrop-filter:saturate(180%) blur(20px);border-bottom:1px solid rgba(28,30,34,.07);
  padding:calc(12px + env(safe-area-inset-top,0px)) 16px 12px;display:flex;align-items:center;gap:10px}
 a.menu{display:inline-flex;align-items:center;height:30px;padding:0 12px;border-radius:var(--r-field);
- background:rgba(140,132,117,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
+ background:rgba(118,125,139,.14);color:var(--ink-2);font-size:13px;font-weight:600;text-decoration:none}
 h1{font-size:21px;font-weight:700;letter-spacing:-.03em;margin:0}
 main{max-width:620px;margin:0 auto;padding:16px}
 .block{background:var(--card);border-radius:var(--r-field);box-shadow:var(--shadow);padding:18px;margin-bottom:14px}
@@ -67,7 +74,7 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
 }
 @media (hover:hover){
   .notif:hover,.bref a:hover,a.etape:hover,a.appoint:hover,a.tuile:hover,.raccourci:hover{
-    background:rgba(180,98,26,.06)}
+    background:rgba(37,99,235,.06)}
   button.p:hover,button.act:hover{filter:brightness(.97)}
 }
 
@@ -105,7 +112,7 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   --trait-tech:rgba(255,255,255,.10);
 
   /* surfaces de travail : claires, pour le plein soleil */
-  --bg:#383E42;          /* anthracite : le site est un châssis, les fiches sont dessus */
+  --bg:#0A0F1A;          /* anthracite : le site est un châssis, les fiches sont dessus */
   --card:#FFFFFF;
   --field:#EFF1F4;
   --champ-fond:#FFFFFF;
@@ -116,10 +123,10 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   --ink-3:#6B7684;
 
   /* ce sur quoi on agit */
-  --accent:#B45309;
-  --accent-fonce:#92400E;
-  --accent-vif:#FB923C;          /* sur graphite, il faut qu'il brille */
-  --accent-soft:#FDF4EA;
+  --accent:#2563EB;
+  --accent-fonce:#1D4ED8;
+  --accent-vif:#3B82F6;          /* sur graphite, il faut qu'il brille */
+  --accent-soft:#EEF4FF;
 
   /* ce que l'outil mesure */
   --data:#0E7490;
@@ -129,9 +136,9 @@ button,.act,.chip,label,input,select,textarea,a{touch-action:manipulation}
   /* familles, toutes au même niveau */
   --violet:#5B5F80;      --violet-soft:#EFEFF4;
   --vert:#3F6B52;        --vert-soft:#EAF2ED;
-  --ambre:#8A6524;       --ambre-soft:#F6F1E8;
+  --ambre:#8A6524;       --ambre-soft:#F1F5FB;
   --rouge:#A03A33;       --rouge-soft:#F8EDEB;
-  --solar:#8A6524;       --solar-soft:#F6F1E8;
+  --solar:#8A6524;       --solar-soft:#F1F5FB;
   --danger:#A03A33;      --danger-soft:#F8EDEB;
   --ok:#3F6B52;          --ok-soft:#EAF2ED;
 
@@ -219,7 +226,7 @@ button,.act,button.p{
 }
 button.p,.act.blue,.act.solid,button.go,.sk-bar button.go{
   background:var(--accent);color:#fff;border:1px solid transparent;
-  box-shadow:0 1px 2px rgba(146,64,14,.3);
+  box-shadow:0 1px 2px rgba(29,78,216,.3);
 }
 .act.ghost{
   background:#fff;color:var(--ink-2);
@@ -240,7 +247,7 @@ textarea:focus-visible,[tabindex]:focus-visible{
   transition:background .16s ease,border-color .16s ease,color .16s ease;
 }
 .chip.on,.chips label.on{
-  background:var(--accent-soft);border-color:rgba(180,83,9,.4);
+  background:var(--accent-soft);border-color:rgba(37,99,235,.4);
   color:var(--accent-fonce);font-weight:600;
 }
 .tag,.f .tag{
@@ -291,7 +298,7 @@ nav#nav button{
 }
 nav#nav button[aria-current="true"]{
   color:#0A0E14;background:var(--accent-vif);
-  font-weight:600;box-shadow:0 0 0 1px rgba(251,146,60,.5),0 6px 16px -8px rgba(251,146,60,.9);
+  font-weight:600;box-shadow:0 0 0 1px rgba(59,130,246,.5),0 6px 16px -8px rgba(59,130,246,.9);
 }
 nav#nav button svg{stroke-width:1.9}
 .avance{margin-top:8px}
@@ -312,7 +319,7 @@ nav#nav button svg{stroke-width:1.9}
 /* ---------- le survol, là où il existe ---------- */
 @media (hover:hover){
   button.p:hover,.act.blue:hover,.act.solid:hover,button.go:hover{
-    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(146,64,14,.5);
+    background:var(--accent-fonce);box-shadow:0 2px 10px -3px rgba(29,78,216,.5);
   }
   .act.ghost:hover{background:#FAFBFC;border-color:#BFC7D1;color:var(--ink)}
   .act.danger:hover{background:#F4E2DF}
@@ -333,7 +340,7 @@ nav#nav button svg{stroke-width:1.9}
    blanches posées dessus, mais tout ce qui s'écrit À CÔTÉ des fiches —
    intertitres, signature, salutation, boutons de page — doit passer en
    clair, sinon il disparaît. Deux valeurs suffisent, mesurées sur
-   #383E42 : 9,2 pour la première, 5,3 pour la seconde.
+   #0A0F1A : 9,2 pour la première, 5,3 pour la seconde.
    Les deux couleurs de rôle passent à leur version vive, la sourde ne
    tient pas sur le sombre.
    ===================================================================== */
@@ -357,7 +364,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 main{max-width:760px}
 @media (min-width:820px){ main{max-width:1000px} }
 .essai{display:inline-flex;align-items:center;margin-left:auto;padding:4px 10px;border-radius:999px;font-size:11px;font-weight:700;
-  letter-spacing:.08em;text-transform:uppercase;background:rgba(251,146,60,.16);color:#FDBA74;border:1px solid rgba(251,146,60,.4)}
+  letter-spacing:.08em;text-transform:uppercase;background:rgba(59,130,246,.16);color:#93C5FD;border:1px solid rgba(59,130,246,.4)}
 .block h2{margin:0 0 10px}
 .hint{font-size:13px;color:var(--ink-3);margin:10px 0 0;line-height:1.5}
 button.p{width:100%;min-height:50px;font-size:15.5px;cursor:pointer}
@@ -387,7 +394,7 @@ button.p:disabled{opacity:.55;cursor:default}
 .mini-plan{position:relative;width:110px;height:110px;flex:0 0 auto;border-radius:10px;overflow:hidden;background:#0A0E14;
   background-image:linear-gradient(rgba(34,211,238,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(34,211,238,.18) 1px,transparent 1px);background-size:22px 22px}
 .mini-plan i{position:absolute;left:0;right:0;top:0;height:10px;background:linear-gradient(180deg,transparent,rgba(34,211,238,.9));animation:balayePlan 1.6s linear infinite}
-.mini-plan b{position:absolute;width:9px;height:9px;border-radius:50%;border:2px solid #FB923C;animation:clignePlan 1.6s ease-in-out infinite}
+.mini-plan b{position:absolute;width:9px;height:9px;border-radius:50%;border:2px solid #3B82F6;animation:clignePlan 1.6s ease-in-out infinite}
 .encours p{margin:0;font-size:15px}
 .encours small{display:block;margin-top:4px;color:var(--ink-3);font-size:13px}
 
@@ -421,17 +428,40 @@ button.p:disabled{opacity:.55;cursor:default}
 .actions{display:flex;gap:10px;flex-wrap:wrap}
 .actions button{flex:1;min-width:150px;min-height:46px;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
   background:#fff;color:var(--ink-2);border:1px solid var(--champ-bord)}
-.suite{border:1px dashed rgba(180,83,9,.45);background:var(--accent-soft)}
+.suite{border:1px dashed rgba(37,99,235,.45);background:var(--accent-soft)}
 .loupe{position:fixed;inset:0;z-index:80;background:rgba(10,14,20,.92);overflow:auto;-webkit-overflow-scrolling:touch}
 .loupe img{display:block;width:220%;max-width:none;background:#fff}
 .loupe button{position:fixed;top:calc(12px + env(safe-area-inset-top,0px));right:12px;min-height:44px;padding:0 16px;border-radius:10px;border:0;
   background:var(--accent);color:#fff;font-family:inherit;font-weight:700;font-size:14px;cursor:pointer}
 @media (prefers-reduced-motion:reduce){ .mini-plan i,.mini-plan b{animation:none} }
+/* chercher le plan d'un chantier */
+button.second{width:100%;min-height:46px;margin-top:10px;border-radius:10px;font-family:inherit;font-size:14.5px;font-weight:600;cursor:pointer;
+  background:#fff;color:var(--accent);border:1px solid var(--accent)}
+.fen{position:fixed;inset:0;z-index:70;background:rgba(10,14,20,.55);display:flex;align-items:center;justify-content:center;padding:16px}
+.fen[hidden]{display:none}
+.fen-boite{width:min(560px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;gap:10px;background:var(--card);border-radius:16px;padding:16px;box-shadow:0 20px 60px rgba(0,0,0,.35)}
+.fen-tete{display:flex;align-items:center;justify-content:space-between;font-size:17px}
+.fen-tete button{min-width:40px;min-height:40px;border-radius:10px;border:1px solid var(--rule);background:#fff;font-size:16px;cursor:pointer}
+#fcCherche{width:100%;min-height:44px;padding:8px 12px;font-size:15px;font-family:inherit;border-radius:10px;border:1px solid var(--champ-bord)}
+.fen-liste{overflow:auto;-webkit-overflow-scrolling:touch;display:flex;flex-direction:column;gap:6px;min-height:80px}
+.fen-liste h3{margin:8px 0 2px;font-size:13px;color:var(--ink-2)}
+.fen-liste h3 span{color:var(--accent);margin-right:6px}
+.fen-liste button{display:flex;align-items:center;gap:10px;text-align:left;width:100%;padding:10px 12px;border-radius:10px;border:1px solid var(--rule);background:#fff;font-family:inherit;font-size:14px;cursor:pointer;color:var(--ink)}
+.fen-liste button:hover{border-color:var(--accent)}
+.fen-liste .fmt{flex:0 0 auto;font-size:11px;font-weight:700;padding:3px 7px;border-radius:6px;background:#FEE2E2;color:#B42318}
+.fen-liste .fmt.dwg{background:#E0E7FF;color:#3730A3}
+.fen-liste small{display:block;color:var(--ink-3);font-size:12px}
+.dwg-filtre{display:flex;gap:8px;align-items:center;font-size:14px;margin:0 0 8px}
+.tableau-q td small.var{display:block;color:var(--ink-3);font-size:11.5px}
+.tableau-q .symb{display:flex;align-items:center;gap:10px}
+.tableau-q .symb .ico{flex:0 0 26px;width:26px;height:26px;display:grid;place-items:center}
+.tableau-q tr.non-reconnu td{color:var(--ink-3)}
+.tableau-q th.cal,.tableau-q td.cal{text-align:left;color:var(--ink-3);font-size:12.5px}
 </style>
-<script src="./clavier.js?v=20261010a" defer></script>
-<script src="./horsligne.js?v=20261006a" defer></script>
-<script src="./finitions.js?v=20261010a" defer></script>
-<script src="./palette.js?v=20261015a" defer></script>
+<script src="./clavier.js?v=20261110a" defer></script>
+<script src="./horsligne.js?v=20261024b" defer></script>
+<script src="./finitions.js?v=20261024b" defer></script>
+<script src="./palette.js?v=20261106c" defer></script>
 </head>
 <body>
 <header>
@@ -447,10 +477,11 @@ button.p:disabled{opacity:.55;cursor:default}
     <h2>Le plan à analyser</h2>
     <label class="depot" id="depot">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M12 17v-6M9.5 13.5 12 11l2.5 2.5"/></svg>
-      <b id="depotTitre">Choisir un plan PDF</b>
+      <b id="depotTitre">Choisir un plan PDF ou DWG</b>
       <span id="depotDetail">ou le glisser ici — plan électrique exporté du logiciel de dessin</span>
-      <input type="file" id="fichier" accept="application/pdf,.pdf">
+      <input type="file" id="fichier" accept="application/pdf,.pdf,.dwg,.dxf">
     </label>
+    <button type="button" class="second" id="btnChantier">Prendre le plan d'un chantier</button>
     <div class="options">
       <label><span>Page du PDF</span><input type="text" id="page" inputmode="numeric" placeholder="Toutes"></label>
       <label><span>Images annotées</span>
@@ -460,6 +491,15 @@ button.p:disabled{opacity:.55;cursor:default}
     <button class="p" id="analyser" disabled>Analyser le plan</button>
     <p class="err" id="err"></p>
     <p class="hint">Le PDF doit être <b>vectoriel</b> : exporté d'AutoCAD, de Caneco, de ArchiCAD… Un scan ou une photo n'a pas de géométrie exploitable. Le plan doit porter sa légende : c'est elle qui dit quoi compter.</p>
+  </div>
+
+  <div class="block" id="blocDwg" hidden>
+    <h2>Les symboles du DWG</h2>
+    <p class="hint" id="dwgInfo" style="margin:-4px 0 10px"></p>
+    <label class="dwg-filtre" id="dwgFiltreL" hidden><input type="checkbox" id="dwgFiltre" checked> Seulement l'électricité</label>
+    <div class="defile"><table class="tableau-q" id="tableauDwg"></table></div>
+    <p class="hint">Un DWG range chaque symbole dans un bloc nommé : le compte est exact, pièce par pièce, sans lecture d'image. Les blocs dans d'autres blocs sont comptés aussi. Les blocs sans nom (cotes, hachures) ne le sont pas.</p>
+    <div class="actions" style="margin-top:12px"><button type="button" id="copierDwg">Copier le tableau</button></div>
   </div>
 
   <div class="block" id="blocEncours" hidden>
@@ -525,6 +565,14 @@ button.p:disabled{opacity:.55;cursor:default}
   </div>
 
 </main>
+<div class="fen" id="fenChantier" hidden role="dialog" aria-modal="true" aria-labelledby="fenChantierT">
+  <div class="fen-boite">
+    <div class="fen-tete"><b id="fenChantierT">Le plan d'un chantier</b><button type="button" id="fcFermer" aria-label="Fermer">✕</button></div>
+    <input type="search" id="fcCherche" placeholder="Chercher un chantier, un client, un plan…" aria-label="Chercher">
+    <div class="fen-liste" id="fcListe"></div>
+    <p class="hint" style="margin:6px 0 0">Les documents techniques des chantiers : les PDF vont à l'analyse ; un DWG ou un DXF est compté bloc par bloc.</p>
+  </div>
+</div>
 <script>
 (function(){
 function $(i){ return document.getElementById(i); }
@@ -571,14 +619,208 @@ var FICHIER=null;
 function choisir(f){
   $("err").textContent="";
   if(!f) return;
-  if(!/\.pdf$/i.test(f.name) && f.type!=="application/pdf"){ $("err").textContent="Ce n'est pas un PDF."; return; }
+  if(/\.(dwg|dxf)$/i.test(f.name)){ f.arrayBuffer().then(function(b){ compterDwg(b, /\.dxf$/i.test(f.name) ? "dxf" : "dwg", f.name); }); return; }
+  if(!/\.pdf$/i.test(f.name) && f.type!=="application/pdf"){ $("err").textContent="Ce n'est pas un PDF ni un DWG."; return; }
   if(f.size > 30*1024*1024){ $("err").textContent="Plan trop lourd : 30 Mo au plus."; return; }
   FICHIER=f;
   $("depotTitre").textContent=f.name;
   $("depotDetail").textContent=(f.size/1024/1024).toFixed(1).replace(".",",")+" Mo — touchez pour en choisir un autre";
   $("analyser").disabled=false;
 }
-$("fichier").addEventListener("change", function(){ choisir(this.files[0]); });
+$("fichier").addEventListener("change", function(){ choisir(this.files[0]); this.value=""; });
+/* iPhone, iPad : le choix de fichier griserait les .dwg (iOS ne connaît pas ce type) */
+if(/iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform==="MacIntel" && navigator.maxTouchPoints>1)) $("fichier").removeAttribute("accept");
+
+/* ---------- le plan d'un chantier : son PDF, ou son DWG s'il existe ---------- */
+var DOCS=null;
+function sansAccent(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase(); }
+function nomDoc(f){ return f.titre || String(f.cle||"").split("/").pop(); }
+function ouvrirChantiers(){
+  $("fenChantier").hidden=false; peindreChantiers();
+  fetch("/api/rapports?action=liste", {headers:{"x-auth":S.jeton}})
+    .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
+    .then(function(d){
+      DOCS=(d.chantiers||[]).map(function(c){
+        /* seulement les documents de la catégorie Plan ; le DWG avant le PDF du même plan */
+        var docs=(c.fichiers||[]).filter(function(f){ return f.type==="technique" && /^plans?$/i.test(String(f.visite||"").trim()) && /\.(pdf|dwg|dxf)$/i.test(f.cle||""); });
+        docs.sort(function(a,b){ var da=/\.(dwg|dxf)$/i.test(a.cle)?0:1, dbb=/\.(dwg|dxf)$/i.test(b.cle)?0:1; return da-dbb || String(b.date||"").localeCompare(String(a.date||"")); });
+        return {ref:c.ref, client:c.client||"", docs:docs, maj:c.maj||""};
+      }).filter(function(c){ return c.docs.length; });
+      peindreChantiers();
+    }).catch(function(){ DOCS=[]; $("fcListe").innerHTML='<p class="hint">Liste indisponible : pas de réseau.</p>'; });
+  setTimeout(function(){ try{ $("fcCherche").focus(); }catch(e){} }, 60);
+}
+function peindreChantiers(){
+  var h=$("fcListe"); h.textContent="";
+  if(!DOCS){ h.appendChild(texte(document.createElement("p"), "Chargement…")).className="hint"; return; }
+  var q=sansAccent($("fcCherche").value).trim();
+  var l=DOCS.filter(function(c){ return !q || sansAccent(c.ref+" "+c.client+" "+c.docs.map(nomDoc).join(" ")).indexOf(q)>=0; });
+  if(!l.length){ var v=document.createElement("p"); v.className="hint"; v.textContent = DOCS.length ? "Aucun chantier ne correspond." : "Aucun plan PDF ni DWG dans les documents techniques des chantiers."; h.appendChild(v); return; }
+  l.slice(0, 40).forEach(function(c){
+    var t=document.createElement("h3"); var r=document.createElement("span"); r.textContent=c.ref; t.appendChild(r); t.appendChild(document.createTextNode(c.client)); h.appendChild(t);
+    c.docs.forEach(function(f){
+      var dwg=/\.(dwg|dxf)$/i.test(f.cle||""), b=document.createElement("button"); b.type="button";
+      var fm=document.createElement("span"); fm.className="fmt"+(dwg?" dwg":""); fm.textContent=dwg ? (/\.dxf$/i.test(f.cle)?"DXF":"DWG") : "PDF"; b.appendChild(fm);
+      var tx=document.createElement("span"); tx.textContent=nomDoc(f); var sm=document.createElement("small");
+      sm.textContent=[f.visite||"", f.date ? new Date(f.date).toLocaleDateString("fr-FR") : "", dwg ? "compté bloc par bloc" : "analyse du PDF"].filter(Boolean).join(" · "); tx.appendChild(sm); b.appendChild(tx);
+      b.addEventListener("click", function(){ prendreDoc(c, f); });
+      h.appendChild(b);
+    });
+  });
+}
+function prendreDoc(c, f){
+  $("fenChantier").hidden=true; $("err").textContent="";
+  var nom=String(f.cle||"").split("/").pop(), dwg=/\.(dwg|dxf)$/i.test(nom);
+  $("depotTitre").textContent="Téléchargement de « "+nomDoc(f)+" »…"; $("depotDetail").textContent=c.ref+" · "+c.client;
+  fetch("/api/rapports?action=fichier&cle="+encodeURIComponent(f.cle), {headers:{"x-auth":S.jeton}})
+    .then(function(r){ if(!r.ok) throw new Error("Document introuvable."); return r.blob(); })
+    .then(function(b){
+      if(dwg){ $("depotTitre").textContent=nomDoc(f); $("depotDetail").textContent=c.ref+" · "+c.client+" — DWG compté ci-dessous"; return b.arrayBuffer().then(function(buf){ compterDwg(buf, /\.dxf$/i.test(nom) ? "dxf" : "dwg", nomDoc(f)+" · "+c.ref); }); }
+      var fic; try{ fic=new File([b], nom, {type:"application/pdf"}); }catch(e){ fic=b; fic.name=nom; }
+      choisir(fic);
+      $("depotTitre").textContent=nomDoc(f);
+      $("depotDetail").textContent=c.ref+" · "+c.client+" — touchez « Analyser le plan »";
+      $("analyser").scrollIntoView({block:"center", behavior:"smooth"});
+    })
+    .catch(function(e){ $("depotTitre").textContent="Choisir un plan PDF ou DWG"; $("depotDetail").textContent="ou le glisser ici"; $("err").textContent=(e && e.message) || "Pas de réseau."; });
+}
+$("btnChantier").addEventListener("click", ouvrirChantiers);
+$("fcCherche").addEventListener("input", peindreChantiers);
+$("fcFermer").addEventListener("click", function(){ $("fenChantier").hidden=true; });
+$("fenChantier").addEventListener("click", function(e){ if(e.target.id==="fenChantier") $("fenChantier").hidden=true; });
+document.addEventListener("keydown", function(e){ if(e.key==="Escape" && !$("fenChantier").hidden) $("fenChantier").hidden=true; });
+
+/* ---------- un DWG (ou un DXF) : chaque symbole est un bloc, on les compte ----------
+   Le lecteur DWG du module Plan (LibreDWG, dans un « worker ») rend les entités ; on
+   compte les insertions de blocs de l'espace objet, et celles des blocs qu'elles
+   contiennent (un groupe de symboles), avec leurs calques. */
+var DWG_RES=null, LECTEUR=null;
+function lireDwg(buf, type){
+  return new Promise(function(ok, ko){
+    var w; try{ w=LECTEUR || (LECTEUR=new Worker("./dwg-lecteur.js?v=20261105a", {type:"module"})); }catch(e){ ko(new Error("Ce navigateur ne sait pas lire un DWG ici.")); return; }
+    w.onmessage=function(e){ var d=e.data||{}; if(d.etape){ $("encoursTexte").textContent = d.etape==="chargement" ? "Chargement du lecteur DWG (9 Mo la première fois)…" : "Lecture du DWG…"; return; } w.onmessage=null; if(d.ok) ok(d.db); else ko(new Error("DWG illisible ("+(d.err||"")+").")); };
+    w.onerror=function(){ try{ w.terminate(); }catch(er){} LECTEUR=null; ko(new Error("Le lecteur DWG n'a pas démarré.")); };
+    var copie=buf.slice(0); w.postMessage({buf:copie, type:type}, [copie]);
+  });
+}
+function compterDwg(buf, type, nom){
+  $("blocEncours").hidden=false; $("resultat").hidden=true; $("blocDwg").hidden=true; $("err").textContent="";
+  /* un DWG se compte ici : « Analyser le plan » ne garde pas un PDF choisi avant */
+  FICHIER=null; $("analyser").disabled=true;
+  $("encoursTexte").textContent="Lecture du DWG…"; $("encoursTemps").textContent=nom;
+  lireDwg(buf, type).then(function(db){
+    var blocs={}, modele=null;
+    ((db.tables && db.tables.BLOCK_RECORD && db.tables.BLOCK_RECORD.entries)||[]).forEach(function(b){ blocs[b.name]=b; if(/^\*model_space$/i.test(b.name)) modele=b; });
+    var ents = modele && modele.entities && modele.entities.length ? modele.entities : (db.entities||[]).filter(function(e){ return !modele || e.ownerBlockRecordSoftId===modele.handle; });
+    var cpt={};
+    function compter(e, fois, prof){
+      if(e.type!=="INSERT" || prof>6) return;
+      var n=String(e.name||""); if(!n || /^\*/.test(n)) return;
+      var k=fois*Math.max(1, e.columnCount||1)*Math.max(1, e.rowCount||1);
+      var x=cpt[n]=cpt[n]||{nom:n, n:0, calques:{}}; x.n+=k; x.calques[e.layer||"0"]=(x.calques[e.layer||"0"]||0)+k;
+      var bl=blocs[n]; if(bl && bl.entities) bl.entities.forEach(function(y){ compter(y, k, prof+1); });
+    }
+    ents.forEach(function(e){ compter(e, 1, 0); });
+    /* Archicad, Revit… : une copie du bloc par pose (« Interrupteur 24_2 », « _3 »…) : regroupées */
+    var grp={};
+    Object.keys(cpt).forEach(function(k){
+      var x=cpt[k], base=k.replace(/_\d+$/, "") || k, g=grp[base]=grp[base]||{nom:base, n:0, calques:{}, variantes:0};
+      g.n+=x.n; g.variantes++; Object.keys(x.calques).forEach(function(c){ g.calques[c]=(g.calques[c]||0)+x.calques[c]; });
+    });
+    cpt=grp;
+    DWG_RES={nom:nom, lignes:Object.keys(cpt).map(function(k){ return cpt[k]; }).sort(function(a,b){ return b.n-a.n || a.nom.localeCompare(b.nom, "fr"); })};
+    $("blocEncours").hidden=true; peindreDwg();
+    $("blocDwg").scrollIntoView({block:"start", behavior:"smooth"});
+  }).catch(function(e){ $("blocEncours").hidden=true; $("err").textContent=(e && e.message) || "DWG illisible."; });
+}
+var RE_ELEC=/elec|cfo|cfa|ecl|prise|inter|courant|vdi|knx|alarme|secu|baes|chauf|vmc/i;
+/* le nom du bloc du dessinateur → notre symbole (« PC 30CM » → Prise 2P+T, à 30 cm) */
+var REGLES_SYMB=[
+  [/knx.*ecran.*6|ecran.*knx.*6/, "cfo-knx-ecran6"], [/knx.*ecran|ecran.*knx/, "cfo-knx-ecran4"], [/knx.*(inter|bouton|poussoir)/, "cfo-knx-inter4"], [/knx/, "cfo-knx-bus"],
+  [/va.?et.?vient|\bv&v\b|\bvv\b/, "cfo-inter-va"],
+  [/volet|\bvr\b|store/, "cfo-volet"],
+  [/detect|presence|\bpir\b/, function(t){ return /mur|mural|90|180/.test(t) ? "cfo-detecteur-90" : "cfo-detecteur-360"; }],
+  [/poussoir|\bbp\b|bouton/, function(t){ return /etanche|\bip ?[4-6]/.test(t) ? "cfo-bp-etanche" : /lumin|voyant/.test(t) ? "cfo-bp-lumineux" : "cfo-bp"; }],
+  [/\bvmc\b.*(inter|cde|commande)|(inter|commande).*\bvmc\b/, "cfo-ventilation"],
+  [/interrupteur|\binter\b|\bint\b|simple allumage|\bsa\b|\bcde\b|commande/, function(t){ return /etanche|\bip ?[4-6]/.test(t) ? "cfo-inter-etanche" : /lumin|voyant/.test(t) ? "cfo-inter-voyant" : "cfo-inter-simple"; }],
+  [/usb/, "cfo-usb"], [/rj ?45|\bvdi\b|ethernet|informatique|\brj\b|reseau|data/, "cfo-rj45"], [/\btv\b|televi|coax|antenne/, "cfo-tv"],
+  [/haut.?parleur|\bhp\b|enceinte/, "cfo-haut-parleur"],
+  [/32 ?a|cuisson|plaque|cuisiniere/, "cfo-prise-32a"], [/\bve\b|vehicule|\birve\b|borne|recharge/, "cfo-prise-ve"],
+  [/sortie.?de.?cable|attente|\bsc\b|\bsdc\b/, "cfo-alim"],
+  [/prise|\bpc\b|\bpc\d|2p ?\+? ?t|socle|\bpdc\b/, function(t){
+    if(/commande/.test(t)) return "cfo-prise-commandee";
+    if(/etanche|\bip ?[4-6]|exterieur/.test(t)) return "cfo-prise-etanche";
+    if(/\bll\b|lave.?linge|\blv\b|lave.?vaisselle|\bsl\b|seche|\bfour\b|congel|frigo|refrig|specialis|\bspe\b/.test(t)) return "cfo-prise-spe";
+    return "cfo-prise"; }],
+  [/spot/, function(t){ return /jardin|piquet/.test(t) ? "cfo-spot-jardin" : /etanche|\bip ?[4-6]/.test(t) ? "cfo-spot-etanche" : "cfo-spot-shot"; }],
+  [/applique/, function(t){ return /etanche|\bip ?[4-6]/.test(t) ? "cfo-applique-etanche" : /detect/.test(t) ? "cfo-applique-det" : "cfo-dcl-mural"; }],
+  [/bandeau|ruban|\bled\b/, "cfo-bandeau-led"],
+  [/baes|secours|evacuation/, "cfo-baes-ambiance"],
+  [/luminaire|\bdcl\b|point.?lum|plafonnier|lampe|eclairage|suspension|hublot/, function(t){ return /etanche|\bip ?[4-6]/.test(t) ? "cfo-dcl-etanche" : /mur|mural/.test(t) ? "cfo-dcl-mural" : "cfo-dcl-plafond"; }],
+  [/bouche/, "cfo-bouche-125"], [/\bvmc\b/, "cfo-vmc"],
+  [/chauffe.?eau|ballon|cumulus/, "cfo-chauffe-eau"], [/clim/, "cfo-clim"], [/\bpac\b|pompe.?a.?chaleur/, "cfo-pac"],
+  [/tgbt|tableau|coffret|\bgtl\b/, "cfo-tgbt"], [/derivation/, "cfo-derivation"], [/\bterre\b/, "cfo-terre"], [/equipot/, "cfo-liaison-equipot"]
+];
+function precisionDe(t){
+  var p=[];
+  if(/plan.?(de.?)?travail|\bpdt\b/.test(t)) p.push("plan de travail");
+  var h=t.match(/(\d{2,3}) ?cm\b/); if(h) p.push("à "+h[1]+" cm");
+  else { var m=t.match(/(\d)[.,](\d{1,2}) ?m\b/); if(m) p.push("à "+m[1]+","+m[2]+" m"); }
+  var sp=t.match(/\b(ll|lv|sl|four|congel\w*|frigo)\b/); if(sp) p.push(sp[1].toUpperCase().length<=2 ? sp[1].toUpperCase() : sp[1]);
+  return p.join(", ");
+}
+function symboleDe(nom){
+  var t=sansAccent(nom).replace(/[_]+/g, " ");
+  for(var i=0;i<REGLES_SYMB.length;i++){
+    if(REGLES_SYMB[i][0].test(t)){ var r=REGLES_SYMB[i][1], cle=typeof r==="function" ? r(t) : r; return {cle:cle, precision:precisionDe(t)}; }
+  }
+  return null;
+}
+function lignesDwg(){
+  if(!DWG_RES) return [];
+  var SE=window.SymbolesElec, par={};
+  function surCalqueElec(x){ return Object.keys(x.calques).some(function(c){ return RE_ELEC.test(c); }); }
+  /* le DWG a des calques électriques : seuls leurs blocs sont traduits (un « Tableau » au mur n'est pas un TGBT) */
+  var calquesElec=DWG_RES.lignes.some(surCalqueElec);
+  DWG_RES.lignes.forEach(function(x){
+    var ce=surCalqueElec(x), sy=(ce || !calquesElec) ? symboleDe(x.nom) : null, s=sy && SE && SE.trouver(sy.cle);
+    var elec=ce || !!s;
+    var k=s ? sy.cle+"|"+sy.precision : "?|"+x.nom;
+    var g=par[k]=par[k]||{cle:s ? sy.cle : "", nom:s ? s.court : x.nom, precision:s ? sy.precision : "", reconnu:!!s, elec:elec, n:0, blocs:[]};
+    g.n+=x.n; g.blocs.push(x.nom+(x.variantes>1 ? " ("+x.variantes+" variantes)" : ""));
+  });
+  var l=Object.keys(par).map(function(k){ return par[k]; });
+  l.sort(function(a,b){ return (b.reconnu-a.reconnu) || b.n-a.n || a.nom.localeCompare(b.nom, "fr"); });
+  var avec=l.some(function(x){ return x.elec; });
+  $("dwgFiltreL").hidden=!avec;
+  return avec && $("dwgFiltre").checked ? l.filter(function(x){ return x.elec; }) : l;
+}
+function peindreDwg(){
+  var l=lignesDwg(), t=$("tableauDwg"), SE=window.SymbolesElec; t.textContent="";
+  var tot=l.reduce(function(a,x){ return a+x.n; }, 0), rec=l.filter(function(x){ return x.reconnu; }).reduce(function(a,x){ return a+x.n; }, 0);
+  $("dwgInfo").textContent=DWG_RES.nom+" : "+nombre(tot)+" posé"+(tot>1?"s":"")+(rec<tot ? ", dont "+nombre(rec)+" reconnu"+(rec>1?"s":"")+" en nos symboles." : ", tous reconnus en nos symboles.");
+  var th=document.createElement("thead"), tr=document.createElement("tr");
+  tr.appendChild(cellule("th","Symbole")); tr.appendChild(cellule("th","Bloc du DWG","cal")); tr.appendChild(cellule("th","Nombre")); th.appendChild(tr); t.appendChild(th);
+  var tb=document.createElement("tbody");
+  l.forEach(function(x){
+    var r=document.createElement("tr"); if(!x.reconnu) r.className="non-reconnu";
+    var c1=document.createElement("td"), d=document.createElement("div"); d.className="symb";
+    var ic=document.createElement("span"); ic.className="ico";
+    if(x.reconnu && SE){ ic.innerHTML=SE.svg(x.cle, 26); } d.appendChild(ic);
+    var tx=document.createElement("span"); tx.textContent=x.reconnu ? x.nom : "Non reconnu";
+    if(x.precision){ var p=document.createElement("small"); p.className="var"; p.textContent=x.precision; tx.appendChild(p); }
+    d.appendChild(tx); c1.appendChild(d); r.appendChild(c1);
+    r.appendChild(cellule("td", x.blocs.join(", "), "cal")); r.appendChild(cellule("td", nombre(x.n))); tb.appendChild(r);
+  });
+  t.appendChild(tb);
+  var tf=document.createElement("tfoot"), rf=document.createElement("tr"); rf.appendChild(cellule("td","Total")); rf.appendChild(cellule("td","")); rf.appendChild(cellule("td", nombre(tot))); tf.appendChild(rf); t.appendChild(tf);
+  $("blocDwg").hidden=false;
+}
+$("dwgFiltre").addEventListener("change", peindreDwg);
+$("copierDwg").addEventListener("click", function(){
+  var txt=["Symbole\tPrécision\tBloc du DWG\tNombre"].concat(lignesDwg().map(function(x){ return (x.reconnu ? x.nom : "Non reconnu")+"\t"+x.precision+"\t"+x.blocs.join(", ")+"\t"+x.n; })).join("\n");
+  try{ navigator.clipboard.writeText(txt).then(function(){ $("copierDwg").textContent="Copié"; setTimeout(function(){ $("copierDwg").textContent="Copier le tableau"; }, 1500); }); }catch(e){}
+});
 var depot=$("depot");
 ["dragenter","dragover"].forEach(function(t){ depot.addEventListener(t, function(e){ e.preventDefault(); depot.classList.add("survol"); }); });
 ["dragleave","drop"].forEach(function(t){ depot.addEventListener(t, function(e){ e.preventDefault(); depot.classList.remove("survol"); }); });
@@ -587,6 +829,15 @@ depot.addEventListener("drop", function(e){ if(e.dataTransfer && e.dataTransfer.
 /* ---------- l'analyse ---------- */
 var RESULTAT=null, PAGE=0, minuteur=null;
 var ETAPES=["Lecture de la légende…","Reconstruction des symboles…","Comptage sur le plan…","Rattachement aux niveaux et aux pièces…","Dessin des plans annotés…"];
+/* l'analyse : jamais d'attente sans fin. Le serveur coupe à 170 s ; ici, rien après 200 s
+   (un relais qui perd la réponse) : on le dit, et on propose de relancer sans images */
+var DELAI_ANALYSE=200000;
+function relancerSansImages(){
+  var r=document.createElement("button"); r.type="button"; r.className="second"; r.style.marginTop="8px";
+  r.textContent="Relancer sans images annotées (bien plus rapide)";
+  r.addEventListener("click", function(){ $("zoom").value="0"; r.remove(); $("analyser").click(); });
+  $("err").appendChild(document.createElement("br")); $("err").appendChild(r);
+}
 $("analyser").addEventListener("click", function(){
   if(!FICHIER) return;
   var fd=new FormData(); fd.append("file", FICHIER, FICHIER.name);
@@ -601,21 +852,34 @@ $("analyser").addEventListener("click", function(){
   minuteur=setInterval(function(){
     var s=Math.round((Date.now()-debut)/1000);
     $("encoursTemps").textContent=s+" s";
-    $("encoursTexte").textContent=ETAPES[Math.min(ETAPES.length-1, Math.floor(s/4))];
+    $("encoursTexte").textContent=ETAPES[Math.min(ETAPES.length-1, Math.floor(s/4))]
+      + (s>=30 ? " Un grand plan (A1, A0, plusieurs pages) peut prendre jusqu'à 3 minutes." : "");
   }, 500);
-  fetch("/api/plan?"+q.join("&"), {method:"POST", headers:{"x-auth":S.jeton}, body:fd})
+  var delai=window.__delaiAnalyse || DELAI_ANALYSE;   /* (__delaiAnalyse : pour les essais) */
+  var ctrl=window.AbortController ? new AbortController() : null, coupe=setTimeout(function(){ if(ctrl) ctrl.abort(); }, delai);
+  fetch("/api/plan?"+q.join("&"), {method:"POST", headers:{"x-auth":S.jeton}, body:fd, signal:ctrl ? ctrl.signal : undefined})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }, function(){ return {ok:false, d:{erreur:"Réponse illisible (HTTP "+r.status+")."}}; }); })
     .then(function(res){
-      clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
-      if(!res.ok){ $("err").textContent=res.d.erreur||"Analyse impossible."; return; }
+      clearTimeout(coupe); clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
+      if(!res.ok){
+        $("err").textContent=res.d.erreur||"Analyse impossible.";
+        if(/trop de temps|HTTP 50[234]/.test($("err").textContent) && z!=="0"){ $("err").textContent+=" Choisissez une seule page (« Page du PDF »), ou relancez sans images."; relancerSansImages(); }
+        return;
+      }
       RESULTAT=res.d; PAGE=0; afficher();
     })
-    .catch(function(){ clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false; $("err").textContent="Pas de réseau."; });
+    .catch(function(e){
+      clearTimeout(coupe); clearInterval(minuteur); $("blocEncours").hidden=true; $("analyser").disabled=false;
+      if(e && e.name==="AbortError"){
+        $("err").textContent="Le serveur n'a pas répondu en "+Math.round(delai/1000)+" s : le plan est sans doute trop lourd à annoter.";
+        if(z!=="0") relancerSansImages(); else $("err").textContent+=" Essayez une seule page (« Page du PDF »).";
+      } else $("err").textContent="Pas de réseau.";
+    });
 });
 
 function pagesDe(r){ return r && r.pages ? r.pages : (r ? [r] : []); }
 function nombre(n){ return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, " "); }
-var COULEURS={red:"#DC2626",blue:"#2563EB",green:"#16A34A",orange:"#EA7A1E",magenta:"#C026D3",cyan:"#0891B2",black:"#111827",yellow:"#CA8A04",purple:"#7C3AED",brown:"#92400E",gray:"#6B7280",grey:"#6B7280"};
+var COULEURS={red:"#DC2626",blue:"#2563EB",green:"#16A34A",orange:"#EA7A1E",magenta:"#C026D3",cyan:"#0891B2",black:"#111827",yellow:"#CA8A04",purple:"#7C3AED",brown:"#1D4ED8",gray:"#6B7280",grey:"#6B7280"};
 function texte(el, t){ el.textContent=t; return el; }
 function cellule(tag, t, cls){ var c=document.createElement(tag); c.textContent=t; if(cls) c.className=cls; return c; }
 
@@ -793,6 +1057,6 @@ $("telecharger").addEventListener("click", function(){
 })();
 </script>
 <script src="./pied.js?v=20261007b" defer></script>
-<script src="./navigation.js?v=20261015b" defer></script>
+<script src="./navigation.js?v=20261110c" defer></script>
 </body>
 </html>

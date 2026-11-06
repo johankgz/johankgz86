@@ -66,4 +66,64 @@
   document.addEventListener("focusin", function(e){ regler(e.target); }, true);
   if(document.body) demarrer(); else document.addEventListener("DOMContentLoaded", demarrer);
   window.Clavier={regler:regler};
+
+  /* ---------- la barre d'onglets du bas et le clavier de l'iPhone ----------
+     Clavier ouvert, Safari déplace la page sous la barre fixée en bas : elle
+     flottait alors au milieu de l'écran, et y restait parfois une fois le
+     clavier fermé. Pendant la saisie, la barre s'efface (le clavier a sa
+     propre barre ✓) ; à la fermeture, elle revient à sa place, recalée. */
+  (function(){
+    var st=document.createElement("style");
+    st.textContent="html.clavier-ouvert nav#nav,html.clavier-ouvert .stepnav{visibility:hidden!important;pointer-events:none}";
+    (document.head||document.documentElement).appendChild(st);
+    var TEXTE=/^(text|search|email|tel|url|number|password|date|time|datetime-local|month|week)$/;
+    function saisie(el){
+      if(!el || !el.tagName) return false;
+      if(el.tagName==="TEXTAREA" || el.isContentEditable) return true;
+      /* une liste (pièce, nature…) : sur l'iPhone, sa roue s'ouvre comme un clavier */
+      if(el.tagName==="SELECT") return !!(window.matchMedia && window.matchMedia("(pointer:coarse)").matches);
+      return el.tagName==="INPUT" && TEXTE.test((el.getAttribute("type")||"text").toLowerCase());
+    }
+    var minuteur=0;
+    function recaler(){
+      /* un défilement d'un point et retour : Safari replace les éléments fixés */
+      var y=window.scrollY||window.pageYOffset||0;
+      try{ window.scrollTo(window.scrollX||0, y+1); window.scrollTo(window.scrollX||0, y); }catch(e){}
+    }
+    document.addEventListener("focusin", function(e){
+      if(!saisie(e.target)) return;
+      clearTimeout(minuteur);
+      document.documentElement.classList.add("clavier-ouvert");
+    }, true);
+    document.addEventListener("focusout", function(){
+      clearTimeout(minuteur);
+      minuteur=setTimeout(function(){
+        if(saisie(document.activeElement)) return;      /* passé au champ suivant : le clavier reste */
+        document.documentElement.classList.remove("clavier-ouvert");
+        recaler(); setTimeout(recaler, 350);
+      }, 120);
+    }, true);
+    /* le clavier qui se ferme sans que le champ perde la main (bouton ✓ de l'iPhone) */
+    if(window.visualViewport){
+      var vv=window.visualViewport, haut=vv.height;
+      /* Safari garde parfois, clavier fermé, une page décalée : la barre fixée en bas
+         restait au milieu de l'écran. Elle se recolle au bas de ce qu'on voit vraiment. */
+      var coller=function(){
+        var nav=document.getElementById("nav"); if(!nav) return;
+        if(document.documentElement.classList.contains("clavier-ouvert")){ nav.style.transform=""; return; }
+        var cs=window.getComputedStyle(nav); if(cs.position!=="fixed" || Math.abs((vv.scale||1)-1)>0.01){ nav.style.transform=""; return; }
+        var d=Math.round(vv.offsetTop + vv.height - document.documentElement.clientHeight);
+        nav.style.transform = Math.abs(d)>2 ? "translateY("+d+"px)" : "";
+      };
+      vv.addEventListener("resize", function(){
+        var h=vv.height;
+        if(h > haut + 120 || h >= window.innerHeight - 40){ recaler(); }
+        haut=h; coller(); setTimeout(coller, 400);
+      });
+      vv.addEventListener("scroll", coller);
+      window.addEventListener("scroll", coller, {passive:true});
+      document.addEventListener("focusout", function(){ setTimeout(coller, 200); setTimeout(coller, 600); }, true);
+      document.addEventListener("change", function(e){ if(e.target && e.target.tagName==="SELECT"){ setTimeout(function(){ recaler(); coller(); }, 150); } }, true);
+    }
+  })();
 })();

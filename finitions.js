@@ -28,8 +28,8 @@
     ".fin-curseur{position:absolute;left:0;top:0;z-index:0;pointer-events:none;will-change:transform,width}" +
     ".fin-curseur.fin-anime{transition:transform .36s cubic-bezier(.3,1.25,.5,1),width .36s cubic-bezier(.3,1.25,.5,1),height .2s ease}" +
     ".fin-lueur{position:absolute;inset:0;border-radius:inherit;pointer-events:none;z-index:0;opacity:0;transition:opacity .25s ease;" +
-    "background:radial-gradient(240px circle at var(--fin-x,50%) var(--fin-y,50%),rgba(251,146,60,.16),transparent 62%)}" +
-    "html.theme-clair .fin-lueur{background:radial-gradient(240px circle at var(--fin-x,50%) var(--fin-y,50%),rgba(194,86,12,.09),transparent 62%)}" +
+    "background:radial-gradient(240px circle at var(--fin-x,50%) var(--fin-y,50%),rgba(59,130,246,.16),transparent 62%)}" +
+    "html.theme-clair .fin-lueur{background:radial-gradient(240px circle at var(--fin-x,50%) var(--fin-y,50%),rgba(37,99,235,.09),transparent 62%)}" +
     ".fin-halo-on>.fin-lueur{opacity:1}" +
     "@media (prefers-reduced-motion:reduce){.fin-curseur.fin-anime{transition:none}.fin-lueur{display:none}}";
   (document.head || document.documentElement).appendChild(css);

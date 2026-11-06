@@ -13,6 +13,7 @@
 (function(){
 "use strict";
 if(window.__navigation) return;
+var EMBLEME='<g transform="translate(2 2)"><path d="M79.7 20.3 A42 42 0 1 1 42.71 8.64" fill="none" stroke="#38BDF8" stroke-width="4.5" stroke-linecap="round"/><path d="M42.2 3.3 L50.9 7.9 L44.4 14.4 Z" fill="#38BDF8"/><g fill="none" stroke="#FFFFFF" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"><path transform="translate(31.4 31.4) scale(0.36)" d="M10 38 V10 L38 38 Z M16 32 V24 L24 32 Z"/><path transform="translate(51.2 31.4) scale(0.36)" d="M12 15 H36 A4 4 0 0 1 40 19 V33 A4 4 0 0 1 36 37 H12 A4 4 0 0 1 8 33 V19 A4 4 0 0 1 12 15 Z M18 15 L20 10 H28 L30 15 M30 26 A6 6 0 1 1 18 26 A6 6 0 1 1 30 26 Z"/><path transform="translate(31.4 51.2) scale(0.36)" d="M8 11 H14 V17 H8 Z M19 14 H40 M8 21 H14 V27 H8 Z M19 24 H40 M8 31 H14 V37 H8 Z M19 34 H33"/><path transform="translate(51.2 51.2) scale(0.36)" d="M14 9 H34 A3 3 0 0 1 37 12 V38 A3 3 0 0 1 34 41 H14 A3 3 0 0 1 11 38 V12 A3 3 0 0 1 14 9 Z M19 6 H29 V12 H19 Z M17 27 L22 32 L31 21"/></g></g>';
 window.__navigation=true;
 
 var API="/api/rapports";
@@ -40,15 +41,34 @@ var ICO={
   importer:'<path d="M12 15.5V4M7.5 8.5 12 4l4.5 4.5"/><path d="M4 14.5v4A1.5 1.5 0 0 0 5.5 20h13a1.5 1.5 0 0 0 1.5-1.5v-4"/>',
   retour:'<path d="M15 5l-7 7 7 7"/>',
   suite:'<path d="M9 5l7 7-7 7"/>',
-  loupe:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>'
+  loupe:'<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.6-3.6"/>',
+  outils:'<path d="M3.5 7.5a1.5 1.5 0 0 1 1.5-1.5h4.2l2 2.2H19a1.5 1.5 0 0 1 1.5 1.5v8.3a1.5 1.5 0 0 1-1.5 1.5H5a1.5 1.5 0 0 1-1.5-1.5z"/><path d="M9.5 13.5h5"/>'
 };
 /* les petits outils, comme dans le menu de l'accueil */
 var OUTILS=[
-  ["./utilitaires.html#boussole", "Boussole"], ["./utilitaires.html#niveau", "Niveau"], ["./utilitaires.html#calcul", "Calculatrice"],
-  ["./utilitaires.html#conversion", "kW · A"], ["./utilitaires.html#cable", "Câble"], ["./utilitaires.html#surface", "Surface"],
-  ["./utilitaires.html#croix", "Produit en croix"], ["./utilitaires.html#qr", "QR contact"], ["./utilitaires.html#refs", "Références"],
-  ["./dwg.html", "Plan DWG"], ["./knx.html", "KNX"]
+  ["./utilitaires.html#boussole", "Boussole", "utilitaires"], ["./utilitaires.html#niveau", "Niveau", "utilitaires"], ["./utilitaires.html#calcul", "Calculatrice", "utilitaires"],
+  ["./utilitaires.html#conversion", "kW · A", "utilitaires"], ["./utilitaires.html#cable", "Câble", "utilitaires"], ["./utilitaires.html#surface", "Surface", "utilitaires"],
+  ["./utilitaires.html#croix", "Produit en croix", "utilitaires"], ["./utilitaires.html#refs", "Bibliothèque", "utilitaires"],
+  ["./dwg.html", "Plan", "plan"], ["./knx.html", "KNX installation & chiffrage"],
+  /* rangés ici depuis l'accueil : le transfert, et les applis qui ne partent pas d'un chantier ouvert */
+  ["./importer.html", "Importer et exporter", "importer"], ["./schema.html", "Schéma", "schema"], ["./carnet.html", "Carnet et DOE", "carnet"],
+  ["./etiquettes.html", "Étiquettes", "etiquettes"],
+  ["./tableau.html", "Tableau de bord", "tableau", "bureau"], ["./facturation.html", "Facturation", "", "ca"]
 ];
+/* les favoris (3 au plus), choisis dans la fenêtre Outils de l'accueil : la même clé */
+function favoris(s){
+  var k="outils:favoris:"+((s && (s.societe||""))+":"+(s && (s.identifiant||s.nom)||""));
+  try{ var v=JSON.parse(localStorage.getItem(k)||"[]"); return Array.isArray(v) ? v.slice(0, 3) : []; }catch(e){ return []; }
+}
+/* les mêmes droits que l'accueil : rien d'attribué, tout est ouvert */
+function accesAppli(s, id){
+  if(!id) return true;
+  if(!s) return false;
+  if(s.proprietaire || (s.role==="admin" && !s.limite)) return true;
+  var a=s.applis;
+  if(!Array.isArray(a) || !a.length) return true;
+  return a.indexOf(id)>=0;
+}
 
 var STYLE=
 /* le bouton ☰ : l'allure du bouton « Menu » de la page, une icône à la place du mot */
@@ -65,32 +85,35 @@ var STYLE=
 +"font-family:-apple-system,BlinkMacSystemFont,\"Segoe UI\",Roboto,Helvetica,Arial,sans-serif;font-size:15px;line-height:1.35;text-align:left;animation:nvEntree .22s ease both}"
 +"@keyframes nvEntree{from{transform:translateX(-104%)}to{transform:none}}"
 +".nv-tete{display:flex;align-items:center;gap:10px;padding:0 2px 10px 4px}"
++".nv-maison{display:flex;align-items:center;gap:10px;flex:1 1 auto;min-width:0;color:inherit;text-decoration:none}"
 +".nv-logo{width:38px;height:38px;border-radius:11px;background:#2B323A;display:flex;align-items:center;justify-content:center;flex:0 0 auto}"
-+".nv-logo svg{width:21px;height:21px;fill:none;stroke:#F08A2E;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
++".nv-logo svg{width:21px;height:21px;fill:none;stroke:#3B82F6;stroke-width:2.4;stroke-linecap:round;stroke-linejoin:round}"
++".nv-logo svg.embleme{width:28px;height:28px;fill:initial;stroke:none}.nv-logo{background:#0B1220}"
 +".nv-tete b{flex:1;min-width:0;font-size:15px;font-weight:800;letter-spacing:-.01em}"
 +".nv-x{width:44px;height:44px;flex:0 0 auto;border:0;border-radius:50%;background:#F1F3F6;color:#1E2329;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0;margin:0}"
 +".nv-x svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round}"
 +".nv-it{display:flex;align-items:center;gap:13px;width:100%;box-sizing:border-box;min-height:48px;padding:0 12px;margin:0;border:0;border-radius:12px;background:transparent;"
 +"color:#1E2329;font:inherit;font-size:15.5px;font-weight:600;text-decoration:none;text-align:left;cursor:pointer;box-shadow:none}"
-+".nv-it svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:#E2761B;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
++".nv-it svg{width:22px;height:22px;flex:0 0 auto;fill:none;stroke:#3B82F6;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}"
 +".nv-it .nv-lib{flex:1;min-width:0}"
 +".nv-it .nv-suite{width:16px;height:16px;stroke:#8A929B;stroke-width:2.2}"
-+".nv-it[aria-current=\"page\"]{background:#FDEFE3;color:#B4561A;font-weight:700}"
++".nv-it[aria-current=\"page\"]{background:#EAF1FF;color:#2563EB;font-weight:700}"
 +".nv-it[aria-current=\"page\"] svg{stroke:currentColor}"
 +"@media (hover:hover){.nv-it:hover:not([aria-current=\"page\"]){background:#F1F3F6}.nv-ch:hover{background:#F4F6F8}}"
-+".nv-it:focus-visible,.nv-x:focus-visible,.nv-ch:focus-visible,.nv-outils a:focus-visible,.nv-compte:focus-visible{outline:2px solid #E2761B;outline-offset:2px}"
++".nv-it:focus-visible,.nv-x:focus-visible,.nv-ch:focus-visible,.nv-outils a:focus-visible,.nv-compte:focus-visible{outline:2px solid #3B82F6;outline-offset:2px}"
++".nv-fav-vide{grid-column:1/-1;margin:0;padding:0 8px 6px;font-size:12.5px;color:#8A929B;line-height:1.3}"
 +".nv-titre{font-size:11px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:#8A929B;padding:14px 12px 8px}"
 +".nv-outils{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;padding:0 2px 4px}"
 +".nv-outils a{min-height:46px;display:flex;align-items:center;justify-content:center;text-align:center;padding:2px 4px;border-radius:10px;background:#F6F8FA;color:#3E4650;font-size:12px;font-weight:600;text-decoration:none;line-height:1.15}"
 +".nv-compte{display:flex;align-items:center;gap:11px;margin-top:auto;padding:12px 6px 2px;border-top:1px solid #E1E5EA;color:inherit;text-decoration:none}"
-+".nv-ini{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#EA7A1E;color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center}"
++".nv-ini{width:40px;height:40px;flex:0 0 auto;border-radius:50%;background:#3B82F6;color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;justify-content:center}"
 +".nv-compte span{display:flex;flex-direction:column;min-width:0}"
 +".nv-compte b{font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
 +".nv-compte small{font-size:12.5px;color:#5B6470}"
 +".nv-vue{display:flex;flex-direction:column;flex:1 1 auto;min-height:0}"
 /* les chantiers, dans le tiroir */
 +".nv-ch-tete{display:flex;align-items:center;gap:6px;padding:0 0 8px}"
-+".nv-retour{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 10px 0 4px;border:0;border-radius:10px;background:none;color:#B4561A;font:inherit;font-size:15px;font-weight:700;cursor:pointer;margin:0}"
++".nv-retour{display:inline-flex;align-items:center;gap:4px;min-height:44px;padding:0 10px 0 4px;border:0;border-radius:10px;background:none;color:#2563EB;font:inherit;font-size:15px;font-weight:700;cursor:pointer;margin:0}"
 +".nv-retour svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}"
 +".nv-ch-tete b{flex:1;font-size:16px;font-weight:800;text-align:right;padding-right:6px}"
 +".nv-ch-tete small{font-size:12.5px;color:#8A929B;font-weight:600}"
@@ -102,10 +125,10 @@ var STYLE=
 +".nv-ch:last-child{border-bottom:0}"
 +".nv-ch b{display:block;font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
 +".nv-ch small{display:block;font-size:12.5px;color:#5B6470;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}"
-+".nv-ch[aria-current=\"page\"]{background:#FDEFE3}"
-+".nv-ch[aria-current=\"page\"] b{color:#B4561A}"
++".nv-ch[aria-current=\"page\"]{background:#EAF1FF}"
++".nv-ch[aria-current=\"page\"] b{color:#2563EB}"
 +".nv-vide{margin:0;padding:14px;color:#5B6470;font-size:14px}"
-+".nv-tous{display:block;margin-top:10px;padding:12px 4px 0;color:#B4561A;font-weight:700;font-size:14.5px;text-decoration:none;border-top:1px solid #E1E5EA}"
++".nv-tous{display:block;margin-top:10px;padding:12px 4px 0;color:#2563EB;font-weight:700;font-size:14.5px;text-decoration:none;border-top:1px solid #E1E5EA}"
 +"@media (prefers-reduced-motion:reduce){.nv-tiroir{animation:none}}";
 
 var BTN=null, FOND=null, TIROIR=null, R={}, AVANT=null, LISTE=null, CHARGE=null;
@@ -146,17 +169,18 @@ function construire(){
   TIROIR=el("nav", "nv-tiroir"); TIROIR.id="nvTiroir"; TIROIR.hidden=true;
   TIROIR.setAttribute("aria-label", "Menu");
   var tete=el("div", "nv-tete");
-  var logo=el("span", "nv-logo"); logo.innerHTML=svg('<path d="M6 12.5l4 4 8-9"/>');
+  /* le symbole du site : la flèche du 360° autour des quatre pictos (relevé, photo, liste, contrôle) */
+  var logo=el("span", "nv-logo"); logo.innerHTML='<svg class="embleme" viewBox="0 0 104 104" aria-hidden="true">'+EMBLEME+'</svg>';
   var x=el("button", "nv-x"); x.type="button"; x.setAttribute("aria-label", "Fermer le menu"); x.innerHTML=svg(ICO.x);
-  tete.appendChild(logo); tete.appendChild(el("b", "", "Suivi travaux 360")); tete.appendChild(x);
+  /* le symbole et le nom : l'accueil (et, déjà à l'accueil, la page rechargée) */
+  var maison=el("a", "nv-maison"); maison.href="./index.html"; maison.title="Accueil"; maison.setAttribute("aria-label", "Accueil");
+  maison.appendChild(logo); maison.appendChild(el("b", "", "Suivi travaux 360"));
+  tete.appendChild(maison); tete.appendChild(x);
   TIROIR.appendChild(tete);
 
   /* ----- le menu ----- */
   var vm=el("div", "nv-vue"); vm.setAttribute("data-vue", "menu");
   vm.appendChild(entree("a", "accueil", "Accueil", {href:"./index.html"}));
-  var reactu=entree("button", "reactu", "Réactualiser");
-  reactu.addEventListener("click", function(){ try{ location.reload(); }catch(e){ location.href=location.href; } });
-  vm.appendChild(reactu);
   var ch=entree("button", "chantiers", "Chantiers", {suite:true, page:["chantier.html", "rapports.html"]});
   ch.setAttribute("aria-haspopup", "true");
   ch.addEventListener("click", function(){ montrerVue("chantiers"); });
@@ -166,10 +190,17 @@ function construire(){
   vm.appendChild(entree("a", "notes", "Notes", {href:"./mesnotes.html", page:["mesnotes.html"]}));
   vm.appendChild(entree("a", "discu", "Discussions", {href:"./discussions.html", page:["discussions.html"]}));
   vm.appendChild(entree("a", "cloud", "Cloud", {href:"./cloud.html", page:["cloud.html"]}));
-  vm.appendChild(entree("a", "importer", "Importer et exporter", {href:"./importer.html", page:["importer.html"]}));
-  vm.appendChild(el("div", "nv-titre", "Outils"));
+  /* « Outils » ouvre la fenêtre de tous les outils (sur l'accueil) ; dessous, les favoris */
+  vm.appendChild(entree("a", "outils", "Outils", {href:"./index.html?outils=1", page:["utilitaires.html"]}));
   var outils=el("div", "nv-outils");
-  OUTILS.forEach(function(o){ var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a); });
+  var ses=session();
+  var bureau = ses && (ses.role==="bureau" || ses.role==="admin" || ses.role==="conducteur");
+  favoris(ses).forEach(function(h){
+    var o=OUTILS.filter(function(x){ return x[0]===h; })[0];
+    if(!o || !accesAppli(ses, o[2]) || (o[3]==="bureau" && !bureau) || (o[3]==="ca" && !(ses.role==="bureau" || ses.role==="admin" || ses.proprietaire))) return;
+    var a=el("a", "", o[1]); a.href=o[0]; outils.appendChild(a);
+  });
+  if(!outils.children.length){ var v=el("p", "nv-fav-vide", "Vos outils favoris (3 au plus) : « Favoris » dans Outils."); outils.appendChild(v); }
   vm.appendChild(outils);
   var s=session()||{};
   var cpt=el("a", "nv-compte"); cpt.href="./compte.html";

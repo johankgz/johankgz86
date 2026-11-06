@@ -20,7 +20,7 @@
   "use strict";
   if(window.FondsAnim) return;
 
-  var ORANGE="#FB923C", CYAN="#38BDF8", TURQUOISE="#22D3EE", JAUNE="#FACC15", VERT="#84CC16", VIOLET="#A78BFA";
+  var ORANGE="#3B82F6", CYAN="#38BDF8", TURQUOISE="#22D3EE", JAUNE="#FACC15", VERT="#84CC16", VIOLET="#A78BFA";
   function hasard(g){ var x=g; return function(){ x=(x*9301+49297)%233280; return x/233280; }; }
   function rgba(hex, a){
     var n=parseInt(hex.slice(1), 16);
@@ -36,7 +36,7 @@
      impulsions qui y courent (la même idée qu'avant, sans les halos flous qui coûtaient cher) */
   SCENES.reseaux={
     init:function(ctx, W, H){
-      var r=hasard(11), COUL=[ORANGE, CYAN, JAUNE, VERT];
+      var r=hasard(11), COUL=["#FB923C", CYAN, JAUNE, VERT];   /* les couleurs du logo TLE */
       var pas=Math.max(40, Math.round(Math.min(W,H)/9));
       var nb=Math.max(8, Math.min(14, Math.round(W*H/40000)));
       function arrondi(v, max){ return Math.max(pas, Math.min(max-pas, Math.round(v/pas)*pas)); }
@@ -237,7 +237,7 @@
   SCENES.aurore={
     calques:function(box){
       [["#0EA5E9", "62vmax", "-18vmax", "-22vmax", 34, "auA"], ["#A855F7", "58vmax", "auto", "-20vmax", 41, "auB"],
-       ["#14B8A6", "54vmax", "30vw", "auto", 47, "auC"], ["#FB923C", "40vmax", "auto", "auto", 53, "auD"]].forEach(function(n, i){
+       ["#14B8A6", "54vmax", "30vw", "auto", 47, "auC"], ["#3B82F6", "40vmax", "auto", "auto", 53, "auD"]].forEach(function(n, i){
         var d=document.createElement("i");
         d.style.cssText="position:absolute;width:"+n[1]+";height:"+n[1]+";border-radius:50%;opacity:.42;will-change:transform;"
           +"background:radial-gradient(circle at 50% 50%,"+rgba(n[0], .9)+" 0%,"+rgba(n[0], .35)+" 35%,"+rgba(n[0], 0)+" 68%);"
@@ -249,7 +249,7 @@
     css:"@keyframes auA{to{transform:translate(22vw,16vh) scale(1.18)}}@keyframes auB{to{transform:translate(-20vw,22vh) scale(.86)}}"
       +"@keyframes auC{to{transform:translate(18vw,-24vh) scale(1.12)}}@keyframes auD{to{transform:translate(-26vw,-18vh) scale(1.25)}}",
     vignette:function(c, W, H){
-      [["#0EA5E9", .1, .05, .8], ["#A855F7", .9, .1, .75], ["#14B8A6", .45, 1, .7], ["#FB923C", .85, .95, .55]].forEach(function(n){
+      [["#0EA5E9", .1, .05, .8], ["#A855F7", .9, .1, .75], ["#14B8A6", .45, 1, .7], ["#3B82F6", .85, .95, .55]].forEach(function(n){
         var g=c.createRadialGradient(W*n[1], H*n[2], 0, W*n[1], H*n[2], W*n[3]);
         g.addColorStop(0, rgba(n[0], .5)); g.addColorStop(1, rgba(n[0], 0)); c.fillStyle=g; c.fillRect(0, 0, W, H);
       });
