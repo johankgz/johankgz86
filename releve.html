@@ -932,18 +932,6 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 
 <!-- 3. PIÈCES -->
 <section id="tab-pieces" hidden>
-  <div class="block" id="quickShot">
-    <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 8.4h3.3l1.6-2.5h7.2l1.6 2.5h3.3v10.5h-17zM12 16.8a3.6 3.6 0 1 0 0-.1"/></svg>Photo rapide</h2>
-    <p class="hint">Enchaînez les prises de vue sans ouvrir la pièce. L'appareil photo se rouvre après chaque cliché.</p>
-    <div class="row">
-      <select id="q_room" style="flex:1;min-width:170px"></select>
-      <button class="act solid" id="btnQuickPhoto" style="min-width:130px">Prendre une photo</button>
-      <button class="act ghost" id="btnQuickSketch">Croquis</button>
-    </div>
-    <input type="file" id="q_file" accept="image/*" capture="environment" multiple hidden>
-    <p class="hint" id="q_state">Ajoutez d'abord une pièce ci-dessous.</p>
-  </div>
-
   <div class="block">
     <h2><svg class="ic" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4zM12 4v7H4M12 8.5v0M15 14.5h5"/></svg>Ajouter une pièce</h2>
     <div class="row">
@@ -5205,52 +5193,6 @@ function paintConseil(){
   host.appendChild(note);
 }
 
-/* ---------- photo rapide ---------- */
-var chain = false;
-function activeRoom(){
-  var r = S.pieces.filter(function(p){ return p.id===S.activeRoom; })[0];
-  return r || S.pieces[S.pieces.length-1] || null;
-}
-function refreshQuick(){
-  var sel=$("q_room"); sel.textContent="";
-  S.pieces.forEach(function(p,i){
-    var o=document.createElement("option"); o.value=p.id; o.textContent=(i+1)+". "+p.nom+" ("+p.photos.length+")";
-    sel.appendChild(o);
-  });
-  var r=activeRoom();
-  var has = !!r;
-  $("btnQuickPhoto").disabled = !has;
-  $("btnQuickSketch").disabled = !has;
-  sel.disabled = !has;
-  if(has){
-    sel.value=r.id; S.activeRoom=r.id;
-    $("q_state").textContent = "Les photos partent dans « "+r.nom+" » — "+r.photos.length+" photo"+(r.photos.length>1?"s":"")+" pour l'instant.";
-  } else {
-    $("q_state").textContent = "Ajoutez d'abord une pièce ci-dessous.";
-  }
-}
-$("q_room").addEventListener("change", function(){ S.activeRoom=$("q_room").value; save(); refreshQuick(); });
-$("btnQuickPhoto").addEventListener("click", function(){ chain=true; $("q_file").click(); });
-$("btnQuickSketch").addEventListener("click", function(){ openSketch(activeRoom()); });
-$("q_file").addEventListener("change", function(){
-  var r=activeRoom(); if(!r){ chain=false; return; }
-  var files=Array.prototype.slice.call($("q_file").files);
-  $("q_file").value="";
-  if(!files.length){ chain=false; return; }
-  var left=files.length;
-  files.forEach(function(f){
-    compress(f, function(ph){
-      if(ph) r.photos.push(ph);
-      if(--left===0){
-        save(); renderRooms(); refreshHeader(); refreshQuick();
-        toast(r.photos.length+" photo(s) dans « "+r.nom+" »");
-        if(chain) setTimeout(function(){ $("q_file").click(); }, 350);
-      }
-    });
-  });
-});
-$("q_file").addEventListener("cancel", function(){ chain=false; });
-
 /* ---------- pièces ---------- */
 function fillPresets(){
   var sel=$("p_preset");
@@ -5280,7 +5222,7 @@ function renderRooms(){
     head.querySelector(".meta").textContent = p.photos.length+" photo"+(p.photos.length>1?"s":"")+(p.notes.trim()?" · notes":"");
     head.addEventListener("click", function(){
       p.open=!p.open; card.dataset.open=p.open?"1":"0";
-      S.activeRoom=p.id; refreshQuick(); save();
+      S.activeRoom=p.id; save();
     });
     card.appendChild(head);
 
@@ -5302,10 +5244,15 @@ function renderRooms(){
     var tools=document.createElement("div"); tools.className="row"; tools.style.marginBottom="8px";
     var dic=document.createElement("button"); dic.type="button"; dic.className="act rec"; dic.textContent="Dicter";
     setupDictation(dic); tools.appendChild(dic);
-    var photoBtn=document.createElement("button"); photoBtn.type="button"; photoBtn.className="act blue"; photoBtn.textContent="Photos";
+    /* Photo rafale : l'appareil photo (sur le téléphone, l'appareil du site :
+       on enchaîne, la croix termine) ; Galerie : des photos déjà prises */
+    var rafBtn=document.createElement("button"); rafBtn.type="button"; rafBtn.className="act blue"; rafBtn.textContent="Photo rafale";
+    var camIn=document.createElement("input"); camIn.type="file"; camIn.accept="image/*"; camIn.setAttribute("capture","environment"); camIn.multiple=true; camIn.hidden=true;
+    rafBtn.addEventListener("click", function(){ camIn.click(); });
+    var photoBtn=document.createElement("button"); photoBtn.type="button"; photoBtn.className="act ghost"; photoBtn.textContent="Galerie";
     var fileIn=document.createElement("input"); fileIn.type="file"; fileIn.accept="image/*"; fileIn.multiple=true; fileIn.hidden=true;
     photoBtn.addEventListener("click", function(){ fileIn.click(); });
-    fileIn.addEventListener("change", function(){
+    [camIn, fileIn].forEach(function(fileIn){ fileIn.addEventListener("change", function(){
       var files=Array.prototype.slice.call(fileIn.files); if(!files.length) return;
       var left=files.length;
       files.forEach(function(f){
@@ -5315,8 +5262,8 @@ function renderRooms(){
         });
       });
       toast(files.length+" photo(s) en traitement…");
-    });
-    tools.appendChild(photoBtn); tools.appendChild(fileIn);
+    }); });
+    tools.appendChild(rafBtn); tools.appendChild(camIn); tools.appendChild(photoBtn); tools.appendChild(fileIn);
     var skBtn=document.createElement("button"); skBtn.type="button"; skBtn.className="act ghost"; skBtn.textContent="Croquis";
     skBtn.addEventListener("click", function(){ openSketch(p); });
     tools.appendChild(skBtn);
@@ -5361,7 +5308,6 @@ function renderRooms(){
     card.appendChild(body);
     wrap.appendChild(card);
   });
-  refreshQuick();
 }
 
 /* ---------- en-tête / résumé ---------- */
@@ -7507,7 +7453,7 @@ function estRdv(){ return (S.meta.statut||"").indexOf("rendez-vous")>=0; }
    relire. Revenir à la valeur d'avant retire le surlignage ; une
    publication réussie les efface tous. La liste voyage avec la fiche
    (S._modifs), donc elle suit aussi les fiches mises de côté. */
-var MARQUES_EXCLUES = ["q_room", "p_preset", "p_custom", "irve_W", "toit_W", "toit_H"];
+var MARQUES_EXCLUES = ["p_preset", "p_custom", "irve_W", "toit_W", "toit_H"];
 var MARQUES_AVANT = {};
 function marquesDeFiche(){
   if(!S) return null;
