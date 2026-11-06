@@ -181,9 +181,6 @@ function construire(){
   /* ----- le menu ----- */
   var vm=el("div", "nv-vue"); vm.setAttribute("data-vue", "menu");
   vm.appendChild(entree("a", "accueil", "Accueil", {href:"./index.html"}));
-  var reactu=entree("button", "reactu", "Réactualiser");
-  reactu.addEventListener("click", function(){ try{ location.reload(); }catch(e){ location.href=location.href; } });
-  vm.appendChild(reactu);
   var ch=entree("button", "chantiers", "Chantiers", {suite:true, page:["chantier.html", "rapports.html"]});
   ch.setAttribute("aria-haspopup", "true");
   ch.addEventListener("click", function(){ montrerVue("chantiers"); });
