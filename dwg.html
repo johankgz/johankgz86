@@ -4959,7 +4959,7 @@ function ecrireNiveaux(cleD, cleS, nv){
 /* ---------- les photos sur le plan : prises sur place, accrochées à l'endroit (P1, P2…), reprises au PDF ---------- */
 var PHOTO_EC=null, PHOTO_VUE=null;
 function photos(){ return (DESSIN && DESSIN.photos) || []; }
-function photoSous(p){ var best=null, bd=18/V.k; photos().forEach(function(ph){ var d=Math.hypot(ph.x-p[0], ph.y-p[1]); if(d<bd){ bd=d; best=ph; } }); return best; }
+function photoSous(p){ var best=null, bd=22/V.k; photos().forEach(function(ph){ var d=Math.hypot(ph.x-p[0], ph.y-p[1]); if(d<bd){ bd=d; best=ph; } }); return best; }
 function armerPhoto(){ PHOTO_EC={arme:true}; if(MODE!=="dessin") basculerMode("dessin"); if(OUTIL_D!=="choisir"){ choisirOutilR("choisir"); PHOTO_EC={arme:true}; } majRuban(); toast("Photo : touchez l'endroit du plan où la photo a été prise.", 3500); }
 function poserPhoto(p){
   PHOTO_EC={pt:p};
@@ -4978,11 +4978,15 @@ function reduirePhoto(fichier){
 function ouvrirPhoto(ph){ PHOTO_VUE=ph; $("fpTitre").textContent=ph.rep+(ph.date ? " · "+new Date(ph.date).toLocaleDateString("fr-FR") : ""); $("fpImg").src=ph.src; $("fpTexte").value=ph.t||""; $("fenPhoto").hidden=false; }
 function peindrePhotos(c, E){
   photos().forEach(function(ph){
-    var P=E([ph.x, ph.y]), r=IMPRIME ? 7 : 11;
-    c.save(); c.setLineDash([]); c.fillStyle="#0EA5E9"; c.strokeStyle=CLAIR || IMPRIME ? "#FFFFFF" : "#0B0E12"; c.lineWidth=2;
+    /* au PDF, en mm de papier (rond de 8 mm, texte de 4,5 mm) : lisible sur un A3 comme sur un A4 */
+    var mm=PX_MM>0 ? PX_MM : (IMPRIME ? 4 : 0), P=E([ph.x, ph.y]), r=mm ? 4*mm : 15, fs=mm ? 4.5*mm : 15, bord=mm ? 0.5*mm : 2.5;
+    c.save(); c.setLineDash([]); c.fillStyle="#0EA5E9"; c.strokeStyle=CLAIR || IMPRIME ? "#FFFFFF" : "#0B0E12"; c.lineWidth=bord;
     c.beginPath(); c.arc(P[0], P[1], r, 0, Math.PI*2); c.fill(); c.stroke();
-    c.fillStyle="#FFFFFF"; c.fillRect(P[0]-r*0.5, P[1]-r*0.3, r, r*0.62); c.beginPath(); c.arc(P[0], P[1]+r*0.01, r*0.22, 0, Math.PI*2); c.fillStyle="#0EA5E9"; c.fill();
-    c.font="700 "+(IMPRIME ? 8 : 11)+"px Helvetica, Arial, sans-serif"; c.textAlign="left"; c.textBaseline="middle"; c.lineWidth=3; c.strokeText(ph.rep, P[0]+r+3, P[1]); c.fillStyle="#0EA5E9"; c.fillText(ph.rep, P[0]+r+3, P[1]);
+    /* l'appareil photo, en blanc dans le rond */
+    c.fillStyle="#FFFFFF"; c.fillRect(P[0]-r*0.52, P[1]-r*0.28, r*1.04, r*0.66); c.fillRect(P[0]-r*0.2, P[1]-r*0.42, r*0.4, r*0.16);
+    c.beginPath(); c.arc(P[0], P[1]+r*0.05, r*0.22, 0, Math.PI*2); c.fillStyle="#0EA5E9"; c.fill();
+    c.font="700 "+fs.toFixed(1)+"px Helvetica, Arial, sans-serif"; c.textAlign="left"; c.textBaseline="middle"; c.lineJoin="round"; c.lineWidth=fs*0.28;
+    c.strokeText(ph.rep, P[0]+r*1.25, P[1]); c.fillStyle="#0284C7"; c.fillText(ph.rep, P[0]+r*1.25, P[1]);
     c.restore();
   });
 }
