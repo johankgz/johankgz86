@@ -712,6 +712,22 @@ body.clair .accueil.dessus{background:#F3F5F8}
 .coul-g button.on,.coul-g label.on{background:rgba(255,255,255,.22)}
 .coul-g button{padding:6px 5px}
 .coul-g .cg-auto i{background:conic-gradient(#DC2626,#CA8A04,#16A34A,#0891B2,#2563EB,#7C3AED,#DB2777,#DC2626);box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
+.coul-g .cg-multi i{width:20px;height:20px;background:conic-gradient(#DC2626,#CA8A04,#16A34A,#0891B2,#2563EB,#7C3AED,#DB2777,#DC2626);box-shadow:0 0 0 1.5px rgba(255,255,255,.5)}
+.coul-g .cg-multi.calque{background:rgba(255,255,255,.22)}
+.pop-coul-g{position:fixed;z-index:45;display:flex;flex-direction:column;gap:8px;padding:12px;border-radius:14px;background:var(--barre);border:1px solid var(--trait);box-shadow:0 18px 40px -14px rgba(0,0,0,.8);width:min(300px,calc(100vw - 16px))}
+.pop-coul-g[hidden]{display:none}
+.pop-coul-g b{font-size:13.5px}
+.pop-coul-g small{font-size:11.5px;color:var(--ink3)}
+.pcg-grille{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.pcg-grille button,.pcg-grille label{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1;padding:0;border-radius:10px;border:1px solid var(--trait);background:transparent;cursor:pointer;position:relative}
+.pcg-grille button.on{outline:2px solid var(--or);outline-offset:1px}
+.pcg-grille i{display:block;width:22px;height:22px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(127,127,127,.6)}
+.pcg-grille .cg-calque i{background:conic-gradient(#DC2626,#CA8A04,#16A34A,#0891B2,#2563EB,#7C3AED,#DB2777,#DC2626)}
+.pcg-grille .cg-autre i{background:repeating-linear-gradient(45deg,#fff 0 3px,#9CA3AF 3px 6px)}
+.pcg-grille .cg-autre input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
+/* la fenêtre des propriétés : rien ne déborde sur le côté */
+.fen-props{overflow-x:hidden}
+.fprops-corps .seg{flex-wrap:wrap}
 .coul-g .cg-autre{position:relative;display:flex;align-items:center;padding:6px 7px;cursor:pointer;border-radius:999px}
 .coul-g .cg-autre i{display:block;width:16px;height:16px;border-radius:50%;box-shadow:0 0 0 1.5px rgba(255,255,255,.5);background:repeating-linear-gradient(45deg,#fff 0 3px,#9CA3AF 3px 6px)}
 .coul-g .cg-autre input{position:absolute;inset:0;opacity:0;width:100%;height:100%;cursor:pointer;border:0;padding:0}
@@ -8011,18 +8027,48 @@ function volumes3D(sc, hsp){
   });
   $("btTournerD").addEventListener("click", tournerMob);
 })();
-/* la palette du trait : « Calque » (sa couleur à lui), les douze couleurs, et une autre au choix */
-function peindreCoulG(actuelle){
-  var sg=$("segCoulG"), a=String(actuelle||"").toLowerCase();
-  if(!sg.childNodes.length){
-    var b0=document.createElement("button"); b0.type="button"; b0.dataset.h=""; b0.className="cg-auto"; b0.title="Couleur du calque"; b0.setAttribute("aria-label", "Couleur du calque"); b0.innerHTML="<i></i>"; sg.appendChild(b0);
-    PALETTE.forEach(function(hx){ var b=document.createElement("button"); b.type="button"; b.dataset.h=hx; b.title=hx; b.setAttribute("aria-label", "Couleur "+hx); b.innerHTML='<i style="background:'+hx+'"></i>'; sg.appendChild(b); });
-    var lb=document.createElement("label"); lb.className="cg-autre"; lb.title="Une autre couleur"; lb.innerHTML='<i></i><input type="color" aria-label="Une autre couleur" value="#2563EB">'; sg.appendChild(lb);
-  }
-  var trouve=false;
-  Array.prototype.forEach.call(sg.querySelectorAll("button"), function(b){ var on=(b.dataset.h||"").toLowerCase()===a; if(on) trouve=true; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false"); });
-  var lb2=sg.querySelector(".cg-autre"), autre=!trouve && !!a; lb2.classList.toggle("on", autre); lb2.querySelector("i").style.background = autre ? a : ""; if(autre) lb2.querySelector("input").value=a;
+/* la palette du trait, réduite : le bouton multicolore (il ouvre toutes les couleurs) et les 3 dernières utilisées */
+function coulRecentes(){ try{ var l=JSON.parse(localStorage.getItem("dwg:coulRecentes")||"null"); if(Array.isArray(l) && l.length) return l.slice(0, 3); }catch(e){} return ["#000000","#DC2626","#2563EB"]; }
+function noterCoulRecente(hx){
+  if(!hx) return; hx=String(hx).toUpperCase();
+  var l=coulRecentes().filter(function(x){ return String(x).toUpperCase()!==hx; }); l.unshift(hx);
+  try{ localStorage.setItem("dwg:coulRecentes", JSON.stringify(l.slice(0, 3))); }catch(e){}
 }
+var COUL_G_ACT="";
+function peindreCoulG(actuelle){
+  var sg=$("segCoulG"), a=String(actuelle||"").toLowerCase(); COUL_G_ACT=a;
+  sg.textContent="";
+  var b0=document.createElement("button"); b0.type="button"; b0.className="cg-multi"; b0.dataset.multi="1";
+  b0.title="Toutes les couleurs"; b0.setAttribute("aria-label", "Toutes les couleurs"); b0.setAttribute("aria-haspopup", "dialog");
+  b0.innerHTML='<i></i>'; if(!a) b0.classList.add("calque");
+  sg.appendChild(b0);
+  coulRecentes().forEach(function(hx){
+    var b=document.createElement("button"); b.type="button"; b.dataset.h=hx; b.title=hx; b.setAttribute("aria-label", "Couleur récente "+hx);
+    b.innerHTML='<i style="background:'+hx+'"></i>'; var on=hx.toLowerCase()===a; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on ? "true" : "false");
+    sg.appendChild(b);
+  });
+}
+/* la fenêtre de toutes les couleurs, au-dessus du bouton multicolore */
+function ouvrirPopCoulG(ancre){
+  var pop=$("popCoulG"); if(!pop){ pop=document.createElement("div"); pop.id="popCoulG"; pop.className="pop-coul-g"; pop.setAttribute("role","dialog"); pop.setAttribute("aria-label","Couleur du trait"); document.body.appendChild(pop); }
+  pop.textContent="";
+  var t=document.createElement("b"); t.textContent="Couleur du trait"; pop.appendChild(t);
+  var g=document.createElement("div"); g.className="pcg-grille"; pop.appendChild(g);
+  var a=COUL_G_ACT;
+  function bouton(hx, lib, cls){ var b=document.createElement("button"); b.type="button"; b.dataset.h=hx; b.title=lib; b.setAttribute("aria-label", lib); if(cls) b.className=cls;
+    b.innerHTML='<i'+(hx ? ' style="background:'+hx+'"' : '')+'></i>'; if((hx||"").toLowerCase()===a) b.classList.add("on"); g.appendChild(b); }
+  bouton("", "Couleur du calque", "cg-calque");
+  PALETTE.forEach(function(hx){ bouton(hx, "Couleur "+hx); });
+  var lb=document.createElement("label"); lb.className="cg-autre"; lb.title="Une autre couleur"; lb.innerHTML='<i></i><input type="color" aria-label="Une autre couleur" value="'+(a && /^#[0-9a-f]{6}$/i.test(a) ? a : "#2563EB")+'">'; g.appendChild(lb);
+  var lg=document.createElement("small"); lg.textContent="Le premier rond : la couleur du calque."; pop.appendChild(lg);
+  pop.hidden=false;
+  var r=ancre.getBoundingClientRect(), w=pop.offsetWidth, h=pop.offsetHeight;
+  pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-w-8))+"px";
+  pop.style.top=Math.max(8, r.top-h-8)+"px";
+}
+function fermerPopCoulG(){ var p=$("popCoulG"); if(p) p.hidden=true; }
+document.addEventListener("pointerdown", function(e){ var p=$("popCoulG"); if(p && !p.hidden && !e.target.closest("#popCoulG") && !e.target.closest(".cg-multi")) fermerPopCoulG(); }, true);
+document.addEventListener("keydown", function(e){ var p=$("popCoulG"); if(e.key==="Escape" && p && !p.hidden){ e.preventDefault(); e.stopPropagation(); fermerPopCoulG(); } }, true);
 /* le panneau du dessin technique : saisie des dimensions en cours de tracé,
    style de la forme choisie (ou des prochaines), cotes exactes */
 function majGeoPanneau(o, t){
@@ -8084,11 +8130,13 @@ function majGeoPanneau(o, t){
   $("segEpG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) appliquer("ep", b.dataset.e); });
   /* la palette, dans la barre du bas : la couleur des prochains traits (ou du trait choisi) */
   function couleurG(hx){
+    noterCoulRecente(hx);
     if(D_SEL && D_SEL.t==="geo"){ modifierSel(function(o){ if(hx) o.couleur=hx; else delete o.couleur; o.coul="noir"; }); majBarreSel(); return; }
     STYLE_G.couleur=hx||""; STYLE_G.coul="noir"; garderStyle(); majDessin();
   }
-  $("segCoulG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) couleurG(b.dataset.h); });
-  $("segCoulG").addEventListener("change", function(e){ if(e.target && e.target.type==="color") couleurG(e.target.value); });
+  $("segCoulG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(!b) return; if(b.dataset.multi){ var p=$("popCoulG"); if(p && !p.hidden) fermerPopCoulG(); else ouvrirPopCoulG(b); return; } couleurG(b.dataset.h); });
+  document.addEventListener("click", function(e){ var b=e.target.closest && e.target.closest("#popCoulG button"); if(!b) return; couleurG(b.dataset.h); fermerPopCoulG(); });
+  document.addEventListener("change", function(e){ if(e.target && e.target.type==="color" && e.target.closest("#popCoulG")){ couleurG(e.target.value); fermerPopCoulG(); } });
   $("segRempG").addEventListener("click", function(e){ var b=e.target.closest("button"); if(b) appliquer("remp", b.dataset.r); });
   /* Tirets et Pointillés : l'un ou l'autre ; retouché, le trait redevient plein */
   $("btTiretsG").addEventListener("click", function(){ var o=D_SEL && D_SEL.t==="geo" ? objetSel() : STYLE_G; appliquer("tir", !(o && o.tir===true)); });
