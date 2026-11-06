@@ -97,7 +97,9 @@ button,select{font:inherit}
 .plans-site ul.tuiles .t-ouvrir{width:100%;min-width:0}
 .plans-site .t-ch{box-sizing:border-box;overflow:hidden}
 .plans-site ul.tuiles .t-act .bt-supp{margin-left:auto}
-.plans-site .t-act .bt-copie svg{width:16px;height:16px}
+.plans-site .t-act .bt-ratt{display:inline-flex;align-items:center;gap:5px}
+.plans-site ul.tuiles .t-act .bt-ratt span{display:none}
+.plans-site .t-act .bt-copie svg,.plans-site .t-act .bt-renom svg,.plans-site .t-act .bt-ratt svg{width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 @media (max-width:600px){
   .plans-site ul.tuiles{grid-template-columns:1fr 1fr;gap:8px}
   .plans-site ul.tuiles li.tuile{min-height:180px;border-bottom:1px solid var(--trait);padding-bottom:0}
@@ -8220,7 +8222,10 @@ function peindreViergesDans(ul){
         localStorage.setItem("dwg:vierges", JSON.stringify(listeVierges().filter(function(z){ return z.id!==v.id; }))); }catch(e){}
       peindreVierges();
     });
-    var actV=document.createElement("div"); actV.className="t-act"; actV.appendChild(x);
+    var rnV=document.createElement("button"); rnV.type="button"; rnV.className="bt bt-renom"; rnV.title="Renommer « "+v.nom+" »"; rnV.setAttribute("aria-label", rnV.title);
+    rnV.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+    rnV.addEventListener("click", function(){ renommerVierge(v); });
+    var actV=document.createElement("div"); actV.className="t-act"; actV.appendChild(rnV); actV.appendChild(x);
     li.appendChild(b); li.appendChild(actV); ul.appendChild(li);
   });
 }
@@ -14133,7 +14138,7 @@ function peindreMenu(){
   }
   var connecte=!!sessionPlan(), ca=estCA();
   if(MN_PAGE==="recents"){
-    titre("Plans récents", "Vos plans enregistrés sur le site, à reprendre sur tous vos appareils : touchez un plan pour l'ouvrir. Copier, rattacher à un chantier ou supprimer : en bas de chaque bloc. Le chantier lié s'affiche sur le bloc.");
+    titre("Plans récents", "Vos plans enregistrés sur le site, à reprendre sur tous vos appareils : touchez un plan pour l'ouvrir. Copier, renommer, rattacher à un chantier ou supprimer : en bas de chaque bloc. Le chantier lié s'affiche sur le bloc.");
     var d1=document.createElement("div"); d1.className="plans-site"; d1.id="mnPlans"; d1.innerHTML='<ul id="mnPlansListe"></ul>'; P.appendChild(d1);
     if(!connecte){ var v=document.createElement("p"); v.className="mn-vide"; v.textContent="Connectez-vous au site pour retrouver vos plans enregistrés."; P.appendChild(v); }
     var h=document.createElement("h3"); h.textContent="Dessinés sur cet appareil"; P.appendChild(h);
@@ -14869,8 +14874,30 @@ var ICO_TUILE={
   vierge:'<path d="M4 20V4h11l5 5v11z"/><path d="M15 4v5h5M8 16.5h8M8 16.5v-2.5M16 16.5v-2.5"/>',
   fichier:'<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/>',
   copie:'<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5.5A1.5 1.5 0 0 0 14.5 4h-9A1.5 1.5 0 0 0 4 5.5v9A1.5 1.5 0 0 0 5.5 16H8"/>',
-  maison:'<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>'
+  maison:'<path d="M4 11.5 12 5l8 6.5V20H4z"/><path d="M10 20v-5h4v5"/>',
+  crayon:'<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/>'
 };
+/* renommer un plan enregistré, depuis la liste */
+function renommerPlanSite(p){
+  var nom=window.prompt("Nouveau nom du plan :", p.nom);
+  if(nom==null) return; nom=String(nom).replace(/\s+/g, " ").trim();
+  if(!nom || nom===p.nom) return;
+  appelSite("plan-renommer", {method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({id:p.id, nom:nom})})
+    .then(function(){
+      if(PLAN_SITE && PLAN_SITE.id===p.id && !PLAN_SITE.u){ PLAN_SITE.nom=nom; majNomPlan(); }
+      toast("Plan renommé : « "+nom+" ».", 2500); peindrePlansSite();
+    })
+    .catch(function(e){ toast("Renommer impossible : "+String((e && e.message)||e), 5000); });
+}
+/* renommer un plan dessiné sur cet appareil */
+function renommerVierge(v){
+  var nom=window.prompt("Nouveau nom du plan :", v.nom);
+  if(nom==null) return; nom=String(nom).replace(/\s+/g, " ").trim();
+  if(!nom || nom===v.nom) return;
+  try{ var l=listeVierges(); l.forEach(function(z){ if(z.id===v.id) z.nom=nom; }); localStorage.setItem("dwg:vierges", JSON.stringify(l)); }catch(e){}
+  if(PLAN && PLAN.vierge && PLAN.id===v.id){ PLAN.nom=nom; majTitre(); majNomPlan(); }
+  peindreVierges(); toast("Plan renommé : « "+nom+" ».", 2500);
+}
 /* la liste des plans enregistrés, en blocs carrés : son nom, le chantier lié, sa date ; copier, rattacher, supprimer */
 function peindrePlansSite(){
   var cibles=[["accPlans","accPlansListe"],["fsPlans","fsPlansListe"]];
@@ -14908,10 +14935,17 @@ function peindrePlansSite(){
         cp.title="Copier « "+p.nom+" » pour en faire un autre plan"; cp.setAttribute("aria-label", cp.title);
         cp.addEventListener("click", function(){ copierPlanSite(p); });
         act.appendChild(cp);
+        /* le renommer, sans l'ouvrir */
+        var rn=document.createElement("button"); rn.type="button"; rn.className="bt bt-renom";
+        rn.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICO_TUILE.crayon+'</svg>';
+        rn.title="Renommer « "+p.nom+" »"; rn.setAttribute("aria-label", rn.title);
+        rn.addEventListener("click", function(){ renommerPlanSite(p); });
+        act.appendChild(rn);
         /* le chargé d'affaires : le rattacher à un chantier tel qu'il est, sans le rouvrir */
         if(estCA()){
           var rc=document.createElement("button"); rc.type="button"; rc.className="bt bt-ratt";
-          rc.textContent = p.chantier && p.chantier.ref ? "Changer" : "Chantier";
+          rc.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+ICO_TUILE.maison+'</svg><span></span>';
+          rc.querySelector("span").textContent = p.chantier && p.chantier.ref ? "Changer" : "Chantier";
           rc.title = p.chantier && p.chantier.ref ? "Rattaché au chantier "+p.chantier.ref+" : le rattacher à un autre" : "Rattacher « "+p.nom+" » à un chantier";
           rc.setAttribute("aria-label", rc.title);
           rc.addEventListener("click", function(){ ouvrirRatt(p); });
