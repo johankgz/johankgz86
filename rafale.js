@@ -148,9 +148,21 @@ function ouvrir(champ){
     else v.facingMode={ideal:face};
     return {audio:false, video:v};
   }
+  /* l'image remplit l'écran : taille calculée ici, sans compter sur object-fit
+     (Safari l'oublie un instant quand la caméra change) */
+  function placer(e, w, h){
+    var W=fond.clientWidth||innerWidth, H=fond.clientHeight||innerHeight;
+    if(!w || !h){ e.style.left=e.style.top="0"; e.style.width=W+"px"; e.style.height=H+"px"; return; }
+    var k=Math.max(W/w, H/h), lw=Math.ceil(w*k), lh=Math.ceil(h*k);
+    e.style.right=e.style.bottom="auto";
+    e.style.width=lw+"px"; e.style.height=lh+"px"; e.style.left=Math.round((W-lw)/2)+"px"; e.style.top=Math.round((H-lh)/2)+"px";
+  }
+  function replacer(){ placer(video, video.videoWidth, video.videoHeight); if(gel.width) placer(gel, gel.width, gel.height); }
+  video.addEventListener("resize", function(){ if(video.classList.contains("pret")) placer(video, video.videoWidth, video.videoHeight); });
+  window.addEventListener("resize", replacer);
   function figer(){
     if(!video.videoWidth || !video.classList.contains("pret")) return;
-    try{ gel.width=video.videoWidth; gel.height=video.videoHeight; gel.getContext("2d").drawImage(video, 0, 0); gel.style.transform=video.style.transform; gel.classList.add("vu"); }catch(e){}
+    try{ gel.width=video.videoWidth; gel.height=video.videoHeight; gel.getContext("2d").drawImage(video, 0, 0); placer(gel, gel.width, gel.height); gel.style.transform=video.style.transform; gel.classList.add("vu"); }catch(e){}
   }
   /* la vidéo ne se montre qu'une fois la nouvelle caméra prête : pas d'image
      réduite au milieu de l'écran pendant le changement (iPhone) */
@@ -160,10 +172,18 @@ function ouvrir(champ){
     (function t(){
       if(n!==nPret || fini) return;
       if(!(video.videoWidth && video.readyState>=2) && Date.now()-t0<4000){ setTimeout(t, 40); return; }
-      requestAnimationFrame(function(){ requestAnimationFrame(function(){ setTimeout(function(){
+      function montrer(){
         if(n!==nPret || fini) return;
-        video.classList.add("pret"); gel.classList.remove("vu");
-      }, 120); }); });
+        placer(video, video.videoWidth, video.videoHeight);
+        requestAnimationFrame(function(){ if(n!==nPret || fini) return; video.classList.add("pret"); gel.classList.remove("vu"); });
+      }
+      /* attendre de vraies images de la nouvelle caméra */
+      if(video.requestVideoFrameCallback){
+        var k=0, garde=setTimeout(montrer, 1500);
+        (function img(){ video.requestVideoFrameCallback(function(){ if(++k<3) img(); else { clearTimeout(garde); setTimeout(montrer, 60); } }); })();
+      } else {
+        requestAnimationFrame(function(){ requestAnimationFrame(function(){ setTimeout(montrer, 200); }); });
+      }
     })();
   }
   function demarrer(){
@@ -314,7 +334,7 @@ function ouvrir(champ){
 
   function fermer(rendre){
     if(fini) return; fini=true;
-    lampe(false); arreterFlux(); fond.remove(); document.documentElement.style.overflow=avantOverflow;
+    lampe(false); arreterFlux(); fond.remove(); window.removeEventListener("resize", replacer); document.documentElement.style.overflow=avantOverflow;
     champ.__rafaleRepos=Date.now()+3000;
     var fichiers=photos.map(function(p){ return p.f; });
     setTimeout(function(){ photos.forEach(function(p){ try{ URL.revokeObjectURL(p.url); }catch(e){} }); }, 1000);
