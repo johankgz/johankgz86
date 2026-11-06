@@ -246,7 +246,7 @@
       var sec=document.getElementById("tab-"+m.id); if(!sec) return;
       var d=M[m.id];
       sec.textContent="";
-      var b=el("div", "block"); b.appendChild(el("h2", null, m.titre)); b.appendChild(el("p", "hint", m.chapeau));
+      var b=el("div", "block"); b.appendChild(el("h2", null, m.titre));
       var al=el("p", "hint"); al.style.cssText="color:var(--danger,#B42318);font-weight:600";
       function majAlerte(){ var t=m.alerte ? m.alerte(d) : ""; al.textContent=t; al.hidden=!t; }
       (m.champs||[]).forEach(function(c){ champ(b, c, d, ctx, majAlerte); });
