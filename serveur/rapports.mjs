@@ -318,7 +318,7 @@ async function ecrireComptes(code, comptes) {
 }
 /* version des conditions générales d'utilisation (cgu.html) : la changer
    quand le texte change, chacun les réacceptera à sa prochaine visite */
-const CGU_VERSION = "2026-10-03";
+const CGU_VERSION = "2026-11-06";
 const DUREE_SESSION = 3 * 24 * 60 * 60 * 1000;   /* trois jours : deux reconnexions par semaine */
 
 /* =====================================================================
