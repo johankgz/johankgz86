@@ -16,7 +16,10 @@
      - en revenant sur une appli restée ouverte, la page se recharge si
        la fiche a été poursuivie ailleurs entre-temps.
    Sans réseau, rien ne change : l'appareil garde sa fiche, et l'envoie
-   au retour du réseau. La dernière version écrite l'emporte.
+   au retour du réseau. La dernière version écrite l'emporte, mais l'autre
+   n'est jamais perdue : quand deux appareils ont écrit chacun de leur côté
+   (un iPad resté hors réseau, puis l'iPhone), la version qui cède est
+   gardée sur l'appareil, et un bandeau propose de la rouvrir.
    ===================================================================== */
 (function(){
   "use strict";
@@ -226,7 +229,16 @@
     EN_VOL[k] = lireMeta(k).then(function(m){
       if(!m.sale) return true;
       tour=m.quand;
-      return local.get(k).then(function(r){
+      /* un autre appareil a écrit depuis la version sur laquelle repose celle-ci :
+         sa version est gardée ici avant d'être remplacée sur le site */
+      var verif = liste(true).then(function(fiches){
+        if(!fiches) throw new Error("site injoignable");
+        var e=fiches[k];
+        if(!e || !e.maj || e.efface || e.maj===m.sync || m.gardee===e.maj) return;
+        return garderSite(k, e).then(function(){ return lireMeta(k); })
+          .then(function(m3){ m3.gardee=e.maj; return ecrireMeta(k, m3); });
+      });
+      return verif.then(function(){ return local.get(k); }).then(function(r){
         var v = r && r.value;
         if(v==null){
           return fetch(url("encours-effacer"), {method:"POST", headers:entetes("application/json"),
@@ -302,6 +314,117 @@
       if(m.quand && m.quand > e.maj) return null;
     }
     return e;
+  }
+
+  /* ---------- la version qui cède est gardée, jamais perdue ---------- */
+  var GARDE="encours-garde§";
+  function garder(k, v, info){
+    if(v==null) return Promise.resolve();
+    var le=new Date().toISOString();
+    var cle=GARDE+k+"§"+le+"§"+Math.random().toString(36).slice(2,6);
+    var g={k:k, v:String(v), appareil:info.appareil||"", quand:info.quand||le, ici:!!info.ici, avant:!!info.avant, le:le};
+    return local.set(cle, JSON.stringify(g))
+      .then(function(){ return local.list(GARDE+k+"§"); })
+      .then(function(r){ var ks=(r.keys||[]).sort(); return Promise.all(ks.slice(0, Math.max(0, ks.length-5)).map(function(x){ return local.delete(x); })); })
+      .then(function(){ setTimeout(proposerGardes, 600); })
+      .catch(function(){});
+  }
+  /* la version du site, avant que cet appareil ne l'écrase sans l'avoir vue */
+  function garderSite(k, e){
+    return fetch(url("encours-lire")+"&k="+encodeURIComponent(k), {headers:entetes()})
+      .then(function(r){
+        if(r.status===404) return null;                    /* plus rien sur le site */
+        if(!r.ok) throw new Error("site injoignable");
+        return r.json();
+      })
+      .then(function(d){
+        if(!d || d.v==null) return;
+        return regarnir(d.v).catch(function(){ return d.v; })
+          .then(function(v){ return garder(k, v, {appareil:d.appareil||e.appareil||"", quand:d.maj||e.maj}); });
+      });
+  }
+  /* « Ouvrir cette version » : l'échange se fait au rechargement, avant que l'appli ne lise sa fiche */
+  function echangeEnAttente(k){
+    var x=null; try{ x=JSON.parse(sessionStorage.getItem("encours:echange")||"null"); }catch(e){}
+    if(!x || x.k!==k) return Promise.resolve();
+    try{ sessionStorage.removeItem("encours:echange"); }catch(e){}
+    return local.get(x.g).then(function(r){
+      var g=null; try{ g=(r && r.value) ? JSON.parse(r.value) : null; }catch(e){}
+      if(!g) return;
+      return local.get(k).then(function(c){
+        var avant = (c && c.value!=null && c.value!==g.v) ? garder(k, c.value, {avant:true, appareil:appareil()}) : Promise.resolve();
+        return avant.then(function(){ return local.set(k, g.v); })
+          .then(function(){ return local.delete(x.g); })
+          .then(function(){ return lireMeta(k); })
+          .then(function(m){ m.sale=true; m.quand=new Date().toISOString(); return ecrireMeta(k, m); })
+          .then(function(){ planifier(k); });
+      });
+    }).catch(function(){});
+  }
+  function libelleGarde(g){
+    var h=heure(g.quand);
+    if(g.avant) return "la version ouverte juste avant (sur cet appareil)";
+    if(g.ici) return "la version de cet appareil, écrite "+h+", pas encore envoyée";
+    return "la version laissée "+depuis({appareil:g.appareil})+" "+h;
+  }
+  /* le bandeau : les versions gardées de la fiche de cette page */
+  function proposerGardes(){
+    if(!document.body) return;
+    local.list(GARDE).then(function(r){
+      var ks=(r.keys||[]).filter(function(c){
+        var k=c.slice(GARDE.length).split("§")[0];
+        return deCettePage(k) && k.indexOf("@")<0 && k.indexOf("#")<0;
+      });
+      return Promise.all(ks.map(function(c){
+        return local.get(c).then(function(x){ var g=null; try{ g=JSON.parse(x.value); }catch(e){} return g ? {cle:c, g:g} : null; });
+      }));
+    }).then(function(L){
+      L=(L||[]).filter(Boolean);
+      /* une version gardée identique à celle ouverte ne sert à rien */
+      return Promise.all(L.map(function(x){
+        return local.get(x.g.k).then(function(c){
+          if(c && c.value===x.g.v){ return local.delete(x.cle).then(function(){ return null; }); }
+          return x;
+        });
+      }));
+    }).then(function(L){
+      L=(L||[]).filter(Boolean).sort(function(a,b){ return String(b.g.le).localeCompare(String(a.g.le)); });
+      var vieux=document.getElementById("encoursGardes"); if(vieux) vieux.remove();
+      if(!L.length || proposerGardes.plusTard) return;
+      var b=document.createElement("div"); b.id="encoursGardes"; b.setAttribute("role","region"); b.setAttribute("aria-label","Autres versions de la fiche");
+      b.style.cssText="position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);z-index:3001;"
+        +"width:min(94vw,520px);padding:12px 14px;border-radius:14px;background:#1E2329;color:#fff;font:500 14px/1.4 system-ui,sans-serif;"
+        +"box-shadow:0 10px 30px rgba(0,0,0,.35);border-left:4px solid #F59E0B";
+      var t=document.createElement("div"); t.style.cssText="font-weight:700;margin:0 26px 6px 0";
+      t.textContent = L.length>1 ? "D'autres versions de cette fiche sont gardées" : "Une autre version de cette fiche est gardée";
+      b.appendChild(t);
+      var x=document.createElement("button"); x.type="button"; x.setAttribute("aria-label","Plus tard"); x.textContent="×";
+      x.style.cssText="position:absolute;right:8px;top:6px;width:34px;height:34px;border:0;border-radius:50%;background:transparent;color:#fff;font:400 24px/1 system-ui;cursor:pointer";
+      x.addEventListener("click", function(){ proposerGardes.plusTard=true; b.remove(); });
+      b.appendChild(x);
+      L.forEach(function(it){
+        var l=document.createElement("div"); l.style.cssText="padding:8px 0;border-top:1px solid rgba(255,255,255,.12)";
+        var p=document.createElement("div"); p.style.cssText="margin-bottom:8px;color:rgba(255,255,255,.85)";
+        var res=null; try{ res=resumeDe(JSON.parse(it.g.v)); }catch(e){}
+        p.textContent=libelleGarde(it.g).replace(/^./, function(c){ return c.toUpperCase(); })+(res && (res.client||res.ref) ? " — "+[res.client, res.ref].filter(Boolean).join(" · ") : "")+".";
+        l.appendChild(p);
+        var o=document.createElement("button"); o.type="button"; o.textContent="Ouvrir cette version";
+        o.style.cssText="min-height:40px;padding:0 14px;margin-right:8px;border:0;border-radius:999px;background:#F59E0B;color:#111;font:700 14px system-ui;cursor:pointer";
+        o.addEventListener("click", function(){
+          if(!window.confirm("Ouvrir "+libelleGarde(it.g)+" ?\n\nLa fiche ouverte maintenant est gardée à son tour : vous pourrez y revenir.")) return;
+          try{ sessionStorage.setItem("encours:echange", JSON.stringify({k:it.g.k, g:it.cle})); }catch(e){ return; }
+          location.reload();
+        });
+        var j=document.createElement("button"); j.type="button"; j.textContent="Jeter";
+        j.style.cssText="min-height:40px;padding:0 14px;border:1px solid rgba(255,255,255,.3);border-radius:999px;background:transparent;color:#fff;font:600 14px system-ui;cursor:pointer";
+        j.addEventListener("click", function(){
+          if(!window.confirm("Jeter "+libelleGarde(it.g)+" ?\n\nElle sera perdue.")) return;
+          local.delete(it.cle).then(proposerGardes);
+        });
+        l.appendChild(o); l.appendChild(j); b.appendChild(l);
+      });
+      document.body.appendChild(b);
+    }).catch(function(){});
   }
 
   /* la fiche de l'appli ouverte (et pas celles que la page du chantier relit au passage) */
@@ -394,9 +517,10 @@
   /* ---------- window.storage : comme avant, la copie sur le site en plus ---------- */
   window.storage = {
     get:function(k){
-      if(!suivie(k) || !actif()) return local.get(k);
+      if(!suivie(k)) return local.get(k);
+      if(!actif()) return echangeEnAttente(k).then(function(){ return local.get(k); });
       LUES[k]=true;
-      return Promise.all([lireMeta(k), liste()]).then(function(x){
+      return echangeEnAttente(k).then(function(){ return Promise.all([lireMeta(k), liste()]); }).then(function(x){
         var m=x[0], e=plusRecente(k, x[1], m);
         if(!e){
           return local.get(k).then(function(r){
@@ -407,9 +531,13 @@
             return r;
           });
         }
-        return reprendre(k, e).then(function(r){
+        /* l'appareil a écrit sans pouvoir l'envoyer (hors réseau) : sa version est gardée avant de prendre l'autre */
+        var avant = m.sale
+          ? local.get(k).then(function(r){ if(r && r.value!=null) return garder(k, r.value, {ici:true, appareil:appareil(), quand:m.quand}); })
+          : Promise.resolve();
+        return avant.then(function(){ return reprendre(k, e); }).then(function(r){
           if(!r.efface && k.indexOf("@")<0 && k.indexOf("#")<0 && deCettePage(k))
-            dire("Fiche reprise telle que laissée "+depuis(e)+" "+heure(e.maj)+".");
+            dire("Fiche reprise telle que laissée "+depuis(e)+" "+heure(e.maj)+"."+(m.sale ? " Celle de cet appareil est gardée." : ""));
           return r.value==null ? null : {key:k, value:r.value};
         }, function(){ return local.get(k); });          /* site injoignable en route : la copie de l'appareil */
       });
@@ -468,4 +596,5 @@
     if(mot){ sessionStorage.removeItem("encours:mot"); dire(mot); }
   }catch(e){}
   setTimeout(rattraper, 4000);
+  setTimeout(proposerGardes, 1500);
 })();
