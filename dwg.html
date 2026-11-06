@@ -7497,6 +7497,7 @@ var MOB=[
   {cle:"esccolima", nom:"Escalier en colimaçon Ø 160", court:"Colimaçon", groupe:"Escaliers", l:1600, p:1600, h:2700, genre:"colima", libre:1},
   {cle:"marches3", nom:"3 marches", court:"3 marches", groupe:"Escaliers", l:1000, p:840, h:510, genre:"marches", n:3},
   /* l'isolation : un doublage contre le mur, dessiné comme sur un plan d'archi */
+  {cle:"isolant", nom:"Isolation (doublage), épaisseur au choix", court:"Isolation", groupe:"Isolation", l:3000, p:100, h:2500, genre:"isolant"},
   {cle:"isolant10", nom:"Isolation, doublage 10 cm", court:"Isolation 10", groupe:"Isolation", l:3000, p:100, h:2500, genre:"isolant"},
   {cle:"isolant20", nom:"Isolation, doublage 20 cm", court:"Isolation 20", groupe:"Isolation", l:3000, p:200, h:2500, genre:"isolant"},
   /* le jardin : posés là où l'on touche ; leur largeur est celle du houppier */
@@ -7521,9 +7522,11 @@ function mobSous(p){
   for(var i=l.length-1;i>=0;i--) if(uVu(l[i]) && dansMob(l[i], p, m)) return l[i];
   return null;
 }
+/* l'épaisseur de l'isolation, donnée au moment de la poser (en mm) */
+var ISO_EP=Number(lire("dwg:isoEp","100"))||100;
 function nouveauMob(cle){
-  var d=defMob(cle);
-  return {id:idD(), cle:d.cle, x:0, y:0, rot:0, l:d.l/DESSIN_MM, p:d.p/DESSIN_MM, h:d.h, z:d.plafond ? Math.max(0, hspD()-d.h) : (d.z||0), nom:""};
+  var d=defMob(cle), pp = d.cle==="isolant" ? ISO_EP : d.p;
+  return {id:idD(), cle:d.cle, x:0, y:0, rot:0, l:d.l/DESSIN_MM, p:pp/DESSIN_MM, h:d.h, z:d.plafond ? Math.max(0, hspD()-d.h) : (d.z||0), nom:d.cle==="isolant" ? "Isolation "+String(Math.round(ISO_EP)/10).replace(".", ",")+" cm" : ""};
 }
 /* Adosser au mur le plus proche : le dos contre sa face (à la pose), ou le
    côté déjà tourné vers lui (en déplaçant) ; puis se caler contre un mur
@@ -13461,10 +13464,10 @@ var ACTIONS={
 var VUES_R={dessus:"Dessus", face:"Face", cote:"Côté"};
 var ONGLETS=[
   {id:"debut", nom:"Construction", g:[
-    {nom:"Murs", gros:["o:mur","o:cloison","o:piece"]},
+    {nom:"Murs", gros:["o:mur","o:cloison","o:piece","m:isolant"]},
     {nom:"Ouvertures", gros:["o:porte","o:pf","o:fenetre"], petits:["o:coul","o:fen2","o:galandage"]},
     {nom:"Aménagement", petits:["o:objet","o:toit","o:texte"]},
-    {nom:"Escaliers et isolation", petits:["m:escdroit","m:escquart","m:esccolima","m:marches3","m:isolant10","m:isolant20"]},
+    {nom:"Escaliers", petits:["m:escdroit","m:escquart","m:esccolima","m:marches3"]},
     {nom:"Modification", gros:["o:main","o:choisir","o:selection"], petits:["a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur"]},
     {nom:"Plan importé", gros:["a:effdwg"]},
     {nom:"Lignes de construction", petits:["a:guideh","a:guidev","a:guide2","a:guidesEff"]},
@@ -13524,15 +13527,25 @@ var ICO_MOBR={
   escquart:'<path d="M4 21V9h11v12"/><path d="M4 3h16v6H4"/><path d="M4 15h11M4 18h11M15 3v6M18 3v6M9.5 19V6h8"/>',
   esccolima:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="1.6"/><path d="M12 3v7.4M18.4 5.6 13.1 10.9M21 12h-7.4M18.4 18.4l-5.3-5.3M12 21v-7.4"/>',
   marches3:'<path d="M4 6h16v12H4z"/><path d="M4 10h16M4 14h16M12 16.5V7.5M10.6 8.9 12 7.5l1.4 1.4"/>',
+  isolant:'<path d="M3 8h18v8H3z"/><path d="M3 16l3-8 3 8 3-8 3 8 3-8 3 8"/>',
   isolant10:'<path d="M3 9h18v6H3z"/><path d="M3 15l3-6 3 6 3-6 3 6 3-6 3 6"/>',
   isolant20:'<path d="M3 7h18v10H3z"/><path d="M3 17l3-10 3 10 3-10 3 10 3-10 3 10"/>'
 };
 function choisirMobR(k){
   if(!PLAN) return;
+  if(k==="isolant"){
+    /* l'isolation : son épaisseur d'abord, en cm */
+    var v=window.prompt("Épaisseur de l'isolation, en cm :", String(Math.round(ISO_EP)/10).replace(".", ","));
+    if(v==null) return;
+    var mm=Math.round(parseFloat(String(v).replace(",", "."))*10);
+    if(!(mm>=10 && mm<=1000)){ toast("Épaisseur à donner en cm, entre 1 et 100.", 3000); return; }
+    ISO_EP=mm; garder("dwg:isoEp", String(mm));
+  }
   choisirOutilR("objet");
   CHOIX_MOB=k; garder("dwg:mob", k); var sm=$("selMob"); if(sm) sm.value=k;
   majDessin(); majRuban();
-  var d=defMob(k); toast(d.nom+" : touchez le plan"+(d.libre ? "" : " (contre un mur)")+" pour le poser ; ses dimensions se changent dans ses propriétés.", 3200);
+  var d=defMob(k), nomT = k==="isolant" ? "Isolation "+String(Math.round(ISO_EP)/10).replace(".", ",")+" cm" : d.nom;
+  toast(nomT+" : touchez le plan"+(d.libre ? "" : " (contre un mur)")+" pour la poser ; ses dimensions se changent dans ses propriétés.", 3500);
 }
 function icone(r){
   var t=r.slice(0,2), k=r.slice(2);
@@ -13856,7 +13869,7 @@ $("rbOnglets").addEventListener("click", function(e){
 $("btReplier").addEventListener("click", function(){ replier(!$("ruban").classList.contains("replie")); });
 /* ---------- la barre de commande : on tape l'outil (renvoi, mesurer, rect…), Entrée le lance ----------
    Les noms du ruban, et les abréviations d'un logiciel de DAO (L, PL, REC, C, A, COT, DIST, CO, RO…). */
-var CMD_LISTE=["m:escdroit","m:escquart","m:esccolima","m:marches3","m:isolant10","m:isolant20","o:coul","o:fen2","o:galandage","o:mur","o:cloison","o:piece","o:porte","o:pf","o:fenetre","o:objet","o:toit","o:texte","o:main","o:choisir","o:selection","a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur","a:effdwg","a:guideh","a:guidev","a:guide2","a:guidesEff","o:trait","o:poly","o:rond","o:arc","o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche","o:cote","o:gtexte","a:renvoi","a:mesurer","a:etalonner","a:chaine","a:cotepiece","o:pvchamp","o:pvpan","o:pvond","o:pvstr","o:pvac","o:pvrj","a:etudepv","a:fond","a:feuille","a:laser","a:photo","a:blocs","v:dessus","v:face","v:cote","a:v3d","a:niveaux","a:elevation","a:entiere","a:clair","a:reticule","a:calques","a:reperes","a:enreg","a:enregch","a:cloud","a:pdf","a:dxf","a:image","a:xlsx","a:raccourcis","a:enchainer","a:accroche","a:ortho","a:faceext","a:inverser","a:reseau","a:reseu","a:resfourreau","a:quantites","a:resa","a:reschemin","a:resgaine","a:resfrigo","a:restelec","a:rescond","a:relier","a:numcirc","a:versschema"];
+var CMD_LISTE=["m:escdroit","m:escquart","m:esccolima","m:marches3","m:isolant","o:coul","o:fen2","o:galandage","o:mur","o:cloison","o:piece","o:porte","o:pf","o:fenetre","o:objet","o:toit","o:texte","o:main","o:choisir","o:selection","a:dupliquer","a:serie","a:tourner","a:miroir","a:miroirv","a:decaler","a:ajuster","a:prolonger","a:supprimer","a:grouper","a:degrouper","a:depuis","a:couleur","a:effdwg","a:guideh","a:guidev","a:guide2","a:guidesEff","o:trait","o:poly","o:rond","o:arc","o:rect","o:ellipse","o:spline","o:triangle","o:hachure","o:fleche","o:cote","o:gtexte","a:renvoi","a:mesurer","a:etalonner","a:chaine","a:cotepiece","o:pvchamp","o:pvpan","o:pvond","o:pvstr","o:pvac","o:pvrj","a:etudepv","a:fond","a:feuille","a:laser","a:photo","a:blocs","v:dessus","v:face","v:cote","a:v3d","a:niveaux","a:elevation","a:entiere","a:clair","a:reticule","a:calques","a:reperes","a:enreg","a:enregch","a:cloud","a:pdf","a:dxf","a:image","a:xlsx","a:raccourcis","a:enchainer","a:accroche","a:ortho","a:faceext","a:inverser","a:reseau","a:reseu","a:resfourreau","a:quantites","a:resa","a:reschemin","a:resgaine","a:resfrigo","a:restelec","a:rescond","a:relier","a:numcirc","a:versschema"];
 var CMD_ALIAS={"l":"o:trait","ligne":"o:trait","line":"o:trait","pl":"o:poly","polyligne":"o:poly","pline":"o:poly","c":"o:rond","cercle":"o:rond","circle":"o:rond","a":"o:arc","rec":"o:rect","rectang":"o:rect","rectangle":"o:rect","el":"o:ellipse","spl":"o:spline","h":"o:hachure","hachures":"o:hachure","cot":"o:cote","cotation":"o:cote","dim":"o:cote","dist":"a:mesurer","di":"a:mesurer","mesure":"a:mesurer","t":"o:gtexte","mt":"o:gtexte","mtexte":"o:gtexte","texte":"o:gtexte","fleche":"a:renvoi","leader":"a:renvoi","mleader":"a:renvoi","co":"a:dupliquer","cp":"a:dupliquer","copie":"a:dupliquer","copier":"a:dupliquer","ro":"a:tourner","rotation":"a:tourner","mi":"a:miroir","dec":"a:decaler","offset":"a:decaler","aj":"a:ajuster","trim":"a:ajuster","ex":"a:prolonger","extend":"a:prolonger","eff":"a:supprimer","effacer":"a:supprimer","e":"a:supprimer","erase":"a:supprimer","g":"a:grouper","group":"a:grouper","z":"a:entiere","zoom":"a:entiere","m":"o:main","pan":"o:main","calque":"a:calques","ca":"a:calques","la":"a:calques","qt":"a:quantites","3d":"a:v3d","enr":"a:enreg","save":"a:enreg","imprimer":"a:pdf","traceur":"a:pdf","plot":"a:pdf"};
 function cmdDispo(r){ var t=r.slice(0,2); if(t==="m:") return !!ICO_MOBR[r.slice(2)]; if(t==="o:") return !!boutonOutil(r.slice(2)); if(t==="a:") return !!ACTIONS[r.slice(2)]; if(t==="v:") return !!VUES_R[r.slice(2)]; if(t==="s:") return !!(window.SymbolesElec && SymbolesElec.trouver(r.slice(2))); return false; }
 function cmdAlias(r){ var l=[]; for(var k in CMD_ALIAS) if(CMD_ALIAS[k]===r && k.length<=4) l.push(k.toUpperCase()); return l.slice(0, 2).join(" "); }
