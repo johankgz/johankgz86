@@ -781,6 +781,8 @@ async function verifier(code, id, mdp) {
   const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
   /* le fondateur ne se connecte plus dans une société : il y entre depuis son compte */
   if (u && u.fondateur) return { refus: "Ce compte est celui du fondateur : connectez-vous avec le code société " + FONDATEUR + "." };
+  const socV = (await lireSocietes()).find((x) => x.code === code);
+  if (u && motDePasseJuste(u, mdp) && socV && socV.actif === false) return { refus: "Cette société est suspendue : la connexion est fermée." };
   if (u && motDePasseJuste(u, mdp)) {
     return { personne: personneDuCompte(code, u), compte: u };
   }
@@ -813,7 +815,11 @@ async function identifier(auth) {
   }
   const comptes = await lireComptes(code);
   const u = comptes.find((c) => String(c.identifiant).trim().toLowerCase() === id);
-  if (u && !u.fondateur && signer(code, id, ouverte, u) === signature) return personneDuCompte(code, u);
+  if (u && !u.fondateur && signer(code, id, ouverte, u) === signature) {
+    const soc = (await lireSocietes()).find((x) => x.code === code);
+    if (soc && soc.actif === false) return null;              /* société suspendue */
+    return personneDuCompte(code, u);
+  }
   /* le fondateur, entré dans cette société depuis son compte : son jeton est signé avec son propre compte */
   const fu = (await lireFondateurs()).find((c) => idDe(c) === id);
   if (fu && signer(code, id, ouverte, signatureFondateur(fu)) === signature) {
@@ -2501,9 +2507,52 @@ async function traiter(req) {
     const liste = await lireSocietes();
     const i = liste.findIndex((x) => x.code === code);
     if (i < 0) return json({ erreur: "Société inconnue." }, 404);
+    if (!actif && code === SOCIETE_DEPART.code) return json({ erreur: "La société de départ ne se suspend pas." }, 400);
     liste[i].actif = actif;
     await magasinAnnuaire().setJSON("societes.json", liste);
     return json({ ok: true });
+  }
+
+  /* ---------- supprimer une société : le fondateur seul, en tapant son code ----------
+     Tout part : la société de la liste, ses comptes, son en-tête, ses liens
+     clients et rendez-vous, et son magasin (chantiers, documents, photos,
+     fiches, discussions, Cloud). La société de départ ne se supprime pas. */
+  if (action === "societe-supprimer") {
+    if (req.method !== "POST") return json({ erreur: "Méthode non permise." }, 405);
+    if (!personne.fondateur) return json({ erreur: "Réservé au fondateur." }, 403);
+    let d;
+    try { d = await req.json(); } catch { return json({ erreur: "Requête illisible." }, 400); }
+    const code = String(d.code || "").trim().toLowerCase();
+    if (code === SOCIETE_DEPART.code || code === SOCIETE_DEMO.code || code === FONDATEUR) {
+      return json({ erreur: "Cette société ne se supprime pas." }, 400);
+    }
+    if (String(d.confirmation || "").trim().toLowerCase() !== code) return json({ erreur: "Tapez le code de la société pour confirmer." }, 400);
+    const a = magasinAnnuaire();
+    const liste = await lireSocietes();
+    const soc = liste.find((x) => x.code === code);
+    if (!soc) return json({ erreur: "Société introuvable." }, 404);
+    await a.setJSON("societes.json", liste.filter((x) => x.code !== code));
+    for (const k of ["comptes-" + code + ".json", "droits-v2-" + code + ".json", "fiches/" + code + ".json", "rdv-societe/" + code + ".json"]) {
+      try { await a.delete(k); } catch { /* déjà parti */ }
+    }
+    /* ses liens clients et ses rendez-vous en ligne */
+    for (const dossier of ["liens/", "rdv/"]) {
+      let l = { blobs: [] };
+      try { l = await a.list({ prefix: dossier }); } catch { l = { blobs: [] }; }
+      for (const b of l.blobs || []) {
+        let x = null;
+        try { x = await a.get(b.key, { type: "json" }); } catch { x = null; }
+        if (x && x.societe === code) { try { await a.delete(b.key); } catch { /* suivant */ } }
+      }
+    }
+    /* son magasin : tout ce qu'elle a mis sur le site */
+    const st = magasinSociete(code);
+    let n = 0;
+    try {
+      const l = await st.list();
+      for (const b of l.blobs || []) { try { await st.delete(b.key); n++; } catch { /* suivant */ } }
+    } catch { /* rien à effacer */ }
+    return json({ ok: true, code, fichiers: n });
   }
 
   if (action === "publier") {

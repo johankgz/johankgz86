@@ -417,6 +417,7 @@ h2.sec,.sec{color:var(--sur-fond-2)}
 .soc-carte .s-gens li span{color:var(--ink-3);font-size:12.5px}
 .soc-carte .s-act{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}
 .soc-carte .s-act .entrer{flex:1 1 100%}
+.soc-carte .s-act button:not(.entrer){flex:1 1 0;min-width:0;padding:0 8px}
 </style>
 <script src="./clavier.js?v=20261110a" defer></script>
 <script src="./horsligne.js?v=20261024b" defer></script>
@@ -708,7 +709,7 @@ function sauvegarder(tout, code, bouton){
   var e=(tout || code) ? $("errSite") : $("errSauvegarde"), b1=$("btnSauvegarde"), b2=$("btnSauvegardeTout");
   if(code && $("errFondateur")) e=$("errFondateur");
   e.className="err"; e.textContent="Préparation du fichier…"; b1.disabled=b2.disabled=true;
-  if(bouton){ bouton.disabled=true; bouton.textContent="Préparation…"; setTimeout(function(){ bouton.disabled=false; bouton.textContent="Tout télécharger"; }, 4000); }
+  if(bouton){ bouton.disabled=true; bouton.textContent="Préparation…"; setTimeout(function(){ bouton.disabled=false; bouton.textContent="Télécharger"; }, 4000); }
   fetch(api("export-ticket"), {method:"POST", headers:{"Content-Type":"application/json","x-auth":S.jeton}, body:JSON.stringify(code ? {code:code} : {tout:!!tout})})
     .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
     .then(function(res){
@@ -1204,6 +1205,36 @@ function entrerSociete(code, bouton){
     })
     .catch(function(){ e.textContent="Pas de réseau."; if(bouton){ bouton.disabled=false; bouton.textContent="Entrer dans la société"; } });
 }
+/* supprimer une société : tout part, sur confirmation, en tapant son code */
+function supprimerSociete(x, bouton){
+  var e=$("errFondateur");
+  if(!window.confirm("Supprimer définitivement « "+x.nom+" » ?\n\nTout sera effacé : ses comptes, ses chantiers, documents et photos, ses fiches, son en-tête, ses liens clients. Rien ne pourra être récupéré.\n\nSi besoin, faites d'abord « Tout télécharger ».")) return;
+  var t=window.prompt("Pour confirmer, tapez le code de la société : "+x.code);
+  if(t===null) return;
+  if(String(t).trim().toLowerCase()!==x.code){ e.textContent="Code différent : rien n'a été supprimé."; return; }
+  bouton.disabled=true; bouton.textContent="Suppression…";
+  fetch(api("societe-supprimer"), {method:"POST", headers:tetes(), body:JSON.stringify({code:x.code, confirmation:t})})
+    .then(function(r){ return r.json().then(function(d){ return {ok:r.ok, d:d}; }); })
+    .then(function(res){
+      if(!res.ok){ e.textContent=res.d.erreur||"Suppression refusée."; bouton.disabled=false; bouton.textContent="Supprimer"; return; }
+      try{ if(localStorage.getItem("fondateur:societe")===x.code) localStorage.removeItem("fondateur:societe"); }catch(err){}
+      e.className="err ok"; e.textContent="« "+x.nom+" » est supprimée.";
+      /* on était dedans : retour au compte fondateur seul */
+      if(MOI && MOI.societe===x.code){ revenirAuCompte(); return; }
+      chargerSocietesFondateur();
+    })
+    .catch(function(){ e.textContent="Pas de réseau."; bouton.disabled=false; bouton.textContent="Supprimer"; });
+}
+function revenirAuCompte(){
+  fetch(api("fondateur-entrer"), {method:"POST", headers:tetes(), body:JSON.stringify({code:"360"})})
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if(!d.jeton) return;
+      var n={jeton:d.jeton, nom:d.nom, role:d.role, societe:"360", societeNom:d.societeNom||"", metier:"", ville:"", proprietaire:true, fondateur:true, demo:false};
+      try{ localStorage.setItem("outils:session", JSON.stringify(n)); }catch(err){}
+      location.replace("./equipe.html?onglet=compte");
+    }).catch(function(){});
+}
 function chargerSocietesFondateur(){
   fetch(api("fondateur-societes"), {headers:{"x-auth":S.jeton}})
     .then(function(r){ return r.ok ? r.json() : Promise.reject(); })
@@ -1239,8 +1270,8 @@ function chargerSocietesFondateur(){
         var en=document.createElement("button"); en.type="button"; en.className="act blue entrer";
         en.textContent = ici ? "Ouvrir son accueil" : "Entrer dans la société";
         en.addEventListener("click", function(){ if(ici){ location.href="./index.html"; return; } entrerSociete(x.code, en); });
-        var dl=document.createElement("button"); dl.type="button"; dl.className="act ghost"; dl.textContent="Tout télécharger";
-        dl.title="Toutes les données de "+x.nom+", en un fichier ZIP";
+        var dl=document.createElement("button"); dl.type="button"; dl.className="act ghost"; dl.textContent="Télécharger";
+        dl.title="Tout télécharger : toutes les données de "+x.nom+", en un fichier ZIP";
         dl.addEventListener("click", function(){ sauvegarder(false, x.code, dl); });
         var et=document.createElement("button"); et.type="button"; et.className="act"+(x.actif ? " danger" : " ghost");
         et.textContent = x.actif ? "Suspendre" : "Réactiver";
@@ -1249,7 +1280,12 @@ function chargerSocietesFondateur(){
           fetch(api("societe-etat")+"&code="+encodeURIComponent(x.code)+"&actif="+(x.actif ? "non" : "oui"), {headers:{"x-auth":S.jeton}})
             .then(function(){ chargerSocietesFondateur(); }).catch(function(){});
         });
-        act.appendChild(en); act.appendChild(dl); act.appendChild(et);
+        var su=document.createElement("button"); su.type="button"; su.className="act danger"; su.textContent="Supprimer";
+        su.title="Supprimer "+x.nom+" et toutes ses données";
+        su.addEventListener("click", function(){ supprimerSociete(x, su); });
+        /* la société de départ (TLE) ne se suspend ni ne se supprime */
+        if(x.code==="tle"){ et.hidden=true; su.hidden=true; }
+        act.appendChild(en); act.appendChild(dl); act.appendChild(et); act.appendChild(su);
         c.appendChild(act);
         host.appendChild(c);
       });
